@@ -1,691 +1,821 @@
-import { useEffect, useState, useCallback } from 'react'
+
+function OneOffStudent({ displayStudents, onAdd, date }) {
+  const [search, setSearch] = useState('')
+  const [results, setResults] = useState([])
+  const [added, setAdded] = useState([])
+
+  useEffect(() => {
+    if (search.length < 2) { setResults([]); return }
+    const t = setTimeout(async () => {
+      const { data: memberData } = await supabase
+        .from('members').select('id, first_name, last_name')
+        .or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%`).limit(8)
+      if (!memberData?.length) { setResults([]); return }
+      const { data: stuData } = await supabase
+        .from('students').select('id, student_ref, pka_belt, house_name, member_id, members(first_name, last_name, houses(name))')
+        .in('member_id', memberData.map(m => m.id))
+      // Filter out students already in register
+      const existing = new Set(displayStudents.map(s => s.id))
+      const filtered = (stuData || []).filter(s => !existing.has(s.id) && !added.includes(s.id))
+      setResults(filtered.map(s => ({ ...s, members: memberData.find(m => m.id === s.member_id) || s.members })))
+    }, 200)
+    return () => clearTimeout(t)
+  }, [search, displayStudents, added])
+
+  return (
+    <div style={{ marginTop: 16 }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
+        Add one-off student to this session
+      </div>
+      <div style={{ position: 'relative' }}>
+        <input value={search} onChange={e => setSearch(e.target.value)}
+          placeholder="Search name to add for this session only…"
+          style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+        {results.length > 0 && (
+          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', zIndex: 20, boxShadow: 'var(--shadow)', maxHeight: 200, overflowY: 'auto' }}>
+            {results.map(s => (
+              <button key={s.id} onClick={() => {
+                onAdd(s)
+                setAdded(prev => [...prev, s.id])
+                setSearch('')
+                setResults([])
+              }} style={{
+                display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                padding: '10px 12px', fontSize: 13, border: 'none',
+                borderBottom: '1px solid var(--border)', background: 'none',
+                cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font-sans)', color: 'var(--text)',
+              }}>
+                <span style={{ fontWeight: 500 }}>{s.members?.first_name} {s.members?.last_name}</span>
+                <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{s.student_ref}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+import { useEffect, useState, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 
-function SortTh({ children, col, sortKey, sortDir, onSort, style = {} }) {
+const HOUSE_COLOURS = {
+  'Dragon House': '#E24B4A', 'Super House': '#378ADD',
+  'Ice House': '#1D9E75', 'Jet House': '#EF9F27',
+}
+
+const REGISTER_TYPES = [
+  { key: 'class',  label: 'Class',  discipline: 'PKA'  },
+  { key: 'kr',     label: 'KR',     discipline: 'PKA'  },
+  { key: 'pts',    label: 'PTs',    discipline: 'PKA'  },
+  { key: 'leader', label: 'Leader', discipline: 'PKA'  },
+  { key: 'krba',   label: 'KRBA',   discipline: 'KRBA' },
+  { key: 'adhoc',  label: 'Adhoc',  discipline: 'PKA'  },
+]
+
+function SortTh({ col, label, sortKey, sortDir, onSort, style = {} }) {
   const active = sortKey === col
   return (
-    <th onClick={() => onSort(col)} style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', color: active ? 'var(--text)' : undefined, ...style }}>
-      {children}<span style={{ marginLeft: 4, fontSize: 9, opacity: active ? 1 : 0.4 }}>{active ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}</span>
+    <th onClick={() => onSort(col)} style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', ...style }}>
+      {label}<span style={{ marginLeft: 4, fontSize: 9, opacity: active ? 1 : 0.35 }}>{active ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}</span>
     </th>
   )
 }
 
-const HOUSE_COLOURS = {
-  'Dragon House': '#E24B4A',
-  'Super House':  '#378ADD',
-  'Ice House':    '#1D9E75',
-  'Jet House':    '#EF9F27',
-}
-const HOUSE_BG = {
-  'Dragon House': '#fcebeb',
-  'Super House':  '#e6f1fb',
-  'Ice House':    '#e1f5ee',
-  'Jet House':    '#faeeda',
-}
-
-const TABS = ['House league', 'Individual', 'Student house', 'Score check', 'Points log']
-
-export default function LeagueViews() {
+export default function Registers() {
   const { isAdmin } = useAuth()
-  const [tab, setTab] = useState('House league')
-
-  // Date filter — default current season
-  const [dateFrom, setDateFrom] = useState(() => {
-    const d = new Date(); d.setMonth(d.getMonth() - 3)
-    return d.toISOString().split('T')[0]
+  const navigate = useNavigate()
+  const [regType, setRegType]           = useState('class')
+  const [date, setDate]                 = useState(new Date().toISOString().split('T')[0])
+  const [classFilter, setClassFilter]   = useState('all')
+  const [students, setStudents]         = useState([])
+  const [todayClasses, setTodayClasses] = useState([])
+  const [derbyMooreClasses, setDerbyMooreClasses] = useState([])
+  const [moorwaysClasses, setMoorwaysClasses] = useState([])
+  const [loading, setLoading]           = useState(true)
+  const [pointTypes, setPointTypes]     = useState([])
+  const [awardingFor, setAwardingFor]   = useState(null)
+  const [multiAward, setMultiAward]     = useState(false)
+  const [selectedStudents, setSelectedStudents] = useState([])
+  const [selectedPoints, setSelectedPoints]     = useState([])
+  const [customLabel, setCustomLabel]           = useState('')
+  const [customPoints, setCustomPoints]         = useState('')
+  const [saving, setSaving]             = useState(false)
+  const [contactModal, setContactModal] = useState(null)
+  const [attendance, setAttendance]     = useState({})
+  const [search, setSearch]             = useState('')
+  const [sortKey, setSortKey]           = useState('first_name')
+  const [sortDir, setSortDir]           = useState('asc')
+  // Adhoc register
+  const [adhocSearch, setAdhocSearch]   = useState('')
+  const [adhocResults, setAdhocResults] = useState([])
+  const [adhocPills, setAdhocPills]     = useState([]) // { id, name, student_ref }
+  const tableRef = useRef(null)
+  const [showColPicker, setShowColPicker] = useState(false)
+  const [visibleCols, setVisibleCols] = useState(() => {
+    const saved = localStorage.getItem('register_cols')
+    return saved ? JSON.parse(saved) : ['checkbox','student_ref','name','age','house','grade','groups','attendance','media','points']
   })
-  const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
-  const [classFilter, setClassFilter] = useState('All')
 
-  // Data
-  const [houseStandings, setHouseStandings] = useState([])
-  const [individualRankings, setIndividualRankings] = useState([])
-  const [houses, setHouses] = useState([])
-  const [pointsLog, setPointsLog] = useState([])
-  const [indivSortKey, setIndivSortKey] = useState('total')
-  const [topN, setTopN] = useState(50)
-  const [indivSortDir, setIndivSortDir] = useState('desc')
-  const [logSortKey, setLogSortKey] = useState('awarded_at')
-  const [logSortDir, setLogSortDir] = useState('desc')
-  const [houseLogFilter, setHouseLogFilter] = useState('')
-  const [typeLogFilter, setTypeLogFilter] = useState('')
-  const [loading, setLoading] = useState(true)
+  const ALL_REG_COLS = [
+    { key: 'checkbox',    label: 'Select' },
+    { key: 'student_ref', label: 'ID' },
+    { key: 'name',        label: 'Name' },
+    { key: 'age',         label: 'Age' },
+    { key: 'house',       label: 'House' },
+    { key: 'grade',       label: 'Grade' },
+    { key: 'class_time',  label: 'Class time' },
+    { key: 'groups',      label: 'Groups' },
+    { key: 'attendance',  label: 'Attend.' },
+    { key: 'champ',       label: '🏆' },
+    { key: 'media',       label: 'Media' },
+    { key: 'points',      label: 'Pts' },
+  ]
 
-  // Score check
-  const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState([])
-  const [searching, setSearching] = useState(false)
+  function toggleRegCol(key) {
+    setVisibleCols(prev => {
+      const next = prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+      localStorage.setItem('register_cols', JSON.stringify(next))
+      return next
+    })
+  }
 
-  // Edit points
-  const [editingPoint, setEditingPoint] = useState(null)
-  const [editVal, setEditVal] = useState('')
-  const [saving, setSaving] = useState(false)
+  useEffect(() => { loadPointTypes() }, [])
+  useEffect(() => { loadStudents() }, [regType, date])
 
-  const CLASS_OPTIONS = ['All', 'Class', 'PTs', 'KR', 'Leader', 'KRBA']
+  async function loadPointTypes() {
+    const { data } = await supabase.from('settings').select('value').eq('key', 'point_types').single()
+    setPointTypes(data?.value || [])
+  }
 
-  useEffect(() => { loadAll() }, [dateFrom, dateTo, classFilter])
-
-  async function loadAll() {
+  async function loadStudents() {
     setLoading(true)
-    const { data: houseData } = await supabase.from('houses').select('*').order('points', { ascending: false })
-    setHouses(houseData || [])
-    await Promise.all([loadHouseStandings(), loadIndividual(), loadPointsLog()])
+    const disc = REGISTER_TYPES.find(r => r.key === regType)?.discipline || 'PKA'
+    let query = supabase
+      .from('students')
+      .select('*, members(first_name, last_name, phone, email, date_of_birth, houses(name))')
+
+    if (regType === 'krba')        query = query.eq('discipline', 'KRBA')
+    else if (regType === 'kr')     query = query.eq('discipline', 'PKA').eq('is_kr', true)
+    else if (regType === 'pts')    query = query.eq('discipline', 'PKA').eq('is_pts', true)
+    else if (regType === 'leader') query = query.eq('discipline', 'PKA').eq('is_leader', true)
+    else if (regType === 'adhoc')  { setLoading(false); return }
+    else                           query = query.eq('discipline', 'PKA')
+
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+    const dow = dayNames[new Date(date + 'T12:00:00').getDay()]
+    const isMonFri = dow === 'Mon' || dow === 'Fri'
+    const isTueThu = dow === 'Tue' || dow === 'Thu'
+
+    const { data: allClasses } = await supabase
+      .from('classes').select('*').eq('discipline', disc).eq('active', true).order('start_time')
+
+    // Match classes for today by actual day_of_week (handles Mon/Fri, Tue/Thu groups too)
+    const fullDayMap = { Sun:'Sunday',Mon:'Monday',Tue:'Tuesday',Wed:'Wednesday',Thu:'Thursday',Fri:'Friday',Sat:'Saturday' }
+    const fullDay = fullDayMap[dow] || dow
+    const matchesToday = (c) => {
+      if (c.day_of_week === 'Mon/Fri')  return isMonFri
+      if (c.day_of_week === 'Tue/Thu')  return isTueThu
+      if (c.day_of_week === 'Saturday' || c.day_of_week === 'Sat') return dow === 'Sat'
+      if (c.day_of_week === 'Sunday'   || c.day_of_week === 'Sun') return dow === 'Sun'
+      return c.day_of_week === dow || c.day_of_week === fullDay
+    }
+
+    const allToday = (allClasses || []).filter(matchesToday)
+    // Separate Derby Moore and Moorways venue classes from main KR Centre classes (matched by name, not day field)
+    const derbyMoore = allToday.filter(c => c.name?.toLowerCase().includes('derby moore'))
+    const moorways   = allToday.filter(c => c.name?.toLowerCase().includes('moorway'))
+    const todayFiltered = allToday.filter(c => !derbyMoore.includes(c) && !moorways.includes(c))
+
+    setTodayClasses(todayFiltered)
+    setDerbyMooreClasses(derbyMoore)
+    setMoorwaysClasses(moorways)
+    setClassFilter('all')
+    setAttendance({})
+    setSelectedStudents([])
+
+    const { data } = await query
+    setStudents(data || [])
+
+    // Load today's check-ins from attendance table
+    const { data: todayAtt } = await supabase
+      .from('attendance')
+      .select('student_id, attendance_type')
+      .eq('session_date', date)
+    
+    if (todayAtt?.length) {
+      const attMap = {}
+      todayAtt.forEach(a => { attMap[a.student_id] = a.attendance_type === 'full_kit' ? 'full_kit' : 'attended' })
+      setAttendance(attMap)
+    }
     setLoading(false)
   }
 
-  async function loadHouseStandings() {
-    // Fetch points_log, students, and members SEPARATELY to avoid unreliable nested joins
-    const [{ data: ptsData }, { data: studentsData }, { data: housesData }] = await Promise.all([
-      supabase.from('points_log')
-        .select('points_awarded, point_scope, student_id')
-        .gte('awarded_at', dateFrom)
-        .lte('awarded_at', dateTo + 'T23:59:59')
-        .in('point_scope', ['house', 'both']),
-      supabase.from('students').select('id, house_name, member_id, members(houses(name))'),
-      supabase.from('houses').select('name, points, members(count)'),
-    ])
-
-    // Build student → house lookup
-    const studentHouseMap = {}
-    for (const s of (studentsData || [])) {
-      studentHouseMap[s.id] = s.members?.houses?.name || s.house_name || null
-    }
-
-    // Aggregate points by house
-    const totals = {}
-    for (const row of (ptsData || [])) {
-      const house = studentHouseMap[row.student_id]
-      if (!house) continue
-      if (!totals[house]) totals[house] = 0
-      totals[house] += row.points_awarded || 0
-    }
-
-    const merged = (housesData || []).map(h => ({
-      ...h,
-      sessionPoints: totals[h.name] || 0,
-      memberCount: h.members?.[0]?.count || 0,
-    })).sort((a, b) => b.sessionPoints - a.sessionPoints)
-      .map((h, i) => ({ ...h, rank: i + 1 }))
-
-    setHouseStandings(merged)
-  }
-
-  async function loadIndividual() {
-    const [{ data: ptsData }, { data: studentsData }] = await Promise.all([
-      supabase.from('points_log')
-        .select('points_awarded, point_scope, point_type, student_id')
-        .gte('awarded_at', dateFrom)
-        .lte('awarded_at', dateTo + 'T23:59:59'),
-      supabase.from('students')
-        .select('id, student_ref, class_champion_count, house_name, member_id, members(first_name, last_name, date_of_birth, houses(name))'),
-    ])
-    if (!ptsData) return
-
-    // Build student lookup
-    const studentMap = {}
-    for (const s of (studentsData || [])) {
-      const m = s.members
-      studentMap[s.id] = {
-        ref: s.student_ref,
-        name: `${m?.first_name || ''} ${m?.last_name || ''}`.trim(),
-        house: m?.houses?.name || s.house_name || '',
-        champCount: s.class_champion_count || 0,
-        dob: m?.date_of_birth,
-      }
-    }
-
-    // Aggregate by student
-    const map = {}
-    for (const row of ptsData) {
-      const sid = row.student_id
-      if (!sid) continue
-      const info = studentMap[sid] || { ref: '', name: '', house: '', champCount: 0, dob: null }
-      if (!map[sid]) {
-        map[sid] = {
-          id: sid,
-          ref: info.ref,
-          name: info.name,
-          house: info.house,
-          champCount: info.champCount,
-          dob: info.dob,
-          housePoints: 0,
-          individualPoints: 0,
-          total: 0,
-          sessions: 0,
-        }
-      }
-      if (row.point_scope === 'house' || row.point_scope === 'both') map[sid].housePoints += row.points_awarded || 0
-      if (row.point_scope === 'individual' || row.point_scope === 'both') map[sid].individualPoints += row.points_awarded || 0
-      map[sid].total += row.points_awarded || 0
-      map[sid].sessions++
-    }
-
-    const ranked = Object.values(map)
-      .sort((a, b) => b.total - a.total)
-      .map((s, i) => ({ ...s, rank: i + 1 }))
-
-    setIndividualRankings(ranked)
-  }
-
-  async function loadPointsLog() {
-    const [{ data: logData }, { data: studentsData }] = await Promise.all([
-      supabase.from('points_log')
-        .select('*')
-        .gte('awarded_at', dateFrom)
-        .lte('awarded_at', dateTo + 'T23:59:59')
-        .order('awarded_at', { ascending: false })
-        .limit(100),
-      supabase.from('students')
-        .select('id, student_ref, house_name, member_id, members(first_name, last_name, houses(name))'),
-    ])
-
-    // Build student lookup
-    const studentMap = {}
-    for (const s of (studentsData || [])) {
-      const m = s.members
-      studentMap[s.id] = {
-        student_ref: s.student_ref,
-        members: {
-          first_name: m?.first_name || '',
-          last_name: m?.last_name || '',
-          houses: { name: m?.houses?.name || s.house_name || '' },
-        },
-      }
-    }
-
-    // Attach student info to each log row in the SAME shape as before (students.members.houses.name)
-    // so existing rendering code keeps working without further changes
-    const enriched = (logData || []).map(row => ({
-      ...row,
-      students: studentMap[row.student_id] || { student_ref: '', members: { first_name: '', last_name: '', houses: { name: '' } } },
-    }))
-
-    setPointsLog(enriched)
-  }
-
-  async function searchStudent() {
-    if (!searchQuery.trim()) return
-    setSearching(true)
-    const q = searchQuery.trim().toLowerCase()
-
-    const { data } = await supabase
-      .from('students')
-      .select('*, members(first_name, last_name, houses(name))')
-      .or(`student_ref.ilike.%${q}%`)
-      .limit(10)
-
-    // Also search by name
-    const { data: byName } = await supabase
-      .from('members')
-      .select('*, students(*, members(first_name, last_name, houses(name)))')
-      .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%`)
-      .limit(10)
-
-    const studentIds = [...(data || []).map(s => s.id)]
-    if (byName) {
-      for (const m of byName) {
-        for (const s of (m.students || [])) {
-          if (!studentIds.includes(s.id)) studentIds.push(s.id)
-        }
-      }
-    }
-
-    if (studentIds.length === 0) { setSearchResults([]); setSearching(false); return }
-
-    // Get points for found students within date range
-    const { data: pts } = await supabase
-      .from('points_log')
-      .select('*, students(student_ref, members(first_name, last_name, houses(name)))')
-      .in('student_id', studentIds)
-      .gte('awarded_at', dateFrom)
-      .lte('awarded_at', dateTo + 'T23:59:59')
-      .order('awarded_at', { ascending: false })
-
-    setSearchResults(pts || [])
-    setSearching(false)
-  }
-
-  async function saveEditPoint() {
-    setSaving(true)
-    await supabase.from('points_log').update({ points_awarded: parseInt(editVal) }).eq('id', editingPoint.id)
-    setEditingPoint(null)
-    await loadAll()
-    setSaving(false)
-  }
-
-  async function deletePoint(id) {
-    if (!confirm('Delete this points entry?')) return
-    await supabase.from('points_log').delete().eq('id', id)
-    await loadAll()
+  function toggleSort(key) {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('asc') }
   }
 
   function calcAge(dob) {
-    if (!dob) return ''
+    if (!dob) return '—'
     return Math.floor((Date.now() - new Date(dob)) / (365.25 * 24 * 60 * 60 * 1000))
   }
 
-  const RANK_MEDAL = ['🥇', '🥈', '🥉']
+  const selectedClass = todayClasses.find(c => c.id === classFilter)
+    || derbyMooreClasses.find(c => c.id === classFilter)
+    || moorwaysClasses.find(c => c.id === classFilter)
 
-  function toggleIndiv(key) {
-    if (indivSortKey === key) setIndivSortDir(d => d === 'asc' ? 'desc' : 'asc')
-    else { setIndivSortKey(key); setIndivSortDir('asc') }
-  }
-  function toggleLog(key) {
-    if (logSortKey === key) setLogSortDir(d => d === 'asc' ? 'desc' : 'asc')
-    else { setLogSortKey(key); setLogSortDir('asc') }
-  }
-
-  const sortedIndiv = [...individualRankings].sort((a, b) => {
-    const aVal = a[indivSortKey] ?? 0
-    const bVal = b[indivSortKey] ?? 0
-    if (typeof aVal === 'number') return indivSortDir === 'asc' ? aVal - bVal : bVal - aVal
-    return indivSortDir === 'asc' ? String(aVal).localeCompare(String(bVal)) : String(bVal).localeCompare(String(aVal))
-  }).slice(0, topN)
-
-  const filteredLog = pointsLog
-    .filter(r => !houseLogFilter || r.students?.members?.houses?.name === houseLogFilter)
-    .filter(r => !typeLogFilter || r.point_type === typeLogFilter)
+  const displayStudents = (regType === 'adhoc' ? adhocPills.map(p => students.find(s => s.id === p.id)).filter(Boolean) : students)
+    .filter(s => {
+      if (classFilter === 'all') return true
+      if (!selectedClass) return true
+      const classStart = selectedClass.start_time?.slice(0, 5)
+      // Match by time AND (class name OR day_of_week) — handles venue-named classes like Moorways/Derby Moore
+      // where students have class_schedule = class name, not the calendar day
+      const nameMatches = s.class_schedule === selectedClass.name || s.class_schedule === selectedClass.day_of_week
+      return s.class_time === classStart && nameMatches
+    })
+    .filter(s => {
+      if (!search) return true
+      const q = search.toLowerCase()
+      return `${s.members?.first_name} ${s.members?.last_name} ${s.student_ref}`.toLowerCase().includes(q)
+    })
     .sort((a, b) => {
-      const aVal = a[logSortKey] || ''
-      const bVal = b[logSortKey] || ''
-      if (logSortKey === 'points_awarded') return logSortDir === 'asc' ? (a.points_awarded||0) - (b.points_awarded||0) : (b.points_awarded||0) - (a.points_awarded||0)
-      return logSortDir === 'asc' ? String(aVal).localeCompare(String(bVal)) : String(bVal).localeCompare(String(aVal))
+      let aVal, bVal
+      const am = a.members, bm = b.members
+      switch(sortKey) {
+        case 'first_name':   aVal = am?.first_name || ''; bVal = bm?.first_name || ''; break
+        case 'last_name':    aVal = am?.last_name || '';  bVal = bm?.last_name || '';  break
+        case 'first_name':   aVal = am?.first_name || ''; bVal = bm?.first_name || ''; break
+        case 'age':          aVal = am?.date_of_birth || ''; bVal = bm?.date_of_birth || ''; break
+        case 'house':        aVal = am?.houses?.name || ''; bVal = bm?.houses?.name || ''; break
+        case 'grade':        aVal = a.pka_belt || ''; bVal = b.pka_belt || ''; break
+        case 'house_points': aVal = a.house_points || 0; bVal = b.house_points || 0; return sortDir === 'asc' ? aVal - bVal : bVal - aVal
+        default:             aVal = ''; bVal = ''
+      }
+      return sortDir === 'asc' ? String(aVal).localeCompare(String(bVal)) : String(bVal).localeCompare(String(aVal))
     })
 
-  const allHouses = [...new Set(pointsLog.map(r => r.students?.members?.houses?.name).filter(Boolean))].sort()
-  const allTypes  = [...new Set(pointsLog.map(r => r.point_type).filter(Boolean))].sort()
+  // Adhoc search
+  useEffect(() => {
+    if (adhocSearch.length < 2) { setAdhocResults([]); return }
+    const timer = setTimeout(async () => {
+      const { data } = await supabase
+        .from('students')
+        .select('id, student_ref, members(first_name, last_name)')
+        .ilike('members.last_name', `%${adhocSearch}%`)
+        .limit(8)
+      setAdhocResults((data || []).filter(s => !adhocPills.find(p => p.id === s.id)))
+    }, 200)
+    return () => clearTimeout(timer)
+  }, [adhocSearch, adhocPills])
+
+  function addAdhoc(s) {
+    setAdhocPills(prev => [...prev, { id: s.id, name: `${s.members?.first_name} ${s.members?.last_name}`, student_ref: s.student_ref }])
+    // Also add to students array if not there
+    setStudents(prev => prev.find(x => x.id === s.id) ? prev : [...prev, s])
+    setAdhocSearch(''); setAdhocResults([])
+  }
+
+  function removeAdhoc(id) {
+    setAdhocPills(prev => prev.filter(p => p.id !== id))
+  }
+
+  async function toggleAttendance(id) {
+    setAttendance(prev => {
+      const cur = prev[id] || 'none'
+      const next = cur === 'none' ? 'attended' : cur === 'attended' ? 'full_kit' : 'none'
+      // Save to attendance table
+      if (next !== 'none') {
+        supabase.from('attendance').insert({
+          student_id: id,
+          present: true,
+          attendance_type: next,
+          session_date: date,
+          attended_at: new Date(date + 'T12:00:00').toISOString(),
+        }).then(() => {})
+      }
+      return { ...prev, [id]: next }
+    })
+  }
+
+  async function markAttendance(type) {
+    if (selectedStudents.length === 0) return
+    setSaving(true)
+
+    const targets = displayStudents.filter(s => selectedStudents.includes(s.id))
+    const newAtt = {}
+
+    // Find matching point type for this attendance type
+    const pointLabel = type === 'full_kit' ? 'Full Kit' : 'Attendance'
+    const pt = pointTypes.find(p => p.label === pointLabel)
+    const pts = pt ? pt.points : (type === 'full_kit' ? 2 : 1)
+
+    for (const s of targets) {
+      newAtt[s.id] = type
+
+      // Log to attendance table
+      await supabase.from('attendance').insert({
+        student_id: s.id,
+        present: true,
+        late: false,
+        attendance_type: type,
+        session_date: date,
+        attended_at: new Date(date + 'T12:00:00').toISOString(),
+      })
+
+      // Award points
+      await supabase.from('points_log').insert({
+        student_id: s.id, point_type: pointLabel,
+        points_awarded: pts, point_scope: 'both',
+        awarded_at: new Date(date).toISOString(),
+      })
+      await supabase.from('students').update({
+        house_points: (s.house_points || 0) + pts,
+        individual_points: (s.individual_points || 0) + pts,
+      }).eq('id', s.id)
+
+      const houseName = s.members?.houses?.name
+      if (houseName) {
+        const { data: house } = await supabase.from('houses').select('points').eq('name', houseName).single()
+        if (house) await supabase.from('houses').update({ points: (house.points || 0) + pts }).eq('name', houseName)
+      }
+    }
+
+    setAttendance(prev => ({ ...prev, ...newAtt }))
+    setStudents(prev => prev.map(s =>
+      selectedStudents.includes(s.id)
+        ? { ...s, house_points: (s.house_points || 0) + pts, individual_points: (s.individual_points || 0) + pts }
+        : s
+    ))
+    setSelectedStudents([])
+    setSaving(false)
+  }
+
+  async function submitPoints(studentIds, points) {
+    setSaving(true)
+    const total = points.reduce((s, p) => s + p.points, 0)
+    const isChamp = points.some(p => p.label === 'Class Champ')
+    for (const sid of studentIds) {
+      const s = students.find(x => x.id === sid)
+      if (!s) continue
+      for (const pt of points) {
+        await supabase.from('points_log').insert({
+          student_id: sid, point_type: pt.label,
+          points_awarded: pt.points, point_scope: 'both',
+          awarded_at: new Date(date).toISOString(),
+        })
+      }
+      const updates = {
+        house_points: (s.house_points || 0) + total,
+        individual_points: (s.individual_points || 0) + total,
+      }
+      if (isChamp) updates.class_champion_count = (s.class_champion_count || 0) + 1
+      await supabase.from('students').update(updates).eq('id', sid)
+      const houseName = s.members?.houses?.name
+      if (houseName && total > 0) {
+        const { data: house } = await supabase.from('houses').select('points').eq('name', houseName).single()
+        if (house) await supabase.from('houses').update({ points: (house.points || 0) + total }).eq('name', houseName)
+      }
+    }
+    setStudents(prev => prev.map(s =>
+      studentIds.includes(s.id)
+        ? { ...s, house_points: (s.house_points || 0) + total, individual_points: (s.individual_points || 0) + total }
+        : s
+    ))
+    setAwardingFor(null); setMultiAward(false); setSelectedStudents([]); setSelectedPoints([])
+    setSaving(false)
+  }
+
+  function togglePoint(pt) {
+    setSelectedPoints(prev =>
+      prev.find(p => p.label === pt.label) ? prev.filter(p => p.label !== pt.label) : [...prev, pt]
+    )
+  }
+
+  const pointsTotal = selectedPoints.reduce((s, p) => s + p.points, 0)
+  const isKR = regType === 'kr'
 
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
+    <div onClick={e => {
+      if (!e.target.closest('tr') && !e.target.closest('button') && !e.target.closest('input') && !e.target.closest('select'))
+        setSelectedStudents([])
+    }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
         <div className="page-header" style={{ marginBottom: 0 }}>
-          <h1>League</h1>
-          <p>Points standings across all classes</p>
+          <h1>Registers</h1>
+          <p>{displayStudents.length} students · {new Date(date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <a href="/league-public" target="_blank" rel="noreferrer" className="btn btn-sm">
-            🔗 Public view
-          </a>
-          <button className="btn btn-sm" onClick={() => { navigator.clipboard.writeText(window.location.origin + '/league-public'); alert('Public league link copied!') }}>
-            Share league
-          </button>
+          <button className="btn btn-sm" onClick={() => setShowColPicker(v => !v)}>⚙️ Columns</button>
+          <input type="date" value={date} onChange={e => setDate(e.target.value)}
+            style={{ padding: '7px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
         </div>
       </div>
 
-      {/* Date filter bar */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', padding: '6px 10px' }}>
-          <span style={{ fontSize: 11, color: 'var(--text-secondary)', flexShrink: 0 }}>From</span>
-          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-            style={{ border: 'none', background: 'transparent', fontSize: 13, color: 'var(--text)', outline: 'none' }} />
+      {/* Column picker */}
+      {showColPicker && (
+        <div className="card" style={{ marginBottom: 10, padding: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Show / hide columns</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {ALL_REG_COLS.map(c => (
+              <button key={c.key} onClick={() => toggleRegCol(c.key)} style={{
+                padding: '4px 10px', borderRadius: 20, fontSize: 11, cursor: 'pointer',
+                border: `1px solid ${visibleCols.includes(c.key) ? 'var(--text)' : 'var(--border-strong)'}`,
+                background: visibleCols.includes(c.key) ? 'var(--text)' : 'var(--bg)',
+                color: visibleCols.includes(c.key) ? 'var(--bg)' : 'var(--text-secondary)',
+              }}>{c.label}</button>
+            ))}
+          </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', padding: '6px 10px' }}>
-          <span style={{ fontSize: 11, color: 'var(--text-secondary)', flexShrink: 0 }}>To</span>
-          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-            style={{ border: 'none', background: 'transparent', fontSize: 13, color: 'var(--text)', outline: 'none' }} />
-        </div>
-        <select value={classFilter} onChange={e => setClassFilter(e.target.value)}
-          style={{ padding: '7px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', background: 'var(--bg)', fontSize: 13, color: 'var(--text)' }}>
-          {CLASS_OPTIONS.map(c => <option key={c}>{c}</option>)}
-        </select>
-        {/* Quick range buttons */}
-        {[
-          { label: 'This week',  days: 7 },
-          { label: 'This month', days: 30 },
-          { label: 'This term',  days: 90 },
-          { label: 'This year',  days: 365 },
-        ].map(r => (
-          <button key={r.label} className="btn btn-sm" onClick={() => {
-            const from = new Date(); from.setDate(from.getDate() - r.days)
-            setDateFrom(from.toISOString().split('T')[0])
-            setDateTo(new Date().toISOString().split('T')[0])
+      )}
+
+      {/* Register tabs */}
+      <div style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
+        {REGISTER_TYPES.map(r => (
+          <button key={r.key} onClick={() => setRegType(r.key)} style={{
+            padding: '8px 14px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
+            borderBottom: `2px solid ${regType === r.key ? 'var(--text)' : 'transparent'}`,
+            color: regType === r.key ? 'var(--text)' : 'var(--text-secondary)',
+            fontWeight: regType === r.key ? 500 : 400,
           }}>{r.label}</button>
         ))}
       </div>
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 16 }}>
-        {TABS.map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{
-            padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
-            borderBottom: `2px solid ${tab === t ? 'var(--text)' : 'transparent'}`,
-            color: tab === t ? 'var(--text)' : 'var(--text-secondary)',
-            fontWeight: tab === t ? 500 : 400,
-          }}>{t}</button>
-        ))}
+      {/* Adhoc register */}
+      {regType === 'adhoc' && (
+        <div className="card" style={{ marginBottom: 12 }}>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 10 }}>Build a custom register — search and add students</p>
+          <div style={{ position: 'relative' }}>
+            <input value={adhocSearch} onChange={e => setAdhocSearch(e.target.value)}
+              placeholder="Search student name…"
+              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+            {adhocResults.length > 0 && (
+              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', zIndex: 20, boxShadow: 'var(--shadow)' }}>
+                {adhocResults.map(s => (
+                  <button key={s.id} onClick={() => addAdhoc(s)} style={{
+                    display: 'block', width: '100%', padding: '9px 12px', fontSize: 13,
+                    border: 'none', borderBottom: '1px solid var(--border)', background: 'none',
+                    cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font-sans)', color: 'var(--text)',
+                  }}>{s.members?.first_name} {s.members?.last_name} <span style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>{s.student_ref}</span></button>
+                ))}
+              </div>
+            )}
+          </div>
+          {adhocPills.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+              {adhocPills.map(p => (
+                <span key={p.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 20, padding: '4px 10px', fontSize: 12 }}>
+                  {p.name}
+                  <button onClick={() => removeAdhoc(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 14, padding: 0, lineHeight: 1 }}>×</button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Class time pills — KR Centre classes, with Derby Moore nested under, Moorways nested under Derby Moore */}
+      {(todayClasses.length > 0 || derbyMooreClasses.length > 0 || moorwaysClasses.length > 0) && (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {todayClasses.map(c => (
+              <div key={c.id} onClick={() => setClassFilter(c.id)} style={{
+                background: classFilter === c.id ? 'var(--text)' : 'var(--bg-secondary)',
+                color: classFilter === c.id ? 'var(--bg)' : 'var(--text)',
+                border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                padding: '6px 12px', fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap',
+              }}>
+                <span style={{ fontWeight: 500 }}>{c.name}</span>
+                <span style={{ marginLeft: 6, opacity: 0.7 }}>{c.start_time?.slice(0,5)}–{c.end_time?.slice(0,5)}</span>
+              </div>
+            ))}
+            <div onClick={() => setClassFilter('all')} style={{
+              background: classFilter === 'all' ? 'var(--text)' : 'var(--bg-secondary)',
+              color: classFilter === 'all' ? 'var(--bg)' : 'var(--text)',
+              border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+              padding: '6px 12px', fontSize: 12, cursor: 'pointer',
+            }}>All classes</div>
+          </div>
+
+          {/* Derby Moore — nested under KR Centre */}
+          {derbyMooreClasses.length > 0 && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8, marginLeft: 20, paddingLeft: 10, borderLeft: '2px solid var(--border)' }}>
+              <span style={{ fontSize: 10, color: 'var(--text-tertiary)', alignSelf: 'center', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Derby Moore</span>
+              {derbyMooreClasses.map(c => (
+                <div key={c.id} onClick={() => setClassFilter(c.id)} style={{
+                  background: classFilter === c.id ? 'var(--text)' : 'var(--bg-secondary)',
+                  color: classFilter === c.id ? 'var(--bg)' : 'var(--text)',
+                  border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                  padding: '5px 10px', fontSize: 11, cursor: 'pointer', whiteSpace: 'nowrap',
+                }}>
+                  <span style={{ fontWeight: 500 }}>{c.name}</span>
+                  <span style={{ marginLeft: 5, opacity: 0.7 }}>{c.start_time?.slice(0,5)}–{c.end_time?.slice(0,5)}</span>
+                </div>
+              ))}
+
+              {/* Moorways — nested under Derby Moore */}
+              {moorwaysClasses.length > 0 && (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginLeft: 16, paddingLeft: 10, borderLeft: '2px solid var(--border)' }}>
+                  <span style={{ fontSize: 10, color: 'var(--text-tertiary)', alignSelf: 'center', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Moorways</span>
+                  {moorwaysClasses.map(c => (
+                    <div key={c.id} onClick={() => setClassFilter(c.id)} style={{
+                      background: classFilter === c.id ? 'var(--text)' : 'var(--bg-secondary)',
+                      color: classFilter === c.id ? 'var(--bg)' : 'var(--text)',
+                      border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                      padding: '5px 10px', fontSize: 11, cursor: 'pointer', whiteSpace: 'nowrap',
+                    }}>
+                      <span style={{ fontWeight: 500 }}>{c.name}</span>
+                      <span style={{ marginLeft: 5, opacity: 0.7 }}>{c.start_time?.slice(0,5)}–{c.end_time?.slice(0,5)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* If no Derby Moore classes but Moorways exist, show Moorways directly under KR Centre */}
+          {derbyMooreClasses.length === 0 && moorwaysClasses.length > 0 && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8, marginLeft: 20, paddingLeft: 10, borderLeft: '2px solid var(--border)' }}>
+              <span style={{ fontSize: 10, color: 'var(--text-tertiary)', alignSelf: 'center', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Moorways</span>
+              {moorwaysClasses.map(c => (
+                <div key={c.id} onClick={() => setClassFilter(c.id)} style={{
+                  background: classFilter === c.id ? 'var(--text)' : 'var(--bg-secondary)',
+                  color: classFilter === c.id ? 'var(--bg)' : 'var(--text)',
+                  border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                  padding: '5px 10px', fontSize: 11, cursor: 'pointer', whiteSpace: 'nowrap',
+                }}>
+                  <span style={{ fontWeight: 500 }}>{c.name}</span>
+                  <span style={{ marginLeft: 5, opacity: 0.7 }}>{c.start_time?.slice(0,5)}–{c.end_time?.slice(0,5)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Quick attendance + search + select row */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search students…"
+          style={{ flex: 1, minWidth: 160, padding: '7px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+        <button className="btn btn-sm" style={{ background: selectedStudents.length ? '#e6f1fb' : 'var(--bg-tertiary)', color: selectedStudents.length ? '#185fa5' : 'var(--text-tertiary)', border: `1px solid ${selectedStudents.length ? '#185fa540' : 'var(--border)'}`, cursor: selectedStudents.length ? 'pointer' : 'not-allowed' }}
+          onClick={() => markAttendance('attended')} disabled={!selectedStudents.length || saving}>
+          ✓ Attended{selectedStudents.length ? ` (${selectedStudents.length})` : ''}
+        </button>
+        <button className="btn btn-sm" style={{ background: selectedStudents.length ? '#eaf3de' : 'var(--bg-tertiary)', color: selectedStudents.length ? '#3b6d11' : 'var(--text-tertiary)', border: `1px solid ${selectedStudents.length ? '#3b6d1140' : 'var(--border)'}`, cursor: selectedStudents.length ? 'pointer' : 'not-allowed' }}
+          onClick={() => markAttendance('full_kit')} disabled={!selectedStudents.length || saving}>
+          ✓ Full Kit{selectedStudents.length ? ` (${selectedStudents.length})` : ''}
+        </button>
+        {selectedStudents.length > 0 ? (
+          <>
+            <button className="btn btn-sm" onClick={() => setSelectedStudents([])}>✕ Deselect all</button>
+            <button className="btn btn-primary btn-sm" onClick={() => setMultiAward(true)}>+ Points ({selectedStudents.length})</button>
+          </>
+        ) : (
+          <button className="btn btn-sm" onClick={() => setSelectedStudents(displayStudents.map(s => s.id))}>☐ Select all</button>
+        )}
       </div>
 
-      {loading && <div className="loading">Loading league data…</div>}
+      {/* Table */}
+      {loading ? <div className="loading">Loading…</div> : (
+        <div className="card" style={{ padding: 0, overflowX: 'auto' }} ref={tableRef}>
+          <table style={{ minWidth: isKR ? 900 : 680 }}>
+            <thead>
+              <tr>
+                {visibleCols.includes('checkbox') && <th style={{ width: 32, paddingLeft: 12 }}></th>}
+                {visibleCols.includes('student_ref') && <SortTh col="student_ref" label="ID" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
+                {visibleCols.includes('name')        && <SortTh col="first_name" label="Name" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
+                {visibleCols.includes('age')         && <SortTh col="age" label="Age" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
+                {visibleCols.includes('house')       && <SortTh col="house" label="House" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
+                {visibleCols.includes('grade')       && <SortTh col="grade" label="Grade" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
+                {visibleCols.includes('class_time')  && <th>Class time</th>}
+                {isKR && <><th>Experience</th><th>Discipline</th><th>Weight</th><th>Age cat.</th></>}
+                {visibleCols.includes('groups')      && <th>Groups</th>}
+                {visibleCols.includes('attendance')  && <th style={{ textAlign: 'center' }}>Attend.</th>}
+                {visibleCols.includes('champ')       && <th style={{ textAlign: 'center' }}>🏆</th>}
+                {visibleCols.includes('media')       && <th style={{ textAlign: 'center' }}>Media</th>}
+                {visibleCols.includes('points')      && <SortTh col="house_points" label="Pts" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} style={{ textAlign: 'center' }} />}
+                {isAdmin && <th></th>}
+              </tr>
+            </thead>
+            <tbody>
+              {displayStudents.length === 0 ? (
+                <tr><td colSpan={12} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>No students found</td></tr>
+              ) : displayStudents.map((s, idx) => {
+                const m = s.members
+                const houseName = m?.houses?.name
+                const colour = HOUSE_COLOURS[houseName] || '#888'
+                const age = calcAge(m?.date_of_birth)
+                const isSelected = selectedStudents.includes(s.id)
+                const attendState = attendance[s.id] || 'none'
+                const groups = [s.is_kr&&'KR', s.is_pts&&'PTs', s.is_leader&&'Leader', s.is_coach&&'Coach'].filter(Boolean)
 
-      {/* ── HOUSE LEAGUE ── */}
-      {!loading && tab === 'House league' && (
-        <div>
-          {/* House score cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 20 }}>
-            {houseStandings.map((h, i) => {
-              const colour = HOUSE_COLOURS[h.name] || '#888'
-              const bg = HOUSE_BG[h.name] || '#f5f5f5'
-              return (
-                <div key={h.name} className="card" style={{ borderLeft: `3px solid ${colour}`, borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0', position: 'relative', overflow: 'hidden' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                    <div style={{ fontSize: 15, fontWeight: 600 }}>{h.name}</div>
-                    <div style={{ fontSize: 22 }}>{RANK_MEDAL[i] || `${i + 1}th`}</div>
-                  </div>
-                  <div style={{ fontSize: 32, fontWeight: 700, color: colour }}>{h.sessionPoints}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>points this period</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 6 }}>
-                    {h.memberCount} members · All time: {h.points || 0} pts
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-
-          {/* Top scorers per house */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
-            {houseStandings.map(h => {
-              const colour = HOUSE_COLOURS[h.name] || '#888'
-              const houseMembers = individualRankings.filter(s => s.house === h.name).slice(0, 8)
-              return (
-                <div key={h.name} className="card" style={{ padding: '14px 0' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 14px 10px', borderBottom: '1px solid var(--border)' }}>
-                    <span style={{ width: 10, height: 10, borderRadius: '50%', background: colour, display: 'inline-block' }} />
-                    <span style={{ fontSize: 13, fontWeight: 600 }}>{h.name}</span>
-                    <span style={{ fontSize: 11, color: 'var(--text-tertiary)', marginLeft: 'auto' }}>Top scorers</span>
-                  </div>
-                  {houseMembers.length === 0
-                    ? <div style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: '12px 14px' }}>No scores this period</div>
-                    : houseMembers.map((s, i) => (
-                      <div key={s.id} style={{ display: 'flex', alignItems: 'center', padding: '7px 14px', borderBottom: i < houseMembers.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                        <span style={{ fontSize: 11, color: 'var(--text-tertiary)', width: 20, flexShrink: 0 }}>{i + 1}</span>
-                        <span style={{ fontSize: 13, flex: 1 }}>{s.name}</span>
-                        {s.champCount > 0 && <span style={{ fontSize: 10, marginRight: 4 }}>🏆{s.champCount}</span>}
-                        <span style={{ fontSize: 13, fontWeight: 700, color: colour }}>{s.total}</span>
-                      </div>
-                    ))
-                  }
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ── INDIVIDUAL LEAGUE ── */}
-      {!loading && tab === 'Individual' && (
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{individualRankings.length} students ranked</p>
-          </div>
-          <div className="card" style={{ padding: 0 }}>
-            <table>
-              <thead>
-                <tr>
-                  <th style={{ width: 40 }}>#</th>
-                  <th>Student</th>
-                  <th>House</th>
-                  <th style={{ textAlign: 'center' }}>Sessions</th>
-                  <th style={{ textAlign: 'center' }}>🏆</th>
-                  <th style={{ textAlign: 'center' }}>H pts</th>
-                  <th style={{ textAlign: 'center' }}>I pts</th>
-                  <th style={{ textAlign: 'center', fontWeight: 700 }}>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedIndiv.length === 0
-                  ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>No scores in this date range</td></tr>
-                  : sortedIndiv.map((s, i) => {
-                    const colour = HOUSE_COLOURS[s.house] || '#888'
-                    const isTop3 = i < 3
-                    return (
-                      <tr key={s.id} style={isTop3 ? { background: 'var(--bg-secondary)' } : {}}>
-                        <td style={{ fontSize: 16, textAlign: 'center' }}>
-                          {RANK_MEDAL[i] || <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>{i + 1}</span>}
-                        </td>
-                        <td>
-                          <div style={{ fontWeight: 500 }}>{s.name}</div>
-                          <div style={{ fontSize: 11, color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono, monospace)' }}>{s.ref}</div>
-                        </td>
-                        <td>
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13 }}>
-                            <span style={{ width: 8, height: 8, borderRadius: '50%', background: colour, display: 'inline-block' }} />
-                            {s.house || '—'}
-                          </span>
-                        </td>
-                        <td style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>{s.sessions}</td>
-                        <td style={{ textAlign: 'center' }}>
-                          {s.champCount > 0 && <span style={{ fontSize: 12 }}>🏆 {s.champCount}</span>}
-                        </td>
-                        <td style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-secondary)' }}>{s.housePoints}</td>
-                        <td style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-secondary)' }}>{s.individualPoints}</td>
-                        <td style={{ textAlign: 'center', fontSize: 15, fontWeight: 700, color: colour }}>{s.total}</td>
-                      </tr>
-                    )
-                  })
-                }
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ── SCORE CHECK ── */}
-      {/* ── Student House view ── */}
-      {!loading && tab === 'Student house' && (
-        <div>
-          <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 14 }}>
-            Individual rankings grouped by house — showing top students in each house
-          </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
-            {houses.map(house => {
-              const colour = HOUSE_COLOURS[house.name] || '#888'
-              const houseStudents = [...individualRankings]
-                .filter(s => s.house === house.name)
-                .sort((a, b) => b.total - a.total)
-              const MEDALS = ['🥇','🥈','🥉','🎖️']
-              return (
-                <div key={house.id} className="card" style={{ padding: 0, borderTop: `3px solid ${colour}` }}>
-                  <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 18 }}>🛡️</span>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: colour }}>{house.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{house.points || 0} house pts · {houseStudents.length} students</div>
-                    </div>
-                  </div>
-                  <table>
-                    <tbody>
-                      {houseStudents.length === 0 ? (
-                        <tr><td style={{ padding: '12px 14px', fontSize: 12, color: 'var(--text-tertiary)' }}>No students</td></tr>
-                      ) : houseStudents.slice(0, 10).map((s, i) => (
-                        <tr key={i} style={i < 3 ? { background: colour + '08' } : {}}>
-                          <td style={{ width: 28, textAlign: 'center', fontSize: 14 }}>{MEDALS[i] || <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{i+1}</span>}</td>
-                          <td style={{ fontSize: 12, fontWeight: i < 3 ? 600 : 400 }}>{s.name}</td>
-                          <td style={{ textAlign: 'right', fontSize: 13, fontWeight: 700, color: colour, paddingRight: 12 }}>{s.total}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {tab === 'Score check' && (
-        <div>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-            <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && searchStudent()}
-              placeholder="Search by student name or ID…"
-              style={{ flex: 1, padding: '9px 12px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
-            <button className="btn btn-primary" onClick={searchStudent} disabled={searching}>
-              {searching ? 'Searching…' : 'Search'}
-            </button>
-          </div>
-
-          {searchResults.length > 0 && (
-            <>
-              {/* Student summary */}
-              {(() => {
-                const total = searchResults.reduce((s, r) => s + (r.points_awarded || 0), 0)
-                const first = searchResults[0]
-                const name = `${first.students?.members?.first_name || ''} ${first.students?.members?.last_name || ''}`.trim()
-                const house = first.students?.members?.houses?.name
-                const colour = HOUSE_COLOURS[house] || '#888'
                 return (
-                  <div className="card" style={{ marginBottom: 14, display: 'flex', alignItems: 'center', gap: 16 }}>
-                    <div style={{ width: 44, height: 44, borderRadius: '50%', background: colour + '22', color: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700, flexShrink: 0 }}>
-                      {name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 16, fontWeight: 600 }}>{name}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{first.students?.student_ref} · {house}</div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: 26, fontWeight: 700, color: colour }}>{total}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>total pts · {searchResults.length} entries</div>
-                    </div>
-                  </div>
+                  <tr key={s.id}
+                    onClick={() => setSelectedStudents(prev => prev.includes(s.id) ? prev.filter(x => x !== s.id) : [...prev, s.id])}
+                    style={{
+                      background: isSelected ? '#e6f1fb' : undefined,
+                      outline: isSelected ? '2px solid #378ADD' : undefined,
+                      cursor: 'pointer',
+                    }}>
+                    {visibleCols.includes('checkbox') && <td style={{ paddingLeft: 12 }} onClick={e => e.stopPropagation()}>
+                      <input type="checkbox" checked={isSelected}
+                        onChange={() => setSelectedStudents(prev => prev.includes(s.id) ? prev.filter(x => x !== s.id) : [...prev, s.id])}
+                        style={{ width: 14, height: 14 }} />
+                    </td>}
+                    {visibleCols.includes('student_ref') && <td onClick={e => { e.stopPropagation(); setContactModal(s) }}>
+                      <span style={{ color: '#185fa5', fontSize: 11, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', fontFamily: 'monospace' }}>
+                        {s.student_ref || '—'}
+                      </span>
+                    </td>}
+                    {visibleCols.includes('name') && <td onClick={e => e.stopPropagation()}>
+                      <button onClick={() => navigate(`/athletes?id=${s.id}`)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', fontWeight: 500, fontSize: 13, padding: 0, fontFamily: 'var(--font-sans)', textAlign: 'left' }}>
+                        {m?.first_name} {m?.last_name}
+                      </button>
+                    </td>}
+                    {visibleCols.includes('age') && <td style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{age}</td>}
+                    {visibleCols.includes('house') && <td>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12 }}>
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: colour, display: 'inline-block' }} />
+                        {houseName || '—'}
+                      </span>
+                    </td>}
+                    {visibleCols.includes('grade') && <td style={{ fontSize: 12 }}>{s.pka_belt || s.krba_level || '—'}</td>}
+                    {visibleCols.includes('class_time') && <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{s.class_time || '—'}</td>}
+                    {isKR && (
+                      <>
+                        <td><span className={`badge ${s.competition_team==='Advanced'?'badge-purple':s.competition_team==='Intermediate'?'badge-blue':'badge-gray'}`} style={{ fontSize: 10 }}>{s.competition_team || '—'}</span></td>
+                        <td style={{ fontSize: 11 }}>{s.discipline_codes || '—'}</td>
+                        <td style={{ fontSize: 12 }}>{s.weight_kg ? `${s.weight_kg}kg` : '—'}</td>
+                        <td style={{ fontSize: 11 }}>{s.age_category_kr || s.age_category || '—'}</td>
+                      </>
+                    )}
+                    {visibleCols.includes('groups') && <td onClick={e => e.stopPropagation()}>
+                      <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                        {groups.length > 0 ? groups.map(g => (
+                          <span key={g} className={`badge ${g==='KR'?'badge-purple':g==='PTs'?'badge-blue':g==='Leader'?'badge-green':'badge-amber'}`} style={{ fontSize: 9 }}>{g}</span>
+                        )) : <span style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>—</span>}
+                      </div>
+                    </td>}
+                    {visibleCols.includes('attendance') && <td style={{ textAlign: 'center' }} onClick={e => { e.stopPropagation(); toggleAttendance(s.id) }}>
+                      <span style={{
+                        display: 'inline-block', padding: '3px 8px', borderRadius: 20, fontSize: 10, fontWeight: 600, cursor: 'pointer',
+                        background: attendState==='full_kit'?'#eaf3de':attendState==='attended'?'#e6f1fb':'var(--bg-tertiary)',
+                        color: attendState==='full_kit'?'#3b6d11':attendState==='attended'?'#185fa5':'var(--text-tertiary)',
+                      }}>
+                        {attendState==='full_kit'?'✓ Full kit':attendState==='attended'?'✓ Attended':'—'}
+                      </span>
+                    </td>}
+                    {visibleCols.includes('champ') && <td style={{ textAlign: 'center', fontWeight: 600, fontSize: 13 }}>
+                      {s.class_champion_count > 0 ? `🏆 ${s.class_champion_count}` : <span style={{ color: 'var(--text-tertiary)' }}>0</span>}
+                    </td>}
+                    {visibleCols.includes('media') && <td style={{ textAlign: 'center' }}>
+                      <span className={`badge ${s.media_restriction==='No'?'badge-red':s.media_restriction==='Limited'?'badge-amber':'badge-green'}`} style={{ fontSize: 10 }}>
+                        {s.media_restriction==='No'?'⚠ No':s.media_restriction==='Limited'?'Limited':'OK'}
+                      </span>
+                    </td>}
+                    {visibleCols.includes('points') && <td style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 11, lineHeight: 1.4 }}>
+                        <div><span style={{ color: 'var(--text-tertiary)', fontSize: 10 }}>H </span><strong>{s.house_points || 0}</strong></div>
+                        <div><span style={{ color: 'var(--text-tertiary)', fontSize: 10 }}>I </span><strong>{s.individual_points || 0}</strong></div>
+                      </div>
+                    </td>}
+                    {isAdmin && (
+                      <td onClick={e => e.stopPropagation()}>
+                        <button className="btn btn-sm btn-primary" onClick={() => { setAwardingFor(s); setSelectedPoints([]) }} style={{ fontSize: 11, padding: '4px 8px' }}>+ Pts</button>
+                      </td>
+                    )}
+                  </tr>
                 )
-              })()}
-
-              <div className="card" style={{ padding: 0 }}>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Date</th><th>Point type</th><th>Scope</th><th style={{ textAlign: 'right' }}>Points</th>
-                      {isAdmin && <th></th>}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {searchResults.map(r => (
-                      <tr key={r.id}>
-                        <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{new Date(r.awarded_at).toLocaleDateString('en-GB')}</td>
-                        <td style={{ fontWeight: 500 }}>{r.point_type}</td>
-                        <td><span className={`badge ${r.point_scope === 'both' ? 'badge-green' : r.point_scope === 'house' ? 'badge-blue' : 'badge-purple'}`} style={{ fontSize: 10 }}>{r.point_scope}</span></td>
-                        <td style={{ textAlign: 'right', fontWeight: 700, color: r.points_awarded < 0 ? '#a32d2d' : 'var(--success, #1d9e75)' }}>
-                          {r.points_awarded > 0 ? '+' : ''}{r.points_awarded}
-                        </td>
-                        {isAdmin && (
-                          <td style={{ display: 'flex', gap: 4 }}>
-                            <button className="btn btn-sm" onClick={() => { setEditingPoint(r); setEditVal(String(r.points_awarded)) }}>Edit</button>
-                            <button className="btn btn-sm btn-danger" onClick={() => deletePoint(r.id)}>Del</button>
-                          </td>
-                        )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
-
-          {searchResults.length === 0 && searchQuery && !searching && (
-            <div className="empty-state"><h3>No results</h3><p>No points found for "{searchQuery}" in this date range</p></div>
-          )}
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
-      {/* ── POINTS LOG ── */}
-      {!loading && tab === 'Points log' && (
-        <div>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-            <select value={houseLogFilter} onChange={e => setHouseLogFilter(e.target.value)}
-              style={{ padding: '7px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', background: 'var(--bg-secondary)', fontSize: 13, color: 'var(--text)' }}>
-              <option value="">All houses</option>
-              {allHouses.map(h => <option key={h}>{h}</option>)}
-            </select>
-            <select value={typeLogFilter} onChange={e => setTypeLogFilter(e.target.value)}
-              style={{ padding: '7px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', background: 'var(--bg-secondary)', fontSize: 13, color: 'var(--text)' }}>
-              <option value="">All point types</option>
-              {allTypes.map(t => <option key={t}>{t}</option>)}
-            </select>
-            <span style={{ fontSize: 12, color: 'var(--text-secondary)', alignSelf: 'center' }}>{filteredLog.length} entries</span>
-          </div>
-          <div className="card" style={{ padding: 0 }}>
-            <table>
-              <thead>
-                <tr>
-                  <SortTh col="awarded_at" sortKey={logSortKey} sortDir={logSortDir} onSort={toggleLog}>Date</SortTh>
-                  <th>Student</th>
-                  <SortTh col="house" sortKey={logSortKey} sortDir={logSortDir} onSort={toggleLog}>House</SortTh>
-                  <SortTh col="point_type" sortKey={logSortKey} sortDir={logSortDir} onSort={toggleLog}>Point type</SortTh>
-                  <th>Scope</th>
-                  <SortTh col="points_awarded" sortKey={logSortKey} sortDir={logSortDir} onSort={toggleLog} style={{ textAlign: 'right' }}>Pts</SortTh>
-                  {isAdmin && <th></th>}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredLog.length === 0
-                  ? <tr><td colSpan={7} style={{ textAlign: 'center', padding: 32, color: 'var(--text-tertiary)' }}>No points logged in this period</td></tr>
-                  : filteredLog.map(r => {
-                    const house = r.students?.members?.houses?.name
-                    const colour = HOUSE_COLOURS[house] || '#888'
-                    const name = `${r.students?.members?.first_name || ''} ${r.students?.members?.last_name || ''}`.trim()
-                    return (
-                      <tr key={r.id}>
-                        <td style={{ fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                          {new Date(r.awarded_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })}
-                        </td>
-                        <td>
-                          <div style={{ fontWeight: 500, fontSize: 13 }}>{name}</div>
-                          <div style={{ fontSize: 10, color: 'var(--text-tertiary)', fontFamily: 'monospace' }}>{r.students?.student_ref}</div>
-                        </td>
-                        <td>
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
-                            <span style={{ width: 7, height: 7, borderRadius: '50%', background: colour, display: 'inline-block' }} />
-                            {house || '—'}
-                          </span>
-                        </td>
-                        <td style={{ fontSize: 13 }}>{r.point_type}</td>
-                        <td>
-                          <span className={`badge ${r.point_scope === 'both' ? 'badge-green' : r.point_scope === 'house' ? 'badge-blue' : 'badge-purple'}`} style={{ fontSize: 10 }}>
-                            {r.point_scope}
-                          </span>
-                        </td>
-                        <td style={{ textAlign: 'right', fontWeight: 700, fontSize: 13, color: r.points_awarded < 0 ? '#a32d2d' : 'var(--success, #1d9e75)' }}>
-                          {r.points_awarded > 0 ? '+' : ''}{r.points_awarded}
-                        </td>
-                        {isAdmin && (
-                          <td>
-                            <div style={{ display: 'flex', gap: 4 }}>
-                              <button className="btn btn-sm" onClick={() => { setEditingPoint(r); setEditVal(String(r.points_awarded)) }}>Edit</button>
-                              <button className="btn btn-sm btn-danger" onClick={() => deletePoint(r.id)}>Del</button>
-                            </div>
-                          </td>
-                        )}
-                      </tr>
-                    )
-                  })
-                }
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {/* One-off student addition */}
+      <OneOffStudent displayStudents={displayStudents} onAdd={(s) => setStudents(prev => prev.find(x => x.id === s.id) ? prev : [...prev, s])} date={date} />
 
-      {/* Edit points modal */}
-      {editingPoint && isAdmin && (
+      {/* Contact modal */}
+      {contactModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
-          <div className="card" style={{ width: '100%', maxWidth: 340 }}>
+          <div className="card" style={{ width: '100%', maxWidth: 380 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
-              <h2 style={{ fontSize: 15, fontWeight: 600 }}>Edit points entry</h2>
-              <button onClick={() => setEditingPoint(null)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-secondary)' }}>✕</button>
+              <h2 style={{ fontSize: 15, fontWeight: 600 }}>{contactModal.members?.first_name} {contactModal.members?.last_name}</h2>
+              <button onClick={() => setContactModal(null)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
+            </div>
+            {[
+              ['Student ID', contactModal.student_ref],
+              ['Phone', contactModal.members?.phone || '—'],
+              ['Email', contactModal.members?.email || '—'],
+              ['DOB', contactModal.members?.date_of_birth || '—'],
+              ['House', contactModal.members?.houses?.name || '—'],
+              ['Grade', contactModal.pka_belt || contactModal.krba_level || '—'],
+              ['Class', `${contactModal.class_schedule || '—'} ${contactModal.class_time || ''}`],
+              ['Groups', [contactModal.is_kr&&'KR', contactModal.is_pts&&'PTs', contactModal.is_leader&&'Leader'].filter(Boolean).join(', ') || 'None'],
+            ].map(([label, val]) => (
+              <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
+                <span style={{ fontWeight: 500 }}>{val}</span>
+              </div>
+            ))}
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              {contactModal.members?.phone && <a href={`tel:${contactModal.members.phone}`} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>📞 Call</a>}
+              <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => { setContactModal(null); navigate(`/athletes?id=${contactModal.id}`) }}>View profile →</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Award points modal */}
+      {(awardingFor || multiAward) && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
+          <div className="card" style={{ width: '100%', maxWidth: 500, maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+              <h2 style={{ fontSize: 15, fontWeight: 600 }}>Award points</h2>
+              <button onClick={() => { setAwardingFor(null); setMultiAward(false); setSelectedPoints([]) }} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
             </div>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 14 }}>
-              {editingPoint.point_type} · {new Date(editingPoint.awarded_at).toLocaleDateString('en-GB')}
+              {multiAward ? `${selectedStudents.length} students selected` : `${awardingFor?.members?.first_name} ${awardingFor?.members?.last_name}`}
             </p>
-            <div className="field">
-              <label>Points value</label>
-              <input type="number" value={editVal} onChange={e => setEditVal(e.target.value)}
-                style={{ fontSize: 20, fontWeight: 700, textAlign: 'center' }} />
+            {/* Grouped points — Group → Reason: Points */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
+              {(() => {
+                // Group point types by their group field, or 'General' if none
+                const groups = {}
+                pointTypes.forEach(pt => {
+                  const grp = pt.group || 'General'
+                  if (!groups[grp]) groups[grp] = []
+                  groups[grp].push(pt)
+                })
+                return Object.entries(groups).map(([grpName, pts]) => (
+                  <div key={grpName}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6, paddingLeft: 2 }}>{grpName}</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                      {pts.map(pt => {
+                        const sel = selectedPoints.find(p => p.label === pt.label)
+                        const isNeg = pt.points < 0
+                        return (
+                          <button key={pt.label} onClick={() => togglePoint(pt)} style={{
+                            padding: '8px 10px', borderRadius: 'var(--radius)', cursor: 'pointer',
+                            border: `${sel ? 2 : 1}px solid ${sel ? (isNeg?'#a32d2d':'var(--text)') : 'var(--border-strong)'}`,
+                            background: sel ? (isNeg?'#fcebeb':'var(--bg-secondary)') : 'var(--bg)',
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                            fontFamily: 'var(--font-sans)', textAlign: 'left',
+                          }}>
+                            <span style={{ fontSize: 12, fontWeight: sel?600:400, color: isNeg?'#a32d2d':'var(--text)' }}>{pt.label}</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: isNeg?'#a32d2d':'#1d9e75', marginLeft: 6 }}>{pt.points > 0 ? '+' : ''}{pt.points}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))
+              })()}
+
+              {/* Custom points */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6, paddingLeft: 2 }}>Custom</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input type="number" value={customPoints} onChange={e => setCustomPoints(e.target.value)}
+                    placeholder="±pts" style={{ width: 70, padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, fontWeight: 700, textAlign: 'center', background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+                  <input value={customLabel} onChange={e => setCustomLabel(e.target.value)}
+                    placeholder="Reason for custom points…"
+                    style={{ flex: 1, padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+                  <button className="btn btn-sm" disabled={!customLabel.trim() || customPoints === ''}
+                    onClick={() => {
+                      const pts = parseInt(customPoints)
+                      if (isNaN(pts) || !customLabel.trim()) return
+                      setSelectedPoints(prev => [...prev, { label: customLabel.trim(), points: pts }])
+                      setCustomLabel(''); setCustomPoints('')
+                    }}>+ Add</button>
+                </div>
+              </div>
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn" onClick={() => setEditingPoint(null)}>Cancel</button>
-              <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={saveEditPoint} disabled={saving}>
-                {saving ? 'Saving…' : 'Save changes'}
+            {selectedPoints.length > 0 && (
+              <div style={{ background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', padding: '10px 12px', marginBottom: 12 }}>
+                {selectedPoints.map(p => (
+                  <div key={p.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                    <span>{p.label}</span>
+                    <span style={{ fontWeight: 600, color: p.points<0?'#a32d2d':'#1d9e75' }}>{p.points>0?'+':''}{p.points}</span>
+                  </div>
+                ))}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 700, marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--border)' }}>
+                  <span>Total {multiAward ? `× ${selectedStudents.length}` : ''}</span>
+                  <span style={{ color: pointsTotal<0?'#a32d2d':'#1d9e75' }}>{pointsTotal>0?'+':''}{pointsTotal} pts</span>
+                </div>
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button className="btn" onClick={() => { setAwardingFor(null); setMultiAward(false); setSelectedPoints([]) }}>Cancel</button>
+              <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}
+                onClick={() => submitPoints(multiAward ? selectedStudents : [awardingFor.id], selectedPoints)}
+                disabled={saving || selectedPoints.length === 0}>
+                {saving ? 'Saving…' : `Award to ${multiAward ? selectedStudents.length + ' students' : awardingFor?.members?.first_name}`}
               </button>
             </div>
           </div>
