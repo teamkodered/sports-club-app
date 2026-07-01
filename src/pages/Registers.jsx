@@ -1,3 +1,61 @@
+
+function OneOffStudent({ displayStudents, onAdd, date }) {
+  const [search, setSearch] = useState('')
+  const [results, setResults] = useState([])
+  const [added, setAdded] = useState([])
+
+  useEffect(() => {
+    if (search.length < 2) { setResults([]); return }
+    const t = setTimeout(async () => {
+      const { data: memberData } = await supabase
+        .from('members').select('id, first_name, last_name')
+        .or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%`).limit(8)
+      if (!memberData?.length) { setResults([]); return }
+      const { data: stuData } = await supabase
+        .from('students').select('id, student_ref, pka_belt, house_name, member_id, members(first_name, last_name, houses(name))')
+        .in('member_id', memberData.map(m => m.id))
+      // Filter out students already in register
+      const existing = new Set(displayStudents.map(s => s.id))
+      const filtered = (stuData || []).filter(s => !existing.has(s.id) && !added.includes(s.id))
+      setResults(filtered.map(s => ({ ...s, members: memberData.find(m => m.id === s.member_id) || s.members })))
+    }, 200)
+    return () => clearTimeout(t)
+  }, [search, displayStudents, added])
+
+  return (
+    <div style={{ marginTop: 16 }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
+        Add one-off student to this session
+      </div>
+      <div style={{ position: 'relative' }}>
+        <input value={search} onChange={e => setSearch(e.target.value)}
+          placeholder="Search name to add for this session only…"
+          style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+        {results.length > 0 && (
+          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', zIndex: 20, boxShadow: 'var(--shadow)', maxHeight: 200, overflowY: 'auto' }}>
+            {results.map(s => (
+              <button key={s.id} onClick={() => {
+                onAdd(s)
+                setAdded(prev => [...prev, s.id])
+                setSearch('')
+                setResults([])
+              }} style={{
+                display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                padding: '10px 12px', fontSize: 13, border: 'none',
+                borderBottom: '1px solid var(--border)', background: 'none',
+                cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font-sans)', color: 'var(--text)',
+              }}>
+                <span style={{ fontWeight: 500 }}>{s.members?.first_name} {s.members?.last_name}</span>
+                <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{s.student_ref}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
@@ -115,12 +173,13 @@ export default function Registers() {
       .from('classes').select('*').eq('discipline', disc).eq('active', true).order('start_time')
 
     // Match classes for today by actual day_of_week (handles Mon/Fri, Tue/Thu groups too)
+    const fullDayMap = { Sun:'Sunday',Mon:'Monday',Tue:'Tuesday',Wed:'Wednesday',Thu:'Thursday',Fri:'Friday',Sat:'Saturday' }
+    const fullDay = fullDayMap[dow] || dow
     const matchesToday = (c) => {
       if (c.day_of_week === 'Mon/Fri')  return isMonFri
       if (c.day_of_week === 'Tue/Thu')  return isTueThu
-      if (c.day_of_week === 'Saturday') return dow === 'Sat'
-      if (c.day_of_week === 'Sunday')   return dow === 'Sun'
-      const fullDay = { Sun:'Sunday',Mon:'Monday',Tue:'Tuesday',Wed:'Wednesday',Thu:'Thursday',Fri:'Friday',Sat:'Saturday' }[dow]
+      if (c.day_of_week === 'Saturday' || c.day_of_week === 'Sat') return dow === 'Sat'
+      if (c.day_of_week === 'Sunday'   || c.day_of_week === 'Sun') return dow === 'Sun'
       return c.day_of_week === dow || c.day_of_week === fullDay
     }
 
@@ -144,8 +203,7 @@ export default function Registers() {
     const { data: todayAtt } = await supabase
       .from('attendance')
       .select('student_id, attendance_type')
-      .gte('attended_at', date + 'T00:00:00')
-      .lte('attended_at', date + 'T23:59:59')
+      .eq('session_date', date)
     
     if (todayAtt?.length) {
       const attMap = {}
@@ -225,10 +283,20 @@ export default function Registers() {
     setAdhocPills(prev => prev.filter(p => p.id !== id))
   }
 
-  function toggleAttendance(id) {
+  async function toggleAttendance(id) {
     setAttendance(prev => {
       const cur = prev[id] || 'none'
       const next = cur === 'none' ? 'attended' : cur === 'attended' ? 'full_kit' : 'none'
+      // Save to attendance table
+      if (next !== 'none') {
+        supabase.from('attendance').insert({
+          student_id: id,
+          present: true,
+          attendance_type: next,
+          session_date: date,
+          attended_at: new Date(date + 'T12:00:00').toISOString(),
+        }).then(() => {})
+      }
       return { ...prev, [id]: next }
     })
   }
@@ -251,8 +319,11 @@ export default function Registers() {
       // Log to attendance table
       await supabase.from('attendance').insert({
         student_id: s.id,
-        attended_at: new Date(date + 'T12:00:00').toISOString(),
+        present: true,
+        late: false,
         attendance_type: type,
+        session_date: date,
+        attended_at: new Date(date + 'T12:00:00').toISOString(),
       })
 
       // Award points
@@ -625,6 +696,9 @@ export default function Registers() {
           </table>
         </div>
       )}
+
+      {/* One-off student addition */}
+      <OneOffStudent displayStudents={displayStudents} onAdd={(s) => setStudents(prev => prev.find(x => x.id === s.id) ? prev : [...prev, s])} date={date} />
 
       {/* Contact modal */}
       {contactModal && (
