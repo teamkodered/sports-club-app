@@ -229,6 +229,7 @@ export default function Registers() {
 
   const _dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
   const _dow = _dayNames[new Date(date + 'T12:00:00').getDay()]
+  console.log('DEBUG date:', date, '_dow:', _dow, '_fullDay:', _shortToFull[_dayNames[new Date(date + 'T12:00:00').getDay()]], 'students:', students.length)
   const _shortToFull = { Sun:'Sunday',Mon:'Monday',Tue:'Tuesday',Wed:'Wednesday',Thu:'Thursday',Fri:'Friday',Sat:'Saturday' }
   const _fullToShort = { Sunday:'Sun',Monday:'Mon',Tuesday:'Tue',Wednesday:'Wed',Thursday:'Thu',Friday:'Fri',Saturday:'Sat' }
   const _fullDay = _shortToFull[_dow] || _dow
