@@ -227,15 +227,42 @@ export default function Registers() {
     || derbyMooreClasses.find(c => c.id === classFilter)
     || moorwaysClasses.find(c => c.id === classFilter)
 
+  const _dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+  const _dow = _dayNames[new Date(date + 'T12:00:00').getDay()]
+  const _shortToFull = { Sun:'Sunday',Mon:'Monday',Tue:'Tuesday',Wed:'Wednesday',Thu:'Thursday',Fri:'Friday',Sat:'Saturday' }
+  const _fullToShort = { Sunday:'Sun',Monday:'Mon',Tuesday:'Tue',Wednesday:'Wed',Thursday:'Thu',Friday:'Fri',Saturday:'Sat' }
+  const _fullDay = _shortToFull[_dow] || _dow
+  const _isMonFri = _dow === 'Mon' || _dow === 'Fri'
+  const _isTueThu = _dow === 'Tue' || _dow === 'Thu'
+
   const displayStudents = (regType === 'adhoc' ? adhocPills.map(p => students.find(s => s.id === p.id)).filter(Boolean) : students)
     .filter(s => {
-      if (classFilter === 'all') return true
+      if (classFilter === 'all') {
+        if (!s.class_schedule) return true
+        const parts = s.class_schedule.split('/').map(p => p.trim())
+        const todayVariants = [_dow, _fullDay,
+          ...(_isMonFri ? ['Mon/Fri'] : []),
+          ...(_isTueThu ? ['Tue/Thu'] : []),
+        ]
+        return parts.some(p =>
+          todayVariants.includes(p) ||
+          todayVariants.includes(_shortToFull[p] || p) ||
+          todayVariants.includes(_fullToShort[p] || p)
+        )
+      }
+
       if (!selectedClass) return true
       const classStart = selectedClass.start_time?.slice(0, 5)
-      // Match by time AND (class name OR day_of_week) — handles venue-named classes like Moorways/Derby Moore
-      // where students have class_schedule = class name, not the calendar day
-      const nameMatches = s.class_schedule === selectedClass.name || s.class_schedule === selectedClass.day_of_week
-      return s.class_time === classStart && nameMatches
+      if (s.class_time !== classStart && s.class_time_2 !== classStart) return false
+      const shortDay = _fullToShort[selectedClass.day_of_week] || selectedClass.day_of_week
+      const fullDay2 = _shortToFull[selectedClass.day_of_week] || selectedClass.day_of_week
+      const parts = (s.class_schedule || '').split('/').map(p => p.trim())
+      return parts.some(p =>
+        p === selectedClass.name ||
+        p === selectedClass.day_of_week ||
+        p === shortDay ||
+        p === fullDay2
+      )
     })
     .filter(s => {
       if (!search) return true
