@@ -241,8 +241,8 @@ export default function Registers() {
         if (!s.class_schedule) return true
         const parts = s.class_schedule.split('/').map(p => p.trim())
         const todayVariants = [_dow, _fullDay,
-          ...(_isMonFri ? ['Mon/Fri'] : []),
-          ...(_isTueThu ? ['Tue/Thu'] : []),
+          ...(_isMonFri ? ['Mon/Fri', 'Mon', 'Fri', 'Monday', 'Friday'] : []),
+          ...(_isTueThu ? ['Tue/Thu', 'Tue', 'Thu', 'Tuesday', 'Thursday'] : []),
         ]
         return parts.some(p =>
           todayVariants.includes(p) ||
