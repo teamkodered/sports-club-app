@@ -204,11 +204,27 @@ export default function StudentProfile({ student, onClose, isAdmin }) {
                   {isAdmin && (
                     <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
                       <button className="btn btn-sm" onClick={() => { setEditForm({ pka_belt: localStudent.pka_belt, krba_level: localStudent.krba_level, age_category: localStudent.age_category, competition_team: localStudent.competition_team, weight_kg: localStudent.weight_kg, weight_category: localStudent.weight_category, media_restriction: localStudent.media_restriction, media_notes: localStudent.media_notes, medical_conditions: localStudent.medical_conditions, medication: localStudent.medication, house_id: localStudent.members?.house_id || '', is_kr: localStudent.is_kr || false, is_pts: localStudent.is_pts || false, is_leader: localStudent.is_leader || false, is_coach: localStudent.is_coach || false, class_schedule: localStudent.class_schedule || '', class_time: localStudent.class_time || '', class_time_2: localStudent.class_time_2 || '', house_name: localStudent.house_name || '' }); setEditing(true) }}>Edit record</button>
-                      <button className="btn btn-sm" onClick={sendInvite} disabled={inviting}
-                        style={{ color: '#378ADD', borderColor: '#378ADD' }}>
-                        {inviting ? 'Sending…' : '✉️ Invite athlete'}
-                      </button>
-                      {inviteStatus === 'sent' && <span style={{ fontSize: 11, color: '#1d9e75', alignSelf: 'center' }}>✓ Invite sent!</span>}
+                      {localStudent.members?.email && (
+                        <button className="btn btn-sm" onClick={sendInvite} disabled={inviting}
+                          style={{ color: '#378ADD', borderColor: '#378ADD' }}>
+                          {inviting ? 'Sending…' : '✉️ Email invite'}
+                        </button>
+                      )}
+                      {localStudent.members?.phone && (
+                        <button className="btn btn-sm"
+                          style={{ color: '#1D9E75', borderColor: '#1D9E75' }}
+                          onClick={() => {
+                            const phone = localStudent.members.phone.replace(/\s/g,'')
+                            const msg = encodeURIComponent(`Hi ${localStudent.members.first_name}, you've been invited to the KR Centre athlete app. Download and log in at: https://klasschamp.netlify.app`)
+                            window.open(`sms:${phone}?body=${msg}`, '_blank')
+                          }}>
+                          📱 SMS invite
+                        </button>
+                      )}
+                      {!localStudent.members?.email && !localStudent.members?.phone && (
+                        <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>No email or phone on file</span>
+                      )}
+                      {inviteStatus === 'sent' && <span style={{ fontSize: 11, color: '#1d9e75', alignSelf: 'center' }}>✓ Email invite sent!</span>}
                       {inviteStatus && inviteStatus !== 'sent' && <span style={{ fontSize: 11, color: '#a32d2d', alignSelf: 'center' }}>⚠ {inviteStatus}</span>}
                     </div>
                   )}
