@@ -161,7 +161,14 @@ export default function StudentDatabase() {
 
   async function inviteStudent(s) {
     const email = s.members?.email
-    if (!email) return alert('No email address for this student.')
+    const phone = s.members?.phone
+    if (!email && !phone) return alert('No email or phone for this student.')
+    // If no email, open SMS
+    if (!email && phone) {
+      const msg = encodeURIComponent(`Hi ${s.members.first_name}, you've been invited to the KR Centre athlete app. Log in at: https://klasschamp.netlify.app`)
+      window.open(`sms:${phone.replace(/\s/g,'')}?body=${msg}`, '_blank')
+      return
+    }
     if (!confirm(`Send login invite to ${email}?`)) return
     setInvitingId(s.id)
     try {
@@ -357,10 +364,11 @@ export default function StudentDatabase() {
                   <td>
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button className="btn btn-sm" onClick={() => setSelected(s)}>Edit</button>
-                      {isAdmin && s.members?.email && (
+                      {isAdmin && (s.members?.email || s.members?.phone) && (
                         <button className="btn btn-sm" style={{ color: '#378ADD', borderColor: '#378ADD' }}
-                          onClick={() => inviteStudent(s)} disabled={invitingId === s.id}>
-                          {invitingId === s.id ? '…' : '✉️'}
+                          onClick={() => inviteStudent(s)} disabled={invitingId === s.id}
+                          title={s.members?.email ? `Email invite to ${s.members.email}` : `SMS invite to ${s.members.phone}`}>
+                          {invitingId === s.id ? '…' : s.members?.email ? '✉️' : '📱'}
                         </button>
                       )}
                       {m?.status !== 'stopped' && isAdmin && (
