@@ -267,7 +267,9 @@ ALTER TABLE membership_forms ADD COLUMN IF NOT EXISTS previous_club text;
 ALTER TABLE membership_forms ADD COLUMN IF NOT EXISTS waiver_agreed boolean DEFAULT false;
 ALTER TABLE membership_forms ADD COLUMN IF NOT EXISTS submitted_at timestamptz;
 
--- Add stopped status to members (it's just a text field so no constraint needed)
+-- Add stopped status to members (status has a check constraint, so it must be updated explicitly)
+ALTER TABLE members DROP CONSTRAINT IF EXISTS members_status_check;
+ALTER TABLE members ADD CONSTRAINT members_status_check CHECK (status IN ('active','pending','inactive','stopped'));
 -- Add trained_for column to students
 ALTER TABLE students ADD COLUMN IF NOT EXISTS school text;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS medication text;

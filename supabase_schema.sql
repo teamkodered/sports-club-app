@@ -32,7 +32,7 @@ create table if not exists members (
   address_line2 text,
   house_id uuid references houses(id) on delete set null,
   role text default 'member' check (role in ('member','captain','admin')),
-  status text default 'active' check (status in ('active','pending','inactive')),
+  status text default 'active' check (status in ('active','pending','inactive','stopped')),
   payment_method text,
   joined_date date default current_date,
   ec_name text,
