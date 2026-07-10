@@ -69,7 +69,7 @@ export default function StudentProfile({ student, onClose, isAdmin }) {
     setAwarding(true)
     const pts = getPointsForType(awardForm.point_type)
 
-    await supabase.from('points_log').insert({
+    const { error: logError } = await supabase.from('points_log').insert({
       student_id: localStudent.id,
       house_id: m?.house_id,
       point_type: awardForm.point_type,
@@ -77,15 +77,27 @@ export default function StudentProfile({ student, onClose, isAdmin }) {
       point_scope: awardForm.scope,
       note: awardForm.note,
     })
+    if (logError) {
+      alert('Error awarding points: ' + logError.message)
+      setAwarding(false)
+      return
+    }
 
     const updates = {}
     if (awardForm.scope === 'house' || awardForm.scope === 'both') updates.house_points = (localStudent.house_points || 0) + pts
     if (awardForm.scope === 'individual' || awardForm.scope === 'both') updates.individual_points = (localStudent.individual_points || 0) + pts
     if (awardForm.point_type === 'Class Champion') updates.class_champion_count = (localStudent.class_champion_count || 0) + 1
 
-    await supabase.from('students').update(updates).eq('id', localStudent.id)
+    const { error: updateError } = await supabase.from('students').update(updates).eq('id', localStudent.id)
+    if (updateError) {
+      alert('Points were logged, but saving the student total failed: ' + updateError.message)
+      setAwarding(false)
+      return
+    }
+
     if (houseName && (awardForm.scope === 'house' || awardForm.scope === 'both')) {
-      await supabase.rpc ? null : await supabase.from('houses').update({ points: supabase._housePoints }).eq('name', houseName)
+      const { data: house } = await supabase.from('houses').select('points').eq('name', houseName).single()
+      if (house) await supabase.from('houses').update({ points: (house.points || 0) + pts }).eq('name', houseName)
     }
 
     setLocalStudent(s => ({ ...s, ...updates }))

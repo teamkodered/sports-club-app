@@ -60,11 +60,21 @@ export default function StudentDatabase() {
   const [sortDir, setSortDir]         = useState('asc')
   const [visibleCols, setVisibleCols] = useState(DEFAULT_VISIBLE)
   const [showColPicker, setShowColPicker] = useState(false)
+  const [belts, setBelts] = useState({ junior: [], senior: [], krba: [] })
 
   // Load column prefs from localStorage
   useEffect(() => {
     const saved = localStorage.getItem('students_visible_cols')
     if (saved) setVisibleCols(JSON.parse(saved))
+  }, [])
+
+  // Load belt/level options for inline grade editing
+  useEffect(() => {
+    supabase.from('settings').select('key,value').in('key', ['pka_junior_belts', 'pka_senior_belts', 'krba_levels'])
+      .then(({ data }) => {
+        const map = Object.fromEntries((data || []).map(r => [r.key, r.value]))
+        setBelts({ junior: map.pka_junior_belts || [], senior: map.pka_senior_belts || [], krba: map.krba_levels || [] })
+      })
   }, [])
 
   function toggleCol(key) {
@@ -198,6 +208,21 @@ export default function StudentDatabase() {
     setStudents(prev => prev.map(s => s.member_id === memberId ? { ...s, members: { ...s.members, role } } : s))
   }
 
+  async function updateStudentField(studentId, field, value) {
+    const { error } = await supabase.from('students').update({ [field]: value }).eq('id', studentId)
+    if (error) { alert('Error saving change: ' + error.message); return }
+    setStudents(prev => prev.map(s => s.id === studentId ? { ...s, [field]: value } : s))
+  }
+
+  async function updateGrade(s, value) {
+    const field = s.discipline === 'KRBA' ? 'krba_level' : 'pka_belt'
+    await updateStudentField(s.id, field, value)
+  }
+
+  async function toggleGroup(s, key) {
+    await updateStudentField(s.id, key, !s[key])
+  }
+
   if (loading) return <div className="loading">Loading students…</div>
 
   return (
@@ -316,22 +341,89 @@ export default function StudentDatabase() {
                       case 'age':         return <td key={c.key} style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{age || '—'}</td>
                       case 'house':       return (
                         <td key={c.key}>
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12 }}>
-                            <span style={{ width: 8, height: 8, borderRadius: '50%', background: colour, display: 'inline-block', flexShrink: 0 }} />
-                            {houseName || '—'}
-                          </span>
+                          {isAdmin ? (
+                            <select value={houseName || ''} onChange={e => updateStudentField(s.id, 'house_name', e.target.value || null)}
+                              style={{ fontSize: 12, padding: '3px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
+                              <option value="">— No house —</option>
+                              {Object.keys(HOUSE_COLOURS).map(h => <option key={h} value={h}>{h}</option>)}
+                            </select>
+                          ) : (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12 }}>
+                              <span style={{ width: 8, height: 8, borderRadius: '50%', background: colour, display: 'inline-block', flexShrink: 0 }} />
+                              {houseName || '—'}
+                            </span>
+                          )}
                         </td>
                       )
-                      case 'grade':        return <td key={c.key} style={{ fontSize: 12 }}>{s.pka_belt || s.krba_level || '—'}</td>
-                      case 'class_schedule': return <td key={c.key} style={{ fontSize: 12 }}>{s.class_schedule || '—'}</td>
-                      case 'class_time':   return <td key={c.key} style={{ fontSize: 12 }}>{s.class_time || '—'}</td>
+                      case 'grade':        return (
+                        <td key={c.key}>
+                          {isAdmin ? (
+                            <select
+                              value={s.discipline === 'KRBA' ? (s.krba_level || '') : (s.pka_belt || '')}
+                              onChange={e => updateGrade(s, e.target.value || null)}
+                              style={{ fontSize: 12, padding: '3px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
+                              <option value="">— Select —</option>
+                              {(s.discipline === 'KRBA' ? belts.krba : (age < 16 ? belts.junior : belts.senior)).map(b => <option key={b}>{b}</option>)}
+                            </select>
+                          ) : <span style={{ fontSize: 12 }}>{s.pka_belt || s.krba_level || '—'}</span>}
+                        </td>
+                      )
+                      case 'class_schedule': return (
+                        <td key={c.key}>
+                          {isAdmin ? (
+                            <select value={s.class_schedule || ''} onChange={e => updateStudentField(s.id, 'class_schedule', e.target.value || null)}
+                              style={{ fontSize: 12, padding: '3px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
+                              <option value="">— Not set —</option>
+                              <option>Mon/Fri</option>
+                              <option>Tue/Thu</option>
+                              <option>Wednesday</option>
+                              <option>Saturday</option>
+                              <option>Sunday</option>
+                              <option>Derby Moore</option>
+                              <option>Moorways</option>
+                            </select>
+                          ) : <span style={{ fontSize: 12 }}>{s.class_schedule || '—'}</span>}
+                        </td>
+                      )
+                      case 'class_time':   return (
+                        <td key={c.key}>
+                          {isAdmin ? (
+                            <select value={s.class_time || ''} onChange={e => updateStudentField(s.id, 'class_time', e.target.value || null)}
+                              style={{ fontSize: 12, padding: '3px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
+                              <option value="">— Not set —</option>
+                              <option>17:00</option>
+                              <option>18:00</option>
+                              <option>19:00</option>
+                              <option>20:00</option>
+                            </select>
+                          ) : <span style={{ fontSize: 12 }}>{s.class_time || '—'}</span>}
+                        </td>
+                      )
                       case 'groups':       return (
                         <td key={c.key}>
-                          <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-                            {groups.length > 0 ? groups.map(g => (
-                              <span key={g} className={`badge ${g==='KR'?'badge-purple':g==='PTs'?'badge-blue':g==='Leader'?'badge-green':'badge-amber'}`} style={{ fontSize: 9 }}>{g}</span>
-                            )) : <span style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>—</span>}
-                          </div>
+                          {isAdmin ? (
+                            <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                              {[
+                                { key: 'is_kr',     label: 'KR',     cls: 'badge-purple' },
+                                { key: 'is_pts',    label: 'PTs',    cls: 'badge-blue' },
+                                { key: 'is_leader', label: 'Leader', cls: 'badge-green' },
+                                { key: 'is_coach',  label: 'Coach',  cls: 'badge-amber' },
+                              ].map(g => (
+                                <button key={g.key} onClick={() => toggleGroup(s, g.key)}
+                                  className={`badge ${g.cls}`}
+                                  style={{ fontSize: 9, cursor: 'pointer', border: 'none', opacity: s[g.key] ? 1 : 0.25 }}
+                                  title={s[g.key] ? `Remove from ${g.label}` : `Add to ${g.label}`}>
+                                  {g.label}
+                                </button>
+                              ))}
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                              {groups.length > 0 ? groups.map(g => (
+                                <span key={g} className={`badge ${g==='KR'?'badge-purple':g==='PTs'?'badge-blue':g==='Leader'?'badge-green':'badge-amber'}`} style={{ fontSize: 9 }}>{g}</span>
+                              )) : <span style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>—</span>}
+                            </div>
+                          )}
                         </td>
                       )
                       case 'status':      return (

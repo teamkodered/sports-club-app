@@ -381,18 +381,28 @@ export default function Registers() {
       const s = students.find(x => x.id === sid)
       if (!s) continue
       for (const pt of points) {
-        await supabase.from('points_log').insert({
+        const { error: logError } = await supabase.from('points_log').insert({
           student_id: sid, point_type: pt.label,
           points_awarded: pt.points, point_scope: 'both',
           awarded_at: new Date(date).toISOString(),
         })
+        if (logError) {
+          alert(`Error saving "${pt.label}" for ${s.members?.first_name}: ${logError.message}`)
+          setSaving(false)
+          return
+        }
       }
       const updates = {
         house_points: (s.house_points || 0) + total,
         individual_points: (s.individual_points || 0) + total,
       }
       if (isChamp) updates.class_champion_count = (s.class_champion_count || 0) + 1
-      await supabase.from('students').update(updates).eq('id', sid)
+      const { error: updateError } = await supabase.from('students').update(updates).eq('id', sid)
+      if (updateError) {
+        alert(`Points were logged, but saving totals for ${s.members?.first_name} failed: ${updateError.message}`)
+        setSaving(false)
+        return
+      }
       const houseName = s.members?.houses?.name
       if (houseName && total > 0) {
         const { data: house } = await supabase.from('houses').select('points').eq('name', houseName).single()
