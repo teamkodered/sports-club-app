@@ -543,6 +543,7 @@ export default function AthleteProfiles() {
   const [reportLoading, setReportLoading] = useState(false)
   const [reportFrom, setReportFrom] = useState(() => { const d = new Date(); d.setMonth(d.getMonth()-3); return d.toISOString().split('T')[0] })
   const [reportTo, setReportTo]     = useState(new Date().toISOString().split('T')[0])
+  const [invitingId, setInvitingId] = useState(null)
 
   useEffect(() => { loadStudents() }, [])
 
@@ -557,10 +558,36 @@ export default function AthleteProfiles() {
   async function loadStudents() {
     const { data } = await supabase
       .from('students')
-      .select('*, members(first_name, last_name, email, date_of_birth, houses(name, colour))')
+      .select('*, members(first_name, last_name, email, phone, date_of_birth, status, houses(name, colour))')
       .order('created_at')
     setStudents(data || [])
     setLoading(false)
+  }
+
+  async function inviteStudent(s) {
+    const email = s.members?.email
+    const phone = s.members?.phone
+    if (!email && !phone) return alert('No email or phone for this athlete.')
+    if (!email && phone) {
+      const msg = encodeURIComponent(`Hi ${s.members.first_name}, you've been invited to the KR Centre athlete app. Log in at: https://klasschamp.netlify.app`)
+      window.open(`sms:${phone.replace(/\s/g,'')}?body=${msg}`, '_blank')
+      return
+    }
+    if (!confirm(`Send login invite to ${email}?`)) return
+    setInvitingId(s.id)
+    try {
+      const res = await fetch('/.netlify/functions/invite-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, name: `${s.members?.first_name} ${s.members?.last_name}` }),
+      })
+      const data = await res.json()
+      if (data.success) alert(data.warning ? `✓ Invite sent, but: ${data.warning}` : `✓ Invite sent to ${email}`)
+      else alert(`Error: ${data.error}`)
+    } catch (e) {
+      alert('Failed to send invite')
+    }
+    setInvitingId(null)
   }
 
   async function selectStudent(s) {
@@ -680,7 +707,8 @@ export default function AthleteProfiles() {
     setReportLoading(false)
   }
 
-  const filtered = students.filter(s => {
+  const athletes = students.filter(s => s.is_kr || s.is_pts || s.discipline === 'KRBA')
+  const filtered = athletes.filter(s => {
     if (!search) return true
     const q = search.toLowerCase()
     return `${s.members?.first_name} ${s.members?.last_name} ${s.student_ref}`.toLowerCase().includes(q)
@@ -735,7 +763,7 @@ export default function AthleteProfiles() {
         {!selected ? (
           <div className="empty-state" style={{ paddingTop: 80 }}>
             <h3>Select an athlete</h3>
-            <p>Choose a student from the list to view their profile</p>
+            <p>Choose an athlete from the list to view their profile</p>
           </div>
         ) : (
           <>
@@ -756,6 +784,12 @@ export default function AthleteProfiles() {
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                   {apData?.show_on_website && (
                     <span className="badge badge-green" style={{ fontSize: 10 }}>🌐 On website</span>
+                  )}
+                  {isAdmin && m?.status !== 'stopped' && (
+                    <button className="btn btn-sm" onClick={() => inviteStudent(selected)} disabled={invitingId === selected.id}
+                      title={m?.email ? `Email invite to ${m.email}` : `SMS invite to ${m?.phone}`}>
+                      {invitingId === selected.id ? '…' : m?.email ? '✉️ Invite to app' : '📱 Invite to app'}
+                    </button>
                   )}
                   {isAdmin && !editing && (
                     <button className="btn btn-sm" onClick={() => setEditing(true)}>Edit profile</button>

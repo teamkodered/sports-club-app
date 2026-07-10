@@ -54,7 +54,6 @@ export default function StudentDatabase() {
   const [roleFilter, setRoleFilter] = useState('')
   const [selected, setSelected]       = useState(null)
   const [stopping, setStopping]       = useState(null)
-  const [invitingId, setInvitingId]   = useState(null)
   const [roleEdit, setRoleEdit]       = useState(null)
   const [sortKey, setSortKey]         = useState('last_name')
   const [sortDir, setSortDir]         = useState('asc')
@@ -168,33 +167,6 @@ export default function StudentDatabase() {
 
   const houses = [...new Set(students.map(s => s.house_name || s.members?.houses?.name).filter(Boolean))].sort()
   const cols = ALL_COLUMNS.filter(c => visibleCols.includes(c.key))
-
-  async function inviteStudent(s) {
-    const email = s.members?.email
-    const phone = s.members?.phone
-    if (!email && !phone) return alert('No email or phone for this student.')
-    // If no email, open SMS
-    if (!email && phone) {
-      const msg = encodeURIComponent(`Hi ${s.members.first_name}, you've been invited to the KR Centre athlete app. Log in at: https://klasschamp.netlify.app`)
-      window.open(`sms:${phone.replace(/\s/g,'')}?body=${msg}`, '_blank')
-      return
-    }
-    if (!confirm(`Send login invite to ${email}?`)) return
-    setInvitingId(s.id)
-    try {
-      const res = await fetch('/.netlify/functions/invite-user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, name: `${s.members?.first_name} ${s.members?.last_name}` }),
-      })
-      const data = await res.json()
-      if (data.success) alert(data.warning ? `✓ Invite sent, but: ${data.warning}` : `✓ Invite sent to ${email}`)
-      else alert(`Error: ${data.error}`)
-    } catch (e) {
-      alert('Failed to send invite')
-    }
-    setInvitingId(null)
-  }
 
   async function stopStudent(s) {
     if (!confirm(`Stop training for ${s.members?.first_name} ${s.members?.last_name}?`)) return
@@ -336,8 +308,24 @@ export default function StudentDatabase() {
                           </button>
                         </td>
                       )
-                      case 'first_name':  return <td key={c.key} style={{ fontWeight: 500 }}>{m?.first_name}</td>
-                      case 'last_name':   return <td key={c.key} style={{ fontWeight: 500 }}>{m?.last_name}</td>
+                      case 'first_name':  return (
+                        <td key={c.key}>
+                          <a href={`/athletes?id=${s.id}`}
+                            onClick={e => { e.preventDefault(); navigate(`/athletes?id=${s.id}`) }}
+                            style={{ color: 'var(--text)', fontWeight: 500, textDecoration: 'none', cursor: 'pointer' }}>
+                            {m?.first_name}
+                          </a>
+                        </td>
+                      )
+                      case 'last_name':   return (
+                        <td key={c.key}>
+                          <a href={`/athletes?id=${s.id}`}
+                            onClick={e => { e.preventDefault(); navigate(`/athletes?id=${s.id}`) }}
+                            style={{ color: 'var(--text)', fontWeight: 500, textDecoration: 'none', cursor: 'pointer' }}>
+                            {m?.last_name}
+                          </a>
+                        </td>
+                      )
                       case 'age':         return <td key={c.key} style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{age || '—'}</td>
                       case 'house':       return (
                         <td key={c.key}>
@@ -456,13 +444,6 @@ export default function StudentDatabase() {
                   <td>
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button className="btn btn-sm" onClick={() => setSelected(s)}>Edit</button>
-                      {isAdmin && (s.members?.email || s.members?.phone) && (
-                        <button className="btn btn-sm" style={{ color: '#378ADD', borderColor: '#378ADD' }}
-                          onClick={() => inviteStudent(s)} disabled={invitingId === s.id}
-                          title={s.members?.email ? `Email invite to ${s.members.email}` : `SMS invite to ${s.members.phone}`}>
-                          {invitingId === s.id ? '…' : s.members?.email ? '✉️' : '📱'}
-                        </button>
-                      )}
                       {m?.status !== 'stopped' && isAdmin && (
                         <button className="btn btn-sm" style={{ color: '#a32d2d', border: '1px solid #a32d2d' }}
                           onClick={() => stopStudent(s)}>Stop</button>
