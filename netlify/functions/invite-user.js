@@ -34,6 +34,27 @@ exports.handler = async (event) => {
     if (!res.ok) {
       return { statusCode: 400, body: JSON.stringify({ error: data.msg || data.error_description || 'Invite failed' }) }
     }
+
+    // Link this new auth user back to their existing members row so the app
+    // can find their profile/student record on login (matched by email,
+    // which is unique on members).
+    if (data.id) {
+      const linkRes = await fetch(`${supabaseUrl}/rest/v1/members?email=eq.${encodeURIComponent(email)}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': serviceKey,
+          'Authorization': `Bearer ${serviceKey}`,
+          'Prefer': 'return=minimal',
+        },
+        body: JSON.stringify({ auth_id: data.id }),
+      })
+      if (!linkRes.ok) {
+        const linkErr = await linkRes.text()
+        return { statusCode: 200, body: JSON.stringify({ success: true, warning: `Invite sent, but linking the account failed: ${linkErr}` }) }
+      }
+    }
+
     return { statusCode: 200, body: JSON.stringify({ success: true }) }
   } catch (err) {
     return { statusCode: 500, body: JSON.stringify({ error: err.message }) }

@@ -188,7 +188,7 @@ export default function StudentDatabase() {
         body: JSON.stringify({ email, name: `${s.members?.first_name} ${s.members?.last_name}` }),
       })
       const data = await res.json()
-      if (data.success) alert(`✓ Invite sent to ${email}`)
+      if (data.success) alert(data.warning ? `✓ Invite sent, but: ${data.warning}` : `✓ Invite sent to ${email}`)
       else alert(`Error: ${data.error}`)
     } catch (e) {
       alert('Failed to send invite')
