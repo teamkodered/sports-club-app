@@ -569,25 +569,30 @@ export default function AthleteProfiles() {
     setLoading(false)
   }
 
-  async function inviteStudent(s) {
-    const email = s.members?.email
+  async function inviteStudent(s, method) {
+    const rawEmail = s.members?.email
+    const hasRealEmail = rawEmail && !rawEmail.includes('@kr-centre.placeholder')
     const phone = s.members?.phone
-    if (!email && !phone) return alert('No email or phone for this athlete.')
-    if (!email && phone) {
+
+    if (method === 'sms') {
+      if (!phone) return alert('No phone number on file for this athlete.')
       const msg = encodeURIComponent(`Hi ${s.members.first_name}, you've been invited to the KR Centre athlete app. Log in at: https://klasschamp.netlify.app`)
       window.open(`sms:${phone.replace(/\s/g,'')}?body=${msg}`, '_blank')
       return
     }
-    if (!confirm(`Send login invite to ${email}?`)) return
+
+    // method === 'email' (or default)
+    if (!hasRealEmail) return alert('No real email on file for this athlete — add one on their profile, or use the SMS invite instead.')
+    if (!confirm(`Send login invite to ${rawEmail}?`)) return
     setInvitingId(s.id)
     try {
       const res = await fetch('/.netlify/functions/invite-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, name: `${s.members?.first_name} ${s.members?.last_name}` }),
+        body: JSON.stringify({ email: rawEmail, name: `${s.members?.first_name} ${s.members?.last_name}` }),
       })
       const data = await res.json()
-      if (data.success) alert(data.warning ? `✓ Invite sent, but: ${data.warning}` : `✓ Invite sent to ${email}`)
+      if (data.success) alert(data.warning ? `✓ Invite sent, but: ${data.warning}` : `✓ Invite sent to ${rawEmail}`)
       else alert(`Error: ${data.error}`)
     } catch (e) {
       alert('Failed to send invite')
@@ -821,12 +826,23 @@ export default function AthleteProfiles() {
                   {apData?.show_on_website && (
                     <span className="badge badge-green" style={{ fontSize: 10 }}>🌐 On website</span>
                   )}
-                  {isAdmin && m?.status !== 'stopped' && (
-                    <button className="btn btn-sm" onClick={() => inviteStudent(selected)} disabled={invitingId === selected.id}
-                      title={m?.email ? `Email invite to ${m.email}` : `SMS invite to ${m?.phone}`}>
-                      {invitingId === selected.id ? '…' : m?.email ? '✉️ Invite to app' : '📱 Invite to app'}
-                    </button>
-                  )}
+                  {isAdmin && m?.status !== 'stopped' && (() => {
+                    const hasRealEmail = m?.email && !m.email.includes('@kr-centre.placeholder')
+                    return (
+                      <>
+                        <button className="btn btn-sm" onClick={() => inviteStudent(selected, 'email')} disabled={invitingId === selected.id}
+                          title={hasRealEmail ? `Email invite to ${m.email}` : 'No real email on file'}
+                          style={!hasRealEmail ? { opacity: 0.4 } : undefined}>
+                          {invitingId === selected.id ? '…' : '✉️ Email invite'}
+                        </button>
+                        <button className="btn btn-sm" onClick={() => inviteStudent(selected, 'sms')} disabled={invitingId === selected.id}
+                          title={m?.phone ? `SMS invite to ${m.phone}` : 'No phone on file'}
+                          style={!m?.phone ? { opacity: 0.4 } : undefined}>
+                          📱 SMS invite
+                        </button>
+                      </>
+                    )
+                  })()}
                   {isAdmin && !editing && (
                     <button className="btn btn-sm" onClick={() => setEditing(true)}>Edit profile</button>
                   )}
