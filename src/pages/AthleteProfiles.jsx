@@ -540,6 +540,11 @@ export default function AthleteProfiles() {
   const [reportData, setReportData] = useState(null)
   const [f2fData, setF2fData]         = useState([])
   const [tptData, setTptData]         = useState({ kickboxing: [], boxing: [] })
+  const [attendanceData, setAttendanceData] = useState([])
+  const [sessionPoints, setSessionPoints]   = useState([])
+  const [openSession, setOpenSession]       = useState(null)
+  const [sessionNoteDraft, setSessionNoteDraft] = useState('')
+  const [savingSessionNote, setSavingSessionNote] = useState(false)
   const [reportLoading, setReportLoading] = useState(false)
   const [reportFrom, setReportFrom] = useState(() => { const d = new Date(); d.setMonth(d.getMonth()-3); return d.toISOString().split('T')[0] })
   const [reportTo, setReportTo]     = useState(new Date().toISOString().split('T')[0])
@@ -597,6 +602,9 @@ export default function AthleteProfiles() {
     setReportData(null)
     setF2fData([])
     setTptData({ kickboxing: [], boxing: [] })
+    setAttendanceData([])
+    setSessionPoints([])
+    setOpenSession(null)
     // Load F2F sessions
     supabase.from('fit2fight_sessions').select('*').eq('student_id', s.id)
       .order('session_date', { ascending: false })
@@ -608,6 +616,15 @@ export default function AthleteProfiles() {
     supabase.from('tpt_boxing').select('*').eq('student_id', s.id)
       .order('assessed_at', { ascending: false }).limit(1)
       .then(({ data }) => setTptData(prev => ({ ...prev, boxing: data || [] })))
+    // Load attendance history + coach points for the Sessions tab
+    supabase.from('attendance').select('id, session_date, attendance_type, attended_at, note')
+      .eq('student_id', s.id)
+      .order('session_date', { ascending: false })
+      .then(({ data, error }) => { if (!error) setAttendanceData(data || []) })
+    supabase.from('points_log').select('id, point_type, points_awarded, point_scope, note, awarded_at')
+      .eq('student_id', s.id)
+      .order('awarded_at', { ascending: false })
+      .then(({ data, error }) => { if (!error) setSessionPoints(data || []) })
     const { data } = await supabase
       .from('athlete_profiles')
       .select('*, pdp_notes, pdp_shared')
@@ -636,6 +653,19 @@ export default function AthleteProfiles() {
       })
       setResults(['', ''])
     }
+  }
+
+  async function saveSessionNote() {
+    if (!openSession) return
+    setSavingSessionNote(true)
+    const { error } = await supabase.from('attendance').update({ note: sessionNoteDraft }).eq('id', openSession.id)
+    if (error) {
+      alert('Error saving note: ' + error.message)
+    } else {
+      setAttendanceData(prev => prev.map(a => a.id === openSession.id ? { ...a, note: sessionNoteDraft } : a))
+      setOpenSession(s => ({ ...s, note: sessionNoteDraft }))
+    }
+    setSavingSessionNote(false)
   }
 
   async function saveProfile() {
@@ -707,7 +737,13 @@ export default function AthleteProfiles() {
     setReportLoading(false)
   }
 
-  const athletes = students.filter(s => s.is_kr || s.is_pts || s.discipline === 'KRBA')
+  const athletes = students
+    .filter(s => s.is_kr || s.is_pts || s.discipline === 'KRBA')
+    .sort((a, b) => {
+      const an = `${a.members?.first_name || ''} ${a.members?.last_name || ''}`.trim().toLowerCase()
+      const bn = `${b.members?.first_name || ''} ${b.members?.last_name || ''}`.trim().toLowerCase()
+      return an.localeCompare(bn)
+    })
   const filtered = athletes.filter(s => {
     if (!search) return true
     const q = search.toLowerCase()
@@ -800,7 +836,7 @@ export default function AthleteProfiles() {
 
             {/* Tabs */}
             <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 14 }}>
-              {['profile', 'pdp', 'fit2fight', 'tpt', 'media', 'report'].map(t => (
+              {['profile', 'sessions', 'pdp', 'fit2fight', 'tpt', 'media', 'report'].map(t => (
                 <button key={t} onClick={() => setTab(t)} style={{
                   padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
                   borderBottom: `2px solid ${tab === t ? 'var(--text)' : 'transparent'}`,
@@ -924,6 +960,166 @@ export default function AthleteProfiles() {
                 )}
               </>
             )}
+
+            {/* ── Sessions tab ── */}
+            {tab === 'sessions' && (() => {
+              const now = new Date()
+              const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+              const thirtyDaysAgo = new Date(now); thirtyDaysAgo.setDate(now.getDate() - 30)
+
+              const totalSessions = attendanceData.length
+              const fullKitCount = attendanceData.filter(a => a.attendance_type === 'full_kit').length
+              const thisMonthCount = attendanceData.filter(a => new Date(a.session_date) >= startOfMonth).length
+              const last30Count = attendanceData.filter(a => new Date(a.session_date) >= thirtyDaysAgo).length
+
+              // Build last 6 months of counts for the bar graph
+              const months = []
+              for (let i = 5; i >= 0; i--) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+                months.push({ key: `${d.getFullYear()}-${d.getMonth()}`, label: d.toLocaleDateString(undefined, { month: 'short' }), count: 0 })
+              }
+              attendanceData.forEach(a => {
+                const d = new Date(a.session_date)
+                const key = `${d.getFullYear()}-${d.getMonth()}`
+                const m = months.find(mo => mo.key === key)
+                if (m) m.count++
+              })
+              const maxCount = Math.max(1, ...months.map(m => m.count))
+
+              // Points grouped by calendar date, to match against sessions
+              const pointsByDate = {}
+              sessionPoints.forEach(p => {
+                const day = (p.awarded_at || '').slice(0, 10)
+                if (!pointsByDate[day]) pointsByDate[day] = []
+                pointsByDate[day].push(p)
+              })
+
+              return (
+                <div>
+                  {/* Attendance numbers */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10, marginBottom: 20 }}>
+                    {[
+                      { label: 'Total sessions', value: totalSessions },
+                      { label: 'Full kit', value: fullKitCount },
+                      { label: 'This month', value: thisMonthCount },
+                      { label: 'Last 30 days', value: last30Count },
+                    ].map(stat => (
+                      <div key={stat.label} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px', background: 'var(--bg-secondary)' }}>
+                        <div style={{ fontSize: 22, fontWeight: 700 }}>{stat.value}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{stat.label}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Attendance graph */}
+                  <div style={{ marginBottom: 24 }}>
+                    <h4 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Attendance — last 6 months</h4>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, height: 120, borderBottom: '1px solid var(--border)', paddingBottom: 4 }}>
+                      {months.map(m => (
+                        <div key={m.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                          <div style={{ fontSize: 11, fontWeight: 600 }}>{m.count || ''}</div>
+                          <div style={{
+                            width: '60%', minHeight: m.count ? 4 : 0,
+                            height: `${(m.count / maxCount) * 90}px`,
+                            background: 'var(--accent, #378ADD)', borderRadius: '3px 3px 0 0',
+                          }} />
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                      {months.map(m => (
+                        <div key={m.key} style={{ flex: 1, textAlign: 'center', fontSize: 11, color: 'var(--text-secondary)' }}>{m.label}</div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Session list */}
+                  <h4 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Sessions attended</h4>
+                  {attendanceData.length === 0 ? (
+                    <div className="empty-state"><h3>No sessions yet</h3><p>Attendance will appear here once marked on a register</p></div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 420, overflowY: 'auto' }}>
+                      {attendanceData.map(a => {
+                        const day = a.session_date
+                        const dayPoints = pointsByDate[day] || []
+                        const dayTotal = dayPoints.reduce((s, p) => s + (p.points_awarded || 0), 0)
+                        return (
+                          <button key={a.id} onClick={() => { setOpenSession(a); setSessionNoteDraft(a.note || '') }}
+                            style={{
+                              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                              textAlign: 'left', padding: '10px 12px', border: '1px solid var(--border)',
+                              borderRadius: 'var(--radius)', background: 'var(--bg-secondary)', cursor: 'pointer',
+                            }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontSize: 13, fontWeight: 500 }}>
+                                {new Date(day).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+                              </span>
+                              <span className={`badge ${a.attendance_type === 'full_kit' ? 'badge-blue' : 'badge-green'}`} style={{ fontSize: 10 }}>
+                                {a.attendance_type === 'full_kit' ? 'Full kit' : 'Attended'}
+                              </span>
+                              {a.note && <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>📝 Note</span>}
+                            </div>
+                            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                              {dayPoints.length > 0 ? `+${dayTotal} pts (${dayPoints.length})` : 'No points'}
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {/* Session detail modal */}
+                  {openSession && (
+                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}
+                      onClick={() => setOpenSession(null)}>
+                      <div className="card" style={{ width: '100%', maxWidth: 460 }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                          <h2 style={{ fontSize: 15, fontWeight: 600 }}>
+                            {new Date(openSession.session_date).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                          </h2>
+                          <button onClick={() => setOpenSession(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}>✕</button>
+                        </div>
+
+                        <div style={{ marginBottom: 14 }}>
+                          <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500, display: 'block', marginBottom: 6 }}>
+                            Coach points awarded
+                          </label>
+                          {(pointsByDate[openSession.session_date] || []).length === 0 ? (
+                            <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No points awarded for this session</p>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              {(pointsByDate[openSession.session_date] || []).map(p => (
+                                <div key={p.id} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 10px', fontSize: 12 }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 500 }}>
+                                    <span>{p.point_type}</span>
+                                    <span>+{p.points_awarded} pts ({p.point_scope})</span>
+                                  </div>
+                                  {p.note && <div style={{ color: 'var(--text-secondary)', marginTop: 3 }}>{p.note}</div>}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500, display: 'block', marginBottom: 6 }}>
+                            Session notes
+                          </label>
+                          <textarea rows={4} value={sessionNoteDraft} onChange={e => setSessionNoteDraft(e.target.value)}
+                            placeholder="Notes on how this session went…" style={{ resize: 'none', width: '100%' }}
+                            disabled={!isAdmin} />
+                          {isAdmin && (
+                            <button className="btn btn-primary btn-sm" style={{ marginTop: 8 }} onClick={saveSessionNote} disabled={savingSessionNote}>
+                              {savingSessionNote ? 'Saving…' : 'Save note'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
 
             {/* ── PDP tab ── */}
             {tab === 'pdp' && (

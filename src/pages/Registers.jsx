@@ -786,7 +786,7 @@ export default function Registers() {
             ))}
             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
               {contactModal.members?.phone && <a href={`tel:${contactModal.members.phone}`} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>📞 Call</a>}
-              <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => { setContactModal(null); navigate(`/athletes?id=${contactModal.id}`) }}>View profile →</button>
+              <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => { setContactModal(null); navigate(`/students?id=${contactModal.id}`) }}>View profile →</button>
             </div>
           </div>
         </div>

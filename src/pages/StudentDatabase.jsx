@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import StudentProfile from '../components/students/StudentProfile.jsx'
@@ -43,6 +43,7 @@ function SortTh({ col, label, sortKey, sortDir, onSort, style = {} }) {
 export default function StudentDatabase() {
   const { isAdmin, profile } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [students, setStudents]       = useState([])
   const [filtered, setFiltered]       = useState([])
   const [loading, setLoading]         = useState(true)
@@ -85,6 +86,14 @@ export default function StudentDatabase() {
   }
 
   useEffect(() => { load() }, [])
+
+  useEffect(() => {
+    const id = searchParams.get('id')
+    if (id && students.length > 0) {
+      const found = students.find(s => s.id === id)
+      if (found) setSelected(found)
+    }
+  }, [searchParams, students])
 
   async function load() {
     const { data } = await supabase
