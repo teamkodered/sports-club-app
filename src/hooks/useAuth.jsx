@@ -52,7 +52,7 @@ export function AuthProvider({ children }) {
   const isAthlete = !!(profile?.student?.is_kr || profile?.student?.discipline === 'KRBA' || profile?.student?.is_pts)
 
   return (
-    <AuthContext.Provider value={{ session, profile, isAdmin, isAthlete, loading, refreshProfile: () => fetchProfile(session?.user?.id) }}>
+    <AuthContext.Provider value={{ session, profile, role, isAdmin, isCoach, isLeader, isStaff, isAthlete, loading, refreshProfile: () => fetchProfile(session?.user?.id) }}>
       {children}
     </AuthContext.Provider>
   )
