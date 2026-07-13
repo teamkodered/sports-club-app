@@ -133,8 +133,8 @@ export default function CheckInPublic() {
 
         {/* Check-in action sheet */}
         {checking && !confirmed && (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 50, padding: 16 }}>
-            <div style={{ background: 'var(--bg)', borderRadius: '16px 16px 0 0', width: '100%', maxWidth: 440, padding: 24 }}>
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 50, padding: 16, overflowY: 'auto' }}>
+            <div style={{ background: 'var(--bg)', borderRadius: '0 0 16px 16px', width: '100%', maxWidth: 440, padding: 24, marginTop: 0 }}>
               <h2 style={{ fontSize: 17, fontWeight: 600, textAlign: 'center', marginBottom: 4 }}>
                 {checking.members?.first_name} {checking.members?.last_name}
               </h2>

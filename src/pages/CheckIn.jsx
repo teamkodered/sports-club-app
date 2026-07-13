@@ -210,8 +210,8 @@ export default function CheckIn() {
 
       {/* Check-in options modal */}
       {checking && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 50, padding: 16 }}>
-          <div className="card" style={{ width: '100%', maxWidth: 480, marginBottom: 0 }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 50, padding: 16, overflowY: 'auto' }}>
+          <div className="card" style={{ width: '100%', maxWidth: 480, marginTop: 16, marginBottom: 0 }}>
             <div style={{ textAlign: 'center', marginBottom: 16 }}>
               <div style={{ fontSize: 32, marginBottom: 6 }}>👋</div>
               <h2 style={{ fontSize: 17, fontWeight: 600 }}>{checking.members?.first_name} {checking.members?.last_name}</h2>

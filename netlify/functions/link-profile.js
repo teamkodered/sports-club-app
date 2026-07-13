@@ -47,6 +47,28 @@ exports.handler = async (event) => {
       return { statusCode: 409, body: JSON.stringify({ error: 'This profile is already linked to a different login. Ask an admin for help.' }) }
     }
 
+    // If this login is already attached to a different members row (e.g. it
+    // self-registered before being matched to its real historical record),
+    // release that row first so only one members row ever holds this auth_id
+    // -- otherwise the profile lookup (which expects exactly one match)
+    // breaks for everyone using this login.
+    if (currentAuthId !== user.id) {
+      const releaseRes = await fetch(`${supabaseUrl}/rest/v1/members?auth_id=eq.${user.id}&id=neq.${student.member_id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: serviceKey,
+          Authorization: `Bearer ${serviceKey}`,
+          Prefer: 'return=minimal',
+        },
+        body: JSON.stringify({ auth_id: null }),
+      })
+      if (!releaseRes.ok) {
+        const errText = await releaseRes.text()
+        return { statusCode: 500, body: JSON.stringify({ error: `Failed to release old profile link: ${errText}` }) }
+      }
+    }
+
     const patchRes = await fetch(`${supabaseUrl}/rest/v1/members?id=eq.${student.member_id}`, {
       method: 'PATCH',
       headers: {
