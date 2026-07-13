@@ -32,6 +32,9 @@ export default function JoinPKAAdult() {
   async function submit() {
     setSubmitting(true)
     try {
+      const { data: existing } = await supabase.from('members').select('id').ilike('email', form.email).maybeSingle()
+      if (existing) throw new Error('An account with this email already exists. Please contact us if you need help accessing it, rather than submitting a new form.')
+
       const ref = generateStudentId(form.last_name, form.first_name, form.dob)
       setStudentRef(ref)
       const age = form.dob ? Math.floor((Date.now() - new Date(form.dob)) / (365.25*24*60*60*1000)) : 0

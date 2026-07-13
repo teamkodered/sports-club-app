@@ -22,6 +22,9 @@ export default function JoinKRBA() {
   async function submit() {
     setSubmitting(true)
     try {
+      const { data: existing } = await supabase.from('members').select('id').ilike('email', form.email).maybeSingle()
+      if (existing) throw new Error('An account with this email already exists. Please contact us if you need help accessing it, rather than submitting a new form.')
+
       const parts = form.full_name.trim().split(' ')
       const first_name = parts[0]
       const last_name = parts.slice(1).join(' ')

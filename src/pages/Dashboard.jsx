@@ -65,16 +65,16 @@ export default function Dashboard() {
       {/* Stats row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 18 }}>
         {[
-          { label: 'Active members', value: stats.memberCount, icon: '👥', colour: '#378ADD' },
-          { label: 'Students',       value: stats.studentCount, icon: '🎽', colour: '#1D9E75' },
-          { label: 'Check-ins (30d)',value: stats.checkIns,     icon: '✅', colour: '#EF9F27' },
-          { label: 'Houses',         value: standings.length,   icon: '🛡️', colour: '#E24B4A' },
+          { label: 'Active members', value: stats.memberCount, icon: '👥', colour: '#378ADD', to: '/students' },
+          { label: 'Students',       value: stats.studentCount, icon: '🎽', colour: '#1D9E75', to: '/students' },
+          { label: 'Check-ins (30d)',value: stats.checkIns,     icon: '✅', colour: '#EF9F27', to: '/checkin' },
+          { label: 'Houses',         value: standings.length,   icon: '🛡️', colour: '#E24B4A', to: '/league' },
         ].map(s => (
-          <div key={s.label} className="card" style={{ textAlign: 'center', borderTop: `3px solid ${s.colour}` }}>
+          <Link key={s.label} to={s.to} className="card" style={{ textAlign: 'center', borderTop: `3px solid ${s.colour}`, textDecoration: 'none', color: 'inherit', display: 'block' }}>
             <div style={{ fontSize: 26, marginBottom: 4 }}>{s.icon}</div>
             <div style={{ fontSize: 26, fontWeight: 700, color: s.colour }}>{s.value}</div>
             <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{s.label}</div>
-          </div>
+          </Link>
         ))}
       </div>
 

@@ -27,6 +27,15 @@ export async function createMemberAndStudent({ form, discipline, guardianEmail }
     const email = guardianEmail || form.email
     const dob = form.dob || form.student_dob || ''
 
+    // Only check for a duplicate account on self-registration -- siblings
+    // registered via a guardian's email are expected to share that email
+    if (!guardianEmail) {
+      const { data: existing } = await supabase.from('members').select('id').ilike('email', email).maybeSingle()
+      if (existing) {
+        return { error: { message: 'An account with this email already exists. Please log in instead, or contact us if you need help accessing it.' } }
+      }
+    }
+
     // Auth signup
     const { data: authData, error: authErr } = await supabase.auth.signUp({
       email,

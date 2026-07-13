@@ -48,6 +48,13 @@ export default function Join() {
     setSubmitting(true)
     setError('')
     try {
+      const { data: existing } = await supabase.from('members').select('id').ilike('email', form.email).maybeSingle()
+      if (existing) {
+        setError('An account with this email already exists. Please log in instead, or contact us if you need help accessing it.')
+        setSubmitting(false)
+        return
+      }
+
       const house = await autoAssignHouse()
       const { data: authData, error: authErr } = await supabase.auth.signUp({
         email: form.email,
