@@ -12,6 +12,7 @@ export default function CheckIn() {
   const [checking, setChecking]     = useState(null) // student being checked in
   const [mode, setMode]             = useState('attended') // attended | weight
   const [weight, setWeight]         = useState('')
+  const [todaysSession, setTodaysSession] = useState(null) // today's fit2fight_sessions row, if any
   const [saving, setSaving]         = useState(false)
   const [confirmed, setConfirmed]   = useState(null)
   const [date]                      = useState(new Date().toISOString().split('T')[0])
@@ -55,12 +56,30 @@ export default function CheckIn() {
     setWeight('')
     setSearch('')
     setResults([])
+    setTodaysSession(null)
+    supabase.from('fit2fight_sessions').select('id, weight_before, weight_after')
+      .eq('student_id', s.id).eq('session_date', date)
+      .order('created_at', { ascending: false }).limit(1)
+      .then(({ data }) => setTodaysSession(data?.[0] || null))
   }
 
   async function checkIn(attendMode) {
     if (!checking) return
     setSaving(true)
     const now = new Date().toISOString()
+
+    // Weighing out just updates today's session record — attendance/points
+    // were already logged when they checked in or weighed in earlier
+    if (attendMode === 'weight_after') {
+      if (weight && todaysSession) {
+        await supabase.from('fit2fight_sessions').update({ weight_after: parseFloat(weight) }).eq('id', todaysSession.id)
+      }
+      setConfirmed({ student: checking, mode: attendMode, weight: weight || null })
+      setChecking(null)
+      setSaving(false)
+      setTimeout(() => { setConfirmed(null); inputRef.current?.focus() }, 2500)
+      return
+    }
 
     // Log attendance
     await supabase.from('attendance').insert({
@@ -138,7 +157,7 @@ export default function CheckIn() {
               {confirmed.student.members?.first_name} {confirmed.student.members?.last_name} checked in
             </div>
             <div style={{ fontSize: 12, color: '#3b6d11' }}>
-              {confirmed.mode === 'full_kit' ? '✓ Full kit' : confirmed.mode === 'weight' ? `⚖️ Weight: ${confirmed.weight}kg` : '✓ Attended'}
+              {confirmed.mode === 'full_kit' ? '✓ Full kit' : confirmed.mode === 'weight' ? `⚖️ Weight in: ${confirmed.weight}kg` : confirmed.mode === 'weight_after' ? `⚖️ Weight out: ${confirmed.weight}kg` : '✓ Attended'}
             </div>
           </div>
         </div>
@@ -201,7 +220,7 @@ export default function CheckIn() {
 
             {/* Mode tabs */}
             <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 16 }}>
-              {[['attended','✓ Attended'],['full_kit','✓ Full Kit'],['weight','⚖️ Weight check']].map(([key, label]) => (
+              {[['attended','✓ Attended'],['full_kit','✓ Full Kit'],['weight','⚖️ Weight in'],['weight_after','⚖️ Weight out']].map(([key, label]) => (
                 <button key={key} onClick={() => setMode(key)} style={{
                   flex: 1, padding: '8px 4px', fontSize: 12, border: 'none', background: 'none', cursor: 'pointer',
                   borderBottom: `2px solid ${mode === key ? 'var(--text)' : 'transparent'}`,
@@ -213,9 +232,26 @@ export default function CheckIn() {
 
             {mode === 'weight' && (
               <div className="field" style={{ marginBottom: 14 }}>
-                <label>Weight (kg)</label>
+                <label>Weight before session (kg)</label>
                 <input type="number" step="0.1" value={weight} onChange={e => setWeight(e.target.value)}
                   placeholder="e.g. 65.5" autoFocus style={{ fontSize: 18, textAlign: 'center', fontWeight: 600 }} />
+              </div>
+            )}
+
+            {mode === 'weight_after' && (
+              <div className="field" style={{ marginBottom: 14 }}>
+                <label>Weight after session (kg)</label>
+                {!todaysSession?.weight_before ? (
+                  <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No "weight in" logged for today yet — use the Weight in tab first.</p>
+                ) : (
+                  <>
+                    <input type="number" step="0.1" value={weight} onChange={e => setWeight(e.target.value)}
+                      placeholder="e.g. 63.8" autoFocus style={{ fontSize: 18, textAlign: 'center', fontWeight: 600 }} />
+                    <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 6 }}>
+                      In: {todaysSession.weight_before}kg{todaysSession.weight_after ? ` · Already logged out at ${todaysSession.weight_after}kg` : ''}
+                    </p>
+                  </>
+                )}
               </div>
             )}
 
@@ -223,8 +259,8 @@ export default function CheckIn() {
               <button className="btn" onClick={() => setChecking(null)}>Cancel</button>
               <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', fontSize: 15 }}
                 onClick={() => checkIn(mode)}
-                disabled={saving || (mode === 'weight' && !weight)}>
-                {saving ? 'Checking in…' : mode === 'weight' ? `Save ${weight || '?'}kg` : mode === 'full_kit' ? '✓ Full Kit' : '✓ Check in'}
+                disabled={saving || ((mode === 'weight' || mode === 'weight_after') && !weight) || (mode === 'weight_after' && !todaysSession?.weight_before)}>
+                {saving ? 'Saving…' : mode === 'weight' ? `Save ${weight || '?'}kg in` : mode === 'weight_after' ? `Save ${weight || '?'}kg out` : mode === 'full_kit' ? '✓ Full Kit' : '✓ Check in'}
               </button>
             </div>
           </div>

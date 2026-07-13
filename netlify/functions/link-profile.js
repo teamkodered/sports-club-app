@@ -1,0 +1,69 @@
+// Lets a logged-in athlete permanently link their own login to a student
+// record they find via search, so they don't have to search for themselves
+// every time they open "My app".
+//
+// Uses the service role key to bypass RLS (a normal member can't update
+// someone else's members row), but verifies the caller's identity from
+// their own session token first, and refuses to hijack a profile that's
+// already linked to a different login.
+exports.handler = async (event) => {
+  if (event.httpMethod !== 'POST') {
+    return { statusCode: 405, body: 'Method not allowed' }
+  }
+
+  const { studentId } = JSON.parse(event.body || '{}')
+  const authHeader = event.headers.authorization || event.headers.Authorization
+  if (!studentId) return { statusCode: 400, body: JSON.stringify({ error: 'studentId required' }) }
+  if (!authHeader) return { statusCode: 401, body: JSON.stringify({ error: 'Missing session' }) }
+
+  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
+  const anonKey     = process.env.VITE_SUPABASE_ANON_KEY
+  const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!serviceKey) {
+    return { statusCode: 500, body: JSON.stringify({ error: 'Service key not configured' }) }
+  }
+
+  try {
+    // Identify the caller from their own access token (never trust a
+    // client-supplied user id)
+    const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: { apikey: anonKey, Authorization: authHeader },
+    })
+    if (!userRes.ok) return { statusCode: 401, body: JSON.stringify({ error: 'Invalid or expired session' }) }
+    const user = await userRes.json()
+
+    // Look up the target student and their currently-linked member row
+    const studentRes = await fetch(
+      `${supabaseUrl}/rest/v1/students?id=eq.${studentId}&select=id,member_id,members(auth_id,first_name,last_name)`,
+      { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } }
+    )
+    const students = await studentRes.json()
+    const student = students?.[0]
+    if (!student) return { statusCode: 404, body: JSON.stringify({ error: 'Student not found' }) }
+
+    const currentAuthId = student.members?.auth_id
+    if (currentAuthId && currentAuthId !== user.id) {
+      return { statusCode: 409, body: JSON.stringify({ error: 'This profile is already linked to a different login. Ask an admin for help.' }) }
+    }
+
+    const patchRes = await fetch(`${supabaseUrl}/rest/v1/members?id=eq.${student.member_id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify({ auth_id: user.id }),
+    })
+    if (!patchRes.ok) {
+      const errText = await patchRes.text()
+      return { statusCode: 500, body: JSON.stringify({ error: errText }) }
+    }
+
+    return { statusCode: 200, body: JSON.stringify({ success: true }) }
+  } catch (err) {
+    return { statusCode: 500, body: JSON.stringify({ error: err.message }) }
+  }
+}

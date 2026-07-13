@@ -12,6 +12,8 @@ export default function CheckInPublic() {
   const [checking, setChecking]   = useState(null)
   const [mode, setMode]           = useState('attended')
   const [weight, setWeight]       = useState('')
+  const [weightOut, setWeightOut] = useState('')
+  const [todaysSession, setTodaysSession] = useState(null)
   const [saving, setSaving]       = useState(false)
   const [confirmed, setConfirmed] = useState(null)
   const [clubName, setClubName]   = useState('KR Centre')
@@ -43,6 +45,16 @@ export default function CheckInPublic() {
   async function checkIn(attendMode) {
     if (!checking) return
     setSaving(true)
+    if (attendMode === 'weight_after') {
+      if (weightOut && todaysSession) {
+        await supabase.from('fit2fight_sessions').update({ weight_after: parseFloat(weightOut) }).eq('id', todaysSession.id)
+      }
+      setConfirmed({ name: `${checking.members?.first_name} ${checking.members?.last_name}`, mode: attendMode, weight: weightOut })
+      setChecking(null); setWeight(''); setWeightOut(''); setSearch(''); setResults([])
+      setSaving(false)
+      setTimeout(() => { setConfirmed(null); inputRef.current?.focus() }, 3000)
+      return
+    }
     await supabase.from('attendance').insert({
       student_id: checking.id,
       present: true,
@@ -59,7 +71,7 @@ export default function CheckInPublic() {
       })
     }
     setConfirmed({ name: `${checking.members?.first_name} ${checking.members?.last_name}`, mode: attendMode, weight })
-    setChecking(null); setWeight(''); setSearch(''); setResults([])
+    setChecking(null); setWeight(''); setWeightOut(''); setSearch(''); setResults([])
     setSaving(false)
     setTimeout(() => { setConfirmed(null); inputRef.current?.focus() }, 3000)
   }
@@ -78,7 +90,7 @@ export default function CheckInPublic() {
             <div style={{ fontSize: 48, marginBottom: 8 }}>✅</div>
             <div style={{ fontSize: 18, fontWeight: 600, color: '#4ade80' }}>{confirmed.name}</div>
             <div style={{ fontSize: 14, color: '#86efac', marginTop: 4 }}>
-              {confirmed.mode === 'full_kit' ? 'Checked in — Full Kit ✓' : confirmed.mode === 'weight' ? `Weight saved: ${confirmed.weight}kg` : 'Checked in ✓'}
+              {confirmed.mode === 'full_kit' ? 'Checked in — Full Kit ✓' : confirmed.mode === 'weight' ? `Weight in saved: ${confirmed.weight}kg` : confirmed.mode === 'weight_after' ? `Weight out saved: ${confirmed.weight}kg` : 'Checked in ✓'}
             </div>
           </div>
         ) : (
@@ -94,7 +106,14 @@ export default function CheckInPublic() {
               const m = s.members
               const colour = HOUSE_COLOURS[m?.houses?.name] || '#888'
               return (
-                <button key={s.id} onClick={() => { setChecking(s); setMode('attended') }} style={{
+                <button key={s.id} onClick={() => {
+                  setChecking(s); setMode('attended')
+                  setTodaysSession(null)
+                  supabase.from('fit2fight_sessions').select('id, weight_before, weight_after')
+                    .eq('student_id', s.id).eq('session_date', new Date().toISOString().split('T')[0])
+                    .order('created_at', { ascending: false }).limit(1)
+                    .then(({ data }) => setTodaysSession(data?.[0] || null))
+                }} style={{
                   display: 'flex', alignItems: 'center', gap: 10, width: '100%',
                   padding: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   background: 'var(--bg)', cursor: 'pointer', marginBottom: 6, textAlign: 'left', fontFamily: 'var(--font-sans)',
@@ -127,13 +146,24 @@ export default function CheckInPublic() {
                   onClick={() => checkIn('full_kit')} disabled={saving}>✓ Full Kit</button>
                 <div>
                   <input type="number" step="0.1" value={weight} onChange={e => setWeight(e.target.value)}
-                    placeholder="Weight (kg) — optional"
+                    placeholder="Weight in (kg) — optional"
                     style={{ width: '100%', padding: '12px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 15, textAlign: 'center', background: 'var(--bg-secondary)', color: 'var(--text)', marginBottom: 8 }} />
                   {weight && (
                     <button className="btn" style={{ width: '100%', justifyContent: 'center', fontSize: 14, padding: '12px' }}
-                      onClick={() => checkIn('weight')} disabled={saving}>⚖️ Save weight {weight}kg</button>
+                      onClick={() => checkIn('weight')} disabled={saving}>⚖️ Save weight in {weight}kg</button>
                   )}
                 </div>
+                {todaysSession?.weight_before && (
+                  <div>
+                    <input type="number" step="0.1" value={weightOut} onChange={e => setWeightOut(e.target.value)}
+                      placeholder={`Weight out (kg) — you were ${todaysSession.weight_before}kg`}
+                      style={{ width: '100%', padding: '12px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 15, textAlign: 'center', background: 'var(--bg-secondary)', color: 'var(--text)', marginBottom: 8 }} />
+                    {weightOut && (
+                      <button className="btn" style={{ width: '100%', justifyContent: 'center', fontSize: 14, padding: '12px' }}
+                        onClick={() => checkIn('weight_after')} disabled={saving}>⚖️ Save weight out {weightOut}kg</button>
+                    )}
+                  </div>
+                )}
               </div>
               <button className="btn" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setChecking(null)}>Cancel</button>
             </div>

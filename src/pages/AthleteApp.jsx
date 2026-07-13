@@ -343,6 +343,7 @@ export default function AthleteApp() {
 function AthleteSearch() {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState([])
+  const [claimingId, setClaimingId] = useState(null)
 
   useEffect(() => {
     if (query.length < 2) { setResults([]); return }
@@ -360,6 +361,30 @@ function AthleteSearch() {
     return () => clearTimeout(t)
   }, [query])
 
+  async function claimProfile(s) {
+    const m = s.members
+    if (!confirm(`Link your login to ${m?.first_name} ${m?.last_name}'s profile? You won't need to search for it again.`)) return
+    setClaimingId(s.id)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/.netlify/functions/link-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ studentId: s.id }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        alert('Linked! Reloading your profile…')
+        window.location.href = '/athlete-app'
+      } else {
+        alert('Error: ' + data.error)
+      }
+    } catch (e) {
+      alert('Failed to link profile')
+    }
+    setClaimingId(null)
+  }
+
   return (
     <div>
       <input value={query} onChange={e => setQuery(e.target.value)}
@@ -371,10 +396,10 @@ function AthleteSearch() {
       {results.map(s => {
         const m = s.members
         return (
-          <a key={s.id} href={`/athletes?id=${s.id}`}
+          <div key={s.id}
             style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px',
               border: '1px solid var(--border)', borderRadius: 'var(--radius)',
-              textDecoration: 'none', color: 'var(--text)', marginBottom: 8, background: 'var(--bg)' }}>
+              marginBottom: 8, background: 'var(--bg)' }}>
             <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--bg-secondary)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, flexShrink: 0 }}>
               {m?.first_name?.[0]}{m?.last_name?.[0]}
@@ -383,8 +408,10 @@ function AthleteSearch() {
               <div style={{ fontSize: 14, fontWeight: 600 }}>{m?.first_name} {m?.last_name}</div>
               <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{s.student_ref} · {s.discipline} · {s.pka_belt || s.krba_level || '—'}</div>
             </div>
-            <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>→</span>
-          </a>
+            <button className="btn btn-primary btn-sm" onClick={() => claimProfile(s)} disabled={claimingId === s.id}>
+              {claimingId === s.id ? 'Linking…' : 'This is me'}
+            </button>
+          </div>
         )
       })}
     </div>
