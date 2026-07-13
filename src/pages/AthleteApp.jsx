@@ -202,6 +202,13 @@ export default function AthleteApp() {
         <div>
           {!student ? <p style={{ color: 'var(--text-secondary)' }}>No student record linked.</p> : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {!PDP_SECTIONS.some(section => section.key !== 'athlete_notes' && (shared[section.key] || []).length > 0) && (
+                <div className="card" style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '20px 16px' }}>
+                  <div style={{ fontSize: 24, marginBottom: 6 }}>🎯</div>
+                  <p style={{ fontSize: 13, fontWeight: 500, marginBottom: 2 }}>No PDP added yet</p>
+                  <p style={{ fontSize: 12 }}>Your coach hasn't shared any development plan notes for you yet — check back after your next assessment.</p>
+                </div>
+              )}
               {PDP_SECTIONS.map(section => {
                 const items = section.key === 'athlete_notes' ? (pdp.athlete_notes || []) : (shared[section.key] || [])
                 if (section.key !== 'athlete_notes' && !items.length) return null
@@ -349,7 +356,7 @@ function AthleteSearch() {
     if (query.length < 2) { setResults([]); return }
     const t = setTimeout(async () => {
       const { data: memberData } = await supabasePublic
-        .from('members').select('id, first_name, last_name')
+        .from('members').select('id, first_name, last_name, date_of_birth')
         .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%`).limit(8)
       if (!memberData?.length) { setResults([]); return }
       const { data: athletes } = await supabasePublic
@@ -393,6 +400,15 @@ function AthleteSearch() {
       {query.length >= 2 && results.length === 0 && (
         <p style={{ fontSize: 13, color: 'var(--text-tertiary)', textAlign: 'center' }}>No athletes found</p>
       )}
+      {(() => {
+        const names = results.map(s => `${s.members?.first_name} ${s.members?.last_name}`.toLowerCase())
+        const hasDuplicateName = new Set(names).size !== names.length
+        return hasDuplicateName ? (
+          <p style={{ fontSize: 12, color: '#EF9F27', background: '#EF9F2715', padding: '8px 10px', borderRadius: 'var(--radius)', marginBottom: 8 }}>
+            ⚠️ More than one person with this name — check the date of birth carefully before choosing.
+          </p>
+        ) : null
+      })()}
       {results.map(s => {
         const m = s.members
         return (
@@ -406,7 +422,10 @@ function AthleteSearch() {
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 14, fontWeight: 600 }}>{m?.first_name} {m?.last_name}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{s.student_ref} · {s.discipline} · {s.pka_belt || s.krba_level || '—'}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                {s.student_ref} · {s.discipline} · {s.pka_belt || s.krba_level || '—'}
+                {m?.date_of_birth ? ` · DOB ${new Date(m.date_of_birth).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
+              </div>
             </div>
             <button className="btn btn-primary btn-sm" onClick={() => claimProfile(s)} disabled={claimingId === s.id}>
               {claimingId === s.id ? 'Linking…' : 'This is me'}

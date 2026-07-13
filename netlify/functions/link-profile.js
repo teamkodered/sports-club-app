@@ -41,6 +41,9 @@ exports.handler = async (event) => {
     const students = await studentRes.json()
     const student = students?.[0]
     if (!student) return { statusCode: 404, body: JSON.stringify({ error: 'Student not found' }) }
+    if (!student.member_id) {
+      return { statusCode: 422, body: JSON.stringify({ error: 'This student record has no linked contact profile to attach a login to. Ask an admin to check it in the Student Database.' }) }
+    }
 
     const currentAuthId = student.members?.auth_id
     if (currentAuthId && currentAuthId !== user.id) {
@@ -75,13 +78,17 @@ exports.handler = async (event) => {
         'Content-Type': 'application/json',
         apikey: serviceKey,
         Authorization: `Bearer ${serviceKey}`,
-        Prefer: 'return=minimal',
+        Prefer: 'return=representation',
       },
       body: JSON.stringify({ auth_id: user.id }),
     })
     if (!patchRes.ok) {
       const errText = await patchRes.text()
       return { statusCode: 500, body: JSON.stringify({ error: errText }) }
+    }
+    const patched = await patchRes.json()
+    if (!patched?.length) {
+      return { statusCode: 500, body: JSON.stringify({ error: `Linking silently matched no record (member_id ${student.member_id} may not exist). Ask an admin to check this student's profile in the Student Database.` }) }
     }
 
     return { statusCode: 200, body: JSON.stringify({ success: true }) }
