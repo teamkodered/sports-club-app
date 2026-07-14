@@ -108,6 +108,7 @@ export default function Registers() {
   const [contactModal, setContactModal] = useState(null)
   const [attendance, setAttendance]     = useState({})
   const [pointsByStudent, setPointsByStudent] = useState({}) // student_id -> points_log rows for the selected date
+  const [weightByStudent, setWeightByStudent] = useState({}) // student_id -> {weight_before, weight_after} for the selected date (KRBA)
   const [pointsPanelFor, setPointsPanelFor] = useState(null) // student currently open in the points-for-this-day panel
   const [search, setSearch]             = useState('')
   const [sortKey, setSortKey]           = useState('first_name')
@@ -231,6 +232,22 @@ export default function Registers() {
         setPointsByStudent(map)
       }
     } catch (e) { console.error('Points load error:', e) }
+
+    // Load weigh-in/out for this specific date (KRBA register), grouped by student
+    setWeightByStudent({})
+    if (regType === 'krba') {
+      try {
+        const { data: dayWeights } = await supabase
+          .from('fit2fight_sessions')
+          .select('student_id, weight_before, weight_after')
+          .eq('session_date', date)
+        if (dayWeights?.length) {
+          const wMap = {}
+          dayWeights.forEach(w => { wMap[w.student_id] = w })
+          setWeightByStudent(wMap)
+        }
+      } catch (e) { console.error('Weight load error:', e) }
+    }
 
     setLoading(false)
   }
@@ -717,6 +734,7 @@ export default function Registers() {
                     {' '}kit:{Object.values(attendance).filter(v => v === 'full_kit').length}
                   </div>
                 </th>}
+                {regType === 'krba' && <th style={{ textAlign: 'center' }}>Weight (in → out)</th>}
                 {visibleCols.includes('champ')       && <th style={{ textAlign: 'center' }}>🏆</th>}
                 {visibleCols.includes('media')       && <th style={{ textAlign: 'center' }}>Media</th>}
                 {visibleCols.includes('points')      && <SortTh col="house_points" label="Pts" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} style={{ textAlign: 'center' }} />}
@@ -792,6 +810,19 @@ export default function Registers() {
                         {attendState==='full_kit'?'✓ Full kit':attendState==='attended'?'✓ Attended':'—'}
                       </span>
                     </td>}
+                    {regType === 'krba' && (() => {
+                      const w = weightByStudent[s.id]
+                      return (
+                        <td style={{ textAlign: 'center', fontSize: 12 }}>
+                          {!w ? <span style={{ color: 'var(--text-tertiary)' }}>—</span> : (
+                            <span>
+                              {w.weight_before != null ? `${w.weight_before}kg` : '—'}
+                              {w.weight_after != null ? ` → ${w.weight_after}kg` : ''}
+                            </span>
+                          )}
+                        </td>
+                      )
+                    })()}
                     {visibleCols.includes('champ') && <td style={{ textAlign: 'center', fontWeight: 600, fontSize: 13 }}>
                       {s.class_champion_count > 0 ? `🏆 ${s.class_champion_count}` : <span style={{ color: 'var(--text-tertiary)' }}>0</span>}
                     </td>}

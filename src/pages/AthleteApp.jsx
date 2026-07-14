@@ -156,12 +156,23 @@ export default function AthleteApp() {
                   </div>
                 ))}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 14 }}>
                 {[
-                  { label: 'My PDP',       icon: '🎯', tab: 'pdp',       colour: '#1D9E75' },
-                  { label: 'Analysis',     icon: '📊', tab: 'analysis',  colour: '#E24B4A' },
-                  { label: 'Fit II Fight', icon: '💪', tab: 'fit2fight', colour: '#EF9F27' },
-                ].map(l => (
+                  { label: 'Profile',      icon: '👤', colour: '#378ADD', to: `/athletes?id=${student.id}` },
+                  { label: 'My PDP',       icon: '🎯', colour: '#1D9E75', tab: 'pdp' },
+                  { label: 'Analysis',     icon: '📊', colour: '#E24B4A', tab: 'analysis' },
+                  { label: 'Fit II Fight', icon: '💪', colour: '#EF9F27', tab: 'fit2fight' },
+                ].map(l => l.to ? (
+                  <Link key={l.label} to={l.to} style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                    padding: '14px 8px', background: l.colour + '12',
+                    border: `1px solid ${l.colour}30`, borderRadius: 'var(--border-radius-lg)',
+                    cursor: 'pointer', fontFamily: 'var(--font-sans)', textDecoration: 'none',
+                  }}>
+                    <span style={{ fontSize: 24 }}>{l.icon}</span>
+                    <span style={{ fontSize: 12, fontWeight: 500, color: l.colour }}>{l.label}</span>
+                  </Link>
+                ) : (
                   <button key={l.label} onClick={() => setTab(l.tab)} style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
                     padding: '14px 8px', background: l.colour + '12',

@@ -373,6 +373,7 @@ export default function StudentDatabase() {
                               <option value="">— Not set —</option>
                               <option>Mon/Fri</option>
                               <option>Tue/Thu</option>
+                              <option>Wed/Sun</option>
                               <option>Wednesday</option>
                               <option>Saturday</option>
                               <option>Sunday</option>
