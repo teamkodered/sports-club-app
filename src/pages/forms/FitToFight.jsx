@@ -132,6 +132,14 @@ export default function FitToFight() {
 
   useEffect(() => { if (isAdmin) loadStudents() }, [isAdmin])
   useEffect(() => { if (view === 'history') loadHistory() }, [view])
+  useEffect(() => {
+    if (isAdmin || !profile?.id) return
+    supabase.from('students').select('id, members(first_name, last_name)')
+      .eq('member_id', profile.id).maybeSingle()
+      .then(({ data }) => {
+        if (data) setStudent({ id: data.id, first_name: data.members?.first_name || '', last_name: data.members?.last_name || '' })
+      })
+  }, [isAdmin, profile?.id])
 
   async function loadStudents() {
     const { data } = await supabase
@@ -189,7 +197,8 @@ export default function FitToFight() {
   }
 
   function reset() {
-    setStudent({ first_name: '', last_name: '' }); setWeightBefore(''); setWeightAfter('')
+    if (isAdmin) setStudent({ first_name: '', last_name: '' })
+    setWeightBefore(''); setWeightAfter('')
     setHeight(''); setReach(''); setEnabled({}); setRunning({ type: '', notes: '', sets: [], avg_bpm: '', peak_bpm: '' })
     setWattBike({ type: '', interval_mode: '', sets: [], total_distance: '', max_wattage: '', avg_wattage: '', avg_bpm: '', peak_bpm: '' })
     setBodyweight({ type: '', notes: '', sets: [] }); setStretches(['', '', ''])
@@ -256,6 +265,13 @@ export default function FitToFight() {
                       <option key={s.id} value={s.id}>{s.members?.first_name} {s.members?.last_name} · {s.student_ref}</option>
                     ))}
                   </select>
+                </div>
+              ) : !isAdmin && student.id ? (
+                <div className="field">
+                  <label>Logging session for</label>
+                  <div style={{ padding: '9px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--bg-secondary)', fontSize: 14, fontWeight: 500 }}>
+                    {student.first_name} {student.last_name}
+                  </div>
                 </div>
               ) : (
                 <div className="field-row">

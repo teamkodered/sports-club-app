@@ -301,7 +301,7 @@ export default function AthleteApp() {
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{sessions.length} sessions</p>
-            <Link to={`/fit2fight-form${student ? '?student_id=' + student.id : ''}`} className="btn btn-primary btn-sm">+ Log session</Link>
+            <Link to="/fit2fight" className="btn btn-primary btn-sm">+ Log session</Link>
           </div>
           {sessions.length === 0 ? (
             <div className="empty-state"><h3>No sessions yet</h3></div>
