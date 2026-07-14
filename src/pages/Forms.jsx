@@ -66,6 +66,15 @@ const FORMS = [
     colour: '#378ADD',
     driveId: null,
   },
+  {
+    key: 'checkin',
+    label: 'Check in',
+    desc: 'Staff/kiosk session check-in — attendance, full kit, and weigh-in/out.',
+    icon: '✅',
+    path: '/checkin',
+    colour: '#1D9E75',
+    driveId: null,
+  },
 ]
 
 function ShareModal({ form, onClose }) {

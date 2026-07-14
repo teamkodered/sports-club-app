@@ -85,9 +85,7 @@ export default function Layout() {
     { to: '/trackers',       icon: '📈', label: 'Trackers',         roles: ['admin','coach'] },
     { section: 'Forms' },
     { to: '/forms',          icon: '📝', label: 'Forms' },
-    { to: '/checkin',        icon: '✅', label: 'Check in' },
     { section: 'Analysis' },
-    { to: '/kickboxing-tpt', icon: '📊', label: 'Kickboxing TPT' },
     { to: '/athletes',       icon: '🏅', label: 'Athlete profiles', roles: ['admin','coach'] },
     ...(isAdmin ? [
       { section: 'Admin' },
