@@ -76,14 +76,14 @@ export default function Layout() {
   const NAV_ITEMS = [
     { section: 'Main' },
     { to: '/dashboard',      icon: '🏠', label: 'Dashboard' },
-    { to: '/athlete-app', icon: '🎽', label: 'My app' },
     { to: '/registers',      icon: '📋', label: 'Registers' },
-    { to: '/students',       icon: '🎽', label: 'Students' },
-    { to: '/fixtures',       icon: '📅', label: 'Fixtures' },
-    { to: '/classes',        icon: '🗓️', label: 'Classes' },
     { to: '/league',         icon: '🏆', label: 'League' },
     { to: '/trackers',       icon: '📈', label: 'Trackers',         roles: ['admin','coach'] },
     { to: '/forms',          icon: '📝', label: 'Forms' },
+    { to: '/classes',        icon: '🗓️', label: 'Classes' },
+    { to: '/students',       icon: '🎽', label: 'Students' },
+    { to: '/fixtures',       icon: '📅', label: 'Fixtures' },
+    { to: '/athlete-app',    icon: '🎽', label: 'My app' },
     { to: '/athletes',       icon: '🏅', label: 'Athlete profiles', roles: ['admin','coach'] },
     ...(isAdmin ? [
       { section: 'Admin' },
