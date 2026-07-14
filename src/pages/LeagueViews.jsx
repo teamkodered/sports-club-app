@@ -41,6 +41,8 @@ export default function LeagueViews() {
 
   // Data
   const [houseStandings, setHouseStandings] = useState([])
+  const [editingHouse, setEditingHouse] = useState(null)
+  const [savingHouse, setSavingHouse] = useState(false)
   const [individualRankings, setIndividualRankings] = useState([])
   const [houses, setHouses] = useState([])
   const [pointsLog, setPointsLog] = useState([])
@@ -75,6 +77,17 @@ export default function LeagueViews() {
     setLoading(false)
   }
 
+  async function saveHouseEdit() {
+    setSavingHouse(true)
+    const { error } = await supabase.from('houses').update({
+      points: editingHouse.points, wins: editingHouse.wins, draws: editingHouse.draws, losses: editingHouse.losses,
+    }).eq('id', editingHouse.id)
+    if (error) { alert('Error saving: ' + error.message); setSavingHouse(false); return }
+    await loadHouseStandings()
+    setEditingHouse(null)
+    setSavingHouse(false)
+  }
+
   async function loadHouseStandings() {
     // Fetch points_log, students, and members SEPARATELY to avoid unreliable nested joins
     const [{ data: ptsData }, { data: studentsData }, { data: housesData }] = await Promise.all([
@@ -84,7 +97,7 @@ export default function LeagueViews() {
         .lte('awarded_at', dateTo + 'T23:59:59')
         .in('point_scope', ['house', 'both']),
       supabase.from('students').select('id, house_name, member_id, members(houses(name))'),
-      supabase.from('houses').select('name, points, members(count)'),
+      supabase.from('houses').select('id, name, points, wins, draws, losses, members(count)'),
     ])
 
     // Build student → house lookup
@@ -383,6 +396,17 @@ export default function LeagueViews() {
                   <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 6 }}>
                     {h.memberCount} members · All time: {h.points || 0} pts
                   </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4, display: 'flex', gap: 10 }}>
+                    <span>W: {h.wins || 0}</span>
+                    <span>D: {h.draws || 0}</span>
+                    <span>L: {h.losses || 0}</span>
+                  </div>
+                  {isAdmin && (
+                    <button className="btn btn-sm" style={{ marginTop: 10, width: '100%', justifyContent: 'center' }}
+                      onClick={() => setEditingHouse(h)}>
+                      Edit points
+                    </button>
+                  )}
                 </div>
               )
             })}
@@ -680,6 +704,30 @@ export default function LeagueViews() {
                 }
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Edit house points modal */}
+      {editingHouse && isAdmin && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
+          <div className="card" style={{ width: '100%', maxWidth: 380 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 600 }}>Edit {editingHouse.name}</h2>
+              <button onClick={() => setEditingHouse(null)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
+            </div>
+            <div className="field-row">
+              <div className="field"><label>Points</label><input type="number" value={editingHouse.points || 0} onChange={e => setEditingHouse(v => ({ ...v, points: +e.target.value }))} /></div>
+              <div className="field"><label>Wins</label><input type="number" value={editingHouse.wins || 0} onChange={e => setEditingHouse(v => ({ ...v, wins: +e.target.value }))} /></div>
+            </div>
+            <div className="field-row">
+              <div className="field"><label>Draws</label><input type="number" value={editingHouse.draws || 0} onChange={e => setEditingHouse(v => ({ ...v, draws: +e.target.value }))} /></div>
+              <div className="field"><label>Losses</label><input type="number" value={editingHouse.losses || 0} onChange={e => setEditingHouse(v => ({ ...v, losses: +e.target.value }))} /></div>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button className="btn" onClick={() => setEditingHouse(null)}>Cancel</button>
+              <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={saveHouseEdit} disabled={savingHouse}>{savingHouse ? 'Saving…' : 'Save'}</button>
+            </div>
           </div>
         </div>
       )}

@@ -19,7 +19,6 @@ import AthleteProfiles from './pages/AthleteProfiles.jsx'
 import AthleteDashboard from './pages/AthleteDashboard.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Members from './pages/Members.jsx'
-import Houses from './pages/Houses.jsx'
 import Fixtures from './pages/Fixtures.jsx'
 import LeagueViews from './pages/LeagueViews.jsx'
 import LeaguePublic from './pages/LeaguePublic.jsx'
@@ -70,7 +69,6 @@ function App() {
             <Route path="registers"       element={<Registers />} />
             <Route path="students"        element={<StudentDatabase />} />
             <Route path="members"         element={<Members />} />
-            <Route path="houses"          element={<Houses />} />
             <Route path="fixtures"        element={<Fixtures />} />
             <Route path="classes"         element={<Classes />} />
             <Route path="league"          element={<LeagueViews />} />
