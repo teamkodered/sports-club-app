@@ -156,6 +156,25 @@ export default function AthleteApp() {
                   </div>
                 ))}
               </div>
+
+              <div className="card" style={{ padding: 0, marginBottom: 14 }}>
+                <div style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)' }}>Profile</div>
+                {[
+                  ['House', houseName || '—'],
+                  ['Discipline', student.discipline || '—'],
+                  ['Grade', student.pka_belt || student.krba_level || '—'],
+                  ['Class', [student.class_schedule, student.class_time].filter(Boolean).join(' · ') || '—'],
+                  ['Weight', student.weight_kg ? `${student.weight_kg}kg${student.weight_category ? ` (${student.weight_category})` : ''}` : '—'],
+                  ['Groups', [student.is_kr && 'KR', student.is_pts && 'PTs', student.is_leader && 'Leader', student.is_coach && 'Coach'].filter(Boolean).join(', ') || 'None'],
+                  ['Media permission', student.media_restriction || '—'],
+                ].map(([label, val], i, arr) => (
+                  <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 14px', borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13 }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
+                    <span style={{ fontWeight: 500, textAlign: 'right' }}>{val}</span>
+                  </div>
+                ))}
+              </div>
+
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 14 }}>
                 {[
                   { label: 'Profile',      icon: '👤', colour: '#378ADD', to: `/athletes?id=${student.id}` },
