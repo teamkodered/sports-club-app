@@ -83,9 +83,7 @@ export default function Layout() {
     { to: '/classes',        icon: '🗓️', label: 'Classes' },
     { to: '/league',         icon: '🏆', label: 'League' },
     { to: '/trackers',       icon: '📈', label: 'Trackers',         roles: ['admin','coach'] },
-    { section: 'Forms' },
     { to: '/forms',          icon: '📝', label: 'Forms' },
-    { section: 'Analysis' },
     { to: '/athletes',       icon: '🏅', label: 'Athlete profiles', roles: ['admin','coach'] },
     ...(isAdmin ? [
       { section: 'Admin' },
