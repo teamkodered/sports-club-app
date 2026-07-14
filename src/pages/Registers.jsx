@@ -107,6 +107,8 @@ export default function Registers() {
   const [attendFuture, setAttendFuture]   = useState([])
   const [contactModal, setContactModal] = useState(null)
   const [attendance, setAttendance]     = useState({})
+  const [pointsByStudent, setPointsByStudent] = useState({}) // student_id -> points_log rows for the selected date
+  const [pointsPanelFor, setPointsPanelFor] = useState(null) // student currently open in the points-for-this-day panel
   const [search, setSearch]             = useState('')
   const [sortKey, setSortKey]           = useState('first_name')
   const [sortDir, setSortDir]           = useState('asc')
@@ -213,6 +215,23 @@ export default function Registers() {
         setAttendance(attMap)
       }
     } catch(e) { console.error('Attendance load error:', e) }
+
+    // Load points awarded on this specific date, grouped by student
+    setPointsByStudent({})
+    try {
+      const dayStart = `${date}T00:00:00.000Z`
+      const dayEnd   = `${date}T23:59:59.999Z`
+      const { data: dayPoints } = await supabase
+        .from('points_log')
+        .select('id, student_id, point_type, points_awarded, point_scope, note, awarded_at')
+        .gte('awarded_at', dayStart).lte('awarded_at', dayEnd)
+      if (dayPoints?.length) {
+        const map = {}
+        dayPoints.forEach(p => { (map[p.student_id] ||= []).push(p) })
+        setPointsByStudent(map)
+      }
+    } catch (e) { console.error('Points load error:', e) }
+
     setLoading(false)
   }
 
@@ -371,6 +390,48 @@ export default function Registers() {
     ))
     // Keep selection at current position - don't clear
     setSaving(false)
+  }
+
+  async function updatePointEntry(entry, newPoints, newNote) {
+    const diff = newPoints - entry.points_awarded
+    const { error } = await supabase.from('points_log').update({ points_awarded: newPoints, note: newNote }).eq('id', entry.id)
+    if (error) { alert('Error saving: ' + error.message); return }
+
+    const s = students.find(x => x.id === entry.student_id)
+    if (s && diff !== 0) {
+      const updates = {}
+      if (entry.point_scope === 'house' || entry.point_scope === 'both') updates.house_points = (s.house_points || 0) + diff
+      if (entry.point_scope === 'individual' || entry.point_scope === 'both') updates.individual_points = (s.individual_points || 0) + diff
+      const { error: updErr } = await supabase.from('students').update(updates).eq('id', s.id)
+      if (updErr) { alert('Points entry saved, but updating the total failed: ' + updErr.message) }
+      else setStudents(prev => prev.map(x => x.id === s.id ? { ...x, ...updates } : x))
+    }
+
+    setPointsByStudent(prev => ({
+      ...prev,
+      [entry.student_id]: (prev[entry.student_id] || []).map(p => p.id === entry.id ? { ...p, points_awarded: newPoints, note: newNote } : p),
+    }))
+  }
+
+  async function deletePointEntry(entry) {
+    if (!confirm('Remove this points entry? This cannot be undone.')) return
+    const { error } = await supabase.from('points_log').delete().eq('id', entry.id)
+    if (error) { alert('Error deleting: ' + error.message); return }
+
+    const s = students.find(x => x.id === entry.student_id)
+    if (s) {
+      const updates = {}
+      if (entry.point_scope === 'house' || entry.point_scope === 'both') updates.house_points = Math.max(0, (s.house_points || 0) - entry.points_awarded)
+      if (entry.point_scope === 'individual' || entry.point_scope === 'both') updates.individual_points = Math.max(0, (s.individual_points || 0) - entry.points_awarded)
+      const { error: updErr } = await supabase.from('students').update(updates).eq('id', s.id)
+      if (updErr) { alert('Entry deleted, but updating the total failed: ' + updErr.message) }
+      else setStudents(prev => prev.map(x => x.id === s.id ? { ...x, ...updates } : x))
+    }
+
+    setPointsByStudent(prev => ({
+      ...prev,
+      [entry.student_id]: (prev[entry.student_id] || []).filter(p => p.id !== entry.id),
+    }))
   }
 
   async function submitPoints(studentIds, points) {
@@ -739,11 +800,21 @@ export default function Registers() {
                         {s.media_restriction==='No'?'⚠ No':s.media_restriction==='Limited'?'Limited':'OK'}
                       </span>
                     </td>}
-                    {visibleCols.includes('points') && <td style={{ textAlign: 'center' }}>
+                    {visibleCols.includes('points') && <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
                       <div style={{ fontSize: 11, lineHeight: 1.4 }}>
                         <div><span style={{ color: 'var(--text-tertiary)', fontSize: 10 }}>H </span><strong>{s.house_points || 0}</strong></div>
                         <div><span style={{ color: 'var(--text-tertiary)', fontSize: 10 }}>I </span><strong>{s.individual_points || 0}</strong></div>
                       </div>
+                      {(() => {
+                        const dayEntries = pointsByStudent[s.id] || []
+                        const dayTotal = dayEntries.reduce((sum, p) => sum + (p.points_awarded || 0), 0)
+                        return dayEntries.length > 0 ? (
+                          <button onClick={() => setPointsPanelFor(s)}
+                            style={{ marginTop: 4, fontSize: 10, fontWeight: 600, color: '#1D9E75', background: '#1D9E7515', border: 'none', borderRadius: 10, padding: '2px 7px', cursor: 'pointer' }}>
+                            +{dayTotal} today ({dayEntries.length})
+                          </button>
+                        ) : null
+                      })()}
                     </td>}
                     {isAdmin && (
                       <td onClick={e => e.stopPropagation()}>
@@ -791,6 +862,48 @@ export default function Registers() {
           </div>
         </div>
       )}
+
+      {pointsPanelFor && (() => {
+        const entries = pointsByStudent[pointsPanelFor.id] || []
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
+            <div className="card" style={{ width: '100%', maxWidth: 440 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <h2 style={{ fontSize: 15, fontWeight: 600 }}>{pointsPanelFor.members?.first_name} {pointsPanelFor.members?.last_name}</h2>
+                <button onClick={() => setPointsPanelFor(null)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>
+                Points awarded on {new Date(date + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              </p>
+              {entries.length === 0 ? (
+                <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No points awarded this day.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {entries.map(entry => (
+                    <div key={entry.id} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 12px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                        <span style={{ fontSize: 13, fontWeight: 500 }}>{entry.point_type}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{entry.point_scope}</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
+                        <input type="number" defaultValue={entry.points_awarded}
+                          onBlur={e => { const v = parseInt(e.target.value); if (!isNaN(v) && v !== entry.points_awarded) updatePointEntry(entry, v, entry.note) }}
+                          style={{ width: 70, padding: '4px 6px', fontSize: 13, textAlign: 'center', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+                        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>points</span>
+                        <button onClick={() => deletePointEntry(entry)} style={{ marginLeft: 'auto', fontSize: 11, color: '#a32d2d', background: 'none', border: '1px solid #a32d2d', borderRadius: 6, padding: '3px 8px', cursor: 'pointer' }}>Remove</button>
+                      </div>
+                      <input defaultValue={entry.note || ''} placeholder="Note / reason"
+                        onBlur={e => { if (e.target.value !== (entry.note || '')) updatePointEntry(entry, entry.points_awarded, e.target.value) }}
+                        style={{ width: '100%', padding: '5px 8px', fontSize: 12, border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+                    </div>
+                  ))}
+                </div>
+              )}
+              <button className="btn" style={{ width: '100%', justifyContent: 'center', marginTop: 14 }} onClick={() => setPointsPanelFor(null)}>Close</button>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Award points modal */}
       {(awardingFor || multiAward) && (
