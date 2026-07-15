@@ -73,7 +73,7 @@ const FORMS = [
     label: 'Check in',
     desc: 'Staff/kiosk session check-in — attendance, full kit, and weigh-in/out.',
     icon: '✅',
-    path: '/checkin',
+    path: '/checkin-public',
     colour: '#1D9E75',
     driveId: null,
   },
