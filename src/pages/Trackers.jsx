@@ -18,6 +18,7 @@ export default function Trackers() {
   const [attFilter, setAttFilter]     = useState('all')
   const [students, setStudents]     = useState([])
   const [sessions, setSessions]     = useState([])
+  const [allMembers, setAllMembers] = useState([]) // for join/stop duration tracking
   const [loading, setLoading]       = useState(true)
   const [search, setSearch]         = useState('')
   const [houseFilter, setHouseFilter] = useState('')
@@ -27,12 +28,14 @@ export default function Trackers() {
   useEffect(() => { load() }, [])
 
   async function load() {
-    const [{ data: s }, { data: f }] = await Promise.all([
+    const [{ data: s }, { data: f }, { data: m }] = await Promise.all([
       supabase.from('students').select('*, members(first_name, last_name, date_of_birth, houses(name))').eq('discipline', 'PKA'),
       supabase.from('fit2fight_sessions').select('*').order('session_date', { ascending: false }),
+      supabase.from('members').select('id, first_name, last_name, joined_date, status, stopped_at'),
     ])
     setStudents(s || [])
     setSessions(f || [])
+    setAllMembers(m || [])
     const { data: att } = await supabase
       .from('attendance')
       .select('student_id, attended_at, attendance_type')
@@ -103,6 +106,48 @@ export default function Trackers() {
   const avgSessions = totalStudents > 0 ? (sessions.length / totalStudents).toFixed(1) : 0
   const mediaOk = students.filter(s => s.media_restriction !== 'No').length
 
+  // Average length of training: joined_date -> stopped_at, for members who
+  // have actually stopped and have a recorded stop date. Members stopped
+  // before stopped_at existed won't have a value and are excluded.
+  const completedDurations = allMembers
+    .filter(m => m.status === 'stopped' && m.joined_date && m.stopped_at)
+    .map(m => {
+      const months = (new Date(m.stopped_at) - new Date(m.joined_date)) / (1000*60*60*24*30.44)
+      return months
+    })
+    .filter(m => m >= 0)
+  const avgMonthsTrained = completedDurations.length > 0
+    ? (completedDurations.reduce((a,b) => a+b, 0) / completedDurations.length).toFixed(1)
+    : null
+  const missingStopDates = allMembers.filter(m => m.status === 'stopped' && (!m.stopped_at || !m.joined_date)).length
+
+  // Join/stop timeline: group by exact date
+  const timelineMap = {}
+  allMembers.forEach(m => {
+    if (m.joined_date) {
+      const key = m.joined_date
+      timelineMap[key] = timelineMap[key] || { date: key, joined: 0, stopped: 0 }
+      timelineMap[key].joined++
+    }
+    if (m.stopped_at) {
+      const key = m.stopped_at.split('T')[0]
+      timelineMap[key] = timelineMap[key] || { date: key, joined: 0, stopped: 0 }
+      timelineMap[key].stopped++
+    }
+  })
+  const timeline = Object.values(timelineMap).sort((a,b) => b.date.localeCompare(a.date))
+
+  // Monthly aggregation for the bar graph
+  const monthMap = {}
+  timeline.forEach(t => {
+    const monthKey = t.date.slice(0,7) // YYYY-MM
+    monthMap[monthKey] = monthMap[monthKey] || { month: monthKey, joined: 0, stopped: 0 }
+    monthMap[monthKey].joined += t.joined
+    monthMap[monthKey].stopped += t.stopped
+  })
+  const months = Object.values(monthMap).sort((a,b) => a.month.localeCompare(b.month)).slice(-12)
+  const maxMonthCount = Math.max(1, ...months.map(m => Math.max(m.joined, m.stopped)))
+
   if (loading) return <div className="loading">Loading trackers…</div>
 
   return (
@@ -126,6 +171,24 @@ export default function Trackers() {
       {/* Dashboard */}
       {tab === 'dashboard' && (
         <div>
+          {/* Average training duration -- top of page as requested */}
+          <div className="card" style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 32 }}>⏱️</div>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <div style={{ fontSize: 24, fontWeight: 700 }}>
+                {avgMonthsTrained !== null ? `${avgMonthsTrained} months` : 'Not enough data yet'}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                Average length of training (joined → stopped), based on {completedDurations.length} member{completedDurations.length === 1 ? '' : 's'} with a recorded stop date
+              </div>
+              {missingStopDates > 0 && (
+                <div style={{ fontSize: 11, color: '#EF9F27', marginTop: 4 }}>
+                  ⚠️ {missingStopDates} stopped member{missingStopDates === 1 ? '' : 's'} {missingStopDates === 1 ? 'has' : 'have'} no recorded stop date and {missingStopDates === 1 ? "isn't" : "aren't"} included
+                </div>
+              )}
+            </div>
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 20 }}>
             {[
               { label: 'Total students', value: totalStudents, colour: '#378ADD', icon: '🎽' },
@@ -139,6 +202,56 @@ export default function Trackers() {
                 <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{s.label}</div>
               </div>
             ))}
+          </div>
+
+          {/* Joins vs stops over time */}
+          <div className="card" style={{ marginBottom: 20 }}>
+            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 14 }}>📈 Joins vs stops — last 12 months</div>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 130, borderBottom: '1px solid var(--border)', paddingBottom: 4, overflowX: 'auto' }}>
+              {months.map(m => (
+                <div key={m.month} style={{ flex: 1, minWidth: 32, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 100 }}>
+                    <div title={`${m.joined} joined`} style={{
+                      width: 10, minHeight: m.joined ? 3 : 0, height: `${(m.joined / maxMonthCount) * 90}px`,
+                      background: '#1D9E75', borderRadius: '2px 2px 0 0',
+                    }} />
+                    <div title={`${m.stopped} stopped`} style={{
+                      width: 10, minHeight: m.stopped ? 3 : 0, height: `${(m.stopped / maxMonthCount) * 90}px`,
+                      background: '#E24B4A', borderRadius: '2px 2px 0 0',
+                    }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+              {months.map(m => (
+                <div key={m.month} style={{ flex: 1, minWidth: 32, textAlign: 'center', fontSize: 9, color: 'var(--text-secondary)' }}>
+                  {new Date(m.month + '-02').toLocaleDateString(undefined, { month: 'short' })}
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 16, marginTop: 10, fontSize: 11, color: 'var(--text-secondary)' }}>
+              <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#1D9E75', borderRadius: 2, marginRight: 4 }} />Joined</span>
+              <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#E24B4A', borderRadius: 2, marginRight: 4 }} />Stopped</span>
+            </div>
+
+            {/* Exact date-by-date list */}
+            <div style={{ marginTop: 16, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--text-secondary)' }}>By date</div>
+              <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {timeline.length === 0 ? (
+                  <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No join/stop data yet.</p>
+                ) : timeline.map(t => (
+                  <div key={t.date} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '4px 0' }}>
+                    <span>{new Date(t.date).toLocaleDateString('en-GB')}</span>
+                    <span style={{ display: 'flex', gap: 10 }}>
+                      {t.joined > 0 && <span style={{ color: '#1D9E75' }}>{t.joined} joined</span>}
+                      {t.stopped > 0 && <span style={{ color: '#E24B4A' }}>{t.stopped} stopped</span>}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
 
           {/* Top performers */}

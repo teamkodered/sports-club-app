@@ -186,8 +186,8 @@ export default function StudentDatabase() {
 
   async function stopStudent(s) {
     if (!confirm(`Stop training for ${s.members?.first_name} ${s.members?.last_name}?`)) return
-    const { error } = await supabase.from('members').update({ status: 'stopped' }).eq('id', s.member_id)
-    if (!error) setStudents(prev => prev.map(x => x.id === s.id ? { ...x, members: { ...x.members, status: 'stopped' } } : x))
+    const { error } = await supabase.from('members').update({ status: 'stopped', stopped_at: new Date().toISOString() }).eq('id', s.member_id)
+    if (!error) setStudents(prev => prev.map(x => x.id === s.id ? { ...x, members: { ...x.members, status: 'stopped', stopped_at: new Date().toISOString() } } : x))
     else alert('Error stopping student: ' + error.message)
   }
 

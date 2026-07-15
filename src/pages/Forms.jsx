@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { supabase } from '../lib/supabase.js'
 
+const BASE_URL = 'https://klasschamp.netlify.app'
+
 const FORMS = [
   {
     key: 'pka_child',
