@@ -539,6 +539,11 @@ export default function AthleteProfiles() {
   const [reportTab, setReportTab]   = useState('individual')
   const [reportData, setReportData] = useState(null)
   const [f2fData, setF2fData]         = useState([])
+  const [f2fFrom, setF2fFrom]         = useState('')
+  const [f2fTo, setF2fTo]             = useState('')
+  const [editingSession, setEditingSession] = useState(null) // {} for add, session object for edit
+  const [sessionForm, setSessionForm] = useState({})
+  const [savingSession, setSavingSession] = useState(false)
   const [tptData, setTptData]         = useState({ kickboxing: [], boxing: [] })
   const [attendanceData, setAttendanceData] = useState([])
   const [sessionPoints, setSessionPoints]   = useState([])
@@ -658,6 +663,38 @@ export default function AthleteProfiles() {
       })
       setResults(['', ''])
     }
+  }
+
+  async function saveFit2FightSession() {
+    if (!selected) return
+    setSavingSession(true)
+    const payload = {
+      student_id: selected.id,
+      session_date: sessionForm.session_date,
+      weight_before: sessionForm.weight_before === '' ? null : sessionForm.weight_before,
+      weight_after: sessionForm.weight_after === '' ? null : sessionForm.weight_after,
+      height_cm: sessionForm.height_cm === '' ? null : sessionForm.height_cm,
+      reach_cm: sessionForm.reach_cm === '' ? null : sessionForm.reach_cm,
+      notes: sessionForm.notes || null,
+    }
+    let error
+    if (sessionForm.id) {
+      ({ error } = await supabase.from('fit2fight_sessions').update(payload).eq('id', sessionForm.id))
+    } else {
+      ({ error } = await supabase.from('fit2fight_sessions').insert(payload))
+    }
+    if (error) { alert('Error saving session: ' + error.message); setSavingSession(false); return }
+    const { data } = await supabase.from('fit2fight_sessions').select('*').eq('student_id', selected.id).order('session_date', { ascending: false })
+    setF2fData(data || [])
+    setEditingSession(null)
+    setSavingSession(false)
+  }
+
+  async function deleteFit2FightSession(session) {
+    if (!confirm(`Delete the ${new Date(session.session_date).toLocaleDateString('en-GB')} entry? This can't be undone.`)) return
+    const { error } = await supabase.from('fit2fight_sessions').delete().eq('id', session.id)
+    if (error) { alert('Error deleting: ' + error.message); return }
+    setF2fData(prev => prev.filter(s => s.id !== session.id))
   }
 
   async function saveSessionNote() {
@@ -1149,8 +1186,14 @@ export default function AthleteProfiles() {
 
                         {/* ── Fit II Fight tab ── */}
             {tab === 'fit2fight' && (() => {
+              // Apply date range filter
+              const filtered = f2fData.filter(s => {
+                if (f2fFrom && s.session_date < f2fFrom) return false
+                if (f2fTo && s.session_date > f2fTo) return false
+                return true
+              })
               // Build chart data from sessions
-              const sorted = [...f2fData].sort((a,b) => new Date(a.session_date) - new Date(b.session_date))
+              const sorted = [...filtered].sort((a,b) => new Date(a.session_date) - new Date(b.session_date))
               const weightData = sorted.filter(s => s.weight_before || s.weight_after)
               const wattData = sorted.filter(s => s.watt_bike?.sets?.length > 0)
 
@@ -1233,12 +1276,33 @@ export default function AthleteProfiles() {
 
               return (
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
                   <h3 style={{ fontSize: 14, fontWeight: 600 }}>Fit II Fight Sessions</h3>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{f2fData.length} sessions</span>
-                    <a href={`/fit2fight-form?student_id=${selected?.id}`} className="btn btn-sm btn-primary" style={{ fontSize: 11 }}>+ Log session</a>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{filtered.length} of {f2fData.length} sessions</span>
+                    {isAdmin && (
+                      <button className="btn btn-sm btn-primary" style={{ fontSize: 11 }}
+                        onClick={() => { setSessionForm({ session_date: new Date().toISOString().split('T')[0] }); setEditingSession({}) }}>
+                        + Quick entry
+                      </button>
+                    )}
+                    <a href={`/fit2fight?student_id=${selected?.id}`} className="btn btn-sm" style={{ fontSize: 11 }}>+ Full session log</a>
                   </div>
+                </div>
+
+                {/* Date range filter */}
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}>
+                  <div className="field" style={{ marginBottom: 0 }}>
+                    <label style={{ fontSize: 11 }}>From</label>
+                    <input type="date" value={f2fFrom} onChange={e => setF2fFrom(e.target.value)} style={{ fontSize: 12, padding: '5px 8px' }} />
+                  </div>
+                  <div className="field" style={{ marginBottom: 0 }}>
+                    <label style={{ fontSize: 11 }}>To</label>
+                    <input type="date" value={f2fTo} onChange={e => setF2fTo(e.target.value)} style={{ fontSize: 12, padding: '5px 8px' }} />
+                  </div>
+                  {(f2fFrom || f2fTo) && (
+                    <button className="btn btn-sm" style={{ fontSize: 11, marginTop: 16 }} onClick={() => { setF2fFrom(''); setF2fTo('') }}>Clear</button>
+                  )}
                 </div>
 
                 {/* Charts */}
@@ -1321,11 +1385,11 @@ export default function AthleteProfiles() {
                     </div>
                   )
                 })()}
-                {f2fData.length === 0 ? (
-                  <div className="empty-state"><p>No Fit II Fight sessions logged yet.</p></div>
+                {filtered.length === 0 ? (
+                  <div className="empty-state"><p>{f2fData.length === 0 ? 'No Fit II Fight sessions logged yet.' : 'No sessions in this date range.'}</p></div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {f2fData.map((s, i) => {
+                    {filtered.map((s, i) => {
                       const change = s.weight_before && s.weight_after
                         ? (parseFloat(s.weight_after) - parseFloat(s.weight_before)).toFixed(1) : null
                       const exercises = [
@@ -1335,18 +1399,40 @@ export default function AthleteProfiles() {
                         s.techniques && { label: '🥋 Techniques', data: s.techniques },
                         s.test && { label: '📊 Test', data: s.test },
                       ].filter(Boolean)
+                      const isWeightOnly = exercises.length === 0 && !s.notes && (s.weight_before || s.weight_after)
                       return (
                         <div key={i} className="card" style={{ borderLeft: '3px solid #378ADD' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                            <span style={{ fontWeight: 600, fontSize: 13 }}>
-                              {new Date(s.session_date).toLocaleDateString('en-GB')}
-                            </span>
-                            <div style={{ display: 'flex', gap: 12, fontSize: 12 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontWeight: 600, fontSize: 13 }}>
+                                {new Date(s.session_date).toLocaleDateString('en-GB')}
+                              </span>
+                              <span className="badge" style={{ fontSize: 9, background: 'var(--bg-secondary)' }}>
+                                {isWeightOnly ? '⚖️ Check-in' : '💪 Fit II Fight'}
+                              </span>
+                            </div>
+                            <div style={{ display: 'flex', gap: 12, fontSize: 12, alignItems: 'center' }}>
                               {s.weight_before && <span>⚖️ Before: <strong>{s.weight_before}kg</strong></span>}
                               {s.weight_after  && <span>After: <strong>{s.weight_after}kg</strong></span>}
                               {change && <span style={{ fontWeight: 700, color: change < 0 ? '#1d9e75' : '#a32d2d' }}>
                                 {change > 0 ? '+' : ''}{change}kg
                               </span>}
+                              {isAdmin && (
+                                <div style={{ display: 'flex', gap: 4 }}>
+                                  <button onClick={() => { setSessionForm({
+                                      id: s.id, session_date: s.session_date,
+                                      weight_before: s.weight_before ?? '', weight_after: s.weight_after ?? '',
+                                      height_cm: s.height_cm ?? '', reach_cm: s.reach_cm ?? '', notes: s.notes ?? '',
+                                    }); setEditingSession(s) }}
+                                    style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>
+                                    Edit
+                                  </button>
+                                  <button onClick={() => deleteFit2FightSession(s)}
+                                    style={{ background: 'none', border: '1px solid #a32d2d', color: '#a32d2d', borderRadius: 6, padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>
+                                    Delete
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </div>
                           {s.height_cm && <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 6 }}>
@@ -1392,6 +1478,43 @@ export default function AthleteProfiles() {
                         </div>
                       )
                     })}
+                  </div>
+                )}
+
+                {/* Add/edit session modal */}
+                {editingSession && isAdmin && (
+                  <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
+                    <div className="card" style={{ width: '100%', maxWidth: 400 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
+                        <h2 style={{ fontSize: 15, fontWeight: 600 }}>{sessionForm.id ? 'Edit entry' : 'Quick entry'}</h2>
+                        <button onClick={() => setEditingSession(null)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
+                      </div>
+                      <div className="field">
+                        <label>Session date</label>
+                        <input type="date" value={sessionForm.session_date || ''} onChange={e => setSessionForm(f => ({ ...f, session_date: e.target.value }))} />
+                      </div>
+                      <div className="field-row">
+                        <div className="field"><label>Weight before (kg)</label><input type="number" step="0.1" value={sessionForm.weight_before ?? ''} onChange={e => setSessionForm(f => ({ ...f, weight_before: e.target.value }))} /></div>
+                        <div className="field"><label>Weight after (kg)</label><input type="number" step="0.1" value={sessionForm.weight_after ?? ''} onChange={e => setSessionForm(f => ({ ...f, weight_after: e.target.value }))} /></div>
+                      </div>
+                      <div className="field-row">
+                        <div className="field"><label>Height (cm)</label><input type="number" value={sessionForm.height_cm ?? ''} onChange={e => setSessionForm(f => ({ ...f, height_cm: e.target.value }))} /></div>
+                        <div className="field"><label>Reach (cm)</label><input type="number" value={sessionForm.reach_cm ?? ''} onChange={e => setSessionForm(f => ({ ...f, reach_cm: e.target.value }))} /></div>
+                      </div>
+                      <div className="field">
+                        <label>Notes</label>
+                        <textarea rows={3} value={sessionForm.notes ?? ''} onChange={e => setSessionForm(f => ({ ...f, notes: e.target.value }))} style={{ resize: 'none' }} />
+                      </div>
+                      <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 10 }}>
+                        For running, watt bike, techniques and other training modules, use "+ Full session log" instead.
+                      </p>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button className="btn" onClick={() => setEditingSession(null)}>Cancel</button>
+                        <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={saveFit2FightSession} disabled={savingSession || !sessionForm.session_date}>
+                          {savingSession ? 'Saving…' : 'Save'}
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
