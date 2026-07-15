@@ -194,6 +194,14 @@ export default function BoxingTPT() {
     setLoadingHistory(false)
   }
 
+  async function deleteEntry(h) {
+    if (!confirm(`Delete ${h.first_name} ${h.last_name}'s analysis from ${new Date(h.assessed_at).toLocaleDateString('en-GB')}? This can't be undone.`)) return
+    const { error } = await supabase.from('tpt_boxing').delete().eq('id', h.id)
+    if (error) { alert('Error deleting: ' + error.message); return }
+    setHistory(prev => prev.filter(x => x.id !== h.id))
+    if (compareId === h.id) setCompareId(null)
+  }
+
   function setScore(key, val) {
     setScores(s => ({ ...s, [key]: val }))
   }
@@ -415,6 +423,11 @@ export default function BoxingTPT() {
                                 <button className="btn btn-sm" onClick={() => setCompareId(isCompare ? null : h.id)}>
                                   {isCompare ? 'Clear' : 'Compare'}
                                 </button>
+                                {isAdmin && (
+                                  <button className="btn btn-sm" style={{ color: '#a32d2d', marginLeft: 4 }} onClick={() => deleteEntry(h)}>
+                                    Delete
+                                  </button>
+                                )}
                               </td>
                             </tr>
                           )

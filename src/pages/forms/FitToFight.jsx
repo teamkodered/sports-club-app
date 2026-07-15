@@ -15,12 +15,12 @@ const MODULES = [
   { key: 'one_percenters', label: 'One percenters', icon: '⚡', colour: '#854F0B' },
 ]
 
-const RUN_TYPES = [
-  '1600m run', '4800m run', '20 Minute Run (Distance)',
-  '2 Minute Run - Distance', '200m run 4', 'Interval circuit',
-  'Single set (Distance)', 'Bleep test', 'Other',
-]
-const WATT_TYPES = ['Watt/Assault bike', 'Interval circuit', 'Single set']
+const RUN_CATEGORIES = {
+  'Distance over time': ['2 Minute Run', '3 Minute Run', '10 Minute Run', '20 Minute Run', '30 Minute Run'],
+  'Timed Sprints': ['30m run', '40m run', '50m run', '100m run', '200m run', '300m run', '400m run', '800m run'],
+  'Timed Distance Run': ['1600m run', '4800m run', '2K', '5K', '10K', '15K'],
+}
+const WATT_TYPES = ['Interval', 'Power Circuit', 'Sprints']
 const BODYWEIGHT_TYPES = ['Push-ups', 'Pull-ups', 'Squats', 'Dips', 'Sit-ups', 'Burpees', 'Other']
 const STRETCH_OPTIONS = [
   'Box Splits Stretch', 'Seated toe-touch stretch', 'Arm across the body',
@@ -29,7 +29,99 @@ const STRETCH_OPTIONS = [
 ]
 const TEST_TYPES = ['Bleep test', 'Fixed load circuit', '200m sprint', '1600m time trial', '4800m time trial', 'Other']
 const TECHNIQUE_TYPES = ['Straight punches', 'Round kicks', 'Pads', 'Bag work', 'Combinations', 'Other']
-const INTERVAL_MODES = ['20 seconds on 20 seconds off', '30 seconds on 30 seconds off', '40 seconds on 20 seconds off']
+const INTERVAL_MODES = ['20 seconds on 20 seconds off', '30 seconds on 30 seconds off', '40 seconds on 20 seconds off', 'Custom']
+const LAST_SELECTION_KEY = 'f2f_last_selection'
+
+// ── Small helpers ──
+// Distance input (km) -- plain decimal, formatted to reduce entry errors
+function DistanceInput({ value, onChange, placeholder = '0.00' }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+      <input type="number" step="0.01" min="0" inputMode="decimal" value={value} onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={{ width: 90, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 12, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', textAlign: 'right' }} />
+      <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>km</span>
+    </div>
+  )
+}
+
+// Time input (mm:ss) -- two small boxes combined, avoids "1:234" typos
+function TimeInput({ value, onChange }) {
+  const [mm, ss] = (value || '').split(':')
+  function update(newMm, newSs) {
+    const m = (newMm ?? mm ?? '').toString().padStart(2, '0').slice(-2)
+    const s = (newSs ?? ss ?? '').toString().padStart(2, '0').slice(-2)
+    onChange(`${m}:${s}`)
+  }
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+      <input type="number" min="0" max="59" value={mm || ''} onChange={e => update(e.target.value, null)}
+        placeholder="mm" style={{ width: 44, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 12, background: 'var(--bg-secondary)', color: 'var(--text)', textAlign: 'center', fontFamily: 'var(--font-sans)' }} />
+      <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>:</span>
+      <input type="number" min="0" max="59" value={ss || ''} onChange={e => update(null, e.target.value)}
+        placeholder="ss" style={{ width: 44, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 12, background: 'var(--bg-secondary)', color: 'var(--text)', textAlign: 'center', fontFamily: 'var(--font-sans)' }} />
+      <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>mm:ss</span>
+    </div>
+  )
+}
+
+// A list of run attempts/sets, each using either a distance or time input
+// depending on the selected run category
+function RunSetInput({ sets, onChange, mode }) {
+  function update(i, val) {
+    const next = [...sets]
+    next[i] = val
+    onChange(next)
+  }
+  function add() { onChange([...sets, '']) }
+  function remove(i) { onChange(sets.filter((_, idx) => idx !== i)) }
+  return (
+    <div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 6 }}>
+        {sets.map((s, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ fontSize: 10, color: 'var(--text-tertiary)', width: 12 }}>{i + 1}</span>
+            {mode === 'distance'
+              ? <DistanceInput value={s} onChange={v => update(i, v)} />
+              : <TimeInput value={s} onChange={v => update(i, v)} />}
+            <button onClick={() => remove(i)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14, padding: 0 }}>×</button>
+          </div>
+        ))}
+      </div>
+      <button className="btn btn-sm" onClick={add} style={{ fontSize: 11 }}>+ Add attempt</button>
+    </div>
+  )
+}
+
+// Watt bike sets: each set has a wattage AND a distance figure
+function WattSetInput({ sets, onChange }) {
+  function update(i, field, val) {
+    const next = [...sets]
+    next[i] = { ...(next[i] || {}), [field]: val }
+    onChange(next)
+  }
+  function add() { onChange([...sets, { wattage: '', distance: '' }]) }
+  function remove(i) { onChange(sets.filter((_, idx) => idx !== i)) }
+  return (
+    <div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 6 }}>
+        {sets.map((s, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 10, color: 'var(--text-tertiary)', width: 12 }}>{i + 1}</span>
+            <input type="number" step="1" min="0" value={s?.wattage ?? ''} onChange={e => update(i, 'wattage', e.target.value)}
+              placeholder="0" style={{ width: 64, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 12, background: 'var(--bg-secondary)', color: 'var(--text)', textAlign: 'right', fontFamily: 'var(--font-sans)' }} />
+            <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>W</span>
+            <input type="number" step="0.01" min="0" value={s?.distance ?? ''} onChange={e => update(i, 'distance', e.target.value)}
+              placeholder="0.00" style={{ width: 70, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 12, background: 'var(--bg-secondary)', color: 'var(--text)', textAlign: 'right', fontFamily: 'var(--font-sans)' }} />
+            <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>km</span>
+            <button onClick={() => remove(i)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14, padding: 0, marginLeft: 2 }}>×</button>
+          </div>
+        ))}
+      </div>
+      <button className="btn btn-sm" onClick={add} style={{ fontSize: 11 }}>+ Add set</button>
+    </div>
+  )
+}
 
 // ── Small helpers ──
 function SetInput({ sets, onChange, placeholder = 'e.g. 0.24' }) {
@@ -110,8 +202,8 @@ export default function FitToFight() {
   const [enabled, setEnabled] = useState({})
 
   // Module data
-  const [running, setRunning]         = useState({ type: '', notes: '', sets: [], avg_bpm: '', peak_bpm: '' })
-  const [wattBike, setWattBike]       = useState({ type: '', interval_mode: '', sets: [], total_distance: '', max_wattage: '', avg_wattage: '', avg_bpm: '', peak_bpm: '' })
+  const [running, setRunning]         = useState({ category: '', test: '', notes: '', sets: [], avg_bpm: '', peak_bpm: '' })
+  const [wattBike, setWattBike]       = useState({ type: '', interval_mode: '', custom_on: '', custom_off: '', sets: [], total_distance: '', max_wattage: '', avg_wattage: '', avg_bpm: '', peak_bpm: '' })
   const [bodyweight, setBodyweight]   = useState({ type: '', notes: '', sets: [] })
   const [stretches, setStretches]     = useState(['', '', ''])
   const [test, setTest]               = useState({ type: '', notes: '' })
@@ -140,6 +232,22 @@ export default function FitToFight() {
         if (data) setStudent({ id: data.id, first_name: data.members?.first_name || '', last_name: data.members?.last_name || '' })
       })
   }, [isAdmin, profile?.id])
+
+  // Remember the last-used running/watt bike selections for convenience
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(LAST_SELECTION_KEY) || '{}')
+      if (saved.running_category) setRunning(r => ({ ...r, category: saved.running_category, test: saved.running_test || '' }))
+      if (saved.watt_type) setWattBike(w => ({ ...w, type: saved.watt_type, interval_mode: saved.watt_interval_mode || '' }))
+    } catch (e) { /* ignore */ }
+  }, [])
+
+  function rememberSelection(patch) {
+    try {
+      const saved = JSON.parse(localStorage.getItem(LAST_SELECTION_KEY) || '{}')
+      localStorage.setItem(LAST_SELECTION_KEY, JSON.stringify({ ...saved, ...patch }))
+    } catch (e) { /* ignore */ }
+  }
 
   async function loadStudents() {
     const { data } = await supabase
@@ -199,8 +307,8 @@ export default function FitToFight() {
   function reset() {
     if (isAdmin) setStudent({ first_name: '', last_name: '' })
     setWeightBefore(''); setWeightAfter('')
-    setHeight(''); setReach(''); setEnabled({}); setRunning({ type: '', notes: '', sets: [], avg_bpm: '', peak_bpm: '' })
-    setWattBike({ type: '', interval_mode: '', sets: [], total_distance: '', max_wattage: '', avg_wattage: '', avg_bpm: '', peak_bpm: '' })
+    setHeight(''); setReach(''); setEnabled({}); setRunning({ category: '', test: '', notes: '', sets: [], avg_bpm: '', peak_bpm: '' })
+    setWattBike({ type: '', interval_mode: '', custom_on: '', custom_off: '', sets: [], total_distance: '', max_wattage: '', avg_wattage: '', avg_bpm: '', peak_bpm: '' })
     setBodyweight({ type: '', notes: '', sets: [] }); setStretches(['', '', ''])
     setTest({ type: '', notes: '' }); setTechniques({ type: '', notes: '', sets: [] })
     setEyeTraining(''); setHeartRate({ type: '', notes: '', avg_bpm: '', peak_bpm: '' })
@@ -308,19 +416,34 @@ export default function FitToFight() {
 
             {/* Running */}
             <ModuleCard mod={MODULES[0]} enabled={!!enabled.running} onToggle={() => toggle('running')}>
-              <div className="field"><label>Run type</label>
-                <select value={running.type} onChange={e => setRunning(r => ({ ...r, type: e.target.value }))}>
-                  <option value="">Select…</option>{RUN_TYPES.map(t => <option key={t}>{t}</option>)}
+              <div className="field"><label>Category</label>
+                <select value={running.category} onChange={e => {
+                  const category = e.target.value
+                  setRunning(r => ({ ...r, category, test: '' }))
+                  rememberSelection({ running_category: category, running_test: '' })
+                }}>
+                  <option value="">Select…</option>
+                  {Object.keys(RUN_CATEGORIES).map(c => <option key={c}>{c}</option>)}
                 </select>
               </div>
-              <div className="field"><label>Interval mode</label>
-                <select value={running.interval_mode || ''} onChange={e => setRunning(r => ({ ...r, interval_mode: e.target.value }))}>
-                  <option value="">Select…</option>{INTERVAL_MODES.map(t => <option key={t}>{t}</option>)}
-                </select>
-              </div>
-              <div className="field"><label>Sets / splits</label>
-                <SetInput sets={running.sets} onChange={sets => setRunning(r => ({ ...r, sets }))} placeholder="e.g. 0.24km" />
-              </div>
+              {running.category && (
+                <div className="field"><label>Test</label>
+                  <select value={running.test} onChange={e => {
+                    const test = e.target.value
+                    setRunning(r => ({ ...r, test }))
+                    rememberSelection({ running_test: test })
+                  }}>
+                    <option value="">Select…</option>
+                    {RUN_CATEGORIES[running.category].map(t => <option key={t}>{t}</option>)}
+                  </select>
+                </div>
+              )}
+              {running.category && running.test && (
+                <div className="field"><label>{running.category === 'Distance over time' ? 'Distance covered' : 'Time'}</label>
+                  <RunSetInput sets={running.sets} onChange={sets => setRunning(r => ({ ...r, sets }))}
+                    mode={running.category === 'Distance over time' ? 'distance' : 'time'} />
+                </div>
+              )}
               <div className="field"><label>Notes</label><input value={running.notes} onChange={e => setRunning(r => ({ ...r, notes: e.target.value }))} placeholder="What did you do?" /></div>
               <BpmRow label="Avg BPM" value={running.avg_bpm} onChange={v => setRunning(r => ({ ...r, avg_bpm: v }))} />
               <BpmRow label="Peak BPM" value={running.peak_bpm} onChange={v => setRunning(r => ({ ...r, peak_bpm: v }))} />
@@ -329,17 +452,31 @@ export default function FitToFight() {
             {/* Watt / assault bike */}
             <ModuleCard mod={MODULES[1]} enabled={!!enabled.watt_bike} onToggle={() => toggle('watt_bike')}>
               <div className="field"><label>Type</label>
-                <select value={wattBike.type} onChange={e => setWattBike(w => ({ ...w, type: e.target.value }))}>
+                <select value={wattBike.type} onChange={e => {
+                  const type = e.target.value
+                  setWattBike(w => ({ ...w, type }))
+                  rememberSelection({ watt_type: type })
+                }}>
                   <option value="">Select…</option>{WATT_TYPES.map(t => <option key={t}>{t}</option>)}
                 </select>
               </div>
               <div className="field"><label>Interval mode</label>
-                <select value={wattBike.interval_mode} onChange={e => setWattBike(w => ({ ...w, interval_mode: e.target.value }))}>
+                <select value={wattBike.interval_mode} onChange={e => {
+                  const interval_mode = e.target.value
+                  setWattBike(w => ({ ...w, interval_mode }))
+                  rememberSelection({ watt_interval_mode: interval_mode })
+                }}>
                   <option value="">Select…</option>{INTERVAL_MODES.map(t => <option key={t}>{t}</option>)}
                 </select>
               </div>
-              <div className="field"><label>Sets (wattage or distance per set)</label>
-                <SetInput sets={wattBike.sets} onChange={sets => setWattBike(w => ({ ...w, sets }))} placeholder="e.g. 712W or 0.38km" />
+              {wattBike.interval_mode === 'Custom' && (
+                <div className="field-row">
+                  <div className="field"><label>On (seconds)</label><input type="number" min="0" value={wattBike.custom_on} onChange={e => setWattBike(w => ({ ...w, custom_on: e.target.value }))} /></div>
+                  <div className="field"><label>Off (seconds)</label><input type="number" min="0" value={wattBike.custom_off} onChange={e => setWattBike(w => ({ ...w, custom_off: e.target.value }))} /></div>
+                </div>
+              )}
+              <div className="field"><label>Sets (wattage & distance)</label>
+                <WattSetInput sets={wattBike.sets} onChange={sets => setWattBike(w => ({ ...w, sets }))} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
                 {[

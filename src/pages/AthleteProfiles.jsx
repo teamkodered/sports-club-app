@@ -47,6 +47,30 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
   const [customSections, setCustomSections] = useState([]) // user-added sections
 
   const pdp = apData?.pdp_notes || {}
+
+  function isHighlighted(sectionKey, item) {
+    return (pdp[`__highlights_${sectionKey}`] || []).includes(item)
+  }
+
+  async function toggleHighlight(sectionKey, item) {
+    const key = `__highlights_${sectionKey}`
+    const current = pdp[key] || []
+    const updated = current.includes(item) ? current.filter(x => x !== item) : [...current, item]
+    const newPdp = { ...pdp, [key]: updated }
+    await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: newPdp }, { onConflict: 'student_id' })
+    setApData(a => ({ ...a, pdp_notes: newPdp }))
+  }
+
+  function notePillStyle(sc, sectionKey, item, base = {}) {
+    const hl = isHighlighted(sectionKey, item)
+    return {
+      ...base,
+      background: sc + '15', color: sc, borderRadius: 20,
+      padding: hl ? '6px 14px' : (base.padding || '2px 8px'),
+      fontSize: hl ? (base.fontSize || 11) * 2 : (base.fontSize || 11),
+      fontWeight: hl ? 700 : (base.fontWeight || 400),
+    }
+  }
   // Restore custom sections from saved meta keys
   useEffect(() => {
     if (!pdp) return
@@ -205,7 +229,9 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                     {items.map((item, i) => (
-                      <span key={i} style={{ background: sc + '15', color: sc, borderRadius: 20, padding: '2px 8px', fontSize: 11 }}>{item}</span>
+                      <span key={i} onClick={isAdmin ? () => toggleHighlight(section.key, item) : undefined}
+                        title={isAdmin ? 'Click to highlight' : undefined}
+                        style={notePillStyle(sc, section.key, item, { cursor: isAdmin ? 'pointer' : 'default' })}>{item}</span>
                     ))}
                   </div>
                 </div>
@@ -230,7 +256,7 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                     {items.map((item, i) => (
-                      <span key={i} style={{ background: sc + '15', color: sc, borderRadius: 20, padding: '2px 8px', fontSize: 11 }}>{item}</span>
+                      <span key={i} style={notePillStyle(sc, section.key, item)}>{item}</span>
                     ))}
                   </div>
                 </div>
@@ -264,7 +290,7 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {items.map((item, i) => (
-                    <span key={i} style={{ background: sectionColour + '15', color: sectionColour, border: `1px solid ${section.colour}30`, borderRadius: 20, padding: '4px 10px', fontSize: 12, fontWeight: 500 }}>{item}</span>
+                    <span key={i} style={notePillStyle(sectionColour, section.key, item, { border: `1px solid ${section.colour}30`, padding: '4px 10px', fontSize: 12, fontWeight: 500 })}>{item}</span>
                   ))}
                 </div>
               </div>
@@ -379,7 +405,8 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
                 {!isEditing && items.length > 0 && (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {items.map((item, i) => (
-                      <span key={i} style={{ background: sectionColour + '15', color: sectionColour, border: `1px solid ${section.colour}30`, borderRadius: 20, padding: '4px 10px', fontSize: 12 }}>{item}</span>
+                      <span key={i} onClick={() => toggleHighlight(section.key, item)} title="Click to highlight"
+                        style={notePillStyle(sectionColour, section.key, item, { border: `1px solid ${section.colour}30`, padding: '4px 10px', fontSize: 12, cursor: 'pointer' })}>{item}</span>
                     ))}
                   </div>
                 )}
@@ -541,6 +568,8 @@ export default function AthleteProfiles() {
   const [f2fData, setF2fData]         = useState([])
   const [f2fFrom, setF2fFrom]         = useState('')
   const [f2fTo, setF2fTo]             = useState('')
+  const [wattChartFilter, setWattChartFilter] = useState('all')
+  const [runChartFilter, setRunChartFilter]   = useState('all')
   const [editingSession, setEditingSession] = useState(null) // {} for add, session object for edit
   const [sessionForm, setSessionForm] = useState({})
   const [savingSession, setSavingSession] = useState(false)
@@ -572,6 +601,17 @@ export default function AthleteProfiles() {
       .order('created_at')
     setStudents(data || [])
     setLoading(false)
+  }
+
+  async function copyInviteLink(s) {
+    const name = s.members?.first_name || 'there'
+    const msg = `Hi ${name}, you've been invited to the KR Centre athlete app. Log in at: https://klasschamp.netlify.app`
+    try {
+      await navigator.clipboard.writeText(msg)
+      alert('✓ Invite message copied — paste it anywhere (WhatsApp, in person, etc.)')
+    } catch (e) {
+      alert('Could not copy automatically. Here is the message to share:\n\n' + msg)
+    }
   }
 
   async function inviteStudent(s, method) {
@@ -876,6 +916,10 @@ export default function AthleteProfiles() {
                           title={m?.phone ? `SMS invite to ${m.phone}` : 'No phone on file'}
                           style={!m?.phone ? { opacity: 0.4 } : undefined}>
                           📱 SMS invite
+                        </button>
+                        <button className="btn btn-sm" onClick={() => copyInviteLink(selected)}
+                          title="Copy the invite message to share any way you like">
+                          📋 Copy link
                         </button>
                       </>
                     )
@@ -1196,6 +1240,7 @@ export default function AthleteProfiles() {
               const sorted = [...filtered].sort((a,b) => new Date(a.session_date) - new Date(b.session_date))
               const weightData = sorted.filter(s => s.weight_before || s.weight_after)
               const wattData = sorted.filter(s => s.watt_bike?.sets?.length > 0)
+              const runData = sorted.filter(s => s.running?.sets?.length > 0)
 
               // SVG line chart helper
               function LineChart({ data, lines, height=160, title, unit='' }) {
@@ -1322,18 +1367,75 @@ export default function AthleteProfiles() {
 
                 {wattData.length > 1 && (() => {
                   const SET_COLOURS = ['#E24B4A','#378ADD','#1D9E75','#EF9F27','#8B5CF6','#EC4899','#06B6D4','#84CC16','#F97316','#A855F7','#14B8A6','#EAB308']
-                  const maxSets = Math.max(...wattData.map(s => s.watt_bike?.sets?.length || 0))
+                  const wattTypes = [...new Set(wattData.map(s => s.watt_bike?.interval_mode || s.watt_bike?.type).filter(Boolean))]
+                  const filteredWatt = wattChartFilter === 'all' ? wattData : wattData.filter(s => (s.watt_bike?.interval_mode || s.watt_bike?.type) === wattChartFilter)
+                  const maxSets = Math.max(1, ...filteredWatt.map(s => s.watt_bike?.sets?.length || 0))
                   const setLines = Array.from({length: maxSets}, (_,i) => ({
                     key: `set${i}`, label: `Set ${i+1}`, colour: SET_COLOURS[i % SET_COLOURS.length]
                   }))
-                  const chartData = wattData.map(s => {
+                  const chartData = filteredWatt.map(s => {
                     const obj = { session_date: s.session_date }
-                    ;(s.watt_bike?.sets || []).forEach((v,i) => { obj[`set${i}`] = v })
+                    ;(s.watt_bike?.sets || []).forEach((v,i) => {
+                      // New shape is {wattage, distance}; older entries were a plain number/string
+                      obj[`set${i}`] = (v && typeof v === 'object') ? v.wattage : v
+                    })
                     return obj
                   })
                   return (
                     <div className="card" style={{ marginBottom: 12 }}>
-                      <LineChart data={chartData} lines={setLines} title="🚴 Watt bike — each set over time" unit="W" />
+                      {wattTypes.length > 1 && (
+                        <div className="field" style={{ marginBottom: 10, maxWidth: 220 }}>
+                          <label style={{ fontSize: 11 }}>Show</label>
+                          <select value={wattChartFilter} onChange={e => setWattChartFilter(e.target.value)} style={{ fontSize: 12, padding: '5px 8px' }}>
+                            <option value="all">All types</option>
+                            {wattTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                          </select>
+                        </div>
+                      )}
+                      {chartData.length > 1
+                        ? <LineChart data={chartData} lines={setLines} title="🚴 Watt bike — each set over time" unit="W" />
+                        : <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Not enough sessions of this type yet.</p>}
+                    </div>
+                  )
+                })()}
+
+                {runData.length > 1 && (() => {
+                  const SET_COLOURS = ['#E24B4A','#378ADD','#1D9E75','#EF9F27','#8B5CF6','#EC4899','#06B6D4','#84CC16']
+                  const runTests = [...new Set(runData.map(s => s.running?.test).filter(Boolean))]
+                  const filteredRun = runChartFilter === 'all' ? runData : runData.filter(s => s.running?.test === runChartFilter)
+                  const isDistanceTest = filteredRun.some(s => (s.running?.category) === 'Distance over time')
+                  const maxSets = Math.max(1, ...filteredRun.map(s => s.running?.sets?.length || 0))
+                  const setLines = Array.from({length: maxSets}, (_,i) => ({
+                    key: `set${i}`, label: `Attempt ${i+1}`, colour: SET_COLOURS[i % SET_COLOURS.length]
+                  }))
+                  // Time values (mm:ss) are converted to seconds for the chart; distance stays as-is
+                  const toChartValue = v => {
+                    if (v == null || v === '') return null
+                    if (typeof v === 'string' && v.includes(':')) {
+                      const [mm, ss] = v.split(':').map(Number)
+                      return (mm || 0) * 60 + (ss || 0)
+                    }
+                    return v
+                  }
+                  const chartData = filteredRun.map(s => {
+                    const obj = { session_date: s.session_date }
+                    ;(s.running?.sets || []).forEach((v,i) => { obj[`set${i}`] = toChartValue(v) })
+                    return obj
+                  })
+                  return (
+                    <div className="card" style={{ marginBottom: 12 }}>
+                      {runTests.length > 1 && (
+                        <div className="field" style={{ marginBottom: 10, maxWidth: 220 }}>
+                          <label style={{ fontSize: 11 }}>Show</label>
+                          <select value={runChartFilter} onChange={e => setRunChartFilter(e.target.value)} style={{ fontSize: 12, padding: '5px 8px' }}>
+                            <option value="all">All tests</option>
+                            {runTests.map(t => <option key={t} value={t}>{t}</option>)}
+                          </select>
+                        </div>
+                      )}
+                      {chartData.length > 1
+                        ? <LineChart data={chartData} lines={setLines} title="🏃 Running — each attempt over time" unit={isDistanceTest ? 'km' : 'sec'} />
+                        : <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Not enough sessions of this test yet.</p>}
                     </div>
                   )
                 })()}

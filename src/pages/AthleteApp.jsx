@@ -204,7 +204,7 @@ export default function AthleteApp() {
                 ))}
               </div>
               {points.length > 0 && (
-                <div className="card" style={{ padding: 0 }}>
+                <div className="card" style={{ padding: 0, marginBottom: 14 }}>
                   <div style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)' }}>Recent points</div>
                   <table><tbody>
                     {points.slice(0,5).map((p,i) => (
@@ -217,6 +217,9 @@ export default function AthleteApp() {
                   </tbody></table>
                 </div>
               )}
+              <Link to="/checkin-public" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: 12, fontSize: 14 }}>
+                ✅ Check in
+              </Link>
             </>
           ) : (
             <div className="card" style={{ textAlign: 'center', padding: 32 }}>

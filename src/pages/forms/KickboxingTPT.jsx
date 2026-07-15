@@ -201,6 +201,13 @@ export default function KickboxingTPT() {
     setLoadingHistory(false)
   }
 
+  async function deleteEntry(h) {
+    if (!confirm(`Delete ${h.first_name} ${h.last_name}'s analysis from ${new Date(h.assessed_at).toLocaleDateString('en-GB')}? This can't be undone.`)) return
+    const { error } = await supabase.from('tpt_kickboxing').delete().eq('id', h.id)
+    if (error) { alert('Error deleting: ' + error.message); return }
+    setHistory(prev => prev.filter(x => x.id !== h.id))
+  }
+
   async function loadPreviousEntry(firstName, lastName) {
     const { data } = await supabase
       .from('tpt_kickboxing')
@@ -446,6 +453,11 @@ export default function KickboxingTPT() {
                               <button className="btn btn-sm" onClick={() => setSelectedHistory(selectedHistory?.id === h.id ? null : h)}>
                                 {selectedHistory?.id === h.id ? 'Close' : 'View'}
                               </button>
+                              {isAdmin && (
+                                <button className="btn btn-sm" style={{ color: '#a32d2d', marginLeft: 4 }} onClick={() => deleteEntry(h)}>
+                                  Delete
+                                </button>
+                              )}
                             </td>
                           </tr>
                         ))}
