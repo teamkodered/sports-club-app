@@ -138,9 +138,12 @@ export default function StudentDatabase() {
   }
 
   useEffect(() => {
-    let list = students.filter(s =>
-      tab === 'All' ? true : s.discipline === tab
-    )
+    let list = students.filter(s => {
+      const isStopped = s.members?.status === 'stopped'
+      if (tab === 'Stopped') return isStopped
+      if (isStopped) return false
+      return tab === 'All' ? true : s.discipline === tab
+    })
     if (search) {
       const q = search.toLowerCase()
       list = list.filter(s =>
@@ -154,6 +157,9 @@ export default function StudentDatabase() {
     if (groupFilter === 'leader') list = list.filter(s => s.is_leader)
     if (groupFilter === 'coach')  list = list.filter(s => s.is_coach)
     if (groupFilter === 'none')   list = list.filter(s => !s.is_kr && !s.is_pts && !s.is_leader)
+    if (groupFilter === 'venue_moorways')   list = list.filter(s => s.class_schedule === 'Moorways')
+    if (groupFilter === 'venue_derbymoore') list = list.filter(s => s.class_schedule === 'Derby Moore')
+    if (groupFilter === 'venue_krcentre')   list = list.filter(s => s.class_schedule && s.class_schedule !== 'Moorways' && s.class_schedule !== 'Derby Moore')
     if (roleFilter) list = list.filter(s => s.members?.role === roleFilter)
 
     list = [...list].sort((a, b) => {
@@ -175,6 +181,7 @@ export default function StudentDatabase() {
   }, [search, tab, houseFilter, groupFilter, statusFilter, students, sortKey, sortDir])
 
   const houses = [...new Set(students.map(s => s.house_name || s.members?.houses?.name).filter(Boolean))].sort()
+  const activeStudentsCount = students.filter(s => s.members?.status !== 'stopped').length
   const cols = ALL_COLUMNS.filter(c => visibleCols.includes(c.key))
 
   async function stopStudent(s) {
@@ -211,7 +218,7 @@ export default function StudentDatabase() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <div className="page-header" style={{ marginBottom: 0 }}>
           <h1>Students</h1>
-          <p>{filtered.length} of {students.length} students</p>
+          <p>{tab === 'Stopped' ? `${filtered.length} stopped` : `${filtered.length} of ${activeStudentsCount} students`}</p>
         </div>
         <button className="btn btn-sm" onClick={() => setShowColPicker(v => !v)}>⚙️ Columns</button>
       </div>
@@ -236,7 +243,7 @@ export default function StudentDatabase() {
 
       {/* Discipline tabs */}
       <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
-        {['PKA', 'KRBA', 'All'].map(t => (
+        {['PKA', 'KRBA', 'All', 'Stopped'].map(t => (
           <button key={t} onClick={() => setTab(t)} style={{
             padding: '8px 18px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
             borderBottom: `2px solid ${tab === t ? 'var(--text)' : 'transparent'}`,
@@ -264,6 +271,9 @@ export default function StudentDatabase() {
           <option value="leader">Leaders</option>
           <option value="coach">Coaches</option>
           <option value="none">Main class only</option>
+          <option value="venue_krcentre">KR Centre</option>
+          <option value="venue_moorways">Moorways</option>
+          <option value="venue_derbymoore">Derby Moore</option>
         </select>
         <select value={roleFilter || ''} onChange={e => setRoleFilter(e.target.value)}
           style={{ padding: '7px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
@@ -279,7 +289,6 @@ export default function StudentDatabase() {
           <option value="active">Active</option>
           <option value="pending">Pending</option>
           <option value="inactive">Inactive</option>
-          <option value="stopped">Stopped</option>
         </select>
       </div>
 

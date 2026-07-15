@@ -31,7 +31,7 @@ export default function Dashboard() {
         { data: checkIns },
       ] = await Promise.all([
         supabase.from('members').select('id', { count: 'exact', head: true }).eq('status', 'active'),
-        supabase.from('students').select('id', { count: 'exact', head: true }),
+        supabase.from('students').select('id, members!inner(status)', { count: 'exact', head: true }).neq('members.status', 'stopped'),
         supabase.from('houses').select('*').order('points', { ascending: false }),
         supabase.from('students').select('id, house_points, individual_points, class_champion_count, house_name, member_id, members(first_name, last_name, houses(name))').order('house_points', { ascending: false }).limit(5),
         supabase.from('points_log').select('*, student_id, students(member_id, members(first_name, last_name))').order('awarded_at', { ascending: false }).limit(8),
