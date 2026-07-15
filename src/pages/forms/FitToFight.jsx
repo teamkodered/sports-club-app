@@ -15,21 +15,21 @@ const MODULES = [
   { key: 'one_percenters', label: 'One percenters', icon: '⚡', colour: '#854F0B' },
 ]
 
-const RUN_CATEGORIES = {
+const DEFAULT_RUN_CATEGORIES = {
   'Distance over time': ['2 Minute Run', '3 Minute Run', '10 Minute Run', '20 Minute Run', '30 Minute Run'],
   'Timed Sprints': ['30m run', '40m run', '50m run', '100m run', '200m run', '300m run', '400m run', '800m run'],
   'Timed Distance Run': ['1600m run', '4800m run', '2K', '5K', '10K', '15K'],
 }
-const WATT_TYPES = ['Interval', 'Power Circuit', 'Sprints']
-const BODYWEIGHT_TYPES = ['Push-ups', 'Pull-ups', 'Squats', 'Dips', 'Sit-ups', 'Burpees', 'Other']
-const STRETCH_OPTIONS = [
+const DEFAULT_WATT_TYPES = ['Interval', 'Power Circuit', 'Sprints']
+const DEFAULT_BODYWEIGHT_TYPES = ['Push-ups', 'Pull-ups', 'Squats', 'Dips', 'Sit-ups', 'Burpees', 'Other']
+const DEFAULT_STRETCH_OPTIONS = [
   'Box Splits Stretch', 'Seated toe-touch stretch', 'Arm across the body',
   'Head rotation left and right', 'Hip flexor stretch', 'Standing quad stretch',
   'Hamstring stretch', 'Calf stretch', 'Shoulder rotation', 'Other',
 ]
-const TEST_TYPES = ['Bleep test', 'Fixed load circuit', '200m sprint', '1600m time trial', '4800m time trial', 'Other']
-const TECHNIQUE_TYPES = ['Straight punches', 'Round kicks', 'Pads', 'Bag work', 'Combinations', 'Other']
-const INTERVAL_MODES = ['20 seconds on 20 seconds off', '30 seconds on 30 seconds off', '40 seconds on 20 seconds off', 'Custom']
+const DEFAULT_TEST_TYPES = ['Bleep test', 'Fixed load circuit', '200m sprint', '1600m time trial', '4800m time trial', 'Other']
+const DEFAULT_TECHNIQUE_TYPES = ['Straight punches', 'Round kicks', 'Pads', 'Bag work', 'Combinations', 'Other']
+const DEFAULT_INTERVAL_MODES = ['20 seconds on 20 seconds off', '30 seconds on 30 seconds off', '40 seconds on 20 seconds off']
 const LAST_SELECTION_KEY = 'f2f_last_selection'
 
 // ── Small helpers ──
@@ -191,6 +191,13 @@ export default function FitToFight() {
   const { profile, isAdmin } = useAuth()
   const [view, setView] = useState('log') // 'log' | 'history'
   const [students, setStudents] = useState([])
+  const [runCategories, setRunCategories]     = useState(DEFAULT_RUN_CATEGORIES)
+  const [wattTypes, setWattTypes]             = useState(DEFAULT_WATT_TYPES)
+  const [bodyweightTypes, setBodyweightTypes] = useState(DEFAULT_BODYWEIGHT_TYPES)
+  const [stretchOptions, setStretchOptions]   = useState(DEFAULT_STRETCH_OPTIONS)
+  const [testTypes, setTestTypes]             = useState(DEFAULT_TEST_TYPES)
+  const [techniqueTypes, setTechniqueTypes]   = useState(DEFAULT_TECHNIQUE_TYPES)
+  const [intervalModes, setIntervalModes]     = useState([...DEFAULT_INTERVAL_MODES, 'Custom'])
   const [student, setStudent] = useState({ first_name: '', last_name: '' })
   const [sessionDate, setSessionDate] = useState(new Date().toISOString().split('T')[0])
   const [weightBefore, setWeightBefore] = useState('')
@@ -223,6 +230,21 @@ export default function FitToFight() {
   const [expandedSession, setExpandedSession] = useState(null)
 
   useEffect(() => { if (isAdmin) loadStudents() }, [isAdmin])
+
+  useEffect(() => {
+    supabase.from('settings').select('key,value')
+      .in('key', ['f2f_run_categories', 'f2f_watt_types', 'f2f_bodyweight_types', 'f2f_stretch_options', 'f2f_test_types', 'f2f_technique_types', 'f2f_interval_modes'])
+      .then(({ data }) => {
+        const map = Object.fromEntries((data || []).map(r => [r.key, r.value]))
+        if (map.f2f_run_categories) setRunCategories(map.f2f_run_categories)
+        if (map.f2f_watt_types) setWattTypes(map.f2f_watt_types)
+        if (map.f2f_bodyweight_types) setBodyweightTypes(map.f2f_bodyweight_types)
+        if (map.f2f_stretch_options) setStretchOptions(map.f2f_stretch_options)
+        if (map.f2f_test_types) setTestTypes(map.f2f_test_types)
+        if (map.f2f_technique_types) setTechniqueTypes(map.f2f_technique_types)
+        if (map.f2f_interval_modes) setIntervalModes([...map.f2f_interval_modes, 'Custom'])
+      })
+  }, [])
   useEffect(() => { if (view === 'history') loadHistory() }, [view])
   useEffect(() => {
     if (isAdmin || !profile?.id) return
@@ -423,7 +445,7 @@ export default function FitToFight() {
                   rememberSelection({ running_category: category, running_test: '' })
                 }}>
                   <option value="">Select…</option>
-                  {Object.keys(RUN_CATEGORIES).map(c => <option key={c}>{c}</option>)}
+                  {Object.keys(runCategories).map(c => <option key={c}>{c}</option>)}
                 </select>
               </div>
               {running.category && (
@@ -434,7 +456,7 @@ export default function FitToFight() {
                     rememberSelection({ running_test: test })
                   }}>
                     <option value="">Select…</option>
-                    {RUN_CATEGORIES[running.category].map(t => <option key={t}>{t}</option>)}
+                    {runCategories[running.category].map(t => <option key={t}>{t}</option>)}
                   </select>
                 </div>
               )}
@@ -457,7 +479,7 @@ export default function FitToFight() {
                   setWattBike(w => ({ ...w, type }))
                   rememberSelection({ watt_type: type })
                 }}>
-                  <option value="">Select…</option>{WATT_TYPES.map(t => <option key={t}>{t}</option>)}
+                  <option value="">Select…</option>{wattTypes.map(t => <option key={t}>{t}</option>)}
                 </select>
               </div>
               <div className="field"><label>Interval mode</label>
@@ -466,7 +488,7 @@ export default function FitToFight() {
                   setWattBike(w => ({ ...w, interval_mode }))
                   rememberSelection({ watt_interval_mode: interval_mode })
                 }}>
-                  <option value="">Select…</option>{INTERVAL_MODES.map(t => <option key={t}>{t}</option>)}
+                  <option value="">Select…</option>{intervalModes.map(t => <option key={t}>{t}</option>)}
                 </select>
               </div>
               {wattBike.interval_mode === 'Custom' && (
@@ -499,7 +521,7 @@ export default function FitToFight() {
             <ModuleCard mod={MODULES[2]} enabled={!!enabled.bodyweight} onToggle={() => toggle('bodyweight')}>
               <div className="field"><label>Exercise type</label>
                 <select value={bodyweight.type} onChange={e => setBodyweight(b => ({ ...b, type: e.target.value }))}>
-                  <option value="">Select…</option>{BODYWEIGHT_TYPES.map(t => <option key={t}>{t}</option>)}
+                  <option value="">Select…</option>{bodyweightTypes.map(t => <option key={t}>{t}</option>)}
                 </select>
               </div>
               <div className="field"><label>Sets (reps per set)</label>
@@ -515,7 +537,7 @@ export default function FitToFight() {
                 <div key={i} className="field">
                   <label>Flow {i + 1}</label>
                   <select value={stretches[i]} onChange={e => { const s = [...stretches]; s[i] = e.target.value; setStretches(s) }}>
-                    <option value="">Select stretch…</option>{STRETCH_OPTIONS.map(t => <option key={t}>{t}</option>)}
+                    <option value="">Select stretch…</option>{stretchOptions.map(t => <option key={t}>{t}</option>)}
                   </select>
                 </div>
               ))}
@@ -525,7 +547,7 @@ export default function FitToFight() {
             <ModuleCard mod={MODULES[4]} enabled={!!enabled.test} onToggle={() => toggle('test')}>
               <div className="field"><label>Test type</label>
                 <select value={test.type} onChange={e => setTest(t => ({ ...t, type: e.target.value }))}>
-                  <option value="">Select…</option>{TEST_TYPES.map(t => <option key={t}>{t}</option>)}
+                  <option value="">Select…</option>{testTypes.map(t => <option key={t}>{t}</option>)}
                 </select>
               </div>
               <div className="field"><label>Result / notes</label>
@@ -537,7 +559,7 @@ export default function FitToFight() {
             <ModuleCard mod={MODULES[5]} enabled={!!enabled.techniques} onToggle={() => toggle('techniques')}>
               <div className="field"><label>Technique type</label>
                 <select value={techniques.type} onChange={e => setTechniques(t => ({ ...t, type: e.target.value }))}>
-                  <option value="">Select…</option>{TECHNIQUE_TYPES.map(t => <option key={t}>{t}</option>)}
+                  <option value="">Select…</option>{techniqueTypes.map(t => <option key={t}>{t}</option>)}
                 </select>
               </div>
               <div className="field"><label>Sets</label>

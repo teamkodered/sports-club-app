@@ -27,6 +27,8 @@ const PDP_SECTIONS = [
 export default function AthleteApp() {
   const { profile } = useAuth()
   const [tab, setTab]           = useState('home')
+  const [checkingIn, setCheckingIn]   = useState(false)
+  const [checkedInMsg, setCheckedInMsg] = useState(null)
   const [student, setStudent]   = useState(null)
   const [apData, setApData]     = useState(null)
   const [points, setPoints]     = useState([])
@@ -76,6 +78,26 @@ export default function AthleteApp() {
     setApData(a => ({ ...(a || {}), pdp_notes: updated }))
     setEditNote(false)
     setSaving(false)
+  }
+
+  async function checkInNow(attendanceType) {
+    if (!student) return
+    setCheckingIn(true)
+    const { error } = await supabase.from('attendance').insert({
+      student_id: student.id,
+      present: true,
+      late: false,
+      attendance_type: attendanceType,
+      session_date: new Date().toISOString().split('T')[0],
+      attended_at: new Date().toISOString(),
+    })
+    if (error) {
+      alert('Error checking in: ' + error.message)
+    } else {
+      setCheckedInMsg(attendanceType === 'full_kit' ? '✓ Checked in — Full Kit!' : '✓ Checked in!')
+      setTimeout(() => setCheckedInMsg(null), 4000)
+    }
+    setCheckingIn(false)
   }
 
   if (loading) return <div className="loading">Loading…</div>
@@ -217,9 +239,22 @@ export default function AthleteApp() {
                   </tbody></table>
                 </div>
               )}
-              <Link to="/checkin-public" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: 12, fontSize: 14 }}>
-                ✅ Check in
-              </Link>
+              {checkedInMsg ? (
+                <div className="card" style={{ textAlign: 'center', padding: 12, background: '#1D9E7515', border: '1px solid #1D9E7530', color: '#1D9E75', fontWeight: 600, fontSize: 14 }}>
+                  {checkedInMsg}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', padding: 12, fontSize: 14 }}
+                    onClick={() => checkInNow('attended')} disabled={checkingIn}>
+                    ✅ Check in
+                  </button>
+                  <button className="btn" style={{ flex: 1, justifyContent: 'center', padding: 12, fontSize: 14 }}
+                    onClick={() => checkInNow('full_kit')} disabled={checkingIn}>
+                    ✅ Full Kit
+                  </button>
+                </div>
+              )}
             </>
           ) : (
             <div className="card" style={{ textAlign: 'center', padding: 32 }}>

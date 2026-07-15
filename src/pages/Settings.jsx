@@ -34,6 +34,23 @@ export default function Settings() {
   async function load() {
     const { data } = await supabase.from('settings').select('key,value')
     const map = Object.fromEntries((data || []).map(r => [r.key, r.value]))
+    // Seed Fit II Fight option defaults so the editor starts pre-filled
+    // with what's currently active, rather than looking empty
+    if (!map.f2f_run_categories) map.f2f_run_categories = {
+      'Distance over time': ['2 Minute Run', '3 Minute Run', '10 Minute Run', '20 Minute Run', '30 Minute Run'],
+      'Timed Sprints': ['30m run', '40m run', '50m run', '100m run', '200m run', '300m run', '400m run', '800m run'],
+      'Timed Distance Run': ['1600m run', '4800m run', '2K', '5K', '10K', '15K'],
+    }
+    if (!map.f2f_watt_types) map.f2f_watt_types = ['Interval', 'Power Circuit', 'Sprints']
+    if (!map.f2f_interval_modes) map.f2f_interval_modes = ['20 seconds on 20 seconds off', '30 seconds on 30 seconds off', '40 seconds on 20 seconds off']
+    if (!map.f2f_bodyweight_types) map.f2f_bodyweight_types = ['Push-ups', 'Pull-ups', 'Squats', 'Dips', 'Sit-ups', 'Burpees', 'Other']
+    if (!map.f2f_stretch_options) map.f2f_stretch_options = [
+      'Box Splits Stretch', 'Seated toe-touch stretch', 'Arm across the body',
+      'Head rotation left and right', 'Hip flexor stretch', 'Standing quad stretch',
+      'Hamstring stretch', 'Calf stretch', 'Shoulder rotation', 'Other',
+    ]
+    if (!map.f2f_test_types) map.f2f_test_types = ['Bleep test', 'Fixed load circuit', '200m sprint', '1600m time trial', '4800m time trial', 'Other']
+    if (!map.f2f_technique_types) map.f2f_technique_types = ['Straight punches', 'Round kicks', 'Pads', 'Bag work', 'Combinations', 'Other']
     setSettings(map)
     // Load club settings
     setClub({
@@ -229,7 +246,7 @@ export default function Settings() {
     <div style={{ maxWidth: 640 }}>
       <div className="page-header">
         <h1>Settings</h1>
-        <p>Configure club details, belt levels, age categories and point types</p>
+        <p>Configure club details, belt levels, age categories, point types and Fit II Fight options</p>
       </div>
 
       {SECTION('Club details')}
@@ -289,6 +306,16 @@ export default function Settings() {
 
       {SECTION('Points System')}
       <PointTypesEditor />
+
+      {SECTION('Fit II Fight Options')}
+      <ListSetting label="Running categories & tests" settingKey="f2f_run_categories"
+        hint='JSON format: {"Category name": ["Test 1", "Test 2"], …}. Category name determines whether the input is distance (km) or time (mm:ss) — categories containing "Distance" use km, everything else uses time.' />
+      <ListSetting label="Watt bike types" settingKey="f2f_watt_types" hint="One per line. 'Custom' interval option is always available automatically and doesn't need to be listed here." />
+      <ListSetting label="Watt bike interval modes" settingKey="f2f_interval_modes" hint="One per line, e.g. '30 seconds on 30 seconds off'" />
+      <ListSetting label="Bodyweight exercise types" settingKey="f2f_bodyweight_types" hint="One per line" />
+      <ListSetting label="Stretch options" settingKey="f2f_stretch_options" hint="One per line" />
+      <ListSetting label="Test types" settingKey="f2f_test_types" hint="One per line" />
+      <ListSetting label="Technique types" settingKey="f2f_technique_types" hint="One per line" />
 
       {SECTION('Roles & Access')}
       <div className="card" style={{ marginBottom: 10 }}>

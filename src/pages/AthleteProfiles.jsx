@@ -57,7 +57,8 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
     const current = pdp[key] || []
     const updated = current.includes(item) ? current.filter(x => x !== item) : [...current, item]
     const newPdp = { ...pdp, [key]: updated }
-    await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: newPdp }, { onConflict: 'student_id' })
+    const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: newPdp }, { onConflict: 'student_id' })
+    if (error) { alert('Error highlighting note: ' + error.message); return }
     setApData(a => ({ ...a, pdp_notes: newPdp }))
   }
 
@@ -97,25 +98,27 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
     setNewItem('')
   }
 
-  function duplicateSection(section) {
+  async function duplicateSection(section) {
     const newKey = section.key + '_copy_' + Date.now()
     const meta = pdp[`__meta_${section.key}`]
     const label = meta?.label || section.label
     const colour = meta?.colour || section.colour
     const newSection = { key: newKey, label: label + ' (copy)', colour, coachOnly: false }
-    setCustomSections(prev => [...prev, newSection])
     const updated = { ...pdp, [newKey]: [...(pdp[section.key] || [])], [`__meta_${newKey}`]: { label: label + ' (copy)', colour } }
-    supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: updated }, { onConflict: 'student_id' })
+    const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: updated }, { onConflict: 'student_id' })
+    if (error) { alert('Error duplicating section: ' + error.message); return }
+    setCustomSections(prev => [...prev, newSection])
     setApData(a => ({ ...a, pdp_notes: updated }))
   }
 
-  function addSection() {
+  async function addSection() {
     const newKey = 'custom_' + Date.now()
     const newSection = { key: newKey, label: '📝 New section', colour: '#378ADD', coachOnly: false }
-    setCustomSections(prev => [...prev, newSection])
     // Pre-save meta so section persists on reload
     const updated = { ...pdp, [`__meta_${newKey}`]: { label: '📝 New section', colour: '#378ADD' } }
-    supabase.from('athlete_profiles').upsert({ student_id: selected?.id, pdp_notes: updated }, { onConflict: 'student_id' })
+    const { error } = await supabase.from('athlete_profiles').upsert({ student_id: selected?.id, pdp_notes: updated }, { onConflict: 'student_id' })
+    if (error) { alert('Error adding section: ' + error.message); return }
+    setCustomSections(prev => [...prev, newSection])
     setApData(a => ({ ...a, pdp_notes: updated }))
     startEdit(newSection)
   }
@@ -124,7 +127,8 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
     if (!editSectionMeta) return
     // Save custom label/colour to pdp_notes as metadata
     const updated = { ...pdp, [`__meta_${editSectionMeta.key}`]: { label: editSectionMeta.label, colour: editSectionMeta.colour } }
-    await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: updated }, { onConflict: 'student_id' })
+    const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: updated }, { onConflict: 'student_id' })
+    if (error) { alert('Error saving section title/colour: ' + error.message); return }
     setApData(a => ({ ...a, pdp_notes: updated }))
   }
 
@@ -137,10 +141,13 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
     }
     const { error } = await supabase.from('athlete_profiles')
       .upsert({ student_id: student.id, pdp_notes: updated }, { onConflict: 'student_id' })
-    if (!error) {
-      setPdpHistory(prev => [...prev.slice(-9), pdp]) // save last 10 states
-      setApData(a => ({ ...a, pdp_notes: updated }))
+    if (error) {
+      alert('Error saving notes: ' + error.message)
+      setSaving(false)
+      return
     }
+    setPdpHistory(prev => [...prev.slice(-9), pdp]) // save last 10 states
+    setApData(a => ({ ...a, pdp_notes: updated }))
     setEditSection(null)
     setSelectedItems([])
     setSaving(false)
@@ -156,8 +163,9 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
       [`${sectionKey}_sent_at`]: new Date().toISOString(),
     }
     setSaving(true)
-    await supabase.from('athlete_profiles')
+    const { error } = await supabase.from('athlete_profiles')
       .upsert({ student_id: student.id, pdp_shared: updatedShared }, { onConflict: 'student_id' })
+    if (error) { alert('Error sharing notes: ' + error.message); setSaving(false); return }
     setApData(a => ({ ...a, pdp_shared: updatedShared }))
     setSendModal(null)
     setSaving(false)
@@ -376,7 +384,8 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
                   supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: updated }, { onConflict: 'student_id' })
                   setApData(a => ({ ...a, pdp_notes: updated }))
                 }}
-                style={{ borderLeft: `3px solid ${sectionColour}`, borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0', marginBottom: 10 }}>
+                style={{ borderLeft: `3px solid ${sectionColour}`, borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0', marginBottom: 10, cursor: isEditing ? 'default' : 'pointer' }}
+                onClick={() => { if (!isEditing) startEdit(section) }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isEditing ? 12 : items.length ? 8 : 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                     <span style={{ cursor: 'grab', color: 'var(--text-tertiary)', fontSize: 16, lineHeight: 1, userSelect: 'none' }}>⋮⋮</span>
@@ -386,7 +395,7 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
                       {isShared && !section.coachOnly && <span style={{ fontSize: 9, color: '#1d9e75', marginLeft: 6 }}>✓ shared</span>}
                     </h3>
                   </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
+                  <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
                     {items.length > 0 && (
                       <button className="btn btn-sm" style={{ fontSize: 10, background: '#eaf3de', color: '#3b6d11', border: '1px solid #3b6d1140' }}
                         onClick={() => setSendModal(section.key)}>
@@ -403,7 +412,7 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
                 </div>
 
                 {!isEditing && items.length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }} onClick={e => e.stopPropagation()}>
                     {items.map((item, i) => (
                       <span key={i} onClick={() => toggleHighlight(section.key, item)} title="Click to highlight"
                         style={notePillStyle(sectionColour, section.key, item, { border: `1px solid ${section.colour}30`, padding: '4px 10px', fontSize: 12, cursor: 'pointer' })}>{item}</span>
