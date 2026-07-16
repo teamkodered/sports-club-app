@@ -10,6 +10,7 @@ export default function Login() {
   const [error, setError]         = useState('')
   const [loading, setLoading]     = useState(false)
   const [resetSent, setResetSent] = useState(false)
+  const [createSent, setCreateSent] = useState(false)
 
   async function handleLogin(e) {
     e.preventDefault()
@@ -31,6 +32,19 @@ export default function Login() {
     setLoading(false)
   }
 
+  // For an athlete who already has a student record but no login yet
+  // (e.g. invited via SMS/copy-link rather than email). This only
+  // creates the bare login -- no membership/student record -- they then
+  // claim their existing profile via 'Find your profile' in My app.
+  async function handleCreateLogin(e) {
+    e.preventDefault()
+    setLoading(true); setError('')
+    const { error } = await supabase.auth.signUp({ email, password })
+    if (error) setError(error.message)
+    else setCreateSent(true)
+    setLoading(false)
+  }
+
   return (
     <div style={{ minHeight: '100vh', background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div style={{ width: '100%', maxWidth: 380 }}>
@@ -45,8 +59,8 @@ export default function Login() {
         <div className="card">
           {/* Tabs */}
           <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 20 }}>
-            {[['login','Sign in'],['reset','Reset password']].map(([key, label]) => (
-              <button key={key} onClick={() => { setTab(key); setError(''); setResetSent(false) }} style={{
+            {[['login','Sign in'],['reset','Reset password'],['create','Create login']].map(([key, label]) => (
+              <button key={key} onClick={() => { setTab(key); setError(''); setResetSent(false); setCreateSent(false) }} style={{
                 flex: 1, padding: '8px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
                 borderBottom: `2px solid ${tab === key ? 'var(--text)' : 'transparent'}`,
                 color: tab === key ? 'var(--text)' : 'var(--text-secondary)',
@@ -89,6 +103,35 @@ export default function Login() {
               <p style={{ fontSize: 14, fontWeight: 500, marginBottom: 6 }}>Check your email</p>
               <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Reset link sent to <strong>{email}</strong></p>
               <button className="btn btn-sm" style={{ marginTop: 14 }} onClick={() => { setTab('login'); setResetSent(false) }}>Back to sign in</button>
+            </div>
+          )}
+
+          {tab === 'create' && !createSent && (
+            <form onSubmit={handleCreateLogin}>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 14 }}>
+                Already have a student profile at KR Centre but no login yet? Create one here with your own email, then link it to your profile from "My app".
+              </p>
+              <div className="field"><label>Your email</label>
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" autoFocus required />
+              </div>
+              <div className="field"><label>Choose a password</label>
+                <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="At least 6 characters" minLength={6} required />
+              </div>
+              {error && <p style={{ fontSize: 12, color: '#e24b4a', marginBottom: 10 }}>{error}</p>}
+              <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={loading}>
+                {loading ? 'Creating…' : 'Create login'}
+              </button>
+            </form>
+          )}
+
+          {tab === 'create' && createSent && (
+            <div style={{ textAlign: 'center', padding: '8px 0' }}>
+              <div style={{ fontSize: 36, marginBottom: 10 }}>✓</div>
+              <p style={{ fontSize: 14, fontWeight: 500, marginBottom: 6 }}>Login created!</p>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 14 }}>
+                Sign in with your new email and password, then go to "My app" → "Find your profile" to link your account.
+              </p>
+              <button className="btn btn-sm btn-primary" onClick={() => { setTab('login'); setCreateSent(false) }}>Go to sign in</button>
             </div>
           )}
         </div>

@@ -614,7 +614,7 @@ export default function AthleteProfiles() {
 
   async function copyInviteLink(s) {
     const name = s.members?.first_name || 'there'
-    const msg = `Hi ${name}, you've been invited to the KR Centre athlete app. Log in at: https://klasschamp.netlify.app`
+    const msg = `Hi ${name}, you've been invited to the KR Centre athlete app. Go to https://klasschamp.netlify.app, tap 'Create login' to set up your own email/password, then in the app go to My app > Find your profile to link it to you.`
     try {
       await navigator.clipboard.writeText(msg)
       alert('✓ Invite message copied — paste it anywhere (WhatsApp, in person, etc.)')
@@ -630,7 +630,7 @@ export default function AthleteProfiles() {
 
     if (method === 'sms') {
       if (!phone) return alert('No phone number on file for this athlete.')
-      const msg = encodeURIComponent(`Hi ${s.members.first_name}, you've been invited to the KR Centre athlete app. Log in at: https://klasschamp.netlify.app`)
+      const msg = encodeURIComponent(`Hi ${s.members.first_name}, you've been invited to the KR Centre athlete app. Go to https://klasschamp.netlify.app, tap 'Create login' to set up your own email/password, then in the app go to My app > Find your profile to link it to you.`)
       window.open(`sms:${phone.replace(/\s/g,'')}?body=${msg}`, '_blank')
       return
     }
