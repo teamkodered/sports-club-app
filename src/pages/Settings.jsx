@@ -15,6 +15,7 @@ export default function Settings() {
   const [clubSaved, setClubSaved] = useState(false)
 
   const [members, setMembers] = useState([])
+  const [roleSearch, setRoleSearch] = useState('')
   const [roleSaving, setRoleSaving] = useState(null)
 
   useEffect(() => { load(); loadMembers() }, [])
@@ -322,8 +323,18 @@ export default function Settings() {
         <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
           Admin — full access · Captain — coach access · Member — student access
         </p>
+        <input value={roleSearch} onChange={e => setRoleSearch(e.target.value)} placeholder="🔍 Search by name or email…"
+          style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', marginBottom: 12 }} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-          {members.map(m => (
+          {members
+            .slice()
+            .sort((a, b) => `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`))
+            .filter(m => {
+              if (!roleSearch) return true
+              const q = roleSearch.toLowerCase()
+              return `${m.first_name} ${m.last_name} ${m.email}`.toLowerCase().includes(q)
+            })
+            .map(m => (
             <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 500 }}>{m.first_name} {m.last_name}</div>
