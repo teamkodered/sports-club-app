@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase.js'
 import { useAuth } from '../../hooks/useAuth.jsx'
+import FormLogo from '../../components/shared/FormLogo.jsx'
 
 // ── Category definitions matching the exact sheet ──
 const CATEGORIES = {
@@ -240,7 +241,7 @@ export default function BoxingTPT() {
       <div style={{ minHeight: '100vh', background: 'var(--bg-tertiary)', padding: '24px 16px' }}>
         <div style={{ maxWidth: 560, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 20 }}>
-            <div style={{ fontSize: 36, marginBottom: 8 }}>🥊</div>
+            <FormLogo formKey="boxing_tpt" fallbackEmoji="🥊" />
             <h1 style={{ fontSize: 20, fontWeight: 600 }}>TPT Analysis saved</h1>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{student.first_name} {student.last_name}</p>
           </div>

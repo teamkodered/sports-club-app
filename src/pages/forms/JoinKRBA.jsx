@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../../lib/supabase.js'
+import FormLogo from '../../components/shared/FormLogo.jsx'
 import { generateStudentId } from '../../lib/studentId.js'
 
 const STEPS = ['Your details', 'Medical & Emergency', 'Waiver', 'Done']
@@ -75,7 +76,7 @@ export default function JoinKRBA() {
     <div style={{ minHeight: '100vh', background: 'var(--bg-tertiary)', padding: '24px 16px' }}>
       <div style={{ maxWidth: 520, margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>🥊</div>
+          <FormLogo formKey="krba" fallbackEmoji="🥊" />
           <h1 style={{ fontSize: 20, fontWeight: 600 }}>KRBA Membership</h1>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Kode Red Boxing Academy</p>
         </div>

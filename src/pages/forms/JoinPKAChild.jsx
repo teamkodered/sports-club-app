@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase.js'
 import { generateStudentId } from '../../lib/studentId.js'
+import FormLogo from '../../components/shared/FormLogo.jsx'
 
 const STEPS = ['Child details', 'Guardian', 'Emergency contact', 'Goals & Medical', 'Waiver', 'Done']
 
@@ -112,7 +113,7 @@ export default function JoinPKAChild() {
     <div style={{ minHeight: '100vh', background: 'var(--bg-tertiary)', padding: '24px 16px' }}>
       <div style={{ maxWidth: 520, margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>🥋</div>
+          <FormLogo formKey="pka_child" defaultSrc="/images/pka-logo.png" />
           <h1 style={{ fontSize: 20, fontWeight: 600 }}>PKA Child Membership</h1>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>For members under 16</p>
         </div>

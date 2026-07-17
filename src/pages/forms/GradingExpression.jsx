@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase.js'
 import { useAuth } from '../../hooks/useAuth.jsx'
+import FormLogo from '../../components/shared/FormLogo.jsx'
 
 export default function GradingExpression() {
   const { profile, session } = useAuth()
@@ -107,7 +108,7 @@ export default function GradingExpression() {
     <div style={{ minHeight: '100vh', background: 'var(--bg-tertiary)', padding: '24px 16px' }}>
       <div style={{ maxWidth: 540, margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div style={{ fontSize: 36, marginBottom: 8 }}>🎽</div>
+          <FormLogo formKey="grading" fallbackEmoji="🎽" />
           <h1 style={{ fontSize: 20, fontWeight: 600 }}>Grading expression of interest</h1>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 3 }}>
             {student ? `${student.members?.first_name} ${student.members?.last_name} · ${form.current_belt}` : 'Let your coach know you want to grade'}

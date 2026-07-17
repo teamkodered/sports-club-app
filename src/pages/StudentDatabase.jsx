@@ -140,8 +140,12 @@ export default function StudentDatabase() {
   useEffect(() => {
     let list = students.filter(s => {
       const isStopped = s.members?.status === 'stopped'
+      const isNotStarted = s.members?.status === 'not_started'
+      const isStoppedSquad = !!s.squad_stopped_at
       if (tab === 'Stopped') return isStopped
-      if (isStopped) return false
+      if (tab === 'Not Started') return isNotStarted
+      if (tab === 'Stopped Squad') return isStoppedSquad
+      if (isStopped || isNotStarted) return false
       return tab === 'All' ? true : s.discipline === tab
     })
     if (search) {
@@ -181,7 +185,7 @@ export default function StudentDatabase() {
   }, [search, tab, houseFilter, groupFilter, statusFilter, students, sortKey, sortDir])
 
   const houses = [...new Set(students.map(s => s.house_name || s.members?.houses?.name).filter(Boolean))].sort()
-  const activeStudentsCount = students.filter(s => s.members?.status !== 'stopped').length
+  const activeStudentsCount = students.filter(s => s.members?.status !== 'stopped' && s.members?.status !== 'not_started').length
   const cols = ALL_COLUMNS.filter(c => visibleCols.includes(c.key))
 
   async function stopStudent(s) {
@@ -218,7 +222,12 @@ export default function StudentDatabase() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <div className="page-header" style={{ marginBottom: 0 }}>
           <h1>Students</h1>
-          <p>{tab === 'Stopped' ? `${filtered.length} stopped` : `${filtered.length} of ${activeStudentsCount} students`}</p>
+          <p>
+            {tab === 'Stopped' ? `${filtered.length} stopped`
+              : tab === 'Not Started' ? `${filtered.length} not started`
+              : tab === 'Stopped Squad' ? `${filtered.length} stopped a squad`
+              : `${filtered.length} of ${activeStudentsCount} students`}
+          </p>
         </div>
         <button className="btn btn-sm" onClick={() => setShowColPicker(v => !v)}>⚙️ Columns</button>
       </div>
@@ -243,7 +252,7 @@ export default function StudentDatabase() {
 
       {/* Discipline tabs */}
       <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
-        {['PKA', 'KRBA', 'All', 'Stopped'].map(t => (
+        {['PKA', 'KRBA', 'All', 'Stopped', 'Not Started', 'Stopped Squad'].map(t => (
           <button key={t} onClick={() => setTab(t)} style={{
             padding: '8px 18px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
             borderBottom: `2px solid ${tab === t ? 'var(--text)' : 'transparent'}`,

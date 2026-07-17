@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase.js'
 import { useAuth } from '../../hooks/useAuth.jsx'
+import FormLogo from '../../components/shared/FormLogo.jsx'
 
 // ── Module definitions ──
 const MODULES = [
@@ -366,9 +367,12 @@ export default function FitToFight() {
 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-          <div>
-            <h1 style={{ fontSize: 20, fontWeight: 600 }}>💪 Fit II Fight</h1>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Training session logger</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <FormLogo formKey="fit2fight" fallbackEmoji="💪" size={40} />
+            <div>
+              <h1 style={{ fontSize: 20, fontWeight: 600 }}>Fit II Fight</h1>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Training session logger</p>
+            </div>
           </div>
           <div style={{ display: 'flex', gap: 4 }}>
             {['log', 'history'].map(v => (
