@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 
 const HOUSE_COLOURS = { 'Dragon House': '#E24B4A', 'Super House': '#378ADD', 'Ice House': '#1D9E75', 'Jet House': '#EF9F27' }
@@ -29,7 +30,7 @@ export default function Trackers() {
 
   async function load() {
     const [{ data: s }, { data: f }, { data: m }] = await Promise.all([
-      supabase.from('students').select('*, members(first_name, last_name, date_of_birth, houses(name))').eq('discipline', 'PKA'),
+      supabase.from('students').select('*, members(first_name, last_name, date_of_birth, status, houses(name))').eq('discipline', 'PKA'),
       supabase.from('fit2fight_sessions').select('*').order('session_date', { ascending: false }),
       supabase.from('members').select('id, first_name, last_name, joined_date, status, stopped_at'),
     ])
@@ -97,14 +98,34 @@ export default function Trackers() {
   const houses = [...new Set(students.map(s => s.members?.houses?.name).filter(Boolean))].sort()
 
   // Dashboard stats
-  const totalStudents = students.length
-  const activeThisMonth = sessions.filter(s => {
-    const d = new Date(s.session_date)
-    const now = new Date()
+  const totalStudents = students.filter(s => s.members?.status !== 'stopped' && s.members?.status !== 'not_started').length
+  const avgSessions = totalStudents > 0 ? (sessions.length / totalStudents).toFixed(1) : 0
+
+  // "Trained this month" -- real attendance (attended + full kit), not
+  // Fit II Fight logs, plus a per-day breakdown for the graph below
+  const now = new Date()
+  const attendanceThisMonth = attendance.filter(a => {
+    const d = new Date(a.attended_at)
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+  })
+  const attendedCount = attendanceThisMonth.filter(a => a.attendance_type !== 'full_kit').length
+  const fullKitCount = attendanceThisMonth.filter(a => a.attendance_type === 'full_kit').length
+  const trainedThisMonth = attendedCount + fullKitCount
+
+  const dayMap = {}
+  attendanceThisMonth.forEach(a => {
+    const day = new Date(a.attended_at).toISOString().split('T')[0]
+    dayMap[day] = (dayMap[day] || 0) + 1
+  })
+  const trainedByDay = Object.entries(dayMap).map(([date, count]) => ({ date, count })).sort((a,b) => a.date.localeCompare(b.date))
+  const maxDayCount = Math.max(1, ...trainedByDay.map(d => d.count))
+
+  // New members this month
+  const newMembersThisMonth = allMembers.filter(m => {
+    if (!m.joined_date) return false
+    const d = new Date(m.joined_date)
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
   }).length
-  const avgSessions = totalStudents > 0 ? (sessions.length / totalStudents).toFixed(1) : 0
-  const mediaOk = students.filter(s => s.media_restriction !== 'No').length
 
   // Average length of training: joined_date -> stopped_at, for members who
   // have actually stopped and have a recorded stop date. Members stopped
@@ -189,12 +210,12 @@ export default function Trackers() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 10 }}>
             {[
               { label: 'Total students', value: totalStudents, colour: '#378ADD', icon: '🎽' },
-              { label: 'Sessions this month', value: activeThisMonth, colour: '#1D9E75', icon: '💪' },
+              { label: 'Trained this month', value: trainedThisMonth, colour: '#1D9E75', icon: '💪' },
               { label: 'Avg sessions/student', value: avgSessions, colour: '#EF9F27', icon: '📈' },
-              { label: 'Media OK', value: mediaOk, colour: '#E24B4A', icon: '📷' },
+              { label: 'New members this month', value: newMembersThisMonth, colour: '#E24B4A', icon: '🆕' },
             ].map(s => (
               <div key={s.label} className="card" style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: 28, marginBottom: 4 }}>{s.icon}</div>
@@ -202,6 +223,40 @@ export default function Trackers() {
                 <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{s.label}</div>
               </div>
             ))}
+          </div>
+
+          <div style={{ display: 'flex', gap: 16, marginBottom: 20, fontSize: 12, color: 'var(--text-secondary)', paddingLeft: 2 }}>
+            <span>✓ Attended: <strong style={{ color: 'var(--text)' }}>{attendedCount}</strong></span>
+            <span>✓ Full kit: <strong style={{ color: 'var(--text)' }}>{fullKitCount}</strong></span>
+          </div>
+
+          {/* Students trained per day this month */}
+          <div className="card" style={{ marginBottom: 20 }}>
+            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 14 }}>📅 Students trained per day — this month</div>
+            {trainedByDay.length === 0 ? (
+              <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No attendance recorded yet this month.</p>
+            ) : (
+              <>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 110, borderBottom: '1px solid var(--border)', paddingBottom: 4, overflowX: 'auto' }}>
+                  {trainedByDay.map(d => (
+                    <div key={d.date} title={`${new Date(d.date).toLocaleDateString('en-GB')}: ${d.count} trained`} style={{ flex: 1, minWidth: 6, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <div style={{
+                        width: '100%', minHeight: d.count ? 3 : 0,
+                        height: `${(d.count / maxDayCount) * 90}px`,
+                        background: '#1D9E75', borderRadius: '2px 2px 0 0',
+                      }} />
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: 3, marginTop: 4 }}>
+                  {trainedByDay.map(d => (
+                    <div key={d.date} style={{ flex: 1, minWidth: 6, textAlign: 'center', fontSize: 8, color: 'var(--text-tertiary)' }}>
+                      {new Date(d.date).getDate()}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
           {/* Joins vs stops over time */}
@@ -279,7 +334,9 @@ export default function Trackers() {
                   {[...stats].sort((a,b) => b.total_sessions - a.total_sessions).filter(s => s.total_sessions > 0).slice(0,10).map((s,i) => (
                     <tr key={s.id}>
                       <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{i+1}</td>
-                      <td style={{ fontSize: 13 }}>{s.name}</td>
+                      <td style={{ fontSize: 13 }}>
+                        <Link to={`/athletes?id=${s.id}&tab=fit2fight`} style={{ color: 'var(--text)', textDecoration: 'underline' }}>{s.name}</Link>
+                      </td>
                       <td style={{ textAlign: 'right', fontWeight: 600 }}>{s.total_sessions}</td>
                     </tr>
                   ))}

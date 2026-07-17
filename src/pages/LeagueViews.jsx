@@ -48,6 +48,7 @@ export default function LeagueViews() {
   const [pointsLog, setPointsLog] = useState([])
   const [indivSortKey, setIndivSortKey] = useState('total')
   const [topN, setTopN] = useState(50)
+  const [houseTopN, setHouseTopN] = useState(8)
   const [indivSortDir, setIndivSortDir] = useState('desc')
   const [logSortKey, setLogSortKey] = useState('awarded_at')
   const [logSortDir, setLogSortDir] = useState('desc')
@@ -68,6 +69,27 @@ export default function LeagueViews() {
   const CLASS_OPTIONS = ['All', 'Class', 'PTs', 'KR', 'Leader', 'KRBA']
 
   useEffect(() => { loadAll() }, [dateFrom, dateTo, classFilter])
+
+  // Load saved "show top" selections so the public league display can
+  // mirror whatever is currently set here, without its own control
+  useEffect(() => {
+    supabase.from('settings').select('key,value').in('key', ['league_topn_individual', 'league_topn_house'])
+      .then(({ data }) => {
+        const map = Object.fromEntries((data || []).map(r => [r.key, r.value]))
+        if (map.league_topn_individual) setTopN(map.league_topn_individual)
+        if (map.league_topn_house) setHouseTopN(map.league_topn_house)
+      })
+  }, [])
+
+  function updateTopN(n) {
+    setTopN(n)
+    supabase.from('settings').upsert({ key: 'league_topn_individual', value: n }, { onConflict: 'key' })
+  }
+
+  function updateHouseTopN(n) {
+    setHouseTopN(n)
+    supabase.from('settings').upsert({ key: 'league_topn_house', value: n }, { onConflict: 'key' })
+  }
 
   async function loadAll() {
     setLoading(true)
@@ -402,10 +424,15 @@ export default function LeagueViews() {
                     <span>L: {h.losses || 0}</span>
                   </div>
                   {isAdmin && (
-                    <button className="btn btn-sm" style={{ marginTop: 10, width: '100%', justifyContent: 'center' }}
-                      onClick={() => setEditingHouse(h)}>
-                      Edit points
-                    </button>
+                    <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+                      <button className="btn btn-sm" style={{ flex: 1, justifyContent: 'center' }}
+                        onClick={() => { setHouseLogFilter(h.name); setTab('Points log') }}>
+                        Edit points
+                      </button>
+                      <button className="btn btn-sm" onClick={() => setEditingHouse(h)} title="Edit wins/draws/losses">
+                        W/D/L
+                      </button>
+                    </div>
                   )}
                 </div>
               )
@@ -413,10 +440,21 @@ export default function LeagueViews() {
           </div>
 
           {/* Top scorers per house */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Show top:</span>
+            {[5, 8, 10, 15, 20].map(n => (
+              <button key={n} onClick={() => updateHouseTopN(n)} style={{
+                padding: '4px 10px', borderRadius: 20, fontSize: 11, cursor: 'pointer',
+                border: `1px solid ${houseTopN === n ? 'var(--text)' : 'var(--border-strong)'}`,
+                background: houseTopN === n ? 'var(--text)' : 'var(--bg)',
+                color: houseTopN === n ? 'var(--bg)' : 'var(--text-secondary)',
+              }}>{n}</button>
+            ))}
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
             {houseStandings.map(h => {
               const colour = HOUSE_COLOURS[h.name] || '#888'
-              const houseMembers = individualRankings.filter(s => s.house === h.name).slice(0, 8)
+              const houseMembers = individualRankings.filter(s => s.house === h.name).slice(0, houseTopN)
               return (
                 <div key={h.name} className="card" style={{ padding: '14px 0' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 14px 10px', borderBottom: '1px solid var(--border)' }}>
@@ -451,7 +489,7 @@ export default function LeagueViews() {
           <div style={{ display: 'flex', gap: 6, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Show top:</span>
             {[10, 15, 25, 50, 100].map(n => (
-              <button key={n} onClick={() => setTopN(n)} style={{
+              <button key={n} onClick={() => updateTopN(n)} style={{
                 padding: '4px 10px', borderRadius: 20, fontSize: 11, cursor: 'pointer',
                 border: `1px solid ${topN === n ? 'var(--text)' : 'var(--border-strong)'}`,
                 background: topN === n ? 'var(--text)' : 'var(--bg)',

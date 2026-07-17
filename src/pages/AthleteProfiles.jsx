@@ -599,7 +599,11 @@ export default function AthleteProfiles() {
     const id = searchParams.get('id')
     if (id && students.length > 0) {
       const found = students.find(s => s.id === id)
-      if (found) selectStudent(found)
+      if (found) {
+        selectStudent(found)
+        const initialTab = searchParams.get('tab')
+        if (initialTab) setTab(initialTab)
+      }
     }
   }, [searchParams, students])
 

@@ -20,6 +20,7 @@ export default function LeaguePublic() {
   const [loading, setLoading]   = useState(true)
   const [tab, setTab]           = useState('houses')
   const [topN, setTopN]         = useState(50)
+  const [houseTopN, setHouseTopN] = useState(8)
   const [showMedals, setShowMedals] = useState(true)
   const [dateFrom] = useState(() => { const d = new Date(); d.setMonth(d.getMonth()-3); return d.toISOString().split('T')[0] })
   const [dateTo]   = useState(new Date().toISOString().split('T')[0])
@@ -32,7 +33,7 @@ export default function LeaguePublic() {
         supabase.from('points_log')
           .select('points_awarded, point_scope, student_id')
           .gte('awarded_at', dateFrom).lte('awarded_at', dateTo + 'T23:59:59'),
-        supabase.from('settings').select('key,value').in('key', ['club_name','club_emoji']),
+        supabase.from('settings').select('key,value').in('key', ['club_name','club_emoji','league_topn_individual','league_topn_house']),
         supabase.from('students').select('id, house_name, member_id, members(first_name, last_name, houses(name))'),
       ])
 
@@ -77,6 +78,8 @@ export default function LeaguePublic() {
         const sm = Object.fromEntries(settings.map(r => [r.key, r.value]))
         if (sm.club_name)  setClubName(sm.club_name)
         if (sm.club_emoji) setClubEmoji(sm.club_emoji)
+        if (sm.league_topn_individual) setTopN(sm.league_topn_individual)
+        if (sm.league_topn_house) setHouseTopN(sm.league_topn_house)
       }
       setLoading(false)
     } catch(e) {
@@ -148,16 +151,7 @@ export default function LeaguePublic() {
         {tab === 'individual' && (
           <div>
             <div style={{ display: 'flex', gap: 6, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Show top:</span>
-              {[10, 15, 25, 50, 100].map(n => (
-                <button key={n} onClick={() => setTopN(n)} style={{
-                  padding: '4px 10px', borderRadius: 20, fontSize: 11, cursor: 'pointer',
-                  border: `1px solid ${topN === n ? 'var(--text)' : 'var(--border-strong)'}`,
-                  background: topN === n ? 'var(--text)' : 'var(--bg)',
-                  color: topN === n ? 'var(--bg)' : 'var(--text-secondary)',
-                }}>{n}</button>
-              ))}
-              <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{Math.min(topN, individual.length)} of {individual.length}</span>
+              <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Showing top {Math.min(topN, individual.length)} of {individual.length}</span>
             </div>
           <div className="card" style={{ padding: 0 }}>
             <table>
@@ -210,7 +204,7 @@ export default function LeaguePublic() {
                     <tbody>
                       {houseStudents.length === 0 ? (
                         <tr><td colSpan={3} style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-tertiary)' }}>No students yet</td></tr>
-                      ) : houseStudents.slice(0, 8).map((s, i) => (
+                      ) : houseStudents.slice(0, houseTopN).map((s, i) => (
                         <tr key={i} style={i < 3 ? { background: colour + '08' } : {}}>
                           <td style={{ width: 32, textAlign: 'center', fontSize: 14 }}>{MEDALS[i] || <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{i+1}</span>}</td>
                           <td style={{ fontSize: 13, fontWeight: i < 3 ? 600 : 400 }}>{maskName(s.first, s.last)}</td>

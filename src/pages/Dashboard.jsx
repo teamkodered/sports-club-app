@@ -29,6 +29,7 @@ export default function Dashboard() {
         { data: topPts },
         { data: recentPoints },
         { data: checkIns },
+        { count: todayCount },
       ] = await Promise.all([
         supabase.from('members').select('id', { count: 'exact', head: true }).eq('status', 'active'),
         supabase.from('students').select('id, members!inner(status)', { count: 'exact', head: true }).neq('members.status', 'stopped').neq('members.status', 'not_started'),
@@ -36,9 +37,10 @@ export default function Dashboard() {
         supabase.from('students').select('id, house_points, individual_points, class_champion_count, house_name, member_id, members(first_name, last_name, houses(name))').order('house_points', { ascending: false }).limit(5),
         supabase.from('points_log').select('*, student_id, students(member_id, members(first_name, last_name))').order('awarded_at', { ascending: false }).limit(8),
         supabase.from('attendance').select('id', { count: 'exact', head: true }).gte('attended_at', monthAgo),
+        supabase.from('attendance').select('id', { count: 'exact', head: true }).eq('session_date', today),
       ])
 
-      setStats({ memberCount: memberCount || 0, studentCount: studentCount || 0, checkIns: checkIns?.count || 0 })
+      setStats({ memberCount: memberCount || 0, studentCount: studentCount || 0, checkIns: checkIns?.count || 0, todayCount: todayCount || 0 })
       setStandings(houses || [])
       setTopStudents(topPts || [])
       setRecentPts(recentPoints || [])
@@ -66,7 +68,7 @@ export default function Dashboard() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 18 }}>
         {[
           { label: 'Active members', value: stats.memberCount, icon: '👥', colour: '#378ADD', to: '/students' },
-          { label: 'Students',       value: stats.studentCount, icon: '🎽', colour: '#1D9E75', to: '/students' },
+          { label: 'Register',       value: stats.todayCount, icon: '📋', colour: '#1D9E75', to: '/registers' },
           { label: 'Check-ins (30d)',value: stats.checkIns,     icon: '✅', colour: '#EF9F27', to: '/checkin' },
           { label: 'Houses',         value: standings.length,   icon: '🛡️', colour: '#E24B4A', to: '/league' },
         ].map(s => (
