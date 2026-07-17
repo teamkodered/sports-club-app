@@ -13,6 +13,35 @@ function SortTh({ children, col, sortKey, sortDir, onSort, style = {} }) {
   )
 }
 
+function Sparkline({ data, colour = '#378ADD', width = 110, height = 32 }) {
+  if (!data || data.length < 2) {
+    return <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>—</span>
+  }
+  const values = data.map(d => d.value)
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const range = max - min || 1
+  const pad = 3
+  const points = data.map((d, i) => {
+    const x = pad + (i / (data.length - 1)) * (width - pad * 2)
+    const y = height - pad - ((d.value - min) / range) * (height - pad * 2)
+    return `${x},${y}`
+  }).join(' ')
+  const last = data[data.length - 1]
+  const first = data[0]
+  const trend = last.value - first.value
+  return (
+    <svg width={width} height={height} style={{ display: 'block' }}>
+      <polyline points={points} fill="none" stroke={colour} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+      {data.map((d, i) => {
+        const x = pad + (i / (data.length - 1)) * (width - pad * 2)
+        const y = height - pad - ((d.value - min) / range) * (height - pad * 2)
+        return <circle key={i} cx={x} cy={y} r={i === data.length - 1 ? 2.5 : 1.5} fill={colour} />
+      })}
+    </svg>
+  )
+}
+
 export default function Trackers() {
   const [tab, setTab]               = useState('dashboard')
   const [attendance, setAttendance]   = useState([])
@@ -82,6 +111,7 @@ export default function Trackers() {
       class_champ: s.class_champion_count || 0,
       first_weight: firstWeight, last_weight: lastWeight, weight_change: weightChange,
       first_weight_date: firstWeightDate, last_weight_date: lastWeightDate,
+      weight_history: weights.map(w => ({ date: w.date, value: parseFloat(w.after ?? w.before) })),
       is_kr: s.is_kr, is_pts: s.is_pts, is_leader: s.is_leader,
       trained_for_months: trainedFor,
       media: s.media_restriction,
@@ -528,10 +558,7 @@ export default function Trackers() {
                 <tr>
                   <th>Student</th>
                   <th>House</th>
-                  <th style={{ textAlign: 'center' }}>First weight</th>
-                  <th style={{ textAlign: 'center' }}>Date</th>
-                  <th style={{ textAlign: 'center' }}>Latest weight</th>
-                  <th style={{ textAlign: 'center' }}>Date</th>
+                  <th style={{ textAlign: 'center' }}>Trend</th>
                   <th style={{ textAlign: 'center' }}>Change</th>
                   <th style={{ textAlign: 'center' }}>Entries</th>
                 </tr>
@@ -550,13 +577,11 @@ export default function Trackers() {
                           {s.house}
                         </span>
                       </td>
-                      <td style={{ textAlign: 'center', fontSize: 13 }}>{s.first_weight}kg</td>
-                      <td style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-tertiary)' }}>
-                        {s.first_weight_date ? new Date(s.first_weight_date).toLocaleDateString('en-GB') : '—'}
-                      </td>
-                      <td style={{ textAlign: 'center', fontSize: 13, fontWeight: 600 }}>{s.last_weight}kg</td>
-                      <td style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-tertiary)' }}>
-                        {s.last_weight_date ? new Date(s.last_weight_date).toLocaleDateString('en-GB') : '—'}
+                      <td style={{ textAlign: 'center' }}>
+                        <div title={`${s.first_weight}kg (${s.first_weight_date ? new Date(s.first_weight_date).toLocaleDateString('en-GB') : '—'}) → ${s.last_weight}kg (${s.last_weight_date ? new Date(s.last_weight_date).toLocaleDateString('en-GB') : '—'})`}
+                          style={{ display: 'inline-block' }}>
+                          <Sparkline data={s.weight_history} colour={colour} />
+                        </div>
                       </td>
                       <td style={{ textAlign: 'center', fontWeight: 700, fontSize: 14, color: wc < 0 ? '#1d9e75' : wc > 0 ? '#a32d2d' : 'var(--text-secondary)' }}>
                         {s.weight_change !== null ? `${wc > 0 ? '+' : ''}${s.weight_change}kg` : '—'}
@@ -566,7 +591,7 @@ export default function Trackers() {
                   )
                 })}
                 {stats.filter(s => s.first_weight).length === 0 && (
-                  <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32, color: 'var(--text-tertiary)' }}>No weight data yet — log sessions in Fit II Fight or Check-in</td></tr>
+                  <tr><td colSpan={5} style={{ textAlign: 'center', padding: 32, color: 'var(--text-tertiary)' }}>No weight data yet — log sessions in Fit II Fight or Check-in</td></tr>
                 )}
               </tbody>
             </table>
