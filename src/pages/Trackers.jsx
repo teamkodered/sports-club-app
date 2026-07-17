@@ -61,7 +61,9 @@ export default function Trackers() {
     const studentSessions = sessions.filter(f => f.student_id === s.id)
     const weights = studentSessions.filter(f => f.weight_before).map(f => ({ date: f.session_date, before: f.weight_before, after: f.weight_after })).sort((a,b) => a.date.localeCompare(b.date))
     const firstWeight = weights[0]?.before
+    const firstWeightDate = weights[0]?.date
     const lastWeight  = weights[weights.length-1]?.after || weights[weights.length-1]?.before
+    const lastWeightDate = weights[weights.length-1]?.date
     const weightChange = firstWeight && lastWeight ? (parseFloat(lastWeight) - parseFloat(firstWeight)).toFixed(1) : null
     const trainedFor = s.members?.date_of_birth && s.joined_date
       ? Math.round((Date.now() - new Date(s.joined_date || s.created_at)) / (30*24*60*60*1000))
@@ -79,6 +81,7 @@ export default function Trackers() {
       individual_points: s.individual_points || 0,
       class_champ: s.class_champion_count || 0,
       first_weight: firstWeight, last_weight: lastWeight, weight_change: weightChange,
+      first_weight_date: firstWeightDate, last_weight_date: lastWeightDate,
       is_kr: s.is_kr, is_pts: s.is_pts, is_leader: s.is_leader,
       trained_for_months: trainedFor,
       media: s.media_restriction,
@@ -517,7 +520,7 @@ export default function Trackers() {
       {tab === 'weight' && (
         <div>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
-            Weight data from Fit II Fight sessions. {sessions.filter(s => s.weight_before).length} entries recorded.
+            Weight data from Fit II Fight sessions and Check-in weigh-ins. {sessions.filter(s => s.weight_before).length} entries recorded.
           </p>
           <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
             <table>
@@ -526,7 +529,9 @@ export default function Trackers() {
                   <th>Student</th>
                   <th>House</th>
                   <th style={{ textAlign: 'center' }}>First weight</th>
+                  <th style={{ textAlign: 'center' }}>Date</th>
                   <th style={{ textAlign: 'center' }}>Latest weight</th>
+                  <th style={{ textAlign: 'center' }}>Date</th>
                   <th style={{ textAlign: 'center' }}>Change</th>
                   <th style={{ textAlign: 'center' }}>Entries</th>
                 </tr>
@@ -546,7 +551,13 @@ export default function Trackers() {
                         </span>
                       </td>
                       <td style={{ textAlign: 'center', fontSize: 13 }}>{s.first_weight}kg</td>
+                      <td style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-tertiary)' }}>
+                        {s.first_weight_date ? new Date(s.first_weight_date).toLocaleDateString('en-GB') : '—'}
+                      </td>
                       <td style={{ textAlign: 'center', fontSize: 13, fontWeight: 600 }}>{s.last_weight}kg</td>
+                      <td style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-tertiary)' }}>
+                        {s.last_weight_date ? new Date(s.last_weight_date).toLocaleDateString('en-GB') : '—'}
+                      </td>
                       <td style={{ textAlign: 'center', fontWeight: 700, fontSize: 14, color: wc < 0 ? '#1d9e75' : wc > 0 ? '#a32d2d' : 'var(--text-secondary)' }}>
                         {s.weight_change !== null ? `${wc > 0 ? '+' : ''}${s.weight_change}kg` : '—'}
                       </td>
@@ -555,7 +566,7 @@ export default function Trackers() {
                   )
                 })}
                 {stats.filter(s => s.first_weight).length === 0 && (
-                  <tr><td colSpan={6} style={{ textAlign: 'center', padding: 32, color: 'var(--text-tertiary)' }}>No weight data yet — log sessions in Fit II Fight</td></tr>
+                  <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32, color: 'var(--text-tertiary)' }}>No weight data yet — log sessions in Fit II Fight or Check-in</td></tr>
                 )}
               </tbody>
             </table>

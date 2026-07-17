@@ -8,16 +8,17 @@ function OneOffStudent({ displayStudents, onAdd, date }) {
     if (search.length < 2) { setResults([]); return }
     const t = setTimeout(async () => {
       const { data: memberData } = await supabase
-        .from('members').select('id, first_name, last_name')
+        .from('members').select('id, first_name, last_name, status')
         .or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%`).limit(8)
       if (!memberData?.length) { setResults([]); return }
+      const eligibleMembers = memberData.filter(m => m.status !== 'stopped' && m.status !== 'not_started')
       const { data: stuData } = await supabase
         .from('students').select('id, student_ref, pka_belt, house_name, member_id, members(first_name, last_name, houses(name))')
-        .in('member_id', memberData.map(m => m.id))
+        .in('member_id', eligibleMembers.map(m => m.id))
       // Filter out students already in register
       const existing = new Set(displayStudents.map(s => s.id))
       const filtered = (stuData || []).filter(s => !existing.has(s.id) && !added.includes(s.id))
-      setResults(filtered.map(s => ({ ...s, members: memberData.find(m => m.id === s.member_id) || s.members })))
+      setResults(filtered.map(s => ({ ...s, members: eligibleMembers.find(m => m.id === s.member_id) || s.members })))
     }, 200)
     return () => clearTimeout(t)
   }, [search, displayStudents, added])
@@ -160,7 +161,7 @@ export default function Registers() {
     const disc = REGISTER_TYPES.find(r => r.key === regType)?.discipline || 'PKA'
     let query = supabase
       .from('students')
-      .select('*, members(first_name, last_name, phone, email, date_of_birth, houses(name))')
+      .select('*, members(first_name, last_name, phone, email, date_of_birth, status, houses(name))')
 
     if (regType === 'krba')        query = query.eq('discipline', 'KRBA')
     else if (regType === 'kr')     query = query.eq('discipline', 'PKA').eq('is_kr', true)
@@ -202,7 +203,7 @@ export default function Registers() {
     setSelectedStudents([])
 
     const { data, error } = await query
-    setStudents(data || [])
+    setStudents((data || []).filter(s => s.members?.status !== 'stopped' && s.members?.status !== 'not_started'))
 
     // Load today's check-ins from attendance table
     try {
