@@ -666,6 +666,19 @@ export default function Registers() {
         </div>
       )}
 
+      {/* Large headcount display for quick visual reference during a session */}
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 10 }}>
+        <span style={{ fontSize: 36, fontWeight: 700, lineHeight: 1, color: 'var(--text)' }}>
+          {Object.values(attendance).filter(v => v && v !== 'none').length}
+        </span>
+        <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+          attending today
+          <span style={{ marginLeft: 6, color: 'var(--text-tertiary)' }}>
+            ({Object.values(attendance).filter(v => v === 'full_kit').length} full kit)
+          </span>
+        </span>
+      </div>
+
       {/* Quick attendance + search + select row */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search students…"
