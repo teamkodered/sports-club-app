@@ -146,3 +146,13 @@ tbody tr:hover td { background: var(--bg-secondary); }
   :root { --logo-filter: invert(0) brightness(1.2); }
 }
 .dark { --logo-filter: invert(0) brightness(1.2); }
+
+/* Hides the visible scrollbar on horizontally-scrollable elements
+   (e.g. mobile-style tab bars) while keeping scroll/swipe working */
+.hide-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* old Edge/IE */
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, new Edge */
+}
