@@ -74,7 +74,7 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
       house_id: m?.house_id,
       point_type: awardForm.point_type,
       points_awarded: pts,
-      point_scope: awardForm.scope,
+      point_scope: 'both',
       note: awardForm.note,
     })
     if (logError) {
@@ -83,9 +83,10 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
       return
     }
 
-    const updates = {}
-    if (awardForm.scope === 'house' || awardForm.scope === 'both') updates.house_points = (localStudent.house_points || 0) + pts
-    if (awardForm.scope === 'individual' || awardForm.scope === 'both') updates.individual_points = (localStudent.individual_points || 0) + pts
+    const updates = {
+      house_points: (localStudent.house_points || 0) + pts,
+      individual_points: (localStudent.individual_points || 0) + pts,
+    }
     if (awardForm.point_type === 'Class Champion') updates.class_champion_count = (localStudent.class_champion_count || 0) + 1
 
     const { error: updateError } = await supabase.from('students').update(updates).eq('id', localStudent.id)
@@ -95,7 +96,7 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
       return
     }
 
-    if (houseName && (awardForm.scope === 'house' || awardForm.scope === 'both')) {
+    if (houseName) {
       const { data: house } = await supabase.from('houses').select('points').eq('name', houseName).single()
       if (house) await supabase.from('houses').update({ points: (house.points || 0) + pts }).eq('name', houseName)
     }
@@ -354,15 +355,8 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
                       {pointTypes.map(p => <option key={p.label} value={p.label}>{p.label} (+{p.points} pts)</option>)}
                     </select>
                   </div>
-                  <div className="field">
-                    <label>Award to</label>
-                    <select value={awardForm.scope} onChange={e => setAwardForm(f => ({ ...f, scope: e.target.value }))}>
-                      <option value="both">House + Individual</option>
-                      <option value="house">House only</option>
-                      <option value="individual">Individual only</option>
-                    </select>
-                  </div>
                   <div className="field"><label>Note (optional)</label><input value={awardForm.note} onChange={e => setAwardForm(f => ({ ...f, note: e.target.value }))} placeholder="e.g. Won Monday class champion" /></div>
+                  <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 10 }}>Points always count toward both this athlete's individual total and their house's total.</p>
                   <button className="btn btn-primary" style={{ justifyContent: 'center', width: '100%' }} onClick={awardPoints} disabled={awarding}>
                     {awarding ? 'Awarding…' : `Award ${getPointsForType(awardForm.point_type)} points`}
                   </button>

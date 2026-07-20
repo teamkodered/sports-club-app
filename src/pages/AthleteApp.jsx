@@ -30,6 +30,11 @@ export default function AthleteApp() {
   const [checkingIn, setCheckingIn]   = useState(false)
   const [checkedInMsg, setCheckedInMsg] = useState(null)
   const [student, setStudent]   = useState(null)
+  const [houses, setHouses] = useState([])
+  const [rankList, setRankList] = useState([])
+  const [truePointTotals, setTruePointTotals] = useState({})
+  const [showContribution, setShowContribution] = useState(false)
+  const [showOverallPos, setShowOverallPos] = useState(false)
   const [apData, setApData]     = useState(null)
   const [points, setPoints]     = useState([])
   const [sessions, setSessions] = useState([])
@@ -61,6 +66,22 @@ export default function AthleteApp() {
         setApData(ap?.[0] || null)
         setPoints(pts || [])
         setSessions(sess || [])
+
+        const [{ data: houseData }, { data: rankData }] = await Promise.all([
+          supabase.from('houses').select('id, name, points').order('points', { ascending: false }),
+          supabase.from('students').select('id, house_points, members(houses(name))')
+            .or('is_kr.eq.true,is_pts.eq.true,discipline.eq.KRBA'),
+        ])
+        setHouses(houseData || [])
+        setRankList(rankData || [])
+
+        if (rankData?.length) {
+          const { data: ptsLog } = await supabase.from('points_log').select('student_id, points_awarded')
+            .in('student_id', rankData.map(r => r.id))
+          const totals = {}
+          ;(ptsLog || []).forEach(p => { totals[p.student_id] = (totals[p.student_id] || 0) + (p.points_awarded || 0) })
+          setTruePointTotals(totals)
+        }
       }
     } catch(e) {
       console.error('AthleteApp load error:', e)
@@ -112,6 +133,18 @@ export default function AthleteApp() {
   const shared    = apData?.pdp_shared || {}
   const pdp       = apData?.pdp_notes || {}
 
+  const sortedHouses = [...houses].sort((a, b) => (b.points || 0) - (a.points || 0))
+  const houseRank = houseName ? sortedHouses.findIndex(h => h.name === houseName) + 1 : null
+  const houseTotalPoints = houseName ? sortedHouses.find(h => h.name === houseName)?.points || 0 : null
+  const contributionPct = (houseTotalPoints && student?.house_points)
+    ? ((student.house_points / houseTotalPoints) * 100).toFixed(1) : null
+  const sameHouseSorted = [...rankList]
+    .filter(s => s.members?.houses?.name === houseName)
+    .sort((a, b) => (b.house_points || 0) - (a.house_points || 0))
+  const positionInHouse = student ? sameHouseSorted.findIndex(s => s.id === student.id) + 1 : null
+  const overallSorted = [...rankList].sort((a, b) => (truePointTotals[b.id] || 0) - (truePointTotals[a.id] || 0))
+  const overallPosition = student ? overallSorted.findIndex(s => s.id === student.id) + 1 : null
+
   const TABS = [
     ['home',      '🏠 Home'],
     ['pdp',       '🎯 My PDP'],
@@ -126,16 +159,37 @@ export default function AthleteApp() {
 
       {/* Profile header */}
       <div className="card" style={{ marginBottom: 12, borderLeft: `4px solid ${colour}` }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{ width: 52, height: 52, borderRadius: '50%', background: colour + '22', color: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ width: 64, height: 64, borderRadius: '50%', background: colour + '22', color: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 700, flexShrink: 0 }}>
             {initials}
           </div>
-          <div>
+          <div style={{ minWidth: 0, flex: 1 }}>
             {student ? (
               <>
-                <div style={{ fontSize: 18, fontWeight: 700 }}>{m?.first_name} {m?.last_name}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {positionInHouse > 0 && (
+                    <button onClick={() => setShowOverallPos(v => !v)}
+                      title={showOverallPos ? 'Showing overall position — tap for position in house' : 'Showing position in house — tap for overall position'}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 15, fontWeight: 700, color: colour }}>
+                      #{showOverallPos ? overallPosition : positionInHouse}
+                    </button>
+                  )}
+                  <div style={{ fontSize: 20, fontWeight: 700 }}>{m?.first_name} {m?.last_name}</div>
+                </div>
+                <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 3 }}>
                   {student.student_ref} · {student.discipline}{age ? ` · Age ${age}` : ''}{student.pka_belt || student.krba_level ? ` · ${student.pka_belt || student.krba_level}` : ''}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, fontSize: 13 }}>
+                  {houseRank > 0 && <span style={{ color: 'var(--text-tertiary)', fontWeight: 600 }}>#{houseRank}</span>}
+                  <span style={{ color: colour, fontWeight: 600 }}>{houseName || '—'}</span>
+                  {houseTotalPoints != null && <span style={{ color: 'var(--text-tertiary)' }}>({houseTotalPoints} pts)</span>}
+                  {student.house_points != null && (
+                    <button onClick={() => setShowContribution(v => !v)}
+                      title={showContribution ? 'Showing % contribution to house — tap to show points' : 'Showing house points — tap to show % contribution'}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginLeft: 6, fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textDecoration: 'underline dotted' }}>
+                      {showContribution ? `${contributionPct ?? 0}% of house` : `${student.house_points} house pts`}
+                    </button>
+                  )}
                 </div>
               </>
             ) : (

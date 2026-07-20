@@ -563,6 +563,11 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
 export default function AthleteProfiles() {
   const { profile, isAdmin } = useAuth()
   const [students, setStudents]     = useState([])
+  const [houses, setHouses]         = useState([])
+  const [truePointTotals, setTruePointTotals] = useState({})
+  const [showContribution, setShowContribution] = useState(false)
+  const [showOverallPos, setShowOverallPos] = useState(false)
+  const [belts, setBelts] = useState({ junior: [], senior: [], krba: [] })
   const [selected, setSelected]     = useState(null)
   const [apData, setApData]         = useState(null)
   const [loading, setLoading]       = useState(true)
@@ -597,6 +602,14 @@ export default function AthleteProfiles() {
   useEffect(() => { loadStudents() }, [])
 
   useEffect(() => {
+    supabase.from('settings').select('key,value').in('key', ['pka_junior_belts', 'pka_senior_belts', 'krba_levels'])
+      .then(({ data }) => {
+        const map = Object.fromEntries((data || []).map(r => [r.key, r.value]))
+        setBelts({ junior: map.pka_junior_belts || [], senior: map.pka_senior_belts || [], krba: map.krba_levels || [] })
+      })
+  }, [])
+
+  useEffect(() => {
     const id = searchParams.get('id')
     if (id && students.length > 0) {
       const found = students.find(s => s.id === id)
@@ -609,11 +622,23 @@ export default function AthleteProfiles() {
   }, [searchParams, students])
 
   async function loadStudents() {
-    const { data } = await supabase
-      .from('students')
-      .select('*, members(first_name, last_name, email, phone, date_of_birth, status, house_id, role, joined_date, houses(name, colour))')
-      .order('created_at')
+    const [{ data }, { data: houseData }, { data: ptsLog }] = await Promise.all([
+      supabase
+        .from('students')
+        .select('*, members(first_name, last_name, email, phone, date_of_birth, status, house_id, role, joined_date, houses(name, colour))')
+        .order('created_at'),
+      supabase.from('houses').select('id, name, points').order('points', { ascending: false }),
+      supabase.from('points_log').select('student_id, points_awarded'),
+    ])
     setStudents(data || [])
+    setHouses(houseData || [])
+    // True total points per student, counting each award once regardless
+    // of scope (house/individual/both) -- matches how the League page's
+    // Individual leaderboard ranks people, so "overall position" here
+    // always agrees with that ranking.
+    const totals = {}
+    ;(ptsLog || []).forEach(p => { totals[p.student_id] = (totals[p.student_id] || 0) + (p.points_awarded || 0) })
+    setTruePointTotals(totals)
     setLoading(false)
   }
 
@@ -657,6 +682,23 @@ export default function AthleteProfiles() {
       alert('Failed to send invite')
     }
     setInvitingId(null)
+  }
+
+  async function updateSelectedField(field, value) {
+    const { error } = await supabase.from('students').update({ [field]: value }).eq('id', selected.id)
+    if (error) { alert('Error saving: ' + error.message); return }
+    setSelected(prev => ({ ...prev, [field]: value }))
+    setStudents(prev => prev.map(s => s.id === selected.id ? { ...s, [field]: value } : s))
+  }
+
+  async function toggleSelectedGroup(key) {
+    await updateSelectedField(key, !selected[key])
+  }
+
+  async function saveCompWeightHere(value) {
+    const { error } = await supabase.from('athlete_profiles').upsert({ student_id: selected.id, weight_division: value }, { onConflict: 'student_id' })
+    if (error) { alert('Error saving comp weight: ' + error.message); return }
+    setApData(prev => ({ ...(prev || {}), weight_division: value }))
   }
 
   function goHome() {
@@ -866,6 +908,22 @@ export default function AthleteProfiles() {
     : null
   const initials = `${m?.first_name?.[0] || ''}${m?.last_name?.[0] || ''}`.toUpperCase()
 
+  // House rank/total points, and this athlete's position within their
+  // house vs across everyone -- used in the enlarged header
+  const sortedHouses = [...houses].sort((a, b) => (b.points || 0) - (a.points || 0))
+  const houseRank = houseName ? sortedHouses.findIndex(h => h.name === houseName) + 1 : null
+  const houseTotalPoints = houseName ? sortedHouses.find(h => h.name === houseName)?.points || 0 : null
+  const contributionPct = (houseTotalPoints && selected?.house_points)
+    ? ((selected.house_points / houseTotalPoints) * 100).toFixed(1) : null
+
+  const sameHouseSorted = [...students]
+    .filter(s => s.members?.houses?.name === houseName)
+    .sort((a, b) => (b.house_points || 0) - (a.house_points || 0))
+  const positionInHouse = selected ? sameHouseSorted.findIndex(s => s.id === selected.id) + 1 : null
+
+  const overallSorted = [...students].sort((a, b) => (truePointTotals[b.id] || 0) - (truePointTotals[a.id] || 0))
+  const overallPosition = selected ? overallSorted.findIndex(s => s.id === selected.id) + 1 : null
+
   if (loading) return <div className="loading">Loading athlete profiles…</div>
 
   return (
@@ -917,47 +975,69 @@ export default function AthleteProfiles() {
 
             {/* Athlete header */}
             <div className="card" style={{ marginBottom: 12, borderLeft: `3px solid ${colour}`, borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                <div style={{ width: 52, height: 52, borderRadius: '50%', background: colour + '22', color: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div style={{ width: 64, height: 64, borderRadius: '50%', background: colour + '22', color: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 700, flexShrink: 0 }}>
                   {initials}
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 17, fontWeight: 600 }}>{m?.first_name} {m?.last_name}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
-                    {selected.student_ref} · {selected.discipline} · {houseName}
-                    {age ? ` · Age ${age}` : ''}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {positionInHouse > 0 && (
+                      <button onClick={() => setShowOverallPos(v => !v)}
+                        title={showOverallPos ? 'Showing overall position — click for position in house' : 'Showing position in house — click for overall position'}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 13, fontWeight: 700, color: colour }}>
+                        #{showOverallPos ? overallPosition : positionInHouse}
+                      </button>
+                    )}
+                    <div style={{ fontSize: 21, fontWeight: 600 }}>{m?.first_name} {m?.last_name}</div>
+                  </div>
+                  <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 3 }}>
+                    {selected.student_ref} · {selected.discipline} · {age ? `Age ${age}` : ''}
                     {selected.pka_belt || selected.krba_level ? ` · ${selected.pka_belt || selected.krba_level}` : ''}
                   </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, fontSize: 13 }}>
+                    {houseRank > 0 && <span style={{ color: 'var(--text-tertiary)', fontWeight: 600 }}>#{houseRank}</span>}
+                    <span style={{ color: colour, fontWeight: 600 }}>{houseName || '—'}</span>
+                    {houseTotalPoints != null && <span style={{ color: 'var(--text-tertiary)' }}>({houseTotalPoints} pts)</span>}
+                    {selected.house_points != null && (
+                      <button onClick={() => setShowContribution(v => !v)}
+                        title={showContribution ? 'Showing % contribution to house — click to show points' : 'Showing house points — click to show % contribution'}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginLeft: 6, fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textDecoration: 'underline dotted' }}>
+                        {showContribution ? `${contributionPct ?? 0}% of house` : `${selected.house_points} house pts`}
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  {apData?.show_on_website && (
-                    <span className="badge badge-green" style={{ fontSize: 10 }}>🌐 On website</span>
-                  )}
-                  {isAdmin && m?.status !== 'stopped' && (() => {
-                    const hasRealEmail = m?.email && !m.email.includes('@kr-centre.placeholder')
-                    return (
-                      <>
-                        <button className="btn btn-sm" onClick={() => inviteStudent(selected, 'email')} disabled={invitingId === selected.id}
-                          title={hasRealEmail ? `Email invite to ${m.email}` : 'No real email on file'}
-                          style={!hasRealEmail ? { opacity: 0.4 } : undefined}>
-                          {invitingId === selected.id ? '…' : '✉️ Email invite'}
-                        </button>
-                        <button className="btn btn-sm" onClick={() => inviteStudent(selected, 'sms')} disabled={invitingId === selected.id}
-                          title={m?.phone ? `SMS invite to ${m.phone}` : 'No phone on file'}
-                          style={!m?.phone ? { opacity: 0.4 } : undefined}>
-                          📱 SMS invite
-                        </button>
-                        <button className="btn btn-sm" onClick={() => copyInviteLink(selected)}
-                          title="Copy the invite message to share any way you like">
-                          📋 Copy link
-                        </button>
-                      </>
-                    )
-                  })()}
-                  {isAdmin && !editing && (
-                    <button className="btn btn-sm" onClick={() => setEditing(true)}>Edit profile</button>
-                  )}
-                </div>
+                {apData?.show_on_website && (
+                  <span className="badge badge-green" style={{ fontSize: 10, alignSelf: 'flex-start' }}>🌐 On website</span>
+                )}
+              </div>
+
+              {/* Actions row -- moved below the name/house details so it fits better on mobile */}
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                {isAdmin && m?.status !== 'stopped' && (() => {
+                  const hasRealEmail = m?.email && !m.email.includes('@kr-centre.placeholder')
+                  return (
+                    <>
+                      <button className="btn btn-sm" onClick={() => inviteStudent(selected, 'email')} disabled={invitingId === selected.id}
+                        title={hasRealEmail ? `Email invite to ${m.email}` : 'No real email on file'}
+                        style={!hasRealEmail ? { opacity: 0.4 } : undefined}>
+                        {invitingId === selected.id ? '…' : '✉️ Email invite'}
+                      </button>
+                      <button className="btn btn-sm" onClick={() => inviteStudent(selected, 'sms')} disabled={invitingId === selected.id}
+                        title={m?.phone ? `SMS invite to ${m.phone}` : 'No phone on file'}
+                        style={!m?.phone ? { opacity: 0.4 } : undefined}>
+                        📱 SMS invite
+                      </button>
+                      <button className="btn btn-sm" onClick={() => copyInviteLink(selected)}
+                        title="Copy the invite message to share any way you like">
+                        📋 Copy link
+                      </button>
+                    </>
+                  )
+                })()}
+                {isAdmin && !editing && (
+                  <button className="btn btn-sm" onClick={() => setEditing(true)}>Edit profile</button>
+                )}
               </div>
             </div>
 
@@ -994,19 +1074,83 @@ export default function AthleteProfiles() {
                   </div>
 
                   <div className="card" style={{ padding: 0, marginBottom: 14 }}>
-                    <div style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)' }}>Profile</div>
+                    <div style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Profile</span>
+                      {isAdmin && <span style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 400 }}>Tap a field to edit</span>}
+                    </div>
                     {[
-                      ['House', houseName || '—'],
-                      ['Discipline', selected.discipline || '—'],
-                      ['Grade', selected.pka_belt || selected.krba_level || '—'],
-                      ['Class', [selected.class_schedule, selected.class_time].filter(Boolean).join(' · ') || '—'],
-                      ['Weight', selected.weight_kg ? `${selected.weight_kg}kg${selected.weight_category ? ` (${selected.weight_category})` : ''}` : '—'],
-                      ['Groups', [selected.is_kr && 'KR', selected.is_pts && 'PTs', selected.is_leader && 'Leader', selected.is_coach && 'Coach'].filter(Boolean).join(', ') || 'None'],
-                      ['Media permission', selected.media_restriction || '—'],
-                    ].map(([label, val], i, arr) => (
-                      <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 14px', borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13 }}>
+                      { label: 'House', editable: true, render: () => isAdmin ? (
+                        <select value={selected.house_name || ''} onChange={e => updateSelectedField('house_name', e.target.value || null)}
+                          style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
+                          <option value="">— No house —</option>
+                          {Object.keys(HOUSE_COLOURS).map(h => <option key={h} value={h}>{h}</option>)}
+                        </select>
+                      ) : (houseName || '—') },
+                      { label: 'Discipline', editable: true, render: () => isAdmin ? (
+                        <select value={selected.discipline || ''} onChange={e => updateSelectedField('discipline', e.target.value)}
+                          style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
+                          <option value="PKA">PKA</option>
+                          <option value="KRBA">KRBA</option>
+                        </select>
+                      ) : (selected.discipline || '—') },
+                      { label: 'Grade', editable: true, render: () => {
+                        const opts = selected.discipline === 'KRBA' ? belts.krba : (age < 16 ? belts.junior : belts.senior)
+                        const field = selected.discipline === 'KRBA' ? 'krba_level' : 'pka_belt'
+                        return isAdmin ? (
+                          <select value={selected[field] || ''} onChange={e => updateSelectedField(field, e.target.value || null)}
+                            style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
+                            <option value="">— Select —</option>
+                            {opts.map(b => <option key={b}>{b}</option>)}
+                          </select>
+                        ) : (selected.pka_belt || selected.krba_level || '—')
+                      } },
+                      { label: 'Class', editable: true, render: () => isAdmin ? (
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <select value={selected.class_schedule || ''} onChange={e => updateSelectedField('class_schedule', e.target.value || null)}
+                            style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
+                            <option value="">— Day —</option>
+                            <option>Mon/Fri</option><option>Tue/Thu</option><option>Wed/Sun</option>
+                            <option>Wednesday</option><option>Saturday</option><option>Sunday</option>
+                            <option>Derby Moore</option><option>Moorways</option>
+                          </select>
+                          <select value={selected.class_time || ''} onChange={e => updateSelectedField('class_time', e.target.value || null)}
+                            style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
+                            <option value="">— Time —</option>
+                            <option>17:00</option><option>18:00</option><option>19:00</option><option>20:00</option>
+                          </select>
+                        </div>
+                      ) : ([selected.class_schedule, selected.class_time].filter(Boolean).join(' · ') || '—') },
+                      { label: 'Weight', editable: true, render: () => isAdmin ? (
+                        <input type="number" step="0.1" defaultValue={selected.weight_kg || ''} placeholder="kg"
+                          onBlur={e => { const v = e.target.value ? parseFloat(e.target.value) : null; if (v !== selected.weight_kg) updateSelectedField('weight_kg', v) }}
+                          style={{ width: 70, fontSize: 12, padding: '4px 6px', textAlign: 'right', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+                      ) : (selected.weight_kg ? `${selected.weight_kg}kg${selected.weight_category ? ` (${selected.weight_category})` : ''}` : '—') },
+                      { label: 'Comp weight', editable: true, render: () => isAdmin ? (
+                        <input defaultValue={apData?.weight_division || ''} placeholder="e.g. -60kg"
+                          onBlur={e => { if (e.target.value !== (apData?.weight_division || '')) saveCompWeightHere(e.target.value || null) }}
+                          style={{ width: 90, fontSize: 12, padding: '4px 6px', textAlign: 'right', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+                      ) : (apData?.weight_division || '—') },
+                      { label: 'Groups', editable: true, render: () => isAdmin ? (
+                        <div style={{ display: 'flex', gap: 3 }}>
+                          {[
+                            { key: 'is_kr', label: 'KR', cls: 'badge-purple' },
+                            { key: 'is_pts', label: 'PTs', cls: 'badge-blue' },
+                            { key: 'is_leader', label: 'Leader', cls: 'badge-green' },
+                            { key: 'is_coach', label: 'Coach', cls: 'badge-amber' },
+                          ].map(g => (
+                            <button key={g.key} onClick={() => toggleSelectedGroup(g.key)}
+                              className={`badge ${g.cls}`}
+                              style={{ fontSize: 9, cursor: 'pointer', border: 'none', opacity: selected[g.key] ? 1 : 0.25 }}>
+                              {g.label}
+                            </button>
+                          ))}
+                        </div>
+                      ) : ([selected.is_kr && 'KR', selected.is_pts && 'PTs', selected.is_leader && 'Leader', selected.is_coach && 'Coach'].filter(Boolean).join(', ') || 'None') },
+                      { label: 'Media permission', editable: false, render: () => selected.media_restriction || '—' },
+                    ].map(({ label, render }, i, arr) => (
+                      <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 14px', borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13 }}>
                         <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
-                        <span style={{ fontWeight: 500, textAlign: 'right' }}>{val}</span>
+                        <span style={{ fontWeight: 500, textAlign: 'right' }}>{render()}</span>
                       </div>
                     ))}
                   </div>
