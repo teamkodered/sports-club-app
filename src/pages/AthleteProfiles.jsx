@@ -999,18 +999,30 @@ export default function AthleteProfiles() {
                     <div style={{ fontSize: 21, fontWeight: 600 }}>{m?.first_name} {m?.last_name}</div>
                   </div>
                   <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 3 }}>
-                    {selected.student_ref} · {selected.discipline} · {age ? `Age ${age}` : ''}
+                    {selected.discipline}{age ? ` · Age ${age}` : ''}
                     {selected.pka_belt || selected.krba_level ? ` · ${selected.pka_belt || selected.krba_level}` : ''}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, fontSize: 13 }}>
-                    {houseRank > 0 && <span style={{ color: 'var(--text-tertiary)', fontWeight: 600 }}>#{houseRank}</span>}
-                    <span style={{ color: colour, fontWeight: 600 }}>{houseName || '—'}</span>
-                    {houseTotalPoints != null && <span style={{ color: 'var(--text-tertiary)' }}>({houseTotalPoints} pts)</span>}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 6, background: colour + '15',
+                      border: `1px solid ${colour}35`, borderRadius: 20, padding: '4px 12px',
+                    }}>
+                      {houseRank > 0 && (
+                        <span style={{ background: colour, color: '#fff', borderRadius: '50%', width: 18, height: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
+                          {houseRank}
+                        </span>
+                      )}
+                      <span style={{ color: colour, fontWeight: 700, fontSize: 13 }}>{houseName || '—'}</span>
+                      {houseTotalPoints != null && <span style={{ color: colour, fontSize: 12, opacity: 0.75 }}>{houseTotalPoints} pts</span>}
+                    </div>
                     {selected.house_points != null && (
                       <button onClick={() => setShowContribution(v => !v)}
                         title={showContribution ? 'Showing % contribution to house — click to show points' : 'Showing house points — click to show % contribution'}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginLeft: 6, fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textDecoration: 'underline dotted' }}>
-                        {showContribution ? `${contributionPct ?? 0}% of house` : `${selected.house_points} house pts`}
+                        style={{
+                          background: 'var(--bg-secondary)', border: '1px solid var(--border-strong)', borderRadius: 20,
+                          padding: '4px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)',
+                        }}>
+                        {showContribution ? `${contributionPct ?? 0}% of house` : `⭐ ${selected.house_points} pts`}
                       </button>
                     )}
                   </div>
@@ -1046,12 +1058,15 @@ export default function AthleteProfiles() {
                 {isAdmin && !editing && (
                   <button className="btn btn-sm" onClick={() => setEditing(true)}>Edit profile</button>
                 )}
+                {isAdmin && (
+                  <button className="btn btn-sm" onClick={() => setTab('membership')} style={{ marginLeft: 'auto' }}>Membership</button>
+                )}
               </div>
             </div>
 
             {/* Tabs */}
             <div className="hide-scrollbar" style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 14, overflowX: 'auto' }}>
-              {['home', 'profile', 'membership', 'sessions', 'pdp', 'fit2fight', 'tpt', 'media', 'report'].map(t => (
+              {['home', 'sessions', 'pdp', 'fit2fight', 'tpt', 'media', 'report'].map(t => (
                 <button key={t} onClick={() => setTab(t)} style={{
                   padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
                   borderBottom: `2px solid ${tab === t ? 'var(--text)' : 'transparent'}`,
@@ -1158,16 +1173,18 @@ export default function AthleteProfiles() {
                       </div>
                       <button onClick={() => setF2fStatsScope(v => v + 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4 }}>▶</button>
                     </div>
-                    <a href={`/fit2fight?student_id=${selected?.id}`} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', textDecoration: 'none', color: 'inherit', display: 'block' }} title="Log a Fit II Fight session">
-                      <div style={{ fontSize: 22, marginBottom: 4 }}>💪</div>
+                    <button onClick={() => setTab('fit2fight')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', border: 'none', width: '100%', fontFamily: 'var(--font-sans)' }} title="View Fit II Fight results">
+                      <div style={{ fontSize: 22, marginBottom: 4 }}>📈</div>
                       <div style={{ fontSize: 22, fontWeight: 700, color: '#378ADD' }}>{f2fData.length}</div>
                       <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>F2F sessions</div>
-                    </a>
-                    <div className="card" style={{ textAlign: 'center', padding: '12px 8px' }}>
-                      <div style={{ fontSize: 22, marginBottom: 4 }}>🏆</div>
-                      <div style={{ fontSize: 22, fontWeight: 700, color: '#EF9F27' }}>{selected.class_champion_count || 0}</div>
-                      <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Class champ</div>
-                    </div>
+                    </button>
+                    <button onClick={() => setTab('pdp')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', border: 'none', width: '100%', fontFamily: 'var(--font-sans)' }} title="View PDP">
+                      <div style={{ fontSize: 22, marginBottom: 4 }}>🎯</div>
+                      <div style={{ fontSize: 22, fontWeight: 700, color: '#EF9F27' }}>
+                        {Object.entries(apData?.pdp_notes || {}).filter(([k]) => !k.startsWith('__')).reduce((sum, [, v]) => sum + (Array.isArray(v) ? v.length : 0), 0)}
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>PDP</div>
+                    </button>
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 8 }}>
@@ -1315,10 +1332,8 @@ export default function AthleteProfiles() {
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 14 }}>
                     {[
-                      { label: 'Profile',      icon: '👤', colour: '#378ADD', tab: 'profile' },
-                      { label: 'PDP',          icon: '🎯', colour: '#1D9E75', tab: 'pdp' },
-                      { label: 'Analysis',     icon: '📊', colour: '#E24B4A', tab: 'tpt' },
-                      { label: 'Fit II Fight', icon: '💪', colour: '#EF9F27', tab: 'fit2fight' },
+                      { label: 'PDP', icon: '🎯', colour: '#1D9E75', tab: 'pdp' },
+                      { label: 'TPT', icon: '📊', colour: '#E24B4A', tab: 'tpt' },
                     ].map(l => (
                       <button key={l.label} onClick={() => setTab(l.tab)} style={{
                         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
@@ -1330,6 +1345,15 @@ export default function AthleteProfiles() {
                         <span style={{ fontSize: 12, fontWeight: 500, color: l.colour }}>{l.label}</span>
                       </button>
                     ))}
+                    <a href={`/fit2fight?student_id=${selected?.id}`} style={{
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                      padding: '14px 8px', background: '#EF9F2712',
+                      border: '1px solid #EF9F2730', borderRadius: 'var(--border-radius-lg)',
+                      cursor: 'pointer', fontFamily: 'var(--font-sans)', textDecoration: 'none', gridColumn: 'span 2',
+                    }} title="Log a Fit II Fight session">
+                      <span style={{ fontSize: 24 }}>💪</span>
+                      <span style={{ fontSize: 12, fontWeight: 500, color: '#EF9F27' }}>Fit II Fight — log session</span>
+                    </a>
                   </div>
 
                   {sessionPoints.length > 0 && (
@@ -1350,67 +1374,7 @@ export default function AthleteProfiles() {
               )
             })()}
 
-            {tab === 'profile' && (
-              <>
-                {!editing ? (
-                  <div>
-                    {!apData ? (
-                      <div className="empty-state">
-                        <h3>No profile yet</h3>
-                        <p>Add competition details, achievements and social links</p>
-                        {isAdmin && <button className="btn btn-primary" style={{ marginTop: 12 }} onClick={() => setEditing(true)}>Create profile</button>}
-                      </div>
-                    ) : (
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                        <div className="card">
-                          <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: colour }}>Competition divisions</h3>
-                          {[
-                            ['Kickboxing', apData.age_division_kickboxing],
-                            ['Boxing', apData.age_division_boxing],
-                            ['Weight division', apData.weight_division],
-                            ['Kode Red debut', apData.kode_red_debut],
-                          ].map(([l, v]) => v && (
-                            <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
-                              <span style={{ color: 'var(--text-secondary)' }}>{l}</span>
-                              <span style={{ fontWeight: 500 }}>{v}</span>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="card">
-                          <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: colour }}>Athlete info</h3>
-                          {[
-                            ['Favourite technique', apData.favourite_technique],
-                            ['Training music', apData.training_music],
-                            ['Social media', apData.social_media],
-                            ['Sponsors', apData.sponsor_links],
-                          ].map(([l, v]) => v && (
-                            <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
-                              <span style={{ color: 'var(--text-secondary)' }}>{l}</span>
-                              <span style={{ fontWeight: 500, maxWidth: '55%', textAlign: 'right' }}>{v}</span>
-                            </div>
-                          ))}
-                        </div>
-                        {apData.top_achievements && (
-                          <div className="card" style={{ gridColumn: '1/-1' }}>
-                            <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: colour }}>🏆 Top achievements</h3>
-                            <p style={{ fontSize: 13, lineHeight: 1.6 }}>{apData.top_achievements}</p>
-                          </div>
-                        )}
-                        {apData.recent_results?.length > 0 && (
-                          <div className="card" style={{ gridColumn: '1/-1' }}>
-                            <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Recent results</h3>
-                            {apData.recent_results.map((r, i) => (
-                              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
-                                <span style={{ fontSize: 16 }}>🎖</span>{r}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  /* Edit form */
+            {editing && (
                   <div className="card">
                     <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 14 }}>Edit athlete profile</h2>
                     <div className="field-row">
@@ -1459,12 +1423,8 @@ export default function AthleteProfiles() {
                       <button className="btn" onClick={() => setEditing(false)}>Cancel</button>
                       <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={saveProfile} disabled={saving}>{saving ? 'Saving…' : 'Save profile'}</button>
                     </div>
-                  </div>
-                )}
-              </>
+              </div>
             )}
-
-            {/* ── Membership profile tab ── */}
             {tab === 'membership' && (
               <StudentProfile student={selected} isAdmin={isAdmin} embedded={true} onClose={() => {}} />
             )}
