@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase.js'
 
 const HOUSE_COLOURS = { Phoenix: '#e24b4a', Titan: '#378add', Viper: '#1d9e75', Storm: '#ef9f27' }
 
-export default function StudentProfile({ student, onClose, isAdmin }) {
+export default function StudentProfile({ student, onClose, isAdmin, embedded = false }) {
   const [tab, setTab] = useState('profile')
   const [pointTypes, setPointTypes] = useState([])
   const [pointsLog, setPointsLog] = useState([])
@@ -15,6 +15,8 @@ export default function StudentProfile({ student, onClose, isAdmin }) {
   const [houses, setHouses] = useState([])
   const [saving, setSaving] = useState(false)
   const [localStudent, setLocalStudent] = useState(student)
+
+  useEffect(() => { setLocalStudent(student) }, [student?.id])
 
   const m = localStudent.members
   const houseName = m?.houses?.name
@@ -121,8 +123,12 @@ export default function StudentProfile({ student, onClose, isAdmin }) {
   const currentBelt = localStudent.discipline === 'KRBA' ? localStudent.krba_level : localStudent.pka_belt
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}>
-      <div style={{ background: 'var(--bg)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 580, maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={embedded ? {} : { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
+      onClick={embedded ? undefined : onClose}>
+      <div style={embedded
+        ? { background: 'var(--bg)' }
+        : { background: 'var(--bg)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 580, maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+        onClick={embedded ? undefined : e => e.stopPropagation()}>
 
         {/* Header */}
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -148,7 +154,9 @@ export default function StudentProfile({ student, onClose, isAdmin }) {
               <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Champ</div>
             </div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text-secondary)', marginLeft: 8 }}>✕</button>
+          {!embedded && (
+            <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text-secondary)', marginLeft: 8, padding: 8, lineHeight: 1 }}>✕</button>
+          )}
         </div>
 
         {/* Tabs */}
@@ -193,6 +201,9 @@ export default function StudentProfile({ student, onClose, isAdmin }) {
                   {isAdmin && (
                     <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
                       <button className="btn btn-sm" onClick={() => { setEditForm({ pka_belt: localStudent.pka_belt, krba_level: localStudent.krba_level, age_category: localStudent.age_category, competition_team: localStudent.competition_team, weight_kg: localStudent.weight_kg, weight_category: localStudent.weight_category, media_restriction: localStudent.media_restriction, media_notes: localStudent.media_notes, medical_conditions: localStudent.medical_conditions, medication: localStudent.medication, house_id: localStudent.members?.house_id || '', is_kr: localStudent.is_kr || false, is_pts: localStudent.is_pts || false, is_leader: localStudent.is_leader || false, is_coach: localStudent.is_coach || false, class_schedule: localStudent.class_schedule || '', class_time: localStudent.class_time || '', class_time_2: localStudent.class_time_2 || '', house_name: localStudent.house_name || '' }); setEditing(true) }}>Edit record</button>
+                      {!embedded && (localStudent.is_kr || localStudent.is_pts || localStudent.discipline === 'KRBA') && (
+                        <a href={`/athletes?id=${localStudent.id}`} className="btn btn-sm btn-primary">🏅 View athlete profile</a>
+                      )}
                     </div>
                   )}
                 </>

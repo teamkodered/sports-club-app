@@ -154,7 +154,7 @@ export default function LeagueViews() {
         .gte('awarded_at', dateFrom)
         .lte('awarded_at', dateTo + 'T23:59:59'),
       supabase.from('students')
-        .select('id, student_ref, class_champion_count, house_name, member_id, members(first_name, last_name, date_of_birth, houses(name))'),
+        .select('id, student_ref, class_champion_count, house_name, member_id, is_kr, is_pts, discipline, members(first_name, last_name, date_of_birth, houses(name))'),
     ])
     if (!ptsData) return
 
@@ -168,6 +168,7 @@ export default function LeagueViews() {
         house: m?.houses?.name || s.house_name || '',
         champCount: s.class_champion_count || 0,
         dob: m?.date_of_birth,
+        is_kr: s.is_kr, is_pts: s.is_pts, discipline: s.discipline,
       }
     }
 
@@ -176,7 +177,7 @@ export default function LeagueViews() {
     for (const row of ptsData) {
       const sid = row.student_id
       if (!sid) continue
-      const info = studentMap[sid] || { ref: '', name: '', house: '', champCount: 0, dob: null }
+      const info = studentMap[sid] || { ref: '', name: '', house: '', champCount: 0, dob: null, is_kr: false, is_pts: false, discipline: '' }
       if (!map[sid]) {
         map[sid] = {
           id: sid,
@@ -185,6 +186,7 @@ export default function LeagueViews() {
           house: info.house,
           champCount: info.champCount,
           dob: info.dob,
+          is_kr: info.is_kr, is_pts: info.is_pts, discipline: info.discipline,
           housePoints: 0,
           individualPoints: 0,
           total: 0,
@@ -213,7 +215,7 @@ export default function LeagueViews() {
         .order('awarded_at', { ascending: false })
         .limit(100),
       supabase.from('students')
-        .select('id, student_ref, house_name, member_id, members(first_name, last_name, houses(name))'),
+        .select('id, student_ref, house_name, member_id, is_kr, is_pts, discipline, members(first_name, last_name, houses(name))'),
     ])
 
     // Build student lookup
@@ -221,7 +223,9 @@ export default function LeagueViews() {
     for (const s of (studentsData || [])) {
       const m = s.members
       studentMap[s.id] = {
+        id: s.id,
         student_ref: s.student_ref,
+        is_kr: s.is_kr, is_pts: s.is_pts, discipline: s.discipline,
         members: {
           first_name: m?.first_name || '',
           last_name: m?.last_name || '',
@@ -234,7 +238,7 @@ export default function LeagueViews() {
     // so existing rendering code keeps working without further changes
     const enriched = (logData || []).map(row => ({
       ...row,
-      students: studentMap[row.student_id] || { student_ref: '', members: { first_name: '', last_name: '', houses: { name: '' } } },
+      students: studentMap[row.student_id] || { id: row.student_id, student_ref: '', is_kr: false, is_pts: false, discipline: '', members: { first_name: '', last_name: '', houses: { name: '' } } },
     }))
 
     setPointsLog(enriched)
@@ -467,7 +471,7 @@ export default function LeagueViews() {
                     : houseMembers.map((s, i) => (
                       <div key={s.id} style={{ display: 'flex', alignItems: 'center', padding: '7px 14px', borderBottom: i < houseMembers.length - 1 ? '1px solid var(--border)' : 'none' }}>
                         <span style={{ fontSize: 11, color: 'var(--text-tertiary)', width: 20, flexShrink: 0 }}>{i + 1}</span>
-                        <span style={{ fontSize: 13, flex: 1 }}>{s.name}</span>
+                        <Link to={studentProfileLink(s)} style={{ fontSize: 13, flex: 1, color: 'var(--text)', textDecoration: 'underline' }}>{s.name}</Link>
                         {s.champCount > 0 && <span style={{ fontSize: 10, marginRight: 4 }}>🏆{s.champCount}</span>}
                         <span style={{ fontSize: 13, fontWeight: 700, color: colour }}>{s.total}</span>
                       </div>
@@ -524,7 +528,7 @@ export default function LeagueViews() {
                           {RANK_MEDAL[i] || <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>{i + 1}</span>}
                         </td>
                         <td>
-                          <div style={{ fontWeight: 500 }}>{s.name}</div>
+                          <Link to={studentProfileLink(s)} style={{ fontWeight: 500, color: 'var(--text)', textDecoration: 'underline' }}>{s.name}</Link>
                           <div style={{ fontSize: 11, color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono, monospace)' }}>{s.ref}</div>
                         </td>
                         <td>
@@ -580,7 +584,7 @@ export default function LeagueViews() {
                       ) : houseStudents.slice(0, 10).map((s, i) => (
                         <tr key={i} style={i < 3 ? { background: colour + '08' } : {}}>
                           <td style={{ width: 28, textAlign: 'center', fontSize: 14 }}>{MEDALS[i] || <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{i+1}</span>}</td>
-                          <td style={{ fontSize: 12, fontWeight: i < 3 ? 600 : 400 }}>{s.name}</td>
+                          <td style={{ fontSize: 12, fontWeight: i < 3 ? 600 : 400 }}><Link to={studentProfileLink(s)} style={{ color: 'var(--text)', textDecoration: 'underline' }}>{s.name}</Link></td>
                           <td style={{ textAlign: 'right', fontSize: 13, fontWeight: 700, color: colour, paddingRight: 12 }}>{s.total}</td>
                         </tr>
                       ))}
@@ -710,7 +714,7 @@ export default function LeagueViews() {
                           {new Date(r.awarded_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })}
                         </td>
                         <td>
-                          <div style={{ fontWeight: 500, fontSize: 13 }}>{name}</div>
+                          <Link to={studentProfileLink(r.students)} style={{ fontWeight: 500, fontSize: 13, color: 'var(--text)', textDecoration: 'underline' }}>{name}</Link>
                           <div style={{ fontSize: 10, color: 'var(--text-tertiary)', fontFamily: 'monospace' }}>{r.students?.student_ref}</div>
                         </td>
                         <td>

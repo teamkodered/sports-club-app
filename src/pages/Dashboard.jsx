@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { supabase } from '../lib/supabase.js'
+import { studentProfileLink } from '../lib/studentLinks.js'
 
 const HOUSE_COLOURS = {
   'Dragon House': '#E24B4A', 'Super House': '#378ADD',
@@ -30,17 +31,19 @@ export default function Dashboard() {
         { data: recentPoints },
         { data: checkIns },
         { count: todayCount },
+        { count: athleteCount },
       ] = await Promise.all([
         supabase.from('members').select('id', { count: 'exact', head: true }).eq('status', 'active'),
         supabase.from('students').select('id, members!inner(status)', { count: 'exact', head: true }).neq('members.status', 'stopped').neq('members.status', 'not_started'),
         supabase.from('houses').select('*').order('points', { ascending: false }),
-        supabase.from('students').select('id, house_points, individual_points, class_champion_count, house_name, member_id, members(first_name, last_name, houses(name))').order('house_points', { ascending: false }).limit(5),
-        supabase.from('points_log').select('*, student_id, students(member_id, members(first_name, last_name))').order('awarded_at', { ascending: false }).limit(8),
+        supabase.from('students').select('id, house_points, individual_points, class_champion_count, house_name, member_id, is_kr, is_pts, discipline, members(first_name, last_name, houses(name))').order('house_points', { ascending: false }).limit(5),
+        supabase.from('points_log').select('*, student_id, students(member_id, is_kr, is_pts, discipline, members(first_name, last_name))').order('awarded_at', { ascending: false }).limit(8),
         supabase.from('attendance').select('id', { count: 'exact', head: true }).gte('attended_at', monthAgo),
         supabase.from('attendance').select('id', { count: 'exact', head: true }).eq('session_date', today),
+        supabase.from('students').select('id', { count: 'exact', head: true }).or('is_kr.eq.true,is_pts.eq.true,discipline.eq.KRBA'),
       ])
 
-      setStats({ memberCount: memberCount || 0, studentCount: studentCount || 0, checkIns: checkIns?.count || 0, todayCount: todayCount || 0 })
+      setStats({ memberCount: memberCount || 0, studentCount: studentCount || 0, checkIns: checkIns?.count || 0, todayCount: todayCount || 0, athleteCount: athleteCount || 0 })
       setStandings(houses || [])
       setTopStudents(topPts || [])
       setRecentPts(recentPoints || [])
@@ -69,7 +72,7 @@ export default function Dashboard() {
         {[
           { label: 'Active members', value: stats.memberCount, icon: '👥', colour: '#378ADD', to: '/students' },
           { label: 'Register',       value: stats.todayCount, icon: '📋', colour: '#1D9E75', to: '/registers' },
-          { label: 'Check-ins (30d)',value: stats.checkIns,     icon: '✅', colour: '#EF9F27', to: '/checkin' },
+          { label: 'Athletes',       value: stats.athleteCount, icon: '🏅', colour: '#EF9F27', to: '/athletes' },
           { label: 'Houses',         value: standings.length,   icon: '🛡️', colour: '#E24B4A', to: '/league' },
         ].map(s => (
           <Link key={s.label} to={s.to} className="card" style={{ textAlign: 'center', borderTop: `3px solid ${s.colour}`, textDecoration: 'none', color: 'inherit', display: 'block' }}>
@@ -126,7 +129,7 @@ export default function Dashboard() {
                   <tr key={s.id}>
                     <td style={{ width: 28, textAlign: 'center', fontSize: 16 }}>{MEDALS[i] || <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{i+1}</span>}</td>
                     <td>
-                      <div style={{ fontSize: 13, fontWeight: 500 }}>{m?.first_name} {m?.last_name}</div>
+                      <Link to={studentProfileLink(s)} style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', textDecoration: 'underline' }}>{m?.first_name} {m?.last_name}</Link>
                       <div style={{ fontSize: 10, color: colour }}>{houseName}</div>
                     </td>
                     <td style={{ textAlign: 'right', fontWeight: 700, color: colour, paddingRight: 4 }}>{s.house_points || 0}</td>
@@ -171,7 +174,9 @@ export default function Dashboard() {
                 const m = p.students?.members
                 return (
                   <tr key={i}>
-                    <td style={{ fontSize: 13, fontWeight: 500 }}>{m?.first_name} {m?.last_name}</td>
+                    <td style={{ fontSize: 13, fontWeight: 500 }}>
+                      <Link to={studentProfileLink({ ...p.students, id: p.student_id })} style={{ color: 'var(--text)', textDecoration: 'underline' }}>{m?.first_name} {m?.last_name}</Link>
+                    </td>
                     <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{p.point_type}</td>
                     <td style={{ textAlign: 'right', fontWeight: 700, color: p.points_awarded < 0 ? '#a32d2d' : '#1d9e75' }}>
                       {p.points_awarded > 0 ? '+' : ''}{p.points_awarded}

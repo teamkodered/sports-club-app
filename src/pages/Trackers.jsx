@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
+import { studentProfileLink } from '../lib/studentLinks.js'
 
 const HOUSE_COLOURS = { 'Dragon House': '#E24B4A', 'Super House': '#378ADD', 'Ice House': '#1D9E75', 'Jet House': '#EF9F27' }
 
@@ -13,7 +14,7 @@ function SortTh({ children, col, sortKey, sortDir, onSort, style = {} }) {
   )
 }
 
-function Sparkline({ data, colour = '#378ADD', width = 110, height = 32 }) {
+function Sparkline({ data, colour = '#378ADD', width = 110, height = 32, onClick }) {
   if (!data || data.length < 2) {
     return <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>—</span>
   }
@@ -27,16 +28,22 @@ function Sparkline({ data, colour = '#378ADD', width = 110, height = 32 }) {
     const y = height - pad - ((d.value - min) / range) * (height - pad * 2)
     return `${x},${y}`
   }).join(' ')
-  const last = data[data.length - 1]
-  const first = data[0]
-  const trend = last.value - first.value
   return (
-    <svg width={width} height={height} style={{ display: 'block' }}>
+    <svg width={width} height={height} style={{ display: 'block', cursor: onClick ? 'pointer' : 'default' }} onClick={onClick}>
       <polyline points={points} fill="none" stroke={colour} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
       {data.map((d, i) => {
         const x = pad + (i / (data.length - 1)) * (width - pad * 2)
         const y = height - pad - ((d.value - min) / range) * (height - pad * 2)
-        return <circle key={i} cx={x} cy={y} r={i === data.length - 1 ? 2.5 : 1.5} fill={colour} />
+        const dateLabel = d.date ? new Date(d.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : ''
+        return (
+          <g key={i}>
+            {/* Larger invisible circle for an easier, more forgiving hover target */}
+            <circle cx={x} cy={y} r={6} fill="transparent">
+              <title>{dateLabel}: {d.value}kg</title>
+            </circle>
+            <circle cx={x} cy={y} r={i === data.length - 1 ? 2.5 : 1.5} fill={colour} />
+          </g>
+        )
       })}
     </svg>
   )
@@ -47,6 +54,10 @@ export default function Trackers() {
   const [attendance, setAttendance]   = useState([])
   const [attFilter, setAttFilter]     = useState('all')
   const [students, setStudents]     = useState([])
+  const [weightViewN, setWeightViewN] = useState(5)
+  const [weightSheetFor, setWeightSheetFor] = useState(null) // student stats object, or null
+  const [sheetEntries, setSheetEntries] = useState([])
+  const [savingEntry, setSavingEntry] = useState(null)
   const [sessions, setSessions]     = useState([])
   const [allMembers, setAllMembers] = useState([]) // for join/stop duration tracking
   const [loading, setLoading]       = useState(true)
@@ -77,6 +88,48 @@ export default function Trackers() {
   function toggleSort(key) {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
     else { setSortKey(key); setSortDir('asc') }
+  }
+
+  function changeOverLastN(history, n) {
+    if (!history || history.length < 2) return null
+    const slice = n === 'all' ? history : history.slice(-n)
+    if (slice.length < 2) return null
+    const diff = slice[slice.length - 1].value - slice[0].value
+    return diff.toFixed(1)
+  }
+
+  async function openWeightSheet(s) {
+    setWeightSheetFor(s)
+    const { data } = await supabase.from('fit2fight_sessions')
+      .select('id, session_date, weight_before, weight_after')
+      .eq('student_id', s.id)
+      .order('session_date', { ascending: false })
+    setSheetEntries((data || []).filter(e => e.weight_before != null || e.weight_after != null))
+  }
+
+  async function saveSheetEntry(entry) {
+    setSavingEntry(entry.id)
+    const payload = { weight_before: entry.weight_before === '' ? null : entry.weight_before, weight_after: entry.weight_after === '' ? null : entry.weight_after }
+    const { error } = await supabase.from('fit2fight_sessions').update(payload).eq('id', entry.id)
+    if (error) alert('Error saving: ' + error.message)
+    setSavingEntry(null)
+  }
+
+  async function addSheetEntry() {
+    if (!weightSheetFor) return
+    const today = new Date().toISOString().split('T')[0]
+    const { data, error } = await supabase.from('fit2fight_sessions')
+      .insert({ student_id: weightSheetFor.id, session_date: today })
+      .select().single()
+    if (error) { alert('Error adding entry: ' + error.message); return }
+    setSheetEntries(prev => [data, ...prev])
+  }
+
+  async function deleteSheetEntry(entry) {
+    if (!confirm(`Delete the ${new Date(entry.session_date).toLocaleDateString('en-GB')} entry?`)) return
+    const { error } = await supabase.from('fit2fight_sessions').delete().eq('id', entry.id)
+    if (error) { alert('Error deleting: ' + error.message); return }
+    setSheetEntries(prev => prev.filter(e => e.id !== entry.id))
   }
 
   function calcAge(dob) {
@@ -352,7 +405,7 @@ export default function Trackers() {
                   {[...stats].sort((a,b) => b.house_points - a.house_points).slice(0,10).map((s,i) => (
                     <tr key={s.id}>
                       <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{i+1}</td>
-                      <td style={{ fontSize: 13 }}>{s.name}</td>
+                      <td style={{ fontSize: 13 }}><Link to={studentProfileLink(s)} style={{ color: 'var(--text)', textDecoration: 'underline' }}>{s.name}</Link></td>
                       <td style={{ textAlign: 'right', fontWeight: 600, color: HOUSE_COLOURS[s.house] }}>{s.house_points}</td>
                     </tr>
                   ))}
@@ -420,7 +473,7 @@ export default function Trackers() {
                   return (
                     <tr key={s.id}>
                       <td style={{ fontSize: 11, fontFamily: 'monospace', color: '#185fa5' }}>{s.student_ref}</td>
-                      <td style={{ fontWeight: 500, whiteSpace: 'nowrap' }}>{s.name}</td>
+                      <td style={{ fontWeight: 500, whiteSpace: 'nowrap' }}><Link to={studentProfileLink(s)} style={{ color: 'var(--text)', textDecoration: 'underline' }}>{s.name}</Link></td>
                       <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{s.age || '—'}</td>
                       <td>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
@@ -514,7 +567,7 @@ export default function Trackers() {
                       const colour = HOUSE_COLOURS[s.house] || '#888'
                       return (
                         <tr key={s.id}>
-                          <td style={{ fontWeight: 500 }}>{s.name}</td>
+                          <td style={{ fontWeight: 500 }}><Link to={studentProfileLink(s)} style={{ color: 'var(--text)', textDecoration: 'underline' }}>{s.name}</Link></td>
                           <td>
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
                               <span style={{ width: 7, height: 7, borderRadius: '50%', background: colour, display: 'inline-block' }} />
@@ -549,9 +602,22 @@ export default function Trackers() {
       {/* Weight tracker */}
       {tab === 'weight' && (
         <div>
-          <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
-            Weight data from Fit II Fight sessions and Check-in weigh-ins. {sessions.filter(s => s.weight_before).length} entries recorded.
-          </p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
+              Weight data from Fit II Fight sessions and Check-in weigh-ins. {sessions.filter(s => s.weight_before).length} entries recorded.
+            </p>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Change over last:</span>
+              {[1, 5, 10, 'all'].map(n => (
+                <button key={n} onClick={() => setWeightViewN(n)} style={{
+                  padding: '4px 10px', borderRadius: 20, fontSize: 11, cursor: 'pointer',
+                  border: `1px solid ${weightViewN === n ? 'var(--text)' : 'var(--border-strong)'}`,
+                  background: weightViewN === n ? 'var(--text)' : 'var(--bg)',
+                  color: weightViewN === n ? 'var(--bg)' : 'var(--text-secondary)',
+                }}>{n === 'all' ? 'All' : n}</button>
+              ))}
+            </div>
+          </div>
           <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
             <table>
               <thead>
@@ -559,18 +625,19 @@ export default function Trackers() {
                   <th>Student</th>
                   <th>House</th>
                   <th style={{ textAlign: 'center' }}>Trend</th>
-                  <th style={{ textAlign: 'center' }}>Change</th>
+                  <th style={{ textAlign: 'center' }}>Change{weightViewN !== 'all' ? ` (last ${weightViewN})` : ''}</th>
                   <th style={{ textAlign: 'center' }}>Entries</th>
                 </tr>
               </thead>
               <tbody>
                 {stats.filter(s => s.first_weight).sort((a,b) => Math.abs(parseFloat(b.weight_change||0)) - Math.abs(parseFloat(a.weight_change||0))).map(s => {
                   const colour = HOUSE_COLOURS[s.house] || '#888'
-                  const wc = parseFloat(s.weight_change || 0)
+                  const change = changeOverLastN(s.weight_history, weightViewN)
+                  const wc = parseFloat(change || 0)
                   const sessionCount = sessions.filter(f => f.student_id === s.id && f.weight_before).length
                   return (
                     <tr key={s.id}>
-                      <td style={{ fontWeight: 500 }}>{s.name}</td>
+                      <td style={{ fontWeight: 500 }}><Link to={studentProfileLink(s)} style={{ color: 'var(--text)', textDecoration: 'underline' }}>{s.name}</Link></td>
                       <td>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
                           <span style={{ width: 7, height: 7, borderRadius: '50%', background: colour, display: 'inline-block' }} />
@@ -578,15 +645,13 @@ export default function Trackers() {
                         </span>
                       </td>
                       <td style={{ textAlign: 'center' }}>
-                        <div title={`${s.first_weight}kg (${s.first_weight_date ? new Date(s.first_weight_date).toLocaleDateString('en-GB') : '—'}) → ${s.last_weight}kg (${s.last_weight_date ? new Date(s.last_weight_date).toLocaleDateString('en-GB') : '—'})`}
-                          style={{ display: 'inline-block' }}>
-                          <Sparkline data={s.weight_history} colour={colour} />
-                        </div>
+                        <Sparkline data={s.weight_history} colour={colour} onClick={() => openWeightSheet(s)} />
                       </td>
-                      <td style={{ textAlign: 'center', fontWeight: 700, fontSize: 14, color: wc < 0 ? '#1d9e75' : wc > 0 ? '#a32d2d' : 'var(--text-secondary)' }}>
-                        {s.weight_change !== null ? `${wc > 0 ? '+' : ''}${s.weight_change}kg` : '—'}
+                      <td style={{ textAlign: 'center', fontWeight: 700, fontSize: 14, color: wc < 0 ? '#1d9e75' : wc > 0 ? '#a32d2d' : 'var(--text-secondary)', cursor: 'pointer' }}
+                        onClick={() => openWeightSheet(s)}>
+                        {change !== null ? `${wc > 0 ? '+' : ''}${change}kg` : '—'}
                       </td>
-                      <td style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: 12 }}>{sessionCount}</td>
+                      <td style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: 12, cursor: 'pointer' }} onClick={() => openWeightSheet(s)}>{sessionCount}</td>
                     </tr>
                   )
                 })}
@@ -596,6 +661,55 @@ export default function Trackers() {
               </tbody>
             </table>
           </div>
+
+          {/* Full spreadsheet view — all weight entries for one athlete, editable */}
+          {weightSheetFor && (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}
+              onClick={() => setWeightSheetFor(null)}>
+              <div className="card" style={{ width: '100%', maxWidth: 560, maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                  <h2 style={{ fontSize: 16, fontWeight: 600 }}>{weightSheetFor.name} — all weight entries</h2>
+                  <button onClick={() => setWeightSheetFor(null)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
+                </div>
+                <button className="btn btn-sm btn-primary" style={{ marginBottom: 10 }} onClick={addSheetEntry}>+ Add entry (today)</button>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th style={{ textAlign: 'center' }}>Before (kg)</th>
+                      <th style={{ textAlign: 'center' }}>After (kg)</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sheetEntries.map(entry => (
+                      <tr key={entry.id}>
+                        <td style={{ fontSize: 12 }}>{new Date(entry.session_date).toLocaleDateString('en-GB')}</td>
+                        <td style={{ textAlign: 'center' }}>
+                          <input type="number" step="0.1" defaultValue={entry.weight_before ?? ''}
+                            onBlur={e => { const v = e.target.value === '' ? null : parseFloat(e.target.value); if (v !== entry.weight_before) saveSheetEntry({ ...entry, weight_before: v }) }}
+                            style={{ width: 64, padding: '3px 5px', fontSize: 12, textAlign: 'center', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <input type="number" step="0.1" defaultValue={entry.weight_after ?? ''}
+                            onBlur={e => { const v = e.target.value === '' ? null : parseFloat(e.target.value); if (v !== entry.weight_after) saveSheetEntry({ ...entry, weight_after: v }) }}
+                            style={{ width: 64, padding: '3px 5px', fontSize: 12, textAlign: 'center', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+                        </td>
+                        <td>
+                          {savingEntry === entry.id
+                            ? <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>saving…</span>
+                            : <button onClick={() => deleteSheetEntry(entry)} style={{ background: 'none', border: '1px solid #a32d2d', color: '#a32d2d', borderRadius: 6, padding: '2px 7px', fontSize: 10, cursor: 'pointer' }}>Delete</button>}
+                        </td>
+                      </tr>
+                    ))}
+                    {sheetEntries.length === 0 && (
+                      <tr><td colSpan={4} style={{ textAlign: 'center', padding: 20, color: 'var(--text-tertiary)' }}>No entries yet</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import StudentProfile from '../components/students/StudentProfile.jsx'
+import { studentProfileLink } from '../lib/studentLinks.js'
 
 const HOUSE_COLOURS = {
   'Dragon House': '#E24B4A', 'Super House': '#378ADD',
@@ -337,8 +338,8 @@ export default function StudentDatabase() {
                       )
                       case 'first_name':  return (
                         <td key={c.key}>
-                          <a href={`/athletes?id=${s.id}`}
-                            onClick={e => { e.preventDefault(); navigate(`/athletes?id=${s.id}`) }}
+                          <a href={studentProfileLink(s)}
+                            onClick={e => { e.preventDefault(); navigate(studentProfileLink(s)) }}
                             style={{ color: 'var(--text)', fontWeight: 500, textDecoration: 'none', cursor: 'pointer' }}>
                             {m?.first_name}
                           </a>
@@ -346,8 +347,8 @@ export default function StudentDatabase() {
                       )
                       case 'last_name':   return (
                         <td key={c.key}>
-                          <a href={`/athletes?id=${s.id}`}
-                            onClick={e => { e.preventDefault(); navigate(`/athletes?id=${s.id}`) }}
+                          <a href={studentProfileLink(s)}
+                            onClick={e => { e.preventDefault(); navigate(studentProfileLink(s)) }}
                             style={{ color: 'var(--text)', fontWeight: 500, textDecoration: 'none', cursor: 'pointer' }}>
                             {m?.last_name}
                           </a>

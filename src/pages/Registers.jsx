@@ -61,6 +61,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
+import { studentProfileLink } from '../lib/studentLinks.js'
 
 const HOUSE_COLOURS = {
   'Dragon House': '#E24B4A', 'Super House': '#378ADD',
@@ -773,7 +774,7 @@ export default function Registers() {
                       </span>
                     </td>}
                     {visibleCols.includes('name') && <td onClick={e => e.stopPropagation()}>
-                      <a href={`/athletes?id=${s.id}`}
+                      <a href={studentProfileLink(s)}
                         style={{ color: 'var(--text)', fontWeight: 500, fontSize: 13, textDecoration: 'none', cursor: 'pointer' }}>
                         {m?.first_name} {m?.last_name}
                       </a>

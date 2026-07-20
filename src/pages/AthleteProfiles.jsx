@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
+import StudentProfile from '../components/students/StudentProfile.jsx'
 
 const HOUSE_COLOURS = {
   'Dragon House': '#E24B4A', 'Super House': '#378ADD',
@@ -610,7 +611,7 @@ export default function AthleteProfiles() {
   async function loadStudents() {
     const { data } = await supabase
       .from('students')
-      .select('*, members(first_name, last_name, email, phone, date_of_birth, status, houses(name, colour))')
+      .select('*, members(first_name, last_name, email, phone, date_of_birth, status, house_id, role, joined_date, houses(name, colour))')
       .order('created_at')
     setStudents(data || [])
     setLoading(false)
@@ -946,7 +947,7 @@ export default function AthleteProfiles() {
 
             {/* Tabs */}
             <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 14 }}>
-              {['profile', 'sessions', 'pdp', 'fit2fight', 'tpt', 'media', 'report'].map(t => (
+              {['profile', 'membership', 'sessions', 'pdp', 'fit2fight', 'tpt', 'media', 'report'].map(t => (
                 <button key={t} onClick={() => setTab(t)} style={{
                   padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
                   borderBottom: `2px solid ${tab === t ? 'var(--text)' : 'transparent'}`,
@@ -1069,6 +1070,11 @@ export default function AthleteProfiles() {
                   </div>
                 )}
               </>
+            )}
+
+            {/* ── Membership profile tab ── */}
+            {tab === 'membership' && (
+              <StudentProfile student={selected} isAdmin={isAdmin} embedded={true} onClose={() => {}} />
             )}
 
             {/* ── Sessions tab ── */}
