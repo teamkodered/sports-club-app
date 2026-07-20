@@ -912,7 +912,7 @@ export default function AthleteProfiles() {
             <p>Choose an athlete from the list to view their profile</p>
           </div>
         ) : (
-          <>
+          <div style={{ maxWidth: 640, margin: '0 auto' }}>
             <button className="btn btn-sm" onClick={goHome} style={{ marginBottom: 10 }}>🏠 Home</button>
 
             {/* Athlete header */}
@@ -962,13 +962,13 @@ export default function AthleteProfiles() {
             </div>
 
             {/* Tabs */}
-            <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 14 }}>
+            <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 14, overflowX: 'auto' }}>
               {['home', 'profile', 'membership', 'sessions', 'pdp', 'fit2fight', 'tpt', 'media', 'report'].map(t => (
                 <button key={t} onClick={() => setTab(t)} style={{
                   padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
                   borderBottom: `2px solid ${tab === t ? 'var(--text)' : 'transparent'}`,
                   color: tab === t ? 'var(--text)' : 'var(--text-secondary)',
-                  fontWeight: tab === t ? 500 : 400, textTransform: 'capitalize',
+                  fontWeight: tab === t ? 500 : 400, textTransform: 'capitalize', whiteSpace: 'nowrap', flexShrink: 0,
                 }}>{t}</button>
               ))}
             </div>
@@ -2086,7 +2086,7 @@ export default function AthleteProfiles() {
                 )}
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
     </div>
