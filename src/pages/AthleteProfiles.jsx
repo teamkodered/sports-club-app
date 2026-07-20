@@ -1070,13 +1070,48 @@ export default function AthleteProfiles() {
               const scopeOptions = ['All sessions', selected.discipline, [selected.class_schedule, selected.class_time].filter(Boolean).join(' ')]
                 .filter(Boolean)
                 .filter((v, i, a) => a.indexOf(v) === i)
-              const scopeLabel = scopeOptions[((f2fStatsScope % scopeOptions.length) + scopeOptions.length) % scopeOptions.length]
+              const scopeLen = scopeOptions.length || 1
+              const scopeLabel = scopeOptions[((f2fStatsScope % scopeLen) + scopeLen) % scopeLen] || 'All sessions'
               const matchesScope = att => {
                 if (scopeLabel === 'All sessions') return true
-                if (scopeLabel === selected.discipline) return att.students?.discipline === selected.discipline
-                return att.students?.class_schedule === selected.class_schedule && att.students?.class_time === selected.class_time
+                if (scopeLabel === selected.discipline) return att?.students?.discipline === selected.discipline
+                return att?.students?.class_schedule === selected.class_schedule && att?.students?.class_time === selected.class_time
               }
-              const possibleSessions = new Set(allAttendance.filter(matchesScope).map(a => a.session_date)).size
+              const possibleSessions = new Set((allAttendance || []).filter(matchesScope).map(a => a?.session_date)).size
+
+              // Compute most-recent + personal-best for a module, defensively --
+              // malformed/legacy session data shouldn't be able to crash this page.
+              function computeModuleStats(key) {
+                try {
+                  let entries = [], unit = '', higherIsBetter = true
+                  const wattSets = s => Array.isArray(s?.watt_bike?.sets) ? s.watt_bike.sets : []
+                  const wattMax = sets => sets.length ? Math.max(...sets.map(set => parseFloat((set && typeof set === 'object' ? set.wattage : set) || 0)).filter(v => !isNaN(v))) : null
+
+                  if (key === 'watt_bike') {
+                    entries = sorted.filter(s => wattSets(s).length > 0).map(s => ({ date: s.session_date, value: wattMax(wattSets(s)) })).filter(e => e.value != null)
+                    unit = 'W'
+                  } else if (key === '10k') {
+                    entries = sorted.filter(s => s?.running?.test === '10K' && Array.isArray(s?.running?.sets) && s.running.sets.length > 0)
+                      .map(s => ({ date: s.session_date, value: s.running.sets[s.running.sets.length - 1] }))
+                    higherIsBetter = false
+                  } else if (key === 'circuit') {
+                    // Fixed load circuit comes from the Test module, not Watt bike
+                    entries = sorted.filter(s => s?.test?.['Fixed load circuit'] != null).map(s => ({ date: s.session_date, value: s.test['Fixed load circuit'] }))
+                  } else if (key === 'bleep') {
+                    entries = sorted.filter(s => s?.test?.['Bleep test'] != null).map(s => ({ date: s.session_date, value: s.test['Bleep test'] }))
+                  } else if (key === 'grip') {
+                    entries = sorted.filter(s => s?.test?.['Left Grip Test'] != null || s?.test?.['Right Grip Test'] != null)
+                      .map(s => ({ date: s.session_date, value: Math.max(s.test?.['Left Grip Test'] || 0, s.test?.['Right Grip Test'] || 0) }))
+                    unit = 'kg'
+                  }
+                  const mostRecent = entries[entries.length - 1] || null
+                  const pb = entries.reduce((best, e) => !best ? e : ((higherIsBetter ? e.value > best.value : e.value < best.value) ? e : best), null)
+                  return { mostRecent, pb, unit }
+                } catch (e) {
+                  console.error('computeModuleStats error for', key, e)
+                  return { mostRecent: null, pb: null, unit: '' }
+                }
+              }
 
               const modules = [
                 { key: 'watt_bike', label: 'Watt bike', icon: '🚴' },
@@ -1088,24 +1123,28 @@ export default function AthleteProfiles() {
                 { key: 'grip',    label: 'Grip Test',  icon: '✊' },
               ]
 
-              let moduleEntries = [], unit = '', higherIsBetter = true
-              if (f2fModule === 'watt_bike') {
-                moduleEntries = sorted.filter(s => s.watt_bike?.sets?.length > 0).map(s => ({ date: s.session_date, value: Math.max(...s.watt_bike.sets.map(set => parseFloat((typeof set === 'object' ? set.wattage : set) || 0))) }))
-                unit = 'W'
-              } else if (f2fModule === '10k') {
-                moduleEntries = sorted.filter(s => s.running?.test === '10K' && s.running?.sets?.length > 0).map(s => ({ date: s.session_date, value: s.running.sets[s.running.sets.length - 1] }))
-                higherIsBetter = false
-              } else if (f2fModule === 'circuit') {
-                moduleEntries = sorted.filter(s => s.watt_bike?.type === 'Power Circuit' && s.watt_bike?.sets?.length > 0).map(s => ({ date: s.session_date, value: Math.max(...s.watt_bike.sets.map(set => parseFloat((typeof set === 'object' ? set.wattage : set) || 0))) }))
-                unit = 'W'
-              } else if (f2fModule === 'bleep') {
-                moduleEntries = sorted.filter(s => s.test?.['Bleep test'] != null).map(s => ({ date: s.session_date, value: s.test['Bleep test'] }))
-              } else if (f2fModule === 'grip') {
-                moduleEntries = sorted.filter(s => s.test?.['Left Grip Test'] != null || s.test?.['Right Grip Test'] != null).map(s => ({ date: s.session_date, value: Math.max(s.test?.['Left Grip Test'] || 0, s.test?.['Right Grip Test'] || 0) }))
-                unit = 'kg'
+              function ModuleButton({ b }) {
+                const { mostRecent, pb, unit } = computeModuleStats(b.key)
+                return (
+                  <button onClick={() => setTab('fit2fight')} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, padding: '10px 10px',
+                    background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', cursor: 'pointer',
+                  }}>
+                    <div style={{ textAlign: 'center', minWidth: 32 }}>
+                      <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Recent</div>
+                      <div style={{ fontSize: 12, fontWeight: 700 }}>{mostRecent ? `${mostRecent.value}${unit}` : '—'}</div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                      <span style={{ fontSize: 18 }}>{b.icon}</span>
+                      <span style={{ fontSize: 10, fontWeight: 500, whiteSpace: 'nowrap' }}>{b.label}</span>
+                    </div>
+                    <div style={{ textAlign: 'center', minWidth: 32 }}>
+                      <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>🏅 PB</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: colour }}>{pb ? `${pb.value}${unit}` : '—'}</div>
+                    </div>
+                  </button>
+                )
               }
-              const mostRecent = moduleEntries[moduleEntries.length - 1]
-              const pb = moduleEntries.reduce((best, e) => !best ? e : ((higherIsBetter ? e.value > best.value : e.value < best.value) ? e : best), null)
 
               return (
                 <div>
@@ -1132,45 +1171,11 @@ export default function AthleteProfiles() {
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 8 }}>
-                    {modules.map(b => (
-                      <button key={b.key} onClick={() => setF2fModule(f2fModule === b.key ? null : b.key)} style={{
-                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 8px',
-                        background: f2fModule === b.key ? colour + '20' : 'var(--bg-secondary)',
-                        border: `1px solid ${f2fModule === b.key ? colour : 'var(--border)'}`, borderRadius: 'var(--radius)', cursor: 'pointer',
-                      }}>
-                        <span style={{ fontSize: 18 }}>{b.icon}</span>
-                        <span style={{ fontSize: 11, fontWeight: 500 }}>{b.label}</span>
-                      </button>
-                    ))}
+                    {modules.map(b => <ModuleButton key={b.key} b={b} />)}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 8 }}>
-                    {modules2.map(b => (
-                      <button key={b.key} onClick={() => setF2fModule(f2fModule === b.key ? null : b.key)} style={{
-                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 8px',
-                        background: f2fModule === b.key ? colour + '20' : 'var(--bg-secondary)',
-                        border: `1px solid ${f2fModule === b.key ? colour : 'var(--border)'}`, borderRadius: 'var(--radius)', cursor: 'pointer',
-                      }}>
-                        <span style={{ fontSize: 18 }}>{b.icon}</span>
-                        <span style={{ fontSize: 11, fontWeight: 500 }}>{b.label}</span>
-                      </button>
-                    ))}
+                    {modules2.map(b => <ModuleButton key={b.key} b={b} />)}
                   </div>
-
-                  {f2fModule && (
-                    <div className="card" style={{ display: 'flex', gap: 16, marginBottom: 14 }}>
-                      <div style={{ flex: 1, textAlign: 'center' }}>
-                        <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>Most recent</div>
-                        <div style={{ fontSize: 20, fontWeight: 700 }}>{mostRecent ? `${mostRecent.value}${unit}` : '—'}</div>
-                        {mostRecent && <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{new Date(mostRecent.date).toLocaleDateString('en-GB')}</div>}
-                      </div>
-                      <div style={{ width: 1, background: 'var(--border)' }} />
-                      <div style={{ flex: 1, textAlign: 'center' }}>
-                        <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>🏅 Personal best</div>
-                        <div style={{ fontSize: 20, fontWeight: 700, color: colour }}>{pb ? `${pb.value}${unit}` : '—'}</div>
-                        {pb && <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{new Date(pb.date).toLocaleDateString('en-GB')}</div>}
-                      </div>
-                    </div>
-                  )}
 
                   <div style={{ height: 4 }} />
 
