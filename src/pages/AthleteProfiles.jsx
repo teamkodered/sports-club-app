@@ -565,6 +565,9 @@ export default function AthleteProfiles() {
   const [students, setStudents]     = useState([])
   const [houses, setHouses]         = useState([])
   const [truePointTotals, setTruePointTotals] = useState({})
+  const [allAttendance, setAllAttendance] = useState([])
+  const [f2fStatsScope, setF2fStatsScope] = useState(0) // cycles through scope options
+  const [f2fModule, setF2fModule] = useState(null) // 'watt_bike' | '10k' | 'circuit' | 'bleep' | 'grip'
   const [showContribution, setShowContribution] = useState(false)
   const [showOverallPos, setShowOverallPos] = useState(false)
   const [belts, setBelts] = useState({ junior: [], senior: [], krba: [] })
@@ -639,6 +642,11 @@ export default function AthleteProfiles() {
     const totals = {}
     ;(ptsLog || []).forEach(p => { totals[p.student_id] = (totals[p.student_id] || 0) + (p.points_awarded || 0) })
     setTruePointTotals(totals)
+
+    const { data: allAtt } = await supabase.from('attendance')
+      .select('student_id, session_date, attendance_type, students(discipline, class_schedule, class_time)')
+    setAllAttendance(allAtt || [])
+
     setLoading(false)
   }
 
@@ -1574,6 +1582,116 @@ export default function AthleteProfiles() {
 
               return (
               <div>
+                {/* ── Details at the top ── */}
+                {(() => {
+                  const scopeOptions = ['All sessions', selected.discipline, [selected.class_schedule, selected.class_time].filter(Boolean).join(' ')]
+                    .filter(Boolean)
+                    .filter((v, i, a) => a.indexOf(v) === i)
+                  const scopeLabel = scopeOptions[((f2fStatsScope % scopeOptions.length) + scopeOptions.length) % scopeOptions.length]
+                  const matchesScope = att => {
+                    if (scopeLabel === 'All sessions') return true
+                    if (scopeLabel === selected.discipline) return att.students?.discipline === selected.discipline
+                    return att.students?.class_schedule === selected.class_schedule && att.students?.class_time === selected.class_time
+                  }
+                  const possibleSessions = new Set(allAttendance.filter(matchesScope).map(a => a.session_date)).size
+
+                  const modules = [
+                    { key: 'watt_bike', label: 'Watt bike', icon: '🚴' },
+                    { key: '10k',       label: '10k',        icon: '🏃' },
+                  ]
+                  const modules2 = [
+                    { key: 'circuit', label: 'Circuit',    icon: '⭕' },
+                    { key: 'bleep',   label: 'Bleep test', icon: '📈' },
+                    { key: 'grip',    label: 'Grip Test',  icon: '✊' },
+                  ]
+
+                  let moduleEntries = [], unit = '', higherIsBetter = true
+                  if (f2fModule === 'watt_bike') {
+                    moduleEntries = sorted.filter(s => s.watt_bike?.sets?.length > 0).map(s => ({ date: s.session_date, value: Math.max(...s.watt_bike.sets.map(set => parseFloat((typeof set === 'object' ? set.wattage : set) || 0))) }))
+                    unit = 'W'
+                  } else if (f2fModule === '10k') {
+                    moduleEntries = sorted.filter(s => s.running?.test === '10K' && s.running?.sets?.length > 0).map(s => ({ date: s.session_date, value: s.running.sets[s.running.sets.length - 1] }))
+                    higherIsBetter = false
+                  } else if (f2fModule === 'circuit') {
+                    moduleEntries = sorted.filter(s => s.watt_bike?.type === 'Power Circuit' && s.watt_bike?.sets?.length > 0).map(s => ({ date: s.session_date, value: Math.max(...s.watt_bike.sets.map(set => parseFloat((typeof set === 'object' ? set.wattage : set) || 0))) }))
+                    unit = 'W'
+                  } else if (f2fModule === 'bleep') {
+                    moduleEntries = sorted.filter(s => s.test?.['Bleep test'] != null).map(s => ({ date: s.session_date, value: s.test['Bleep test'] }))
+                  } else if (f2fModule === 'grip') {
+                    moduleEntries = sorted.filter(s => s.test?.['Left Grip Test'] != null || s.test?.['Right Grip Test'] != null).map(s => ({ date: s.session_date, value: Math.max(s.test?.['Left Grip Test'] || 0, s.test?.['Right Grip Test'] || 0) }))
+                    unit = 'kg'
+                  }
+                  const mostRecent = moduleEntries[moduleEntries.length - 1]
+                  const pb = moduleEntries.reduce((best, e) => !best ? e : ((higherIsBetter ? e.value > best.value : e.value < best.value) ? e : best), null)
+
+                  return (
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 8 }}>
+                        <div className="card" style={{ textAlign: 'center', padding: '10px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+                          <button onClick={() => setF2fStatsScope(v => v - 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4 }}>◀</button>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 20, marginBottom: 2 }}>✅</div>
+                            <div style={{ fontSize: 19, fontWeight: 700, color: colour }}>{attendanceData.length}/{possibleSessions || attendanceData.length}</div>
+                            <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>{scopeLabel}</div>
+                          </div>
+                          <button onClick={() => setF2fStatsScope(v => v + 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4 }}>▶</button>
+                        </div>
+                        <div className="card" style={{ textAlign: 'center', padding: '12px 8px' }}>
+                          <div style={{ fontSize: 22, marginBottom: 4 }}>💪</div>
+                          <div style={{ fontSize: 22, fontWeight: 700, color: '#378ADD' }}>{f2fData.length}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>F2F sessions</div>
+                        </div>
+                        <div className="card" style={{ textAlign: 'center', padding: '12px 8px' }}>
+                          <div style={{ fontSize: 22, marginBottom: 4 }}>🏆</div>
+                          <div style={{ fontSize: 22, fontWeight: 700, color: '#EF9F27' }}>{selected.class_champion_count || 0}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Class champ</div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 8 }}>
+                        {modules.map(b => (
+                          <button key={b.key} onClick={() => setF2fModule(f2fModule === b.key ? null : b.key)} style={{
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 8px',
+                            background: f2fModule === b.key ? colour + '20' : 'var(--bg-secondary)',
+                            border: `1px solid ${f2fModule === b.key ? colour : 'var(--border)'}`, borderRadius: 'var(--radius)', cursor: 'pointer',
+                          }}>
+                            <span style={{ fontSize: 18 }}>{b.icon}</span>
+                            <span style={{ fontSize: 11, fontWeight: 500 }}>{b.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 8 }}>
+                        {modules2.map(b => (
+                          <button key={b.key} onClick={() => setF2fModule(f2fModule === b.key ? null : b.key)} style={{
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 8px',
+                            background: f2fModule === b.key ? colour + '20' : 'var(--bg-secondary)',
+                            border: `1px solid ${f2fModule === b.key ? colour : 'var(--border)'}`, borderRadius: 'var(--radius)', cursor: 'pointer',
+                          }}>
+                            <span style={{ fontSize: 18 }}>{b.icon}</span>
+                            <span style={{ fontSize: 11, fontWeight: 500 }}>{b.label}</span>
+                          </button>
+                        ))}
+                      </div>
+
+                      {f2fModule && (
+                        <div className="card" style={{ display: 'flex', gap: 16 }}>
+                          <div style={{ flex: 1, textAlign: 'center' }}>
+                            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>Most recent</div>
+                            <div style={{ fontSize: 20, fontWeight: 700 }}>{mostRecent ? `${mostRecent.value}${unit}` : '—'}</div>
+                            {mostRecent && <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{new Date(mostRecent.date).toLocaleDateString('en-GB')}</div>}
+                          </div>
+                          <div style={{ width: 1, background: 'var(--border)' }} />
+                          <div style={{ flex: 1, textAlign: 'center' }}>
+                            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>🏅 Personal best</div>
+                            <div style={{ fontSize: 20, fontWeight: 700, color: colour }}>{pb ? `${pb.value}${unit}` : '—'}</div>
+                            {pb && <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{new Date(pb.date).toLocaleDateString('en-GB')}</div>}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
                   <h3 style={{ fontSize: 14, fontWeight: 600 }}>Fit II Fight Sessions</h3>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
