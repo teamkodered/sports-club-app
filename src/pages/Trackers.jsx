@@ -98,6 +98,11 @@ export default function Trackers() {
     return diff.toFixed(1)
   }
 
+  function valuesOverLastN(history, n) {
+    if (!history || history.length === 0) return []
+    return n === 'all' ? history : history.slice(-n)
+  }
+
   async function openWeightSheet(s) {
     setWeightSheetFor(s)
     const { data } = await supabase.from('fit2fight_sessions')
@@ -607,14 +612,14 @@ export default function Trackers() {
               Weight data from Fit II Fight sessions and Check-in weigh-ins. {sessions.filter(s => s.weight_before).length} entries recorded.
             </p>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Change over last:</span>
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Show weights:</span>
               {[1, 5, 10, 'all'].map(n => (
                 <button key={n} onClick={() => setWeightViewN(n)} style={{
                   padding: '4px 10px', borderRadius: 20, fontSize: 11, cursor: 'pointer',
                   border: `1px solid ${weightViewN === n ? 'var(--text)' : 'var(--border-strong)'}`,
                   background: weightViewN === n ? 'var(--text)' : 'var(--bg)',
                   color: weightViewN === n ? 'var(--bg)' : 'var(--text-secondary)',
-                }}>{n === 'all' ? 'All' : n}</button>
+                }}>{n === 'all' ? 'All' : n === 1 ? 'Last' : `Last ${n}`}</button>
               ))}
             </div>
           </div>
@@ -625,7 +630,8 @@ export default function Trackers() {
                   <th>Student</th>
                   <th>House</th>
                   <th style={{ textAlign: 'center' }}>Trend</th>
-                  <th style={{ textAlign: 'center' }}>Change{weightViewN !== 'all' ? ` (last ${weightViewN})` : ''}</th>
+                  <th style={{ textAlign: 'center' }}>{weightViewN === 'all' ? 'All weights' : weightViewN === 1 ? 'Last weight' : `Last ${weightViewN} weights`}</th>
+                  <th style={{ textAlign: 'center' }}>Change</th>
                   <th style={{ textAlign: 'center' }}>Entries</th>
                 </tr>
               </thead>
@@ -634,6 +640,7 @@ export default function Trackers() {
                   const colour = HOUSE_COLOURS[s.house] || '#888'
                   const change = changeOverLastN(s.weight_history, weightViewN)
                   const wc = parseFloat(change || 0)
+                  const values = valuesOverLastN(s.weight_history, weightViewN)
                   const sessionCount = sessions.filter(f => f.student_id === s.id && f.weight_before).length
                   return (
                     <tr key={s.id}>
@@ -647,6 +654,17 @@ export default function Trackers() {
                       <td style={{ textAlign: 'center' }}>
                         <Sparkline data={s.weight_history} colour={colour} onClick={() => openWeightSheet(s)} />
                       </td>
+                      <td style={{ textAlign: 'center', cursor: 'pointer' }} onClick={() => openWeightSheet(s)}>
+                        <div style={{ display: 'flex', gap: 4, justifyContent: 'center', flexWrap: 'wrap', maxWidth: 220 }}>
+                          {values.map((v, i) => (
+                            <span key={i} title={v.date ? new Date(v.date).toLocaleDateString('en-GB') : ''}
+                              style={{ fontSize: 12, fontWeight: i === values.length - 1 ? 700 : 400, color: i === values.length - 1 ? 'var(--text)' : 'var(--text-secondary)' }}>
+                              {v.value}{i < values.length - 1 ? 'kg →' : 'kg'}
+                            </span>
+                          ))}
+                          {values.length === 0 && <span style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>—</span>}
+                        </div>
+                      </td>
                       <td style={{ textAlign: 'center', fontWeight: 700, fontSize: 14, color: wc < 0 ? '#1d9e75' : wc > 0 ? '#a32d2d' : 'var(--text-secondary)', cursor: 'pointer' }}
                         onClick={() => openWeightSheet(s)}>
                         {change !== null ? `${wc > 0 ? '+' : ''}${change}kg` : '—'}
@@ -656,7 +674,7 @@ export default function Trackers() {
                   )
                 })}
                 {stats.filter(s => s.first_weight).length === 0 && (
-                  <tr><td colSpan={5} style={{ textAlign: 'center', padding: 32, color: 'var(--text-tertiary)' }}>No weight data yet — log sessions in Fit II Fight or Check-in</td></tr>
+                  <tr><td colSpan={6} style={{ textAlign: 'center', padding: 32, color: 'var(--text-tertiary)' }}>No weight data yet — log sessions in Fit II Fight or Check-in</td></tr>
                 )}
               </tbody>
             </table>

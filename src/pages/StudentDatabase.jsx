@@ -44,7 +44,7 @@ function SortTh({ col, label, sortKey, sortDir, onSort, style = {} }) {
 export default function StudentDatabase() {
   const { isAdmin, profile } = useAuth()
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [students, setStudents]       = useState([])
   const [filtered, setFiltered]       = useState([])
   const [loading, setLoading]         = useState(true)
@@ -487,7 +487,11 @@ export default function StudentDatabase() {
       </div>
 
       {selected && (
-        <StudentProfile student={selected} onClose={() => { setSelected(null); load() }} isAdmin={isAdmin} />
+        <StudentProfile student={selected} onClose={() => {
+            setSelected(null)
+            if (searchParams.get('id')) setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('id'); return next })
+            load()
+          }} isAdmin={isAdmin} />
       )}
     </div>
   )

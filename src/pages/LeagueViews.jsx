@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
+import { studentProfileLink } from '../lib/studentLinks.js'
 
 function SortTh({ children, col, sortKey, sortDir, onSort, style = {} }) {
   const active = sortKey === col
