@@ -95,7 +95,7 @@ export default function Trackers() {
 
   async function load() {
     const [{ data: s }, { data: f }, { data: m }, { data: ap }] = await Promise.all([
-      supabase.from('students').select('*, members(first_name, last_name, date_of_birth, status, houses(name))').eq('discipline', 'PKA'),
+      supabase.from('students').select('*, members(first_name, last_name, date_of_birth, status, houses(name))'),
       supabase.from('fit2fight_sessions').select('*').order('session_date', { ascending: false }),
       supabase.from('members').select('id, first_name, last_name, joined_date, status, stopped_at'),
       supabase.from('athlete_profiles').select('student_id, weight_division'),
@@ -211,7 +211,7 @@ export default function Trackers() {
       id: s.id, name, student_ref: s.student_ref,
       house: s.members?.houses?.name || '—',
       age: calcAge(s.members?.date_of_birth),
-      grade: s.pka_belt || '—',
+      grade: s.pka_belt || s.krba_level || '—',
       class_schedule: s.class_schedule || '—',
       class_time: s.class_time || '—',
       total_sessions: studentSessions.length,
