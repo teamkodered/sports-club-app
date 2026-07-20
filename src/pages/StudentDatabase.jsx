@@ -94,6 +94,8 @@ export default function StudentDatabase() {
       const found = students.find(s => s.id === id)
       if (found) setSelected(found)
     }
+    const house = searchParams.get('house')
+    if (house) setHouseFilter(house)
   }, [searchParams, students])
 
   async function load() {

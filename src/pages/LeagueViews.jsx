@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { studentProfileLink } from '../lib/studentLinks.js'
@@ -30,6 +30,7 @@ const TABS = ['House league', 'Individual', 'Student house', 'Score check', 'Poi
 
 export default function LeagueViews() {
   const { isAdmin } = useAuth()
+  const navigate = useNavigate()
   const [tab, setTab] = useState('House league')
   const [showMedals, setShowMedals] = useState(true)
 
@@ -83,14 +84,16 @@ export default function LeagueViews() {
       })
   }, [])
 
-  function updateTopN(n) {
+  async function updateTopN(n) {
     setTopN(n)
-    supabase.from('settings').upsert({ key: 'league_topn_individual', value: n }, { onConflict: 'key' })
+    const { error } = await supabase.from('settings').upsert({ key: 'league_topn_individual', value: n }, { onConflict: 'key' })
+    if (error) alert('Error saving "show top" setting: ' + error.message)
   }
 
-  function updateHouseTopN(n) {
+  async function updateHouseTopN(n) {
     setHouseTopN(n)
-    supabase.from('settings').upsert({ key: 'league_topn_house', value: n }, { onConflict: 'key' })
+    const { error } = await supabase.from('settings').upsert({ key: 'league_topn_house', value: n }, { onConflict: 'key' })
+    if (error) alert('Error saving "show top" setting: ' + error.message)
   }
 
   async function loadAll() {
@@ -414,7 +417,8 @@ export default function LeagueViews() {
               const colour = HOUSE_COLOURS[h.name] || '#888'
               const bg = HOUSE_BG[h.name] || '#f5f5f5'
               return (
-                <div key={h.name} className="card" style={{ borderLeft: `3px solid ${colour}`, borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0', position: 'relative', overflow: 'hidden' }}>
+                <div key={h.name} className="card" style={{ borderLeft: `3px solid ${colour}`, borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0', position: 'relative', overflow: 'hidden', cursor: 'pointer' }}
+                  onClick={() => navigate(`/students?house=${encodeURIComponent(h.name)}`)}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                     <div style={{ fontSize: 15, fontWeight: 600 }}>{h.name}</div>
                     <div style={{ fontSize: 22 }}>{RANK_MEDAL[i] || `${i + 1}th`}</div>
@@ -430,7 +434,7 @@ export default function LeagueViews() {
                     <span>L: {h.losses || 0}</span>
                   </div>
                   {isAdmin && (
-                    <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+                    <div style={{ display: 'flex', gap: 6, marginTop: 10 }} onClick={e => e.stopPropagation()}>
                       <button className="btn btn-sm" style={{ flex: 1, justifyContent: 'center' }}
                         onClick={() => { setHouseLogFilter(h.name); setTab('Points log') }}>
                         Edit points

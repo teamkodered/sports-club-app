@@ -77,7 +77,7 @@ export default function Layout() {
     { section: 'Main' },
     { to: '/dashboard',      icon: '🏠', label: 'Dashboard' },
     { to: '/registers',      icon: '📋', label: 'Registers' },
-    { to: '/league',         icon: '🏆', label: 'League' },
+    { to: '/league',         icon: '🏆', label: 'Houses' },
     { to: '/trackers',       icon: '📈', label: 'Trackers',         roles: ['admin','coach'] },
     { to: '/forms',          icon: '📝', label: 'Forms' },
     { to: '/classes',        icon: '🗓️', label: 'Classes' },

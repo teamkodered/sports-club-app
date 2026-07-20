@@ -772,11 +772,18 @@ export default function AthleteProfiles() {
       recent_results: results.filter(r => r.trim()),
       updated_at: new Date().toISOString(),
     }
+    let error
     if (apData?.id) {
-      await supabase.from('athlete_profiles').update(payload).eq('id', apData.id)
+      ({ error } = await supabase.from('athlete_profiles').update(payload).eq('id', apData.id))
     } else {
-      const { data } = await supabase.from('athlete_profiles').insert(payload).select().single()
-      setApData(data)
+      const res = await supabase.from('athlete_profiles').insert(payload).select().single()
+      error = res.error
+      if (!error) setApData(res.data)
+    }
+    if (error) {
+      alert('Error saving profile: ' + error.message)
+      setSaving(false)
+      return
     }
     setApData(p => ({ ...(p || {}), ...payload }))
     setEditing(false)

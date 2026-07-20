@@ -14,34 +14,51 @@ function SortTh({ children, col, sortKey, sortDir, onSort, style = {} }) {
   )
 }
 
-function Sparkline({ data, colour = '#378ADD', width = 110, height = 32, onClick }) {
+function Sparkline({ data, colour = '#378ADD', width = 110, height = 32, onClick, mode = 'after' }) {
   if (!data || data.length < 2) {
     return <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>—</span>
   }
-  const values = data.map(d => d.value)
-  const min = Math.min(...values)
-  const max = Math.max(...values)
+  const getVal = (d, key) => key === 'before' ? d.before : key === 'after' ? (d.after ?? d.before) : d.value
+  const seriesKeys = mode === 'both' ? ['before', 'after'] : [mode]
+  const seriesColours = { before: '#9CA3AF', after: colour, value: colour }
+
+  const allValues = data.flatMap(d => seriesKeys.map(k => getVal(d, k)).filter(v => v != null))
+  if (allValues.length < 2) {
+    return <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>—</span>
+  }
+  const min = Math.min(...allValues)
+  const max = Math.max(...allValues)
   const range = max - min || 1
   const pad = 3
-  const points = data.map((d, i) => {
-    const x = pad + (i / (data.length - 1)) * (width - pad * 2)
-    const y = height - pad - ((d.value - min) / range) * (height - pad * 2)
-    return `${x},${y}`
-  }).join(' ')
+  const xFor = i => pad + (i / (data.length - 1)) * (width - pad * 2)
+  const yFor = v => height - pad - ((v - min) / range) * (height - pad * 2)
+
   return (
     <svg width={width} height={height} style={{ display: 'block', cursor: onClick ? 'pointer' : 'default' }} onClick={onClick}>
-      <polyline points={points} fill="none" stroke={colour} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+      {seriesKeys.map(key => {
+        const pts = data.map((d, i) => {
+          const v = getVal(d, key)
+          return v != null ? `${xFor(i)},${yFor(v)}` : null
+        }).filter(Boolean).join(' ')
+        return <polyline key={key} points={pts} fill="none" stroke={seriesColours[key]} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+      })}
       {data.map((d, i) => {
-        const x = pad + (i / (data.length - 1)) * (width - pad * 2)
-        const y = height - pad - ((d.value - min) / range) * (height - pad * 2)
         const dateLabel = d.date ? new Date(d.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : ''
         return (
           <g key={i}>
-            {/* Larger invisible circle for an easier, more forgiving hover target */}
-            <circle cx={x} cy={y} r={6} fill="transparent">
-              <title>{dateLabel}: {d.value}kg</title>
-            </circle>
-            <circle cx={x} cy={y} r={i === data.length - 1 ? 2.5 : 1.5} fill={colour} />
+            {seriesKeys.map(key => {
+              const v = getVal(d, key)
+              if (v == null) return null
+              const x = xFor(i), y = yFor(v)
+              return (
+                <g key={key}>
+                  <circle cx={x} cy={y} r={6} fill="transparent">
+                    <title>{dateLabel}{mode === 'both' ? ` (${key})` : ''}: {v}kg</title>
+                  </circle>
+                  <circle cx={x} cy={y} r={i === data.length - 1 ? 2.5 : 1.5} fill={seriesColours[key]} />
+                </g>
+              )
+            })}
           </g>
         )
       })}
@@ -53,13 +70,21 @@ export default function Trackers() {
   const [tab, setTab]               = useState('dashboard')
   const [attendance, setAttendance]   = useState([])
   const [attFilter, setAttFilter]     = useState('all')
+  const [attDateFrom, setAttDateFrom] = useState('')
+  const [attDateTo, setAttDateTo]     = useState('')
+  const [attSortKey, setAttSortKey]   = useState('total')
+  const [attSortDir, setAttSortDir]   = useState('desc')
+  const [calendarFor, setCalendarFor] = useState(null) // student stats object, or null
+  const [calendarMonth, setCalendarMonth] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() } })
   const [students, setStudents]     = useState([])
   const [weightViewN, setWeightViewN] = useState(5)
+  const [weightMode, setWeightMode] = useState('after')
   const [weightSheetFor, setWeightSheetFor] = useState(null) // student stats object, or null
   const [sheetEntries, setSheetEntries] = useState([])
   const [savingEntry, setSavingEntry] = useState(null)
   const [sessions, setSessions]     = useState([])
   const [allMembers, setAllMembers] = useState([]) // for join/stop duration tracking
+  const [weightDivisions, setWeightDivisions] = useState({}) // student_id -> weight_division (comp weight)
   const [loading, setLoading]       = useState(true)
   const [search, setSearch]         = useState('')
   const [houseFilter, setHouseFilter] = useState('')
@@ -69,14 +94,16 @@ export default function Trackers() {
   useEffect(() => { load() }, [])
 
   async function load() {
-    const [{ data: s }, { data: f }, { data: m }] = await Promise.all([
+    const [{ data: s }, { data: f }, { data: m }, { data: ap }] = await Promise.all([
       supabase.from('students').select('*, members(first_name, last_name, date_of_birth, status, houses(name))').eq('discipline', 'PKA'),
       supabase.from('fit2fight_sessions').select('*').order('session_date', { ascending: false }),
       supabase.from('members').select('id, first_name, last_name, joined_date, status, stopped_at'),
+      supabase.from('athlete_profiles').select('student_id, weight_division'),
     ])
     setStudents(s || [])
     setSessions(f || [])
     setAllMembers(m || [])
+    setWeightDivisions(Object.fromEntries((ap || []).map(r => [r.student_id, r.weight_division])))
     const { data: att } = await supabase
       .from('attendance')
       .select('student_id, attended_at, attendance_type')
@@ -90,17 +117,25 @@ export default function Trackers() {
     else { setSortKey(key); setSortDir('asc') }
   }
 
-  function changeOverLastN(history, n) {
+  function getModeValue(d, mode) {
+    if (mode === 'before') return d.before
+    if (mode === 'after') return d.after ?? d.before
+    return d.value // 'both' falls back to the standard value for single-number contexts
+  }
+
+  function changeOverLastN(history, n, mode = 'after') {
     if (!history || history.length < 2) return null
     const slice = n === 'all' ? history : history.slice(-n)
-    if (slice.length < 2) return null
-    const diff = slice[slice.length - 1].value - slice[0].value
+    const valid = slice.filter(d => getModeValue(d, mode) != null)
+    if (valid.length < 2) return null
+    const diff = getModeValue(valid[valid.length - 1], mode) - getModeValue(valid[0], mode)
     return diff.toFixed(1)
   }
 
-  function valuesOverLastN(history, n) {
+  function valuesOverLastN(history, n, mode = 'after') {
     if (!history || history.length === 0) return []
-    return n === 'all' ? history : history.slice(-n)
+    const slice = n === 'all' ? history : history.slice(-n)
+    return slice.map(d => ({ date: d.date, value: getModeValue(d, mode) })).filter(d => d.value != null)
   }
 
   function parseCompWeight(text) {
@@ -122,7 +157,9 @@ export default function Trackers() {
     setSavingEntry(entry.id)
     const payload = { weight_before: entry.weight_before === '' ? null : entry.weight_before, weight_after: entry.weight_after === '' ? null : entry.weight_after }
     const { error } = await supabase.from('fit2fight_sessions').update(payload).eq('id', entry.id)
-    if (error) alert('Error saving: ' + error.message)
+    if (error) { alert('Error saving: ' + error.message); setSavingEntry(null); return }
+    setSheetEntries(prev => prev.map(e => e.id === entry.id ? { ...e, ...payload } : e))
+    setSessions(prev => prev.map(f => f.id === entry.id ? { ...f, ...payload } : f))
     setSavingEntry(null)
   }
 
@@ -134,6 +171,7 @@ export default function Trackers() {
       .select().single()
     if (error) { alert('Error adding entry: ' + error.message); return }
     setSheetEntries(prev => [data, ...prev])
+    setSessions(prev => [data, ...prev])
   }
 
   async function deleteSheetEntry(entry) {
@@ -141,6 +179,13 @@ export default function Trackers() {
     const { error } = await supabase.from('fit2fight_sessions').delete().eq('id', entry.id)
     if (error) { alert('Error deleting: ' + error.message); return }
     setSheetEntries(prev => prev.filter(e => e.id !== entry.id))
+    setSessions(prev => prev.filter(f => f.id !== entry.id))
+  }
+
+  async function saveCompWeight(studentId, value) {
+    const { error } = await supabase.from('athlete_profiles').upsert({ student_id: studentId, weight_division: value }, { onConflict: 'student_id' })
+    if (error) { alert('Error saving comp weight: ' + error.message); return }
+    setWeightDivisions(prev => ({ ...prev, [studentId]: value }))
   }
 
   function calcAge(dob) {
@@ -175,8 +220,13 @@ export default function Trackers() {
       class_champ: s.class_champion_count || 0,
       first_weight: firstWeight, last_weight: lastWeight, weight_change: weightChange,
       first_weight_date: firstWeightDate, last_weight_date: lastWeightDate,
-      weight_history: weights.map(w => ({ date: w.date, value: parseFloat(w.after ?? w.before) })),
-      comp_weight: s.weight_category || null,
+      weight_history: weights.map(w => ({
+        date: w.date,
+        before: w.before != null ? parseFloat(w.before) : null,
+        after: w.after != null ? parseFloat(w.after) : null,
+        value: parseFloat(w.after ?? w.before), // kept for back-compat where a single value is needed
+      })),
+      comp_weight: weightDivisions[s.id] || null,
       is_kr: s.is_kr, is_pts: s.is_pts, is_leader: s.is_leader,
       trained_for_months: trainedFor,
       media: s.media_restriction,
@@ -528,6 +578,16 @@ export default function Trackers() {
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
               {attendance.length} total records
             </p>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <input type="date" value={attDateFrom} onChange={e => setAttDateFrom(e.target.value)}
+                style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+              <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>to</span>
+              <input type="date" value={attDateTo} onChange={e => setAttDateTo(e.target.value)}
+                style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+              {(attDateFrom || attDateTo) && (
+                <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => { setAttDateFrom(''); setAttDateTo('') }}>Clear</button>
+              )}
+            </div>
             <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
               {['all','attended','full_kit'].map(f => (
                 <button key={f} onClick={() => setAttFilter(f)} style={{
@@ -543,20 +603,22 @@ export default function Trackers() {
             <table>
               <thead>
                 <tr>
-                  <th>Student</th>
-                  <th>House</th>
-                  <th style={{ textAlign: 'center' }}>Total sessions</th>
-                  <th style={{ textAlign: 'center' }}>Full kit</th>
-                  <th style={{ textAlign: 'center' }}>Last attended</th>
-                  <th style={{ textAlign: 'center' }}>Attendance %</th>
+                  <SortTh col="name" sortKey={attSortKey} sortDir={attSortDir} onSort={k => { if (attSortKey===k) setAttSortDir(d=>d==='asc'?'desc':'asc'); else { setAttSortKey(k); setAttSortDir('asc') } }}>Student</SortTh>
+                  <SortTh col="house" sortKey={attSortKey} sortDir={attSortDir} onSort={k => { if (attSortKey===k) setAttSortDir(d=>d==='asc'?'desc':'asc'); else { setAttSortKey(k); setAttSortDir('asc') } }}>House</SortTh>
+                  <SortTh col="total" sortKey={attSortKey} sortDir={attSortDir} onSort={k => { if (attSortKey===k) setAttSortDir(d=>d==='asc'?'desc':'asc'); else { setAttSortKey(k); setAttSortDir('asc') } }} style={{ textAlign: 'center' }}>Total sessions</SortTh>
+                  <SortTh col="fullKit" sortKey={attSortKey} sortDir={attSortDir} onSort={k => { if (attSortKey===k) setAttSortDir(d=>d==='asc'?'desc':'asc'); else { setAttSortKey(k); setAttSortDir('asc') } }} style={{ textAlign: 'center' }}>Full kit</SortTh>
+                  <SortTh col="last" sortKey={attSortKey} sortDir={attSortDir} onSort={k => { if (attSortKey===k) setAttSortDir(d=>d==='asc'?'desc':'asc'); else { setAttSortKey(k); setAttSortDir('asc') } }} style={{ textAlign: 'center' }}>Last attended</SortTh>
+                  <SortTh col="pct" sortKey={attSortKey} sortDir={attSortDir} onSort={k => { if (attSortKey===k) setAttSortDir(d=>d==='asc'?'desc':'asc'); else { setAttSortKey(k); setAttSortDir('asc') } }} style={{ textAlign: 'center' }}>Attendance %</SortTh>
                 </tr>
               </thead>
               <tbody>
                 {(() => {
-                  // Apply filter before grouping
-                  const filteredAttendance = attFilter === 'all' 
+                  // Apply type + date filters before grouping
+                  let filteredAttendance = attFilter === 'all' 
                     ? attendance 
                     : attendance.filter(a => a.attendance_type === attFilter)
+                  if (attDateFrom) filteredAttendance = filteredAttendance.filter(a => (a.session_date || a.attended_at?.split('T')[0]) >= attDateFrom)
+                  if (attDateTo) filteredAttendance = filteredAttendance.filter(a => (a.session_date || a.attended_at?.split('T')[0]) <= attDateTo)
 
                   // Group by student
                   const byStudent = {}
@@ -570,12 +632,22 @@ export default function Trackers() {
                   // Total unique session dates = total possible sessions
                   const uniqueDates = new Set(filteredAttendance.map(a => a.session_date || a.attended_at?.split('T')[0])).size
                   const maxSessions = uniqueDates || Math.max(...Object.values(byStudent).map(x => x.total), 1)
-                  return stats
+                  const rows = stats
                     .filter(s => byStudent[s.id])
-                    .sort((a, b) => (byStudent[b.id]?.total || 0) - (byStudent[a.id]?.total || 0))
-                    .map(s => {
-                      const att = byStudent[s.id] || { total: 0, fullKit: 0, last: null }
-                      const pct = Math.round((att.total / maxSessions) * 100)
+                    .map(s => ({ s, att: byStudent[s.id] || { total: 0, fullKit: 0, last: null }, pct: Math.round(((byStudent[s.id]?.total || 0) / maxSessions) * 100) }))
+                  rows.sort((a, b) => {
+                    let av, bv
+                    if (attSortKey === 'name') { av = a.s.name; bv = b.s.name }
+                    else if (attSortKey === 'house') { av = a.s.house; bv = b.s.house }
+                    else if (attSortKey === 'total') { av = a.att.total; bv = b.att.total }
+                    else if (attSortKey === 'fullKit') { av = a.att.fullKit; bv = b.att.fullKit }
+                    else if (attSortKey === 'last') { av = a.att.last || ''; bv = b.att.last || '' }
+                    else { av = a.pct; bv = b.pct }
+                    if (av < bv) return attSortDir === 'asc' ? -1 : 1
+                    if (av > bv) return attSortDir === 'asc' ? 1 : -1
+                    return 0
+                  })
+                  return rows.map(({ s, att, pct }) => {
                       const colour = HOUSE_COLOURS[s.house] || '#888'
                       return (
                         <tr key={s.id}>
@@ -586,7 +658,8 @@ export default function Trackers() {
                               {s.house}
                             </span>
                           </td>
-                          <td style={{ textAlign: 'center', fontWeight: 700, fontSize: 15, color: '#1d9e75' }}>
+                          <td style={{ textAlign: 'center', fontWeight: 700, fontSize: 15, color: '#1d9e75', cursor: 'pointer' }}
+                            onClick={() => setCalendarFor(s)} title="Click to view calendar">
                             {att.total}/{maxSessions}
                           </td>
                           <td style={{ textAlign: 'center', fontSize: 13 }}>{att.fullKit > 0 ? `✓ ${att.fullKit}` : '—'}</td>
@@ -608,6 +681,78 @@ export default function Trackers() {
               </tbody>
             </table>
           </div>
+
+          {/* Attendance calendar modal */}
+          {calendarFor && (() => {
+            const { year, month } = calendarMonth
+            const firstDay = new Date(year, month, 1)
+            const startWeekday = (firstDay.getDay() + 6) % 7 // Monday-first
+            const daysInMonth = new Date(year, month + 1, 0).getDate()
+
+            // All club training days this month (any student's attendance)
+            const allTrainingDays = new Set(
+              attendance
+                .map(a => a.session_date || a.attended_at?.split('T')[0])
+                .filter(d => d && new Date(d).getFullYear() === year && new Date(d).getMonth() === month)
+            )
+            // This student's attended days this month
+            const attendedDays = new Set(
+              attendance
+                .filter(a => a.student_id === calendarFor.id)
+                .map(a => a.session_date || a.attended_at?.split('T')[0])
+                .filter(d => d && new Date(d).getFullYear() === year && new Date(d).getMonth() === month)
+            )
+
+            const cells = []
+            for (let i = 0; i < startWeekday; i++) cells.push(null)
+            for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+
+            return (
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}
+                onClick={() => setCalendarFor(null)}>
+                <div className="card" style={{ width: '100%', maxWidth: 420 }} onClick={e => e.stopPropagation()}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <h2 style={{ fontSize: 15, fontWeight: 600 }}>{calendarFor.name}</h2>
+                    <button onClick={() => setCalendarFor(null)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <button className="btn btn-sm" onClick={() => setCalendarMonth(m => m.month === 0 ? { year: m.year - 1, month: 11 } : { year: m.year, month: m.month - 1 })}>←</button>
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>{new Date(year, month, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</span>
+                    <button className="btn btn-sm" onClick={() => setCalendarMonth(m => m.month === 11 ? { year: m.year + 1, month: 0 } : { year: m.year, month: m.month + 1 })}>→</button>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4, marginBottom: 8 }}>
+                    {['Mo','Tu','We','Th','Fr','Sa','Su'].map(d => (
+                      <div key={d} style={{ textAlign: 'center', fontSize: 10, color: 'var(--text-tertiary)' }}>{d}</div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4 }}>
+                    {cells.map((d, i) => {
+                      if (d === null) return <div key={i} />
+                      const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`
+                      const attended = attendedDays.has(dateStr)
+                      const wasTrainingDay = allTrainingDays.has(dateStr)
+                      const bg = attended ? '#1D9E75' : wasTrainingDay ? '#E24B4A' : 'transparent'
+                      const fg = attended || wasTrainingDay ? '#fff' : 'var(--text-secondary)'
+                      return (
+                        <div key={i} title={attended ? 'Attended' : wasTrainingDay ? 'Missed' : ''} style={{
+                          aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          borderRadius: 6, fontSize: 12, background: bg, color: fg,
+                          border: !attended && !wasTrainingDay ? '1px solid var(--border)' : 'none',
+                        }}>{d}</div>
+                      )
+                    })}
+                  </div>
+                  <div style={{ display: 'flex', gap: 14, marginTop: 14, fontSize: 11, color: 'var(--text-secondary)' }}>
+                    <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#1D9E75', borderRadius: 2, marginRight: 4 }} />Attended</span>
+                    <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#E24B4A', borderRadius: 2, marginRight: 4 }} />Missed</span>
+                  </div>
+                  <p style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 10 }}>
+                    "Missed" means the club had a session that day and this student didn't attend — it doesn't check whether that specific class was actually on their schedule.
+                  </p>
+                </div>
+              </div>
+            )
+          })()}
         </div>
       )}
 
@@ -630,6 +775,17 @@ export default function Trackers() {
               ))}
             </div>
           </div>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 12 }}>
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Graph & values show:</span>
+            {[['before', 'Before'], ['after', 'After'], ['both', 'Both']].map(([key, label]) => (
+              <button key={key} onClick={() => setWeightMode(key)} style={{
+                padding: '4px 10px', borderRadius: 20, fontSize: 11, cursor: 'pointer',
+                border: `1px solid ${weightMode === key ? 'var(--text)' : 'var(--border-strong)'}`,
+                background: weightMode === key ? 'var(--text)' : 'var(--bg)',
+                color: weightMode === key ? 'var(--bg)' : 'var(--text-secondary)',
+              }}>{label}</button>
+            ))}
+          </div>
           <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
             <table>
               <thead>
@@ -647,10 +803,11 @@ export default function Trackers() {
               <tbody>
                 {stats.filter(s => s.first_weight).sort((a,b) => Math.abs(parseFloat(b.weight_change||0)) - Math.abs(parseFloat(a.weight_change||0))).map(s => {
                   const colour = HOUSE_COLOURS[s.house] || '#888'
-                  const change = changeOverLastN(s.weight_history, weightViewN)
-                  const values = valuesOverLastN(s.weight_history, weightViewN)
+                  const change = changeOverLastN(s.weight_history, weightViewN, weightMode)
+                  const values = valuesOverLastN(s.weight_history, weightViewN, weightMode)
                   const compNum = parseCompWeight(s.comp_weight)
-                  const currentNum = s.last_weight ? parseFloat(s.last_weight) : null
+                  const modeValues = s.weight_history?.map(d => getModeValue(d, weightMode)).filter(v => v != null) || []
+                  const currentNum = modeValues.length ? modeValues[modeValues.length - 1] : null
                   const pctDiff = (compNum && currentNum) ? (((currentNum - compNum) / compNum) * 100).toFixed(1) : null
                   const sessionCount = sessions.filter(f => f.student_id === s.id && f.weight_before).length
                   return (
@@ -663,7 +820,7 @@ export default function Trackers() {
                         </span>
                       </td>
                       <td style={{ textAlign: 'center' }}>
-                        <Sparkline data={s.weight_history} colour={colour} onClick={() => openWeightSheet(s)} />
+                        <Sparkline data={s.weight_history} colour={colour} onClick={() => openWeightSheet(s)} mode={weightMode} />
                       </td>
                       <td style={{ textAlign: 'center', cursor: 'pointer' }} onClick={() => openWeightSheet(s)}>
                         <div style={{ display: 'flex', gap: 4, justifyContent: 'center', flexWrap: 'wrap', maxWidth: 220 }}>
@@ -679,8 +836,10 @@ export default function Trackers() {
                       <td style={{ textAlign: 'center', fontWeight: 700, fontSize: 14, cursor: 'pointer' }} onClick={() => openWeightSheet(s)}>
                         {currentNum ? `${currentNum}kg` : '—'}
                       </td>
-                      <td style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-secondary)' }}>
-                        {s.comp_weight || '—'}
+                      <td style={{ textAlign: 'center', fontSize: 13 }} onClick={e => e.stopPropagation()}>
+                        <input defaultValue={s.comp_weight || ''} placeholder="e.g. -60kg"
+                          onBlur={e => { if (e.target.value !== (s.comp_weight || '')) saveCompWeight(s.id, e.target.value || null) }}
+                          style={{ width: 90, padding: '4px 6px', fontSize: 12, textAlign: 'center', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
                       </td>
                       <td style={{ textAlign: 'center', fontWeight: 600, fontSize: 13, color: pctDiff === null ? 'var(--text-tertiary)' : parseFloat(pctDiff) > 0 ? '#a32d2d' : parseFloat(pctDiff) < 0 ? '#1d9e75' : 'var(--text-secondary)' }}>
                         {pctDiff !== null ? `${pctDiff > 0 ? '+' : ''}${pctDiff}%` : '—'}
