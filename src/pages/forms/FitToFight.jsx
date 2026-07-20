@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase.js'
 import { useAuth } from '../../hooks/useAuth.jsx'
 import FormLogo from '../../components/shared/FormLogo.jsx'
@@ -190,6 +191,7 @@ function BpmRow({ label, value, onChange }) {
 
 export default function FitToFight() {
   const { profile, isAdmin } = useAuth()
+  const navigate = useNavigate()
   const [view, setView] = useState('log') // 'log' | 'history'
   const [students, setStudents] = useState([])
   const [runCategories, setRunCategories]     = useState(DEFAULT_RUN_CATEGORIES)
@@ -364,6 +366,8 @@ export default function FitToFight() {
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-tertiary)', padding: '24px 16px' }}>
       <div style={{ maxWidth: 620, margin: '0 auto' }}>
+
+        <button onClick={() => navigate(-1)} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>

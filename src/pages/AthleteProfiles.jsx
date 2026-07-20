@@ -1151,18 +1151,18 @@ export default function AthleteProfiles() {
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 8 }}>
                     <div className="card" style={{ textAlign: 'center', padding: '10px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
                       <button onClick={() => setF2fStatsScope(v => v - 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4 }}>◀</button>
-                      <div style={{ flex: 1 }}>
+                      <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => setTab('sessions')} title="View sessions">
                         <div style={{ fontSize: 20, marginBottom: 2 }}>✅</div>
                         <div style={{ fontSize: 19, fontWeight: 700, color: colour }}>{attendanceData.length}/{possibleSessions || attendanceData.length}</div>
                         <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>{scopeLabel}</div>
                       </div>
                       <button onClick={() => setF2fStatsScope(v => v + 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4 }}>▶</button>
                     </div>
-                    <div className="card" style={{ textAlign: 'center', padding: '12px 8px' }}>
+                    <a href={`/fit2fight?student_id=${selected?.id}`} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', textDecoration: 'none', color: 'inherit', display: 'block' }} title="Log a Fit II Fight session">
                       <div style={{ fontSize: 22, marginBottom: 4 }}>💪</div>
                       <div style={{ fontSize: 22, fontWeight: 700, color: '#378ADD' }}>{f2fData.length}</div>
                       <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>F2F sessions</div>
-                    </div>
+                    </a>
                     <div className="card" style={{ textAlign: 'center', padding: '12px 8px' }}>
                       <div style={{ fontSize: 22, marginBottom: 4 }}>🏆</div>
                       <div style={{ fontSize: 22, fontWeight: 700, color: '#EF9F27' }}>{selected.class_champion_count || 0}</div>
@@ -1185,47 +1185,47 @@ export default function AthleteProfiles() {
                       {isAdmin && <span style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 400 }}>Tap a field to edit</span>}
                     </div>
                     {[
-                      { label: 'House', editable: true, render: () => isAdmin ? (
-                        <select value={selected.house_name || ''} onChange={e => updateSelectedField('house_name', e.target.value || null)}
-                          style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
-                          <option value="">— No house —</option>
-                          {Object.keys(HOUSE_COLOURS).map(h => <option key={h} value={h}>{h}</option>)}
-                        </select>
-                      ) : (houseName || '—') },
-                      { label: 'Discipline', editable: true, render: () => isAdmin ? (
-                        <select value={selected.discipline || ''} onChange={e => updateSelectedField('discipline', e.target.value)}
-                          style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
-                          <option value="PKA">PKA</option>
-                          <option value="KRBA">KRBA</option>
-                        </select>
-                      ) : (selected.discipline || '—') },
-                      { label: 'Grade', editable: true, render: () => {
-                        const opts = selected.discipline === 'KRBA' ? belts.krba : (age < 16 ? belts.junior : belts.senior)
-                        const field = selected.discipline === 'KRBA' ? 'krba_level' : 'pka_belt'
+                      { label: 'Discipline', editable: true, render: () => {
+                        const codeDisplay = selected.discipline_codes || selected.discipline || '—'
                         return isAdmin ? (
-                          <select value={selected[field] || ''} onChange={e => updateSelectedField(field, e.target.value || null)}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+                            {selected.discipline_codes && <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{selected.discipline_codes}</span>}
+                            <select value={selected.discipline || ''} onChange={e => updateSelectedField('discipline', e.target.value)}
+                              style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
+                              <option value="PKA">PKA</option>
+                              <option value="KRBA">KRBA</option>
+                            </select>
+                          </div>
+                        ) : codeDisplay
+                      } },
+                      { label: selected.discipline === 'KRBA' ? 'Level' : selected.is_kr ? 'Experience' : 'Grade', editable: true, render: () => {
+                        if (selected.discipline === 'KRBA') {
+                          return isAdmin ? (
+                            <select value={selected.krba_level || ''} onChange={e => updateSelectedField('krba_level', e.target.value || null)}
+                              style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
+                              <option value="">— Select —</option>
+                              {belts.krba.map(b => <option key={b}>{b}</option>)}
+                            </select>
+                          ) : (selected.krba_level || '—')
+                        }
+                        if (selected.is_kr) {
+                          return isAdmin ? (
+                            <select value={selected.competition_team || ''} onChange={e => updateSelectedField('competition_team', e.target.value || null)}
+                              style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
+                              <option value="">— Select —</option>
+                              <option>Beginner</option><option>Intermediate</option><option>Advanced</option>
+                            </select>
+                          ) : (selected.competition_team || '—')
+                        }
+                        const opts = age < 16 ? belts.junior : belts.senior
+                        return isAdmin ? (
+                          <select value={selected.pka_belt || ''} onChange={e => updateSelectedField('pka_belt', e.target.value || null)}
                             style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
                             <option value="">— Select —</option>
                             {opts.map(b => <option key={b}>{b}</option>)}
                           </select>
-                        ) : (selected.pka_belt || selected.krba_level || '—')
+                        ) : (selected.pka_belt || '—')
                       } },
-                      { label: 'Class', editable: true, render: () => isAdmin ? (
-                        <div style={{ display: 'flex', gap: 4 }}>
-                          <select value={selected.class_schedule || ''} onChange={e => updateSelectedField('class_schedule', e.target.value || null)}
-                            style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
-                            <option value="">— Day —</option>
-                            <option>Mon/Fri</option><option>Tue/Thu</option><option>Wed/Sun</option>
-                            <option>Wednesday</option><option>Saturday</option><option>Sunday</option>
-                            <option>Derby Moore</option><option>Moorways</option>
-                          </select>
-                          <select value={selected.class_time || ''} onChange={e => updateSelectedField('class_time', e.target.value || null)}
-                            style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
-                            <option value="">— Time —</option>
-                            <option>17:00</option><option>18:00</option><option>19:00</option><option>20:00</option>
-                          </select>
-                        </div>
-                      ) : ([selected.class_schedule, selected.class_time].filter(Boolean).join(' · ') || '—') },
                       { label: 'Weight', editable: true, render: () => isAdmin ? (
                         <input type="number" step="0.1" defaultValue={selected.weight_kg || ''} placeholder="kg"
                           onBlur={e => { const v = e.target.value ? parseFloat(e.target.value) : null; if (v !== selected.weight_kg) updateSelectedField('weight_kg', v) }}
@@ -1252,7 +1252,6 @@ export default function AthleteProfiles() {
                           ))}
                         </div>
                       ) : ([selected.is_kr && 'KR', selected.is_pts && 'PTs', selected.is_leader && 'Leader', selected.is_coach && 'Coach'].filter(Boolean).join(', ') || 'None') },
-                      { label: 'Media permission', editable: false, render: () => selected.media_restriction || '—' },
                     ].map(({ label, render }, i, arr) => (
                       <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 14px', borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13 }}>
                         <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
@@ -1260,6 +1259,59 @@ export default function AthleteProfiles() {
                       </div>
                     ))}
                   </div>
+
+                  {apData && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                      {(apData.age_division_kickboxing || apData.age_division_boxing || apData.weight_division || apData.kode_red_debut) && (
+                        <div className="card">
+                          <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: colour }}>Competition divisions</h3>
+                          {[
+                            ['Kickboxing', apData.age_division_kickboxing],
+                            ['Boxing', apData.age_division_boxing],
+                            ['Weight division', apData.weight_division],
+                            ['Kode Red debut', apData.kode_red_debut],
+                          ].map(([l, v]) => v && (
+                            <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                              <span style={{ color: 'var(--text-secondary)' }}>{l}</span>
+                              <span style={{ fontWeight: 500 }}>{v}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {(apData.favourite_technique || apData.training_music || apData.social_media || apData.sponsor_links) && (
+                        <div className="card">
+                          <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: colour }}>Athlete info</h3>
+                          {[
+                            ['Favourite technique', apData.favourite_technique],
+                            ['Training music', apData.training_music],
+                            ['Social media', apData.social_media],
+                            ['Sponsors', apData.sponsor_links],
+                          ].map(([l, v]) => v && (
+                            <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                              <span style={{ color: 'var(--text-secondary)' }}>{l}</span>
+                              <span style={{ fontWeight: 500, maxWidth: '55%', textAlign: 'right' }}>{v}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {apData.top_achievements && (
+                        <div className="card" style={{ gridColumn: '1/-1' }}>
+                          <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: colour }}>🏆 Top achievements</h3>
+                          <p style={{ fontSize: 13, lineHeight: 1.6 }}>{apData.top_achievements}</p>
+                        </div>
+                      )}
+                      {apData.recent_results?.length > 0 && (
+                        <div className="card" style={{ gridColumn: '1/-1' }}>
+                          <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Recent results</h3>
+                          {apData.recent_results.map((r, i) => (
+                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                              <span style={{ fontSize: 16 }}>🎖</span>{r}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 14 }}>
                     {[
@@ -1598,8 +1650,8 @@ export default function AthleteProfiles() {
               // Build chart data from sessions
               const sorted = [...filtered].sort((a,b) => new Date(a.session_date) - new Date(b.session_date))
               const weightData = sorted.filter(s => s.weight_before || s.weight_after)
-              const wattData = sorted.filter(s => s.watt_bike?.sets?.length > 0)
-              const runData = sorted.filter(s => s.running?.sets?.length > 0)
+              const wattData = sorted.filter(s => Array.isArray(s.watt_bike?.sets) && s.watt_bike.sets.length > 0)
+              const runData = sorted.filter(s => Array.isArray(s.running?.sets) && s.running.sets.length > 0)
 
               // SVG line chart helper
               function LineChart({ data, lines, height=160, title, unit='' }) {
@@ -1920,11 +1972,13 @@ export default function AthleteProfiles() {
                                 {s.watt_bike.avg_wattage ? ` · Avg: ${s.watt_bike.avg_wattage}W` : ''}
                                 {s.watt_bike.total_distance ? ` · ${s.watt_bike.total_distance}km` : ''}
                               </div>
-                              {s.watt_bike.sets?.length > 0 && (
+                              {Array.isArray(s.watt_bike.sets) && s.watt_bike.sets.length > 0 && (
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                                   {s.watt_bike.sets.map((v, i) => (
                                     <span key={i} style={{ background: '#378ADD20', color: '#378ADD', borderRadius: 12, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>
-                                      {i+1}: {v}{typeof v === 'number' && v > 10 ? 'W' : ''}
+                                      {i+1}: {v && typeof v === 'object'
+                                        ? `${v.wattage ?? '—'}W${v.distance ? ` · ${v.distance}km` : ''}`
+                                        : `${v}${typeof v === 'number' && v > 10 ? 'W' : ''}`}
                                     </span>
                                   ))}
                                 </div>
