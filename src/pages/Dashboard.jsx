@@ -17,6 +17,13 @@ export default function Dashboard() {
   const [topStudents, setTopStudents] = useState([])
   const [recentPts, setRecentPts] = useState([])
   const [loading, setLoading]     = useState(true)
+  const [showAddPoints, setShowAddPoints] = useState(false)
+  const [pointTypes, setPointTypes] = useState([])
+  const [apSearch, setApSearch] = useState('')
+  const [apResults, setApResults] = useState([])
+  const [apSelected, setApSelected] = useState([]) // array of student objects
+  const [apSaving, setApSaving] = useState(false)
+  const [apLastAwarded, setApLastAwarded] = useState(null)
 
   useEffect(() => {
     async function load() {
@@ -51,6 +58,86 @@ export default function Dashboard() {
     }
     load()
   }, [])
+
+  useEffect(() => {
+    if (showAddPoints) {
+      supabase.from('settings').select('value').eq('key', 'point_types').single()
+        .then(({ data }) => setPointTypes(data?.value || []))
+    }
+  }, [showAddPoints])
+
+  useEffect(() => {
+    if (apSearch.length < 3) { setApResults([]); return }
+    const t = setTimeout(async () => {
+      const { data: memberData } = await supabase
+        .from('members').select('id, first_name, last_name, status')
+        .or(`first_name.ilike.%${apSearch}%,last_name.ilike.%${apSearch}%`).limit(10)
+      const eligible = (memberData || []).filter(m => m.status !== 'stopped' && m.status !== 'not_started')
+      if (!eligible.length) { setApResults([]); return }
+      const { data: stuData } = await supabase
+        .from('students').select('id, student_ref, house_name, member_id, members(first_name, last_name, houses(name))')
+        .in('member_id', eligible.map(m => m.id))
+      setApResults((stuData || []).filter(s => !apSelected.find(sel => sel.id === s.id)))
+    }, 250)
+    return () => clearTimeout(t)
+  }, [apSearch])
+
+  function toggleApSelect(s) {
+    setApSelected(prev => prev.find(x => x.id === s.id) ? prev.filter(x => x.id !== s.id) : [...prev, s])
+    setApResults(prev => prev.filter(x => x.id !== s.id))
+    setApSearch('')
+  }
+
+  async function awardQuickPoints(pt) {
+    if (apSelected.length === 0) return
+    setApSaving(true)
+    for (const s of apSelected) {
+      const { error } = await supabase.from('points_log').insert({
+        student_id: s.id, point_type: pt.label, points_awarded: pt.points,
+        point_scope: 'both', awarded_at: new Date().toISOString(),
+      })
+      if (error) { alert(`Error awarding to ${s.members?.first_name}: ${error.message}`); continue }
+      const { data: current } = await supabase.from('students').select('house_points, individual_points').eq('id', s.id).single()
+      await supabase.from('students').update({
+        house_points: (current?.house_points || 0) + pt.points,
+        individual_points: (current?.individual_points || 0) + pt.points,
+      }).eq('id', s.id)
+      const houseName = s.members?.houses?.name || s.house_name
+      if (houseName) {
+        const { data: house } = await supabase.from('houses').select('points').eq('name', houseName).single()
+        if (house) await supabase.from('houses').update({ points: (house.points || 0) + pt.points }).eq('name', houseName)
+      }
+    }
+    setApLastAwarded({ label: pt.label, points: pt.points, count: apSelected.length, names: apSelected.map(s => s.members?.first_name).join(', ') })
+    setTimeout(() => setApLastAwarded(null), 4000)
+    setApSaving(false)
+    // Keep the modal open and selection intact -- lets you stack another
+    // point type onto the same group right away for speed
+  }
+
+  function closeAddPoints() {
+    setShowAddPoints(false)
+    setApSearch(''); setApResults([]); setApSelected([]); setApLastAwarded(null)
+  }
+
+  async function editRecentPoint(p, field, value) {
+    const oldValue = p[field]
+    if (value === oldValue) return
+    const payload = { [field]: value }
+    const { error } = await supabase.from('points_log').update(payload).eq('id', p.id)
+    if (error) { alert('Error saving: ' + error.message); return }
+    if (field === 'points_awarded') {
+      const diff = parseFloat(value) - parseFloat(oldValue || 0)
+      if (diff !== 0 && p.student_id) {
+        const { data: current } = await supabase.from('students').select('house_points, individual_points').eq('id', p.student_id).single()
+        await supabase.from('students').update({
+          house_points: (current?.house_points || 0) + diff,
+          individual_points: (current?.individual_points || 0) + diff,
+        }).eq('id', p.student_id)
+      }
+    }
+    setRecentPts(prev => prev.map(x => x.id === p.id ? { ...x, ...payload } : x))
+  }
 
   if (loading) return <div className="loading">Loading dashboard…</div>
 
@@ -144,11 +231,24 @@ export default function Dashboard() {
       {/* Quick links */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginBottom: 14 }}>
         {[
-          { label: 'Registers',  icon: '📋', to: '/registers',  colour: '#378ADD' },
+          { label: 'Classes',    icon: '🗓️', to: '/classes',    colour: '#378ADD' },
           { label: 'Check in',   icon: '✅', to: '/checkin',    colour: '#1D9E75' },
-          { label: 'Students',   icon: '🎽', to: '/students',   colour: '#EF9F27' },
+          { label: 'Forms',      icon: '📝', to: '/forms',      colour: '#EF9F27' },
           { label: 'Trackers',   icon: '📈', to: '/trackers',   colour: '#E24B4A' },
-        ].map(l => (
+          { label: 'My App',     icon: '🎽', to: '/athlete-app', colour: '#8B5CF6' },
+          { label: 'Add Points', icon: '⭐', to: null, action: 'addPoints', colour: '#EC4899' },
+          { label: 'Fixtures',   icon: '📅', to: '/fixtures',   colour: '#06B6D4' },
+        ].map(l => l.action ? (
+          <button key={l.label} onClick={() => setShowAddPoints(true)} style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+            padding: '14px 8px', background: l.colour + '12',
+            border: `1px solid ${l.colour}30`, borderRadius: 'var(--border-radius-lg)',
+            cursor: 'pointer', fontFamily: 'var(--font-sans)',
+          }}>
+            <span style={{ fontSize: 24 }}>{l.icon}</span>
+            <span style={{ fontSize: 12, fontWeight: 500, color: l.colour }}>{l.label}</span>
+          </button>
+        ) : (
           <Link key={l.label} to={l.to} style={{
             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
             padding: '14px 8px', background: l.colour + '12',
@@ -167,6 +267,7 @@ export default function Dashboard() {
           <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
             <h2 style={{ fontSize: 14, fontWeight: 600 }}>Recent points</h2>
           </div>
+          <div style={{ maxHeight: 320, overflowY: 'auto' }}>
           <table>
             <thead><tr><th>Student</th><th>Reason</th><th style={{ textAlign: 'right' }}>Pts</th><th>When</th></tr></thead>
             <tbody>
@@ -177,9 +278,17 @@ export default function Dashboard() {
                     <td style={{ fontSize: 13, fontWeight: 500 }}>
                       <Link to={studentProfileLink({ ...p.students, id: p.student_id })} style={{ color: 'var(--text)', textDecoration: 'underline' }}>{m?.first_name} {m?.last_name}</Link>
                     </td>
-                    <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{p.point_type}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 700, color: p.points_awarded < 0 ? '#a32d2d' : '#1d9e75' }}>
-                      {p.points_awarded > 0 ? '+' : ''}{p.points_awarded}
+                    <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                      <input defaultValue={p.point_type || ''} onBlur={e => editRecentPoint(p, 'point_type', e.target.value)}
+                        style={{ width: '100%', minWidth: 90, padding: '3px 5px', fontSize: 12, border: '1px solid transparent', borderRadius: 4, background: 'transparent', color: 'var(--text-secondary)' }}
+                        onFocus={e => e.target.style.border = '1px solid var(--border-strong)'}
+                        onMouseLeave={e => { if (document.activeElement !== e.target) e.target.style.border = '1px solid transparent' }} />
+                    </td>
+                    <td style={{ textAlign: 'right', fontWeight: 700 }}>
+                      <input type="number" defaultValue={p.points_awarded} onBlur={e => editRecentPoint(p, 'points_awarded', parseFloat(e.target.value))}
+                        style={{ width: 48, padding: '3px 5px', fontSize: 13, fontWeight: 700, textAlign: 'right', border: '1px solid transparent', borderRadius: 4, background: 'transparent', color: p.points_awarded < 0 ? '#a32d2d' : '#1d9e75' }}
+                        onFocus={e => e.target.style.border = '1px solid var(--border-strong)'}
+                        onMouseLeave={e => { if (document.activeElement !== e.target) e.target.style.border = '1px solid transparent' }} />
                     </td>
                     <td style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
                       {new Date(p.awarded_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
@@ -189,6 +298,68 @@ export default function Dashboard() {
               })}
             </tbody>
           </table>
+          </div>
+        </div>
+      )}
+
+      {/* Add Points quick scorer */}
+      {showAddPoints && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 50, padding: 16, overflowY: 'auto' }}
+          onClick={closeAddPoints}>
+          <div className="card" style={{ width: '100%', maxWidth: 480, marginTop: 16 }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 600 }}>⭐ Add points</h2>
+              <button onClick={closeAddPoints} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', padding: 8 }}>✕</button>
+            </div>
+
+            <input value={apSearch} onChange={e => setApSearch(e.target.value)} placeholder="Search students to add… (min 3 letters)" autoFocus
+              style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 14, background: 'var(--bg-secondary)', color: 'var(--text)', marginBottom: 10 }} />
+
+            {apResults.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10, maxHeight: 160, overflowY: 'auto' }}>
+                {apResults.map(s => (
+                  <button key={s.id} onClick={() => toggleApSelect(s)} className="btn btn-sm" style={{ justifyContent: 'flex-start', textAlign: 'left' }}>
+                    + {s.members?.first_name} {s.members?.last_name} <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--text-tertiary)' }}>{s.student_ref}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {apSelected.length > 0 && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 6 }}>
+                  {apSelected.length} selected — tap a name to remove
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {apSelected.map(s => (
+                    <button key={s.id} onClick={() => setApSelected(prev => prev.filter(x => x.id !== s.id))}
+                      className="badge badge-blue" style={{ border: 'none', cursor: 'pointer', fontSize: 12 }}>
+                      {s.members?.first_name} {s.members?.last_name} ✕
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {apLastAwarded && (
+              <div style={{ background: '#1D9E7515', border: '1px solid #1D9E7530', color: '#1D9E75', borderRadius: 'var(--radius)', padding: '8px 12px', fontSize: 13, marginBottom: 12 }}>
+                ✓ +{apLastAwarded.points} "{apLastAwarded.label}" awarded to {apLastAwarded.count} student{apLastAwarded.count === 1 ? '' : 's'} ({apLastAwarded.names})
+              </div>
+            )}
+
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>
+              {apSelected.length === 0 ? 'Search and select students above, then tap a point type' : 'Tap a point type to award to everyone selected'}
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {pointTypes.map(pt => (
+                <button key={pt.label} disabled={apSelected.length === 0 || apSaving} onClick={() => awardQuickPoints(pt)}
+                  className="btn btn-sm" style={{ opacity: apSelected.length === 0 ? 0.4 : 1 }}>
+                  {pt.label} <strong style={{ marginLeft: 4 }}>+{pt.points}</strong>
+                </button>
+              ))}
+              {pointTypes.length === 0 && <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No point types configured — add some in Settings.</p>}
+            </div>
+          </div>
         </div>
       )}
     </div>
