@@ -566,7 +566,7 @@ export default function AthleteProfiles() {
   const [selected, setSelected]     = useState(null)
   const [apData, setApData]         = useState(null)
   const [loading, setLoading]       = useState(true)
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [saving, setSaving]         = useState(false)
   const [tab, setTab]               = useState('profile')
   const [search, setSearch]         = useState('')
@@ -659,9 +659,14 @@ export default function AthleteProfiles() {
     setInvitingId(null)
   }
 
+  function goHome() {
+    setSelected(null)
+    if (searchParams.get('id')) setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('id'); next.delete('tab'); return next })
+  }
+
   async function selectStudent(s) {
     setSelected(s)
-    setTab('profile')
+    setTab('home')
     setEditing(false)
     setReportData(null)
     setF2fData([])
@@ -867,6 +872,7 @@ export default function AthleteProfiles() {
     <div style={{ display: 'flex', gap: 16, minHeight: 600 }}>
 
       {/* ── Left: student list ── */}
+      {!selected && (
       <div style={{ width: 220, flexShrink: 0 }}>
         <input value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Search athletes…"
@@ -896,6 +902,7 @@ export default function AthleteProfiles() {
           })}
         </div>
       </div>
+      )}
 
       {/* ── Right: profile detail ── */}
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -906,6 +913,8 @@ export default function AthleteProfiles() {
           </div>
         ) : (
           <>
+            <button className="btn btn-sm" onClick={goHome} style={{ marginBottom: 10 }}>🏠 Home</button>
+
             {/* Athlete header */}
             <div className="card" style={{ marginBottom: 12, borderLeft: `3px solid ${colour}`, borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -954,7 +963,7 @@ export default function AthleteProfiles() {
 
             {/* Tabs */}
             <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 14 }}>
-              {['profile', 'membership', 'sessions', 'pdp', 'fit2fight', 'tpt', 'media', 'report'].map(t => (
+              {['home', 'profile', 'membership', 'sessions', 'pdp', 'fit2fight', 'tpt', 'media', 'report'].map(t => (
                 <button key={t} onClick={() => setTab(t)} style={{
                   padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
                   borderBottom: `2px solid ${tab === t ? 'var(--text)' : 'transparent'}`,
@@ -965,6 +974,80 @@ export default function AthleteProfiles() {
             </div>
 
             {/* ── Profile tab ── */}
+            {/* ── Home tab -- mirrors what the athlete sees on My app ── */}
+            {tab === 'home' && (() => {
+              const totalPts = sessionPoints.reduce((s, p) => s + (p.points_awarded || 0), 0)
+              return (
+                <div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 14 }}>
+                    {[
+                      { label: 'Points',       value: totalPts, colour, icon: '⭐' },
+                      { label: 'F2F sessions', value: f2fData.length, colour: '#378ADD', icon: '💪' },
+                      { label: 'Class champ',  value: selected.class_champion_count || 0, colour: '#EF9F27', icon: '🏆' },
+                    ].map(s => (
+                      <div key={s.label} className="card" style={{ textAlign: 'center', padding: '12px 8px' }}>
+                        <div style={{ fontSize: 22, marginBottom: 4 }}>{s.icon}</div>
+                        <div style={{ fontSize: 22, fontWeight: 700, color: s.colour }}>{s.value}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 2 }}>{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="card" style={{ padding: 0, marginBottom: 14 }}>
+                    <div style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)' }}>Profile</div>
+                    {[
+                      ['House', houseName || '—'],
+                      ['Discipline', selected.discipline || '—'],
+                      ['Grade', selected.pka_belt || selected.krba_level || '—'],
+                      ['Class', [selected.class_schedule, selected.class_time].filter(Boolean).join(' · ') || '—'],
+                      ['Weight', selected.weight_kg ? `${selected.weight_kg}kg${selected.weight_category ? ` (${selected.weight_category})` : ''}` : '—'],
+                      ['Groups', [selected.is_kr && 'KR', selected.is_pts && 'PTs', selected.is_leader && 'Leader', selected.is_coach && 'Coach'].filter(Boolean).join(', ') || 'None'],
+                      ['Media permission', selected.media_restriction || '—'],
+                    ].map(([label, val], i, arr) => (
+                      <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 14px', borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13 }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
+                        <span style={{ fontWeight: 500, textAlign: 'right' }}>{val}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 14 }}>
+                    {[
+                      { label: 'Profile',      icon: '👤', colour: '#378ADD', tab: 'profile' },
+                      { label: 'PDP',          icon: '🎯', colour: '#1D9E75', tab: 'pdp' },
+                      { label: 'Analysis',     icon: '📊', colour: '#E24B4A', tab: 'tpt' },
+                      { label: 'Fit II Fight', icon: '💪', colour: '#EF9F27', tab: 'fit2fight' },
+                    ].map(l => (
+                      <button key={l.label} onClick={() => setTab(l.tab)} style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                        padding: '14px 8px', background: l.colour + '12',
+                        border: `1px solid ${l.colour}30`, borderRadius: 'var(--border-radius-lg)',
+                        cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                      }}>
+                        <span style={{ fontSize: 24 }}>{l.icon}</span>
+                        <span style={{ fontSize: 12, fontWeight: 500, color: l.colour }}>{l.label}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {sessionPoints.length > 0 && (
+                    <div className="card" style={{ padding: 0, marginBottom: 14 }}>
+                      <div style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)' }}>Recent points</div>
+                      <table><tbody>
+                        {sessionPoints.slice(0,5).map((p,i) => (
+                          <tr key={i}>
+                            <td style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{new Date(p.awarded_at).toLocaleDateString('en-GB')}</td>
+                            <td style={{ fontSize: 13 }}>{p.point_type}</td>
+                            <td style={{ textAlign: 'right', fontWeight: 700, color: p.points_awarded < 0 ? '#a32d2d' : '#1d9e75' }}>{p.points_awarded > 0 ? '+' : ''}{p.points_awarded}</td>
+                          </tr>
+                        ))}
+                      </tbody></table>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+
             {tab === 'profile' && (
               <>
                 {!editing ? (
