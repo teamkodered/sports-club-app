@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import StudentProfile from '../components/students/StudentProfile.jsx'
@@ -562,6 +562,7 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
 
 export default function AthleteProfiles() {
   const { profile, isAdmin } = useAuth()
+  const navigate = useNavigate()
   const [students, setStudents]     = useState([])
   const [houses, setHouses]         = useState([])
   const [truePointTotals, setTruePointTotals] = useState({})
@@ -979,7 +980,7 @@ export default function AthleteProfiles() {
           </div>
         ) : (
           <div style={{ maxWidth: 640, margin: '0 auto' }}>
-            <button className="btn btn-sm" onClick={goHome} style={{ marginBottom: 10 }}>🏠 Home</button>
+            <button className="btn btn-sm" onClick={() => navigate(-1)} style={{ marginBottom: 10 }}>← Back</button>
 
             {/* Athlete header */}
             <div className="card" style={{ marginBottom: 12, borderLeft: `3px solid ${colour}`, borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0' }}>
@@ -1140,8 +1141,16 @@ export default function AthleteProfiles() {
 
               function ModuleButton({ b }) {
                 const { mostRecent, pb, unit } = computeModuleStats(b.key)
+                const chartIds = { watt_bike: 'f2f-chart-watt_bike', '10k': 'f2f-chart-running', circuit: 'f2f-chart-circuit', bleep: 'f2f-chart-bleep', grip: 'f2f-chart-grip' }
+                function goToChart() {
+                  if (b.key === '10k') setRunChartFilter('10K')
+                  setTab('fit2fight')
+                  setTimeout(() => {
+                    document.getElementById(chartIds[b.key])?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                  }, 100)
+                }
                 return (
-                  <button onClick={() => setTab('fit2fight')} style={{
+                  <button onClick={goToChart} style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, padding: '10px 10px',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', cursor: 'pointer',
                   }}>
@@ -1173,12 +1182,12 @@ export default function AthleteProfiles() {
                       </div>
                       <button onClick={() => setF2fStatsScope(v => v + 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4 }}>▶</button>
                     </div>
-                    <button onClick={() => setTab('fit2fight')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', border: 'none', width: '100%', fontFamily: 'var(--font-sans)' }} title="View Fit II Fight results">
+                    <button onClick={() => setTab('fit2fight')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg)', appearance: 'none', WebkitAppearance: 'none' }} title="View Fit II Fight results">
                       <div style={{ fontSize: 22, marginBottom: 4 }}>📈</div>
                       <div style={{ fontSize: 22, fontWeight: 700, color: '#378ADD' }}>{f2fData.length}</div>
                       <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>F2F sessions</div>
                     </button>
-                    <button onClick={() => setTab('pdp')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', border: 'none', width: '100%', fontFamily: 'var(--font-sans)' }} title="View PDP">
+                    <button onClick={() => setTab('pdp')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg)', appearance: 'none', WebkitAppearance: 'none' }} title="View PDP">
                       <div style={{ fontSize: 22, marginBottom: 4 }}>🎯</div>
                       <div style={{ fontSize: 22, fontWeight: 700, color: '#EF9F27' }}>
                         {Object.entries(apData?.pdp_notes || {}).filter(([k]) => !k.startsWith('__')).reduce((sum, [, v]) => sum + (Array.isArray(v) ? v.length : 0), 0)}
@@ -1616,7 +1625,17 @@ export default function AthleteProfiles() {
               // SVG line chart helper
               function LineChart({ data, lines, height=160, title, unit='' }) {
                 const [hidden, setHidden] = useState({})
-                if (!data.length) return null
+                if (!data.length) return (
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>{title}</div>
+                    <div style={{
+                      height, borderRadius: 'var(--radius)', border: '1px dashed var(--border-strong)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)',
+                    }}>
+                      <p style={{ fontSize: 12, color: 'var(--text-tertiary)', margin: 0 }}>No data yet — log a session to see this graph fill in</p>
+                    </div>
+                  </div>
+                )
                 const visibleLines = lines.filter(l => !hidden[l.key])
                 const allVals = visibleLines.flatMap(l => data.map(d => d[l.key]).filter(v => v != null))
                 if (!allVals.length && visibleLines.length) return (
@@ -1736,7 +1755,8 @@ export default function AthleteProfiles() {
                   </div>
                 )}
 
-                {wattData.length > 1 && (() => {
+                <div id="f2f-chart-watt_bike">
+                {(() => {
                   const SET_COLOURS = ['#E24B4A','#378ADD','#1D9E75','#EF9F27','#8B5CF6','#EC4899','#06B6D4','#84CC16','#F97316','#A855F7','#14B8A6','#EAB308']
                   const wattTypes = [...new Set(wattData.map(s => s.watt_bike?.interval_mode || s.watt_bike?.type).filter(Boolean))]
                   const filteredWatt = wattChartFilter === 'all' ? wattData : wattData.filter(s => (s.watt_bike?.interval_mode || s.watt_bike?.type) === wattChartFilter)
@@ -1765,12 +1785,14 @@ export default function AthleteProfiles() {
                       )}
                       {chartData.length > 1
                         ? <LineChart data={chartData} lines={setLines} title="🚴 Watt bike — each set over time" unit="W" />
-                        : <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Not enough sessions of this type yet.</p>}
+                        : <LineChart data={[]} lines={setLines} title="🚴 Watt bike — each set over time" unit="W" />}
                     </div>
                   )
                 })()}
+                </div>
 
-                {runData.length > 1 && (() => {
+                <div id="f2f-chart-running">
+                {(() => {
                   const SET_COLOURS = ['#E24B4A','#378ADD','#1D9E75','#EF9F27','#8B5CF6','#EC4899','#06B6D4','#84CC16']
                   const runTests = [...new Set(runData.map(s => s.running?.test).filter(Boolean))]
                   const filteredRun = runChartFilter === 'all' ? runData : runData.filter(s => s.running?.test === runChartFilter)
@@ -1804,21 +1826,20 @@ export default function AthleteProfiles() {
                           </select>
                         </div>
                       )}
-                      {chartData.length > 1
-                        ? <LineChart data={chartData} lines={setLines} title="🏃 Running — each attempt over time" unit={isDistanceTest ? 'km' : 'sec'} />
-                        : <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Not enough sessions of this test yet.</p>}
+                      <LineChart data={chartData.length > 1 ? chartData : []} lines={setLines} title="🏃 Running — each attempt over time" unit={isDistanceTest ? 'km' : 'sec'} />
                     </div>
                   )
                 })()}
+                </div>
 
                 {/* Bleep test chart */}
+                <div id="f2f-chart-bleep">
                 {(() => {
                   const bleepData = sorted.filter(s => s.test && Object.keys(s.test).some(k => k.toLowerCase().includes('bleep')))
                     .map(s => {
                       const entry = Object.entries(s.test).find(([k]) => k.toLowerCase().includes('bleep'))
                       return { session_date: s.session_date, level: entry ? parseFloat(entry[1]) : null }
                     }).filter(s => s.level != null)
-                  if (bleepData.length < 1) return null
                   return (
                     <div className="card" style={{ marginBottom: 12 }}>
                       <LineChart
@@ -1830,8 +1851,10 @@ export default function AthleteProfiles() {
                     </div>
                   )
                 })()}
+                </div>
 
                 {/* Grip test chart */}
+                <div id="f2f-chart-grip">
                 {(() => {
                   const gripData = sorted.filter(s => s.test && Object.keys(s.test).some(k => k.toLowerCase().includes('grip')))
                     .map(s => {
@@ -1843,7 +1866,6 @@ export default function AthleteProfiles() {
                         right: right ? parseFloat(right[1]) : null,
                       }
                     }).filter(s => s.left != null || s.right != null)
-                  if (gripData.length < 1) return null
                   return (
                     <div className="card" style={{ marginBottom: 12 }}>
                       <LineChart
@@ -1858,6 +1880,28 @@ export default function AthleteProfiles() {
                     </div>
                   )
                 })()}
+                </div>
+
+                {/* Fixed load circuit chart */}
+                <div id="f2f-chart-circuit">
+                {(() => {
+                  const circuitData = sorted.filter(s => s.test && Object.keys(s.test).some(k => k.toLowerCase().includes('fixed load circuit')))
+                    .map(s => {
+                      const entry = Object.entries(s.test).find(([k]) => k.toLowerCase().includes('fixed load circuit'))
+                      return { session_date: s.session_date, value: entry ? parseFloat(entry[1]) : null }
+                    }).filter(s => s.value != null)
+                  return (
+                    <div className="card" style={{ marginBottom: 12 }}>
+                      <LineChart
+                        data={circuitData}
+                        lines={[{ key: 'value', label: 'Fixed load circuit', colour: '#854F0B' }]}
+                        title="⭕ Fixed load circuit over time"
+                        unit=""
+                      />
+                    </div>
+                  )
+                })()}
+                </div>
                 {filtered.length === 0 ? (
                   <div className="empty-state"><p>{f2fData.length === 0 ? 'No Fit II Fight sessions logged yet.' : 'No sessions in this date range.'}</p></div>
                 ) : (
