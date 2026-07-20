@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
@@ -569,6 +569,7 @@ export default function AthleteProfiles() {
   const [allAttendance, setAllAttendance] = useState([])
   const [f2fStatsScope, setF2fStatsScope] = useState(0) // cycles through scope options
   const [f2fModule, setF2fModule] = useState(null) // 'watt_bike' | '10k' | 'circuit' | 'bleep' | 'grip'
+  const [moduleSubType, setModuleSubType] = useState({}) // key -> currently selected sub-type per module
   const [showContribution, setShowContribution] = useState(false)
   const [showOverallPos, setShowOverallPos] = useState(false)
   const [belts, setBelts] = useState({ junior: [], senior: [], krba: [] })
@@ -588,6 +589,9 @@ export default function AthleteProfiles() {
   const [f2fFrom, setF2fFrom]         = useState('')
   const [f2fTo, setF2fTo]             = useState('')
   const [wattChartFilter, setWattChartFilter] = useState('all')
+  const [bwChartFilter, setBwChartFilter]     = useState('all')
+  const [techChartFilter, setTechChartFilter] = useState('all')
+  const [sessionsCalMonth, setSessionsCalMonth] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() } })
   const [runChartFilter, setRunChartFilter]   = useState('all')
   const [editingSession, setEditingSession] = useState(null) // {} for add, session object for edit
   const [sessionForm, setSessionForm] = useState({})
@@ -1095,30 +1099,49 @@ export default function AthleteProfiles() {
               }
               const possibleSessions = new Set((allAttendance || []).filter(matchesScope).map(a => a?.session_date)).size
 
-              // Compute most-recent + personal-best for a module, defensively --
-              // malformed/legacy session data shouldn't be able to crash this page.
-              function computeModuleStats(key) {
+              // Distinct sub-types this athlete actually has logged for a module,
+              // used to drive the hold-to-cycle options on each card
+              function getSubTypeOptions(key) {
+                try {
+                  if (key === 'running') return [...new Set(sorted.map(s => s.running?.category).filter(Boolean))]
+                  if (key === 'watt_bike') return [...new Set(sorted.map(s => s.watt_bike?.interval_mode || s.watt_bike?.type).filter(Boolean))]
+                  if (key === 'bodyweight') return [...new Set(sorted.map(s => s.bodyweight?.type).filter(Boolean))]
+                  if (key === 'test') return [...new Set(sorted.flatMap(s => Object.keys(s.test || {})))]
+                  if (key === 'techniques') return [...new Set(sorted.map(s => s.techniques?.type).filter(Boolean))]
+                  return []
+                } catch (e) { return [] }
+              }
+
+              // Compute most-recent + personal-best for a module (optionally
+              // filtered to one sub-type), defensively -- malformed/legacy
+              // session data shouldn't be able to crash this page.
+              function computeModuleStats(key, subType) {
                 try {
                   let entries = [], unit = '', higherIsBetter = true
-                  const wattSets = s => Array.isArray(s?.watt_bike?.sets) ? s.watt_bike.sets : []
-                  const wattMax = sets => sets.length ? Math.max(...sets.map(set => parseFloat((set && typeof set === 'object' ? set.wattage : set) || 0)).filter(v => !isNaN(v))) : null
+                  const numSets = arr => Array.isArray(arr) ? arr.map(v => parseFloat((v && typeof v === 'object') ? v.wattage : v)).filter(v => !isNaN(v)) : []
 
-                  if (key === 'watt_bike') {
-                    entries = sorted.filter(s => wattSets(s).length > 0).map(s => ({ date: s.session_date, value: wattMax(wattSets(s)) })).filter(e => e.value != null)
-                    unit = 'W'
-                  } else if (key === '10k') {
-                    entries = sorted.filter(s => s?.running?.test === '10K' && Array.isArray(s?.running?.sets) && s.running.sets.length > 0)
+                  if (key === 'running') {
+                    const filtered = sorted.filter(s => !subType || s.running?.category === subType)
+                    entries = filtered.filter(s => Array.isArray(s.running?.sets) && s.running.sets.length > 0)
                       .map(s => ({ date: s.session_date, value: s.running.sets[s.running.sets.length - 1] }))
-                    higherIsBetter = false
-                  } else if (key === 'circuit') {
-                    // Fixed load circuit comes from the Test module, not Watt bike
-                    entries = sorted.filter(s => s?.test?.['Fixed load circuit'] != null).map(s => ({ date: s.session_date, value: s.test['Fixed load circuit'] }))
-                  } else if (key === 'bleep') {
-                    entries = sorted.filter(s => s?.test?.['Bleep test'] != null).map(s => ({ date: s.session_date, value: s.test['Bleep test'] }))
-                  } else if (key === 'grip') {
-                    entries = sorted.filter(s => s?.test?.['Left Grip Test'] != null || s?.test?.['Right Grip Test'] != null)
-                      .map(s => ({ date: s.session_date, value: Math.max(s.test?.['Left Grip Test'] || 0, s.test?.['Right Grip Test'] || 0) }))
-                    unit = 'kg'
+                    higherIsBetter = subType === 'Distance over time'
+                  } else if (key === 'watt_bike') {
+                    const filtered = sorted.filter(s => !subType || (s.watt_bike?.interval_mode || s.watt_bike?.type) === subType)
+                    entries = filtered.map(s => ({ date: s.session_date, value: numSets(s.watt_bike?.sets).length ? Math.max(...numSets(s.watt_bike?.sets)) : null }))
+                      .filter(e => e.value != null)
+                    unit = 'W'
+                  } else if (key === 'bodyweight') {
+                    const filtered = sorted.filter(s => !subType || s.bodyweight?.type === subType)
+                    entries = filtered.map(s => ({ date: s.session_date, value: numSets(s.bodyweight?.sets).length ? Math.max(...numSets(s.bodyweight?.sets)) : null }))
+                      .filter(e => e.value != null)
+                    unit = ' reps'
+                  } else if (key === 'test') {
+                    entries = subType ? sorted.filter(s => s.test?.[subType] != null).map(s => ({ date: s.session_date, value: s.test[subType] })) : []
+                    higherIsBetter = !['200m sprint', '1600m time trial', '4800m time trial'].includes(subType)
+                  } else if (key === 'techniques') {
+                    const filtered = sorted.filter(s => !subType || s.techniques?.type === subType)
+                    entries = filtered.map(s => ({ date: s.session_date, value: numSets(s.techniques?.sets).length ? Math.max(...numSets(s.techniques?.sets)) : null }))
+                      .filter(e => e.value != null)
                   }
                   const mostRecent = entries[entries.length - 1] || null
                   const pb = entries.reduce((best, e) => !best ? e : ((higherIsBetter ? e.value > best.value : e.value < best.value) ? e : best), null)
@@ -1129,43 +1152,100 @@ export default function AthleteProfiles() {
                 }
               }
 
+              // Simple "last logged" stat for modules with no clean numeric
+              // metric (Stretch flows, Eye training)
+              function computeLastLogged(key) {
+                try {
+                  const entries = sorted.filter(s => key === 'stretch' ? s.stretch?.some?.(Boolean) : s.eye_training)
+                  return entries.length ? { count: entries.length, lastDate: entries[entries.length - 1].session_date } : { count: 0, lastDate: null }
+                } catch (e) { return { count: 0, lastDate: null } }
+              }
+
               const modules = [
-                { key: 'watt_bike', label: 'Watt bike', icon: '🚴' },
-                { key: '10k',       label: '10k',        icon: '🏃' },
+                { key: 'running',    label: 'Running',       icon: '🏃' },
+                { key: 'watt_bike',  label: 'Watt bike',     icon: '🚴' },
+                { key: 'bodyweight', label: 'Bodyweight',    icon: '💪' },
+                { key: 'stretch',    label: 'Stretch flows', icon: '🤸' },
+                { key: 'test',       label: 'Test',          icon: '📋' },
               ]
               const modules2 = [
-                { key: 'circuit', label: 'Circuit',    icon: '⭕' },
-                { key: 'bleep',   label: 'Bleep test', icon: '📈' },
-                { key: 'grip',    label: 'Grip Test',  icon: '✊' },
+                { key: 'techniques',   label: 'Techniques',   icon: '🥋' },
+                { key: 'eye_training', label: 'Eye training', icon: '👁' },
               ]
 
+              const chartIds = { watt_bike: 'f2f-chart-watt_bike', running: 'f2f-chart-running', bodyweight: 'f2f-chart-bodyweight', techniques: 'f2f-chart-techniques' }
+              const testChartIds = { 'Bleep test': 'f2f-chart-bleep', 'Fixed load circuit': 'f2f-chart-circuit' }
+
               function ModuleButton({ b }) {
-                const { mostRecent, pb, unit } = computeModuleStats(b.key)
-                const chartIds = { watt_bike: 'f2f-chart-watt_bike', '10k': 'f2f-chart-running', circuit: 'f2f-chart-circuit', bleep: 'f2f-chart-bleep', grip: 'f2f-chart-grip' }
-                function goToChart() {
-                  if (b.key === '10k') setRunChartFilter('10K')
-                  setTab('fit2fight')
-                  setTimeout(() => {
-                    document.getElementById(chartIds[b.key])?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                  }, 100)
+                const subTypeOptions = getSubTypeOptions(b.key)
+                const currentSubType = moduleSubType[b.key] ?? subTypeOptions[0] ?? null
+                const noNumericStat = b.key === 'stretch' || b.key === 'eye_training'
+                const { mostRecent, pb, unit } = noNumericStat ? { mostRecent: null, pb: null, unit: '' } : computeModuleStats(b.key, currentSubType)
+                const lastLogged = noNumericStat ? computeLastLogged(b.key) : null
+
+                const pressTimer = useRef(null)
+                const longPressed = useRef(false)
+                function startPress() {
+                  longPressed.current = false
+                  if (!subTypeOptions.length) return
+                  pressTimer.current = setTimeout(() => {
+                    longPressed.current = true
+                    const idx = subTypeOptions.indexOf(currentSubType)
+                    const next = subTypeOptions[(idx + 1) % subTypeOptions.length]
+                    setModuleSubType(prev => ({ ...prev, [b.key]: next }))
+                    if (navigator.vibrate) navigator.vibrate(15)
+                  }, 500)
                 }
+                function endPress() {
+                  clearTimeout(pressTimer.current)
+                  if (!longPressed.current) goToChart()
+                }
+                function cancelPress() { clearTimeout(pressTimer.current) }
+
+                function goToChart() {
+                  let targetId = chartIds[b.key]
+                  if (b.key === 'test' && currentSubType) targetId = testChartIds[currentSubType]
+                  if (b.key === 'running' && currentSubType) setRunChartFilter('all')
+                  setTab('fit2fight')
+                  if (targetId) {
+                    setTimeout(() => document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100)
+                  }
+                }
+
                 return (
-                  <button onClick={goToChart} style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, padding: '10px 10px',
-                    background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', cursor: 'pointer',
-                  }}>
-                    <div style={{ textAlign: 'center', minWidth: 32 }}>
-                      <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Recent</div>
-                      <div style={{ fontSize: 12, fontWeight: 700 }}>{mostRecent ? `${mostRecent.value}${unit}` : '—'}</div>
+                  <button
+                    onMouseDown={startPress} onMouseUp={endPress} onMouseLeave={cancelPress}
+                    onTouchStart={startPress} onTouchEnd={endPress} onTouchCancel={cancelPress}
+                    style={{
+                      display: 'flex', flexDirection: 'column', gap: 4, padding: '10px 10px', width: '100%',
+                      background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                      cursor: 'pointer', userSelect: 'none', WebkitUserSelect: 'none', textAlign: 'center', fontFamily: 'var(--font-sans)',
+                    }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                      {!noNumericStat && (
+                        <div style={{ textAlign: 'center', minWidth: 30 }}>
+                          <div style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>Recent</div>
+                          <div style={{ fontSize: 11, fontWeight: 700 }}>{mostRecent ? `${mostRecent.value}${unit}` : '—'}</div>
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flex: 1 }}>
+                        <span style={{ fontSize: 18 }}>{b.icon}</span>
+                        <span style={{ fontSize: 10, fontWeight: 500, whiteSpace: 'nowrap' }}>{b.label}</span>
+                      </div>
+                      {!noNumericStat && (
+                        <div style={{ textAlign: 'center', minWidth: 30 }}>
+                          <div style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>🏅 PB</div>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: colour }}>{pb ? `${pb.value}${unit}` : '—'}</div>
+                        </div>
+                      )}
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                      <span style={{ fontSize: 18 }}>{b.icon}</span>
-                      <span style={{ fontSize: 10, fontWeight: 500, whiteSpace: 'nowrap' }}>{b.label}</span>
-                    </div>
-                    <div style={{ textAlign: 'center', minWidth: 32 }}>
-                      <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>🏅 PB</div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: colour }}>{pb ? `${pb.value}${unit}` : '—'}</div>
-                    </div>
+                    {noNumericStat && (
+                      <div style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>
+                        {lastLogged.count > 0 ? `Logged ${lastLogged.count}× · last ${new Date(lastLogged.lastDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : 'Not logged yet'}
+                      </div>
+                    )}
+                    {currentSubType && <div style={{ fontSize: 8, color: colour, fontWeight: 600 }}>{currentSubType}</div>}
+                    {subTypeOptions.length > 1 && <div style={{ fontSize: 7, color: 'var(--text-tertiary)' }}>hold to change</div>}
                   </button>
                 )
               }
@@ -1196,11 +1276,13 @@ export default function AthleteProfiles() {
                     </button>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 8 }}>
-                    {modules.map(b => <ModuleButton key={b.key} b={b} />)}
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 8 }}>
-                    {modules2.map(b => <ModuleButton key={b.key} b={b} />)}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8, alignItems: 'start' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {modules.map(b => <ModuleButton key={b.key} b={b} />)}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {modules2.map(b => <ModuleButton key={b.key} b={b} />)}
+                    </div>
                   </div>
 
                   <div style={{ height: 4 }} />
@@ -1473,6 +1555,64 @@ export default function AthleteProfiles() {
 
               return (
                 <div>
+                  {/* Attendance calendar */}
+                  <div className="card" style={{ marginBottom: 20 }}>
+                    {(() => {
+                      const { year, month } = sessionsCalMonth
+                      const firstDay = new Date(year, month, 1)
+                      const startWeekday = (firstDay.getDay() + 6) % 7
+                      const daysInMonth = new Date(year, month + 1, 0).getDate()
+                      const allTrainingDays = new Set(
+                        (allAttendance || [])
+                          .map(a => a?.session_date)
+                          .filter(d => d && new Date(d).getFullYear() === year && new Date(d).getMonth() === month)
+                      )
+                      const attendedDays = new Set(
+                        attendanceData
+                          .map(a => a.session_date)
+                          .filter(d => d && new Date(d).getFullYear() === year && new Date(d).getMonth() === month)
+                      )
+                      const cells = []
+                      for (let i = 0; i < startWeekday; i++) cells.push(null)
+                      for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+                      return (
+                        <>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                            <button className="btn btn-sm" onClick={() => setSessionsCalMonth(m => m.month === 0 ? { year: m.year - 1, month: 11 } : { year: m.year, month: m.month - 1 })}>←</button>
+                            <span style={{ fontSize: 13, fontWeight: 600 }}>{new Date(year, month, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</span>
+                            <button className="btn btn-sm" onClick={() => setSessionsCalMonth(m => m.month === 11 ? { year: m.year + 1, month: 0 } : { year: m.year, month: m.month + 1 })}>→</button>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4, marginBottom: 8 }}>
+                            {['Mo','Tu','We','Th','Fr','Sa','Su'].map(d => (
+                              <div key={d} style={{ textAlign: 'center', fontSize: 10, color: 'var(--text-tertiary)' }}>{d}</div>
+                            ))}
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4 }}>
+                            {cells.map((d, i) => {
+                              if (d === null) return <div key={i} />
+                              const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`
+                              const attended = attendedDays.has(dateStr)
+                              const wasTrainingDay = allTrainingDays.has(dateStr)
+                              const bg = attended ? '#1D9E75' : wasTrainingDay ? '#E24B4A' : 'transparent'
+                              const fg = attended || wasTrainingDay ? '#fff' : 'var(--text-secondary)'
+                              return (
+                                <div key={i} title={attended ? 'Attended' : wasTrainingDay ? 'Missed' : ''} style={{
+                                  aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  borderRadius: 6, fontSize: 12, background: bg, color: fg,
+                                  border: !attended && !wasTrainingDay ? '1px solid var(--border)' : 'none',
+                                }}>{d}</div>
+                              )
+                            })}
+                          </div>
+                          <div style={{ display: 'flex', gap: 14, marginTop: 12, fontSize: 11, color: 'var(--text-secondary)' }}>
+                            <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#1D9E75', borderRadius: 2, marginRight: 4 }} />Attended</span>
+                            <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#E24B4A', borderRadius: 2, marginRight: 4 }} />Missed</span>
+                          </div>
+                        </>
+                      )
+                    })()}
+                  </div>
+
                   {/* Attendance numbers */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10, marginBottom: 20 }}>
                     {[
@@ -1902,6 +2042,69 @@ export default function AthleteProfiles() {
                   )
                 })()}
                 </div>
+
+                {/* Bodyweight chart */}
+                <div id="f2f-chart-bodyweight">
+                {(() => {
+                  const bwData = sorted.filter(s => Array.isArray(s.bodyweight?.sets) && s.bodyweight.sets.length > 0)
+                  const bwTypes = [...new Set(bwData.map(s => s.bodyweight?.type).filter(Boolean))]
+                  const filteredBw = bwChartFilter === 'all' ? bwData : bwData.filter(s => s.bodyweight?.type === bwChartFilter)
+                  const maxSets = Math.max(1, ...filteredBw.map(s => s.bodyweight?.sets?.length || 0))
+                  const SET_COLOURS = ['#1D9E75','#378ADD','#E24B4A','#EF9F27','#8B5CF6','#EC4899']
+                  const setLines = Array.from({length: maxSets}, (_,i) => ({ key: `set${i}`, label: `Set ${i+1}`, colour: SET_COLOURS[i % SET_COLOURS.length] }))
+                  const chartData = filteredBw.map(s => {
+                    const obj = { session_date: s.session_date }
+                    ;(s.bodyweight?.sets || []).forEach((v,i) => { obj[`set${i}`] = parseFloat(v) })
+                    return obj
+                  })
+                  return (
+                    <div className="card" style={{ marginBottom: 12 }}>
+                      {bwTypes.length > 1 && (
+                        <div className="field" style={{ marginBottom: 10, maxWidth: 220 }}>
+                          <label style={{ fontSize: 11 }}>Show</label>
+                          <select value={bwChartFilter} onChange={e => setBwChartFilter(e.target.value)} style={{ fontSize: 12, padding: '5px 8px' }}>
+                            <option value="all">All exercises</option>
+                            {bwTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                          </select>
+                        </div>
+                      )}
+                      <LineChart data={chartData} lines={setLines} title="💪 Bodyweight — reps over time" unit=" reps" />
+                    </div>
+                  )
+                })()}
+                </div>
+
+                {/* Techniques chart */}
+                <div id="f2f-chart-techniques">
+                {(() => {
+                  const techData = sorted.filter(s => Array.isArray(s.techniques?.sets) && s.techniques.sets.length > 0)
+                  const techTypes = [...new Set(techData.map(s => s.techniques?.type).filter(Boolean))]
+                  const filteredTech = techChartFilter === 'all' ? techData : techData.filter(s => s.techniques?.type === techChartFilter)
+                  const maxSets = Math.max(1, ...filteredTech.map(s => s.techniques?.sets?.length || 0))
+                  const SET_COLOURS = ['#E24B4A','#378ADD','#1D9E75','#EF9F27','#8B5CF6','#EC4899']
+                  const setLines = Array.from({length: maxSets}, (_,i) => ({ key: `set${i}`, label: `Set ${i+1}`, colour: SET_COLOURS[i % SET_COLOURS.length] }))
+                  const chartData = filteredTech.map(s => {
+                    const obj = { session_date: s.session_date }
+                    ;(s.techniques?.sets || []).forEach((v,i) => { obj[`set${i}`] = parseFloat(v) })
+                    return obj
+                  })
+                  return (
+                    <div className="card" style={{ marginBottom: 12 }}>
+                      {techTypes.length > 1 && (
+                        <div className="field" style={{ marginBottom: 10, maxWidth: 220 }}>
+                          <label style={{ fontSize: 11 }}>Show</label>
+                          <select value={techChartFilter} onChange={e => setTechChartFilter(e.target.value)} style={{ fontSize: 12, padding: '5px 8px' }}>
+                            <option value="all">All techniques</option>
+                            {techTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                          </select>
+                        </div>
+                      )}
+                      <LineChart data={chartData} lines={setLines} title="🥋 Techniques — reps over time" unit=" reps" />
+                    </div>
+                  )
+                })()}
+                </div>
+
                 {filtered.length === 0 ? (
                   <div className="empty-state"><p>{f2fData.length === 0 ? 'No Fit II Fight sessions logged yet.' : 'No sessions in this date range.'}</p></div>
                 ) : (
