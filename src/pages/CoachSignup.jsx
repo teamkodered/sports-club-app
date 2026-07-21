@@ -44,6 +44,18 @@ export default function CoachSignup() {
       })
       if (authErr) throw authErr
 
+      // Supabase returns a user object with an empty identities array (and
+      // no real auth.users row) when the email is already registered --
+      // it does this to avoid leaking which emails exist. Catch that here
+      // rather than trying to link a members row to an auth_id that
+      // doesn't actually exist, which fails with a foreign key error.
+      if (authData?.user && authData.user.identities?.length === 0) {
+        throw new Error('An account with this email already exists. Try signing in instead, or reset your password if you\'ve forgotten it.')
+      }
+      if (!authData?.user?.id) {
+        throw new Error('Something went wrong creating your login — please try again.')
+      }
+
       const { error: memberErr } = await supabase.from('members').insert({
         auth_id: authData.user?.id,
         member_id: `COACH-${Date.now().toString().slice(-5)}`,
