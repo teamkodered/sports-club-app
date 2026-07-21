@@ -124,7 +124,7 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
         {!noNumericStat && (
           <div style={{ textAlign: 'center', minWidth: 30 }}>
             <div style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>🏅 PB</div>
-            <div style={{ fontSize: 11, fontWeight: 700, color }}>{pb ? `${pb.value}${unit}` : '—'}</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: colour }}>{pb ? `${pb.value}${unit}` : '—'}</div>
           </div>
         )}
       </div>
@@ -390,7 +390,7 @@ export default function AthleteApp() {
                         <button onClick={() => setF2fStatsScope(v => v - 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4 }}>◀</button>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 20, marginBottom: 2 }}>✅</div>
-                          <div style={{ fontSize: 19, fontWeight: 700, color }}>{attendanceData.length}/{possibleSessions || attendanceData.length}</div>
+                          <div style={{ fontSize: 19, fontWeight: 700, color: colour }}>{attendanceData.length}/{possibleSessions || attendanceData.length}</div>
                           <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>{scopeLabel}</div>
                         </div>
                         <button onClick={() => setF2fStatsScope(v => v + 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4 }}>▶</button>
@@ -435,7 +435,7 @@ export default function AthleteApp() {
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
                         {(apData.age_division_kickboxing || apData.age_division_boxing || apData.weight_division || apData.kode_red_debut) && (
                           <div className="card">
-                            <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color }}>Competition divisions</h3>
+                            <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: colour }}>Competition divisions</h3>
                             {[
                               ['Kickboxing', apData.age_division_kickboxing],
                               ['Boxing', apData.age_division_boxing],
@@ -451,7 +451,7 @@ export default function AthleteApp() {
                         )}
                         {apData.top_achievements && (
                           <div className="card" style={{ gridColumn: '1/-1' }}>
-                            <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color }}>🏆 Top achievements</h3>
+                            <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: colour }}>🏆 Top achievements</h3>
                             <p style={{ fontSize: 13, lineHeight: 1.6 }}>{apData.top_achievements}</p>
                           </div>
                         )}
@@ -473,8 +473,11 @@ export default function AthleteApp() {
                  console.error('Home tab render error:', e)
                  return (
                    <div className="card" style={{ textAlign: 'center', padding: 20 }}>
-                     <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                     <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 8 }}>
                        Something didn't load correctly here. Try refreshing the app.
+                     </p>
+                     <p style={{ fontSize: 11, color: 'var(--text-tertiary)', fontFamily: 'monospace', wordBreak: 'break-word' }}>
+                       {e?.message || String(e)}
                      </p>
                    </div>
                  )
