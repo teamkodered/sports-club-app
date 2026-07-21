@@ -46,7 +46,7 @@ export function AuthProvider({ children }) {
 
   const role      = profile?.role || 'member'
   const isAdmin   = role === 'admin'
-  const isCoach   = role === 'coach'
+  const isCoach   = role === 'captain' || role === 'coach' // 'captain' is the actual role value assigned via Settings; 'coach' kept for safety
   const isLeader  = role === 'leader'
   const isStaff   = isAdmin || isCoach || isLeader  // can take registers + points
   const isAthlete = !!(profile?.student?.is_kr || profile?.student?.discipline === 'KRBA' || profile?.student?.is_pts)

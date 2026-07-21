@@ -37,11 +37,12 @@ import AthleteApp from './pages/AthleteApp.jsx'
 import CheckInPublic from './pages/CheckInPublic.jsx'
 import Layout from './components/shared/Layout.jsx'
 
-function ProtectedRoute({ children, adminOnly = false }) {
-  const { session, isAdmin, loading } = useAuth()
+function ProtectedRoute({ children, adminOnly = false, staffOnly = false }) {
+  const { session, isAdmin, isStaff, loading } = useAuth()
   if (loading) return <div className="loading">Loading…</div>
   if (!session) return <Navigate to="/login" replace />
   if (adminOnly && !isAdmin) return <Navigate to="/dashboard" replace />
+  if (staffOnly && !isStaff) return <Navigate to="/athlete-app" replace />
   return children
 }
 
@@ -62,23 +63,23 @@ function App() {
           <Route path="/checkin-public"  element={<CheckInPublic />} />
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-            <Route path="dashboard"       element={<Dashboard />} />
+            <Route path="dashboard"       element={<ProtectedRoute staffOnly><Dashboard /></ProtectedRoute>} />
             <Route path="my-dashboard"    element={<AthleteDashboard />} />
-            <Route path="checkin"         element={<CheckIn />} />
+            <Route path="checkin"         element={<ProtectedRoute staffOnly><CheckIn /></ProtectedRoute>} />
             <Route path="athlete-app"     element={<AthleteApp />} />
-            <Route path="registers"       element={<Registers />} />
-            <Route path="students"        element={<StudentDatabase />} />
-            <Route path="members"         element={<Members />} />
+            <Route path="registers"       element={<ProtectedRoute staffOnly><Registers /></ProtectedRoute>} />
+            <Route path="students"        element={<ProtectedRoute staffOnly><StudentDatabase /></ProtectedRoute>} />
+            <Route path="members"         element={<ProtectedRoute staffOnly><Members /></ProtectedRoute>} />
             <Route path="fixtures"        element={<Fixtures />} />
-            <Route path="classes"         element={<Classes />} />
+            <Route path="classes"         element={<ProtectedRoute staffOnly><Classes /></ProtectedRoute>} />
             <Route path="league"          element={<LeagueViews />} />
             <Route path="forms"           element={<Forms />} />
-            <Route path="trackers"        element={<Trackers />} />
+            <Route path="trackers"        element={<ProtectedRoute staffOnly><Trackers /></ProtectedRoute>} />
             <Route path="profile"         element={<Profile />} />
-            <Route path="boxing-tpt"      element={<BoxingTPT />} />
-            <Route path="kickboxing-tpt"  element={<KickboxingTPT />} />
+            <Route path="boxing-tpt"      element={<ProtectedRoute staffOnly><BoxingTPT /></ProtectedRoute>} />
+            <Route path="kickboxing-tpt"  element={<ProtectedRoute staffOnly><KickboxingTPT /></ProtectedRoute>} />
             <Route path="fit2fight"       element={<FitToFight />} />
-            <Route path="athletes"        element={<AthleteProfiles />} />
+            <Route path="athletes"        element={<ProtectedRoute staffOnly><AthleteProfiles /></ProtectedRoute>} />
             <Route path="import"          element={<ProtectedRoute adminOnly><AdminImport /></ProtectedRoute>} />
             <Route path="settings"        element={<ProtectedRoute adminOnly><Settings /></ProtectedRoute>} />
           </Route>

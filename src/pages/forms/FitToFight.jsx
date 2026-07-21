@@ -281,11 +281,16 @@ export default function FitToFight() {
 
   async function loadHistory() {
     setLoadingHistory(true)
-    const { data } = await supabase
+    let query = supabase
       .from('fit2fight_sessions')
       .select('*')
       .order('session_date', { ascending: false })
       .limit(60)
+    if (!isAdmin) {
+      if (!profile?.student?.id) { setHistory([]); setLoadingHistory(false); return }
+      query = query.eq('student_id', profile.student.id)
+    }
+    const { data } = await query
     setHistory(data || [])
     setLoadingHistory(false)
   }

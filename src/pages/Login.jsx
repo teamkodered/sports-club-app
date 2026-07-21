@@ -137,9 +137,6 @@ export default function Login() {
         </div>
 
         <p style={{ textAlign: 'center', fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 16 }}>
-          New member?{' '}
-          <Link to="/join-pka-adult" style={{ color: 'rgba(255,255,255,0.7)', fontWeight: 500 }}>Register here</Link>
-          {' · '}
           <Link to="/coach-signup" style={{ color: 'rgba(255,255,255,0.7)', fontWeight: 500 }}>Coach signup</Link>
         </p>
       </div>
