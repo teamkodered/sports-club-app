@@ -1276,13 +1276,12 @@ export default function AthleteProfiles() {
                     </button>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8, alignItems: 'start' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {modules.map(b => <ModuleButton key={b.key} b={b} />)}
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {modules2.map(b => <ModuleButton key={b.key} b={b} />)}
-                    </div>
+                  <div className="hide-scrollbar" style={{ display: 'flex', gap: 8, marginBottom: 8, overflowX: 'auto', paddingBottom: 2 }}>
+                    {[...modules, ...modules2].map(b => (
+                      <div key={b.key} style={{ flexShrink: 0, width: 108 }}>
+                        <ModuleButton b={b} />
+                      </div>
+                    ))}
                   </div>
 
                   <div style={{ height: 4 }} />
@@ -1882,7 +1881,8 @@ export default function AthleteProfiles() {
 
                 {/* Charts */}
                 {weightData.length > 1 && (
-                  <div className="card" style={{ marginBottom: 12 }}>
+                  <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
+                    <a href={`/fit2fight?student_id=${selected?.id}`} className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, zIndex: 1 }}>+ Log</a>
                     <LineChart
                       data={weightData.map(s => ({ session_date: s.session_date, before: s.weight_before, after: s.weight_after }))}
                       lines={[
@@ -1913,7 +1913,8 @@ export default function AthleteProfiles() {
                     return obj
                   })
                   return (
-                    <div className="card" style={{ marginBottom: 12 }}>
+                    <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
+                      <a href={`/fit2fight?student_id=${selected?.id}&module=watt_bike`} className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, zIndex: 1 }}>+ Log</a>
                       {wattTypes.length > 1 && (
                         <div className="field" style={{ marginBottom: 10, maxWidth: 220 }}>
                           <label style={{ fontSize: 11 }}>Show</label>
@@ -1956,7 +1957,8 @@ export default function AthleteProfiles() {
                     return obj
                   })
                   return (
-                    <div className="card" style={{ marginBottom: 12 }}>
+                    <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
+                      <a href={`/fit2fight?student_id=${selected?.id}&module=running`} className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, zIndex: 1 }}>+ Log</a>
                       {runTests.length > 1 && (
                         <div className="field" style={{ marginBottom: 10, maxWidth: 220 }}>
                           <label style={{ fontSize: 11 }}>Show</label>
@@ -1981,7 +1983,8 @@ export default function AthleteProfiles() {
                       return { session_date: s.session_date, level: entry ? parseFloat(entry[1]) : null }
                     }).filter(s => s.level != null)
                   return (
-                    <div className="card" style={{ marginBottom: 12 }}>
+                    <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
+                      <a href={`/fit2fight?student_id=${selected?.id}&module=test`} className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, zIndex: 1 }}>+ Log</a>
                       <LineChart
                         data={bleepData}
                         lines={[{ key: 'level', label: 'Bleep test', colour: '#1D9E75' }]}
@@ -2007,7 +2010,8 @@ export default function AthleteProfiles() {
                       }
                     }).filter(s => s.left != null || s.right != null)
                   return (
-                    <div className="card" style={{ marginBottom: 12 }}>
+                    <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
+                      <a href={`/fit2fight?student_id=${selected?.id}&module=test`} className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, zIndex: 1 }}>+ Log</a>
                       <LineChart
                         data={gripData}
                         lines={[
@@ -2031,7 +2035,8 @@ export default function AthleteProfiles() {
                       return { session_date: s.session_date, value: entry ? parseFloat(entry[1]) : null }
                     }).filter(s => s.value != null)
                   return (
-                    <div className="card" style={{ marginBottom: 12 }}>
+                    <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
+                      <a href={`/fit2fight?student_id=${selected?.id}&module=test`} className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, zIndex: 1 }}>+ Log</a>
                       <LineChart
                         data={circuitData}
                         lines={[{ key: 'value', label: 'Fixed load circuit', colour: '#854F0B' }]}
@@ -2058,7 +2063,8 @@ export default function AthleteProfiles() {
                     return obj
                   })
                   return (
-                    <div className="card" style={{ marginBottom: 12 }}>
+                    <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
+                      <a href={`/fit2fight?student_id=${selected?.id}&module=bodyweight`} className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, zIndex: 1 }}>+ Log</a>
                       {bwTypes.length > 1 && (
                         <div className="field" style={{ marginBottom: 10, maxWidth: 220 }}>
                           <label style={{ fontSize: 11 }}>Show</label>
@@ -2089,7 +2095,8 @@ export default function AthleteProfiles() {
                     return obj
                   })
                   return (
-                    <div className="card" style={{ marginBottom: 12 }}>
+                    <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
+                      <a href={`/fit2fight?student_id=${selected?.id}&module=techniques`} className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, zIndex: 1 }}>+ Log</a>
                       {techTypes.length > 1 && (
                         <div className="field" style={{ marginBottom: 10, maxWidth: 220 }}>
                           <label style={{ fontSize: 11 }}>Show</label>

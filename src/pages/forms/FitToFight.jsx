@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase.js'
 import { useAuth } from '../../hooks/useAuth.jsx'
 import FormLogo from '../../components/shared/FormLogo.jsx'
@@ -150,14 +150,7 @@ function SetInput({ sets, onChange, placeholder = 'e.g. 0.24' }) {
   )
 }
 
-function ModuleCard({ mod, enabled, onToggle, children, hideHeader }) {
-  if (hideHeader) {
-    return enabled ? (
-      <div style={{ border: `1px solid ${mod.colour}`, borderTop: 'none', borderRadius: '0 0 var(--border-radius-lg) var(--border-radius-lg)', padding: '12px 14px', background: 'var(--bg)', marginBottom: 10, marginTop: -10 }}>
-        {children}
-      </div>
-    ) : null
-  }
+function ModuleCard({ mod, enabled, onToggle, children }) {
   return (
     <div style={{ border: `1px solid ${enabled ? mod.colour : 'var(--border)'}`, borderRadius: 'var(--border-radius-lg)', overflow: 'hidden', marginBottom: 10 }}>
       <div onClick={onToggle} style={{
@@ -184,52 +177,10 @@ function ModuleCard({ mod, enabled, onToggle, children, hideHeader }) {
   )
 }
 
-// Compact card for the 2-column module grid. Tap toggles the detailed
-// form open/closed; press-and-hold cycles a quick "type" value (where
-// one exists) right on the card, without opening the full form.
-function CompactModuleCard({ mod, enabled, onToggle, quickValue, quickOptions, onQuickChange }) {
-  const pressTimer = useRef(null)
-  const longPressed = useRef(false)
-
-  function startPress() {
-    longPressed.current = false
-    if (!quickOptions?.length) return
-    pressTimer.current = setTimeout(() => {
-      longPressed.current = true
-      const idx = quickOptions.indexOf(quickValue)
-      const next = quickOptions[(idx + 1) % quickOptions.length]
-      onQuickChange(next)
-      if (navigator.vibrate) navigator.vibrate(15)
-    }, 500)
-  }
-  function endPress() {
-    clearTimeout(pressTimer.current)
-    if (!longPressed.current) onToggle()
-  }
-  function cancelPress() {
-    clearTimeout(pressTimer.current)
-  }
-
-  return (
-    <div
-      onMouseDown={startPress} onMouseUp={endPress} onMouseLeave={cancelPress}
-      onTouchStart={startPress} onTouchEnd={endPress} onTouchCancel={cancelPress}
-      style={{
-        border: `1px solid ${enabled ? mod.colour : 'var(--border)'}`, borderRadius: 'var(--border-radius-lg)',
-        padding: '10px 10px', cursor: 'pointer', userSelect: 'none', WebkitUserSelect: 'none',
-        background: enabled ? mod.colour + '12' : 'var(--bg)', textAlign: 'center',
-      }}>
-      <div style={{ fontSize: 20, marginBottom: 4 }}>{mod.icon}</div>
-      <div style={{ fontSize: 12, fontWeight: 500 }}>{mod.label}</div>
-      {quickValue && <div style={{ fontSize: 9, color: mod.colour, marginTop: 3, fontWeight: 600 }}>{quickValue}</div>}
-      {quickOptions?.length > 0 && <div style={{ fontSize: 8, color: 'var(--text-tertiary)', marginTop: 2 }}>hold to change</div>}
-    </div>
-  )
-}
-
 export default function FitToFight() {
   const { profile, isAdmin } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [view, setView] = useState('log') // 'log' | 'history'
   const [students, setStudents] = useState([])
   const [runCategories, setRunCategories]     = useState(DEFAULT_RUN_CATEGORIES)
@@ -270,6 +221,16 @@ export default function FitToFight() {
   const [expandedSession, setExpandedSession] = useState(null)
 
   useEffect(() => { if (isAdmin) loadStudents() }, [isAdmin])
+
+  useEffect(() => {
+    const studentId = searchParams.get('student_id')
+    if (studentId && students.length > 0) {
+      const s = students.find(s => s.id === studentId)
+      if (s) setStudent({ id: s.id, first_name: s.members?.first_name || '', last_name: s.members?.last_name || '' })
+    }
+    const moduleKey = searchParams.get('module')
+    if (moduleKey) setEnabled(prev => ({ ...prev, [moduleKey]: true }))
+  }, [searchParams, students])
 
   useEffect(() => {
     supabase.from('settings').select('key,value')
@@ -480,36 +441,8 @@ export default function FitToFight() {
               Toggle the workout modules you completed today:
             </p>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 4 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <CompactModuleCard mod={MODULES[0]} enabled={!!enabled.running} onToggle={() => toggle('running')}
-                  quickValue={running.category} quickOptions={Object.keys(runCategories)}
-                  onQuickChange={v => { setRunning(r => ({ ...r, category: v, test: '' })); rememberSelection({ running_category: v, running_test: '' }) }} />
-                <CompactModuleCard mod={MODULES[1]} enabled={!!enabled.watt_bike} onToggle={() => toggle('watt_bike')}
-                  quickValue={wattBike.interval_mode} quickOptions={intervalModes}
-                  onQuickChange={v => { setWattBike(w => ({ ...w, interval_mode: v })); rememberSelection({ watt_interval_mode: v }) }} />
-                <CompactModuleCard mod={MODULES[2]} enabled={!!enabled.bodyweight} onToggle={() => toggle('bodyweight')}
-                  quickValue={bodyweight.type} quickOptions={bodyweightTypes}
-                  onQuickChange={v => setBodyweight(b => ({ ...b, type: v }))} />
-                <CompactModuleCard mod={MODULES[3]} enabled={!!enabled.stretch} onToggle={() => toggle('stretch')}
-                  quickValue={null} quickOptions={[]} onQuickChange={() => {}} />
-                <CompactModuleCard mod={MODULES[4]} enabled={!!enabled.test} onToggle={() => toggle('test')}
-                  quickValue={test.type} quickOptions={testTypes}
-                  onQuickChange={v => setTest(t => ({ ...t, type: v }))} />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <CompactModuleCard mod={MODULES[5]} enabled={!!enabled.techniques} onToggle={() => toggle('techniques')}
-                  quickValue={techniques.type} quickOptions={techniqueTypes}
-                  onQuickChange={v => setTechniques(t => ({ ...t, type: v }))} />
-                <CompactModuleCard mod={MODULES[6]} enabled={!!enabled.eye_training} onToggle={() => toggle('eye_training')}
-                  quickValue={null} quickOptions={[]} onQuickChange={() => {}} />
-                <CompactModuleCard mod={MODULES[7]} enabled={!!enabled.one_percenters} onToggle={() => toggle('one_percenters')}
-                  quickValue={null} quickOptions={[]} onQuickChange={() => {}} />
-              </div>
-            </div>
-
             {/* Running */}
-            <ModuleCard mod={MODULES[0]} enabled={!!enabled.running} onToggle={() => toggle('running')} hideHeader>
+            <ModuleCard mod={MODULES[0]} enabled={!!enabled.running} onToggle={() => toggle('running')}>
               <div className="field"><label>Category</label>
                 <select value={running.category} onChange={e => {
                   const category = e.target.value
@@ -542,7 +475,7 @@ export default function FitToFight() {
             </ModuleCard>
 
             {/* Watt / assault bike */}
-            <ModuleCard mod={MODULES[1]} enabled={!!enabled.watt_bike} onToggle={() => toggle('watt_bike')} hideHeader>
+            <ModuleCard mod={MODULES[1]} enabled={!!enabled.watt_bike} onToggle={() => toggle('watt_bike')}>
               <div className="field"><label>Type</label>
                 <select value={wattBike.type} onChange={e => {
                   const type = e.target.value
@@ -586,7 +519,7 @@ export default function FitToFight() {
             </ModuleCard>
 
             {/* Bodyweight */}
-            <ModuleCard mod={MODULES[2]} enabled={!!enabled.bodyweight} onToggle={() => toggle('bodyweight')} hideHeader>
+            <ModuleCard mod={MODULES[2]} enabled={!!enabled.bodyweight} onToggle={() => toggle('bodyweight')}>
               <div className="field"><label>Exercise type</label>
                 <select value={bodyweight.type} onChange={e => setBodyweight(b => ({ ...b, type: e.target.value }))}>
                   <option value="">Select…</option>{bodyweightTypes.map(t => <option key={t}>{t}</option>)}
@@ -599,7 +532,7 @@ export default function FitToFight() {
             </ModuleCard>
 
             {/* Stretch flows */}
-            <ModuleCard mod={MODULES[3]} enabled={!!enabled.stretch} onToggle={() => toggle('stretch')} hideHeader>
+            <ModuleCard mod={MODULES[3]} enabled={!!enabled.stretch} onToggle={() => toggle('stretch')}>
               <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>40 seconds on · 20 seconds off</p>
               {[0, 1, 2].map(i => (
                 <div key={i} className="field">
@@ -612,7 +545,7 @@ export default function FitToFight() {
             </ModuleCard>
 
             {/* Test */}
-            <ModuleCard mod={MODULES[4]} enabled={!!enabled.test} onToggle={() => toggle('test')} hideHeader>
+            <ModuleCard mod={MODULES[4]} enabled={!!enabled.test} onToggle={() => toggle('test')}>
               <div className="field"><label>Test type</label>
                 <select value={test.type} onChange={e => setTest(t => ({ ...t, type: e.target.value }))}>
                   <option value="">Select…</option>{testTypes.map(t => <option key={t}>{t}</option>)}
@@ -624,7 +557,7 @@ export default function FitToFight() {
             </ModuleCard>
 
             {/* Techniques */}
-            <ModuleCard mod={MODULES[5]} enabled={!!enabled.techniques} onToggle={() => toggle('techniques')} hideHeader>
+            <ModuleCard mod={MODULES[5]} enabled={!!enabled.techniques} onToggle={() => toggle('techniques')}>
               <div className="field"><label>Technique type</label>
                 <select value={techniques.type} onChange={e => setTechniques(t => ({ ...t, type: e.target.value }))}>
                   <option value="">Select…</option>{techniqueTypes.map(t => <option key={t}>{t}</option>)}
@@ -639,7 +572,7 @@ export default function FitToFight() {
             </ModuleCard>
 
             {/* Eye training */}
-            <ModuleCard mod={MODULES[6]} enabled={!!enabled.eye_training} onToggle={() => toggle('eye_training')} hideHeader>
+            <ModuleCard mod={MODULES[6]} enabled={!!enabled.eye_training} onToggle={() => toggle('eye_training')}>
               <div className="field" style={{ marginBottom: 0 }}>
                 <label>Eye training notes</label>
                 <input value={eyeTraining} onChange={e => setEyeTraining(e.target.value)} placeholder="e.g. Reading out loud, tracking drills…" />
@@ -647,7 +580,7 @@ export default function FitToFight() {
             </ModuleCard>
 
             {/* One percenters */}
-            <ModuleCard mod={MODULES[7]} enabled={!!enabled.one_percenters} onToggle={() => toggle('one_percenters')} hideHeader>
+            <ModuleCard mod={MODULES[7]} enabled={!!enabled.one_percenters} onToggle={() => toggle('one_percenters')}>
               <div className="field"><label>Type / activity</label>
                 <input value={onePercenters.type} onChange={e => setOnePercenters(o => ({ ...o, type: e.target.value }))} placeholder="e.g. Ice bath, sleep tracking, nutrition log…" />
               </div>
