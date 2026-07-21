@@ -77,6 +77,16 @@ const FORMS = [
     colour: '#1D9E75',
     driveId: null,
   },
+  {
+    key: 'coach_signup',
+    label: 'Coach Signup',
+    desc: 'Invite a new coach to create their account. Requires the coach access code from Settings.',
+    icon: '🧑‍🏫',
+    path: '/coach-signup',
+    colour: '#8B5CF6',
+    driveId: null,
+    adminOnly: true,
+  },
 ]
 
 function ShareModal({ form, onClose }) {
@@ -234,7 +244,7 @@ export default function Forms() {
 
         {/* Left — forms list */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {FORMS.map(f => (
+          {FORMS.filter(f => !f.adminOnly || isAdmin).map(f => (
             <div key={f.key} className="card" style={{
               borderLeft: `3px solid ${f.colour}`,
               borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0',
