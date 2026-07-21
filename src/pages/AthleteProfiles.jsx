@@ -1420,7 +1420,7 @@ export default function AthleteProfiles() {
                           <p style={{ fontSize: 13, lineHeight: 1.6 }}>{apData.top_achievements}</p>
                         </div>
                       )}
-                      {apData.recent_results?.length > 0 && (
+                      {Array.isArray(apData.recent_results) && apData.recent_results.length > 0 && (
                         <div className="card" style={{ gridColumn: '1/-1' }}>
                           <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Recent results</h3>
                           {apData.recent_results.map((r, i) => (
@@ -2598,7 +2598,7 @@ export default function AthleteProfiles() {
                             </div>
                           ))}
                         </div>
-                        {reportData.profile.recent_results?.length > 0 && (
+                        {Array.isArray(reportData.profile.recent_results) && reportData.profile.recent_results.length > 0 && (
                           <div style={{ marginTop: 10 }}>
                             <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>Recent results</div>
                             {reportData.profile.recent_results.map((r, i) => (

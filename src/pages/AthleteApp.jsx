@@ -230,6 +230,7 @@ export default function AthleteApp() {
           {student ? (
             <>
               {(() => {
+               try {
                 const sorted = [...sessions].sort((a,b) => new Date(a.session_date) - new Date(b.session_date))
                 const scopeOptions = ['All sessions', student.discipline, [student.class_schedule, student.class_time].filter(Boolean).join(' ')]
                   .filter(Boolean).filter((v, i, a) => a.indexOf(v) === i)
@@ -428,7 +429,7 @@ export default function AthleteApp() {
                       {modules.map(b => <ModuleButton key={b.key} b={b} />)}
                     </div>
 
-                    {apData && (apData.age_division_kickboxing || apData.age_division_boxing || apData.weight_division || apData.top_achievements || apData.recent_results?.length > 0) && (
+                    {apData && (apData.age_division_kickboxing || apData.age_division_boxing || apData.weight_division || apData.top_achievements || (Array.isArray(apData.recent_results) && apData.recent_results.length > 0)) && (
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
                         {(apData.age_division_kickboxing || apData.age_division_boxing || apData.weight_division || apData.kode_red_debut) && (
                           <div className="card">
@@ -452,7 +453,7 @@ export default function AthleteApp() {
                             <p style={{ fontSize: 13, lineHeight: 1.6 }}>{apData.top_achievements}</p>
                           </div>
                         )}
-                        {apData.recent_results?.length > 0 && (
+                        {Array.isArray(apData.recent_results) && apData.recent_results.length > 0 && (
                           <div className="card" style={{ gridColumn: '1/-1' }}>
                             <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Recent results</h3>
                             {apData.recent_results.map((r, i) => (
@@ -466,6 +467,16 @@ export default function AthleteApp() {
                     )}
                   </>
                 )
+               } catch (e) {
+                 console.error('Home tab render error:', e)
+                 return (
+                   <div className="card" style={{ textAlign: 'center', padding: 20 }}>
+                     <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                       Something didn't load correctly here. Try refreshing the app.
+                     </p>
+                   </div>
+                 )
+               }
               })()}
 
               {points.length > 0 && (

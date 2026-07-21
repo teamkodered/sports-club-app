@@ -24,14 +24,18 @@ export default function Layout() {
 
   // Swipe to open/close on mobile
   useEffect(() => {
-    let startX = 0
-    const threshold = 50
-    function onStart(e) { startX = e.touches[0].clientX }
+    let startX = 0, startY = 0
+    const threshold = 60
+    function onStart(e) { startX = e.touches[0].clientX; startY = e.touches[0].clientY }
     function onEnd(e) {
-      const diff = e.changedTouches[0].clientX - startX
-      if (Math.abs(diff) < threshold) return
-      if (diff > 0 && startX < 40) setMobileOpen(true)
-      if (diff < 0) setMobileOpen(false)
+      const dx = e.changedTouches[0].clientX - startX
+      const dy = e.changedTouches[0].clientY - startY
+      // Only treat this as a swipe (not a scroll) if the horizontal
+      // movement clearly dominates the vertical movement
+      if (Math.abs(dx) < threshold) return
+      if (Math.abs(dx) < Math.abs(dy) * 1.5) return
+      if (dx > 0 && startX < 40) setMobileOpen(true)
+      if (dx < 0) setMobileOpen(false)
     }
     window.addEventListener('touchstart', onStart, { passive: true })
     window.addEventListener('touchend', onEnd, { passive: true })
@@ -75,16 +79,16 @@ export default function Layout() {
 
   const NAV_ITEMS = [
     { section: 'Main' },
-    { to: '/dashboard',      icon: '🏠', label: 'Dashboard' },
-    { to: '/registers',      icon: '📋', label: 'Registers' },
+    { to: '/dashboard',      icon: '🏠', label: 'Dashboard',          roles: ['admin','captain'] },
+    { to: '/registers',      icon: '📋', label: 'Registers',          roles: ['admin','captain'] },
     { to: '/league',         icon: '🏆', label: 'Houses' },
-    { to: '/trackers',       icon: '📈', label: 'Trackers',         roles: ['admin','coach'] },
+    { to: '/trackers',       icon: '📈', label: 'Trackers',           roles: ['admin','captain'] },
     { to: '/forms',          icon: '📝', label: 'Forms' },
-    { to: '/classes',        icon: '🗓️', label: 'Classes' },
-    { to: '/students',       icon: '🎽', label: 'Students' },
+    { to: '/classes',        icon: '🗓️', label: 'Classes',           roles: ['admin','captain'] },
+    { to: '/students',       icon: '🎽', label: 'Students',           roles: ['admin','captain'] },
     { to: '/fixtures',       icon: '📅', label: 'Fixtures' },
     { to: '/athlete-app',    icon: '🎽', label: 'My app' },
-    { to: '/athletes',       icon: '🏅', label: 'Athlete profiles', roles: ['admin','coach'] },
+    { to: '/athletes',       icon: '🏅', label: 'Athlete profiles',   roles: ['admin','captain'] },
     ...(isAdmin ? [
       { section: 'Admin' },
       { to: '/settings', icon: '⚙️', label: 'Settings' },
