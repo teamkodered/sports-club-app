@@ -1276,11 +1276,9 @@ export default function AthleteProfiles() {
                     </button>
                   </div>
 
-                  <div className="hide-scrollbar" style={{ display: 'flex', gap: 8, marginBottom: 8, overflowX: 'auto', paddingBottom: 2 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
                     {[...modules, ...modules2].map(b => (
-                      <div key={b.key} style={{ flexShrink: 0, width: 108 }}>
-                        <ModuleButton b={b} />
-                      </div>
+                      <ModuleButton key={b.key} b={b} />
                     ))}
                   </div>
 
