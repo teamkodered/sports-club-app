@@ -1185,10 +1185,18 @@ export default function AthleteProfiles() {
 
                 const pressTimer = useRef(null)
                 const longPressed = useRef(false)
-                function startPress() {
+                const startPos = useRef({ x: 0, y: 0 })
+                const scrolled = useRef(false)
+
+                function getPoint(e) { return e.touches ? e.touches[0] : e }
+                function startPress(e) {
                   longPressed.current = false
+                  scrolled.current = false
+                  const p = getPoint(e)
+                  startPos.current = { x: p.clientX, y: p.clientY }
                   if (!subTypeOptions.length) return
                   pressTimer.current = setTimeout(() => {
+                    if (scrolled.current) return
                     longPressed.current = true
                     const idx = subTypeOptions.indexOf(currentSubType)
                     const next = subTypeOptions[(idx + 1) % subTypeOptions.length]
@@ -1196,9 +1204,15 @@ export default function AthleteProfiles() {
                     if (navigator.vibrate) navigator.vibrate(15)
                   }, 500)
                 }
+                function moved(e) {
+                  const p = getPoint(e)
+                  const dx = Math.abs(p.clientX - startPos.current.x)
+                  const dy = Math.abs(p.clientY - startPos.current.y)
+                  if (dx > 8 || dy > 8) { scrolled.current = true; clearTimeout(pressTimer.current) }
+                }
                 function endPress() {
                   clearTimeout(pressTimer.current)
-                  if (!longPressed.current) goToChart()
+                  if (!longPressed.current && !scrolled.current) goToChart()
                 }
                 function cancelPress() { clearTimeout(pressTimer.current) }
 
@@ -1214,12 +1228,13 @@ export default function AthleteProfiles() {
 
                 return (
                   <button
-                    onMouseDown={startPress} onMouseUp={endPress} onMouseLeave={cancelPress}
-                    onTouchStart={startPress} onTouchEnd={endPress} onTouchCancel={cancelPress}
+                    onMouseDown={startPress} onMouseMove={moved} onMouseUp={endPress} onMouseLeave={cancelPress}
+                    onTouchStart={startPress} onTouchMove={moved} onTouchEnd={endPress} onTouchCancel={cancelPress}
                     style={{
                       display: 'flex', flexDirection: 'column', gap: 4, padding: '10px 10px', width: '100%',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                       cursor: 'pointer', userSelect: 'none', WebkitUserSelect: 'none', textAlign: 'center', fontFamily: 'var(--font-sans)',
+                      touchAction: 'pan-y',
                     }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
                       {!noNumericStat && (

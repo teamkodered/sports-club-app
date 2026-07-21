@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { supabasePublic } from '../lib/supabasePublic.js'
@@ -38,6 +38,10 @@ export default function AthleteApp() {
   const [apData, setApData]     = useState(null)
   const [points, setPoints]     = useState([])
   const [sessions, setSessions] = useState([])
+  const [attendanceData, setAttendanceData] = useState([])
+  const [allAttendance, setAllAttendance] = useState([])
+  const [f2fStatsScope, setF2fStatsScope] = useState(0)
+  const [moduleSubType, setModuleSubType] = useState({})
   const [loading, setLoading]   = useState(true)
   const [editNote, setEditNote] = useState(false)
   const [noteText, setNoteText] = useState('')
@@ -58,14 +62,20 @@ export default function AthleteApp() {
       const s = sRows?.[0] || null
       setStudent(s)
       if (s) {
-        const [{ data: ap }, { data: pts }, { data: sess }] = await Promise.all([
+        const [{ data: ap }, { data: pts }, { data: sess }, { data: myAtt }] = await Promise.all([
           supabase.from('athlete_profiles').select('*').eq('student_id', s.id).limit(1),
           supabase.from('points_log').select('*').eq('student_id', s.id).order('awarded_at', { ascending: false }).limit(20),
-          supabase.from('fit2fight_sessions').select('*').eq('student_id', s.id).order('session_date', { ascending: false }).limit(10),
+          supabase.from('fit2fight_sessions').select('*').eq('student_id', s.id).order('session_date', { ascending: false }),
+          supabase.from('attendance').select('*').eq('student_id', s.id).order('session_date', { ascending: false }),
         ])
         setApData(ap?.[0] || null)
         setPoints(pts || [])
         setSessions(sess || [])
+        setAttendanceData(myAtt || [])
+
+        const { data: allAtt } = await supabase.from('attendance')
+          .select('student_id, session_date, attendance_type, students(discipline, class_schedule, class_time)')
+        setAllAttendance(allAtt || [])
 
         const [{ data: houseData }, { data: rankData }] = await Promise.all([
           supabase.from('houses').select('id, name, points').order('points', { ascending: false }),
@@ -219,66 +229,245 @@ export default function AthleteApp() {
         <div>
           {student ? (
             <>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 14 }}>
-                {[
-                  { label: 'Points',       value: totalPts,                    colour, icon: '⭐' },
-                  { label: 'F2F sessions', value: sessions.length,             colour: '#378ADD', icon: '💪' },
-                  { label: 'Class champ',  value: student.class_champion_count || 0, colour: '#EF9F27', icon: '🏆' },
-                ].map(s => (
-                  <div key={s.label} className="card" style={{ textAlign: 'center', padding: '12px 8px' }}>
-                    <div style={{ fontSize: 22, marginBottom: 4 }}>{s.icon}</div>
-                    <div style={{ fontSize: 22, fontWeight: 700, color: s.colour }}>{s.value}</div>
-                    <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 2 }}>{s.label}</div>
-                  </div>
-                ))}
-              </div>
+              {(() => {
+                const sorted = [...sessions].sort((a,b) => new Date(a.session_date) - new Date(b.session_date))
+                const scopeOptions = ['All sessions', student.discipline, [student.class_schedule, student.class_time].filter(Boolean).join(' ')]
+                  .filter(Boolean).filter((v, i, a) => a.indexOf(v) === i)
+                const scopeLen = scopeOptions.length || 1
+                const scopeLabel = scopeOptions[((f2fStatsScope % scopeLen) + scopeLen) % scopeLen] || 'All sessions'
+                const matchesScope = att => {
+                  if (scopeLabel === 'All sessions') return true
+                  if (scopeLabel === student.discipline) return att?.students?.discipline === student.discipline
+                  return att?.students?.class_schedule === student.class_schedule && att?.students?.class_time === student.class_time
+                }
+                const possibleSessions = new Set((allAttendance || []).filter(matchesScope).map(a => a?.session_date)).size
 
-              <div className="card" style={{ padding: 0, marginBottom: 14 }}>
-                <div style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)' }}>Profile</div>
-                {[
-                  ['House', houseName || '—'],
-                  ['Discipline', student.discipline || '—'],
-                  ['Grade', student.pka_belt || student.krba_level || '—'],
-                  ['Class', [student.class_schedule, student.class_time].filter(Boolean).join(' · ') || '—'],
-                  ['Weight', student.weight_kg ? `${student.weight_kg}kg${student.weight_category ? ` (${student.weight_category})` : ''}` : '—'],
-                  ['Groups', [student.is_kr && 'KR', student.is_pts && 'PTs', student.is_leader && 'Leader', student.is_coach && 'Coach'].filter(Boolean).join(', ') || 'None'],
-                  ['Media permission', student.media_restriction || '—'],
-                ].map(([label, val], i, arr) => (
-                  <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 14px', borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13 }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
-                    <span style={{ fontWeight: 500, textAlign: 'right' }}>{val}</span>
-                  </div>
-                ))}
-              </div>
+                function getSubTypeOptions(key) {
+                  try {
+                    if (key === 'running') return [...new Set(sorted.map(s => s.running?.category).filter(Boolean))]
+                    if (key === 'watt_bike') return [...new Set(sorted.map(s => s.watt_bike?.interval_mode || s.watt_bike?.type).filter(Boolean))]
+                    if (key === 'bodyweight') return [...new Set(sorted.map(s => s.bodyweight?.type).filter(Boolean))]
+                    if (key === 'test') return [...new Set(sorted.flatMap(s => Object.keys(s.test || {})))]
+                    if (key === 'techniques') return [...new Set(sorted.map(s => s.techniques?.type).filter(Boolean))]
+                    return []
+                  } catch (e) { return [] }
+                }
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 14 }}>
-                {[
-                  { label: 'Profile',      icon: '👤', colour: '#378ADD', to: `/athletes?id=${student.id}` },
-                  { label: 'My PDP',       icon: '🎯', colour: '#1D9E75', tab: 'pdp' },
-                  { label: 'Analysis',     icon: '📊', colour: '#E24B4A', tab: 'analysis' },
-                  { label: 'Fit II Fight', icon: '💪', colour: '#EF9F27', tab: 'fit2fight' },
-                ].map(l => l.to ? (
-                  <Link key={l.label} to={l.to} style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                    padding: '14px 8px', background: l.colour + '12',
-                    border: `1px solid ${l.colour}30`, borderRadius: 'var(--border-radius-lg)',
-                    cursor: 'pointer', fontFamily: 'var(--font-sans)', textDecoration: 'none',
-                  }}>
-                    <span style={{ fontSize: 24 }}>{l.icon}</span>
-                    <span style={{ fontSize: 12, fontWeight: 500, color: l.colour }}>{l.label}</span>
-                  </Link>
-                ) : (
-                  <button key={l.label} onClick={() => setTab(l.tab)} style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                    padding: '14px 8px', background: l.colour + '12',
-                    border: `1px solid ${l.colour}30`, borderRadius: 'var(--border-radius-lg)',
-                    cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                  }}>
-                    <span style={{ fontSize: 24 }}>{l.icon}</span>
-                    <span style={{ fontSize: 12, fontWeight: 500, color: l.colour }}>{l.label}</span>
-                  </button>
-                ))}
-              </div>
+                function computeModuleStats(key, subType) {
+                  try {
+                    let entries = [], unit = '', higherIsBetter = true
+                    const numSets = arr => Array.isArray(arr) ? arr.map(v => parseFloat((v && typeof v === 'object') ? v.wattage : v)).filter(v => !isNaN(v)) : []
+                    if (key === 'running') {
+                      const filtered = sorted.filter(s => !subType || s.running?.category === subType)
+                      entries = filtered.filter(s => Array.isArray(s.running?.sets) && s.running.sets.length > 0)
+                        .map(s => ({ date: s.session_date, value: s.running.sets[s.running.sets.length - 1] }))
+                      higherIsBetter = subType === 'Distance over time'
+                    } else if (key === 'watt_bike') {
+                      const filtered = sorted.filter(s => !subType || (s.watt_bike?.interval_mode || s.watt_bike?.type) === subType)
+                      entries = filtered.map(s => ({ date: s.session_date, value: numSets(s.watt_bike?.sets).length ? Math.max(...numSets(s.watt_bike?.sets)) : null })).filter(e => e.value != null)
+                      unit = 'W'
+                    } else if (key === 'bodyweight') {
+                      const filtered = sorted.filter(s => !subType || s.bodyweight?.type === subType)
+                      entries = filtered.map(s => ({ date: s.session_date, value: numSets(s.bodyweight?.sets).length ? Math.max(...numSets(s.bodyweight?.sets)) : null })).filter(e => e.value != null)
+                      unit = ' reps'
+                    } else if (key === 'test') {
+                      entries = subType ? sorted.filter(s => s.test?.[subType] != null).map(s => ({ date: s.session_date, value: s.test[subType] })) : []
+                      higherIsBetter = !['200m sprint', '1600m time trial', '4800m time trial'].includes(subType)
+                    } else if (key === 'techniques') {
+                      const filtered = sorted.filter(s => !subType || s.techniques?.type === subType)
+                      entries = filtered.map(s => ({ date: s.session_date, value: numSets(s.techniques?.sets).length ? Math.max(...numSets(s.techniques?.sets)) : null })).filter(e => e.value != null)
+                    }
+                    const mostRecent = entries[entries.length - 1] || null
+                    const pb = entries.reduce((best, e) => !best ? e : ((higherIsBetter ? e.value > best.value : e.value < best.value) ? e : best), null)
+                    return { mostRecent, pb, unit }
+                  } catch (e) { return { mostRecent: null, pb: null, unit: '' } }
+                }
+
+                function computeLastLogged(key) {
+                  try {
+                    const entries = sorted.filter(s => key === 'stretch' ? s.stretch?.some?.(Boolean) : s.eye_training)
+                    return entries.length ? { count: entries.length, lastDate: entries[entries.length - 1].session_date } : { count: 0, lastDate: null }
+                  } catch (e) { return { count: 0, lastDate: null } }
+                }
+
+                const modules = [
+                  { key: 'running',    label: 'Running',       icon: '🏃' },
+                  { key: 'watt_bike',  label: 'Watt bike',     icon: '🚴' },
+                  { key: 'bodyweight', label: 'Bodyweight',    icon: '💪' },
+                  { key: 'stretch',    label: 'Stretch flows', icon: '🤸' },
+                  { key: 'test',       label: 'Test',          icon: '📋' },
+                  { key: 'techniques',   label: 'Techniques',   icon: '🥋' },
+                  { key: 'eye_training', label: 'Eye training', icon: '👁' },
+                ]
+
+                function ModuleButton({ b }) {
+                  const subTypeOptions = getSubTypeOptions(b.key)
+                  const currentSubType = moduleSubType[b.key] ?? subTypeOptions[0] ?? null
+                  const noNumericStat = b.key === 'stretch' || b.key === 'eye_training'
+                  const { mostRecent, pb, unit } = noNumericStat ? { mostRecent: null, pb: null, unit: '' } : computeModuleStats(b.key, currentSubType)
+                  const lastLogged = noNumericStat ? computeLastLogged(b.key) : null
+
+                  const pressTimer = useRef(null)
+                  const longPressed = useRef(false)
+                  const startPos = useRef({ x: 0, y: 0 })
+                  const scrolled = useRef(false)
+
+                  function getPoint(e) { return e.touches ? e.touches[0] : e }
+                  function startPress(e) {
+                    longPressed.current = false
+                    scrolled.current = false
+                    const p = getPoint(e)
+                    startPos.current = { x: p.clientX, y: p.clientY }
+                    if (!subTypeOptions.length) return
+                    pressTimer.current = setTimeout(() => {
+                      if (scrolled.current) return
+                      longPressed.current = true
+                      const idx = subTypeOptions.indexOf(currentSubType)
+                      const next = subTypeOptions[(idx + 1) % subTypeOptions.length]
+                      setModuleSubType(prev => ({ ...prev, [b.key]: next }))
+                      if (navigator.vibrate) navigator.vibrate(15)
+                    }, 500)
+                  }
+                  function moved(e) {
+                    const p = getPoint(e)
+                    const dx = Math.abs(p.clientX - startPos.current.x)
+                    const dy = Math.abs(p.clientY - startPos.current.y)
+                    // Any meaningful finger movement means this is a scroll, not a tap/hold
+                    if (dx > 8 || dy > 8) { scrolled.current = true; clearTimeout(pressTimer.current) }
+                  }
+                  function endPress() {
+                    clearTimeout(pressTimer.current)
+                    if (!longPressed.current && !scrolled.current) setTab('fit2fight')
+                  }
+                  function cancelPress() { clearTimeout(pressTimer.current) }
+
+                  return (
+                    <button
+                      onMouseDown={startPress} onMouseMove={moved} onMouseUp={endPress} onMouseLeave={cancelPress}
+                      onTouchStart={startPress} onTouchMove={moved} onTouchEnd={endPress} onTouchCancel={cancelPress}
+                      style={{
+                        display: 'flex', flexDirection: 'column', gap: 4, padding: '10px 10px', width: '100%',
+                        background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                        cursor: 'pointer', userSelect: 'none', WebkitUserSelect: 'none', textAlign: 'center', fontFamily: 'var(--font-sans)',
+                        touchAction: 'pan-y',
+                      }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                        {!noNumericStat && (
+                          <div style={{ textAlign: 'center', minWidth: 30 }}>
+                            <div style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>Recent</div>
+                            <div style={{ fontSize: 11, fontWeight: 700 }}>{mostRecent ? `${mostRecent.value}${unit}` : '—'}</div>
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flex: 1 }}>
+                          <span style={{ fontSize: 18 }}>{b.icon}</span>
+                          <span style={{ fontSize: 10, fontWeight: 500, whiteSpace: 'nowrap' }}>{b.label}</span>
+                        </div>
+                        {!noNumericStat && (
+                          <div style={{ textAlign: 'center', minWidth: 30 }}>
+                            <div style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>🏅 PB</div>
+                            <div style={{ fontSize: 11, fontWeight: 700, color }}>{pb ? `${pb.value}${unit}` : '—'}</div>
+                          </div>
+                        )}
+                      </div>
+                      {noNumericStat && (
+                        <div style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>
+                          {lastLogged.count > 0 ? `Logged ${lastLogged.count}× · last ${new Date(lastLogged.lastDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : 'Not logged yet'}
+                        </div>
+                      )}
+                      {currentSubType && <div style={{ fontSize: 8, color, fontWeight: 600 }}>{currentSubType}</div>}
+                      {subTypeOptions.length > 1 && <div style={{ fontSize: 7, color: 'var(--text-tertiary)' }}>hold to change</div>}
+                    </button>
+                  )
+                }
+
+                return (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 8 }}>
+                      <div className="card" style={{ textAlign: 'center', padding: '10px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+                        <button onClick={() => setF2fStatsScope(v => v - 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4 }}>◀</button>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 20, marginBottom: 2 }}>✅</div>
+                          <div style={{ fontSize: 19, fontWeight: 700, color }}>{attendanceData.length}/{possibleSessions || attendanceData.length}</div>
+                          <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>{scopeLabel}</div>
+                        </div>
+                        <button onClick={() => setF2fStatsScope(v => v + 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4 }}>▶</button>
+                      </div>
+                      <button onClick={() => setTab('fit2fight')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg)', appearance: 'none', WebkitAppearance: 'none' }}>
+                        <div style={{ fontSize: 22, marginBottom: 4 }}>📈</div>
+                        <div style={{ fontSize: 22, fontWeight: 700, color: '#378ADD' }}>{sessions.length}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>F2F sessions</div>
+                      </button>
+                      <button onClick={() => setTab('pdp')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg)', appearance: 'none', WebkitAppearance: 'none' }}>
+                        <div style={{ fontSize: 22, marginBottom: 4 }}>🎯</div>
+                        <div style={{ fontSize: 22, fontWeight: 700, color: '#EF9F27' }}>
+                          {Object.entries(apData?.pdp_notes || {}).filter(([k]) => !k.startsWith('__')).reduce((sum, [, v]) => sum + (Array.isArray(v) ? v.length : 0), 0)}
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>PDP</div>
+                      </button>
+                    </div>
+
+                    <div className="card" style={{ padding: 0, marginBottom: 14 }}>
+                      <div style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)' }}>Profile</div>
+                      {[
+                        ['House', houseName || '—'],
+                        ['Discipline', student.discipline_codes || student.discipline || '—'],
+                        [student.discipline === 'KRBA' ? 'Level' : student.is_kr ? 'Experience' : 'Grade',
+                          student.discipline === 'KRBA' ? (student.krba_level || '—') : student.is_kr ? (student.competition_team || '—') : (student.pka_belt || '—')],
+                        ['Weight', student.weight_kg ? `${student.weight_kg}kg${student.weight_category ? ` (${student.weight_category})` : ''}` : '—'],
+                        ['Comp weight', apData?.weight_division || '—'],
+                        ['Groups', [student.is_kr && 'KR', student.is_pts && 'PTs', student.is_leader && 'Leader', student.is_coach && 'Coach'].filter(Boolean).join(', ') || 'None'],
+                      ].map(([label, val], i, arr) => (
+                        <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 14px', borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13 }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
+                          <span style={{ fontWeight: 500, textAlign: 'right' }}>{val}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+                      {modules.map(b => <ModuleButton key={b.key} b={b} />)}
+                    </div>
+
+                    {apData && (apData.age_division_kickboxing || apData.age_division_boxing || apData.weight_division || apData.top_achievements || apData.recent_results?.length > 0) && (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                        {(apData.age_division_kickboxing || apData.age_division_boxing || apData.weight_division || apData.kode_red_debut) && (
+                          <div className="card">
+                            <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color }}>Competition divisions</h3>
+                            {[
+                              ['Kickboxing', apData.age_division_kickboxing],
+                              ['Boxing', apData.age_division_boxing],
+                              ['Weight division', apData.weight_division],
+                              ['Kode Red debut', apData.kode_red_debut],
+                            ].map(([l, v]) => v && (
+                              <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                                <span style={{ color: 'var(--text-secondary)' }}>{l}</span>
+                                <span style={{ fontWeight: 500 }}>{v}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {apData.top_achievements && (
+                          <div className="card" style={{ gridColumn: '1/-1' }}>
+                            <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color }}>🏆 Top achievements</h3>
+                            <p style={{ fontSize: 13, lineHeight: 1.6 }}>{apData.top_achievements}</p>
+                          </div>
+                        )}
+                        {apData.recent_results?.length > 0 && (
+                          <div className="card" style={{ gridColumn: '1/-1' }}>
+                            <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Recent results</h3>
+                            {apData.recent_results.map((r, i) => (
+                              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                                <span style={{ fontSize: 16 }}>🎖</span>{r}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )
+              })()}
+
               {points.length > 0 && (
                 <div className="card" style={{ padding: 0, marginBottom: 14 }}>
                   <div style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)' }}>Recent points</div>
