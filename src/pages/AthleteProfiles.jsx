@@ -9,6 +9,161 @@ const HOUSE_COLOURS = {
   'Ice House': '#1D9E75',    'Jet House':   '#EF9F27',
 }
 
+function getSubTypeOptions(sorted, key) {
+  try {
+    if (key === 'running') return [...new Set(sorted.map(s => s.running?.category).filter(Boolean))]
+    if (key === 'watt_bike') return [...new Set(sorted.map(s => s.watt_bike?.interval_mode || s.watt_bike?.type).filter(Boolean))]
+    if (key === 'bodyweight') return [...new Set(sorted.map(s => s.bodyweight?.type).filter(Boolean))]
+    if (key === 'test') return [...new Set(sorted.flatMap(s => Object.keys(s.test || {})))]
+    if (key === 'techniques') return [...new Set(sorted.map(s => s.techniques?.type).filter(Boolean))]
+    return []
+  } catch (e) { return [] }
+}
+
+// Compute most-recent + personal-best for a module (optionally filtered
+// to one sub-type), defensively -- malformed/legacy session data
+// shouldn't be able to crash this page.
+function computeModuleStats(sorted, key, subType) {
+  try {
+    let entries = [], unit = '', higherIsBetter = true
+    const numSets = arr => Array.isArray(arr) ? arr.map(v => parseFloat((v && typeof v === 'object') ? v.wattage : v)).filter(v => !isNaN(v)) : []
+
+    if (key === 'running') {
+      const filtered = sorted.filter(s => !subType || s.running?.category === subType)
+      entries = filtered.filter(s => Array.isArray(s.running?.sets) && s.running.sets.length > 0)
+        .map(s => ({ date: s.session_date, value: s.running.sets[s.running.sets.length - 1] }))
+      higherIsBetter = subType === 'Distance over time'
+    } else if (key === 'watt_bike') {
+      const filtered = sorted.filter(s => !subType || (s.watt_bike?.interval_mode || s.watt_bike?.type) === subType)
+      entries = filtered.map(s => ({ date: s.session_date, value: numSets(s.watt_bike?.sets).length ? Math.max(...numSets(s.watt_bike?.sets)) : null }))
+        .filter(e => e.value != null)
+      unit = 'W'
+    } else if (key === 'bodyweight') {
+      const filtered = sorted.filter(s => !subType || s.bodyweight?.type === subType)
+      entries = filtered.map(s => ({ date: s.session_date, value: numSets(s.bodyweight?.sets).length ? Math.max(...numSets(s.bodyweight?.sets)) : null }))
+        .filter(e => e.value != null)
+      unit = ' reps'
+    } else if (key === 'test') {
+      entries = subType ? sorted.filter(s => s.test?.[subType] != null).map(s => ({ date: s.session_date, value: s.test[subType] })) : []
+      higherIsBetter = !['200m sprint', '1600m time trial', '4800m time trial'].includes(subType)
+    } else if (key === 'techniques') {
+      const filtered = sorted.filter(s => !subType || s.techniques?.type === subType)
+      entries = filtered.map(s => ({ date: s.session_date, value: numSets(s.techniques?.sets).length ? Math.max(...numSets(s.techniques?.sets)) : null }))
+        .filter(e => e.value != null)
+    }
+    const mostRecent = entries[entries.length - 1] || null
+    const pb = entries.reduce((best, e) => !best ? e : ((higherIsBetter ? e.value > best.value : e.value < best.value) ? e : best), null)
+    return { mostRecent, pb, unit }
+  } catch (e) {
+    console.error('computeModuleStats error for', key, e)
+    return { mostRecent: null, pb: null, unit: '' }
+  }
+}
+
+// Simple "last logged" stat for modules with no clean numeric metric
+// (Stretch flows, Eye training)
+function computeLastLogged(sorted, key) {
+  try {
+    const entries = sorted.filter(s => key === 'stretch' ? s.stretch?.some?.(Boolean) : s.eye_training)
+    return entries.length ? { count: entries.length, lastDate: entries[entries.length - 1].session_date } : { count: 0, lastDate: null }
+  } catch (e) { return { count: 0, lastDate: null } }
+}
+
+const CHART_IDS = { watt_bike: 'f2f-chart-watt_bike', running: 'f2f-chart-running', bodyweight: 'f2f-chart-bodyweight', techniques: 'f2f-chart-techniques' }
+const TEST_CHART_IDS = { 'Bleep test': 'f2f-chart-bleep', 'Fixed load circuit': 'f2f-chart-circuit' }
+
+// Defined at module scope (not inside the page component's render) so
+// React treats it as a stable component across renders, rather than
+// unmounting/remounting it every time the parent re-renders.
+function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setTab, setRunChartFilter }) {
+  const subTypeOptions = getSubTypeOptions(sorted, b.key)
+  const currentSubType = moduleSubType[b.key] ?? subTypeOptions[0] ?? null
+  const noNumericStat = b.key === 'stretch' || b.key === 'eye_training'
+  const { mostRecent, pb, unit } = noNumericStat ? { mostRecent: null, pb: null, unit: '' } : computeModuleStats(sorted, b.key, currentSubType)
+  const lastLogged = noNumericStat ? computeLastLogged(sorted, b.key) : null
+
+  const pressTimer = useRef(null)
+  const longPressed = useRef(false)
+  const startPos = useRef({ x: 0, y: 0 })
+  const scrolled = useRef(false)
+
+  function getPoint(e) { return e.touches ? e.touches[0] : e }
+  function startPress(e) {
+    longPressed.current = false
+    scrolled.current = false
+    const p = getPoint(e)
+    startPos.current = { x: p.clientX, y: p.clientY }
+    if (!subTypeOptions.length) return
+    pressTimer.current = setTimeout(() => {
+      if (scrolled.current) return
+      longPressed.current = true
+      const idx = subTypeOptions.indexOf(currentSubType)
+      const next = subTypeOptions[(idx + 1) % subTypeOptions.length]
+      setModuleSubType(prev => ({ ...prev, [b.key]: next }))
+      if (navigator.vibrate) navigator.vibrate(15)
+    }, 500)
+  }
+  function moved(e) {
+    const p = getPoint(e)
+    const dx = Math.abs(p.clientX - startPos.current.x)
+    const dy = Math.abs(p.clientY - startPos.current.y)
+    if (dx > 8 || dy > 8) { scrolled.current = true; clearTimeout(pressTimer.current) }
+  }
+  function endPress() {
+    clearTimeout(pressTimer.current)
+    if (!longPressed.current && !scrolled.current) goToChart()
+  }
+  function cancelPress() { clearTimeout(pressTimer.current) }
+
+  function goToChart() {
+    let targetId = CHART_IDS[b.key]
+    if (b.key === 'test' && currentSubType) targetId = TEST_CHART_IDS[currentSubType]
+    if (b.key === 'running' && currentSubType) setRunChartFilter('all')
+    setTab('fit2fight')
+    if (targetId) {
+      setTimeout(() => document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100)
+    }
+  }
+
+  return (
+    <button
+      onMouseDown={startPress} onMouseMove={moved} onMouseUp={endPress} onMouseLeave={cancelPress}
+      onTouchStart={startPress} onTouchMove={moved} onTouchEnd={endPress} onTouchCancel={cancelPress}
+      style={{
+        display: 'flex', flexDirection: 'column', gap: 4, padding: '10px 10px', width: '100%',
+        background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+        cursor: 'pointer', userSelect: 'none', WebkitUserSelect: 'none', textAlign: 'center', fontFamily: 'var(--font-sans)',
+        touchAction: 'pan-y',
+      }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+        {!noNumericStat && (
+          <div style={{ textAlign: 'center', minWidth: 30 }}>
+            <div style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>Recent</div>
+            <div style={{ fontSize: 11, fontWeight: 700 }}>{mostRecent ? `${mostRecent.value}${unit}` : '—'}</div>
+          </div>
+        )}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flex: 1 }}>
+          <span style={{ fontSize: 18 }}>{b.icon}</span>
+          <span style={{ fontSize: 10, fontWeight: 500, whiteSpace: 'nowrap' }}>{b.label}</span>
+        </div>
+        {!noNumericStat && (
+          <div style={{ textAlign: 'center', minWidth: 30 }}>
+            <div style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>🏅 PB</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: colour }}>{pb ? `${pb.value}${unit}` : '—'}</div>
+          </div>
+        )}
+      </div>
+      {noNumericStat && (
+        <div style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>
+          {lastLogged.count > 0 ? `Logged ${lastLogged.count}× · last ${new Date(lastLogged.lastDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : 'Not logged yet'}
+        </div>
+      )}
+      {currentSubType && <div style={{ fontSize: 8, color: colour, fontWeight: 600 }}>{currentSubType}</div>}
+      {subTypeOptions.length > 1 && <div style={{ fontSize: 7, color: 'var(--text-tertiary)' }}>hold to change</div>}
+    </button>
+  )
+}
+
 const KB_DIVISIONS  = ['Children', 'Younger Cadet (10-12)', 'Older Cadet (13-15)', 'Junior (16-18)', 'Senior (19-40)', 'Masters (40+)']
 const BOX_DIVISIONS = ['Schoolboy', 'Schoolgirl', 'Junior', 'Youth', 'Elite', 'Senior']
 
@@ -1101,66 +1256,6 @@ export default function AthleteProfiles() {
 
               // Distinct sub-types this athlete actually has logged for a module,
               // used to drive the hold-to-cycle options on each card
-              function getSubTypeOptions(key) {
-                try {
-                  if (key === 'running') return [...new Set(sorted.map(s => s.running?.category).filter(Boolean))]
-                  if (key === 'watt_bike') return [...new Set(sorted.map(s => s.watt_bike?.interval_mode || s.watt_bike?.type).filter(Boolean))]
-                  if (key === 'bodyweight') return [...new Set(sorted.map(s => s.bodyweight?.type).filter(Boolean))]
-                  if (key === 'test') return [...new Set(sorted.flatMap(s => Object.keys(s.test || {})))]
-                  if (key === 'techniques') return [...new Set(sorted.map(s => s.techniques?.type).filter(Boolean))]
-                  return []
-                } catch (e) { return [] }
-              }
-
-              // Compute most-recent + personal-best for a module (optionally
-              // filtered to one sub-type), defensively -- malformed/legacy
-              // session data shouldn't be able to crash this page.
-              function computeModuleStats(key, subType) {
-                try {
-                  let entries = [], unit = '', higherIsBetter = true
-                  const numSets = arr => Array.isArray(arr) ? arr.map(v => parseFloat((v && typeof v === 'object') ? v.wattage : v)).filter(v => !isNaN(v)) : []
-
-                  if (key === 'running') {
-                    const filtered = sorted.filter(s => !subType || s.running?.category === subType)
-                    entries = filtered.filter(s => Array.isArray(s.running?.sets) && s.running.sets.length > 0)
-                      .map(s => ({ date: s.session_date, value: s.running.sets[s.running.sets.length - 1] }))
-                    higherIsBetter = subType === 'Distance over time'
-                  } else if (key === 'watt_bike') {
-                    const filtered = sorted.filter(s => !subType || (s.watt_bike?.interval_mode || s.watt_bike?.type) === subType)
-                    entries = filtered.map(s => ({ date: s.session_date, value: numSets(s.watt_bike?.sets).length ? Math.max(...numSets(s.watt_bike?.sets)) : null }))
-                      .filter(e => e.value != null)
-                    unit = 'W'
-                  } else if (key === 'bodyweight') {
-                    const filtered = sorted.filter(s => !subType || s.bodyweight?.type === subType)
-                    entries = filtered.map(s => ({ date: s.session_date, value: numSets(s.bodyweight?.sets).length ? Math.max(...numSets(s.bodyweight?.sets)) : null }))
-                      .filter(e => e.value != null)
-                    unit = ' reps'
-                  } else if (key === 'test') {
-                    entries = subType ? sorted.filter(s => s.test?.[subType] != null).map(s => ({ date: s.session_date, value: s.test[subType] })) : []
-                    higherIsBetter = !['200m sprint', '1600m time trial', '4800m time trial'].includes(subType)
-                  } else if (key === 'techniques') {
-                    const filtered = sorted.filter(s => !subType || s.techniques?.type === subType)
-                    entries = filtered.map(s => ({ date: s.session_date, value: numSets(s.techniques?.sets).length ? Math.max(...numSets(s.techniques?.sets)) : null }))
-                      .filter(e => e.value != null)
-                  }
-                  const mostRecent = entries[entries.length - 1] || null
-                  const pb = entries.reduce((best, e) => !best ? e : ((higherIsBetter ? e.value > best.value : e.value < best.value) ? e : best), null)
-                  return { mostRecent, pb, unit }
-                } catch (e) {
-                  console.error('computeModuleStats error for', key, e)
-                  return { mostRecent: null, pb: null, unit: '' }
-                }
-              }
-
-              // Simple "last logged" stat for modules with no clean numeric
-              // metric (Stretch flows, Eye training)
-              function computeLastLogged(key) {
-                try {
-                  const entries = sorted.filter(s => key === 'stretch' ? s.stretch?.some?.(Boolean) : s.eye_training)
-                  return entries.length ? { count: entries.length, lastDate: entries[entries.length - 1].session_date } : { count: 0, lastDate: null }
-                } catch (e) { return { count: 0, lastDate: null } }
-              }
-
               const modules = [
                 { key: 'running',    label: 'Running',       icon: '🏃' },
                 { key: 'watt_bike',  label: 'Watt bike',     icon: '🚴' },
@@ -1172,98 +1267,6 @@ export default function AthleteProfiles() {
                 { key: 'techniques',   label: 'Techniques',   icon: '🥋' },
                 { key: 'eye_training', label: 'Eye training', icon: '👁' },
               ]
-
-              const chartIds = { watt_bike: 'f2f-chart-watt_bike', running: 'f2f-chart-running', bodyweight: 'f2f-chart-bodyweight', techniques: 'f2f-chart-techniques' }
-              const testChartIds = { 'Bleep test': 'f2f-chart-bleep', 'Fixed load circuit': 'f2f-chart-circuit' }
-
-              function ModuleButton({ b }) {
-                const subTypeOptions = getSubTypeOptions(b.key)
-                const currentSubType = moduleSubType[b.key] ?? subTypeOptions[0] ?? null
-                const noNumericStat = b.key === 'stretch' || b.key === 'eye_training'
-                const { mostRecent, pb, unit } = noNumericStat ? { mostRecent: null, pb: null, unit: '' } : computeModuleStats(b.key, currentSubType)
-                const lastLogged = noNumericStat ? computeLastLogged(b.key) : null
-
-                const pressTimer = useRef(null)
-                const longPressed = useRef(false)
-                const startPos = useRef({ x: 0, y: 0 })
-                const scrolled = useRef(false)
-
-                function getPoint(e) { return e.touches ? e.touches[0] : e }
-                function startPress(e) {
-                  longPressed.current = false
-                  scrolled.current = false
-                  const p = getPoint(e)
-                  startPos.current = { x: p.clientX, y: p.clientY }
-                  if (!subTypeOptions.length) return
-                  pressTimer.current = setTimeout(() => {
-                    if (scrolled.current) return
-                    longPressed.current = true
-                    const idx = subTypeOptions.indexOf(currentSubType)
-                    const next = subTypeOptions[(idx + 1) % subTypeOptions.length]
-                    setModuleSubType(prev => ({ ...prev, [b.key]: next }))
-                    if (navigator.vibrate) navigator.vibrate(15)
-                  }, 500)
-                }
-                function moved(e) {
-                  const p = getPoint(e)
-                  const dx = Math.abs(p.clientX - startPos.current.x)
-                  const dy = Math.abs(p.clientY - startPos.current.y)
-                  if (dx > 8 || dy > 8) { scrolled.current = true; clearTimeout(pressTimer.current) }
-                }
-                function endPress() {
-                  clearTimeout(pressTimer.current)
-                  if (!longPressed.current && !scrolled.current) goToChart()
-                }
-                function cancelPress() { clearTimeout(pressTimer.current) }
-
-                function goToChart() {
-                  let targetId = chartIds[b.key]
-                  if (b.key === 'test' && currentSubType) targetId = testChartIds[currentSubType]
-                  if (b.key === 'running' && currentSubType) setRunChartFilter('all')
-                  setTab('fit2fight')
-                  if (targetId) {
-                    setTimeout(() => document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100)
-                  }
-                }
-
-                return (
-                  <button
-                    onMouseDown={startPress} onMouseMove={moved} onMouseUp={endPress} onMouseLeave={cancelPress}
-                    onTouchStart={startPress} onTouchMove={moved} onTouchEnd={endPress} onTouchCancel={cancelPress}
-                    style={{
-                      display: 'flex', flexDirection: 'column', gap: 4, padding: '10px 10px', width: '100%',
-                      background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
-                      cursor: 'pointer', userSelect: 'none', WebkitUserSelect: 'none', textAlign: 'center', fontFamily: 'var(--font-sans)',
-                      touchAction: 'pan-y',
-                    }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-                      {!noNumericStat && (
-                        <div style={{ textAlign: 'center', minWidth: 30 }}>
-                          <div style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>Recent</div>
-                          <div style={{ fontSize: 11, fontWeight: 700 }}>{mostRecent ? `${mostRecent.value}${unit}` : '—'}</div>
-                        </div>
-                      )}
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flex: 1 }}>
-                        <span style={{ fontSize: 18 }}>{b.icon}</span>
-                        <span style={{ fontSize: 10, fontWeight: 500, whiteSpace: 'nowrap' }}>{b.label}</span>
-                      </div>
-                      {!noNumericStat && (
-                        <div style={{ textAlign: 'center', minWidth: 30 }}>
-                          <div style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>🏅 PB</div>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: colour }}>{pb ? `${pb.value}${unit}` : '—'}</div>
-                        </div>
-                      )}
-                    </div>
-                    {noNumericStat && (
-                      <div style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>
-                        {lastLogged.count > 0 ? `Logged ${lastLogged.count}× · last ${new Date(lastLogged.lastDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : 'Not logged yet'}
-                      </div>
-                    )}
-                    {currentSubType && <div style={{ fontSize: 8, color: colour, fontWeight: 600 }}>{currentSubType}</div>}
-                    {subTypeOptions.length > 1 && <div style={{ fontSize: 7, color: 'var(--text-tertiary)' }}>hold to change</div>}
-                  </button>
-                )
-              }
 
               return (
                 <div>
@@ -1293,7 +1296,7 @@ export default function AthleteProfiles() {
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
                     {[...modules, ...modules2].map(b => (
-                      <ModuleButton key={b.key} b={b} />
+                      <ModuleButton key={b.key} b={b} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setRunChartFilter={setRunChartFilter} />
                     ))}
                   </div>
 
