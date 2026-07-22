@@ -61,12 +61,12 @@ function App() {
           <Route path="/grading"         element={<GradingExpression />} />
           <Route path="/league-public"   element={<LeaguePublic />} />
           <Route path="/checkin-public"  element={<CheckInPublic />} />
+          <Route path="/athlete-app"     element={<ProtectedRoute><AthleteApp /></ProtectedRoute>} />
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route path="dashboard"       element={<ProtectedRoute staffOnly><Dashboard /></ProtectedRoute>} />
             <Route path="my-dashboard"    element={<AthleteDashboard />} />
             <Route path="checkin"         element={<ProtectedRoute staffOnly><CheckIn /></ProtectedRoute>} />
-            <Route path="athlete-app"     element={<AthleteApp />} />
             <Route path="registers"       element={<ProtectedRoute staffOnly><Registers /></ProtectedRoute>} />
             <Route path="students"        element={<ProtectedRoute staffOnly><StudentDatabase /></ProtectedRoute>} />
             <Route path="members"         element={<ProtectedRoute staffOnly><Members /></ProtectedRoute>} />

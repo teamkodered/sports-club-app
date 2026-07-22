@@ -303,7 +303,7 @@ export default function AthleteApp() {
   ]
 
   return (
-    <div style={{ maxWidth: 640, margin: '0 auto' }}>
+    <div style={{ maxWidth: 640, margin: '0 auto', padding: '20px 16px', minHeight: '100vh' }}>
 
       {/* Profile header */}
       <div className="card" style={{ marginBottom: 12, borderLeft: `4px solid ${colour}` }}>
