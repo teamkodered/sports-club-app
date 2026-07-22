@@ -52,6 +52,13 @@ export default function Settings() {
     ]
     if (!map.f2f_test_types) map.f2f_test_types = ['Bleep test', 'Fixed load circuit', '200m sprint', '1600m time trial', '4800m time trial', 'Other']
     if (!map.f2f_technique_types) map.f2f_technique_types = ['Straight punches', 'Round kicks', 'Pads', 'Bag work', 'Combinations', 'Other']
+    if (!map.f2f_mentality_types) map.f2f_mentality_types = [
+      'Video analysis (Self in competition)', 'Video analysis (Self in training)',
+      'Video analysis (Elite athlete in competition)', 'Video analysis (Elite athlete in training)',
+      'Meditation', 'Visualisation (Performing a technique)', 'Visualisation (Performing in competition)',
+      'Play chess', 'Reading (out loud)', 'Gaming (combat)',
+      'Active recovery day (Swimming/Walking/Yoga)', 'Other',
+    ]
     setSettings(map)
     // Load club settings
     setClub({
@@ -317,6 +324,7 @@ export default function Settings() {
       <ListSetting label="Stretch options" settingKey="f2f_stretch_options" hint="One per line" />
       <ListSetting label="Test types" settingKey="f2f_test_types" hint="One per line" />
       <ListSetting label="Technique types" settingKey="f2f_technique_types" hint="One per line" />
+      <ListSetting label="Mentality activities" settingKey="f2f_mentality_types" hint="One per line" />
 
       {SECTION('Roles & Access')}
       <div className="card" style={{ marginBottom: 10 }}>

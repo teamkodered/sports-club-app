@@ -14,6 +14,7 @@ const MODULES = [
   { key: 'techniques',   label: 'Techniques',     icon: '🥋', colour: '#E24B4A' },
   { key: 'eye_training', label: 'Eye training',   icon: '👁', colour: '#185FA5' },
   { key: 'one_percenters', label: 'One percenters', icon: '⚡', colour: '#854F0B' },
+  { key: 'mentality',      label: 'Mentality',      icon: '🧠', colour: '#6D28D9' },
 ]
 
 const DEFAULT_RUN_CATEGORIES = {
@@ -30,6 +31,13 @@ const DEFAULT_STRETCH_OPTIONS = [
 ]
 const DEFAULT_TEST_TYPES = ['Bleep test', 'Fixed load circuit', '200m sprint', '1600m time trial', '4800m time trial', 'Other']
 const DEFAULT_TECHNIQUE_TYPES = ['Straight punches', 'Round kicks', 'Pads', 'Bag work', 'Combinations', 'Other']
+const DEFAULT_MENTALITY_TYPES = [
+  'Video analysis (Self in competition)', 'Video analysis (Self in training)',
+  'Video analysis (Elite athlete in competition)', 'Video analysis (Elite athlete in training)',
+  'Meditation', 'Visualisation (Performing a technique)', 'Visualisation (Performing in competition)',
+  'Play chess', 'Reading (out loud)', 'Gaming (combat)',
+  'Active recovery day (Swimming/Walking/Yoga)', 'Other',
+]
 const DEFAULT_INTERVAL_MODES = ['20 seconds on 20 seconds off', '30 seconds on 30 seconds off', '40 seconds on 20 seconds off']
 const LAST_SELECTION_KEY = 'f2f_last_selection'
 
@@ -209,6 +217,8 @@ export default function FitToFight() {
   const [techniques, setTechniques]   = useState({ type: '', notes: '', sets: [] })
   const [eyeTraining, setEyeTraining] = useState('')
   const [onePercenters, setOnePercenters] = useState({ type: '', notes: '' })
+  const [mentality, setMentality] = useState({ type: '', notes: '' })
+  const [mentalityTypes, setMentalityTypes] = useState(DEFAULT_MENTALITY_TYPES)
   const [trainedFurther, setTrainedFurther] = useState(false)
   const [notes, setNotes]             = useState('')
 
@@ -234,7 +244,7 @@ export default function FitToFight() {
 
   useEffect(() => {
     supabase.from('settings').select('key,value')
-      .in('key', ['f2f_run_categories', 'f2f_watt_types', 'f2f_bodyweight_types', 'f2f_stretch_options', 'f2f_test_types', 'f2f_technique_types', 'f2f_interval_modes'])
+      .in('key', ['f2f_run_categories', 'f2f_watt_types', 'f2f_bodyweight_types', 'f2f_stretch_options', 'f2f_test_types', 'f2f_technique_types', 'f2f_interval_modes', 'f2f_mentality_types'])
       .then(({ data }) => {
         const map = Object.fromEntries((data || []).map(r => [r.key, r.value]))
         if (map.f2f_run_categories) setRunCategories(map.f2f_run_categories)
@@ -243,6 +253,7 @@ export default function FitToFight() {
         if (map.f2f_stretch_options) setStretchOptions(map.f2f_stretch_options)
         if (map.f2f_test_types) setTestTypes(map.f2f_test_types)
         if (map.f2f_technique_types) setTechniqueTypes(map.f2f_technique_types)
+        if (map.f2f_mentality_types) setMentalityTypes(map.f2f_mentality_types)
         if (map.f2f_interval_modes) setIntervalModes([...map.f2f_interval_modes, 'Custom'])
       })
   }, [])
@@ -323,6 +334,7 @@ export default function FitToFight() {
       techniques:    enabled.techniques  ? techniques   : null,
       eye_training:  enabled.eye_training ? eyeTraining : null,
       one_percenters: enabled.one_percenters ? onePercenters : null,
+      mentality:      enabled.mentality      ? mentality     : null,
       trained_further: trainedFurther,
       notes,
     }
@@ -339,7 +351,7 @@ export default function FitToFight() {
     setBodyweight({ type: '', notes: '', sets: [] }); setStretches(['', '', ''])
     setTest({ type: '', notes: '' }); setTechniques({ type: '', notes: '', sets: [] })
     setEyeTraining(''); setHeartRate({ type: '', notes: '' })
-    setOnePercenters({ type: '', notes: '' }); setTrainedFurther(false); setNotes('')
+    setOnePercenters({ type: '', notes: '' }); setMentality({ type: '', notes: '' }); setTrainedFurther(false); setNotes('')
     setSubmitted(false)
   }
 
@@ -591,6 +603,18 @@ export default function FitToFight() {
               </div>
               <div className="field" style={{ marginBottom: 0 }}><label>Notes</label>
                 <input value={onePercenters.notes} onChange={e => setOnePercenters(o => ({ ...o, notes: e.target.value }))} placeholder="Details…" />
+              </div>
+            </ModuleCard>
+
+            <ModuleCard mod={MODULES[8]} enabled={!!enabled.mentality} onToggle={() => toggle('mentality')}>
+              <div className="field"><label>Type / activity</label>
+                <select value={mentality.type} onChange={e => setMentality(m => ({ ...m, type: e.target.value }))}>
+                  <option value="">Select…</option>
+                  {mentalityTypes.map(t => <option key={t}>{t}</option>)}
+                </select>
+              </div>
+              <div className="field" style={{ marginBottom: 0 }}><label>Notes</label>
+                <input value={mentality.notes} onChange={e => setMentality(m => ({ ...m, notes: e.target.value }))} placeholder="Details…" />
               </div>
             </ModuleCard>
 

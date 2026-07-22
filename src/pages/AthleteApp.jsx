@@ -52,7 +52,7 @@ function computeModuleStats(sorted, key, subType) {
 
 function computeLastLogged(sorted, key) {
   try {
-    const entries = sorted.filter(s => key === 'stretch' ? s.stretch?.some?.(Boolean) : s.eye_training)
+    const entries = sorted.filter(s => key === 'stretch' ? s.stretch_flows?.some?.(Boolean) : s.eye_training)
     return entries.length ? { count: entries.length, lastDate: entries[entries.length - 1].session_date } : { count: 0, lastDate: null }
   } catch (e) { return { count: 0, lastDate: null } }
 }
@@ -417,10 +417,13 @@ export default function AthleteApp() {
                       </button>
                     </div>
 
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
+                      {modules.map(b => <ModuleButton key={b.key} b={b} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} />)}
+                    </div>
+
                     <div className="card" style={{ padding: 0, marginBottom: 14 }}>
                       <div style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)' }}>Profile</div>
                       {[
-                        ['House', houseName || '—'],
                         ['Discipline', student.discipline_codes || student.discipline || '—'],
                         [student.discipline === 'KRBA' ? 'Level' : student.is_kr ? 'Experience' : 'Grade',
                           student.discipline === 'KRBA' ? (student.krba_level || '—') : student.is_kr ? (student.competition_team || '—') : (student.pka_belt || '—')],
@@ -433,10 +436,6 @@ export default function AthleteApp() {
                           <span style={{ fontWeight: 500, textAlign: 'right' }}>{val}</span>
                         </div>
                       ))}
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
-                      {modules.map(b => <ModuleButton key={b.key} b={b} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} />)}
                     </div>
 
                     {apData && (apData.age_division_kickboxing || apData.age_division_boxing || apData.weight_division || apData.top_achievements || (Array.isArray(apData.recent_results) && apData.recent_results.length > 0)) && (

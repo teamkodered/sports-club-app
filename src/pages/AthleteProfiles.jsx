@@ -64,7 +64,7 @@ function computeModuleStats(sorted, key, subType) {
 // (Stretch flows, Eye training)
 function computeLastLogged(sorted, key) {
   try {
-    const entries = sorted.filter(s => key === 'stretch' ? s.stretch?.some?.(Boolean) : s.eye_training)
+    const entries = sorted.filter(s => key === 'stretch' ? s.stretch_flows?.some?.(Boolean) : s.eye_training)
     return entries.length ? { count: entries.length, lastDate: entries[entries.length - 1].session_date } : { count: 0, lastDate: null }
   } catch (e) { return { count: 0, lastDate: null } }
 }
