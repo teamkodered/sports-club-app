@@ -15,9 +15,14 @@ export default function Login() {
   async function handleLogin(e) {
     e.preventDefault()
     setLoading(true); setError('')
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) setError(error.message)
-    else navigate('/dashboard')
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) {
+      setError(error.message)
+    } else {
+      const { data: member } = await supabase.from('members').select('role').eq('auth_id', data.user.id).single()
+      const isStaff = member?.role === 'admin' || member?.role === 'captain' || member?.role === 'coach' || member?.role === 'leader'
+      navigate(isStaff ? '/dashboard' : '/athlete-app')
+    }
     setLoading(false)
   }
 
@@ -39,7 +44,10 @@ export default function Login() {
   async function handleCreateLogin(e) {
     e.preventDefault()
     setLoading(true); setError('')
-    const { error } = await supabase.auth.signUp({ email, password })
+    const { error } = await supabase.auth.signUp({
+      email, password,
+      options: { emailRedirectTo: `${window.location.origin}/login` }
+    })
     if (error) setError(error.message)
     else setCreateSent(true)
     setLoading(false)
