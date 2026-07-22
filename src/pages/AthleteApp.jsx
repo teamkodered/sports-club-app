@@ -475,6 +475,37 @@ export default function AthleteApp() {
                         )}
                       </div>
                     )}
+
+                    {points.length > 0 && (
+                      <div className="card" style={{ padding: 0, marginBottom: 14 }}>
+                        <div style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)' }}>Recent points</div>
+                        <table><tbody>
+                          {points.slice(0,5).map((p,i) => (
+                            <tr key={i}>
+                              <td style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{new Date(p.awarded_at).toLocaleDateString('en-GB')}</td>
+                              <td style={{ fontSize: 13 }}>{p.point_type}</td>
+                              <td style={{ textAlign: 'right', fontWeight: 700, color: p.points_awarded < 0 ? '#a32d2d' : '#1d9e75' }}>{p.points_awarded > 0 ? '+' : ''}{p.points_awarded}</td>
+                            </tr>
+                          ))}
+                        </tbody></table>
+                      </div>
+                    )}
+                    {checkedInMsg ? (
+                      <div className="card" style={{ textAlign: 'center', padding: 12, background: '#1D9E7515', border: '1px solid #1D9E7530', color: '#1D9E75', fontWeight: 600, fontSize: 14 }}>
+                        {checkedInMsg}
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', padding: 12, fontSize: 14 }}
+                          onClick={() => checkInNow('attended')} disabled={checkingIn}>
+                          ✅ Check in
+                        </button>
+                        <button className="btn" style={{ flex: 1, justifyContent: 'center', padding: 12, fontSize: 14 }}
+                          onClick={() => checkInNow('full_kit')} disabled={checkingIn}>
+                          ✅ Full Kit
+                        </button>
+                      </div>
+                    )}
                   </>
                 )
                } catch (e) {
@@ -492,36 +523,6 @@ export default function AthleteApp() {
                }
               })()}
 
-              {points.length > 0 && (
-                <div className="card" style={{ padding: 0, marginBottom: 14 }}>
-                  <div style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)' }}>Recent points</div>
-                  <table><tbody>
-                    {points.slice(0,5).map((p,i) => (
-                      <tr key={i}>
-                        <td style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{new Date(p.awarded_at).toLocaleDateString('en-GB')}</td>
-                        <td style={{ fontSize: 13 }}>{p.point_type}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 700, color: p.points_awarded < 0 ? '#a32d2d' : '#1d9e75' }}>{p.points_awarded > 0 ? '+' : ''}{p.points_awarded}</td>
-                      </tr>
-                    ))}
-                  </tbody></table>
-                </div>
-              )}
-              {checkedInMsg ? (
-                <div className="card" style={{ textAlign: 'center', padding: 12, background: '#1D9E7515', border: '1px solid #1D9E7530', color: '#1D9E75', fontWeight: 600, fontSize: 14 }}>
-                  {checkedInMsg}
-                </div>
-              ) : (
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', padding: 12, fontSize: 14 }}
-                    onClick={() => checkInNow('attended')} disabled={checkingIn}>
-                    ✅ Check in
-                  </button>
-                  <button className="btn" style={{ flex: 1, justifyContent: 'center', padding: 12, fontSize: 14 }}
-                    onClick={() => checkInNow('full_kit')} disabled={checkingIn}>
-                    ✅ Full Kit
-                  </button>
-                </div>
-              )}
             </>
           ) : (
             <div className="card" style={{ textAlign: 'center', padding: 32 }}>
