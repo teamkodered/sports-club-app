@@ -269,21 +269,29 @@ export default function AthleteApp() {
   const colour    = HOUSE_COLOURS[houseName] || '#378ADD'
   const initials  = m ? `${m.first_name?.[0] || ''}${m.last_name?.[0] || ''}`.toUpperCase() : '?'
   const age       = m?.date_of_birth ? Math.floor((Date.now() - new Date(m.date_of_birth)) / (365.25*24*60*60*1000)) : null
-  const totalPts  = points.reduce((s, p) => s + (p.points_awarded || 0), 0)
+  const totalPts  = Array.isArray(points) ? points.reduce((s, p) => s + (p?.points_awarded || 0), 0) : 0
   const shared    = apData?.pdp_shared || {}
   const pdp       = apData?.pdp_notes || {}
 
-  const sortedHouses = [...houses].sort((a, b) => (b.points || 0) - (a.points || 0))
-  const houseRank = houseName ? sortedHouses.findIndex(h => h.name === houseName) + 1 : null
-  const houseTotalPoints = houseName ? sortedHouses.find(h => h.name === houseName)?.points || 0 : null
-  const contributionPct = (houseTotalPoints && student?.house_points)
-    ? ((student.house_points / houseTotalPoints) * 100).toFixed(1) : null
-  const sameHouseSorted = [...rankList]
-    .filter(s => s.members?.houses?.name === houseName)
-    .sort((a, b) => (b.house_points || 0) - (a.house_points || 0))
-  const positionInHouse = student ? sameHouseSorted.findIndex(s => s.id === student.id) + 1 : null
-  const overallSorted = [...rankList].sort((a, b) => (truePointTotals[b.id] || 0) - (truePointTotals[a.id] || 0))
-  const overallPosition = student ? overallSorted.findIndex(s => s.id === student.id) + 1 : null
+  let houseRank = null, houseTotalPoints = null, contributionPct = null, positionInHouse = null, overallPosition = null
+  try {
+    const safeHouses = Array.isArray(houses) ? houses : []
+    const safeRankList = Array.isArray(rankList) ? rankList : []
+    const sortedHouses = [...safeHouses].sort((a, b) => (b?.points || 0) - (a?.points || 0))
+    houseRank = houseName ? sortedHouses.findIndex(h => h?.name === houseName) + 1 : null
+    houseTotalPoints = houseName ? (sortedHouses.find(h => h?.name === houseName)?.points || 0) : null
+    contributionPct = (houseTotalPoints && student?.house_points)
+      ? ((student.house_points / houseTotalPoints) * 100).toFixed(1) : null
+    const sameHouseSorted = safeRankList
+      .filter(s => s?.members?.houses?.name === houseName)
+      .sort((a, b) => (b?.house_points || 0) - (a?.house_points || 0))
+    positionInHouse = student ? sameHouseSorted.findIndex(s => s?.id === student.id) + 1 : null
+    const safeTotals = truePointTotals || {}
+    const overallSorted = [...safeRankList].sort((a, b) => (safeTotals[b?.id] || 0) - (safeTotals[a?.id] || 0))
+    overallPosition = student ? overallSorted.findIndex(s => s?.id === student.id) + 1 : null
+  } catch (e) {
+    console.error('AthleteApp header calc error:', e)
+  }
 
   const TABS = [
     ['home',      '🏠 Home'],

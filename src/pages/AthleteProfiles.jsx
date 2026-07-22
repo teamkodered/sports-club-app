@@ -1078,19 +1078,27 @@ export default function AthleteProfiles() {
 
   // House rank/total points, and this athlete's position within their
   // house vs across everyone -- used in the enlarged header
-  const sortedHouses = [...houses].sort((a, b) => (b.points || 0) - (a.points || 0))
-  const houseRank = houseName ? sortedHouses.findIndex(h => h.name === houseName) + 1 : null
-  const houseTotalPoints = houseName ? sortedHouses.find(h => h.name === houseName)?.points || 0 : null
-  const contributionPct = (houseTotalPoints && selected?.house_points)
-    ? ((selected.house_points / houseTotalPoints) * 100).toFixed(1) : null
+  let houseRank = null, houseTotalPoints = null, contributionPct = null, positionInHouse = null, overallPosition = null
+  try {
+    const safeHouses = Array.isArray(houses) ? houses : []
+    const safeStudents = Array.isArray(students) ? students : []
+    const sortedHouses = [...safeHouses].sort((a, b) => (b?.points || 0) - (a?.points || 0))
+    houseRank = houseName ? sortedHouses.findIndex(h => h?.name === houseName) + 1 : null
+    houseTotalPoints = houseName ? (sortedHouses.find(h => h?.name === houseName)?.points || 0) : null
+    contributionPct = (houseTotalPoints && selected?.house_points)
+      ? ((selected.house_points / houseTotalPoints) * 100).toFixed(1) : null
 
-  const sameHouseSorted = [...students]
-    .filter(s => s.members?.houses?.name === houseName)
-    .sort((a, b) => (b.house_points || 0) - (a.house_points || 0))
-  const positionInHouse = selected ? sameHouseSorted.findIndex(s => s.id === selected.id) + 1 : null
+    const sameHouseSorted = safeStudents
+      .filter(s => s?.members?.houses?.name === houseName)
+      .sort((a, b) => (b?.house_points || 0) - (a?.house_points || 0))
+    positionInHouse = selected ? sameHouseSorted.findIndex(s => s?.id === selected.id) + 1 : null
 
-  const overallSorted = [...students].sort((a, b) => (truePointTotals[b.id] || 0) - (truePointTotals[a.id] || 0))
-  const overallPosition = selected ? overallSorted.findIndex(s => s.id === selected.id) + 1 : null
+    const safeTotals = truePointTotals || {}
+    const overallSorted = [...safeStudents].sort((a, b) => (safeTotals[b?.id] || 0) - (safeTotals[a?.id] || 0))
+    overallPosition = selected ? overallSorted.findIndex(s => s?.id === selected.id) + 1 : null
+  } catch (e) {
+    console.error('AthleteProfiles header calc error:', e)
+  }
 
   if (loading) return <div className="loading">Loading athlete profiles…</div>
 
