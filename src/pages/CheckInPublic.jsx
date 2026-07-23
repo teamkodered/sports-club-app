@@ -47,8 +47,16 @@ export default function CheckInPublic() {
     if (!checking) return
     setSaving(true)
     if (attendMode === 'weight_after') {
-      if (weightOut && todaysSession) {
-        await supabase.from('fit2fight_sessions').update({ weight_after: parseFloat(weightOut) }).eq('id', todaysSession.id)
+      if (weightOut) {
+        if (todaysSession) {
+          await supabase.from('fit2fight_sessions').update({ weight_after: parseFloat(weightOut) }).eq('id', todaysSession.id)
+        } else {
+          await supabase.from('fit2fight_sessions').insert({
+            student_id: checking.id,
+            session_date: new Date().toISOString().split('T')[0],
+            weight_after: parseFloat(weightOut),
+          })
+        }
       }
       setConfirmed({ name: `${checking.members?.first_name} ${checking.members?.last_name}`, mode: attendMode, weight: weightOut })
       setChecking(null); setWeight(''); setWeightOut(''); setSearch(''); setResults([])
@@ -65,11 +73,15 @@ export default function CheckInPublic() {
       attended_at: new Date().toISOString(),
     })
     if (attendMode === 'weight' && weight) {
-      await supabase.from('fit2fight_sessions').insert({
-        student_id: checking.id,
-        session_date: new Date().toISOString().split('T')[0],
-        weight_before: parseFloat(weight),
-      })
+      if (todaysSession) {
+        await supabase.from('fit2fight_sessions').update({ weight_before: parseFloat(weight) }).eq('id', todaysSession.id)
+      } else {
+        await supabase.from('fit2fight_sessions').insert({
+          student_id: checking.id,
+          session_date: new Date().toISOString().split('T')[0],
+          weight_before: parseFloat(weight),
+        })
+      }
     }
     setConfirmed({ name: `${checking.members?.first_name} ${checking.members?.last_name}`, mode: attendMode, weight })
     setChecking(null); setWeight(''); setWeightOut(''); setSearch(''); setResults([])
@@ -175,18 +187,12 @@ export default function CheckInPublic() {
                   </div>
                   <div>
                     <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6, fontWeight: 500 }}>After session</p>
-                    {todaysSession?.weight_before ? (
-                      <>
-                        <input type="number" step="0.1" value={weightOut} onChange={e => setWeightOut(e.target.value)}
-                          placeholder={`Weight out (kg) — you were ${todaysSession.weight_before}kg`}
-                          style={{ width: '100%', padding: '12px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 15, textAlign: 'center', background: 'var(--bg-secondary)', color: 'var(--text)', marginBottom: 8 }} />
-                        {weightOut && (
-                          <button className="btn" style={{ width: '100%', justifyContent: 'center', fontSize: 14, padding: '12px' }}
-                            onClick={() => checkIn('weight_after')} disabled={saving}>⚖️ Save weight out {weightOut}kg</button>
-                        )}
-                      </>
-                    ) : (
-                      <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Save a "before session" weight first, then come back here after training.</p>
+                    <input type="number" step="0.1" value={weightOut} onChange={e => setWeightOut(e.target.value)}
+                      placeholder={todaysSession?.weight_before ? `Weight out (kg) — you were ${todaysSession.weight_before}kg` : 'Weight out (kg)'}
+                      style={{ width: '100%', padding: '12px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 15, textAlign: 'center', background: 'var(--bg-secondary)', color: 'var(--text)', marginBottom: 8 }} />
+                    {weightOut && (
+                      <button className="btn" style={{ width: '100%', justifyContent: 'center', fontSize: 14, padding: '12px' }}
+                        onClick={() => checkIn('weight_after')} disabled={saving}>⚖️ Save weight out {weightOut}kg</button>
                     )}
                   </div>
                 </div>
