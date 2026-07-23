@@ -57,7 +57,10 @@ export default function Settings() {
       'Video analysis (Elite athlete in competition)', 'Video analysis (Elite athlete in training)',
       'Meditation', 'Visualisation (Performing a technique)', 'Visualisation (Performing in competition)',
       'Play chess', 'Reading (out loud)', 'Gaming (combat)',
-      'Active recovery day (Swimming/Walking/Yoga)', 'Other',
+      'Active recovery day (Swimming/Walking/Yoga)',
+      'Eye tracking drills', 'Reaction/reflex drills',
+      'Ice bath', 'Sleep tracking', 'Nutrition log', 'Hydration tracking', 'Recovery routine',
+      'Other',
     ]
     setSettings(map)
     // Load club settings

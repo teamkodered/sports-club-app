@@ -12,8 +12,6 @@ const MODULES = [
   { key: 'stretch',      label: 'Stretch flows',  icon: '🤸', colour: '#EF9F27' },
   { key: 'test',         label: 'Test',           icon: '📋', colour: '#8B5CF6' },
   { key: 'techniques',   label: 'Techniques',     icon: '🥋', colour: '#E24B4A' },
-  { key: 'eye_training', label: 'Eye training',   icon: '👁', colour: '#185FA5' },
-  { key: 'one_percenters', label: 'One percenters', icon: '⚡', colour: '#854F0B' },
   { key: 'mentality',      label: 'Mentality',      icon: '🧠', colour: '#6D28D9' },
   { key: 'wellbeing',      label: 'Wellbeing',      icon: '🌱', colour: '#0E9F6E' },
 ]
@@ -37,7 +35,12 @@ const DEFAULT_MENTALITY_TYPES = [
   'Video analysis (Elite athlete in competition)', 'Video analysis (Elite athlete in training)',
   'Meditation', 'Visualisation (Performing a technique)', 'Visualisation (Performing in competition)',
   'Play chess', 'Reading (out loud)', 'Gaming (combat)',
-  'Active recovery day (Swimming/Walking/Yoga)', 'Other',
+  'Active recovery day (Swimming/Walking/Yoga)',
+  // Merged in from Eye training
+  'Eye tracking drills', 'Reaction/reflex drills',
+  // Merged in from One percenters
+  'Ice bath', 'Sleep tracking', 'Nutrition log', 'Hydration tracking', 'Recovery routine',
+  'Other',
 ]
 
 // Combined from the young men's / young women's mental health toolkits --
@@ -268,9 +271,7 @@ export default function FitToFight() {
   const [stretches, setStretches]     = useState(['', '', ''])
   const [test, setTest]               = useState({ type: '', notes: '' })
   const [techniques, setTechniques]   = useState({ type: '', notes: '', sets: [] })
-  const [eyeTraining, setEyeTraining] = useState('')
-  const [onePercenters, setOnePercenters] = useState({ type: '', notes: '' })
-  const [mentality, setMentality] = useState({ type: '', notes: '' })
+  const [mentality, setMentality] = useState({ types: [], notes: '' })
   const [mentalityTypes, setMentalityTypes] = useState(DEFAULT_MENTALITY_TYPES)
   const [wellbeing, setWellbeing] = useState({ checklist: [], ratings: {}, copingTools: [], notes: '' })
   const [showWellbeingGuidance, setShowWellbeingGuidance] = useState(false)
@@ -387,8 +388,6 @@ export default function FitToFight() {
       stretch_flows: enabled.stretch     ? stretches    : null,
       test:          enabled.test        ? test         : null,
       techniques:    enabled.techniques  ? techniques   : null,
-      eye_training:  enabled.eye_training ? eyeTraining : null,
-      one_percenters: enabled.one_percenters ? onePercenters : null,
       mentality:      enabled.mentality      ? mentality     : null,
       wellbeing:      enabled.wellbeing      ? wellbeing     : null,
       trained_further: trainedFurther,
@@ -406,8 +405,7 @@ export default function FitToFight() {
     setWattBike({ type: '', interval_mode: '', custom_on: '', custom_off: '', sets: [], total_distance: '', max_wattage: '', avg_wattage: '' })
     setBodyweight({ type: '', notes: '', sets: [] }); setStretches(['', '', ''])
     setTest({ type: '', notes: '' }); setTechniques({ type: '', notes: '', sets: [] })
-    setEyeTraining(''); setHeartRate({ type: '', notes: '' })
-    setOnePercenters({ type: '', notes: '' }); setMentality({ type: '', notes: '' }); setWellbeing({ checklist: [], ratings: {}, copingTools: [], notes: '' }); setTrainedFurther(false); setNotes('')
+    setMentality({ types: [], notes: '' }); setWellbeing({ checklist: [], ratings: {}, copingTools: [], notes: '' }); setTrainedFurther(false); setNotes('')
     setSubmitted(false)
   }
 
@@ -645,36 +643,26 @@ export default function FitToFight() {
             </ModuleCard>
 
             {/* Eye training */}
-            <ModuleCard mod={MODULES[6]} enabled={!!enabled.eye_training} onToggle={() => toggle('eye_training')}>
-              <div className="field" style={{ marginBottom: 0 }}>
-                <label>Eye training notes</label>
-                <input value={eyeTraining} onChange={e => setEyeTraining(e.target.value)} placeholder="e.g. Reading out loud, tracking drills…" />
-              </div>
-            </ModuleCard>
-
-            {/* One percenters */}
-            <ModuleCard mod={MODULES[7]} enabled={!!enabled.one_percenters} onToggle={() => toggle('one_percenters')}>
-              <div className="field"><label>Type / activity</label>
-                <input value={onePercenters.type} onChange={e => setOnePercenters(o => ({ ...o, type: e.target.value }))} placeholder="e.g. Ice bath, sleep tracking, nutrition log…" />
-              </div>
-              <div className="field" style={{ marginBottom: 0 }}><label>Notes</label>
-                <input value={onePercenters.notes} onChange={e => setOnePercenters(o => ({ ...o, notes: e.target.value }))} placeholder="Details…" />
-              </div>
-            </ModuleCard>
-
-            <ModuleCard mod={MODULES[8]} enabled={!!enabled.mentality} onToggle={() => toggle('mentality')}>
-              <div className="field"><label>Type / activity</label>
-                <select value={mentality.type} onChange={e => setMentality(m => ({ ...m, type: e.target.value }))}>
-                  <option value="">Select…</option>
-                  {mentalityTypes.map(t => <option key={t}>{t}</option>)}
-                </select>
+            <ModuleCard mod={MODULES[6]} enabled={!!enabled.mentality} onToggle={() => toggle('mentality')}>
+              <div className="field">
+                <label>Type / activity (select all that apply)</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {mentalityTypes.filter(t => t !== 'Other').map(t => (
+                    <label key={t} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={mentality.types.includes(t)}
+                        onChange={e => setMentality(m => ({ ...m, types: e.target.checked ? [...m.types, t] : m.types.filter(x => x !== t) }))}
+                        style={{ width: 16, height: 16 }} />
+                      {t}
+                    </label>
+                  ))}
+                </div>
               </div>
               <div className="field" style={{ marginBottom: 0 }}><label>Notes</label>
-                <input value={mentality.notes} onChange={e => setMentality(m => ({ ...m, notes: e.target.value }))} placeholder="Details…" />
+                <input value={mentality.notes} onChange={e => setMentality(m => ({ ...m, notes: e.target.value }))} placeholder="Details, or anything else not listed above…" />
               </div>
             </ModuleCard>
 
-            <ModuleCard mod={MODULES[9]} enabled={!!enabled.wellbeing} onToggle={() => toggle('wellbeing')}>
+            <ModuleCard mod={MODULES[7]} enabled={!!enabled.wellbeing} onToggle={() => toggle('wellbeing')}>
               <div className="field">
                 <label>Daily checklist</label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

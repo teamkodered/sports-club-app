@@ -9,15 +9,33 @@ const HOUSE_COLOURS = {
   'Ice House': '#1D9E75',    'Jet House':   '#EF9F27',
 }
 
+// Some athletes have historic Watt Bike entries saved as shorthand
+// (e.g. "15-90" from an old free-text "Custom" entry) that mean the same
+// thing as the newer full-text options (e.g. "15 seconds on 90 seconds
+// off - Output (wattage)"). Normalizing here means these don't show up
+// as separate, duplicate sub-types.
+function normalizeIntervalMode(raw) {
+  if (!raw) return raw
+  let s = String(raw).trim()
+  const shorthand = s.match(/^(\d+)\s*-\s*(\d+)$/)
+  if (shorthand) {
+    const [, on, off] = shorthand
+    s = `${on} seconds on ${off} seconds off`
+  }
+  // Strip trailing "- Output (wattage)" / "- Distance (km)" so the same
+  // interval isn't split into separate buckets by that suffix alone
+  return s.replace(/\s*-\s*(Output \(wattage\)|Distance \(km\))\s*$/i, '').trim()
+}
+
 function getSubTypeOptions(sorted, key) {
   try {
     if (key === 'running') return [...new Set(sorted.map(s => s.running?.category).filter(Boolean))]
-    if (key === 'watt_bike') return [...new Set(sorted.map(s => s.watt_bike?.interval_mode || s.watt_bike?.type).filter(Boolean))]
+    if (key === 'watt_bike') return [...new Set(sorted.map(s => normalizeIntervalMode(s.watt_bike?.interval_mode || s.watt_bike?.type)).filter(Boolean))]
     if (key === 'bodyweight') return [...new Set(sorted.map(s => s.bodyweight?.type).filter(Boolean))]
     if (key === 'test') return [...new Set(sorted.flatMap(s => Object.keys(s.test || {})))]
     if (key === 'techniques') return [...new Set(sorted.map(s => s.techniques?.type).filter(Boolean))]
     if (key === 'one_percenters') return [...new Set(sorted.map(s => s.one_percenters?.type).filter(Boolean))]
-    if (key === 'mentality') return [...new Set(sorted.map(s => s.mentality?.type).filter(Boolean))]
+    if (key === 'mentality') return [...new Set(sorted.flatMap(s => s.mentality?.types || (s.mentality?.type ? [s.mentality.type] : [])))]
     return []
   } catch (e) { return [] }
 }
@@ -36,7 +54,7 @@ function computeModuleStats(sorted, key, subType) {
         .map(s => ({ date: s.session_date, value: s.running.sets[s.running.sets.length - 1] }))
       higherIsBetter = subType === 'Distance over time'
     } else if (key === 'watt_bike') {
-      const filtered = sorted.filter(s => !subType || (s.watt_bike?.interval_mode || s.watt_bike?.type) === subType)
+      const filtered = sorted.filter(s => !subType || normalizeIntervalMode(s.watt_bike?.interval_mode || s.watt_bike?.type) === subType)
       entries = filtered.map(s => ({ date: s.session_date, value: numSets(s.watt_bike?.sets).length ? Math.max(...numSets(s.watt_bike?.sets)) : null }))
         .filter(e => e.value != null)
       unit = 'W'
@@ -63,11 +81,17 @@ function computeModuleStats(sorted, key, subType) {
 }
 
 // Simple "last logged" stat for modules with no clean numeric metric
-// (Stretch flows, Eye training, One percenters, Mentality)
+// (Stretch flows, Mentality -- which now also covers historic Eye
+// training/One percenters entries, since those were folded into it)
 function computeLastLogged(sorted, key) {
   try {
     const hasEntry = s => {
       if (key === 'stretch') return s.stretch_flows?.some?.(Boolean)
+      if (key === 'mentality') {
+        const v = s.mentality
+        const hasMentality = v && (typeof v === 'object' ? Object.values(v).some(Boolean) : !!v)
+        return hasMentality || !!s.eye_training || (s.one_percenters && Object.values(s.one_percenters).some(Boolean))
+      }
       const v = s[key]
       if (!v) return false
       return typeof v === 'object' ? Object.values(v).some(Boolean) : !!v
@@ -1283,8 +1307,6 @@ export default function AthleteProfiles() {
               ]
               const modules2 = [
                 { key: 'techniques',     label: 'Techniques',     icon: '🥋' },
-                { key: 'eye_training',   label: 'Eye training',   icon: '👁' },
-                { key: 'one_percenters', label: 'One percenters', icon: '⚡' },
                 { key: 'mentality',      label: 'Mentality',      icon: '🧠' },
                 { key: 'wellbeing',      label: 'Wellbeing',      icon: '🌱' },
               ]
@@ -1935,8 +1957,8 @@ export default function AthleteProfiles() {
                 <div id="f2f-chart-watt_bike">
                 {(() => {
                   const SET_COLOURS = ['#E24B4A','#378ADD','#1D9E75','#EF9F27','#8B5CF6','#EC4899','#06B6D4','#84CC16','#F97316','#A855F7','#14B8A6','#EAB308']
-                  const wattTypes = [...new Set(wattData.map(s => s.watt_bike?.interval_mode || s.watt_bike?.type).filter(Boolean))]
-                  const filteredWatt = wattChartFilter === 'all' ? wattData : wattData.filter(s => (s.watt_bike?.interval_mode || s.watt_bike?.type) === wattChartFilter)
+                  const wattTypes = [...new Set(wattData.map(s => normalizeIntervalMode(s.watt_bike?.interval_mode || s.watt_bike?.type)).filter(Boolean))]
+                  const filteredWatt = wattChartFilter === 'all' ? wattData : wattData.filter(s => normalizeIntervalMode(s.watt_bike?.interval_mode || s.watt_bike?.type) === wattChartFilter)
                   const maxSets = Math.max(1, ...filteredWatt.map(s => s.watt_bike?.sets?.length || 0))
                   const setLines = Array.from({length: maxSets}, (_,i) => ({
                     key: `set${i}`, label: `Set ${i+1}`, colour: SET_COLOURS[i % SET_COLOURS.length]
