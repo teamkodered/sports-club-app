@@ -15,6 +15,7 @@ const MODULES = [
   { key: 'eye_training', label: 'Eye training',   icon: '👁', colour: '#185FA5' },
   { key: 'one_percenters', label: 'One percenters', icon: '⚡', colour: '#854F0B' },
   { key: 'mentality',      label: 'Mentality',      icon: '🧠', colour: '#6D28D9' },
+  { key: 'wellbeing',      label: 'Wellbeing',      icon: '🌱', colour: '#0E9F6E' },
 ]
 
 const DEFAULT_RUN_CATEGORIES = {
@@ -38,6 +39,58 @@ const DEFAULT_MENTALITY_TYPES = [
   'Play chess', 'Reading (out loud)', 'Gaming (combat)',
   'Active recovery day (Swimming/Walking/Yoga)', 'Other',
 ]
+
+// Combined from the young men's / young women's mental health toolkits --
+// genuine duplicates merged, everything else kept so nothing is lost.
+const WELLBEING_CHECKLIST = [
+  'Woke up at a consistent time',
+  'Ate balanced, nutritious meals',
+  'Drank enough water / stayed hydrated',
+  'Exercised / moved my body for at least 30 minutes',
+  'Spent at least 20 minutes outside',
+  'Talked with someone I trust (friend or family)',
+  'Limited social media if it affected my mood',
+  'Completed one productive task',
+  'Practiced self-care',
+  'Practiced gratitude (wrote three good things)',
+  'Got 8–9 hours of sleep',
+]
+const WELLBEING_COPING_TOOLS = [
+  'Breathing exercises (box / mindfulness breathing)', 'Progressive muscle relaxation',
+  'Journaling / gratitude journal', 'Weight training or sport', 'Running or walking',
+  'Listening to calming music', 'Meditation / guided meditation', 'Grounding exercise (5-4-3-2-1)',
+  'Reading', 'Creative hobbies / art', 'Cold water face splash', 'Stretching or yoga',
+  'Positive self-talk / affirmations', 'Setting achievable daily goals', 'Asking for help early',
+  'Dancing', 'Talking with trusted adults', 'Vision boards', 'Mood tracking',
+  'Spending time with pets', 'Relaxation exercises', 'Other',
+]
+const WELLBEING_CHECK_CATEGORIES = [
+  'Sleep', 'Energy', 'Mood', 'Anxiety', 'Confidence', 'Exercise', 'Nutrition',
+  'Friendships', 'Family relationships', 'Stress management', 'School or work', 'Enjoyment of hobbies',
+]
+// Reference guidance shown alongside the check -- kept in full from the
+// original toolkit rather than turned into loggable fields, since it's
+// guidance rather than something to record per-session.
+const WELLBEING_GUIDANCE = `Build resilience: accept that setbacks happen, focus on progress not perfection, learn from mistakes, keep realistic expectations.
+
+Build confidence: set small goals, celebrate achievements, practice new skills, speak kindly to yourself.
+
+Stay connected: join clubs or sports, volunteer, spend time with family, keep in touch with friends.
+
+When life feels difficult, remember A.C.T. — Acknowledge how you're feeling, Connect with someone you trust, Take one small positive action.
+
+When feeling angry: exercise, breathing, take space before reacting.
+When feeling stressed: break tasks into smaller steps, take regular breaks.
+When feeling lonely: message someone, attend a club or training session.
+When feeling unmotivated: complete one small task first.
+When feeling anxious: focus on what you can control today, slow breathing and grounding.
+When overthinking: write thoughts down instead of replaying them.
+When overwhelmed: pause and focus on one task.
+When sad: reach out to someone you trust.
+When comparing yourself to others: reduce time on social media and focus on your own strengths.
+When confidence is low: list personal achievements and qualities.
+
+Weekly goals: meet a friend / spend time with family or friends, learn something new / try a new activity, complete one challenge, celebrate one achievement, practice kindness toward yourself, reflect on the week's successes.`
 const DEFAULT_INTERVAL_MODES = ['20 seconds on 20 seconds off', '30 seconds on 30 seconds off', '40 seconds on 20 seconds off']
 const LAST_SELECTION_KEY = 'f2f_last_selection'
 
@@ -219,6 +272,8 @@ export default function FitToFight() {
   const [onePercenters, setOnePercenters] = useState({ type: '', notes: '' })
   const [mentality, setMentality] = useState({ type: '', notes: '' })
   const [mentalityTypes, setMentalityTypes] = useState(DEFAULT_MENTALITY_TYPES)
+  const [wellbeing, setWellbeing] = useState({ checklist: [], ratings: {}, copingTools: [], notes: '' })
+  const [showWellbeingGuidance, setShowWellbeingGuidance] = useState(false)
   const [trainedFurther, setTrainedFurther] = useState(false)
   const [notes, setNotes]             = useState('')
 
@@ -335,6 +390,7 @@ export default function FitToFight() {
       eye_training:  enabled.eye_training ? eyeTraining : null,
       one_percenters: enabled.one_percenters ? onePercenters : null,
       mentality:      enabled.mentality      ? mentality     : null,
+      wellbeing:      enabled.wellbeing      ? wellbeing     : null,
       trained_further: trainedFurther,
       notes,
     }
@@ -351,7 +407,7 @@ export default function FitToFight() {
     setBodyweight({ type: '', notes: '', sets: [] }); setStretches(['', '', ''])
     setTest({ type: '', notes: '' }); setTechniques({ type: '', notes: '', sets: [] })
     setEyeTraining(''); setHeartRate({ type: '', notes: '' })
-    setOnePercenters({ type: '', notes: '' }); setMentality({ type: '', notes: '' }); setTrainedFurther(false); setNotes('')
+    setOnePercenters({ type: '', notes: '' }); setMentality({ type: '', notes: '' }); setWellbeing({ checklist: [], ratings: {}, copingTools: [], notes: '' }); setTrainedFurther(false); setNotes('')
     setSubmitted(false)
   }
 
@@ -616,6 +672,76 @@ export default function FitToFight() {
               <div className="field" style={{ marginBottom: 0 }}><label>Notes</label>
                 <input value={mentality.notes} onChange={e => setMentality(m => ({ ...m, notes: e.target.value }))} placeholder="Details…" />
               </div>
+            </ModuleCard>
+
+            <ModuleCard mod={MODULES[9]} enabled={!!enabled.wellbeing} onToggle={() => toggle('wellbeing')}>
+              <div className="field">
+                <label>Daily checklist</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {WELLBEING_CHECKLIST.map(item => (
+                    <label key={item} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={wellbeing.checklist.includes(item)}
+                        onChange={e => setWellbeing(w => ({ ...w, checklist: e.target.checked ? [...w.checklist, item] : w.checklist.filter(x => x !== item) }))}
+                        style={{ width: 16, height: 16 }} />
+                      {item}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="field">
+                <label>Personal wellbeing check (rate 1–5)</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {WELLBEING_CHECK_CATEGORIES.map(cat => (
+                    <div key={cat} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 13 }}>{cat}</span>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        {[1,2,3,4,5].map(n => (
+                          <button key={n} type="button" onClick={() => setWellbeing(w => ({ ...w, ratings: { ...w.ratings, [cat]: n } }))}
+                            style={{
+                              width: 26, height: 26, borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                              border: `1px solid ${wellbeing.ratings[cat] === n ? '#0E9F6E' : 'var(--border-strong)'}`,
+                              background: wellbeing.ratings[cat] === n ? '#0E9F6E' : 'var(--bg-secondary)',
+                              color: wellbeing.ratings[cat] === n ? '#fff' : 'var(--text)',
+                            }}>{n}</button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="field">
+                <label>Coping tools used</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {WELLBEING_COPING_TOOLS.map(tool => {
+                    const active = wellbeing.copingTools.includes(tool)
+                    return (
+                      <button key={tool} type="button"
+                        onClick={() => setWellbeing(w => ({ ...w, copingTools: active ? w.copingTools.filter(t => t !== tool) : [...w.copingTools, tool] }))}
+                        style={{
+                          fontSize: 11, padding: '4px 10px', borderRadius: 20, cursor: 'pointer',
+                          border: `1px solid ${active ? '#0E9F6E' : 'var(--border-strong)'}`,
+                          background: active ? '#0E9F6E20' : 'var(--bg-secondary)',
+                          color: active ? '#0E9F6E' : 'var(--text-secondary)',
+                        }}>{tool}</button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="field" style={{ marginBottom: 8 }}><label>Notes</label>
+                <input value={wellbeing.notes} onChange={e => setWellbeing(w => ({ ...w, notes: e.target.value }))} placeholder="Anything else to note…" />
+              </div>
+
+              <button type="button" className="btn btn-sm" onClick={() => setShowWellbeingGuidance(v => !v)} style={{ marginBottom: showWellbeingGuidance ? 8 : 0 }}>
+                {showWellbeingGuidance ? 'Hide' : 'Show'} wellbeing guidance
+              </button>
+              {showWellbeingGuidance && (
+                <div style={{ fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-line', background: 'var(--bg-secondary)', padding: 12, borderRadius: 'var(--radius)', color: 'var(--text-secondary)' }}>
+                  {WELLBEING_GUIDANCE}
+                </div>
+              )}
             </ModuleCard>
 
             {/* Trained further + notes */}

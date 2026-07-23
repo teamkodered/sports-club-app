@@ -16,6 +16,8 @@ function getSubTypeOptions(sorted, key) {
     if (key === 'bodyweight') return [...new Set(sorted.map(s => s.bodyweight?.type).filter(Boolean))]
     if (key === 'test') return [...new Set(sorted.flatMap(s => Object.keys(s.test || {})))]
     if (key === 'techniques') return [...new Set(sorted.map(s => s.techniques?.type).filter(Boolean))]
+    if (key === 'one_percenters') return [...new Set(sorted.map(s => s.one_percenters?.type).filter(Boolean))]
+    if (key === 'mentality') return [...new Set(sorted.map(s => s.mentality?.type).filter(Boolean))]
     return []
   } catch (e) { return [] }
 }
@@ -61,10 +63,16 @@ function computeModuleStats(sorted, key, subType) {
 }
 
 // Simple "last logged" stat for modules with no clean numeric metric
-// (Stretch flows, Eye training)
+// (Stretch flows, Eye training, One percenters, Mentality)
 function computeLastLogged(sorted, key) {
   try {
-    const entries = sorted.filter(s => key === 'stretch' ? s.stretch_flows?.some?.(Boolean) : s.eye_training)
+    const hasEntry = s => {
+      if (key === 'stretch') return s.stretch_flows?.some?.(Boolean)
+      const v = s[key]
+      if (!v) return false
+      return typeof v === 'object' ? Object.values(v).some(Boolean) : !!v
+    }
+    const entries = sorted.filter(hasEntry)
     return entries.length ? { count: entries.length, lastDate: entries[entries.length - 1].session_date } : { count: 0, lastDate: null }
   } catch (e) { return { count: 0, lastDate: null } }
 }
@@ -75,45 +83,19 @@ const TEST_CHART_IDS = { 'Bleep test': 'f2f-chart-bleep', 'Fixed load circuit': 
 // Defined at module scope (not inside the page component's render) so
 // React treats it as a stable component across renders, rather than
 // unmounting/remounting it every time the parent re-renders.
-function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setTab, setRunChartFilter }) {
+function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setTab, setRunChartFilter, studentId }) {
   const subTypeOptions = getSubTypeOptions(sorted, b.key)
   const currentSubType = moduleSubType[b.key] ?? subTypeOptions[0] ?? null
-  const noNumericStat = b.key === 'stretch' || b.key === 'eye_training'
+  const noNumericStat = ['stretch', 'eye_training', 'one_percenters', 'mentality', 'wellbeing'].includes(b.key)
   const { mostRecent, pb, unit } = noNumericStat ? { mostRecent: null, pb: null, unit: '' } : computeModuleStats(sorted, b.key, currentSubType)
   const lastLogged = noNumericStat ? computeLastLogged(sorted, b.key) : null
 
-  const pressTimer = useRef(null)
-  const longPressed = useRef(false)
-  const startPos = useRef({ x: 0, y: 0 })
-  const scrolled = useRef(false)
-
-  function getPoint(e) { return e.touches ? e.touches[0] : e }
-  function startPress(e) {
-    longPressed.current = false
-    scrolled.current = false
-    const p = getPoint(e)
-    startPos.current = { x: p.clientX, y: p.clientY }
+  function cycleType() {
     if (!subTypeOptions.length) return
-    pressTimer.current = setTimeout(() => {
-      if (scrolled.current) return
-      longPressed.current = true
-      const idx = subTypeOptions.indexOf(currentSubType)
-      const next = subTypeOptions[(idx + 1) % subTypeOptions.length]
-      setModuleSubType(prev => ({ ...prev, [b.key]: next }))
-      if (navigator.vibrate) navigator.vibrate(15)
-    }, 500)
+    const idx = subTypeOptions.indexOf(currentSubType)
+    const next = subTypeOptions[(idx + 1) % subTypeOptions.length]
+    setModuleSubType(prev => ({ ...prev, [b.key]: next }))
   }
-  function moved(e) {
-    const p = getPoint(e)
-    const dx = Math.abs(p.clientX - startPos.current.x)
-    const dy = Math.abs(p.clientY - startPos.current.y)
-    if (dx > 8 || dy > 8) { scrolled.current = true; clearTimeout(pressTimer.current) }
-  }
-  function endPress() {
-    clearTimeout(pressTimer.current)
-    if (!longPressed.current && !scrolled.current) goToChart()
-  }
-  function cancelPress() { clearTimeout(pressTimer.current) }
 
   function goToChart() {
     let targetId = CHART_IDS[b.key]
@@ -125,42 +107,49 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
     }
   }
 
+  const logHref = `/fit2fight?student_id=${studentId}&module=${b.key}`
+
   return (
-    <button
-      onMouseDown={startPress} onMouseMove={moved} onMouseUp={endPress} onMouseLeave={cancelPress}
-      onTouchStart={startPress} onTouchMove={moved} onTouchEnd={endPress} onTouchCancel={cancelPress}
-      style={{
-        display: 'flex', flexDirection: 'column', gap: 4, padding: '10px 10px', width: '100%',
-        background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
-        cursor: 'pointer', userSelect: 'none', WebkitUserSelect: 'none', textAlign: 'center', fontFamily: 'var(--font-sans)',
-        touchAction: 'pan-y',
+    <div style={{
+      display: 'flex', alignItems: 'stretch', width: '100%',
+      background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+      overflow: 'hidden', fontFamily: 'var(--font-sans)',
+    }}>
+      {/* Left: quick-log this specific selection */}
+      <a href={logHref} title={`Log ${b.label}${currentSubType ? ` — ${currentSubType}` : ''}`} style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, flexShrink: 0,
+        color: colour, fontSize: 18, fontWeight: 700, textDecoration: 'none', borderRight: '1px solid var(--border)',
+      }}>+</a>
+
+      {/* Middle: tap to cycle sub-type */}
+      <button onClick={cycleType} style={{
+        flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
+        padding: '8px 6px', background: 'none', border: 'none', borderRight: '1px solid var(--border)', cursor: subTypeOptions.length > 1 ? 'pointer' : 'default',
+        minWidth: 0,
       }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-        {!noNumericStat && (
-          <div style={{ textAlign: 'center', minWidth: 30 }}>
-            <div style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>Recent</div>
-            <div style={{ fontSize: 11, fontWeight: 700 }}>{mostRecent ? `${mostRecent.value}${unit}` : '—'}</div>
-          </div>
+        <span style={{ fontSize: 17 }}>{b.icon}</span>
+        <span style={{ fontSize: 10, fontWeight: 500, whiteSpace: 'nowrap' }}>{b.label}</span>
+        {currentSubType && <span style={{ fontSize: 8, color: colour, fontWeight: 600, textAlign: 'center', lineHeight: 1.2 }}>{currentSubType}</span>}
+        {subTypeOptions.length > 1 && <span style={{ fontSize: 7, color: 'var(--text-tertiary)' }}>tap to cycle</span>}
+      </button>
+
+      {/* Right: recent/PB (or last-logged), tap to view results */}
+      <button onClick={goToChart} style={{
+        width: 74, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        padding: '8px 6px', background: 'none', border: 'none', cursor: 'pointer',
+      }}>
+        {noNumericStat ? (
+          <span style={{ fontSize: 9, color: 'var(--text-tertiary)', textAlign: 'center', lineHeight: 1.3 }}>
+            {lastLogged.count > 0 ? `Logged ${lastLogged.count}×` : 'Not logged'}
+          </span>
+        ) : (
+          <>
+            <span style={{ fontSize: 16, fontWeight: 700 }}>{mostRecent ? `${mostRecent.value}${unit}` : '—'}</span>
+            <span style={{ fontSize: 10, fontWeight: 600, color: colour, marginTop: 2 }}>{pb ? `🏅 ${pb.value}${unit}` : '—'}</span>
+          </>
         )}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flex: 1 }}>
-          <span style={{ fontSize: 18 }}>{b.icon}</span>
-          <span style={{ fontSize: 10, fontWeight: 500, whiteSpace: 'nowrap' }}>{b.label}</span>
-        </div>
-        {!noNumericStat && (
-          <div style={{ textAlign: 'center', minWidth: 30 }}>
-            <div style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>🏅 PB</div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: colour }}>{pb ? `${pb.value}${unit}` : '—'}</div>
-          </div>
-        )}
-      </div>
-      {noNumericStat && (
-        <div style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>
-          {lastLogged.count > 0 ? `Logged ${lastLogged.count}× · last ${new Date(lastLogged.lastDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : 'Not logged yet'}
-        </div>
-      )}
-      {currentSubType && <div style={{ fontSize: 8, color: colour, fontWeight: 600 }}>{currentSubType}</div>}
-      {subTypeOptions.length > 1 && <div style={{ fontSize: 7, color: 'var(--text-tertiary)' }}>hold to change</div>}
-    </button>
+      </button>
+    </div>
   )
 }
 
@@ -1272,8 +1261,11 @@ export default function AthleteProfiles() {
                 { key: 'test',       label: 'Test',          icon: '📋' },
               ]
               const modules2 = [
-                { key: 'techniques',   label: 'Techniques',   icon: '🥋' },
-                { key: 'eye_training', label: 'Eye training', icon: '👁' },
+                { key: 'techniques',     label: 'Techniques',     icon: '🥋' },
+                { key: 'eye_training',   label: 'Eye training',   icon: '👁' },
+                { key: 'one_percenters', label: 'One percenters', icon: '⚡' },
+                { key: 'mentality',      label: 'Mentality',      icon: '🧠' },
+                { key: 'wellbeing',      label: 'Wellbeing',      icon: '🌱' },
               ]
 
               return (
@@ -1304,7 +1296,7 @@ export default function AthleteProfiles() {
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
                     {[...modules, ...modules2].map(b => (
-                      <ModuleButton key={b.key} b={b} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setRunChartFilter={setRunChartFilter} />
+                      <ModuleButton key={b.key} b={b} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setRunChartFilter={setRunChartFilter} studentId={selected?.id} />
                     ))}
                   </div>
 
