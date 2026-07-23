@@ -8,6 +8,7 @@ import Login from './pages/Login.jsx'
 import ResetPassword from './pages/ResetPassword.jsx'
 import Join from './pages/Join.jsx'
 import CoachSignup from './pages/CoachSignup.jsx'
+import Claim from './pages/Claim.jsx'
 import JoinPKAChild from './pages/forms/JoinPKAChild.jsx'
 import JoinPKAAdult from './pages/forms/JoinPKAAdult.jsx'
 import JoinKRBA from './pages/forms/JoinKRBA.jsx'
@@ -55,6 +56,7 @@ function App() {
           <Route path="/reset-password"  element={<ResetPassword />} />
           <Route path="/join"            element={<Join />} />
           <Route path="/coach-signup"    element={<CoachSignup />} />
+          <Route path="/claim"           element={<Claim />} />
           <Route path="/join-pka-child"  element={<JoinPKAChild />} />
           <Route path="/join-pka-adult"  element={<JoinPKAAdult />} />
           <Route path="/join-krba"       element={<JoinKRBA />} />

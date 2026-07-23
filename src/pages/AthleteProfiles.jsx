@@ -750,6 +750,7 @@ export default function AthleteProfiles() {
   const [reportFrom, setReportFrom] = useState(() => { const d = new Date(); d.setMonth(d.getMonth()-3); return d.toISOString().split('T')[0] })
   const [reportTo, setReportTo]     = useState(new Date().toISOString().split('T')[0])
   const [invitingId, setInvitingId] = useState(null)
+  const [showQr, setShowQr] = useState(false)
 
   useEffect(() => { loadStudents() }, [])
 
@@ -801,7 +802,8 @@ export default function AthleteProfiles() {
 
   async function copyInviteLink(s) {
     const name = s.members?.first_name || 'there'
-    const msg = `Hi ${name}, you've been invited to the KR Centre athlete app. Go to https://klasschamp.netlify.app, tap 'Create login' to set up your own email/password, then in the app go to My app > Find your profile to link it to you.`
+    const url = `https://klasschamp.netlify.app/claim?ref=${encodeURIComponent(s.student_ref)}`
+    const msg = `Hi ${name}, you've been invited to the KR Centre athlete app. Tap this link to confirm it's you and set up your login: ${url}`
     try {
       await navigator.clipboard.writeText(msg)
       alert('✓ Invite message copied — paste it anywhere (WhatsApp, in person, etc.)')
@@ -817,7 +819,8 @@ export default function AthleteProfiles() {
 
     if (method === 'sms') {
       if (!phone) return alert('No phone number on file for this athlete.')
-      const msg = encodeURIComponent(`Hi ${s.members.first_name}, you've been invited to the KR Centre athlete app. Go to https://klasschamp.netlify.app, tap 'Create login' to set up your own email/password, then in the app go to My app > Find your profile to link it to you.`)
+      const url = `https://klasschamp.netlify.app/claim?ref=${encodeURIComponent(s.student_ref)}`
+      const msg = encodeURIComponent(`Hi ${s.members.first_name}, you've been invited to the KR Centre athlete app. Tap this link to confirm it's you and set up your login: ${url}`)
       window.open(`sms:${phone.replace(/\s/g,'')}?body=${msg}`, '_blank')
       return
     }
@@ -1209,6 +1212,10 @@ export default function AthleteProfiles() {
                         title="Copy the invite message to share any way you like">
                         📋 Copy link
                       </button>
+                      <button className="btn btn-sm" onClick={() => setShowQr(true)}
+                        title="Show a QR code for this athlete's invite link">
+                        ▦ QR code
+                      </button>
                     </>
                   )
                 })()}
@@ -1220,6 +1227,20 @@ export default function AthleteProfiles() {
                 )}
               </div>
             </div>
+
+            {showQr && (
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 16 }}
+                onClick={() => setShowQr(false)}>
+                <div className="card" style={{ maxWidth: 320, textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                  <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{m?.first_name} {m?.last_name}</h3>
+                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>Scan to confirm and set up their login</p>
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(`https://klasschamp.netlify.app/claim?ref=${selected.student_ref}`)}`}
+                    alt="QR code" width={240} height={240} style={{ borderRadius: 'var(--radius)', marginBottom: 14 }} />
+                  <button className="btn" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setShowQr(false)}>Close</button>
+                </div>
+              </div>
+            )}
 
             {/* Tabs */}
             <div className="hide-scrollbar" style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 14, overflowX: 'auto' }}>
