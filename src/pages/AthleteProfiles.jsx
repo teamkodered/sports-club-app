@@ -9,6 +9,33 @@ const HOUSE_COLOURS = {
   'Ice House': '#1D9E75',    'Jet House':   '#EF9F27',
 }
 
+const WELLBEING_QUESTIONS = [
+  { key: 'sleep',        label: 'Sleep',        icon: '😴' },
+  { key: 'nutrition',    label: 'Nutrition',    icon: '🍎' },
+  { key: 'hydration',    label: 'Hydration',    icon: '💧' },
+  { key: 'outdoors',     label: 'Outdoors',     icon: '🌳' },
+  { key: 'talk',         label: 'Talk',         icon: '💬' },
+  { key: 'screenFree',   label: 'Screen free',  icon: '📵' },
+  { key: 'journal',      label: 'Journal',      icon: '📓' },
+  { key: 'creative',     label: 'Creative task', icon: '🎨' },
+  { key: 'productivity', label: 'Productivity', icon: '✅' },
+]
+function isWellbeingQComplete(key, w) {
+  if (!w) return false
+  switch (key) {
+    case 'sleep': return !!(w.sleep?.hours || w.sleep?.consistency || w.sleep?.efficiency)
+    case 'nutrition': return !!(w.nutrition?.macrosConfirmed || w.nutrition?.quality)
+    case 'hydration': return !!(w.hydration?.amount || w.hydration?.custom)
+    case 'outdoors': return !!w.outdoors?.minutes
+    case 'talk': return !!w.talk?.done
+    case 'screenFree': return !!w.screenFree?.time
+    case 'journal': return !!w.journal?.done
+    case 'creative': return !!w.creative?.done
+    case 'productivity': return !!w.productivity?.done
+    default: return false
+  }
+}
+
 // Some athletes have historic Watt Bike entries saved as shorthand
 // (e.g. "15-90" from an old free-text "Custom" entry) that mean the same
 // thing as the newer full-text options (e.g. "15 seconds on 90 seconds
@@ -1342,6 +1369,28 @@ export default function AthleteProfiles() {
                       <ModuleButton key={b.key} b={b} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setRunChartFilter={setRunChartFilter} studentId={selected?.id} />
                     ))}
                   </div>
+
+                  {(() => {
+                    const latestWellbeing = sorted.length ? sorted[sorted.length - 1]?.wellbeing : null
+                    return (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 8 }}>
+                        {WELLBEING_QUESTIONS.map(q => {
+                          const complete = isWellbeingQComplete(q.key, latestWellbeing)
+                          return (
+                            <a key={q.key} href={`/fit2fight?student_id=${selected?.id}&module=wellbeing`} style={{
+                              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
+                              borderRadius: 'var(--radius)', textDecoration: 'none',
+                              border: `1px solid ${complete ? '#0E9F6E80' : 'var(--border)'}`,
+                              background: complete ? '#0E9F6E18' : 'var(--bg-secondary)',
+                            }}>
+                              <span style={{ fontSize: 16 }}>{complete ? '✓' : q.icon}</span>
+                              <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{q.label}</span>
+                            </a>
+                          )
+                        })}
+                      </div>
+                    )
+                  })()}
 
                   <div style={{ height: 4 }} />
 
