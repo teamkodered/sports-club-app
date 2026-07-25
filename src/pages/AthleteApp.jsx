@@ -281,6 +281,7 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
 
   const logHref = `/fit2fight?student_id=${studentId}&module=${b.key}`
   const isPhysicalModule = ['running', 'watt_bike', 'bodyweight', 'stretch'].includes(b.key)
+  const isSimplifiedModule = ['wellbeing', 'mentality', 'test'].includes(b.key)
 
   return (
     <div style={{
@@ -290,9 +291,10 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
     }}>
       {/* Left: for Physical modules (which now have their own inline
           logging section on this page), switch to results instead --
-          same as the right zone. Other modules still quick-link to the
-          full log form. */}
-      {isPhysicalModule ? (
+          same as the right zone. Wellbeing/Mentality/Test have their own
+          dedicated card grids below, so skip this zone entirely. Other
+          modules still quick-link to the full log form. */}
+      {isSimplifiedModule ? null : isPhysicalModule ? (
         <button onClick={() => setTab('fit2fight')} title={`View ${b.label} results`} style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, flexShrink: 0,
           color: colour, fontSize: 18, fontWeight: 700, background: 'none', border: 'none', borderRight: '1px solid var(--border)', cursor: 'pointer',
@@ -305,20 +307,26 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
       )}
 
       {/* Middle: for Physical modules, tap opens the same "Log a result"
-          section as the button below the card. Other modules keep
+          section as the button below the card. For Test, tap switches to
+          results (icon only, no label/sub-type text -- Test has its own
+          dedicated card grid below for logging). Other modules keep
           cycling sub-type. */}
-      <button onClick={() => isPhysicalModule ? onToggleLog?.(b.key) : cycleType()} style={{
+      <button onClick={() => isPhysicalModule ? onToggleLog?.(b.key) : b.key === 'test' ? setTab('fit2fight') : cycleType()} style={{
         flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
-        padding: '8px 6px', background: 'none', border: 'none', borderRight: '1px solid var(--border)', cursor: subTypeOptions.length > 1 ? 'pointer' : 'default',
+        padding: '8px 6px', background: 'none', border: 'none', borderRight: isSimplifiedModule ? 'none' : '1px solid var(--border)',
+        cursor: (b.key === 'test' || subTypeOptions.length > 1) ? 'pointer' : 'default',
         minWidth: 0,
       }}>
         <span style={{ fontSize: 17 }}>{b.icon}</span>
-        <span style={{ fontSize: 10, fontWeight: 500, whiteSpace: 'nowrap' }}>{b.label}</span>
-        {currentSubType && <span style={{ fontSize: 8, color: colour, fontWeight: 600, textAlign: 'center', lineHeight: 1.2 }}>{currentSubType}</span>}
-        {!isPhysicalModule && subTypeOptions.length > 1 && <span style={{ fontSize: 7, color: 'var(--text-tertiary)' }}>tap to cycle</span>}
+        {b.key !== 'test' && <span style={{ fontSize: 10, fontWeight: 500, whiteSpace: 'nowrap' }}>{b.label}</span>}
+        {b.key !== 'test' && currentSubType && <span style={{ fontSize: 8, color: colour, fontWeight: 600, textAlign: 'center', lineHeight: 1.2 }}>{currentSubType}</span>}
+        {!isPhysicalModule && b.key !== 'test' && subTypeOptions.length > 1 && <span style={{ fontSize: 7, color: 'var(--text-tertiary)' }}>tap to cycle</span>}
       </button>
 
-      {/* Right: recent/PB (or last-logged), tap to view results */}
+      {/* Right: recent/PB (or last-logged), tap to view results --
+          skipped for Wellbeing/Mentality/Test, which have their own
+          dedicated card grids below instead. */}
+      {!isSimplifiedModule && (
       <button onClick={() => setTab('fit2fight')} style={{
         width: 74, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         padding: '8px 6px', background: 'none', border: 'none', cursor: 'pointer',
@@ -334,6 +342,7 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
           </>
         )}
       </button>
+      )}
     </div>
   )
 }
