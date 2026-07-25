@@ -58,22 +58,29 @@ const WELLBEING_QUESTIONS = [
   { key: 'creative',     label: 'Creative task', icon: '🎨' },
   { key: 'productivity', label: 'Productivity', icon: '✅' },
 ]
-const HYDRATION_OPTIONS = ['0.5L', '1L', '1.5L', '2L', '2.5L', '3L+']
-const SCREEN_FREE_OPTIONS = ['20:00', '22:00', '23:00']
+const HYDRATION_ADD_OPTIONS = [0.25, 0.5, 1]
+const OUTDOORS_ADD_OPTIONS = [10, 20, 30]
+const TALK_ADD_OPTIONS = [1, 2, 3]
+const SCREEN_FREE_OPTIONS = ['20 hours', '22 hours', '23 hours']
 const NUTRITION_QUALITY_OPTIONS = ['Excellent', 'Good', 'Poor', 'Very Poor']
-const NUTRITION_MACRO_TARGETS = { carbs: 40, fat: 30, protein: 30 } // % targets shown for reference
+// Three selectable macro target presets, replacing the single editable pie
+const NUTRITION_MACRO_PRESETS = [
+  { key: 'balanced', label: 'Balanced', carbs: 40, fat: 30, protein: 30 },
+  { key: 'high_protein', label: 'High protein', carbs: 30, fat: 30, protein: 40 },
+  { key: 'low_carb', label: 'Low carb', carbs: 20, fat: 40, protein: 40 },
+]
 
 function isWellbeingQComplete(key, w) {
   switch (key) {
-    case 'sleep': return !!(w.sleep.hours || w.sleep.consistency || w.sleep.efficiency)
-    case 'nutrition': return !!(w.nutrition.macrosConfirmed || w.nutrition.quality)
-    case 'hydration': return !!(w.hydration.amount || w.hydration.custom)
-    case 'outdoors': return !!w.outdoors.minutes
-    case 'talk': return !!w.talk.done
-    case 'screenFree': return !!w.screenFree.time
-    case 'journal': return !!w.journal.done
-    case 'creative': return !!w.creative.done
-    case 'productivity': return !!w.productivity.done
+    case 'sleep': return !!(w.sleep.hours || w.sleep.efficiency)
+    case 'nutrition': return !!(w.nutrition.targetPreset || w.nutrition.quality)
+    case 'hydration': return !!(w.hydration.total > 0)
+    case 'outdoors': return !!(w.outdoors.totalMinutes > 0)
+    case 'talk': return !!(w.talk.count > 0)
+    case 'screenFree': return !!w.screenFree.hours
+    case 'journal': return !!(w.journal.count > 0 || w.journal.privateJournal)
+    case 'creative': return !!(w.creative.count > 0)
+    case 'productivity': return !!(w.productivity.count > 0)
     default: return false
   }
 }
@@ -320,19 +327,24 @@ export default function FitToFight() {
   const [mentality, setMentality] = useState({ types: [], notes: '' })
   const [mentalityTypes, setMentalityTypes] = useState(DEFAULT_MENTALITY_TYPES)
   const [wellbeing, setWellbeing] = useState({
-    sleep: { hours: '', consistency: '', efficiency: '' },
-    nutrition: { carbs: NUTRITION_MACRO_TARGETS.carbs, fat: NUTRITION_MACRO_TARGETS.fat, protein: NUTRITION_MACRO_TARGETS.protein, macrosConfirmed: false, quality: '' },
-    hydration: { amount: '', custom: '' },
-    outdoors: { minutes: '' },
-    talk: { done: false },
-    screenFree: { time: '' },
-    journal: { done: false, notes: '' },
-    creative: { done: false, notes: '' },
-    productivity: { done: false, notes: '' },
+    sleep: { hours: '', efficiency: '' },
+    nutrition: { targetPreset: '', quality: '' },
+    hydration: { total: 0 },
+    outdoors: { totalMinutes: 0 },
+    talk: { count: 0 },
+    screenFree: { hours: '' },
+    journal: { count: 0, notes: '', privateJournal: false },
+    creative: { count: 0, notes: '' },
+    productivity: { count: 0, notes: '' },
     ratings: {}, copingTools: [], notes: '',
   })
   const [expandedWellbeingQ, setExpandedWellbeingQ] = useState(null)
   const [showWellbeingGuidance, setShowWellbeingGuidance] = useState(false)
+  const [hydrationCustomAdd, setHydrationCustomAdd] = useState('')
+  const [outdoorsCustomAdd, setOutdoorsCustomAdd] = useState('')
+  const [talkCustomAdd, setTalkCustomAdd] = useState('')
+  const [creativeCustomAdd, setCreativeCustomAdd] = useState('')
+  const [productivityCustomAdd, setProductivityCustomAdd] = useState('')
   const [trainedFurther, setTrainedFurther] = useState(false)
   const [notes, setNotes]             = useState('')
 
@@ -465,15 +477,15 @@ export default function FitToFight() {
     setTest({ type: '', notes: '' }); setTechniques({ type: '', notes: '', sets: [] })
     setMentality({ types: [], notes: '' })
     setWellbeing({
-      sleep: { hours: '', consistency: '', efficiency: '' },
-      nutrition: { carbs: NUTRITION_MACRO_TARGETS.carbs, fat: NUTRITION_MACRO_TARGETS.fat, protein: NUTRITION_MACRO_TARGETS.protein, macrosConfirmed: false, quality: '' },
-      hydration: { amount: '', custom: '' },
-      outdoors: { minutes: '' },
-      talk: { done: false },
-      screenFree: { time: '' },
-      journal: { done: false, notes: '' },
-      creative: { done: false, notes: '' },
-      productivity: { done: false, notes: '' },
+      sleep: { hours: '', efficiency: '' },
+      nutrition: { targetPreset: '', quality: '' },
+      hydration: { total: 0 },
+      outdoors: { totalMinutes: 0 },
+      talk: { count: 0 },
+      screenFree: { hours: '' },
+      journal: { count: 0, notes: '', privateJournal: false },
+      creative: { count: 0, notes: '' },
+      productivity: { count: 0, notes: '' },
       ratings: {}, copingTools: [], notes: '',
     })
     setExpandedWellbeingQ(null)
@@ -768,15 +780,7 @@ export default function FitToFight() {
                   <div className="field"><label>Hours slept</label>
                     <input type="number" step="0.5" value={wellbeing.sleep.hours} onChange={e => setWellbeing(w => ({ ...w, sleep: { ...w.sleep, hours: e.target.value } }))} placeholder="e.g. 8" />
                   </div>
-                  <div className="field"><label>Consistency — same bedtime as usual?</label>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      {['Yes', 'No'].map(v => (
-                        <button key={v} type="button" onClick={() => setWellbeing(w => ({ ...w, sleep: { ...w.sleep, consistency: v } }))}
-                          className="btn btn-sm" style={{ flex: 1, justifyContent: 'center', background: wellbeing.sleep.consistency === v ? '#0E9F6E20' : undefined, borderColor: wellbeing.sleep.consistency === v ? '#0E9F6E' : undefined }}>{v}</button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="field" style={{ marginBottom: 0 }}><label>Efficiency % (target 70%+)</label>
+                  <div className="field" style={{ marginBottom: 0 }}><label>Whoop sleep % (target 70%+)</label>
                     <input type="number" min="0" max="100" value={wellbeing.sleep.efficiency} onChange={e => setWellbeing(w => ({ ...w, sleep: { ...w.sleep, efficiency: e.target.value } }))} placeholder="e.g. 75" />
                   </div>
                 </div>
@@ -784,19 +788,28 @@ export default function FitToFight() {
 
               {expandedWellbeingQ === 'nutrition' && (
                 <div style={{ marginBottom: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12 }}>
-                    <MacroPie carbs={wellbeing.nutrition.carbs} fat={wellbeing.nutrition.fat} protein={wellbeing.nutrition.protein} />
-                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-                      <div><span style={{ color: '#EF9F27' }}>●</span> Carbs {wellbeing.nutrition.carbs}%</div>
-                      <div><span style={{ color: '#E24B4A' }}>●</span> Fat {wellbeing.nutrition.fat}%</div>
-                      <div><span style={{ color: '#378ADD' }}>●</span> Protein {wellbeing.nutrition.protein}%</div>
-                      <div style={{ marginTop: 4 }}>Targets: {NUTRITION_MACRO_TARGETS.carbs}/{NUTRITION_MACRO_TARGETS.fat}/{NUTRITION_MACRO_TARGETS.protein}</div>
+                  <div className="field">
+                    <label>Which target did you follow today?</label>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                      {NUTRITION_MACRO_PRESETS.map(preset => {
+                        const active = wellbeing.nutrition.targetPreset === preset.key
+                        return (
+                          <button key={preset.key} type="button"
+                            onClick={() => setWellbeing(w => ({ ...w, nutrition: { ...w.nutrition, targetPreset: preset.key } }))}
+                            style={{
+                              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: 8,
+                              borderRadius: 'var(--radius)', cursor: 'pointer',
+                              border: `1px solid ${active ? '#0E9F6E' : 'var(--border-strong)'}`,
+                              background: active ? '#0E9F6E18' : 'var(--bg-secondary)',
+                            }}>
+                            <MacroPie carbs={preset.carbs} fat={preset.fat} protein={preset.protein} size={64} />
+                            <span style={{ fontSize: 11, fontWeight: 600 }}>{active ? '✓ ' : ''}{preset.label}</span>
+                            <span style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>{preset.carbs}/{preset.fat}/{preset.protein}</span>
+                          </button>
+                        )
+                      })}
                     </div>
                   </div>
-                  <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 12, background: wellbeing.nutrition.macrosConfirmed ? '#0E9F6E20' : undefined, borderColor: wellbeing.nutrition.macrosConfirmed ? '#0E9F6E' : undefined }}
-                    onClick={() => setWellbeing(w => ({ ...w, nutrition: { ...w.nutrition, macrosConfirmed: !w.nutrition.macrosConfirmed } }))}>
-                    {wellbeing.nutrition.macrosConfirmed ? '✓ Hit my macro targets' : 'Check if you hit your macro targets'}
-                  </button>
                   <div className="field" style={{ marginBottom: 0 }}><label>Quality</label>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                       {NUTRITION_QUALITY_OPTIONS.map(v => (
@@ -810,43 +823,85 @@ export default function FitToFight() {
 
               {expandedWellbeingQ === 'hydration' && (
                 <div style={{ marginBottom: 12 }}>
-                  <div className="field"><label>Amount</label>
+                  <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{wellbeing.hydration.total.toFixed(2)}L <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>today</span></div>
+                  <div className="field">
+                    <label>Add</label>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                      {HYDRATION_OPTIONS.map(v => (
-                        <button key={v} type="button" onClick={() => setWellbeing(w => ({ ...w, hydration: { ...w.hydration, amount: v } }))}
-                          className="btn btn-sm" style={{ background: wellbeing.hydration.amount === v ? '#0E9F6E20' : undefined, borderColor: wellbeing.hydration.amount === v ? '#0E9F6E' : undefined }}>{v}</button>
+                      {HYDRATION_ADD_OPTIONS.map(v => (
+                        <button key={v} type="button" onClick={() => setWellbeing(w => ({ ...w, hydration: { total: +(w.hydration.total + v).toFixed(2) } }))}
+                          className="btn btn-sm">+{v}L</button>
                       ))}
                     </div>
                   </div>
-                  <div className="field" style={{ marginBottom: 0 }}><label>Or write your own</label>
-                    <input value={wellbeing.hydration.custom} onChange={e => setWellbeing(w => ({ ...w, hydration: { ...w.hydration, custom: e.target.value } }))} placeholder="e.g. 1.8L" />
+                  <div className="field" style={{ marginBottom: wellbeing.hydration.total > 0 ? 8 : 0 }}><label>Or add a custom amount (L)</label>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <input type="number" step="0.1" value={hydrationCustomAdd} onChange={e => setHydrationCustomAdd(e.target.value)} placeholder="e.g. 0.3" style={{ flex: 1 }} />
+                      <button type="button" className="btn btn-sm" disabled={!hydrationCustomAdd}
+                        onClick={() => { setWellbeing(w => ({ ...w, hydration: { total: +(w.hydration.total + parseFloat(hydrationCustomAdd || 0)).toFixed(2) } })); setHydrationCustomAdd('') }}>Add</button>
+                    </div>
                   </div>
+                  {wellbeing.hydration.total > 0 && (
+                    <button type="button" className="btn btn-sm" onClick={() => setWellbeing(w => ({ ...w, hydration: { total: 0 } }))}>Reset today's total</button>
+                  )}
                 </div>
               )}
 
               {expandedWellbeingQ === 'outdoors' && (
-                <div className="field" style={{ marginBottom: 12 }}><label>Minutes outside (target 20+)</label>
-                  <input type="number" value={wellbeing.outdoors.minutes} onChange={e => setWellbeing(w => ({ ...w, outdoors: { minutes: e.target.value } }))} placeholder="e.g. 25" />
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{wellbeing.outdoors.totalMinutes} mins <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>today (target 20+)</span></div>
+                  <div className="field">
+                    <label>Add</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {OUTDOORS_ADD_OPTIONS.map(v => (
+                        <button key={v} type="button" onClick={() => setWellbeing(w => ({ ...w, outdoors: { totalMinutes: w.outdoors.totalMinutes + v } }))}
+                          className="btn btn-sm">+{v} mins</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="field" style={{ marginBottom: wellbeing.outdoors.totalMinutes > 0 ? 8 : 0 }}><label>Or add custom minutes</label>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <input type="number" value={outdoorsCustomAdd} onChange={e => setOutdoorsCustomAdd(e.target.value)} placeholder="e.g. 15" style={{ flex: 1 }} />
+                      <button type="button" className="btn btn-sm" disabled={!outdoorsCustomAdd}
+                        onClick={() => { setWellbeing(w => ({ ...w, outdoors: { totalMinutes: w.outdoors.totalMinutes + parseInt(outdoorsCustomAdd || 0) } })); setOutdoorsCustomAdd('') }}>Add</button>
+                    </div>
+                  </div>
+                  {wellbeing.outdoors.totalMinutes > 0 && (
+                    <button type="button" className="btn btn-sm" onClick={() => setWellbeing(w => ({ ...w, outdoors: { totalMinutes: 0 } }))}>Reset today's total</button>
+                  )}
                 </div>
               )}
 
               {expandedWellbeingQ === 'talk' && (
-                <div className="field" style={{ marginBottom: 12 }}><label>Had at least one conversation with a friend today?</label>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {['Yes', 'No'].map(v => (
-                      <button key={v} type="button" onClick={() => setWellbeing(w => ({ ...w, talk: { done: v === 'Yes' } }))}
-                        className="btn btn-sm" style={{ flex: 1, justifyContent: 'center', background: (wellbeing.talk.done ? 'Yes' : 'No') === v ? '#0E9F6E20' : undefined, borderColor: (wellbeing.talk.done ? 'Yes' : 'No') === v ? '#0E9F6E' : undefined }}>{v}</button>
-                    ))}
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{wellbeing.talk.count} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>conversation{wellbeing.talk.count === 1 ? '' : 's'} today</span></div>
+                  <div className="field">
+                    <label>Add</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {TALK_ADD_OPTIONS.map(v => (
+                        <button key={v} type="button" onClick={() => setWellbeing(w => ({ ...w, talk: { count: w.talk.count + v } }))}
+                          className="btn btn-sm">+{v}</button>
+                      ))}
+                    </div>
                   </div>
+                  <div className="field" style={{ marginBottom: wellbeing.talk.count > 0 ? 8 : 0 }}><label>Or write a number to add</label>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <input type="number" value={talkCustomAdd} onChange={e => setTalkCustomAdd(e.target.value)} placeholder="e.g. 4" style={{ flex: 1 }} />
+                      <button type="button" className="btn btn-sm" disabled={!talkCustomAdd}
+                        onClick={() => { setWellbeing(w => ({ ...w, talk: { count: w.talk.count + parseInt(talkCustomAdd || 0) } })); setTalkCustomAdd('') }}>Add</button>
+                    </div>
+                  </div>
+                  {wellbeing.talk.count > 0 && (
+                    <button type="button" className="btn btn-sm" onClick={() => setWellbeing(w => ({ ...w, talk: { count: 0 } }))}>Reset today's count</button>
+                  )}
                 </div>
               )}
 
               {expandedWellbeingQ === 'screenFree' && (
-                <div className="field" style={{ marginBottom: 12 }}><label>Screens off by</label>
+                <div className="field" style={{ marginBottom: 12 }}><label>Time off screen</label>
                   <div style={{ display: 'flex', gap: 6 }}>
                     {SCREEN_FREE_OPTIONS.map(v => (
-                      <button key={v} type="button" onClick={() => setWellbeing(w => ({ ...w, screenFree: { time: v } }))}
-                        className="btn btn-sm" style={{ flex: 1, justifyContent: 'center', background: wellbeing.screenFree.time === v ? '#0E9F6E20' : undefined, borderColor: wellbeing.screenFree.time === v ? '#0E9F6E' : undefined }}>{v}</button>
+                      <button key={v} type="button" onClick={() => setWellbeing(w => ({ ...w, screenFree: { hours: v } }))}
+                        className="btn btn-sm" style={{ flex: 1, justifyContent: 'center', background: wellbeing.screenFree.hours === v ? '#0E9F6E20' : undefined, borderColor: wellbeing.screenFree.hours === v ? '#0E9F6E' : undefined }}>{v}</button>
                     ))}
                   </div>
                 </div>
@@ -854,30 +909,53 @@ export default function FitToFight() {
 
               {expandedWellbeingQ === 'journal' && (
                 <div style={{ marginBottom: 12 }}>
-                  <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8, background: wellbeing.journal.done ? '#0E9F6E20' : undefined, borderColor: wellbeing.journal.done ? '#0E9F6E' : undefined }}
-                    onClick={() => setWellbeing(w => ({ ...w, journal: { ...w.journal, done: !w.journal.done } }))}>
-                    {wellbeing.journal.done ? '✓ Wrote one journal entry' : 'Mark one journal entry as done'}
+                  <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 8 }}>{wellbeing.journal.count} entr{wellbeing.journal.count === 1 ? 'y' : 'ies'} logged today</div>
+                  <textarea value={wellbeing.journal.notes} onChange={e => setWellbeing(w => ({ ...w, journal: { ...w.journal, notes: e.target.value } }))}
+                    placeholder="Optional — write your journal here"
+                    rows={6} style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 14, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
+                  <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
+                    onClick={() => setWellbeing(w => ({ ...w, journal: { ...w.journal, count: w.journal.count + 1, notes: '' } }))}>
+                    Save journal entry
                   </button>
-                  <input value={wellbeing.journal.notes} onChange={e => setWellbeing(w => ({ ...w, journal: { ...w.journal, notes: e.target.value } }))} placeholder="Optional — what did you write about?" />
+                  <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', background: wellbeing.journal.privateJournal ? '#0E9F6E20' : undefined, borderColor: wellbeing.journal.privateJournal ? '#0E9F6E' : undefined }}
+                    onClick={() => setWellbeing(w => ({ ...w, journal: { ...w.journal, privateJournal: !w.journal.privateJournal } }))}>
+                    {wellbeing.journal.privateJournal ? '✓ Journaled privately away from this app' : 'I journaled privately, away from this app'}
+                  </button>
                 </div>
               )}
 
               {expandedWellbeingQ === 'creative' && (
                 <div style={{ marginBottom: 12 }}>
-                  <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8, background: wellbeing.creative.done ? '#0E9F6E20' : undefined, borderColor: wellbeing.creative.done ? '#0E9F6E' : undefined }}
-                    onClick={() => setWellbeing(w => ({ ...w, creative: { ...w.creative, done: !w.creative.done } }))}>
-                    {wellbeing.creative.done ? '✓ Completed one creative task' : 'Mark one creative task as done'}
+                  <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{wellbeing.creative.count} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>task{wellbeing.creative.count === 1 ? '' : 's'} today</span></div>
+                  <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
+                    onClick={() => setWellbeing(w => ({ ...w, creative: { ...w.creative, count: w.creative.count + 1 } }))}>
+                    +1 creative task completed
                   </button>
+                  <div className="field"><label>Or write a number to add</label>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <input type="number" value={creativeCustomAdd} onChange={e => setCreativeCustomAdd(e.target.value)} placeholder="e.g. 3" style={{ flex: 1 }} />
+                      <button type="button" className="btn btn-sm" disabled={!creativeCustomAdd}
+                        onClick={() => { setWellbeing(w => ({ ...w, creative: { ...w.creative, count: w.creative.count + parseInt(creativeCustomAdd || 0) } })); setCreativeCustomAdd('') }}>Add</button>
+                    </div>
+                  </div>
                   <input value={wellbeing.creative.notes} onChange={e => setWellbeing(w => ({ ...w, creative: { ...w.creative, notes: e.target.value } }))} placeholder="Optional — what did you do?" />
                 </div>
               )}
 
               {expandedWellbeingQ === 'productivity' && (
                 <div style={{ marginBottom: 12 }}>
-                  <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8, background: wellbeing.productivity.done ? '#0E9F6E20' : undefined, borderColor: wellbeing.productivity.done ? '#0E9F6E' : undefined }}
-                    onClick={() => setWellbeing(w => ({ ...w, productivity: { ...w.productivity, done: !w.productivity.done } }))}>
-                    {wellbeing.productivity.done ? '✓ Completed one productive task' : 'Mark one productive task as done'}
+                  <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{wellbeing.productivity.count} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>task{wellbeing.productivity.count === 1 ? '' : 's'} today</span></div>
+                  <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
+                    onClick={() => setWellbeing(w => ({ ...w, productivity: { ...w.productivity, count: w.productivity.count + 1 } }))}>
+                    +1 productive task completed
                   </button>
+                  <div className="field"><label>Or write a number to add</label>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <input type="number" value={productivityCustomAdd} onChange={e => setProductivityCustomAdd(e.target.value)} placeholder="e.g. 3" style={{ flex: 1 }} />
+                      <button type="button" className="btn btn-sm" disabled={!productivityCustomAdd}
+                        onClick={() => { setWellbeing(w => ({ ...w, productivity: { ...w.productivity, count: w.productivity.count + parseInt(productivityCustomAdd || 0) } })); setProductivityCustomAdd('') }}>Add</button>
+                    </div>
+                  </div>
                   <input value={wellbeing.productivity.notes} onChange={e => setWellbeing(w => ({ ...w, productivity: { ...w.productivity, notes: e.target.value } }))} placeholder="Optional — what did you do?" />
                 </div>
               )}

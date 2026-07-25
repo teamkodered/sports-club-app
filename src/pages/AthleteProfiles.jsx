@@ -20,10 +20,16 @@ const WELLBEING_QUESTIONS = [
   { key: 'creative',     label: 'Creative task', icon: '🎨' },
   { key: 'productivity', label: 'Productivity', icon: '✅' },
 ]
-const HYDRATION_OPTIONS = ['0.5L', '1L', '1.5L', '2L', '2.5L', '3L+']
-const SCREEN_FREE_OPTIONS = ['20:00', '22:00', '23:00']
+const HYDRATION_ADD_OPTIONS = [0.25, 0.5, 1]
+const OUTDOORS_ADD_OPTIONS = [10, 20, 30]
+const TALK_ADD_OPTIONS = [1, 2, 3]
+const SCREEN_FREE_OPTIONS = ['20 hours', '22 hours', '23 hours']
 const NUTRITION_QUALITY_OPTIONS = ['Excellent', 'Good', 'Poor', 'Very Poor']
-const NUTRITION_MACRO_TARGETS = { carbs: 40, fat: 30, protein: 30 }
+const NUTRITION_MACRO_PRESETS = [
+  { key: 'balanced', label: 'Balanced', carbs: 40, fat: 30, protein: 30 },
+  { key: 'high_protein', label: 'High protein', carbs: 30, fat: 30, protein: 40 },
+  { key: 'low_carb', label: 'Low carb', carbs: 20, fat: 40, protein: 40 },
+]
 
 function MacroPie({ carbs, fat, protein, size = 76 }) {
   const total = carbs + fat + protein || 1
@@ -55,15 +61,15 @@ function MacroPie({ carbs, fat, protein, size = 76 }) {
 function isWellbeingQComplete(key, w) {
   if (!w) return false
   switch (key) {
-    case 'sleep': return !!(w.sleep?.hours || w.sleep?.consistency || w.sleep?.efficiency)
-    case 'nutrition': return !!(w.nutrition?.macrosConfirmed || w.nutrition?.quality)
-    case 'hydration': return !!(w.hydration?.amount || w.hydration?.custom)
-    case 'outdoors': return !!w.outdoors?.minutes
-    case 'talk': return !!w.talk?.done
-    case 'screenFree': return !!w.screenFree?.time
-    case 'journal': return !!w.journal?.done
-    case 'creative': return !!w.creative?.done
-    case 'productivity': return !!w.productivity?.done
+    case 'sleep': return !!(w.sleep?.hours || w.sleep?.efficiency)
+    case 'nutrition': return !!(w.nutrition?.targetPreset || w.nutrition?.quality)
+    case 'hydration': return !!(w.hydration?.total > 0)
+    case 'outdoors': return !!(w.outdoors?.totalMinutes > 0)
+    case 'talk': return !!(w.talk?.count > 0)
+    case 'screenFree': return !!w.screenFree?.hours
+    case 'journal': return !!(w.journal?.count > 0 || w.journal?.privateJournal)
+    case 'creative': return !!(w.creative?.count > 0)
+    case 'productivity': return !!(w.productivity?.count > 0)
     default: return false
   }
 }
@@ -800,6 +806,12 @@ export default function AthleteProfiles() {
   const [expandedHomeWb, setExpandedHomeWb] = useState(null) // which wellbeing question card is expanded on Home
   const [todaysWellbeing, setTodaysWellbeing] = useState({})
   const [savingWellbeing, setSavingWellbeing] = useState(false)
+  const [hydrationCustomAdd, setHydrationCustomAdd] = useState('')
+  const [outdoorsCustomAdd, setOutdoorsCustomAdd] = useState('')
+  const [talkCustomAdd, setTalkCustomAdd] = useState('')
+  const [creativeCustomAdd, setCreativeCustomAdd] = useState('')
+  const [productivityCustomAdd, setProductivityCustomAdd] = useState('')
+  const [journalDraft, setJournalDraft] = useState('')
   const [showContribution, setShowContribution] = useState(false)
   const [showOverallPos, setShowOverallPos] = useState(false)
   const [belts, setBelts] = useState({ junior: [], senior: [], krba: [] })
@@ -1466,116 +1478,176 @@ export default function AthleteProfiles() {
                             <input type="number" step="0.5" defaultValue={todaysWellbeing.sleep?.hours || ''}
                               onBlur={e => saveWellbeingField('sleep', cur => ({ ...cur, hours: e.target.value }))} placeholder="e.g. 8" />
                           </div>
-                          <div className="field"><label>Consistency — same bedtime as usual?</label>
-                            <div style={{ display: 'flex', gap: 6 }}>
-                              {['Yes', 'No'].map(v => (
-                                <button key={v} type="button" onClick={() => saveWellbeingField('sleep', cur => ({ ...cur, consistency: v }))}
-                                  className="btn btn-sm" style={{ flex: 1, justifyContent: 'center', background: todaysWellbeing.sleep?.consistency === v ? '#0E9F6E20' : undefined, borderColor: todaysWellbeing.sleep?.consistency === v ? '#0E9F6E' : undefined }}>{v}</button>
-                              ))}
-                            </div>
-                          </div>
-                          <div className="field" style={{ marginBottom: 0 }}><label>Efficiency % (target 70%+)</label>
+                          <div className="field" style={{ marginBottom: 0 }}><label>Whoop sleep % (target 70%+)</label>
                             <input type="number" min="0" max="100" defaultValue={todaysWellbeing.sleep?.efficiency || ''}
                               onBlur={e => saveWellbeingField('sleep', cur => ({ ...cur, efficiency: e.target.value }))} placeholder="e.g. 75" />
                           </div>
                         </>
                       )}
-                      {expandedHomeWb === 'nutrition' && (() => {
-                        const nut = { carbs: NUTRITION_MACRO_TARGETS.carbs, fat: NUTRITION_MACRO_TARGETS.fat, protein: NUTRITION_MACRO_TARGETS.protein, ...todaysWellbeing.nutrition }
-                        return (
-                          <>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12 }}>
-                              <MacroPie carbs={nut.carbs} fat={nut.fat} protein={nut.protein} />
-                              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-                                <div><span style={{ color: '#EF9F27' }}>●</span> Carbs {nut.carbs}%</div>
-                                <div><span style={{ color: '#E24B4A' }}>●</span> Fat {nut.fat}%</div>
-                                <div><span style={{ color: '#378ADD' }}>●</span> Protein {nut.protein}%</div>
-                                <div style={{ marginTop: 4 }}>Targets: {NUTRITION_MACRO_TARGETS.carbs}/{NUTRITION_MACRO_TARGETS.fat}/{NUTRITION_MACRO_TARGETS.protein}</div>
-                              </div>
-                            </div>
-                            <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 12, background: nut.macrosConfirmed ? '#0E9F6E20' : undefined, borderColor: nut.macrosConfirmed ? '#0E9F6E' : undefined }}
-                              onClick={() => saveWellbeingField('nutrition', cur => ({ ...cur, macrosConfirmed: !cur.macrosConfirmed }))}>
-                              {nut.macrosConfirmed ? '✓ Hit my macro targets' : 'Check if you hit your macro targets'}
-                            </button>
-                            <div className="field" style={{ marginBottom: 0 }}><label>Quality</label>
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                {NUTRITION_QUALITY_OPTIONS.map(v => (
-                                  <button key={v} type="button" onClick={() => saveWellbeingField('nutrition', cur => ({ ...cur, quality: v }))}
-                                    className="btn btn-sm" style={{ background: nut.quality === v ? '#0E9F6E20' : undefined, borderColor: nut.quality === v ? '#0E9F6E' : undefined }}>{v}</button>
-                                ))}
-                              </div>
-                            </div>
-                          </>
-                        )
-                      })()}
-                      {expandedHomeWb === 'hydration' && (
+                      {expandedHomeWb === 'nutrition' && (
                         <>
-                          <div className="field"><label>Amount</label>
+                          <div className="field">
+                            <label>Which target did you follow today?</label>
+                            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                              {NUTRITION_MACRO_PRESETS.map(preset => {
+                                const active = todaysWellbeing.nutrition?.targetPreset === preset.key
+                                return (
+                                  <button key={preset.key} type="button"
+                                    onClick={() => saveWellbeingField('nutrition', cur => ({ ...cur, targetPreset: preset.key }))}
+                                    style={{
+                                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: 8,
+                                      borderRadius: 'var(--radius)', cursor: 'pointer',
+                                      border: `1px solid ${active ? '#0E9F6E' : 'var(--border-strong)'}`,
+                                      background: active ? '#0E9F6E18' : 'var(--bg-secondary)',
+                                    }}>
+                                    <MacroPie carbs={preset.carbs} fat={preset.fat} protein={preset.protein} size={64} />
+                                    <span style={{ fontSize: 11, fontWeight: 600 }}>{active ? '✓ ' : ''}{preset.label}</span>
+                                    <span style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>{preset.carbs}/{preset.fat}/{preset.protein}</span>
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
+                          <div className="field" style={{ marginBottom: 0 }}><label>Quality</label>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                              {HYDRATION_OPTIONS.map(v => (
-                                <button key={v} type="button" onClick={() => saveWellbeingField('hydration', cur => ({ ...cur, amount: v }))}
-                                  className="btn btn-sm" style={{ background: todaysWellbeing.hydration?.amount === v ? '#0E9F6E20' : undefined, borderColor: todaysWellbeing.hydration?.amount === v ? '#0E9F6E' : undefined }}>{v}</button>
+                              {NUTRITION_QUALITY_OPTIONS.map(v => (
+                                <button key={v} type="button" onClick={() => saveWellbeingField('nutrition', cur => ({ ...cur, quality: v }))}
+                                  className="btn btn-sm" style={{ background: todaysWellbeing.nutrition?.quality === v ? '#0E9F6E20' : undefined, borderColor: todaysWellbeing.nutrition?.quality === v ? '#0E9F6E' : undefined }}>{v}</button>
                               ))}
                             </div>
                           </div>
-                          <div className="field" style={{ marginBottom: 0 }}><label>Or write your own</label>
-                            <input defaultValue={todaysWellbeing.hydration?.custom || ''}
-                              onBlur={e => saveWellbeingField('hydration', cur => ({ ...cur, custom: e.target.value }))} placeholder="e.g. 1.8L" />
+                        </>
+                      )}
+                      {expandedHomeWb === 'hydration' && (
+                        <>
+                          <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{(todaysWellbeing.hydration?.total || 0).toFixed(2)}L <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>today</span></div>
+                          <div className="field">
+                            <label>Add</label>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                              {HYDRATION_ADD_OPTIONS.map(v => (
+                                <button key={v} type="button" onClick={() => saveWellbeingField('hydration', cur => ({ total: +((cur.total || 0) + v).toFixed(2) }))}
+                                  className="btn btn-sm">+{v}L</button>
+                              ))}
+                            </div>
                           </div>
+                          <div className="field" style={{ marginBottom: 8 }}><label>Or add a custom amount (L)</label>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <input type="number" step="0.1" value={hydrationCustomAdd} onChange={e => setHydrationCustomAdd(e.target.value)} placeholder="e.g. 0.3" style={{ flex: 1 }} />
+                              <button type="button" className="btn btn-sm" disabled={!hydrationCustomAdd}
+                                onClick={() => { saveWellbeingField('hydration', cur => ({ total: +((cur.total || 0) + parseFloat(hydrationCustomAdd || 0)).toFixed(2) })); setHydrationCustomAdd('') }}>Add</button>
+                            </div>
+                          </div>
+                          {todaysWellbeing.hydration?.total > 0 && (
+                            <button type="button" className="btn btn-sm" onClick={() => saveWellbeingField('hydration', () => ({ total: 0 }))}>Reset today's total</button>
+                          )}
                         </>
                       )}
                       {expandedHomeWb === 'outdoors' && (
-                        <div className="field" style={{ marginBottom: 0 }}><label>Minutes outside (target 20+)</label>
-                          <input type="number" defaultValue={todaysWellbeing.outdoors?.minutes || ''}
-                            onBlur={e => saveWellbeingField('outdoors', () => ({ minutes: e.target.value }))} placeholder="e.g. 25" />
-                        </div>
+                        <>
+                          <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysWellbeing.outdoors?.totalMinutes || 0} mins <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>today (target 20+)</span></div>
+                          <div className="field">
+                            <label>Add</label>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                              {OUTDOORS_ADD_OPTIONS.map(v => (
+                                <button key={v} type="button" onClick={() => saveWellbeingField('outdoors', cur => ({ totalMinutes: (cur.totalMinutes || 0) + v }))}
+                                  className="btn btn-sm">+{v} mins</button>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="field" style={{ marginBottom: 8 }}><label>Or add custom minutes</label>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <input type="number" value={outdoorsCustomAdd} onChange={e => setOutdoorsCustomAdd(e.target.value)} placeholder="e.g. 15" style={{ flex: 1 }} />
+                              <button type="button" className="btn btn-sm" disabled={!outdoorsCustomAdd}
+                                onClick={() => { saveWellbeingField('outdoors', cur => ({ totalMinutes: (cur.totalMinutes || 0) + parseInt(outdoorsCustomAdd || 0) })); setOutdoorsCustomAdd('') }}>Add</button>
+                            </div>
+                          </div>
+                          {todaysWellbeing.outdoors?.totalMinutes > 0 && (
+                            <button type="button" className="btn btn-sm" onClick={() => saveWellbeingField('outdoors', () => ({ totalMinutes: 0 }))}>Reset today's total</button>
+                          )}
+                        </>
                       )}
                       {expandedHomeWb === 'talk' && (
-                        <div className="field" style={{ marginBottom: 0 }}><label>Had at least one conversation with a friend today?</label>
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            {['Yes', 'No'].map(v => (
-                              <button key={v} type="button" onClick={() => saveWellbeingField('talk', () => ({ done: v === 'Yes' }))}
-                                className="btn btn-sm" style={{ flex: 1, justifyContent: 'center', background: (todaysWellbeing.talk?.done ? 'Yes' : 'No') === v ? '#0E9F6E20' : undefined, borderColor: (todaysWellbeing.talk?.done ? 'Yes' : 'No') === v ? '#0E9F6E' : undefined }}>{v}</button>
-                            ))}
+                        <>
+                          <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysWellbeing.talk?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>conversation{(todaysWellbeing.talk?.count || 0) === 1 ? '' : 's'} today</span></div>
+                          <div className="field">
+                            <label>Add</label>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                              {TALK_ADD_OPTIONS.map(v => (
+                                <button key={v} type="button" onClick={() => saveWellbeingField('talk', cur => ({ count: (cur.count || 0) + v }))}
+                                  className="btn btn-sm">+{v}</button>
+                              ))}
+                            </div>
                           </div>
-                        </div>
+                          <div className="field" style={{ marginBottom: 8 }}><label>Or write a number to add</label>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <input type="number" value={talkCustomAdd} onChange={e => setTalkCustomAdd(e.target.value)} placeholder="e.g. 4" style={{ flex: 1 }} />
+                              <button type="button" className="btn btn-sm" disabled={!talkCustomAdd}
+                                onClick={() => { saveWellbeingField('talk', cur => ({ count: (cur.count || 0) + parseInt(talkCustomAdd || 0) })); setTalkCustomAdd('') }}>Add</button>
+                            </div>
+                          </div>
+                          {todaysWellbeing.talk?.count > 0 && (
+                            <button type="button" className="btn btn-sm" onClick={() => saveWellbeingField('talk', () => ({ count: 0 }))}>Reset today's count</button>
+                          )}
+                        </>
                       )}
                       {expandedHomeWb === 'screenFree' && (
-                        <div className="field" style={{ marginBottom: 0 }}><label>Screens off by</label>
+                        <div className="field" style={{ marginBottom: 0 }}><label>Time off screen</label>
                           <div style={{ display: 'flex', gap: 6 }}>
                             {SCREEN_FREE_OPTIONS.map(v => (
-                              <button key={v} type="button" onClick={() => saveWellbeingField('screenFree', () => ({ time: v }))}
-                                className="btn btn-sm" style={{ flex: 1, justifyContent: 'center', background: todaysWellbeing.screenFree?.time === v ? '#0E9F6E20' : undefined, borderColor: todaysWellbeing.screenFree?.time === v ? '#0E9F6E' : undefined }}>{v}</button>
+                              <button key={v} type="button" onClick={() => saveWellbeingField('screenFree', () => ({ hours: v }))}
+                                className="btn btn-sm" style={{ flex: 1, justifyContent: 'center', background: todaysWellbeing.screenFree?.hours === v ? '#0E9F6E20' : undefined, borderColor: todaysWellbeing.screenFree?.hours === v ? '#0E9F6E' : undefined }}>{v}</button>
                             ))}
                           </div>
                         </div>
                       )}
                       {expandedHomeWb === 'journal' && (
                         <>
-                          <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8, background: todaysWellbeing.journal?.done ? '#0E9F6E20' : undefined, borderColor: todaysWellbeing.journal?.done ? '#0E9F6E' : undefined }}
-                            onClick={() => saveWellbeingField('journal', cur => ({ ...cur, done: !cur.done }))}>
-                            {todaysWellbeing.journal?.done ? '✓ Wrote one journal entry' : 'Mark one journal entry as done'}
+                          <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 8 }}>{todaysWellbeing.journal?.count || 0} entr{(todaysWellbeing.journal?.count || 0) === 1 ? 'y' : 'ies'} logged today</div>
+                          <textarea value={journalDraft} onChange={e => setJournalDraft(e.target.value)}
+                            placeholder="Optional — write your journal here"
+                            rows={6} style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 14, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
+                          <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
+                            onClick={() => { saveWellbeingField('journal', cur => ({ ...cur, count: (cur.count || 0) + 1, notes: journalDraft })); setJournalDraft('') }}>
+                            Save journal entry
                           </button>
-                          <input defaultValue={todaysWellbeing.journal?.notes || ''}
-                            onBlur={e => saveWellbeingField('journal', cur => ({ ...cur, notes: e.target.value }))} placeholder="Optional — what did you write about?" />
+                          <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', background: todaysWellbeing.journal?.privateJournal ? '#0E9F6E20' : undefined, borderColor: todaysWellbeing.journal?.privateJournal ? '#0E9F6E' : undefined }}
+                            onClick={() => saveWellbeingField('journal', cur => ({ ...cur, privateJournal: !cur.privateJournal }))}>
+                            {todaysWellbeing.journal?.privateJournal ? '✓ Journaled privately away from this app' : 'I journaled privately, away from this app'}
+                          </button>
                         </>
                       )}
                       {expandedHomeWb === 'creative' && (
                         <>
-                          <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8, background: todaysWellbeing.creative?.done ? '#0E9F6E20' : undefined, borderColor: todaysWellbeing.creative?.done ? '#0E9F6E' : undefined }}
-                            onClick={() => saveWellbeingField('creative', cur => ({ ...cur, done: !cur.done }))}>
-                            {todaysWellbeing.creative?.done ? '✓ Completed one creative task' : 'Mark one creative task as done'}
+                          <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysWellbeing.creative?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>task{(todaysWellbeing.creative?.count || 0) === 1 ? '' : 's'} today</span></div>
+                          <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
+                            onClick={() => saveWellbeingField('creative', cur => ({ ...cur, count: (cur.count || 0) + 1 }))}>
+                            +1 creative task completed
                           </button>
+                          <div className="field"><label>Or write a number to add</label>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <input type="number" value={creativeCustomAdd} onChange={e => setCreativeCustomAdd(e.target.value)} placeholder="e.g. 3" style={{ flex: 1 }} />
+                              <button type="button" className="btn btn-sm" disabled={!creativeCustomAdd}
+                                onClick={() => { saveWellbeingField('creative', cur => ({ ...cur, count: (cur.count || 0) + parseInt(creativeCustomAdd || 0) })); setCreativeCustomAdd('') }}>Add</button>
+                            </div>
+                          </div>
                           <input defaultValue={todaysWellbeing.creative?.notes || ''}
                             onBlur={e => saveWellbeingField('creative', cur => ({ ...cur, notes: e.target.value }))} placeholder="Optional — what did you do?" />
                         </>
                       )}
                       {expandedHomeWb === 'productivity' && (
                         <>
-                          <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8, background: todaysWellbeing.productivity?.done ? '#0E9F6E20' : undefined, borderColor: todaysWellbeing.productivity?.done ? '#0E9F6E' : undefined }}
-                            onClick={() => saveWellbeingField('productivity', cur => ({ ...cur, done: !cur.done }))}>
-                            {todaysWellbeing.productivity?.done ? '✓ Completed one productive task' : 'Mark one productive task as done'}
+                          <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysWellbeing.productivity?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>task{(todaysWellbeing.productivity?.count || 0) === 1 ? '' : 's'} today</span></div>
+                          <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
+                            onClick={() => saveWellbeingField('productivity', cur => ({ ...cur, count: (cur.count || 0) + 1 }))}>
+                            +1 productive task completed
                           </button>
+                          <div className="field"><label>Or write a number to add</label>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <input type="number" value={productivityCustomAdd} onChange={e => setProductivityCustomAdd(e.target.value)} placeholder="e.g. 3" style={{ flex: 1 }} />
+                              <button type="button" className="btn btn-sm" disabled={!productivityCustomAdd}
+                                onClick={() => { saveWellbeingField('productivity', cur => ({ ...cur, count: (cur.count || 0) + parseInt(productivityCustomAdd || 0) })); setProductivityCustomAdd('') }}>Add</button>
+                            </div>
+                          </div>
                           <input defaultValue={todaysWellbeing.productivity?.notes || ''}
                             onBlur={e => saveWellbeingField('productivity', cur => ({ ...cur, notes: e.target.value }))} placeholder="Optional — what did you do?" />
                         </>
