@@ -449,6 +449,10 @@ export default function AthleteApp() {
     function handleClick(e) {
       if (physicalSectionRef.current && !physicalSectionRef.current.contains(e.target)) {
         setShowPhysicalSection(false)
+        setExpandedHomeRun(null)
+        setExpandedHomeWatt(null)
+        setExpandedHomeBodyweight(null)
+        setExpandedHomeStretch(null)
       }
     }
     document.addEventListener('mousedown', handleClick)
@@ -911,6 +915,12 @@ export default function AthleteApp() {
                   setExpandedHomeBodyweight(panel === 'bodyweight' ? value : null)
                   setExpandedHomeStretch(panel === 'stretch' ? value : null)
                 }
+                const togglePhysicalSection = () => {
+                  setShowPhysicalSection(v => {
+                    if (v) openOnlyPhysicalPanel(null, null) // closing -- reset any open detail panel too
+                    return !v
+                  })
+                }
 
                 return (
                   <>
@@ -939,7 +949,7 @@ export default function AthleteApp() {
                     </div>
 
                     <div ref={physicalSectionRef}>
-                    <button type="button" onClick={() => setShowPhysicalSection(v => !v)} style={{
+                    <button type="button" onClick={togglePhysicalSection} style={{
                       width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                       textAlign: 'center', padding: '10px 8px', marginBottom: 8, cursor: 'pointer', fontFamily: 'var(--font-sans)',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
