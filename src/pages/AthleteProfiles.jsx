@@ -83,7 +83,6 @@ function isWellbeingQComplete(key, w) {
 // wattBike.interval_mode/sets, bodyweight.type/sets, stretches[i]), so
 // nothing already recorded is affected.
 const RUN_CATEGORY_CARDS = [
-  { key: 'Distance over time', label: 'Distance over time', icon: '🏃' },
   { key: 'Timed Sprints', label: 'Timed Sprints', icon: '⚡' },
   { key: 'Timed Distance Run', label: 'Timed Distance Run', icon: '🏁' },
 ]
@@ -308,6 +307,7 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
   const logHref = `/fit2fight?student_id=${studentId}&module=${b.key}`
   const isPhysicalModule = ['running', 'watt_bike', 'bodyweight', 'stretch'].includes(b.key)
   const isSimplifiedModule = ['wellbeing', 'mentality', 'test'].includes(b.key)
+  const hideLeftZone = isSimplifiedModule || isPhysicalModule
 
   return (
     <div style={{
@@ -315,17 +315,11 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
       overflow: 'hidden', fontFamily: 'var(--font-sans)',
     }}>
-      {/* Left: for Physical modules (which now have their own inline
-          logging section on this page), scroll to the result instead --
-          same as the right zone. Wellbeing/Mentality/Test have their own
-          dedicated card grids below, so skip this zone entirely. Other
-          modules still quick-link to the full log form. */}
-      {isSimplifiedModule ? null : isPhysicalModule ? (
-        <button onClick={goToChart} title={`View ${b.label} results`} style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, flexShrink: 0,
-          color: colour, fontSize: 18, fontWeight: 700, background: 'none', border: 'none', borderRight: '1px solid var(--border)', cursor: 'pointer',
-        }}>+</button>
-      ) : (
+      {/* Left: quick-log link to the full form. Wellbeing/Mentality/
+          Test/Running/Watt bike/Bodyweight/Stretch flows all have their
+          own dedicated card grids on this page, so this zone is skipped
+          for them entirely. */}
+      {!hideLeftZone && (
         <a href={logHref} title={`Log ${b.label}${currentSubType ? ` — ${currentSubType}` : ''}`} style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, flexShrink: 0,
           color: colour, fontSize: 18, fontWeight: 700, textDecoration: 'none', borderRight: '1px solid var(--border)',
