@@ -307,13 +307,13 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
           cycling sub-type. */}
       <button onClick={() => isPhysicalModule ? onToggleLog?.(b.key) : b.key === 'test' ? setTab('fit2fight') : cycleType()} style={{
         flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
-        padding: '8px 6px', background: 'none', border: 'none', borderRight: isSimplifiedModule ? 'none' : '1px solid var(--border)',
+        padding: '8px 4px', background: 'none', border: 'none', borderRight: isSimplifiedModule ? 'none' : '1px solid var(--border)',
         cursor: (b.key === 'test' || subTypeOptions.length > 1) ? 'pointer' : 'default',
         minWidth: 0,
       }}>
-        <span style={{ fontSize: 17 }}>{b.icon}</span>
-        {b.key !== 'test' && <span style={{ fontSize: 10, fontWeight: 500, whiteSpace: 'nowrap' }}>{b.label}</span>}
-        {b.key !== 'test' && currentSubType && <span style={{ fontSize: 8, color: colour, fontWeight: 600, textAlign: 'center', lineHeight: 1.2 }}>{currentSubType}</span>}
+        <span style={{ fontSize: 16 }}>{b.icon}</span>
+        {b.key !== 'test' && <span style={{ fontSize: 9, fontWeight: 500, whiteSpace: 'nowrap' }}>{b.label}</span>}
+        {b.key !== 'test' && currentSubType && <span style={{ fontSize: 7, color: colour, fontWeight: 600, textAlign: 'center', lineHeight: 1.2 }}>{currentSubType}</span>}
         {!isPhysicalModule && b.key !== 'test' && subTypeOptions.length > 1 && <span style={{ fontSize: 7, color: 'var(--text-tertiary)' }}>tap to cycle</span>}
       </button>
 
@@ -322,17 +322,17 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
           dedicated card grids below instead. */}
       {!isSimplifiedModule && (
       <button onClick={() => setTab('fit2fight')} style={{
-        width: 74, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        padding: '8px 6px', background: 'none', border: 'none', cursor: 'pointer',
+        width: 58, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        padding: '8px 4px', background: 'none', border: 'none', cursor: 'pointer',
       }}>
         {noNumericStat ? (
-          <span style={{ fontSize: 9, color: 'var(--text-tertiary)', textAlign: 'center', lineHeight: 1.3 }}>
+          <span style={{ fontSize: 8, color: 'var(--text-tertiary)', textAlign: 'center', lineHeight: 1.3 }}>
             {lastLogged.count > 0 ? `Logged ${lastLogged.count}×` : 'Not logged'}
           </span>
         ) : (
           <>
-            <span style={{ fontSize: 16, fontWeight: 700 }}>{mostRecent ? `${mostRecent.value}${unit}` : '—'}</span>
-            <span style={{ fontSize: 10, fontWeight: 600, color: colour, marginTop: 2 }}>{pb ? `🏅 ${pb.value}${unit}` : '—'}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>{mostRecent ? `${mostRecent.value}${unit}` : '—'}</span>
+            <span style={{ fontSize: 9, fontWeight: 600, color: colour, marginTop: 2, whiteSpace: 'nowrap' }}>{pb ? `🏅 ${pb.value}${unit}` : '—'}</span>
           </>
         )}
       </button>
