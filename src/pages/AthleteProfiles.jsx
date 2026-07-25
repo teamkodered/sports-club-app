@@ -77,6 +77,27 @@ function isWellbeingQComplete(key, w) {
 // Test module category groupings, mirroring the log form's structure.
 // Uses the exact same test-name keys already used in stored session
 // data (test: { [name]: value }), so nothing already recorded is lost.
+// Physical section groupings for Running/Watt bike/Bodyweight/Stretch
+// flows -- each writes into the exact same fields the log form and
+// results charts already use (running.category/test/sets,
+// wattBike.interval_mode/sets, bodyweight.type/sets, stretches[i]), so
+// nothing already recorded is affected.
+const RUN_CATEGORY_CARDS = [
+  { key: 'Distance over time', label: 'Distance over time', icon: '🏃' },
+  { key: 'Timed Sprints', label: 'Timed Sprints', icon: '⚡' },
+  { key: 'Timed Distance Run', label: 'Timed Distance Run', icon: '🏁' },
+]
+const WATT_BIKE_GROUPS = [
+  { key: 'standard', label: 'Standard intervals', icon: '🚴', match: m => !/Output \(wattage\)|Distance \(km\)/i.test(m || '') },
+  { key: 'output', label: 'Output intervals', icon: '⚡', match: m => /Output \(wattage\)/i.test(m || '') },
+  { key: 'distance', label: 'Distance intervals', icon: '📏', match: m => /Distance \(km\)/i.test(m || '') },
+]
+const BODYWEIGHT_GROUPS = [
+  { key: 'planks', label: 'Planks', icon: '🧘', match: t => /plank/i.test(t || '') },
+  { key: 'circuits', label: 'Fixed load circuits', icon: '🔴', match: t => /circuit/i.test(t || '') },
+  { key: 'reps', label: 'Reps', icon: '💪', match: t => !/plank|circuit/i.test(t || '') },
+]
+
 const TEST_CATEGORIES = [
   { key: 'bleep', label: 'Bleep test', icon: '🏃', tests: [
     { name: 'Bleep test', unit: 'level' },
@@ -166,11 +187,22 @@ function normalizeIntervalMode(raw) {
   return s.replace(/\s*-\s*(Output \(wattage\)|Distance \(km\))\s*$/i, '').trim()
 }
 
+// Running/Watt bike/Bodyweight now support multiple entries per
+// session (like Test does), but existing historic data was saved as a
+// single object rather than an array. This normalizes both shapes to
+// an array transparently, so nothing already recorded is lost or needs
+// migrating -- old single-entry sessions just become a 1-item array.
+function toEntries(val) {
+  if (Array.isArray(val)) return val
+  if (val && typeof val === 'object' && Object.keys(val).length > 0) return [val]
+  return []
+}
+
 function getSubTypeOptions(sorted, key) {
   try {
-    if (key === 'running') return [...new Set(sorted.map(s => s.running?.category).filter(Boolean))]
-    if (key === 'watt_bike') return [...new Set(sorted.map(s => normalizeIntervalMode(s.watt_bike?.interval_mode || s.watt_bike?.type)).filter(Boolean))]
-    if (key === 'bodyweight') return [...new Set(sorted.map(s => s.bodyweight?.type).filter(Boolean))]
+    if (key === 'running') return [...new Set(sorted.flatMap(s => toEntries(s.running).map(e => e.category)).filter(Boolean))]
+    if (key === 'watt_bike') return [...new Set(sorted.flatMap(s => toEntries(s.watt_bike).map(e => normalizeIntervalMode(e.interval_mode || e.type))).filter(Boolean))]
+    if (key === 'bodyweight') return [...new Set(sorted.flatMap(s => toEntries(s.bodyweight).map(e => e.type)).filter(Boolean))]
     if (key === 'test') return [...new Set(sorted.flatMap(s => Object.keys(s.test || {})))].filter(k => k !== 'notes' && k !== 'type')
     if (key === 'techniques') return [...new Set(sorted.map(s => s.techniques?.type).filter(Boolean))]
     if (key === 'one_percenters') return [...new Set(sorted.map(s => s.one_percenters?.type).filter(Boolean))]
@@ -188,19 +220,22 @@ function computeModuleStats(sorted, key, subType) {
     const numSets = arr => Array.isArray(arr) ? arr.map(v => parseFloat((v && typeof v === 'object') ? v.wattage : v)).filter(v => !isNaN(v)) : []
 
     if (key === 'running') {
-      const filtered = sorted.filter(s => !subType || s.running?.category === subType)
-      entries = filtered.filter(s => Array.isArray(s.running?.sets) && s.running.sets.length > 0)
-        .map(s => ({ date: s.session_date, value: s.running.sets[s.running.sets.length - 1] }))
+      entries = sorted.flatMap(s => toEntries(s.running)
+        .filter(e => !subType || e.category === subType)
+        .filter(e => Array.isArray(e.sets) && e.sets.length > 0)
+        .map(e => ({ date: s.session_date, value: e.sets[e.sets.length - 1] })))
       higherIsBetter = subType === 'Distance over time'
     } else if (key === 'watt_bike') {
-      const filtered = sorted.filter(s => !subType || normalizeIntervalMode(s.watt_bike?.interval_mode || s.watt_bike?.type) === subType)
-      entries = filtered.map(s => ({ date: s.session_date, value: numSets(s.watt_bike?.sets).length ? Math.max(...numSets(s.watt_bike?.sets)) : null }))
-        .filter(e => e.value != null)
+      entries = sorted.flatMap(s => toEntries(s.watt_bike)
+        .filter(e => !subType || normalizeIntervalMode(e.interval_mode || e.type) === subType)
+        .map(e => ({ date: s.session_date, value: numSets(e.sets).length ? Math.max(...numSets(e.sets)) : null }))
+        .filter(e => e.value != null))
       unit = 'W'
     } else if (key === 'bodyweight') {
-      const filtered = sorted.filter(s => !subType || s.bodyweight?.type === subType)
-      entries = filtered.map(s => ({ date: s.session_date, value: numSets(s.bodyweight?.sets).length ? Math.max(...numSets(s.bodyweight?.sets)) : null }))
-        .filter(e => e.value != null)
+      entries = sorted.flatMap(s => toEntries(s.bodyweight)
+        .filter(e => !subType || e.type === subType)
+        .map(e => ({ date: s.session_date, value: numSets(e.sets).length ? Math.max(...numSets(e.sets)) : null }))
+        .filter(e => e.value != null))
       unit = ' reps'
     } else if (key === 'test') {
       entries = subType ? sorted.filter(s => s.test?.[subType] != null).map(s => ({ date: s.session_date, value: s.test[subType] })) : []
@@ -898,6 +933,19 @@ export default function AthleteProfiles() {
   const [expandedHomeTestCategory, setExpandedHomeTestCategory] = useState(null)
   const [todaysTest, setTodaysTest] = useState({})
   const [savingTest, setSavingTest] = useState(false)
+  const [runCategoryTests, setRunCategoryTests] = useState({})
+  const [intervalModes, setIntervalModes] = useState([])
+  const [bodyweightTypeOptions, setBodyweightTypeOptions] = useState([])
+  const [stretchOptionsList, setStretchOptionsList] = useState([])
+  const [expandedHomeRun, setExpandedHomeRun] = useState(null)
+  const [expandedHomeWatt, setExpandedHomeWatt] = useState(null)
+  const [expandedHomeBodyweight, setExpandedHomeBodyweight] = useState(null)
+  const [expandedHomeStretch, setExpandedHomeStretch] = useState(null)
+  const [todaysRunning, setTodaysRunning] = useState([])
+  const [todaysWattBike, setTodaysWattBike] = useState([])
+  const [todaysBodyweight, setTodaysBodyweight] = useState([])
+  const [todaysStretches, setTodaysStretches] = useState(['', '', ''])
+  const [savingPhysical, setSavingPhysical] = useState(false)
   const [showContribution, setShowContribution] = useState(false)
   const [showOverallPos, setShowOverallPos] = useState(false)
   const [belts, setBelts] = useState({ junior: [], senior: [], krba: [] })
@@ -944,6 +992,10 @@ export default function AthleteProfiles() {
     setTodaysWellbeing(todaysSession?.wellbeing || {})
     setTodaysMentalityLog(todaysSession?.mentality_log || {})
     setTodaysTest(todaysSession?.test || {})
+    setTodaysRunning(toEntries(todaysSession?.running))
+    setTodaysWattBike(toEntries(todaysSession?.watt_bike))
+    setTodaysBodyweight(toEntries(todaysSession?.bodyweight))
+    setTodaysStretches(todaysSession?.stretch_flows || ['', '', ''])
   }, [f2fData])
 
   useEffect(() => {
@@ -951,6 +1003,17 @@ export default function AthleteProfiles() {
       .then(({ data }) => {
         const map = Object.fromEntries((data || []).map(r => [r.key, r.value]))
         setBelts({ junior: map.pka_junior_belts || [], senior: map.pka_senior_belts || [], krba: map.krba_levels || [] })
+      })
+  }, [])
+
+  useEffect(() => {
+    supabase.from('settings').select('key,value').in('key', ['f2f_run_categories', 'f2f_interval_modes', 'f2f_bodyweight_types', 'f2f_stretch_options'])
+      .then(({ data }) => {
+        const map = Object.fromEntries((data || []).map(r => [r.key, r.value]))
+        setRunCategoryTests(map.f2f_run_categories || {})
+        setIntervalModes(map.f2f_interval_modes || ['20 seconds on 20 seconds off', '30 seconds on 30 seconds off', '40 seconds on 20 seconds off'])
+        setBodyweightTypeOptions(map.f2f_bodyweight_types || ['Push-ups', 'Pull-ups', 'Squats', 'Dips', 'Sit-ups', 'Burpees', 'Other'])
+        setStretchOptionsList(map.f2f_stretch_options || ['Other'])
       })
   }, [])
 
@@ -1184,6 +1247,29 @@ export default function AthleteProfiles() {
       if (error) alert('Error saving: ' + error.message)
     }
     setSavingTest(false)
+  }
+
+  // Generic save for Running/Watt bike/Bodyweight/Stretch flows -- these
+  // are single-object fields (not flat multi-value maps like Test), so
+  // saving means writing the whole updated object/array for that field.
+  async function savePhysicalField(dbField, newValue, localSetter) {
+    setSavingPhysical(true)
+    localSetter(newValue)
+    const todaysDate = new Date().toISOString().split('T')[0]
+    const existing = f2fData.find(s => s.session_date === todaysDate)
+    let error
+    if (existing) {
+      ;({ error } = await supabase.from('fit2fight_sessions').update({ [dbField]: newValue }).eq('id', existing.id))
+      if (!error) setF2fData(prev => prev.map(s => s.id === existing.id ? { ...s, [dbField]: newValue } : s))
+    } else {
+      const { data, error: insertErr } = await supabase.from('fit2fight_sessions')
+        .insert({ student_id: selected.id, session_date: todaysDate, [dbField]: newValue })
+        .select().single()
+      error = insertErr
+      if (!error && data) setF2fData(prev => [data, ...prev])
+    }
+    if (error) alert('Error saving: ' + error.message)
+    setSavingPhysical(false)
   }
 
   function goHome() {
@@ -1638,10 +1724,187 @@ export default function AthleteProfiles() {
                     </button>
                   </div>
 
+                  <div className="card" style={{ textAlign: 'center', padding: '10px 8px', marginBottom: 8, background: colour + '12', border: `1px solid ${colour}30` }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: colour, letterSpacing: 0.5 }}>PHYSICAL</span>
+                  </div>
+
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
-                    {modules.map(b => (
-                      <ModuleButton key={b.key} b={b} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setRunChartFilter={setRunChartFilter} studentId={selected?.id} />
-                    ))}
+                    <ModuleButton b={modules[0]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setRunChartFilter={setRunChartFilter} studentId={selected?.id} />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeRun ? 10 : 8 }}>
+                    {RUN_CATEGORY_CARDS.map(cat => {
+                      const complete = todaysRunning.some(e => e.category === cat.key)
+                      const active = expandedHomeRun === cat.key
+                      return (
+                        <button key={cat.key} type="button" onClick={() => setExpandedHomeRun(active ? null : cat.key)} style={{
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
+                          borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                          border: `2px solid ${active ? colour : complete ? '#E24B4A' : 'var(--border)'}`,
+                          background: complete ? '#E24B4A12' : 'var(--bg-secondary)',
+                        }}>
+                          <span style={{ fontSize: 16 }}>{cat.icon}</span>
+                          <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat.label}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {expandedHomeRun && (() => {
+                    const entry = todaysRunning.find(e => e.category === expandedHomeRun) || { category: expandedHomeRun, test: '', sets: [] }
+                    const upsert = updatedEntry => savePhysicalField('running', [...todaysRunning.filter(e => e.category !== expandedHomeRun), updatedEntry], setTodaysRunning)
+                    return (
+                      <div className="card" style={{ marginBottom: 8 }}>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+                          <button type="button" className="btn btn-sm" style={{ fontSize: 11 }}
+                            onClick={() => savePhysicalField('running', todaysRunning.filter(e => e.category !== expandedHomeRun), setTodaysRunning)}>✕ Clear</button>
+                        </div>
+                        <div className="field"><label>Specific test</label>
+                          <select value={entry.test || ''} onChange={e => upsert({ ...entry, test: e.target.value })}>
+                            <option value="">Select…</option>
+                            {(runCategoryTests[expandedHomeRun] || []).map(t => <option key={t}>{t}</option>)}
+                          </select>
+                        </div>
+                        <div className="field" style={{ marginBottom: 0 }}><label>Result</label>
+                          <input defaultValue={entry.sets?.[0] || ''} onBlur={e => upsert({ ...entry, sets: [e.target.value] })}
+                            placeholder="e.g. 2.4km or 12:30" />
+                        </div>
+                        {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>Saving…</p>}
+                      </div>
+                    )
+                  })()}
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
+                    <ModuleButton b={modules[1]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setRunChartFilter={setRunChartFilter} studentId={selected?.id} />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeWatt ? 10 : 8 }}>
+                    {WATT_BIKE_GROUPS.map(grp => {
+                      const complete = todaysWattBike.some(e => grp.match(e.interval_mode || e.type))
+                      const active = expandedHomeWatt === grp.key
+                      return (
+                        <button key={grp.key} type="button" onClick={() => setExpandedHomeWatt(active ? null : grp.key)} style={{
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
+                          borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                          border: `2px solid ${active ? colour : complete ? '#378ADD' : 'var(--border)'}`,
+                          background: complete ? '#378ADD12' : 'var(--bg-secondary)',
+                        }}>
+                          <span style={{ fontSize: 16 }}>{grp.icon}</span>
+                          <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{grp.label}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {expandedHomeWatt && (() => {
+                    const grp = WATT_BIKE_GROUPS.find(g => g.key === expandedHomeWatt)
+                    const groupModes = intervalModes.filter(m => grp.match(m))
+                    const entry = todaysWattBike.find(e => grp.match(e.interval_mode || e.type)) || { interval_mode: '', sets: [] }
+                    const upsert = updatedEntry => savePhysicalField('watt_bike', [...todaysWattBike.filter(e => !grp.match(e.interval_mode || e.type)), updatedEntry], setTodaysWattBike)
+                    return (
+                      <div className="card" style={{ marginBottom: 8 }}>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+                          <button type="button" className="btn btn-sm" style={{ fontSize: 11 }}
+                            onClick={() => savePhysicalField('watt_bike', todaysWattBike.filter(e => !grp.match(e.interval_mode || e.type)), setTodaysWattBike)}>✕ Clear</button>
+                        </div>
+                        <div className="field"><label>Interval</label>
+                          <select value={entry.interval_mode || ''} onChange={e => upsert({ ...entry, interval_mode: e.target.value })}>
+                            <option value="">Select…</option>
+                            {groupModes.map(m => <option key={m}>{m}</option>)}
+                          </select>
+                        </div>
+                        <div className="field" style={{ marginBottom: 0 }}><label>Result</label>
+                          <input defaultValue={entry.sets?.[0]?.wattage || ''}
+                            onBlur={e => upsert({ ...entry, sets: [{ wattage: e.target.value }] })}
+                            placeholder="e.g. 650" />
+                        </div>
+                        {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>Saving…</p>}
+                      </div>
+                    )
+                  })()}
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
+                    <ModuleButton b={modules[2]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setRunChartFilter={setRunChartFilter} studentId={selected?.id} />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeBodyweight ? 10 : 8 }}>
+                    {BODYWEIGHT_GROUPS.map(grp => {
+                      const complete = todaysBodyweight.some(e => grp.match(e.type))
+                      const active = expandedHomeBodyweight === grp.key
+                      return (
+                        <button key={grp.key} type="button" onClick={() => setExpandedHomeBodyweight(active ? null : grp.key)} style={{
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
+                          borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                          border: `2px solid ${active ? colour : complete ? '#1D9E75' : 'var(--border)'}`,
+                          background: complete ? '#1D9E7512' : 'var(--bg-secondary)',
+                        }}>
+                          <span style={{ fontSize: 16 }}>{grp.icon}</span>
+                          <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{grp.label}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {expandedHomeBodyweight && (() => {
+                    const grp = BODYWEIGHT_GROUPS.find(g => g.key === expandedHomeBodyweight)
+                    const groupTypes = bodyweightTypeOptions.filter(t => grp.match(t))
+                    const entry = todaysBodyweight.find(e => grp.match(e.type)) || { type: '', sets: [] }
+                    const upsert = updatedEntry => savePhysicalField('bodyweight', [...todaysBodyweight.filter(e => !grp.match(e.type)), updatedEntry], setTodaysBodyweight)
+                    return (
+                      <div className="card" style={{ marginBottom: 8 }}>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+                          <button type="button" className="btn btn-sm" style={{ fontSize: 11 }}
+                            onClick={() => savePhysicalField('bodyweight', todaysBodyweight.filter(e => !grp.match(e.type)), setTodaysBodyweight)}>✕ Clear</button>
+                        </div>
+                        <div className="field"><label>Exercise</label>
+                          <select value={entry.type || ''} onChange={e => upsert({ ...entry, type: e.target.value })}>
+                            <option value="">Select…</option>
+                            {groupTypes.map(t => <option key={t}>{t}</option>)}
+                          </select>
+                        </div>
+                        <div className="field" style={{ marginBottom: 0 }}><label>Result</label>
+                          <input defaultValue={entry.sets?.[0] || ''}
+                            onBlur={e => upsert({ ...entry, sets: [e.target.value] })}
+                            placeholder="e.g. 20 reps or 1:30" />
+                        </div>
+                        {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>Saving…</p>}
+                      </div>
+                    )
+                  })()}
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
+                    <ModuleButton b={modules[3]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setRunChartFilter={setRunChartFilter} studentId={selected?.id} />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeStretch ? 10 : 8 }}>
+                    {[0,1,2].map(i => {
+                      const complete = !!todaysStretches[i]
+                      const active = expandedHomeStretch === i
+                      return (
+                        <button key={i} type="button" onClick={() => setExpandedHomeStretch(active ? null : i)} style={{
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
+                          borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                          border: `2px solid ${active ? colour : complete ? '#EF9F27' : 'var(--border)'}`,
+                          background: complete ? '#EF9F2712' : 'var(--bg-secondary)',
+                        }}>
+                          <span style={{ fontSize: 16 }}>🤸</span>
+                          <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>Stretch flow {i+1}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {expandedHomeStretch != null && (
+                    <div className="card" style={{ marginBottom: 8 }}>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+                        <button type="button" className="btn btn-sm" style={{ fontSize: 11 }}
+                          onClick={() => { const next = [...todaysStretches]; next[expandedHomeStretch] = ''; savePhysicalField('stretch_flows', next, setTodaysStretches) }}>✕ Clear</button>
+                      </div>
+                      <div className="field" style={{ marginBottom: 0 }}><label>Stretch performed</label>
+                        <select value={todaysStretches[expandedHomeStretch] || ''}
+                          onChange={e => { const next = [...todaysStretches]; next[expandedHomeStretch] = e.target.value; savePhysicalField('stretch_flows', next, setTodaysStretches) }}>
+                          <option value="">Select…</option>
+                          {stretchOptionsList.map(s => <option key={s}>{s}</option>)}
+                        </select>
+                      </div>
+                      {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>Saving…</p>}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
+                    <ModuleButton b={modules[4]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setRunChartFilter={setRunChartFilter} studentId={selected?.id} />
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeTestCategory ? 10 : 8 }}>
@@ -2529,8 +2792,16 @@ export default function AthleteProfiles() {
               // Build chart data from sessions
               const sorted = [...filtered].sort((a,b) => new Date(a.session_date) - new Date(b.session_date))
               const weightData = sorted.filter(s => s.weight_before || s.weight_after)
-              const wattData = sorted.filter(s => Array.isArray(s.watt_bike?.sets) && s.watt_bike.sets.length > 0)
-              const runData = sorted.filter(s => Array.isArray(s.running?.sets) && s.running.sets.length > 0)
+              // Flattened to one row per entry (not per session), since a
+              // session can now hold multiple Watt bike/Running entries.
+              // Downstream code below is unchanged -- it still reads
+              // s.watt_bike.* / s.running.* the same way as before.
+              const wattData = sorted.flatMap(s => toEntries(s.watt_bike)
+                .filter(e => Array.isArray(e.sets) && e.sets.length > 0)
+                .map(e => ({ session_date: s.session_date, watt_bike: e })))
+              const runData = sorted.flatMap(s => toEntries(s.running)
+                .filter(e => Array.isArray(e.sets) && e.sets.length > 0)
+                .map(e => ({ session_date: s.session_date, running: e })))
 
               // SVG line chart helper
               function LineChart({ data, lines, height=160, title, unit='' }) {
@@ -2822,7 +3093,9 @@ export default function AthleteProfiles() {
                 {/* Bodyweight chart */}
                 <div id="f2f-chart-bodyweight">
                 {(() => {
-                  const bwData = sorted.filter(s => Array.isArray(s.bodyweight?.sets) && s.bodyweight.sets.length > 0)
+                  const bwData = sorted.flatMap(s => toEntries(s.bodyweight)
+                    .filter(e => Array.isArray(e.sets) && e.sets.length > 0)
+                    .map(e => ({ session_date: s.session_date, bodyweight: e })))
                   const bwTypes = [...new Set(bwData.map(s => s.bodyweight?.type).filter(Boolean))]
                   const filteredBw = bwChartFilter === 'all' ? bwData : bwData.filter(s => s.bodyweight?.type === bwChartFilter)
                   const maxSets = Math.max(1, ...filteredBw.map(s => s.bodyweight?.sets?.length || 0))
