@@ -405,6 +405,7 @@ export default function AthleteApp() {
   const [bodyweightTypeOptions, setBodyweightTypeOptions] = useState([])
   const [stretchOptionsList, setStretchOptionsList] = useState([])
   const [expandedHomeRun, setExpandedHomeRun] = useState(null)
+  const [showPhysicalSection, setShowPhysicalSection] = useState(false)
   const [showRunCards, setShowRunCards] = useState(false)
   const [showWattCards, setShowWattCards] = useState(false)
   const [showBodyweightCards, setShowBodyweightCards] = useState(false)
@@ -850,10 +851,20 @@ export default function AthleteApp() {
                       </button>
                     </div>
 
-                    <div className="card" style={{ textAlign: 'center', padding: '10px 8px', marginBottom: 8, background: colour + '12', border: `1px solid ${colour}30` }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: colour, letterSpacing: 0.5 }}>PHYSICAL</span>
-                    </div>
+                    <button type="button" onClick={() => setShowPhysicalSection(v => !v)} style={{
+                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      textAlign: 'center', padding: '10px 8px', marginBottom: 8, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                      background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                    }}>
+                      <span style={{ fontSize: 18 }}>💪</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Physical</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{showPhysicalSection ? '▲' : '▼'}</span>
+                    </button>
 
+                    <div style={{
+                      overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
+                      maxHeight: showPhysicalSection ? 4000 : 0, opacity: showPhysicalSection ? 1 : 0,
+                    }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
                       <ModuleButton b={modules[0]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} onToggleLog={togglePhysicalLog} />
                       <ModuleButton b={modules[1]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} onToggleLog={togglePhysicalLog} />
@@ -1040,6 +1051,7 @@ export default function AthleteApp() {
                     )}
                     </>
                     )}
+                    </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
                       <ModuleButton b={modules[4]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} />
