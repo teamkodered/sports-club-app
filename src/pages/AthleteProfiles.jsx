@@ -938,6 +938,10 @@ export default function AthleteProfiles() {
   const [bodyweightTypeOptions, setBodyweightTypeOptions] = useState([])
   const [stretchOptionsList, setStretchOptionsList] = useState([])
   const [expandedHomeRun, setExpandedHomeRun] = useState(null)
+  const [showRunCards, setShowRunCards] = useState(false)
+  const [showWattCards, setShowWattCards] = useState(false)
+  const [showBodyweightCards, setShowBodyweightCards] = useState(false)
+  const [showStretchCards, setShowStretchCards] = useState(false)
   const [expandedHomeWatt, setExpandedHomeWatt] = useState(null)
   const [expandedHomeBodyweight, setExpandedHomeBodyweight] = useState(null)
   const [expandedHomeStretch, setExpandedHomeStretch] = useState(null)
@@ -1731,6 +1735,10 @@ export default function AthleteProfiles() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
                     <ModuleButton b={modules[0]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setRunChartFilter={setRunChartFilter} studentId={selected?.id} />
                   </div>
+                  <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8, fontSize: 11 }}
+                    onClick={() => setShowRunCards(v => !v)}>{showRunCards ? '▲ Hide log options' : '▼ Log a Running result'}</button>
+                  {showRunCards && (
+                  <>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeRun ? 10 : 8 }}>
                     {RUN_CATEGORY_CARDS.map(cat => {
                       const complete = todaysRunning.some(e => e.category === cat.key)
@@ -1771,10 +1779,16 @@ export default function AthleteProfiles() {
                       </div>
                     )
                   })()}
+                  </>
+                  )}
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
                     <ModuleButton b={modules[1]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setRunChartFilter={setRunChartFilter} studentId={selected?.id} />
                   </div>
+                  <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8, fontSize: 11 }}
+                    onClick={() => setShowWattCards(v => !v)}>{showWattCards ? '▲ Hide log options' : '▼ Log a Watt bike result'}</button>
+                  {showWattCards && (
+                  <>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeWatt ? 10 : 8 }}>
                     {WATT_BIKE_GROUPS.map(grp => {
                       const complete = todaysWattBike.some(e => grp.match(e.interval_mode || e.type))
@@ -1818,10 +1832,16 @@ export default function AthleteProfiles() {
                       </div>
                     )
                   })()}
+                  </>
+                  )}
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
                     <ModuleButton b={modules[2]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setRunChartFilter={setRunChartFilter} studentId={selected?.id} />
                   </div>
+                  <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8, fontSize: 11 }}
+                    onClick={() => setShowBodyweightCards(v => !v)}>{showBodyweightCards ? '▲ Hide log options' : '▼ Log a Bodyweight result'}</button>
+                  {showBodyweightCards && (
+                  <>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeBodyweight ? 10 : 8 }}>
                     {BODYWEIGHT_GROUPS.map(grp => {
                       const complete = todaysBodyweight.some(e => grp.match(e.type))
@@ -1865,10 +1885,16 @@ export default function AthleteProfiles() {
                       </div>
                     )
                   })()}
+                  </>
+                  )}
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
                     <ModuleButton b={modules[3]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setRunChartFilter={setRunChartFilter} studentId={selected?.id} />
                   </div>
+                  <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8, fontSize: 11 }}
+                    onClick={() => setShowStretchCards(v => !v)}>{showStretchCards ? '▲ Hide log options' : '▼ Log a Stretch flow'}</button>
+                  {showStretchCards && (
+                  <>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeStretch ? 10 : 8 }}>
                     {[0,1,2].map(i => {
                       const complete = !!todaysStretches[i]
@@ -1901,6 +1927,8 @@ export default function AthleteProfiles() {
                       </div>
                       {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>Saving…</p>}
                     </div>
+                  )}
+                  </>
                   )}
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
