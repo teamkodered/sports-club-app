@@ -20,6 +20,38 @@ const WELLBEING_QUESTIONS = [
   { key: 'creative',     label: 'Creative task', icon: '🎨' },
   { key: 'productivity', label: 'Productivity', icon: '✅' },
 ]
+const HYDRATION_OPTIONS = ['0.5L', '1L', '1.5L', '2L', '2.5L', '3L+']
+const SCREEN_FREE_OPTIONS = ['20:00', '22:00', '23:00']
+const NUTRITION_QUALITY_OPTIONS = ['Excellent', 'Good', 'Poor', 'Very Poor']
+const NUTRITION_MACRO_TARGETS = { carbs: 40, fat: 30, protein: 30 }
+
+function MacroPie({ carbs, fat, protein, size = 76 }) {
+  const total = carbs + fat + protein || 1
+  const r = size / 2 - 7
+  const circumference = 2 * Math.PI * r
+  const segments = [
+    { value: carbs, colour: '#EF9F27' },
+    { value: fat, colour: '#E24B4A' },
+    { value: protein, colour: '#378ADD' },
+  ]
+  let offset = 0
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <g transform={`rotate(-90 ${size/2} ${size/2})`}>
+        {segments.map((seg, i) => {
+          const len = (seg.value / total) * circumference
+          const el = (
+            <circle key={i} cx={size/2} cy={size/2} r={r} fill="none" stroke={seg.colour} strokeWidth={12}
+              strokeDasharray={`${len} ${circumference - len}`} strokeDashoffset={-offset} />
+          )
+          offset += len
+          return el
+        })}
+      </g>
+    </svg>
+  )
+}
+
 function isWellbeingQComplete(key, w) {
   if (!w) return false
   switch (key) {
@@ -211,6 +243,9 @@ export default function AthleteApp() {
   const [attendanceData, setAttendanceData] = useState([])
   const [allAttendance, setAllAttendance] = useState([])
   const [f2fStatsScope, setF2fStatsScope] = useState(0)
+  const [expandedHomeWb, setExpandedHomeWb] = useState(null)
+  const [todaysWellbeing, setTodaysWellbeing] = useState({})
+  const [savingWellbeing, setSavingWellbeing] = useState(false)
   const [moduleSubType, setModuleSubType] = useState({})
   const [loading, setLoading]   = useState(true)
   const [editNote, setEditNote] = useState(false)
@@ -279,6 +314,40 @@ export default function AthleteApp() {
     setApData(a => ({ ...(a || {}), pdp_notes: updated }))
     setEditNote(false)
     setSaving(false)
+  }
+
+  useEffect(() => {
+    const todaysDate = new Date().toISOString().split('T')[0]
+    const todaysSession = sessions.find(s => s.session_date === todaysDate)
+    setTodaysWellbeing(todaysSession?.wellbeing || {})
+  }, [sessions])
+
+  // Save a single wellbeing question's data directly from the Home page,
+  // without needing to open the full Fit2Fight log form. Updates today's
+  // session if one already exists, otherwise creates one.
+  async function saveWellbeingField(field, updater) {
+    if (!student) return
+    setSavingWellbeing(true)
+    const todaysDate = new Date().toISOString().split('T')[0]
+    const current = todaysWellbeing[field] || {}
+    const updatedField = updater(current)
+    const newWellbeing = { ...todaysWellbeing, [field]: updatedField }
+    setTodaysWellbeing(newWellbeing) // optimistic local update
+
+    const existing = sessions.find(s => s.session_date === todaysDate)
+    let error
+    if (existing) {
+      ;({ error } = await supabase.from('fit2fight_sessions').update({ wellbeing: newWellbeing }).eq('id', existing.id))
+      if (!error) setSessions(prev => prev.map(s => s.id === existing.id ? { ...s, wellbeing: newWellbeing } : s))
+    } else {
+      const { data, error: insertErr } = await supabase.from('fit2fight_sessions')
+        .insert({ student_id: student.id, session_date: todaysDate, wellbeing: newWellbeing })
+        .select().single()
+      error = insertErr
+      if (!error && data) setSessions(prev => [data, ...prev])
+    }
+    if (error) alert('Error saving: ' + error.message)
+    setSavingWellbeing(false)
   }
 
   async function checkInNow(attendanceType) {
@@ -462,27 +531,149 @@ export default function AthleteApp() {
                       {modules.map(b => <ModuleButton key={b.key} b={b} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} />)}
                     </div>
 
-                    {(() => {
-                      const latestWellbeing = sorted.length ? sorted[sorted.length - 1]?.wellbeing : null
-                      return (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 8 }}>
-                          {WELLBEING_QUESTIONS.map(q => {
-                            const complete = isWellbeingQComplete(q.key, latestWellbeing)
-                            return (
-                              <a key={q.key} href={`/fit2fight?student_id=${student.id}&module=wellbeing`} style={{
-                                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
-                                borderRadius: 'var(--radius)', textDecoration: 'none',
-                                border: `1px solid ${complete ? '#0E9F6E80' : 'var(--border)'}`,
-                                background: complete ? '#0E9F6E18' : 'var(--bg-secondary)',
-                              }}>
-                                <span style={{ fontSize: 16 }}>{complete ? '✓' : q.icon}</span>
-                                <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{q.label}</span>
-                              </a>
-                            )
-                          })}
-                        </div>
-                      )
-                    })()}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeWb ? 10 : 8 }}>
+                      {WELLBEING_QUESTIONS.map(q => {
+                        const complete = isWellbeingQComplete(q.key, todaysWellbeing)
+                        const active = expandedHomeWb === q.key
+                        return (
+                          <button key={q.key} type="button" onClick={() => setExpandedHomeWb(active ? null : q.key)} style={{
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
+                            borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                            border: `1px solid ${active ? colour : complete ? '#0E9F6E80' : 'var(--border)'}`,
+                            background: complete ? '#0E9F6E18' : 'var(--bg-secondary)',
+                          }}>
+                            <span style={{ fontSize: 16 }}>{complete ? '✓' : q.icon}</span>
+                            <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{q.label}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+
+                    {expandedHomeWb && (
+                      <div className="card" style={{ marginBottom: 8 }}>
+                        {expandedHomeWb === 'sleep' && (
+                          <>
+                            <div className="field"><label>Hours slept</label>
+                              <input type="number" step="0.5" defaultValue={todaysWellbeing.sleep?.hours || ''}
+                                onBlur={e => saveWellbeingField('sleep', cur => ({ ...cur, hours: e.target.value }))} placeholder="e.g. 8" />
+                            </div>
+                            <div className="field"><label>Consistency — same bedtime as usual?</label>
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                {['Yes', 'No'].map(v => (
+                                  <button key={v} type="button" onClick={() => saveWellbeingField('sleep', cur => ({ ...cur, consistency: v }))}
+                                    className="btn btn-sm" style={{ flex: 1, justifyContent: 'center', background: todaysWellbeing.sleep?.consistency === v ? '#0E9F6E20' : undefined, borderColor: todaysWellbeing.sleep?.consistency === v ? '#0E9F6E' : undefined }}>{v}</button>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="field" style={{ marginBottom: 0 }}><label>Efficiency % (target 70%+)</label>
+                              <input type="number" min="0" max="100" defaultValue={todaysWellbeing.sleep?.efficiency || ''}
+                                onBlur={e => saveWellbeingField('sleep', cur => ({ ...cur, efficiency: e.target.value }))} placeholder="e.g. 75" />
+                            </div>
+                          </>
+                        )}
+                        {expandedHomeWb === 'nutrition' && (() => {
+                          const nut = { carbs: NUTRITION_MACRO_TARGETS.carbs, fat: NUTRITION_MACRO_TARGETS.fat, protein: NUTRITION_MACRO_TARGETS.protein, ...todaysWellbeing.nutrition }
+                          return (
+                            <>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12 }}>
+                                <MacroPie carbs={nut.carbs} fat={nut.fat} protein={nut.protein} />
+                                <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                                  <div><span style={{ color: '#EF9F27' }}>●</span> Carbs {nut.carbs}%</div>
+                                  <div><span style={{ color: '#E24B4A' }}>●</span> Fat {nut.fat}%</div>
+                                  <div><span style={{ color: '#378ADD' }}>●</span> Protein {nut.protein}%</div>
+                                  <div style={{ marginTop: 4 }}>Targets: {NUTRITION_MACRO_TARGETS.carbs}/{NUTRITION_MACRO_TARGETS.fat}/{NUTRITION_MACRO_TARGETS.protein}</div>
+                                </div>
+                              </div>
+                              <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 12, background: nut.macrosConfirmed ? '#0E9F6E20' : undefined, borderColor: nut.macrosConfirmed ? '#0E9F6E' : undefined }}
+                                onClick={() => saveWellbeingField('nutrition', cur => ({ ...cur, macrosConfirmed: !cur.macrosConfirmed }))}>
+                                {nut.macrosConfirmed ? '✓ Hit my macro targets' : 'Check if you hit your macro targets'}
+                              </button>
+                              <div className="field" style={{ marginBottom: 0 }}><label>Quality</label>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                  {NUTRITION_QUALITY_OPTIONS.map(v => (
+                                    <button key={v} type="button" onClick={() => saveWellbeingField('nutrition', cur => ({ ...cur, quality: v }))}
+                                      className="btn btn-sm" style={{ background: nut.quality === v ? '#0E9F6E20' : undefined, borderColor: nut.quality === v ? '#0E9F6E' : undefined }}>{v}</button>
+                                  ))}
+                                </div>
+                              </div>
+                            </>
+                          )
+                        })()}
+                        {expandedHomeWb === 'hydration' && (
+                          <>
+                            <div className="field"><label>Amount</label>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                {HYDRATION_OPTIONS.map(v => (
+                                  <button key={v} type="button" onClick={() => saveWellbeingField('hydration', cur => ({ ...cur, amount: v }))}
+                                    className="btn btn-sm" style={{ background: todaysWellbeing.hydration?.amount === v ? '#0E9F6E20' : undefined, borderColor: todaysWellbeing.hydration?.amount === v ? '#0E9F6E' : undefined }}>{v}</button>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="field" style={{ marginBottom: 0 }}><label>Or write your own</label>
+                              <input defaultValue={todaysWellbeing.hydration?.custom || ''}
+                                onBlur={e => saveWellbeingField('hydration', cur => ({ ...cur, custom: e.target.value }))} placeholder="e.g. 1.8L" />
+                            </div>
+                          </>
+                        )}
+                        {expandedHomeWb === 'outdoors' && (
+                          <div className="field" style={{ marginBottom: 0 }}><label>Minutes outside (target 20+)</label>
+                            <input type="number" defaultValue={todaysWellbeing.outdoors?.minutes || ''}
+                              onBlur={e => saveWellbeingField('outdoors', () => ({ minutes: e.target.value }))} placeholder="e.g. 25" />
+                          </div>
+                        )}
+                        {expandedHomeWb === 'talk' && (
+                          <div className="field" style={{ marginBottom: 0 }}><label>Had at least one conversation with a friend today?</label>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              {['Yes', 'No'].map(v => (
+                                <button key={v} type="button" onClick={() => saveWellbeingField('talk', () => ({ done: v === 'Yes' }))}
+                                  className="btn btn-sm" style={{ flex: 1, justifyContent: 'center', background: (todaysWellbeing.talk?.done ? 'Yes' : 'No') === v ? '#0E9F6E20' : undefined, borderColor: (todaysWellbeing.talk?.done ? 'Yes' : 'No') === v ? '#0E9F6E' : undefined }}>{v}</button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {expandedHomeWb === 'screenFree' && (
+                          <div className="field" style={{ marginBottom: 0 }}><label>Screens off by</label>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              {SCREEN_FREE_OPTIONS.map(v => (
+                                <button key={v} type="button" onClick={() => saveWellbeingField('screenFree', () => ({ time: v }))}
+                                  className="btn btn-sm" style={{ flex: 1, justifyContent: 'center', background: todaysWellbeing.screenFree?.time === v ? '#0E9F6E20' : undefined, borderColor: todaysWellbeing.screenFree?.time === v ? '#0E9F6E' : undefined }}>{v}</button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {expandedHomeWb === 'journal' && (
+                          <>
+                            <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8, background: todaysWellbeing.journal?.done ? '#0E9F6E20' : undefined, borderColor: todaysWellbeing.journal?.done ? '#0E9F6E' : undefined }}
+                              onClick={() => saveWellbeingField('journal', cur => ({ ...cur, done: !cur.done }))}>
+                              {todaysWellbeing.journal?.done ? '✓ Wrote one journal entry' : 'Mark one journal entry as done'}
+                            </button>
+                            <input defaultValue={todaysWellbeing.journal?.notes || ''}
+                              onBlur={e => saveWellbeingField('journal', cur => ({ ...cur, notes: e.target.value }))} placeholder="Optional — what did you write about?" />
+                          </>
+                        )}
+                        {expandedHomeWb === 'creative' && (
+                          <>
+                            <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8, background: todaysWellbeing.creative?.done ? '#0E9F6E20' : undefined, borderColor: todaysWellbeing.creative?.done ? '#0E9F6E' : undefined }}
+                              onClick={() => saveWellbeingField('creative', cur => ({ ...cur, done: !cur.done }))}>
+                              {todaysWellbeing.creative?.done ? '✓ Completed one creative task' : 'Mark one creative task as done'}
+                            </button>
+                            <input defaultValue={todaysWellbeing.creative?.notes || ''}
+                              onBlur={e => saveWellbeingField('creative', cur => ({ ...cur, notes: e.target.value }))} placeholder="Optional — what did you do?" />
+                          </>
+                        )}
+                        {expandedHomeWb === 'productivity' && (
+                          <>
+                            <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8, background: todaysWellbeing.productivity?.done ? '#0E9F6E20' : undefined, borderColor: todaysWellbeing.productivity?.done ? '#0E9F6E' : undefined }}
+                              onClick={() => saveWellbeingField('productivity', cur => ({ ...cur, done: !cur.done }))}>
+                              {todaysWellbeing.productivity?.done ? '✓ Completed one productive task' : 'Mark one productive task as done'}
+                            </button>
+                            <input defaultValue={todaysWellbeing.productivity?.notes || ''}
+                              onBlur={e => saveWellbeingField('productivity', cur => ({ ...cur, notes: e.target.value }))} placeholder="Optional — what did you do?" />
+                          </>
+                        )}
+                        {savingWellbeing && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>Saving…</p>}
+                      </div>
+                    )}
 
                     <div className="card" style={{ padding: 0, marginBottom: 14 }}>
                       <div style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)' }}>Profile</div>
