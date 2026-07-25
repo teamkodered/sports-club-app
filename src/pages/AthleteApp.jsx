@@ -129,7 +129,7 @@ function getSubTypeOptions(sorted, key) {
     if (key === 'running') return [...new Set(sorted.map(s => s.running?.category).filter(Boolean))]
     if (key === 'watt_bike') return [...new Set(sorted.map(s => normalizeIntervalMode(s.watt_bike?.interval_mode || s.watt_bike?.type)).filter(Boolean))]
     if (key === 'bodyweight') return [...new Set(sorted.map(s => s.bodyweight?.type).filter(Boolean))]
-    if (key === 'test') return [...new Set(sorted.flatMap(s => Object.keys(s.test || {})))]
+    if (key === 'test') return [...new Set(sorted.flatMap(s => Object.keys(s.test || {})))].filter(k => k !== 'notes' && k !== 'type')
     if (key === 'techniques') return [...new Set(sorted.map(s => s.techniques?.type).filter(Boolean))]
     if (key === 'one_percenters') return [...new Set(sorted.map(s => s.one_percenters?.type).filter(Boolean))]
     if (key === 'mentality') return [...new Set(sorted.flatMap(s => s.mentality?.types || (s.mentality?.type ? [s.mentality.type] : [])))]
@@ -614,7 +614,7 @@ export default function AthleteApp() {
                   { key: 'bodyweight', label: 'Bodyweight',    icon: '💪' },
                   { key: 'stretch',    label: 'Stretch flows', icon: '🤸' },
                   { key: 'test',       label: 'Test',          icon: '📋' },
-                  { key: 'techniques',     label: 'Techniques',     icon: '🥋' },
+                  // { key: 'techniques', label: 'Techniques', icon: '🥋' }, // removed for now, kept for possible future use
                   { key: 'mentality',      label: 'Mentality',      icon: '🧠' },
                   { key: 'wellbeing',      label: 'Wellbeing',      icon: '🌱' },
                 ]

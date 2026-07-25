@@ -70,6 +70,47 @@ const NUTRITION_MACRO_PRESETS = [
   { key: 'low_carb', label: 'Low carb', carbs: 20, fat: 40, protein: 40 },
 ]
 
+// Test module reorganized into category cards. Uses the exact same
+// test-name keys already used in stored session data (test: { [name]:
+// value }), so nothing already recorded is lost or orphaned -- this is
+// purely a friendlier way to enter/browse the same data.
+const TEST_CATEGORIES = [
+  { key: 'bleep', label: 'Bleep test', icon: '🏃', tests: [
+    { name: 'Bleep test', unit: 'level' },
+  ]},
+  { key: 'stretches', label: 'Stretches', icon: '🤸', tests: [
+    { name: 'Hamstring Stretch (range)', unit: 'cm' },
+    { name: 'Box Splits Stretch (range)', unit: 'cm' },
+    { name: 'Front Splits - Left in front (range)', unit: 'cm' },
+    { name: 'Front Splits - Right in front (range)', unit: 'cm' },
+    { name: 'Shoulder flex - Right hand up (range)', unit: 'cm' },
+    { name: 'Shoulder flex - Left hand up (range)', unit: 'cm' },
+  ]},
+  { key: 'jumps', label: 'Jumps', icon: '🦘', tests: [
+    { name: 'Vertical Jump (distance)', unit: 'cm' },
+    { name: 'Long Jump (distance)', unit: 'cm' },
+  ]},
+  { key: 'grip', label: 'Grip', icon: '✊', tests: [
+    { name: 'Left Grip Test (kg)', unit: 'kg' },
+    { name: 'Right Grip Test (kg)', unit: 'kg' },
+    { name: 'Left Pinch Test - 5kg/10kg (time)', unit: 'sec' },
+    { name: 'Right Pinch Test - 5kg/10kg (time)', unit: 'sec' },
+  ]},
+  { key: 'wattbike', label: 'Watt Bike', icon: '🚴', tests: [
+    { name: 'Watt bike 10 second (output)', unit: 'W' },
+    { name: 'Watt bike 30 sec (distance)', unit: 'km' },
+    { name: 'Watt bike 1 min (distance)', unit: 'km' },
+    { name: 'Watt bike 2 min (distance)', unit: 'km' },
+    { name: 'Watt bike 3 min (distance)', unit: 'km' },
+  ]},
+  { key: 'other', label: 'Other tests', icon: '📋', tests: [
+    { name: 'Fixed load circuit', unit: 'sec' },
+    { name: '200m sprint', unit: 'sec' },
+    { name: '1600m time trial', unit: 'sec' },
+    { name: '4800m time trial', unit: 'sec' },
+  ]},
+]
+
 function isWellbeingQComplete(key, w) {
   switch (key) {
     case 'sleep': return !!(w.sleep.hours || w.sleep.efficiency)
@@ -322,7 +363,8 @@ export default function FitToFight() {
   const [wattBike, setWattBike]       = useState({ type: '', interval_mode: '', custom_on: '', custom_off: '', sets: [], total_distance: '', max_wattage: '', avg_wattage: '' })
   const [bodyweight, setBodyweight]   = useState({ type: '', notes: '', sets: [] })
   const [stretches, setStretches]     = useState(['', '', ''])
-  const [test, setTest]               = useState({ type: '', notes: '' })
+  const [test, setTest]               = useState({ notes: '' })
+  const [expandedTestCategory, setExpandedTestCategory] = useState(null)
   const [techniques, setTechniques]   = useState({ type: '', notes: '', sets: [] })
   const [mentality, setMentality] = useState({ types: [], notes: '' })
   const [mentalityTypes, setMentalityTypes] = useState(DEFAULT_MENTALITY_TYPES)
@@ -494,7 +536,7 @@ export default function FitToFight() {
     setHeight(''); setReach(''); setEnabled({}); setRunning({ category: '', test: '', notes: '', sets: [] })
     setWattBike({ type: '', interval_mode: '', custom_on: '', custom_off: '', sets: [], total_distance: '', max_wattage: '', avg_wattage: '' })
     setBodyweight({ type: '', notes: '', sets: [] }); setStretches(['', '', ''])
-    setTest({ type: '', notes: '' }); setTechniques({ type: '', notes: '', sets: [] })
+    setTest({ notes: '' }); setExpandedTestCategory(null); setTechniques({ type: '', notes: '', sets: [] })
     setMentality({ types: [], notes: '' })
     setWellbeing({
       sleep: { hours: '', efficiency: '' },
@@ -721,17 +763,51 @@ export default function FitToFight() {
 
             {/* Test */}
             <ModuleCard mod={MODULES[4]} enabled={!!enabled.test} onToggle={() => toggle('test')}>
-              <div className="field"><label>Test type</label>
-                <select value={test.type} onChange={e => setTest(t => ({ ...t, type: e.target.value }))}>
-                  <option value="">Select…</option>{testTypes.map(t => <option key={t}>{t}</option>)}
-                </select>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedTestCategory ? 10 : 0 }}>
+                {TEST_CATEGORIES.map(cat => {
+                  const complete = cat.tests.some(t => test[t.name] != null && test[t.name] !== '')
+                  const active = expandedTestCategory === cat.key
+                  return (
+                    <button key={cat.key} type="button" onClick={() => setExpandedTestCategory(active ? null : cat.key)}
+                      style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
+                        borderRadius: 'var(--radius)', cursor: 'pointer',
+                        border: `2px solid ${active ? '#8B5CF6' : complete ? '#8B5CF6' : 'var(--border-strong)'}`,
+                        background: complete ? '#8B5CF612' : 'var(--bg-secondary)',
+                      }}>
+                      <span style={{ fontSize: 18 }}>{cat.icon}</span>
+                      <span style={{ fontSize: 10, fontWeight: 500, textAlign: 'center', lineHeight: 1.2 }}>{cat.label}</span>
+                    </button>
+                  )
+                })}
               </div>
-              <div className="field"><label>Result / notes</label>
-                <input value={test.notes} onChange={e => setTest(t => ({ ...t, notes: e.target.value }))} placeholder="e.g. Level 11.4 / 2.0km / 32:15" />
+
+              {expandedTestCategory && (() => {
+                const cat = TEST_CATEGORIES.find(c => c.key === expandedTestCategory)
+                return (
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+                      <button type="button" className="btn btn-sm" style={{ fontSize: 11 }}
+                        onClick={() => setTest(t => { const next = { ...t }; cat.tests.forEach(x => delete next[x.name]); return next })}>✕ Clear</button>
+                    </div>
+                    {cat.tests.map(t => (
+                      <div className="field" key={t.name}><label>{t.name}{t.unit ? ` (${t.unit})` : ''}</label>
+                        <input type="text" inputMode="decimal" value={test[t.name] ?? ''}
+                          onChange={e => setTest(cur => ({ ...cur, [t.name]: e.target.value }))}
+                          placeholder={`e.g. ${t.unit === 'sec' ? '32:15' : t.unit === 'level' ? '11.4' : '25'}`} />
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
+
+              <div className="field" style={{ marginBottom: 0 }}><label>Notes</label>
+                <input value={test.notes || ''} onChange={e => setTest(t => ({ ...t, notes: e.target.value }))} placeholder="Anything else to note…" />
               </div>
             </ModuleCard>
 
             {/* Techniques */}
+            {/* Techniques -- removed for now, kept commented for possible future use
             <ModuleCard mod={MODULES[5]} enabled={!!enabled.techniques} onToggle={() => toggle('techniques')}>
               <div className="field"><label>Technique type</label>
                 <select value={techniques.type} onChange={e => setTechniques(t => ({ ...t, type: e.target.value }))}>
@@ -745,6 +821,7 @@ export default function FitToFight() {
                 <input value={techniques.notes} onChange={e => setTechniques(t => ({ ...t, notes: e.target.value }))} placeholder="e.g. Pads with dad" />
               </div>
             </ModuleCard>
+            */}
 
             {/* Eye training */}
             <ModuleCard mod={MODULES[6]} enabled={!!enabled.mentality} onToggle={() => toggle('mentality')}>
