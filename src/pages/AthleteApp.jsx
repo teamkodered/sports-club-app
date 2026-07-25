@@ -74,6 +74,46 @@ function isWellbeingQComplete(key, w) {
   }
 }
 
+// Test module category groupings, mirroring the log form's structure.
+// Uses the exact same test-name keys already used in stored session
+// data (test: { [name]: value }), so nothing already recorded is lost.
+const TEST_CATEGORIES = [
+  { key: 'bleep', label: 'Bleep test', icon: '🏃', tests: [
+    { name: 'Bleep test', unit: 'level' },
+  ]},
+  { key: 'stretches', label: 'Stretches', icon: '🤸', tests: [
+    { name: 'Hamstring Stretch (range)', unit: 'cm' },
+    { name: 'Box Splits Stretch (range)', unit: 'cm' },
+    { name: 'Front Splits - Left in front (range)', unit: 'cm' },
+    { name: 'Front Splits - Right in front (range)', unit: 'cm' },
+    { name: 'Shoulder flex - Right hand up (range)', unit: 'cm' },
+    { name: 'Shoulder flex - Left hand up (range)', unit: 'cm' },
+  ]},
+  { key: 'jumps', label: 'Jumps', icon: '🦘', tests: [
+    { name: 'Vertical Jump (distance)', unit: 'cm' },
+    { name: 'Long Jump (distance)', unit: 'cm' },
+  ]},
+  { key: 'grip', label: 'Grip', icon: '✊', tests: [
+    { name: 'Left Grip Test (kg)', unit: 'kg' },
+    { name: 'Right Grip Test (kg)', unit: 'kg' },
+    { name: 'Left Pinch Test - 5kg/10kg (time)', unit: 'sec' },
+    { name: 'Right Pinch Test - 5kg/10kg (time)', unit: 'sec' },
+  ]},
+  { key: 'wattbike', label: 'Watt Bike', icon: '🚴', tests: [
+    { name: 'Watt bike 10 second (output)', unit: 'W' },
+    { name: 'Watt bike 30 sec (distance)', unit: 'km' },
+    { name: 'Watt bike 1 min (distance)', unit: 'km' },
+    { name: 'Watt bike 2 min (distance)', unit: 'km' },
+    { name: 'Watt bike 3 min (distance)', unit: 'km' },
+  ]},
+  { key: 'other', label: 'Other tests', icon: '📋', tests: [
+    { name: 'Fixed load circuit', unit: 'sec' },
+    { name: '200m sprint', unit: 'sec' },
+    { name: '1600m time trial', unit: 'sec' },
+    { name: '4800m time trial', unit: 'sec' },
+  ]},
+]
+
 const MENTALITY_QUESTIONS = [
   { key: 'videoAnalysis',   label: 'Video analysis',   icon: '🎥' },
   { key: 'meditation',      label: 'Meditation',       icon: '🧘' },
@@ -301,6 +341,9 @@ export default function AthleteApp() {
   const [eyeTrackingCustomAdd, setEyeTrackingCustomAdd] = useState('')
   const [coldWaterCustomAdd, setColdWaterCustomAdd] = useState('')
   const [gratitudeDraft, setGratitudeDraft] = useState('')
+  const [expandedHomeTestCategory, setExpandedHomeTestCategory] = useState(null)
+  const [todaysTest, setTodaysTest] = useState({})
+  const [savingTest, setSavingTest] = useState(false)
   const [moduleSubType, setModuleSubType] = useState({})
   const [loading, setLoading]   = useState(true)
   const [editNote, setEditNote] = useState(false)
@@ -376,6 +419,7 @@ export default function AthleteApp() {
     const todaysSession = sessions.find(s => s.session_date === todaysDate)
     setTodaysWellbeing(todaysSession?.wellbeing || {})
     setTodaysMentalityLog(todaysSession?.mentality_log || {})
+    setTodaysTest(todaysSession?.test || {})
   }, [sessions])
 
   // Save a single wellbeing question's data directly from the Home page,
@@ -466,6 +510,51 @@ export default function AthleteApp() {
       gratitude: { count: 0, notes: '' },
     }
     if (defaults[key]) saveMentalityField(key, () => defaults[key])
+  }
+
+  // Saves a single test value directly into today's flat test map
+  // (test: { [testName]: value }) -- same shape the log form and
+  // results charts already use.
+  async function saveTestValue(testName, value) {
+    if (!student) return
+    setSavingTest(true)
+    const todaysDate = new Date().toISOString().split('T')[0]
+    const newTest = { ...todaysTest, [testName]: value }
+    setTodaysTest(newTest)
+
+    const existing = sessions.find(s => s.session_date === todaysDate)
+    let error
+    if (existing) {
+      ;({ error } = await supabase.from('fit2fight_sessions').update({ test: newTest }).eq('id', existing.id))
+      if (!error) setSessions(prev => prev.map(s => s.id === existing.id ? { ...s, test: newTest } : s))
+    } else {
+      const { data, error: insertErr } = await supabase.from('fit2fight_sessions')
+        .insert({ student_id: student.id, session_date: todaysDate, test: newTest })
+        .select().single()
+      error = insertErr
+      if (!error && data) setSessions(prev => [data, ...prev])
+    }
+    if (error) alert('Error saving: ' + error.message)
+    setSavingTest(false)
+  }
+
+  async function clearTestCategory(catKey) {
+    if (!student) return
+    const cat = TEST_CATEGORIES.find(c => c.key === catKey)
+    if (!cat) return
+    setSavingTest(true)
+    const newTest = { ...todaysTest }
+    cat.tests.forEach(t => delete newTest[t.name])
+    setTodaysTest(newTest)
+
+    const todaysDate = new Date().toISOString().split('T')[0]
+    const existing = sessions.find(s => s.session_date === todaysDate)
+    if (existing) {
+      const { error } = await supabase.from('fit2fight_sessions').update({ test: newTest }).eq('id', existing.id)
+      if (!error) setSessions(prev => prev.map(s => s.id === existing.id ? { ...s, test: newTest } : s))
+      if (error) alert('Error saving: ' + error.message)
+    }
+    setSavingTest(false)
   }
 
   async function checkInNow(attendanceType) {
@@ -646,7 +735,48 @@ export default function AthleteApp() {
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
-                      {modules.slice(0, -1).map(b => <ModuleButton key={b.key} b={b} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} />)}
+                      {modules.slice(0, -2).map(b => <ModuleButton key={b.key} b={b} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} />)}
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeTestCategory ? 10 : 8 }}>
+                      {TEST_CATEGORIES.map(cat => {
+                        const complete = cat.tests.some(t => todaysTest[t.name] != null && todaysTest[t.name] !== '')
+                        const active = expandedHomeTestCategory === cat.key
+                        return (
+                          <button key={cat.key} type="button" onClick={() => setExpandedHomeTestCategory(active ? null : cat.key)} style={{
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
+                            borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                            border: `2px solid ${active ? colour : complete ? '#8B5CF6' : 'var(--border)'}`,
+                            background: complete ? '#8B5CF612' : 'var(--bg-secondary)',
+                          }}>
+                            <span style={{ fontSize: 16 }}>{cat.icon}</span>
+                            <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat.label}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+
+                    {expandedHomeTestCategory && (() => {
+                      const cat = TEST_CATEGORIES.find(c => c.key === expandedHomeTestCategory)
+                      return (
+                        <div className="card" style={{ marginBottom: 8 }}>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+                            <button type="button" className="btn btn-sm" onClick={() => clearTestCategory(cat.key)} style={{ fontSize: 11 }}>✕ Clear</button>
+                          </div>
+                          {cat.tests.map(t => (
+                            <div className="field" key={t.name}><label>{t.name}{t.unit ? ` (${t.unit})` : ''}</label>
+                              <input type="text" inputMode="decimal" defaultValue={todaysTest[t.name] ?? ''}
+                                onBlur={e => saveTestValue(t.name, e.target.value)}
+                                placeholder={`e.g. ${t.unit === 'sec' ? '32:15' : t.unit === 'level' ? '11.4' : '25'}`} />
+                            </div>
+                          ))}
+                          {savingTest && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>Saving…</p>}
+                        </div>
+                      )
+                    })()}
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
+                      <ModuleButton b={modules[modules.length - 2]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} />
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeMentality ? 10 : 8 }}>
