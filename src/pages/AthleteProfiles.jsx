@@ -31,6 +31,31 @@ const NUTRITION_MACRO_PRESETS = [
   { key: 'low_carb', label: 'Low carb', carbs: 20, fat: 40, protein: 40 },
 ]
 
+function SetInput({ sets, onChange, placeholder = 'e.g. 12.3' }) {
+  function update(i, val) {
+    const next = [...sets]
+    next[i] = val
+    onChange(next)
+  }
+  function add() { onChange([...sets, '']) }
+  function remove(i) { onChange(sets.filter((_, idx) => idx !== i)) }
+  return (
+    <div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+        {sets.map((s, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+            <span style={{ fontSize: 10, color: 'var(--text-tertiary)', width: 14 }}>{i + 1}</span>
+            <input value={s} onChange={e => update(i, e.target.value)} placeholder={placeholder}
+              style={{ width: 72, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 12, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)' }} />
+            <button onClick={() => remove(i)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14, padding: 0 }}>×</button>
+          </div>
+        ))}
+      </div>
+      <button type="button" className="btn btn-sm" onClick={add} style={{ fontSize: 11 }}>+ Add set</button>
+    </div>
+  )
+}
+
 function MacroPie({ carbs, fat, protein, size = 76 }) {
   const total = carbs + fat + protein || 1
   const r = size / 2 - 7
@@ -86,6 +111,10 @@ const RUN_CATEGORY_CARDS = [
   { key: 'Timed Sprints', label: 'Timed Sprints', icon: '⚡' },
   { key: 'Timed Distance Run', label: 'Timed Distance Run', icon: '🏁' },
 ]
+const RUN_PRESET_TESTS = {
+  'Timed Sprints': ['30m', '40m', '50m', '100m', '200m', '300m', '400m', '800m'],
+  'Timed Distance Run': ['2000m', '1600m', '4800m', '5000m', '10000m', '15000m'],
+}
 const WATT_BIKE_GROUPS = [
   { key: 'standard', label: 'Standard intervals', icon: '🚴', match: m => !/Output \(wattage\)|Distance \(km\)/i.test(m || '') },
   { key: 'output', label: 'Output intervals', icon: '⚡', match: m => /Output \(wattage\)/i.test(m || '') },
@@ -221,8 +250,7 @@ function computeModuleStats(sorted, key, subType) {
     if (key === 'running') {
       entries = sorted.flatMap(s => toEntries(s.running)
         .filter(e => !subType || e.category === subType)
-        .filter(e => Array.isArray(e.sets) && e.sets.length > 0)
-        .map(e => ({ date: s.session_date, value: e.sets[e.sets.length - 1] })))
+        .flatMap(e => (Array.isArray(e.sets) ? e.sets : []).filter(v => v !== '' && v != null).map(v => ({ date: s.session_date, value: v }))))
       higherIsBetter = subType === 'Distance over time'
     } else if (key === 'watt_bike') {
       entries = sorted.flatMap(s => toEntries(s.watt_bike)
@@ -1789,6 +1817,7 @@ export default function AthleteProfiles() {
                   {expandedHomeRun && (() => {
                     const entry = todaysRunning.find(e => e.category === expandedHomeRun) || { category: expandedHomeRun, test: '', sets: [] }
                     const upsert = updatedEntry => savePhysicalField('running', [...todaysRunning.filter(e => e.category !== expandedHomeRun), updatedEntry], setTodaysRunning)
+                    const presets = RUN_PRESET_TESTS[expandedHomeRun] || []
                     return (
                       <div className="card" style={{ marginBottom: 8 }}>
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
@@ -1796,14 +1825,15 @@ export default function AthleteProfiles() {
                             onClick={() => savePhysicalField('running', todaysRunning.filter(e => e.category !== expandedHomeRun), setTodaysRunning)}>✕ Clear</button>
                         </div>
                         <div className="field"><label>Specific test</label>
-                          <select value={entry.test || ''} onChange={e => upsert({ ...entry, test: e.target.value })}>
-                            <option value="">Select…</option>
-                            {(runCategoryTests[expandedHomeRun] || []).map(t => <option key={t}>{t}</option>)}
-                          </select>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                            {presets.map(t => (
+                              <button key={t} type="button" onClick={() => upsert({ ...entry, test: t })}
+                                className="btn btn-sm" style={{ background: entry.test === t ? '#E24B4A20' : undefined, borderColor: entry.test === t ? '#E24B4A' : undefined }}>{t}</button>
+                            ))}
+                          </div>
                         </div>
-                        <div className="field" style={{ marginBottom: 0 }}><label>Result</label>
-                          <input defaultValue={entry.sets?.[0] || ''} onBlur={e => upsert({ ...entry, sets: [e.target.value] })}
-                            placeholder="e.g. 2.4km or 12:30" />
+                        <div className="field" style={{ marginBottom: 0 }}><label>Results</label>
+                          <SetInput sets={entry.sets || []} onChange={sets => upsert({ ...entry, sets })} placeholder="e.g. 12.3" />
                         </div>
                         {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>Saving…</p>}
                       </div>
