@@ -265,7 +265,7 @@ function computeLastLogged(sorted, key) {
 // Defined at module scope (not inside the page component's render) so
 // React treats it as a stable component across renders, rather than
 // unmounting/remounting it every time the parent re-renders.
-function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setTab, studentId }) {
+function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setTab, studentId, onToggleLog }) {
   const subTypeOptions = getSubTypeOptions(sorted, b.key)
   const currentSubType = moduleSubType[b.key] ?? subTypeOptions[0] ?? null
   const noNumericStat = ['stretch', 'eye_training', 'one_percenters', 'mentality', 'wellbeing'].includes(b.key)
@@ -293,7 +293,7 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
           same as the right zone. Other modules still quick-link to the
           full log form. */}
       {isPhysicalModule ? (
-        <button onClick={cycleType} title={`Cycle ${b.label} type`} style={{
+        <button onClick={() => onToggleLog?.(b.key)} title={`Log ${b.label}`} style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, flexShrink: 0,
           color: colour, fontSize: 18, fontWeight: 700, background: 'none', border: 'none', borderRight: '1px solid var(--border)', cursor: 'pointer',
         }}>+</button>
@@ -304,8 +304,10 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
         }}>+</a>
       )}
 
-      {/* Middle: tap to cycle sub-type */}
-      <button onClick={cycleType} style={{
+      {/* Middle: for Physical modules, tap opens the same "Log a result"
+          section as the button below the card. Other modules keep
+          cycling sub-type. */}
+      <button onClick={() => isPhysicalModule ? onToggleLog?.(b.key) : cycleType()} style={{
         flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
         padding: '8px 6px', background: 'none', border: 'none', borderRight: '1px solid var(--border)', cursor: subTypeOptions.length > 1 ? 'pointer' : 'default',
         minWidth: 0,
@@ -313,7 +315,7 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
         <span style={{ fontSize: 17 }}>{b.icon}</span>
         <span style={{ fontSize: 10, fontWeight: 500, whiteSpace: 'nowrap' }}>{b.label}</span>
         {currentSubType && <span style={{ fontSize: 8, color: colour, fontWeight: 600, textAlign: 'center', lineHeight: 1.2 }}>{currentSubType}</span>}
-        {subTypeOptions.length > 1 && <span style={{ fontSize: 7, color: 'var(--text-tertiary)' }}>tap to cycle</span>}
+        {!isPhysicalModule && subTypeOptions.length > 1 && <span style={{ fontSize: 7, color: 'var(--text-tertiary)' }}>tap to cycle</span>}
       </button>
 
       {/* Right: recent/PB (or last-logged), tap to view results */}
@@ -808,6 +810,10 @@ export default function AthleteApp() {
                   { key: 'mentality',      label: 'Mentality',      icon: '🧠' },
                   { key: 'wellbeing',      label: 'Wellbeing',      icon: '🌱' },
                 ]
+                const togglePhysicalLog = key => {
+                  const setters = { running: setShowRunCards, watt_bike: setShowWattCards, bodyweight: setShowBodyweightCards, stretch: setShowStretchCards }
+                  setters[key]?.(v => !v)
+                }
 
                 return (
                   <>
@@ -840,7 +846,7 @@ export default function AthleteApp() {
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
-                      <ModuleButton b={modules[0]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} />
+                      <ModuleButton b={modules[0]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} onToggleLog={togglePhysicalLog} />
                     </div>
                     <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8, fontSize: 11 }}
                       onClick={() => setShowRunCards(v => !v)}>{showRunCards ? '▲ Hide log options' : '▼ Log a Running result'}</button>
@@ -890,7 +896,7 @@ export default function AthleteApp() {
                     )}
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
-                      <ModuleButton b={modules[1]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} />
+                      <ModuleButton b={modules[1]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} onToggleLog={togglePhysicalLog} />
                     </div>
                     <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8, fontSize: 11 }}
                       onClick={() => setShowWattCards(v => !v)}>{showWattCards ? '▲ Hide log options' : '▼ Log a Watt bike result'}</button>
@@ -943,7 +949,7 @@ export default function AthleteApp() {
                     )}
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
-                      <ModuleButton b={modules[2]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} />
+                      <ModuleButton b={modules[2]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} onToggleLog={togglePhysicalLog} />
                     </div>
                     <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8, fontSize: 11 }}
                       onClick={() => setShowBodyweightCards(v => !v)}>{showBodyweightCards ? '▲ Hide log options' : '▼ Log a Bodyweight result'}</button>
@@ -996,7 +1002,7 @@ export default function AthleteApp() {
                     )}
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
-                      <ModuleButton b={modules[3]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} />
+                      <ModuleButton b={modules[3]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} onToggleLog={togglePhysicalLog} />
                     </div>
                     <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8, fontSize: 11 }}
                       onClick={() => setShowStretchCards(v => !v)}>{showStretchCards ? '▲ Hide log options' : '▼ Log a Stretch flow'}</button>
