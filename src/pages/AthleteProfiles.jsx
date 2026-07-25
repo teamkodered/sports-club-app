@@ -23,7 +23,7 @@ const WELLBEING_QUESTIONS = [
 const HYDRATION_ADD_OPTIONS = [0.25, 0.5, 1]
 const OUTDOORS_ADD_OPTIONS = [10, 20, 30]
 const TALK_ADD_OPTIONS = [1, 2, 3]
-const SCREEN_FREE_OPTIONS = ['20 hours', '22 hours', '23 hours']
+const SCREEN_FREE_OPTIONS = ['20 hours', '22 hours', '23 hours', '20 mins', '30 mins', '1 hour']
 const NUTRITION_QUALITY_OPTIONS = ['Excellent', 'Good', 'Poor', 'Very Poor']
 const NUTRITION_MACRO_PRESETS = [
   { key: 'balanced', label: 'Balanced', carbs: 40, fat: 30, protein: 30 },
@@ -66,7 +66,7 @@ function isWellbeingQComplete(key, w) {
     case 'hydration': return !!(w.hydration?.total > 0)
     case 'outdoors': return !!(w.outdoors?.totalMinutes > 0)
     case 'talk': return !!(w.talk?.count > 0)
-    case 'screenFree': return !!w.screenFree?.hours
+    case 'screenFree': return !!(w.screenFree?.hours || w.screenFree?.custom)
     case 'journal': return !!(w.journal?.count > 0 || w.journal?.privateJournal)
     case 'creative': return !!(w.creative?.count > 0)
     case 'productivity': return !!(w.productivity?.count > 0)
@@ -994,6 +994,23 @@ export default function AthleteProfiles() {
     setSavingWellbeing(false)
   }
 
+  // Resets a single Wellbeing question back to its empty state -- the
+  // "unselect" option for a card that's already been logged
+  function clearWellbeingQuestion(key) {
+    const defaults = {
+      sleep: { hours: '', efficiency: '' },
+      nutrition: { targetPreset: '', quality: '' },
+      hydration: { total: 0 },
+      outdoors: { totalMinutes: 0 },
+      talk: { count: 0 },
+      screenFree: { hours: '', custom: '' },
+      journal: { count: 0, notes: '', privateJournal: false },
+      creative: { count: 0, notes: '' },
+      productivity: { count: 0, notes: '' },
+    }
+    if (defaults[key]) saveWellbeingField(key, () => defaults[key])
+  }
+
   function goHome() {
     setSelected(null)
     if (searchParams.get('id')) setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('id'); next.delete('tab'); return next })
@@ -1460,10 +1477,10 @@ export default function AthleteProfiles() {
                         <button key={q.key} type="button" onClick={() => setExpandedHomeWb(active ? null : q.key)} style={{
                           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
                           borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                          border: `1px solid ${active ? colour : complete ? '#0E9F6E80' : 'var(--border)'}`,
-                          background: complete ? '#0E9F6E18' : 'var(--bg-secondary)',
+                          border: `2px solid ${active ? colour : complete ? '#0E9F6E' : 'var(--border)'}`,
+                          background: complete ? '#0E9F6E12' : 'var(--bg-secondary)',
                         }}>
-                          <span style={{ fontSize: 16 }}>{complete ? '✓' : q.icon}</span>
+                          <span style={{ fontSize: 16 }}>{q.icon}</span>
                           <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{q.label}</span>
                         </button>
                       )
@@ -1472,6 +1489,11 @@ export default function AthleteProfiles() {
 
                   {expandedHomeWb && (
                     <div className="card" style={{ marginBottom: 8 }}>
+                      {expandedHomeWb && (
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+                          <button type="button" className="btn btn-sm" onClick={() => clearWellbeingQuestion(expandedHomeWb)} style={{ fontSize: 11 }}>✕ Clear</button>
+                        </div>
+                      )}
                       {expandedHomeWb === 'sleep' && (
                         <>
                           <div className="field"><label>Hours slept</label>
@@ -1591,14 +1613,20 @@ export default function AthleteProfiles() {
                         </>
                       )}
                       {expandedHomeWb === 'screenFree' && (
-                        <div className="field" style={{ marginBottom: 0 }}><label>Time off screen</label>
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            {SCREEN_FREE_OPTIONS.map(v => (
-                              <button key={v} type="button" onClick={() => saveWellbeingField('screenFree', () => ({ hours: v }))}
-                                className="btn btn-sm" style={{ flex: 1, justifyContent: 'center', background: todaysWellbeing.screenFree?.hours === v ? '#0E9F6E20' : undefined, borderColor: todaysWellbeing.screenFree?.hours === v ? '#0E9F6E' : undefined }}>{v}</button>
-                            ))}
+                        <>
+                          <div className="field"><label>Time off screen</label>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                              {SCREEN_FREE_OPTIONS.map(v => (
+                                <button key={v} type="button" onClick={() => saveWellbeingField('screenFree', () => ({ hours: v, custom: '' }))}
+                                  className="btn btn-sm" style={{ background: todaysWellbeing.screenFree?.hours === v ? '#0E9F6E20' : undefined, borderColor: todaysWellbeing.screenFree?.hours === v ? '#0E9F6E' : undefined }}>{v}</button>
+                              ))}
+                            </div>
                           </div>
-                        </div>
+                          <div className="field" style={{ marginBottom: 0 }}><label>Or write your own</label>
+                            <input defaultValue={todaysWellbeing.screenFree?.custom || ''}
+                              onBlur={e => saveWellbeingField('screenFree', () => ({ hours: '', custom: e.target.value }))} placeholder="e.g. 18 hours" />
+                          </div>
+                        </>
                       )}
                       {expandedHomeWb === 'journal' && (
                         <>

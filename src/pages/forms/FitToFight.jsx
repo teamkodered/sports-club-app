@@ -61,7 +61,7 @@ const WELLBEING_QUESTIONS = [
 const HYDRATION_ADD_OPTIONS = [0.25, 0.5, 1]
 const OUTDOORS_ADD_OPTIONS = [10, 20, 30]
 const TALK_ADD_OPTIONS = [1, 2, 3]
-const SCREEN_FREE_OPTIONS = ['20 hours', '22 hours', '23 hours']
+const SCREEN_FREE_OPTIONS = ['20 hours', '22 hours', '23 hours', '20 mins', '30 mins', '1 hour']
 const NUTRITION_QUALITY_OPTIONS = ['Excellent', 'Good', 'Poor', 'Very Poor']
 // Three selectable macro target presets, replacing the single editable pie
 const NUTRITION_MACRO_PRESETS = [
@@ -77,7 +77,7 @@ function isWellbeingQComplete(key, w) {
     case 'hydration': return !!(w.hydration.total > 0)
     case 'outdoors': return !!(w.outdoors.totalMinutes > 0)
     case 'talk': return !!(w.talk.count > 0)
-    case 'screenFree': return !!w.screenFree.hours
+    case 'screenFree': return !!(w.screenFree.hours || w.screenFree.custom)
     case 'journal': return !!(w.journal.count > 0 || w.journal.privateJournal)
     case 'creative': return !!(w.creative.count > 0)
     case 'productivity': return !!(w.productivity.count > 0)
@@ -332,7 +332,7 @@ export default function FitToFight() {
     hydration: { total: 0 },
     outdoors: { totalMinutes: 0 },
     talk: { count: 0 },
-    screenFree: { hours: '' },
+    screenFree: { hours: '', custom: '' },
     journal: { count: 0, notes: '', privateJournal: false },
     creative: { count: 0, notes: '' },
     productivity: { count: 0, notes: '' },
@@ -436,6 +436,26 @@ export default function FitToFight() {
     setEnabled(e => ({ ...e, [key]: !e[key] }))
   }
 
+  // Resets a single Wellbeing question back to its empty state -- the
+  // "unselect" option for a card that's already been logged
+  function clearWellbeingQuestion(key) {
+    const defaults = {
+      sleep: { hours: '', efficiency: '' },
+      nutrition: { targetPreset: '', quality: '' },
+      hydration: { total: 0 },
+      outdoors: { totalMinutes: 0 },
+      talk: { count: 0 },
+      screenFree: { hours: '', custom: '' },
+      journal: { count: 0, notes: '', privateJournal: false },
+      creative: { count: 0, notes: '' },
+      productivity: { count: 0, notes: '' },
+    }
+    if (defaults[key]) setWellbeing(w => ({ ...w, [key]: defaults[key] }))
+    else if (key === 'check') setWellbeing(w => ({ ...w, ratings: {} }))
+    else if (key === 'coping') setWellbeing(w => ({ ...w, copingTools: [] }))
+    else if (key === 'wbnotes') setWellbeing(w => ({ ...w, notes: '' }))
+  }
+
   function enabledCount() {
     return MODULES.filter(m => enabled[m.key]).length
   }
@@ -482,7 +502,7 @@ export default function FitToFight() {
       hydration: { total: 0 },
       outdoors: { totalMinutes: 0 },
       talk: { count: 0 },
-      screenFree: { hours: '' },
+      screenFree: { hours: '', custom: '' },
       journal: { count: 0, notes: '', privateJournal: false },
       creative: { count: 0, notes: '' },
       productivity: { count: 0, notes: '' },
@@ -765,15 +785,21 @@ export default function FitToFight() {
                       style={{
                         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
                         borderRadius: 'var(--radius)', cursor: 'pointer',
-                        border: `1px solid ${active ? '#0E9F6E' : complete ? '#0E9F6E80' : 'var(--border-strong)'}`,
-                        background: complete ? '#0E9F6E18' : 'var(--bg-secondary)',
+                        border: `2px solid ${active ? '#0E9F6E' : complete ? '#0E9F6E' : 'var(--border-strong)'}`,
+                        background: complete ? '#0E9F6E12' : 'var(--bg-secondary)',
                       }}>
-                      <span style={{ fontSize: 18 }}>{complete ? '✓' : q.icon}</span>
+                      <span style={{ fontSize: 18 }}>{q.icon}</span>
                       <span style={{ fontSize: 10, fontWeight: 500, textAlign: 'center', lineHeight: 1.2 }}>{q.label}</span>
                     </button>
                   )
                 })}
               </div>
+
+              {expandedWellbeingQ && (
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+                  <button type="button" className="btn btn-sm" onClick={() => clearWellbeingQuestion(expandedWellbeingQ)} style={{ fontSize: 11 }}>✕ Clear</button>
+                </div>
+              )}
 
               {expandedWellbeingQ === 'sleep' && (
                 <div style={{ marginBottom: 12 }}>
@@ -897,12 +923,17 @@ export default function FitToFight() {
               )}
 
               {expandedWellbeingQ === 'screenFree' && (
-                <div className="field" style={{ marginBottom: 12 }}><label>Time off screen</label>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {SCREEN_FREE_OPTIONS.map(v => (
-                      <button key={v} type="button" onClick={() => setWellbeing(w => ({ ...w, screenFree: { hours: v } }))}
-                        className="btn btn-sm" style={{ flex: 1, justifyContent: 'center', background: wellbeing.screenFree.hours === v ? '#0E9F6E20' : undefined, borderColor: wellbeing.screenFree.hours === v ? '#0E9F6E' : undefined }}>{v}</button>
-                    ))}
+                <div style={{ marginBottom: 12 }}>
+                  <div className="field"><label>Time off screen</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {SCREEN_FREE_OPTIONS.map(v => (
+                        <button key={v} type="button" onClick={() => setWellbeing(w => ({ ...w, screenFree: { hours: v, custom: '' } }))}
+                          className="btn btn-sm" style={{ background: wellbeing.screenFree.hours === v ? '#0E9F6E20' : undefined, borderColor: wellbeing.screenFree.hours === v ? '#0E9F6E' : undefined }}>{v}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="field" style={{ marginBottom: 0 }}><label>Or write your own</label>
+                    <input value={wellbeing.screenFree.custom || ''} onChange={e => setWellbeing(w => ({ ...w, screenFree: { hours: '', custom: e.target.value } }))} placeholder="e.g. 18 hours" />
                   </div>
                 </div>
               )}
