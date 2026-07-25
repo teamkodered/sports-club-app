@@ -1805,6 +1805,16 @@ export default function AthleteProfiles() {
                 const setters = { running: setShowRunCards, watt_bike: setShowWattCards, bodyweight: setShowBodyweightCards, stretch: setShowStretchCards }
                 setters[key]?.(v => !v)
               }
+              // Opens one Physical detail panel and explicitly closes the
+              // other three, so only one is ever open at a time --
+              // pressing outside still works too, but this guarantees it
+              // regardless of click-outside timing.
+              const openOnlyPhysicalPanel = (panel, value) => {
+                setExpandedHomeRun(panel === 'run' ? value : null)
+                setExpandedHomeWatt(panel === 'watt' ? value : null)
+                setExpandedHomeBodyweight(panel === 'bodyweight' ? value : null)
+                setExpandedHomeStretch(panel === 'stretch' ? value : null)
+              }
 
               return (
                 <div>
@@ -1858,7 +1868,7 @@ export default function AthleteProfiles() {
                       const complete = todaysRunning.some(e => e.category === cat.key)
                       const active = expandedHomeRun === cat.key
                       return (
-                        <button key={cat.key} type="button" onClick={() => setExpandedHomeRun(active ? null : cat.key)} style={{
+                        <button key={cat.key} type="button" onClick={() => openOnlyPhysicalPanel('run', active ? null : cat.key)} style={{
                           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
                           borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                           border: `2px solid ${active ? colour : complete ? '#E24B4A' : 'var(--border)'}`,
@@ -1908,7 +1918,7 @@ export default function AthleteProfiles() {
                       const complete = todaysWattBike.some(e => grp.match(e.interval_mode || e.type))
                       const active = expandedHomeWatt === grp.key
                       return (
-                        <button key={grp.key} type="button" onClick={() => setExpandedHomeWatt(active ? null : grp.key)} style={{
+                        <button key={grp.key} type="button" onClick={() => openOnlyPhysicalPanel('watt', active ? null : grp.key)} style={{
                           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
                           borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                           border: `2px solid ${active ? colour : complete ? '#378ADD' : 'var(--border)'}`,
@@ -1960,7 +1970,7 @@ export default function AthleteProfiles() {
                       const complete = todaysBodyweight.some(e => grp.match(e.type))
                       const active = expandedHomeBodyweight === grp.key
                       return (
-                        <button key={grp.key} type="button" onClick={() => setExpandedHomeBodyweight(active ? null : grp.key)} style={{
+                        <button key={grp.key} type="button" onClick={() => openOnlyPhysicalPanel('bodyweight', active ? null : grp.key)} style={{
                           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
                           borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                           border: `2px solid ${active ? colour : complete ? '#1D9E75' : 'var(--border)'}`,
@@ -2008,7 +2018,7 @@ export default function AthleteProfiles() {
                       const complete = !!todaysStretches[i]
                       const active = expandedHomeStretch === i
                       return (
-                        <button key={i} type="button" onClick={() => setExpandedHomeStretch(active ? null : i)} style={{
+                        <button key={i} type="button" onClick={() => openOnlyPhysicalPanel('stretch', active ? null : i)} style={{
                           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
                           borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                           border: `2px solid ${active ? colour : complete ? '#EF9F27' : 'var(--border)'}`,
