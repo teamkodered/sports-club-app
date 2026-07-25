@@ -293,7 +293,7 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
           same as the right zone. Other modules still quick-link to the
           full log form. */}
       {isPhysicalModule ? (
-        <button onClick={() => setTab('fit2fight')} title={`View ${b.label} results`} style={{
+        <button onClick={cycleType} title={`Cycle ${b.label} type`} style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, flexShrink: 0,
           color: colour, fontSize: 18, fontWeight: 700, background: 'none', border: 'none', borderRight: '1px solid var(--border)', cursor: 'pointer',
         }}>+</button>

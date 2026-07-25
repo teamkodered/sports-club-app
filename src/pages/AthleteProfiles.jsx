@@ -281,7 +281,7 @@ const TEST_CHART_IDS = { 'Bleep test': 'f2f-chart-bleep', 'Fixed load circuit': 
 // Defined at module scope (not inside the page component's render) so
 // React treats it as a stable component across renders, rather than
 // unmounting/remounting it every time the parent re-renders.
-function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setTab, setRunChartFilter, studentId }) {
+function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setTab, setRunChartFilter, studentId, onQuickLog }) {
   const subTypeOptions = getSubTypeOptions(sorted, b.key)
   const currentSubType = moduleSubType[b.key] ?? subTypeOptions[0] ?? null
   const noNumericStat = ['stretch', 'eye_training', 'one_percenters', 'mentality', 'wellbeing'].includes(b.key)
@@ -319,7 +319,7 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
           same as the right zone. Other modules still quick-link to the
           full log form. */}
       {isPhysicalModule ? (
-        <button onClick={goToChart} title={`View ${b.label} results`} style={{
+        <button onClick={cycleType} title={`Cycle ${b.label} type`} style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, flexShrink: 0,
           color: colour, fontSize: 18, fontWeight: 700, background: 'none', border: 'none', borderRight: '1px solid var(--border)', cursor: 'pointer',
         }}>+</button>
