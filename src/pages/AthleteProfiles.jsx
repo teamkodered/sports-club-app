@@ -306,6 +306,7 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
   }
 
   const logHref = `/fit2fight?student_id=${studentId}&module=${b.key}`
+  const isPhysicalModule = ['running', 'watt_bike', 'bodyweight', 'stretch'].includes(b.key)
 
   return (
     <div style={{
@@ -313,11 +314,21 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
       overflow: 'hidden', fontFamily: 'var(--font-sans)',
     }}>
-      {/* Left: quick-log this specific selection */}
-      <a href={logHref} title={`Log ${b.label}${currentSubType ? ` — ${currentSubType}` : ''}`} style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, flexShrink: 0,
-        color: colour, fontSize: 18, fontWeight: 700, textDecoration: 'none', borderRight: '1px solid var(--border)',
-      }}>+</a>
+      {/* Left: for Physical modules (which now have their own inline
+          logging section on this page), scroll to the result instead --
+          same as the right zone. Other modules still quick-link to the
+          full log form. */}
+      {isPhysicalModule ? (
+        <button onClick={goToChart} title={`View ${b.label} results`} style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, flexShrink: 0,
+          color: colour, fontSize: 18, fontWeight: 700, background: 'none', border: 'none', borderRight: '1px solid var(--border)', cursor: 'pointer',
+        }}>+</button>
+      ) : (
+        <a href={logHref} title={`Log ${b.label}${currentSubType ? ` — ${currentSubType}` : ''}`} style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, flexShrink: 0,
+          color: colour, fontSize: 18, fontWeight: 700, textDecoration: 'none', borderRight: '1px solid var(--border)',
+        }}>+</a>
+      )}
 
       {/* Middle: tap to cycle sub-type */}
       <button onClick={cycleType} style={{
