@@ -428,6 +428,11 @@ export default function AthleteApp() {
   const [stretchOptionsList, setStretchOptionsList] = useState([])
   const [expandedHomeRun, setExpandedHomeRun] = useState(null)
   const [showPhysicalSection, setShowPhysicalSection] = useState(false)
+  const physicalSectionRef = useRef(null)
+  const runPanelRef = useRef(null)
+  const wattPanelRef = useRef(null)
+  const bodyweightPanelRef = useRef(null)
+  const stretchPanelRef = useRef(null)
   const [showRunCards, setShowRunCards] = useState(false)
   const [showWattCards, setShowWattCards] = useState(false)
   const [showBodyweightCards, setShowBodyweightCards] = useState(false)
@@ -435,6 +440,56 @@ export default function AthleteApp() {
   const [expandedHomeWatt, setExpandedHomeWatt] = useState(null)
   const [expandedHomeBodyweight, setExpandedHomeBodyweight] = useState(null)
   const [expandedHomeStretch, setExpandedHomeStretch] = useState(null)
+
+  // Clicking outside the Physical section collapses the whole thing;
+  // clicking outside an open detail panel (but still inside Physical)
+  // collapses just that panel.
+  useEffect(() => {
+    if (!showPhysicalSection) return
+    function handleClick(e) {
+      if (physicalSectionRef.current && !physicalSectionRef.current.contains(e.target)) {
+        setShowPhysicalSection(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showPhysicalSection])
+
+  useEffect(() => {
+    if (!expandedHomeRun) return
+    function handleClick(e) {
+      if (runPanelRef.current && !runPanelRef.current.contains(e.target)) setExpandedHomeRun(null)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [expandedHomeRun])
+
+  useEffect(() => {
+    if (!expandedHomeWatt) return
+    function handleClick(e) {
+      if (wattPanelRef.current && !wattPanelRef.current.contains(e.target)) setExpandedHomeWatt(null)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [expandedHomeWatt])
+
+  useEffect(() => {
+    if (!expandedHomeBodyweight) return
+    function handleClick(e) {
+      if (bodyweightPanelRef.current && !bodyweightPanelRef.current.contains(e.target)) setExpandedHomeBodyweight(null)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [expandedHomeBodyweight])
+
+  useEffect(() => {
+    if (expandedHomeStretch == null) return
+    function handleClick(e) {
+      if (stretchPanelRef.current && !stretchPanelRef.current.contains(e.target)) setExpandedHomeStretch(null)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [expandedHomeStretch])
   const [todaysRunning, setTodaysRunning] = useState([])
   const [todaysWattBike, setTodaysWattBike] = useState([])
   const [todaysBodyweight, setTodaysBodyweight] = useState([])
@@ -873,6 +928,7 @@ export default function AthleteApp() {
                       </button>
                     </div>
 
+                    <div ref={physicalSectionRef}>
                     <button type="button" onClick={() => setShowPhysicalSection(v => !v)} style={{
                       width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                       textAlign: 'center', padding: '10px 8px', marginBottom: 8, cursor: 'pointer', fontFamily: 'var(--font-sans)',
@@ -915,17 +971,20 @@ export default function AthleteApp() {
                       const upsert = updatedEntry => savePhysicalField('running', [...todaysRunning.filter(e => e.category !== expandedHomeRun), updatedEntry], setTodaysRunning)
                       const presets = RUN_PRESET_TESTS[expandedHomeRun] || []
                       return (
-                        <div className="card" style={{ marginBottom: 8 }}>
+                        <div ref={runPanelRef} className="card" style={{ marginBottom: 8 }}>
                           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                             <button type="button" className="btn btn-sm" style={{ fontSize: 11 }}
                               onClick={() => savePhysicalField('running', todaysRunning.filter(e => e.category !== expandedHomeRun), setTodaysRunning)}>✕ Clear</button>
                           </div>
                           <div className="field"><label>Specific test</label>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
                               {presets.map(t => (
                                 <button key={t} type="button" onClick={() => upsert({ ...entry, test: t })}
                                   className="btn btn-sm" style={{ background: entry.test === t ? '#E24B4A20' : undefined, borderColor: entry.test === t ? '#E24B4A' : undefined }}>{t}</button>
                               ))}
+                              <input defaultValue={presets.includes(entry.test) ? '' : (entry.test || '')}
+                                onBlur={e => e.target.value && upsert({ ...entry, test: e.target.value })}
+                                placeholder="Other…" style={{ width: 90, flexShrink: 0 }} />
                             </div>
                           </div>
                           <div className="field" style={{ marginBottom: 0 }}><label>Results</label>
@@ -963,7 +1022,7 @@ export default function AthleteApp() {
                       const entry = todaysWattBike.find(e => grp.match(e.interval_mode || e.type)) || { interval_mode: '', sets: [] }
                       const upsert = updatedEntry => savePhysicalField('watt_bike', [...todaysWattBike.filter(e => !grp.match(e.interval_mode || e.type)), updatedEntry], setTodaysWattBike)
                       return (
-                        <div className="card" style={{ marginBottom: 8 }}>
+                        <div ref={wattPanelRef} className="card" style={{ marginBottom: 8 }}>
                           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                             <button type="button" className="btn btn-sm" style={{ fontSize: 11 }}
                               onClick={() => savePhysicalField('watt_bike', todaysWattBike.filter(e => !grp.match(e.interval_mode || e.type)), setTodaysWattBike)}>✕ Clear</button>
@@ -1015,7 +1074,7 @@ export default function AthleteApp() {
                       const entry = todaysBodyweight.find(e => grp.match(e.type)) || { type: '', sets: [] }
                       const upsert = updatedEntry => savePhysicalField('bodyweight', [...todaysBodyweight.filter(e => !grp.match(e.type)), updatedEntry], setTodaysBodyweight)
                       return (
-                        <div className="card" style={{ marginBottom: 8 }}>
+                        <div ref={bodyweightPanelRef} className="card" style={{ marginBottom: 8 }}>
                           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                             <button type="button" className="btn btn-sm" style={{ fontSize: 11 }}
                               onClick={() => savePhysicalField('bodyweight', todaysBodyweight.filter(e => !grp.match(e.type)), setTodaysBodyweight)}>✕ Clear</button>
@@ -1058,7 +1117,7 @@ export default function AthleteApp() {
                       })}
                     </div>
                     {expandedHomeStretch != null && (
-                      <div className="card" style={{ marginBottom: 8 }}>
+                      <div ref={stretchPanelRef} className="card" style={{ marginBottom: 8 }}>
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                           <button type="button" className="btn btn-sm" style={{ fontSize: 11 }}
                             onClick={() => { const next = [...todaysStretches]; next[expandedHomeStretch] = ''; savePhysicalField('stretch_flows', next, setTodaysStretches) }}>✕ Clear</button>
@@ -1075,6 +1134,7 @@ export default function AthleteApp() {
                     )}
                     </>
                     )}
+                    </div>
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
