@@ -45,19 +45,38 @@ const DEFAULT_MENTALITY_TYPES = [
 
 // Combined from the young men's / young women's mental health toolkits --
 // genuine duplicates merged, everything else kept so nothing is lost.
-const WELLBEING_CHECKLIST = [
-  'Woke up at a consistent time',
-  'Ate balanced, nutritious meals',
-  'Drank enough water / stayed hydrated',
-  'Exercised / moved my body for at least 30 minutes',
-  'Spent at least 20 minutes outside',
-  'Talked with someone I trust (friend or family)',
-  'Limited social media if it affected my mood',
-  'Completed one productive task',
-  'Practiced self-care',
-  'Practiced gratitude (wrote three good things)',
-  'Got 8–9 hours of sleep',
+// Now split into individual loggable questions instead of one flat
+// checklist, each with its own specific fields.
+const WELLBEING_QUESTIONS = [
+  { key: 'sleep',        label: 'Sleep',        icon: '😴' },
+  { key: 'nutrition',    label: 'Nutrition',    icon: '🍎' },
+  { key: 'hydration',    label: 'Hydration',    icon: '💧' },
+  { key: 'outdoors',     label: 'Outdoors',     icon: '🌳' },
+  { key: 'talk',         label: 'Talk',         icon: '💬' },
+  { key: 'screenFree',   label: 'Screen free',  icon: '📵' },
+  { key: 'journal',      label: 'Journal',      icon: '📓' },
+  { key: 'creative',     label: 'Creative task', icon: '🎨' },
+  { key: 'productivity', label: 'Productivity', icon: '✅' },
 ]
+const HYDRATION_OPTIONS = ['0.5L', '1L', '1.5L', '2L', '2.5L', '3L+']
+const SCREEN_FREE_OPTIONS = ['20:00', '22:00', '23:00']
+const NUTRITION_QUALITY_OPTIONS = ['Excellent', 'Good', 'Poor', 'Very Poor']
+const NUTRITION_MACRO_TARGETS = { carbs: 40, fat: 30, protein: 30 } // % targets shown for reference
+
+function isWellbeingQComplete(key, w) {
+  switch (key) {
+    case 'sleep': return !!(w.sleep.hours || w.sleep.consistency || w.sleep.efficiency)
+    case 'nutrition': return !!(w.nutrition.macrosConfirmed || w.nutrition.quality)
+    case 'hydration': return !!(w.hydration.amount || w.hydration.custom)
+    case 'outdoors': return !!w.outdoors.minutes
+    case 'talk': return !!w.talk.done
+    case 'screenFree': return !!w.screenFree.time
+    case 'journal': return !!w.journal.done
+    case 'creative': return !!w.creative.done
+    case 'productivity': return !!w.productivity.done
+    default: return false
+  }
+}
 const WELLBEING_COPING_TOOLS = [
   'Breathing exercises (box / mindfulness breathing)', 'Progressive muscle relaxation',
   'Journaling / gratitude journal', 'Weight training or sport', 'Running or walking',
@@ -241,6 +260,33 @@ function ModuleCard({ mod, enabled, onToggle, children }) {
   )
 }
 
+function MacroPie({ carbs, fat, protein, size = 88 }) {
+  const total = carbs + fat + protein || 1
+  const r = size / 2 - 8
+  const circumference = 2 * Math.PI * r
+  const segments = [
+    { value: carbs, colour: '#EF9F27' },
+    { value: fat, colour: '#E24B4A' },
+    { value: protein, colour: '#378ADD' },
+  ]
+  let offset = 0
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <g transform={`rotate(-90 ${size/2} ${size/2})`}>
+        {segments.map((seg, i) => {
+          const len = (seg.value / total) * circumference
+          const el = (
+            <circle key={i} cx={size/2} cy={size/2} r={r} fill="none" stroke={seg.colour} strokeWidth={14}
+              strokeDasharray={`${len} ${circumference - len}`} strokeDashoffset={-offset} />
+          )
+          offset += len
+          return el
+        })}
+      </g>
+    </svg>
+  )
+}
+
 export default function FitToFight() {
   const { profile, isAdmin } = useAuth()
   const navigate = useNavigate()
@@ -273,7 +319,19 @@ export default function FitToFight() {
   const [techniques, setTechniques]   = useState({ type: '', notes: '', sets: [] })
   const [mentality, setMentality] = useState({ types: [], notes: '' })
   const [mentalityTypes, setMentalityTypes] = useState(DEFAULT_MENTALITY_TYPES)
-  const [wellbeing, setWellbeing] = useState({ checklist: [], ratings: {}, copingTools: [], notes: '' })
+  const [wellbeing, setWellbeing] = useState({
+    sleep: { hours: '', consistency: '', efficiency: '' },
+    nutrition: { carbs: NUTRITION_MACRO_TARGETS.carbs, fat: NUTRITION_MACRO_TARGETS.fat, protein: NUTRITION_MACRO_TARGETS.protein, macrosConfirmed: false, quality: '' },
+    hydration: { amount: '', custom: '' },
+    outdoors: { minutes: '' },
+    talk: { done: false },
+    screenFree: { time: '' },
+    journal: { done: false, notes: '' },
+    creative: { done: false, notes: '' },
+    productivity: { done: false, notes: '' },
+    ratings: {}, copingTools: [], notes: '',
+  })
+  const [expandedWellbeingQ, setExpandedWellbeingQ] = useState(null)
   const [showWellbeingGuidance, setShowWellbeingGuidance] = useState(false)
   const [trainedFurther, setTrainedFurther] = useState(false)
   const [notes, setNotes]             = useState('')
@@ -405,7 +463,21 @@ export default function FitToFight() {
     setWattBike({ type: '', interval_mode: '', custom_on: '', custom_off: '', sets: [], total_distance: '', max_wattage: '', avg_wattage: '' })
     setBodyweight({ type: '', notes: '', sets: [] }); setStretches(['', '', ''])
     setTest({ type: '', notes: '' }); setTechniques({ type: '', notes: '', sets: [] })
-    setMentality({ types: [], notes: '' }); setWellbeing({ checklist: [], ratings: {}, copingTools: [], notes: '' }); setTrainedFurther(false); setNotes('')
+    setMentality({ types: [], notes: '' })
+    setWellbeing({
+      sleep: { hours: '', consistency: '', efficiency: '' },
+      nutrition: { carbs: NUTRITION_MACRO_TARGETS.carbs, fat: NUTRITION_MACRO_TARGETS.fat, protein: NUTRITION_MACRO_TARGETS.protein, macrosConfirmed: false, quality: '' },
+      hydration: { amount: '', custom: '' },
+      outdoors: { minutes: '' },
+      talk: { done: false },
+      screenFree: { time: '' },
+      journal: { done: false, notes: '' },
+      creative: { done: false, notes: '' },
+      productivity: { done: false, notes: '' },
+      ratings: {}, copingTools: [], notes: '',
+    })
+    setExpandedWellbeingQ(null)
+    setTrainedFurther(false); setNotes('')
     setSubmitted(false)
   }
 
@@ -663,23 +735,155 @@ export default function FitToFight() {
             </ModuleCard>
 
             <ModuleCard mod={MODULES[7]} enabled={!!enabled.wellbeing} onToggle={() => toggle('wellbeing')}>
-              <div className="field">
-                <label>Daily checklist</label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {WELLBEING_CHECKLIST.map(item => (
-                    <label key={item} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
-                      <input type="checkbox" checked={wellbeing.checklist.includes(item)}
-                        onChange={e => setWellbeing(w => ({ ...w, checklist: e.target.checked ? [...w.checklist, item] : w.checklist.filter(x => x !== item) }))}
-                        style={{ width: 16, height: 16 }} />
-                      {item}
-                    </label>
-                  ))}
-                </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedWellbeingQ ? 12 : 0 }}>
+                {[
+                  ...WELLBEING_QUESTIONS,
+                  { key: 'check', label: 'Wellbeing check', icon: '📊' },
+                  { key: 'coping', label: 'Coping tools', icon: '🧰' },
+                  { key: 'wbnotes', label: 'Notes', icon: '📝' },
+                ].map(q => {
+                  const complete = WELLBEING_QUESTIONS.some(x => x.key === q.key) ? isWellbeingQComplete(q.key, wellbeing)
+                    : q.key === 'check' ? Object.keys(wellbeing.ratings).length > 0
+                    : q.key === 'coping' ? wellbeing.copingTools.length > 0
+                    : q.key === 'wbnotes' ? !!wellbeing.notes
+                    : false
+                  const active = expandedWellbeingQ === q.key
+                  return (
+                    <button key={q.key} type="button" onClick={() => setExpandedWellbeingQ(active ? null : q.key)}
+                      style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
+                        borderRadius: 'var(--radius)', cursor: 'pointer',
+                        border: `1px solid ${active ? '#0E9F6E' : complete ? '#0E9F6E80' : 'var(--border-strong)'}`,
+                        background: complete ? '#0E9F6E18' : 'var(--bg-secondary)',
+                      }}>
+                      <span style={{ fontSize: 18 }}>{complete ? '✓' : q.icon}</span>
+                      <span style={{ fontSize: 10, fontWeight: 500, textAlign: 'center', lineHeight: 1.2 }}>{q.label}</span>
+                    </button>
+                  )
+                })}
               </div>
 
-              <div className="field">
-                <label>Personal wellbeing check (rate 1–5)</label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {expandedWellbeingQ === 'sleep' && (
+                <div style={{ marginBottom: 12 }}>
+                  <div className="field"><label>Hours slept</label>
+                    <input type="number" step="0.5" value={wellbeing.sleep.hours} onChange={e => setWellbeing(w => ({ ...w, sleep: { ...w.sleep, hours: e.target.value } }))} placeholder="e.g. 8" />
+                  </div>
+                  <div className="field"><label>Consistency — same bedtime as usual?</label>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {['Yes', 'No'].map(v => (
+                        <button key={v} type="button" onClick={() => setWellbeing(w => ({ ...w, sleep: { ...w.sleep, consistency: v } }))}
+                          className="btn btn-sm" style={{ flex: 1, justifyContent: 'center', background: wellbeing.sleep.consistency === v ? '#0E9F6E20' : undefined, borderColor: wellbeing.sleep.consistency === v ? '#0E9F6E' : undefined }}>{v}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="field" style={{ marginBottom: 0 }}><label>Efficiency % (target 70%+)</label>
+                    <input type="number" min="0" max="100" value={wellbeing.sleep.efficiency} onChange={e => setWellbeing(w => ({ ...w, sleep: { ...w.sleep, efficiency: e.target.value } }))} placeholder="e.g. 75" />
+                  </div>
+                </div>
+              )}
+
+              {expandedWellbeingQ === 'nutrition' && (
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12 }}>
+                    <MacroPie carbs={wellbeing.nutrition.carbs} fat={wellbeing.nutrition.fat} protein={wellbeing.nutrition.protein} />
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                      <div><span style={{ color: '#EF9F27' }}>●</span> Carbs {wellbeing.nutrition.carbs}%</div>
+                      <div><span style={{ color: '#E24B4A' }}>●</span> Fat {wellbeing.nutrition.fat}%</div>
+                      <div><span style={{ color: '#378ADD' }}>●</span> Protein {wellbeing.nutrition.protein}%</div>
+                      <div style={{ marginTop: 4 }}>Targets: {NUTRITION_MACRO_TARGETS.carbs}/{NUTRITION_MACRO_TARGETS.fat}/{NUTRITION_MACRO_TARGETS.protein}</div>
+                    </div>
+                  </div>
+                  <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 12, background: wellbeing.nutrition.macrosConfirmed ? '#0E9F6E20' : undefined, borderColor: wellbeing.nutrition.macrosConfirmed ? '#0E9F6E' : undefined }}
+                    onClick={() => setWellbeing(w => ({ ...w, nutrition: { ...w.nutrition, macrosConfirmed: !w.nutrition.macrosConfirmed } }))}>
+                    {wellbeing.nutrition.macrosConfirmed ? '✓ Hit my macro targets' : 'Check if you hit your macro targets'}
+                  </button>
+                  <div className="field" style={{ marginBottom: 0 }}><label>Quality</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {NUTRITION_QUALITY_OPTIONS.map(v => (
+                        <button key={v} type="button" onClick={() => setWellbeing(w => ({ ...w, nutrition: { ...w.nutrition, quality: v } }))}
+                          className="btn btn-sm" style={{ background: wellbeing.nutrition.quality === v ? '#0E9F6E20' : undefined, borderColor: wellbeing.nutrition.quality === v ? '#0E9F6E' : undefined }}>{v}</button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {expandedWellbeingQ === 'hydration' && (
+                <div style={{ marginBottom: 12 }}>
+                  <div className="field"><label>Amount</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {HYDRATION_OPTIONS.map(v => (
+                        <button key={v} type="button" onClick={() => setWellbeing(w => ({ ...w, hydration: { ...w.hydration, amount: v } }))}
+                          className="btn btn-sm" style={{ background: wellbeing.hydration.amount === v ? '#0E9F6E20' : undefined, borderColor: wellbeing.hydration.amount === v ? '#0E9F6E' : undefined }}>{v}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="field" style={{ marginBottom: 0 }}><label>Or write your own</label>
+                    <input value={wellbeing.hydration.custom} onChange={e => setWellbeing(w => ({ ...w, hydration: { ...w.hydration, custom: e.target.value } }))} placeholder="e.g. 1.8L" />
+                  </div>
+                </div>
+              )}
+
+              {expandedWellbeingQ === 'outdoors' && (
+                <div className="field" style={{ marginBottom: 12 }}><label>Minutes outside (target 20+)</label>
+                  <input type="number" value={wellbeing.outdoors.minutes} onChange={e => setWellbeing(w => ({ ...w, outdoors: { minutes: e.target.value } }))} placeholder="e.g. 25" />
+                </div>
+              )}
+
+              {expandedWellbeingQ === 'talk' && (
+                <div className="field" style={{ marginBottom: 12 }}><label>Had at least one conversation with a friend today?</label>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {['Yes', 'No'].map(v => (
+                      <button key={v} type="button" onClick={() => setWellbeing(w => ({ ...w, talk: { done: v === 'Yes' } }))}
+                        className="btn btn-sm" style={{ flex: 1, justifyContent: 'center', background: (wellbeing.talk.done ? 'Yes' : 'No') === v ? '#0E9F6E20' : undefined, borderColor: (wellbeing.talk.done ? 'Yes' : 'No') === v ? '#0E9F6E' : undefined }}>{v}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {expandedWellbeingQ === 'screenFree' && (
+                <div className="field" style={{ marginBottom: 12 }}><label>Screens off by</label>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {SCREEN_FREE_OPTIONS.map(v => (
+                      <button key={v} type="button" onClick={() => setWellbeing(w => ({ ...w, screenFree: { time: v } }))}
+                        className="btn btn-sm" style={{ flex: 1, justifyContent: 'center', background: wellbeing.screenFree.time === v ? '#0E9F6E20' : undefined, borderColor: wellbeing.screenFree.time === v ? '#0E9F6E' : undefined }}>{v}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {expandedWellbeingQ === 'journal' && (
+                <div style={{ marginBottom: 12 }}>
+                  <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8, background: wellbeing.journal.done ? '#0E9F6E20' : undefined, borderColor: wellbeing.journal.done ? '#0E9F6E' : undefined }}
+                    onClick={() => setWellbeing(w => ({ ...w, journal: { ...w.journal, done: !w.journal.done } }))}>
+                    {wellbeing.journal.done ? '✓ Wrote one journal entry' : 'Mark one journal entry as done'}
+                  </button>
+                  <input value={wellbeing.journal.notes} onChange={e => setWellbeing(w => ({ ...w, journal: { ...w.journal, notes: e.target.value } }))} placeholder="Optional — what did you write about?" />
+                </div>
+              )}
+
+              {expandedWellbeingQ === 'creative' && (
+                <div style={{ marginBottom: 12 }}>
+                  <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8, background: wellbeing.creative.done ? '#0E9F6E20' : undefined, borderColor: wellbeing.creative.done ? '#0E9F6E' : undefined }}
+                    onClick={() => setWellbeing(w => ({ ...w, creative: { ...w.creative, done: !w.creative.done } }))}>
+                    {wellbeing.creative.done ? '✓ Completed one creative task' : 'Mark one creative task as done'}
+                  </button>
+                  <input value={wellbeing.creative.notes} onChange={e => setWellbeing(w => ({ ...w, creative: { ...w.creative, notes: e.target.value } }))} placeholder="Optional — what did you do?" />
+                </div>
+              )}
+
+              {expandedWellbeingQ === 'productivity' && (
+                <div style={{ marginBottom: 12 }}>
+                  <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8, background: wellbeing.productivity.done ? '#0E9F6E20' : undefined, borderColor: wellbeing.productivity.done ? '#0E9F6E' : undefined }}
+                    onClick={() => setWellbeing(w => ({ ...w, productivity: { ...w.productivity, done: !w.productivity.done } }))}>
+                    {wellbeing.productivity.done ? '✓ Completed one productive task' : 'Mark one productive task as done'}
+                  </button>
+                  <input value={wellbeing.productivity.notes} onChange={e => setWellbeing(w => ({ ...w, productivity: { ...w.productivity, notes: e.target.value } }))} placeholder="Optional — what did you do?" />
+                </div>
+              )}
+
+              {expandedWellbeingQ === 'check' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
                   {WELLBEING_CHECK_CATEGORIES.map(cat => (
                     <div key={cat} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
                       <span style={{ fontSize: 13 }}>{cat}</span>
@@ -697,11 +901,10 @@ export default function FitToFight() {
                     </div>
                   ))}
                 </div>
-              </div>
+              )}
 
-              <div className="field">
-                <label>Coping tools used</label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {expandedWellbeingQ === 'coping' && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
                   {WELLBEING_COPING_TOOLS.map(tool => {
                     const active = wellbeing.copingTools.includes(tool)
                     return (
@@ -716,11 +919,13 @@ export default function FitToFight() {
                     )
                   })}
                 </div>
-              </div>
+              )}
 
-              <div className="field" style={{ marginBottom: 8 }}><label>Notes</label>
-                <input value={wellbeing.notes} onChange={e => setWellbeing(w => ({ ...w, notes: e.target.value }))} placeholder="Anything else to note…" />
-              </div>
+              {expandedWellbeingQ === 'wbnotes' && (
+                <div className="field" style={{ marginBottom: 12 }}>
+                  <input value={wellbeing.notes} onChange={e => setWellbeing(w => ({ ...w, notes: e.target.value }))} placeholder="Anything else to note…" />
+                </div>
+              )}
 
               <button type="button" className="btn btn-sm" onClick={() => setShowWellbeingGuidance(v => !v)} style={{ marginBottom: showWellbeingGuidance ? 8 : 0 }}>
                 {showWellbeingGuidance ? 'Hide' : 'Show'} wellbeing guidance
