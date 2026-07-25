@@ -74,6 +74,40 @@ function isWellbeingQComplete(key, w) {
   }
 }
 
+const MENTALITY_QUESTIONS = [
+  { key: 'videoAnalysis',   label: 'Video analysis',   icon: '🎥' },
+  { key: 'meditation',      label: 'Meditation',       icon: '🧘' },
+  { key: 'visualisation',   label: 'Visualisation',    icon: '🎯' },
+  { key: 'chess',           label: 'Play chess',       icon: '♟️' },
+  { key: 'reading',         label: 'Reading',          icon: '📖' },
+  { key: 'gaming',          label: 'Gaming (combat)',  icon: '🎮' },
+  { key: 'eyeTracking',     label: 'Eye tracking drills', icon: '👁' },
+  { key: 'coldWater',       label: 'Cold water / Ice bath', icon: '🧊' },
+  { key: 'activeRecovery',  label: 'Active recovery day', icon: '🚶' },
+  { key: 'gratitude',       label: 'Self gratitude',   icon: '🙏' },
+]
+const VIDEO_ANALYSIS_OPTIONS = ['Self in competition', 'Self in training', 'Elite athlete in competition', 'Elite athlete in training']
+const MEDITATION_TYPE_OPTIONS = ['Guided meditation', 'Breathing meditation', 'Body scan meditation', 'Mindfulness meditation', 'Silent meditation', 'Other']
+const VISUALISATION_OPTIONS = ['Performing a technique', 'Performing in competition']
+const ACTIVE_RECOVERY_OPTIONS = ['Swimming', 'Walking', 'Yoga']
+
+function isMentalityQComplete(key, m) {
+  if (!m) return false
+  switch (key) {
+    case 'videoAnalysis': return !!m.videoAnalysis?.type
+    case 'meditation': return !!m.meditation?.type
+    case 'visualisation': return !!m.visualisation?.type
+    case 'chess': return !!(m.chess?.count > 0)
+    case 'reading': return !!(m.reading?.count > 0)
+    case 'gaming': return !!(m.gaming?.count > 0)
+    case 'eyeTracking': return !!(m.eyeTracking?.count > 0)
+    case 'coldWater': return !!(m.coldWater?.count > 0)
+    case 'activeRecovery': return !!m.activeRecovery?.type
+    case 'gratitude': return !!(m.gratitude?.count > 0)
+    default: return false
+  }
+}
+
 // Some athletes have historic Watt Bike entries saved as shorthand
 // (e.g. "15-90" from an old free-text "Custom" entry) that mean the same
 // thing as the newer full-text options (e.g. "15 seconds on 90 seconds
@@ -258,6 +292,15 @@ export default function AthleteApp() {
   const [creativeCustomAdd, setCreativeCustomAdd] = useState('')
   const [productivityCustomAdd, setProductivityCustomAdd] = useState('')
   const [journalDraft, setJournalDraft] = useState('')
+  const [expandedHomeMentality, setExpandedHomeMentality] = useState(null)
+  const [todaysMentalityLog, setTodaysMentalityLog] = useState({})
+  const [savingMentalityLog, setSavingMentalityLog] = useState(false)
+  const [chessCustomAdd, setChessCustomAdd] = useState('')
+  const [readingCustomAdd, setReadingCustomAdd] = useState('')
+  const [gamingCustomAdd, setGamingCustomAdd] = useState('')
+  const [eyeTrackingCustomAdd, setEyeTrackingCustomAdd] = useState('')
+  const [coldWaterCustomAdd, setColdWaterCustomAdd] = useState('')
+  const [gratitudeDraft, setGratitudeDraft] = useState('')
   const [moduleSubType, setModuleSubType] = useState({})
   const [loading, setLoading]   = useState(true)
   const [editNote, setEditNote] = useState(false)
@@ -332,6 +375,7 @@ export default function AthleteApp() {
     const todaysDate = new Date().toISOString().split('T')[0]
     const todaysSession = sessions.find(s => s.session_date === todaysDate)
     setTodaysWellbeing(todaysSession?.wellbeing || {})
+    setTodaysMentalityLog(todaysSession?.mentality_log || {})
   }, [sessions])
 
   // Save a single wellbeing question's data directly from the Home page,
@@ -377,6 +421,51 @@ export default function AthleteApp() {
       productivity: { count: 0, notes: '' },
     }
     if (defaults[key]) saveWellbeingField(key, () => defaults[key])
+  }
+
+  // Same pattern as saveWellbeingField/clearWellbeingQuestion above, but
+  // for the granular Mentality question breakdown (stored in the
+  // separate mentality_log column so it doesn't clash with the simple
+  // multi-select 'mentality' field used by the log form).
+  async function saveMentalityField(field, updater) {
+    if (!student) return
+    setSavingMentalityLog(true)
+    const todaysDate = new Date().toISOString().split('T')[0]
+    const current = todaysMentalityLog[field] || {}
+    const updatedField = updater(current)
+    const newLog = { ...todaysMentalityLog, [field]: updatedField }
+    setTodaysMentalityLog(newLog)
+
+    const existing = sessions.find(s => s.session_date === todaysDate)
+    let error
+    if (existing) {
+      ;({ error } = await supabase.from('fit2fight_sessions').update({ mentality_log: newLog }).eq('id', existing.id))
+      if (!error) setSessions(prev => prev.map(s => s.id === existing.id ? { ...s, mentality_log: newLog } : s))
+    } else {
+      const { data, error: insertErr } = await supabase.from('fit2fight_sessions')
+        .insert({ student_id: student.id, session_date: todaysDate, mentality_log: newLog })
+        .select().single()
+      error = insertErr
+      if (!error && data) setSessions(prev => [data, ...prev])
+    }
+    if (error) alert('Error saving: ' + error.message)
+    setSavingMentalityLog(false)
+  }
+
+  function clearMentalityQuestion(key) {
+    const defaults = {
+      videoAnalysis: { type: '' },
+      meditation: { type: '' },
+      visualisation: { type: '' },
+      chess: { count: 0 },
+      reading: { count: 0 },
+      gaming: { count: 0 },
+      eyeTracking: { count: 0 },
+      coldWater: { count: 0 },
+      activeRecovery: { type: '' },
+      gratitude: { count: 0, notes: '' },
+    }
+    if (defaults[key]) saveMentalityField(key, () => defaults[key])
   }
 
   async function checkInNow(attendanceType) {
@@ -557,7 +646,160 @@ export default function AthleteApp() {
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
-                      {modules.map(b => <ModuleButton key={b.key} b={b} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} />)}
+                      {modules.slice(0, -1).map(b => <ModuleButton key={b.key} b={b} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} />)}
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeMentality ? 10 : 8 }}>
+                      {MENTALITY_QUESTIONS.map(q => {
+                        const complete = isMentalityQComplete(q.key, todaysMentalityLog)
+                        const active = expandedHomeMentality === q.key
+                        return (
+                          <button key={q.key} type="button" onClick={() => setExpandedHomeMentality(active ? null : q.key)} style={{
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
+                            borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                            border: `2px solid ${active ? colour : complete ? '#6D28D9' : 'var(--border)'}`,
+                            background: complete ? '#6D28D912' : 'var(--bg-secondary)',
+                          }}>
+                            <span style={{ fontSize: 16 }}>{q.icon}</span>
+                            <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{q.label}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+
+                    {expandedHomeMentality && (
+                      <div className="card" style={{ marginBottom: 8 }}>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+                          <button type="button" className="btn btn-sm" onClick={() => clearMentalityQuestion(expandedHomeMentality)} style={{ fontSize: 11 }}>✕ Clear</button>
+                        </div>
+                        {expandedHomeMentality === 'videoAnalysis' && (
+                          <div className="field" style={{ marginBottom: 0 }}><label>Type</label>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                              {VIDEO_ANALYSIS_OPTIONS.map(v => (
+                                <button key={v} type="button" onClick={() => saveMentalityField('videoAnalysis', () => ({ type: v }))}
+                                  className="btn btn-sm" style={{ background: todaysMentalityLog.videoAnalysis?.type === v ? '#6D28D920' : undefined, borderColor: todaysMentalityLog.videoAnalysis?.type === v ? '#6D28D9' : undefined }}>{v}</button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {expandedHomeMentality === 'meditation' && (
+                          <div className="field" style={{ marginBottom: 0 }}><label>Type</label>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                              {MEDITATION_TYPE_OPTIONS.map(v => (
+                                <button key={v} type="button" onClick={() => saveMentalityField('meditation', () => ({ type: v }))}
+                                  className="btn btn-sm" style={{ background: todaysMentalityLog.meditation?.type === v ? '#6D28D920' : undefined, borderColor: todaysMentalityLog.meditation?.type === v ? '#6D28D9' : undefined }}>{v}</button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {expandedHomeMentality === 'visualisation' && (
+                          <div className="field" style={{ marginBottom: 0 }}><label>Type</label>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                              {VISUALISATION_OPTIONS.map(v => (
+                                <button key={v} type="button" onClick={() => saveMentalityField('visualisation', () => ({ type: v }))}
+                                  className="btn btn-sm" style={{ background: todaysMentalityLog.visualisation?.type === v ? '#6D28D920' : undefined, borderColor: todaysMentalityLog.visualisation?.type === v ? '#6D28D9' : undefined }}>{v}</button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {expandedHomeMentality === 'chess' && (
+                          <>
+                            <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.chess?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>game{(todaysMentalityLog.chess?.count || 0) === 1 ? '' : 's'} today</span></div>
+                            <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
+                              onClick={() => saveMentalityField('chess', cur => ({ count: (cur.count || 0) + 1 }))}>+1 game</button>
+                            <div className="field" style={{ marginBottom: 0 }}><label>Or write a number to add</label>
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                <input type="number" value={chessCustomAdd} onChange={e => setChessCustomAdd(e.target.value)} placeholder="e.g. 3" style={{ flex: 1 }} />
+                                <button type="button" className="btn btn-sm" disabled={!chessCustomAdd}
+                                  onClick={() => { saveMentalityField('chess', cur => ({ count: (cur.count || 0) + parseInt(chessCustomAdd || 0) })); setChessCustomAdd('') }}>Add</button>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                        {expandedHomeMentality === 'reading' && (
+                          <>
+                            <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.reading?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>session{(todaysMentalityLog.reading?.count || 0) === 1 ? '' : 's'} today</span></div>
+                            <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
+                              onClick={() => saveMentalityField('reading', cur => ({ count: (cur.count || 0) + 1 }))}>+1 reading session</button>
+                            <div className="field" style={{ marginBottom: 0 }}><label>Or write a number to add</label>
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                <input type="number" value={readingCustomAdd} onChange={e => setReadingCustomAdd(e.target.value)} placeholder="e.g. 3" style={{ flex: 1 }} />
+                                <button type="button" className="btn btn-sm" disabled={!readingCustomAdd}
+                                  onClick={() => { saveMentalityField('reading', cur => ({ count: (cur.count || 0) + parseInt(readingCustomAdd || 0) })); setReadingCustomAdd('') }}>Add</button>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                        {expandedHomeMentality === 'gaming' && (
+                          <>
+                            <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.gaming?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>session{(todaysMentalityLog.gaming?.count || 0) === 1 ? '' : 's'} today</span></div>
+                            <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
+                              onClick={() => saveMentalityField('gaming', cur => ({ count: (cur.count || 0) + 1 }))}>+1 session</button>
+                            <div className="field" style={{ marginBottom: 0 }}><label>Or write a number to add</label>
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                <input type="number" value={gamingCustomAdd} onChange={e => setGamingCustomAdd(e.target.value)} placeholder="e.g. 3" style={{ flex: 1 }} />
+                                <button type="button" className="btn btn-sm" disabled={!gamingCustomAdd}
+                                  onClick={() => { saveMentalityField('gaming', cur => ({ count: (cur.count || 0) + parseInt(gamingCustomAdd || 0) })); setGamingCustomAdd('') }}>Add</button>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                        {expandedHomeMentality === 'eyeTracking' && (
+                          <>
+                            <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.eyeTracking?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>drill{(todaysMentalityLog.eyeTracking?.count || 0) === 1 ? '' : 's'} today</span></div>
+                            <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
+                              onClick={() => saveMentalityField('eyeTracking', cur => ({ count: (cur.count || 0) + 1 }))}>+1 drill</button>
+                            <div className="field" style={{ marginBottom: 0 }}><label>Or write a number to add</label>
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                <input type="number" value={eyeTrackingCustomAdd} onChange={e => setEyeTrackingCustomAdd(e.target.value)} placeholder="e.g. 3" style={{ flex: 1 }} />
+                                <button type="button" className="btn btn-sm" disabled={!eyeTrackingCustomAdd}
+                                  onClick={() => { saveMentalityField('eyeTracking', cur => ({ count: (cur.count || 0) + parseInt(eyeTrackingCustomAdd || 0) })); setEyeTrackingCustomAdd('') }}>Add</button>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                        {expandedHomeMentality === 'coldWater' && (
+                          <>
+                            <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.coldWater?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>today</span></div>
+                            <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
+                              onClick={() => saveMentalityField('coldWater', cur => ({ count: (cur.count || 0) + 1 }))}>+1</button>
+                            <div className="field" style={{ marginBottom: 0 }}><label>Or write a number to add</label>
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                <input type="number" value={coldWaterCustomAdd} onChange={e => setColdWaterCustomAdd(e.target.value)} placeholder="e.g. 3" style={{ flex: 1 }} />
+                                <button type="button" className="btn btn-sm" disabled={!coldWaterCustomAdd}
+                                  onClick={() => { saveMentalityField('coldWater', cur => ({ count: (cur.count || 0) + parseInt(coldWaterCustomAdd || 0) })); setColdWaterCustomAdd('') }}>Add</button>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                        {expandedHomeMentality === 'activeRecovery' && (
+                          <div className="field" style={{ marginBottom: 0 }}><label>Type</label>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                              {ACTIVE_RECOVERY_OPTIONS.map(v => (
+                                <button key={v} type="button" onClick={() => saveMentalityField('activeRecovery', () => ({ type: v }))}
+                                  className="btn btn-sm" style={{ background: todaysMentalityLog.activeRecovery?.type === v ? '#6D28D920' : undefined, borderColor: todaysMentalityLog.activeRecovery?.type === v ? '#6D28D9' : undefined }}>{v}</button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {expandedHomeMentality === 'gratitude' && (
+                          <>
+                            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 8 }}>{todaysMentalityLog.gratitude?.count || 0} entr{(todaysMentalityLog.gratitude?.count || 0) === 1 ? 'y' : 'ies'} logged today</div>
+                            <textarea value={gratitudeDraft} onChange={e => setGratitudeDraft(e.target.value)}
+                              placeholder="Write down three good things…"
+                              rows={4} style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 14, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
+                            <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center' }}
+                              onClick={() => { saveMentalityField('gratitude', cur => ({ count: (cur.count || 0) + 1, notes: gratitudeDraft })); setGratitudeDraft('') }}>
+                              Save gratitude entry
+                            </button>
+                          </>
+                        )}
+                        {savingMentalityLog && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>Saving…</p>}
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
+                      <ModuleButton b={modules[modules.length - 1]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} />
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeWb ? 10 : 8 }}>
