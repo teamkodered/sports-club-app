@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 
-const DAYS = ['Monday','Mon/Fri','Tuesday','Tue/Thu','Wednesday','Saturday','Sunday','Derby Moore','Moorways']
+const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday','Mon/Fri','Tue/Thu','Derby Moore','Moorways']
 
 export default function Classes() {
   const { isAdmin } = useAuth()
