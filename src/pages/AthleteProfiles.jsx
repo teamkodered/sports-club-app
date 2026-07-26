@@ -31,7 +31,7 @@ const NUTRITION_MACRO_PRESETS = [
   { key: 'low_carb', label: 'Low carb', carbs: 20, fat: 40, protein: 40 },
 ]
 
-function SetInput({ sets, onChange, placeholder = 'e.g. 12.3' }) {
+function SetInput({ sets, onChange, placeholder = 'e.g. 12.3', inputType = 'text' }) {
   function update(i, val) {
     const next = [...sets]
     next[i] = val
@@ -45,8 +45,38 @@ function SetInput({ sets, onChange, placeholder = 'e.g. 12.3' }) {
         {sets.map((s, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
             <span style={{ fontSize: 10, color: 'var(--text-tertiary)', width: 14 }}>{i + 1}</span>
-            <input value={s} onChange={e => update(i, e.target.value)} placeholder={placeholder}
+            <input type={inputType} inputMode={inputType === 'number' ? 'decimal' : undefined} value={s} onChange={e => update(i, e.target.value)} placeholder={placeholder}
               style={{ width: 72, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 12, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)' }} />
+            <button onClick={() => remove(i)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14, padding: 0 }}>×</button>
+          </div>
+        ))}
+      </div>
+      <button type="button" className="btn btn-sm" onClick={add} style={{ fontSize: 11 }}>+ Add set</button>
+    </div>
+  )
+}
+
+// Two fields per set -- e.g. Watt Bike's Wattage + Distance, each with
+// its own appropriately-formatted input
+function DualSetInput({ sets, onChange, fields }) {
+  function update(i, field, val) {
+    const next = [...sets]
+    next[i] = { ...next[i], [field]: val }
+    onChange(next)
+  }
+  function add() { onChange([...sets, Object.fromEntries(fields.map(f => [f.key, '']))]) }
+  function remove(i) { onChange(sets.filter((_, idx) => idx !== i)) }
+  return (
+    <div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 6 }}>
+        {sets.map((s, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 10, color: 'var(--text-tertiary)', width: 14 }}>{i + 1}</span>
+            {fields.map(f => (
+              <input key={f.key} type={f.type || 'text'} inputMode={f.type === 'number' ? 'decimal' : undefined}
+                value={s[f.key] || ''} onChange={e => update(i, f.key, e.target.value)} placeholder={f.placeholder}
+                style={{ width: 78, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 12, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)' }} />
+            ))}
             <button onClick={() => remove(i)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14, padding: 0 }}>×</button>
           </div>
         ))}
@@ -110,10 +140,19 @@ function isWellbeingQComplete(key, w) {
 const RUN_CATEGORY_CARDS = [
   { key: 'Timed Sprints', label: 'Timed Sprints', icon: '⚡' },
   { key: 'Timed Distance Run', label: 'Timed Distance Run', icon: '🏁' },
+  { key: 'Interval Jog', label: 'Interval Jog', icon: '🔁', resultLabel: 'Distance covered (km)' },
 ]
 const RUN_PRESET_TESTS = {
   'Timed Sprints': ['30m', '40m', '50m', '100m', '200m', '300m', '400m', '800m'],
   'Timed Distance Run': ['2000m', '1600m', '4800m', '5000m', '10000m', '15000m'],
+  'Interval Jog': [
+    '1 min on 1 min jog track distance',
+    '1 min 30 sec on 1 min jog track distance',
+    '2 min on 1 min jog track distance',
+    '3 min on 1 min jog track distance',
+    '10 seconds on 10 seconds jog track distance',
+    '20 seconds on 20 seconds jog track distance',
+  ],
 }
 const WATT_BIKE_PRESETS = {
   output: ['10 seconds on 90 seconds off', '15 seconds on 90 seconds off', '10 seconds on 20 seconds off', '15 seconds on 30 seconds off'],
@@ -256,7 +295,7 @@ function computeModuleStats(sorted, key, subType) {
       entries = sorted.flatMap(s => toEntries(s.running)
         .filter(e => !subType || e.category === subType)
         .flatMap(e => (Array.isArray(e.sets) ? e.sets : []).filter(v => v !== '' && v != null).map(v => ({ date: s.session_date, value: v }))))
-      higherIsBetter = subType === 'Distance over time'
+      higherIsBetter = subType === 'Interval Jog'
     } else if (key === 'watt_bike') {
       entries = sorted.flatMap(s => toEntries(s.watt_bike)
         .filter(e => !subType || normalizeIntervalMode(e.interval_mode || e.type) === subType)
@@ -1900,6 +1939,7 @@ export default function AthleteProfiles() {
                     const entry = todaysRunning.find(e => e.category === expandedHomeRun) || { category: expandedHomeRun, test: '', sets: [] }
                     const upsert = updatedEntry => savePhysicalField('running', [...todaysRunning.filter(e => e.category !== expandedHomeRun), updatedEntry], setTodaysRunning)
                     const presets = RUN_PRESET_TESTS[expandedHomeRun] || []
+                    const cat = RUN_CATEGORY_CARDS.find(c => c.key === expandedHomeRun)
                     return (
                       <div ref={runPanelRef} className="card" style={{ marginBottom: 8 }}>
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
@@ -1917,8 +1957,9 @@ export default function AthleteProfiles() {
                               placeholder="Other…" style={{ width: 90, flexShrink: 0 }} />
                           </div>
                         </div>
-                        <div className="field" style={{ marginBottom: 0 }}><label>Results</label>
-                          <SetInput sets={entry.sets || []} onChange={sets => upsert({ ...entry, sets })} placeholder="e.g. 12.3" />
+                        <div className="field" style={{ marginBottom: 0 }}><label>{cat?.resultLabel || 'Results (time)'}</label>
+                          <SetInput sets={entry.sets || []} onChange={sets => upsert({ ...entry, sets })}
+                            inputType="number" placeholder={cat?.resultLabel ? 'e.g. 2.4' : 'e.g. 12.3'} />
                         </div>
                         {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>Saving…</p>}
                       </div>
@@ -1968,9 +2009,14 @@ export default function AthleteProfiles() {
                               placeholder="Other…" style={{ width: 90, flexShrink: 0 }} />
                           </div>
                         </div>
-                        <div className="field" style={{ marginBottom: 0 }}><label>Results (wattage)</label>
-                          <SetInput sets={(entry.sets || []).map(s => (s && typeof s === 'object') ? s.wattage : s)}
-                            onChange={sets => upsert({ ...entry, sets: sets.map(v => ({ wattage: v })) })} placeholder="e.g. 650" />
+                        <div className="field" style={{ marginBottom: 0 }}><label>Results — Wattage &amp; Distance</label>
+                          <DualSetInput
+                            sets={(entry.sets || []).map(s => (s && typeof s === 'object') ? s : { wattage: s, distance: '' })}
+                            onChange={sets => upsert({ ...entry, sets })}
+                            fields={[
+                              { key: 'wattage', type: 'number', placeholder: 'Watts e.g. 650' },
+                              { key: 'distance', type: 'number', placeholder: 'Distance km' },
+                            ]} />
                         </div>
                         {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>Saving…</p>}
                       </div>
