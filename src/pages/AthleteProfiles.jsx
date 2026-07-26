@@ -521,38 +521,48 @@ const BOX_DIVISIONS = ['Schoolboy', 'Schoolgirl', 'Junior', 'Youth', 'Elite', 'S
 
 
 // ── PDP Tab Component ──────────────────────────────────────────────────────
+// Consistent colour per column TYPE (not per category), so every
+// category's Notes/Maintain/To work on/Check column matches visually.
+const PDP_COLUMN_COLOURS = { notes: '#666666', maintain: '#1D9E75', work_on: '#EF9F27', what_to_do: '#8B5CF6' }
+
 const PDP_SECTIONS = [
   { key: 'winning_ways',          label: '🏆 Winning ways',             colour: '#1D9E75', coachOnly: false },
   { key: 'what_to_do',            label: '📋 What to do (general)',      colour: '#8B5CF6', coachOnly: false },
-  { key: 'psychology_maintain',   label: '🧠 Psychology — maintain',     colour: '#8B5CF6', coachOnly: true  },
-  { key: 'psychology_work_on',    label: '🧠 Psychology — work on',      colour: '#7C3AED', coachOnly: true  },
-  { key: 'psychology_what_to_do', label: '🧠 Psychology — what to do',   colour: '#A78BFA', coachOnly: true  },
-  { key: 'tech_maintain',         label: '⚙️ Technical — maintain',      colour: '#378ADD', coachOnly: true  },
-  { key: 'tech_work_on',          label: '⚙️ Technical — work on',       colour: '#EF9F27', coachOnly: true  },
-  { key: 'tech_what_to_do',       label: '⚙️ Technical — what to do',    colour: '#60A5FA', coachOnly: true  },
-  { key: 'tact_maintain',         label: '🎯 Tactical — maintain',       colour: '#1D9E75', coachOnly: true  },
-  { key: 'tact_work_on',          label: '🎯 Tactical — work on',        colour: '#E24B4A', coachOnly: true  },
-  { key: 'tact_what_to_do',       label: '🎯 Tactical — what to do',     colour: '#F87171', coachOnly: true  },
-  { key: 'physical_maintain',     label: '💪 Physical — maintain',       colour: '#1D9E75', coachOnly: true  },
-  { key: 'physical_work_on',      label: '💪 Physical — work on',        colour: '#059669', coachOnly: true  },
-  { key: 'physical_what_to_do',   label: '💪 Physical — what to do',     colour: '#34D399', coachOnly: true  },
-  { key: 'skill_maintain',        label: '🥋 Skill — maintain',          colour: '#185FA5', coachOnly: true  },
-  { key: 'skill_work_on',         label: '🥋 Skill — work on',           colour: '#0E7490', coachOnly: true  },
-  { key: 'skill_what_to_do',      label: '🥋 Skill — what to do',        colour: '#22D3EE', coachOnly: true  },
+  { key: 'psychology_notes',      label: '🧠 Psychology — notes',        colour: PDP_COLUMN_COLOURS.notes,      coachOnly: true },
+  { key: 'psychology_maintain',   label: '🧠 Psychology — maintain',     colour: PDP_COLUMN_COLOURS.maintain,   coachOnly: true },
+  { key: 'psychology_work_on',    label: '🧠 Psychology — work on',      colour: PDP_COLUMN_COLOURS.work_on,    coachOnly: true },
+  { key: 'psychology_what_to_do', label: '🧠 Psychology — check',        colour: PDP_COLUMN_COLOURS.what_to_do, coachOnly: true },
+  { key: 'tech_notes',            label: '⚙️ Technical — notes',         colour: PDP_COLUMN_COLOURS.notes,      coachOnly: true },
+  { key: 'tech_maintain',         label: '⚙️ Technical — maintain',      colour: PDP_COLUMN_COLOURS.maintain,   coachOnly: true },
+  { key: 'tech_work_on',          label: '⚙️ Technical — work on',       colour: PDP_COLUMN_COLOURS.work_on,    coachOnly: true },
+  { key: 'tech_what_to_do',       label: '⚙️ Technical — check',         colour: PDP_COLUMN_COLOURS.what_to_do, coachOnly: true },
+  { key: 'tact_notes',            label: '🎯 Tactical — notes',          colour: PDP_COLUMN_COLOURS.notes,      coachOnly: true },
+  { key: 'tact_maintain',         label: '🎯 Tactical — maintain',       colour: PDP_COLUMN_COLOURS.maintain,   coachOnly: true },
+  { key: 'tact_work_on',          label: '🎯 Tactical — work on',        colour: PDP_COLUMN_COLOURS.work_on,    coachOnly: true },
+  { key: 'tact_what_to_do',       label: '🎯 Tactical — check',          colour: PDP_COLUMN_COLOURS.what_to_do, coachOnly: true },
+  { key: 'physical_notes',        label: '💪 Physical — notes',          colour: PDP_COLUMN_COLOURS.notes,      coachOnly: true },
+  { key: 'physical_maintain',     label: '💪 Physical — maintain',       colour: PDP_COLUMN_COLOURS.maintain,   coachOnly: true },
+  { key: 'physical_work_on',      label: '💪 Physical — work on',        colour: PDP_COLUMN_COLOURS.work_on,    coachOnly: true },
+  { key: 'physical_what_to_do',   label: '💪 Physical — check',          colour: PDP_COLUMN_COLOURS.what_to_do, coachOnly: true },
+  { key: 'skill_notes',           label: '🥋 Skill — notes',             colour: PDP_COLUMN_COLOURS.notes,      coachOnly: true },
+  { key: 'skill_maintain',        label: '🥋 Skill — maintain',          colour: PDP_COLUMN_COLOURS.maintain,   coachOnly: true },
+  { key: 'skill_work_on',         label: '🥋 Skill — work on',           colour: PDP_COLUMN_COLOURS.work_on,    coachOnly: true },
+  { key: 'skill_what_to_do',      label: '🥋 Skill — check',             colour: PDP_COLUMN_COLOURS.what_to_do, coachOnly: true },
   { key: 'athlete_notes',         label: '📝 Your notes',                colour: '#185FA5', coachOnly: false },
   { key: 'notes',                 label: '📝 Coach notes',               colour: '#666',    coachOnly: true  },
 ]
 
-// Groups of 3 sections (Maintain / To work on / What to do) rendered
-// side by side as equal-width columns for each category, coach view.
+// Groups of 4 sections (Notes / Maintain / To work on / Check) shown
+// as a horizontally-scrollable row for each category, 3 visible at a
+// time, coach view.
 const PDP_CATEGORY_GROUPS = [
-  { label: 'Psychology', keys: ['psychology_maintain', 'psychology_work_on', 'psychology_what_to_do'] },
-  { label: 'Technical',  keys: ['tech_maintain', 'tech_work_on', 'tech_what_to_do'] },
-  { label: 'Tactical',   keys: ['tact_maintain', 'tact_work_on', 'tact_what_to_do'] },
-  { label: 'Physical',   keys: ['physical_maintain', 'physical_work_on', 'physical_what_to_do'] },
-  { label: 'Skill',      keys: ['skill_maintain', 'skill_work_on', 'skill_what_to_do'] },
+  { label: 'Psychology', keys: ['psychology_notes', 'psychology_maintain', 'psychology_work_on', 'psychology_what_to_do'] },
+  { label: 'Technical',  keys: ['tech_notes', 'tech_maintain', 'tech_work_on', 'tech_what_to_do'] },
+  { label: 'Tactical',   keys: ['tact_notes', 'tact_maintain', 'tact_work_on', 'tact_what_to_do'] },
+  { label: 'Physical',   keys: ['physical_notes', 'physical_maintain', 'physical_work_on', 'physical_what_to_do'] },
+  { label: 'Skill',      keys: ['skill_notes', 'skill_maintain', 'skill_work_on', 'skill_what_to_do'] },
 ]
-// "What to do" columns get checkable pills to mark items done
+// "Check" columns get checkable pills to mark items done
 const PDP_CHECKABLE_SECTIONS = new Set(PDP_CATEGORY_GROUPS.flatMap(g => g.keys.filter(k => k.endsWith('what_to_do'))))
 
 function PDPTab({ apData, setApData, student, isAdmin }) {
@@ -666,6 +676,28 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
     setApData(a => ({ ...a, pdp_notes: updated }))
   }
 
+  async function deleteSection(section) {
+    const label = pdp[`__meta_${section.key}`]?.label || section.label
+    const itemCount = (pdp[section.key] || []).length
+    const confirmMsg = itemCount > 0
+      ? `Delete "${label}"? This will clear ${itemCount} note${itemCount === 1 ? '' : 's'}. You can undo this afterwards.`
+      : `Delete "${label}"?`
+    if (!confirm(confirmMsg)) return
+
+    setPdpHistory(prev => [...prev.slice(-9), pdp]) // so it can be undone
+    const updated = { ...pdp, [section.key]: [] }
+    const isCustom = customSections.some(s => s.key === section.key)
+    if (isCustom) {
+      delete updated[`__meta_${section.key}`]
+      if (updated.section_order) updated.section_order = updated.section_order.filter(k => k !== section.key)
+    }
+    const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: updated }, { onConflict: 'student_id' })
+    if (error) { alert('Error deleting section: ' + error.message); return }
+    if (isCustom) setCustomSections(prev => prev.filter(s => s.key !== section.key))
+    setApData(a => ({ ...a, pdp_notes: updated }))
+    if (editSection === section.key) setEditSection(null)
+  }
+
   async function addSection() {
     const newKey = 'custom_' + Date.now()
     const newSection = { key: newKey, label: '📝 New section', colour: '#378ADD', coachOnly: false }
@@ -684,6 +716,14 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
     const updated = { ...pdp, [`__meta_${editSectionMeta.key}`]: { label: editSectionMeta.label, colour: editSectionMeta.colour } }
     const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: updated }, { onConflict: 'student_id' })
     if (error) { alert('Error saving section title/colour: ' + error.message); return }
+    setApData(a => ({ ...a, pdp_notes: updated }))
+  }
+
+  async function quickChangeColour(section, colour) {
+    const meta = pdp[`__meta_${section.key}`]
+    const updated = { ...pdp, [`__meta_${section.key}`]: { label: meta?.label || section.label, colour } }
+    const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: updated }, { onConflict: 'student_id' })
+    if (error) { alert('Error changing colour: ' + error.message); return }
     setApData(a => ({ ...a, pdp_notes: updated }))
   }
 
@@ -758,7 +798,13 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
         ref={isEditing ? editingCardRef : null}
         draggable
         onDragStart={e => e.dataTransfer.setData('pdp-section', section.key)}
-        onDragOver={e => { e.preventDefault(); e.currentTarget.style.outline = `2px dashed ${sectionColour}` }}
+        onDragOver={e => {
+          e.preventDefault()
+          e.currentTarget.style.outline = `2px dashed ${sectionColour}`
+          const margin = 80
+          if (e.clientY < margin) window.scrollBy(0, -10)
+          if (e.clientY > window.innerHeight - margin) window.scrollBy(0, 10)
+        }}
         onDragLeave={e => { e.currentTarget.style.outline = 'none' }}
         onDrop={e => {
           e.preventDefault()
@@ -781,11 +827,15 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
         <div style={{ marginBottom: isEditing ? 12 : items.length ? 8 : 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
             <span style={{ cursor: 'grab', color: 'var(--text-tertiary)', fontSize: 16, lineHeight: 1, userSelect: 'none' }}>⋮⋮</span>
-            <h3 style={{ fontSize: 13, fontWeight: 600, color: sectionColour, margin: 0 }}>
+            <h3 style={{ fontSize: 13, fontWeight: 600, color: sectionColour, margin: 0, flex: 1 }}>
               {sectionLabel}
               {section.coachOnly && <span style={{ fontSize: 9, color: 'var(--text-tertiary)', marginLeft: 6, fontWeight: 400 }}>coach only</span>}
               {isShared && !section.coachOnly && <span style={{ fontSize: 9, color: '#1d9e75', marginLeft: 6 }}>✓ shared</span>}
             </h3>
+            <input type="color" value={sectionColour} onClick={e => e.stopPropagation()}
+              onChange={e => quickChangeColour(section, e.target.value)}
+              title="Change column colour"
+              style={{ width: 20, height: 20, padding: 0, border: 'none', borderRadius: 4, cursor: 'pointer', flexShrink: 0 }} />
           </div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
             {items.length > 0 && (
@@ -796,6 +846,9 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
             )}
             {!isEditing && (
               <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => duplicateSection(section)} title="Duplicate section">⧉</button>
+            )}
+            {!isEditing && (
+              <button className="btn btn-sm" style={{ fontSize: 10, color: '#E24B4A' }} onClick={() => deleteSection(section)} title="Delete section">🗑</button>
             )}
             <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => isEditing ? setEditSection(null) : startEdit(section)}>
               {isEditing ? 'Cancel' : items.length ? 'Edit' : '+ Add'}
@@ -1137,10 +1190,14 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
                 rendered.push(
                   <div key={`group-${group.label}`} style={{ marginBottom: 10 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-tertiary)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>{group.label}</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                    <div style={{ display: 'flex', overflowX: 'auto', gap: 10, scrollSnapType: 'x mandatory', paddingBottom: 4 }}>
                       {group.keys.map(key => {
                         const sec = allSections.find(s => s.key === key)
-                        return sec ? <div key={key} style={{ minWidth: 0 }}>{renderPDPSectionCard(sec)}</div> : null
+                        return sec ? (
+                          <div key={key} style={{ flex: '0 0 calc(33.333% - 7px)', minWidth: 0, scrollSnapAlign: 'start' }}>
+                            {renderPDPSectionCard(sec)}
+                          </div>
+                        ) : null
                       })}
                     </div>
                   </div>
