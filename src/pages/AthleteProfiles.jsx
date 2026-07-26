@@ -1090,6 +1090,8 @@ export default function AthleteProfiles() {
   const [stretchOptionsList, setStretchOptionsList] = useState([])
   const [expandedHomeRun, setExpandedHomeRun] = useState(null)
   const [showPhysicalSection, setShowPhysicalSection] = useState(false)
+  const [showTestSection, setShowTestSection] = useState(false)
+  const testSectionRef = useRef(null)
   const physicalSectionRef = useRef(null)
   const runPanelRef = useRef(null)
   const wattPanelRef = useRef(null)
@@ -1123,6 +1125,18 @@ export default function AthleteProfiles() {
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [showPhysicalSection])
+
+  useEffect(() => {
+    if (!showTestSection) return
+    function handleClick(e) {
+      if (testSectionRef.current && !testSectionRef.current.contains(e.target)) {
+        setShowTestSection(false)
+        setExpandedHomeTestCategory(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showTestSection])
 
   useEffect(() => {
     if (!expandedHomeRun) return
@@ -2206,10 +2220,21 @@ export default function AthleteProfiles() {
                   </div>
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
-                    <ModuleButton b={modules[4]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setRunChartFilter={setRunChartFilter} studentId={selected?.id} />
-                  </div>
+                  <div ref={testSectionRef}>
+                  <button type="button" onClick={() => { setShowTestSection(v => { if (v) setExpandedHomeTestCategory(null); return !v }) }} style={{
+                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    textAlign: 'center', padding: '10px 8px', marginBottom: 8, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                    background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                  }}>
+                    <span style={{ fontSize: 18 }}>📋</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Notes</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{showTestSection ? '▲' : '▼'}</span>
+                  </button>
 
+                  <div style={{
+                    overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
+                    maxHeight: showTestSection ? 4000 : 0, opacity: showTestSection ? 1 : 0,
+                  }}>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeTestCategory ? 10 : 8 }}>
                     {TEST_CATEGORIES.map(cat => {
                       const complete = cat.tests.some(t => todaysTest[t.name] != null && todaysTest[t.name] !== '')
@@ -2246,6 +2271,8 @@ export default function AthleteProfiles() {
                       </div>
                     )
                   })()}
+                  </div>
+                  </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
                     {modules2.slice(0, -1).map(b => (
