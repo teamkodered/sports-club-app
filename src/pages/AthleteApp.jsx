@@ -433,10 +433,11 @@ export default function AthleteApp() {
   const wattPanelRef = useRef(null)
   const bodyweightPanelRef = useRef(null)
   const stretchPanelRef = useRef(null)
-  const [showRunCards, setShowRunCards] = useState(false)
-  const [showWattCards, setShowWattCards] = useState(false)
-  const [showBodyweightCards, setShowBodyweightCards] = useState(false)
-  const [showStretchCards, setShowStretchCards] = useState(false)
+  const [activePhysicalCategory, setActivePhysicalCategory] = useState(null)
+  const showRunCards = activePhysicalCategory === 'running'
+  const showWattCards = activePhysicalCategory === 'watt_bike'
+  const showBodyweightCards = activePhysicalCategory === 'bodyweight'
+  const showStretchCards = activePhysicalCategory === 'stretch'
   const [expandedHomeWatt, setExpandedHomeWatt] = useState(null)
   const [expandedHomeBodyweight, setExpandedHomeBodyweight] = useState(null)
   const [expandedHomeStretch, setExpandedHomeStretch] = useState(null)
@@ -449,6 +450,7 @@ export default function AthleteApp() {
     function handleClick(e) {
       if (physicalSectionRef.current && !physicalSectionRef.current.contains(e.target)) {
         setShowPhysicalSection(false)
+        setActivePhysicalCategory(null)
         setExpandedHomeRun(null)
         setExpandedHomeWatt(null)
         setExpandedHomeBodyweight(null)
@@ -902,8 +904,7 @@ export default function AthleteApp() {
                   { key: 'wellbeing',      label: 'Wellbeing',      icon: '🌱' },
                 ]
                 const togglePhysicalLog = key => {
-                  const setters = { running: setShowRunCards, watt_bike: setShowWattCards, bodyweight: setShowBodyweightCards, stretch: setShowStretchCards }
-                  setters[key]?.(v => !v)
+                  setActivePhysicalCategory(cur => cur === key ? null : key)
                 }
                 // Opens one Physical detail panel and explicitly closes the
                 // other three, so only one is ever open at a time --
@@ -917,7 +918,7 @@ export default function AthleteApp() {
                 }
                 const togglePhysicalSection = () => {
                   setShowPhysicalSection(v => {
-                    if (v) openOnlyPhysicalPanel(null, null) // closing -- reset any open detail panel too
+                    if (v) { openOnlyPhysicalPanel(null, null); setActivePhysicalCategory(null) } // closing -- reset any open detail panel/category too
                     return !v
                   })
                 }
