@@ -1036,7 +1036,7 @@ export default function AthleteApp() {
                       <ModuleButton b={modules[1]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} onToggleLog={togglePhysicalLog} />
                     </div>
                     {showRunCards && (
-                    <>
+                    <div ref={runPanelRef}>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeRun ? 10 : 8 }}>
                       {RUN_CATEGORY_CARDS.map(cat => {
                         const complete = todaysRunning.some(e => e.category === cat.key)
@@ -1060,7 +1060,7 @@ export default function AthleteApp() {
                       const presets = RUN_PRESET_TESTS[expandedHomeRun] || []
                       const cat = RUN_CATEGORY_CARDS.find(c => c.key === expandedHomeRun)
                       return (
-                        <div ref={runPanelRef} className="card" style={{ marginBottom: 8 }}>
+                        <div className="card" style={{ marginBottom: 8 }}>
                           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                             <button type="button" className="btn btn-sm" style={{ fontSize: 11 }}
                               onClick={() => savePhysicalField('running', todaysRunning.filter(e => e.category !== expandedHomeRun), setTodaysRunning)}>✕ Clear</button>
@@ -1089,11 +1089,11 @@ export default function AthleteApp() {
                         </div>
                       )
                     })()}
-                    </>
+                    </div>
                     )}
 
                     {showWattCards && (
-                    <>
+                    <div ref={wattPanelRef}>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeWatt ? 10 : 8 }}>
                       {WATT_BIKE_GROUPS.map(grp => {
                         const complete = todaysWattBike.some(e => grp.match(e.interval_mode || e.type))
@@ -1117,7 +1117,7 @@ export default function AthleteApp() {
                       const entry = todaysWattBike.find(e => grp.match(e.interval_mode || e.type)) || { interval_mode: '', sets: [] }
                       const upsert = updatedEntry => savePhysicalField('watt_bike', [...todaysWattBike.filter(e => !grp.match(e.interval_mode || e.type)), updatedEntry], setTodaysWattBike)
                       return (
-                        <div ref={wattPanelRef} className="card" style={{ marginBottom: 8 }}>
+                        <div className="card" style={{ marginBottom: 8 }}>
                           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                             <button type="button" className="btn btn-sm" style={{ fontSize: 11 }}
                               onClick={() => savePhysicalField('watt_bike', todaysWattBike.filter(e => !grp.match(e.interval_mode || e.type)), setTodaysWattBike)}>✕ Clear</button>
@@ -1149,7 +1149,7 @@ export default function AthleteApp() {
                         </div>
                       )
                     })()}
-                    </>
+                    </div>
                     )}
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
@@ -1157,7 +1157,7 @@ export default function AthleteApp() {
                       <ModuleButton b={modules[3]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} onToggleLog={togglePhysicalLog} />
                     </div>
                     {showBodyweightCards && (
-                    <>
+                    <div ref={bodyweightPanelRef}>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeBodyweight ? 10 : 8 }}>
                       {BODYWEIGHT_GROUPS.map(grp => {
                         const complete = todaysBodyweight.some(e => grp.match(e.type))
@@ -1181,7 +1181,7 @@ export default function AthleteApp() {
                       const entry = todaysBodyweight.find(e => grp.match(e.type)) || { type: '', sets: [] }
                       const upsert = updatedEntry => savePhysicalField('bodyweight', [...todaysBodyweight.filter(e => !grp.match(e.type)), updatedEntry], setTodaysBodyweight)
                       return (
-                        <div ref={bodyweightPanelRef} className="card" style={{ marginBottom: 8 }}>
+                        <div className="card" style={{ marginBottom: 8 }}>
                           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                             <button type="button" className="btn btn-sm" style={{ fontSize: 11 }}
                               onClick={() => savePhysicalField('bodyweight', todaysBodyweight.filter(e => !grp.match(e.type)), setTodaysBodyweight)}>✕ Clear</button>
@@ -1201,11 +1201,11 @@ export default function AthleteApp() {
                         </div>
                       )
                     })()}
-                    </>
+                    </div>
                     )}
 
                     {showStretchCards && (
-                    <>
+                    <div ref={stretchPanelRef}>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeStretch ? 10 : 8 }}>
                       {[0,1,2].map(i => {
                         const complete = !!todaysStretches[i]
@@ -1224,7 +1224,7 @@ export default function AthleteApp() {
                       })}
                     </div>
                     {expandedHomeStretch != null && (
-                      <div ref={stretchPanelRef} className="card" style={{ marginBottom: 8 }}>
+                      <div className="card" style={{ marginBottom: 8 }}>
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                           <button type="button" className="btn btn-sm" style={{ fontSize: 11 }}
                             onClick={() => { const next = [...todaysStretches]; next[expandedHomeStretch] = ''; savePhysicalField('stretch_flows', next, setTodaysStretches) }}>✕ Clear</button>
@@ -1239,7 +1239,7 @@ export default function AthleteApp() {
                         {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>Saving…</p>}
                       </div>
                     )}
-                    </>
+                    </div>
                     )}
                     </div>
                     </div>
