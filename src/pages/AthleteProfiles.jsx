@@ -86,6 +86,28 @@ function DualSetInput({ sets, onChange, fields }) {
   )
 }
 
+// Manual interval builder: separate "seconds on" / "seconds off" number
+// boxes, combined into the same "X seconds on Y seconds off" text used
+// by the presets, so it stores and displays identically either way.
+function OnOffInput({ onAdd }) {
+  const [on, setOn] = useState('')
+  const [off, setOff] = useState('')
+  function submit() {
+    if (!on || !off) return
+    onAdd(`${on} seconds on ${off} seconds off`)
+    setOn(''); setOff('')
+  }
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <input type="number" inputMode="decimal" value={on} onChange={e => setOn(e.target.value)} placeholder="Seconds on"
+        style={{ width: 82, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 12, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)' }} />
+      <input type="number" inputMode="decimal" value={off} onChange={e => setOff(e.target.value)} placeholder="Seconds off"
+        style={{ width: 82, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 12, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)' }} />
+      <button type="button" className="btn btn-sm" disabled={!on || !off} onClick={submit} style={{ fontSize: 11 }}>Add</button>
+    </div>
+  )
+}
+
 function MacroPie({ carbs, fat, protein, size = 76 }) {
   const total = carbs + fat + protein || 1
   const r = size / 2 - 7
@@ -140,18 +162,19 @@ function isWellbeingQComplete(key, w) {
 const RUN_CATEGORY_CARDS = [
   { key: 'Timed Sprints', label: 'Timed Sprints', icon: '⚡' },
   { key: 'Timed Distance Run', label: 'Timed Distance Run', icon: '🏁' },
-  { key: 'Interval Jog', label: 'Interval Jog', icon: '🔁', resultLabel: 'Distance covered (km)' },
+  { key: 'Interval', label: 'Interval', icon: '🔁', resultLabel: 'Distance covered (km)', hasOnOffInput: true },
 ]
 const RUN_PRESET_TESTS = {
-  'Timed Sprints': ['30m', '40m', '50m', '100m', '200m', '300m', '400m', '800m'],
+  'Timed Sprints': ['30m', '40m', '50m', '100m', '200m', '300m', '400m', '600m', '800m'],
   'Timed Distance Run': ['2000m', '1600m', '4800m', '5000m', '10000m', '15000m'],
-  'Interval Jog': [
+  'Interval': [
     '1 min on 1 min jog track distance',
     '1 min 30 sec on 1 min jog track distance',
     '2 min on 1 min jog track distance',
     '3 min on 1 min jog track distance',
     '10 seconds on 10 seconds jog track distance',
     '20 seconds on 20 seconds jog track distance',
+    'Suicides 20 seconds on 10 seconds off',
   ],
 }
 const WATT_BIKE_PRESETS = {
@@ -295,7 +318,7 @@ function computeModuleStats(sorted, key, subType) {
       entries = sorted.flatMap(s => toEntries(s.running)
         .filter(e => !subType || e.category === subType)
         .flatMap(e => (Array.isArray(e.sets) ? e.sets : []).filter(v => v !== '' && v != null).map(v => ({ date: s.session_date, value: v }))))
-      higherIsBetter = subType === 'Interval Jog'
+      higherIsBetter = subType === 'Interval'
     } else if (key === 'watt_bike') {
       entries = sorted.flatMap(s => toEntries(s.watt_bike)
         .filter(e => !subType || normalizeIntervalMode(e.interval_mode || e.type) === subType)
@@ -1956,6 +1979,11 @@ export default function AthleteProfiles() {
                               onBlur={e => e.target.value && upsert({ ...entry, test: e.target.value })}
                               placeholder="Other…" style={{ width: 90, flexShrink: 0 }} />
                           </div>
+                          {cat?.hasOnOffInput && (
+                            <div style={{ marginTop: 8 }}>
+                              <OnOffInput onAdd={val => upsert({ ...entry, test: val })} />
+                            </div>
+                          )}
                         </div>
                         <div className="field" style={{ marginBottom: 0 }}><label>{cat?.resultLabel || 'Results (time)'}</label>
                           <SetInput sets={entry.sets || []} onChange={sets => upsert({ ...entry, sets })}
@@ -2007,6 +2035,9 @@ export default function AthleteProfiles() {
                             <input defaultValue={presets.includes(normalizeIntervalMode(entry.interval_mode)) ? '' : (entry.interval_mode || '')}
                               onBlur={e => e.target.value && upsert({ ...entry, interval_mode: e.target.value })}
                               placeholder="Other…" style={{ width: 90, flexShrink: 0 }} />
+                          </div>
+                          <div style={{ marginTop: 8 }}>
+                            <OnOffInput onAdd={val => upsert({ ...entry, interval_mode: val })} />
                           </div>
                         </div>
                         <div className="field" style={{ marginBottom: 0 }}><label>Results — Wattage &amp; Distance</label>
