@@ -38,7 +38,7 @@ export default function Dashboard() {
         { data: recentPoints },
         { data: checkIns },
         { count: todayCount },
-        { data: athleteRows },
+        { count: athleteCount },
       ] = await Promise.all([
         supabase.from('members').select('id', { count: 'exact', head: true }).eq('status', 'active'),
         supabase.from('students').select('id, members!inner(status)', { count: 'exact', head: true }).neq('members.status', 'stopped').neq('members.status', 'not_started'),
@@ -47,14 +47,8 @@ export default function Dashboard() {
         supabase.from('points_log').select('*, student_id, students(member_id, is_kr, is_pts, discipline, members(first_name, last_name))').order('awarded_at', { ascending: false }).limit(8),
         supabase.from('attendance').select('id', { count: 'exact', head: true }).gte('attended_at', monthAgo),
         supabase.from('attendance').select('id', { count: 'exact', head: true }).eq('session_date', today),
-        supabase.from('students').select('id, member_id, members!inner(status)').or('is_kr.eq.true,discipline.eq.KRBA').eq('members.status', 'active'),
+        supabase.from('students').select('id', { count: 'exact', head: true }).or('is_kr.eq.true,is_pts.eq.true,discipline.eq.KRBA'),
       ])
-
-      // De-duplicate by member_id in case a member has more than one
-      // student record (a data-entry duplicate), so the count reflects
-      // unique active athletes, not raw student rows.
-      const uniqueAthleteMemberIds = new Set((athleteRows || []).map(s => s.member_id))
-      const athleteCount = uniqueAthleteMemberIds.size
 
       setStats({ memberCount: memberCount || 0, studentCount: studentCount || 0, checkIns: checkIns?.count || 0, todayCount: todayCount || 0, athleteCount: athleteCount || 0 })
       setStandings(houses || [])
