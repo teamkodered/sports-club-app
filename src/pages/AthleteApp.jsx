@@ -537,6 +537,8 @@ export default function AthleteApp() {
   const [showPhysicalSection, setShowPhysicalSection] = useState(false)
   const [showTestSection, setShowTestSection] = useState(false)
   const testSectionRef = useRef(null)
+  const [showMentalitySection, setShowMentalitySection] = useState(false)
+  const mentalitySectionRef = useRef(null)
   const physicalSectionRef = useRef(null)
   const runPanelRef = useRef(null)
   const wattPanelRef = useRef(null)
@@ -582,6 +584,18 @@ export default function AthleteApp() {
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [showTestSection])
+
+  useEffect(() => {
+    if (!showMentalitySection) return
+    function handleClick(e) {
+      if (mentalitySectionRef.current && !mentalitySectionRef.current.contains(e.target)) {
+        setShowMentalitySection(false)
+        setExpandedHomeMentality(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showMentalitySection])
 
   useEffect(() => {
     if (!expandedHomeRun) return
@@ -1370,10 +1384,21 @@ export default function AthleteApp() {
                     </div>
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
-                      <ModuleButton b={modules[modules.length - 2]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} />
-                    </div>
+                    <div ref={mentalitySectionRef}>
+                    <button type="button" onClick={() => { setShowMentalitySection(v => { if (v) setExpandedHomeMentality(null); return !v }) }} style={{
+                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      textAlign: 'center', padding: '10px 8px', marginBottom: 8, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                      background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                    }}>
+                      <span style={{ fontSize: 18 }}>🧠</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Mentality</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{showMentalitySection ? '▲' : '▼'}</span>
+                    </button>
 
+                    <div style={{
+                      overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
+                      maxHeight: showMentalitySection ? 4000 : 0, opacity: showMentalitySection ? 1 : 0,
+                    }}>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeMentality ? 10 : 8 }}>
                       {MENTALITY_QUESTIONS.map(q => {
                         const complete = isMentalityQComplete(q.key, todaysMentalityLog)
@@ -1522,6 +1547,8 @@ export default function AthleteApp() {
                         {savingMentalityLog && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>Saving…</p>}
                       </div>
                     )}
+                    </div>
+                    </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
                       <ModuleButton b={modules[modules.length - 1]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} />
