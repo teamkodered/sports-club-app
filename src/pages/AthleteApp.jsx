@@ -206,6 +206,31 @@ function bodyweightMatchesGroup(e, grpKey) {
   return grpKey === 'compounds'
 }
 
+// Each Stretch flow is a fixed named sequence -- the card tracks
+// whether the whole flow was completed, not each individual stretch.
+// Multiple flows can be marked complete independently of each other.
+const STRETCH_FLOWS = [
+  { label: 'Stretch flow one', timing: '40 seconds on 20 seconds off', stretches: [
+    'Sumo stretch', 'Side lunge stretch (left and right)', 'Lunge stretch (left and right)',
+    'Standing - Feet apart toe-touch (left and right)', 'Box Splits Stretch',
+    'Box Splits Stretch forward and backward', 'Front Splits (left in front and right in front)',
+    'Standing toe-touch stretch',
+  ]},
+  { label: 'Stretch flow two', timing: '40 seconds on 20 seconds off', stretches: [
+    'Seated toe-touch stretch', 'Seated splits forward', 'Seated splits (left and right)',
+    'Butterfly stretch', 'Teddy bear stretch (left and right)', 'Frog Splits',
+    'Frog Splits forward', 'Frog Splits backward', 'Extended frog (left and right)',
+    'Pigeon Stretch (left and right)', 'King pigeon stretch (left and right)',
+  ]},
+  { label: 'Stretch flow three', timing: '40 seconds on 20 seconds off', stretches: [
+    'Look up neck stretch', 'Look down neck stretch', 'Head tilt (left and right)',
+    'Head rotation (left and right)', 'Arms in front tank stretch',
+    'Arm across the body (left and right)', 'Hand down the back (left and right)',
+    'Kneel over hands in forearm stretch', 'Kneel over reach through shoulder stretch',
+    'Spiderman lunge rotation and reach both directions (left and right)',
+  ]},
+]
+
 const TEST_CATEGORIES = [
   { key: 'bleep', label: 'Bleep test', icon: '🏃', tests: [
     { name: 'Bleep test', unit: 'level' },
@@ -523,6 +548,7 @@ export default function AthleteApp() {
   const [expandedHomeWatt, setExpandedHomeWatt] = useState(null)
   const [expandedHomeBodyweight, setExpandedHomeBodyweight] = useState(null)
   const [expandedHomeStretch, setExpandedHomeStretch] = useState(null)
+  const [stretchInfoOpen, setStretchInfoOpen] = useState({})
 
   // Clicking outside the Physical section collapses the whole thing;
   // clicking outside an open detail panel (but still inside Physical)
@@ -1246,39 +1272,43 @@ export default function AthleteApp() {
 
                     {showStretchCards && (
                     <div ref={stretchPanelRef}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeStretch ? 10 : 8 }}>
-                      {[0,1,2].map(i => {
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 10 }}>
+                      {STRETCH_FLOWS.map((flow, i) => {
                         const complete = !!todaysStretches[i]
-                        const active = expandedHomeStretch === i
                         return (
-                          <button key={i} type="button" onClick={() => openOnlyPhysicalPanel('stretch', active ? null : i)} style={{
-                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
-                            borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                            border: `2px solid ${active ? colour : complete ? '#EF9F27' : 'var(--border)'}`,
-                            background: complete ? '#EF9F2712' : 'var(--bg-secondary)',
-                          }}>
-                            <span style={{ fontSize: 16 }}>🤸</span>
-                            <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>Stretch flow {i+1}</span>
+                          <button key={i} type="button"
+                            onClick={() => { const next = [...todaysStretches]; next[i] = complete ? '' : flow.label; savePhysicalField('stretch_flows', next, setTodaysStretches) }}
+                            style={{
+                              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
+                              borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                              border: `2px solid ${complete ? '#EF9F27' : 'var(--border)'}`,
+                              background: complete ? '#EF9F2712' : 'var(--bg-secondary)',
+                            }}>
+                            <span style={{ fontSize: 16 }}>{complete ? '✓' : '🤸'}</span>
+                            <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{flow.label}</span>
                           </button>
                         )
                       })}
                     </div>
-                    {expandedHomeStretch != null && (
-                      <div className="card" style={{ marginBottom: 8 }}>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-                          <button type="button" className="btn btn-sm" style={{ fontSize: 11 }}
-                            onClick={() => { const next = [...todaysStretches]; next[expandedHomeStretch] = ''; savePhysicalField('stretch_flows', next, setTodaysStretches) }}>✕ Clear</button>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+                      {STRETCH_FLOWS.map((flow, i) => (
+                        <div key={i}>
+                          <button type="button" className="btn btn-sm" style={{ fontSize: 11, width: '100%', justifyContent: 'space-between' }}
+                            onClick={() => setStretchInfoOpen(s => ({ ...s, [i]: !s[i] }))}>
+                            <span>{flow.label} — {flow.timing}</span>
+                            <span>{stretchInfoOpen[i] ? '▲' : '▼'}</span>
+                          </button>
+                          {stretchInfoOpen[i] && (
+                            <div className="card" style={{ marginTop: 6, fontSize: 12 }}>
+                              <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+                                {flow.stretches.map(s => <li key={s}>{s}</li>)}
+                              </ul>
+                            </div>
+                          )}
                         </div>
-                        <div className="field" style={{ marginBottom: 0 }}><label>Stretch performed</label>
-                          <select value={todaysStretches[expandedHomeStretch] || ''}
-                            onChange={e => { const next = [...todaysStretches]; next[expandedHomeStretch] = e.target.value; savePhysicalField('stretch_flows', next, setTodaysStretches) }}>
-                            <option value="">Select…</option>
-                            {stretchOptionsList.map(s => <option key={s}>{s}</option>)}
-                          </select>
-                        </div>
-                        {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>Saving…</p>}
-                      </div>
-                    )}
+                      ))}
+                    </div>
+                    {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8 }}>Saving…</p>}
                     </div>
                     )}
                     </div>
