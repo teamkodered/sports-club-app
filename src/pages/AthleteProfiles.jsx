@@ -1070,6 +1070,7 @@ export default function AthleteProfiles() {
   const [allClasses, setAllClasses] = useState([])
   const [addingClassId, setAddingClassId] = useState('')
   const [savingClassAssignment, setSavingClassAssignment] = useState(false)
+  const [sessionsBreakdownRange, setSessionsBreakdownRange] = useState('month')
   const [f2fStatsScope, setF2fStatsScope] = useState(0) // cycles through scope options
   const [f2fModule, setF2fModule] = useState(null) // 'watt_bike' | '10k' | 'circuit' | 'bleep' | 'grip'
   const [moduleSubType, setModuleSubType] = useState({}) // key -> currently selected sub-type per module
@@ -3146,15 +3147,16 @@ export default function AthleteProfiles() {
                               const attended = attendedDays.has(dateStr)
                               const explicitlyAbsent = explicitlyAbsentDays.has(dateStr)
                               const wasTrainingDay = allTrainingDays.has(dateStr)
-                              const bg = attended ? '#1D9E75' : explicitlyAbsent ? '#E24B4A' : 'transparent'
-                              const fg = attended || explicitlyAbsent ? '#fff' : 'var(--text-secondary)'
+                              const showAsRed = explicitlyAbsent || (wasTrainingDay && !attended)
+                              const bg = attended ? '#1D9E75' : showAsRed ? '#E24B4A' : 'transparent'
+                              const fg = attended || showAsRed ? '#fff' : 'var(--text-secondary)'
                               return (
                                 <button key={i} type="button" onClick={() => cycleAttendanceDay(dateStr)}
-                                  title={attended ? 'Attended — click to mark absent' : explicitlyAbsent ? 'Marked absent — click to clear' : wasTrainingDay ? 'A session happened this day — click to mark attended' : 'Click to mark attended'}
+                                  title={attended ? 'Attended — click to mark absent' : explicitlyAbsent ? 'Marked absent — click to clear' : wasTrainingDay ? 'Missed (a session happened this day) — click to mark attended' : 'Click to mark attended'}
                                   style={{
                                     aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     borderRadius: 6, fontSize: 12, background: bg, color: fg, cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                                    border: !attended && !explicitlyAbsent ? `1px solid ${wasTrainingDay ? 'var(--border-strong)' : 'var(--border)'}` : 'none',
+                                    border: !attended && !showAsRed ? '1px solid var(--border)' : 'none',
                                   }}>{d}</button>
                               )
                             })}
@@ -3163,7 +3165,7 @@ export default function AthleteProfiles() {
                             <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#1D9E75', borderRadius: 2, marginRight: 4 }} />Attended</span>
                             <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#E24B4A', borderRadius: 2, marginRight: 4 }} />Absent</span>
                           </div>
-                          <p style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 6 }}>Tap a date to cycle: blank → attended → absent → blank.</p>
+                          <p style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 6 }}>Red shows automatically for missed sessions, or tap any date to mark attended/absent/clear.</p>
                         </>
                       )
                     })()}
@@ -3176,7 +3178,12 @@ export default function AthleteProfiles() {
                       <p style={{ fontSize: 13, color: 'var(--text-tertiary)', marginBottom: 12 }}>No classes assigned yet.</p>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-                        {assignedClasses.map(a => (
+                        {assignedClasses.slice().sort((a, b) => {
+                          const DAY_ORDER = ['Monday','Mon/Fri','Tuesday','Tue/Thu','Wednesday','Saturday','Sunday','Derby Moore','Moorways']
+                          const da = DAY_ORDER.indexOf(a.classes?.day_of_week), db = DAY_ORDER.indexOf(b.classes?.day_of_week)
+                          if (da !== db) return da - db
+                          return (a.classes?.start_time || '').localeCompare(b.classes?.start_time || '')
+                        }).map(a => (
                           <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
                             <div>
                               <div style={{ fontSize: 13, fontWeight: 600 }}>{a.classes?.name}</div>
@@ -3195,7 +3202,8 @@ export default function AthleteProfiles() {
                       <div style={{ display: 'flex', gap: 8 }}>
                         <select value={addingClassId} onChange={e => setAddingClassId(e.target.value)} style={{ flex: 1 }}>
                           <option value="">Add a class/session…</option>
-                          {allClasses.filter(c => !assignedClasses.some(a => a.class_id === c.id)).map(c => (
+                          {allClasses.filter(c => !assignedClasses.some(a => a.class_id === c.id))
+                            .slice().sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(c => (
                             <option key={c.id} value={c.id}>{c.name} — {c.day_of_week} {c.start_time?.slice(0,5)}</option>
                           ))}
                         </select>
@@ -3203,6 +3211,88 @@ export default function AthleteProfiles() {
                       </div>
                     )}
                   </div>
+
+                  {/* Per-class breakdown: potential/attended/%/hours */}
+                  {assignedClasses.length > 0 && (() => {
+                    const DAY_TO_JS_DAYS = {
+                      Monday: [1], Tuesday: [2], Wednesday: [3], Thursday: [4], Friday: [5], Saturday: [6], Sunday: [0],
+                      'Mon/Fri': [1, 5], 'Tue/Thu': [2, 4],
+                    }
+                    const now = new Date()
+                    let rangeStart
+                    if (sessionsBreakdownRange === 'month') rangeStart = new Date(now.getFullYear(), now.getMonth(), 1)
+                    else if (sessionsBreakdownRange === '30days') { rangeStart = new Date(now); rangeStart.setDate(now.getDate() - 30) }
+                    else if (sessionsBreakdownRange === '90days') { rangeStart = new Date(now); rangeStart.setDate(now.getDate() - 90) }
+                    else rangeStart = new Date(2015, 0, 1) // "all time"
+
+                    function countWeekdaysInRange(jsDays) {
+                      let count = 0
+                      const d = new Date(rangeStart)
+                      while (d <= now) { if (jsDays.includes(d.getDay())) count++; d.setDate(d.getDate() + 1) }
+                      return count
+                    }
+                    function classDurationHours(cls) {
+                      if (!cls.start_time || !cls.end_time) return 0
+                      const [sh, sm] = cls.start_time.split(':').map(Number)
+                      const [eh, em] = cls.end_time.split(':').map(Number)
+                      return Math.max(0, ((eh * 60 + em) - (sh * 60 + sm)) / 60)
+                    }
+
+                    return (
+                      <div className="card" style={{ marginBottom: 20 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                          <h3 style={{ fontSize: 13, fontWeight: 600 }}>Session breakdown</h3>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            {[['month', 'This month'], ['30days', 'Last 30 days'], ['90days', 'Last 90 days'], ['all', 'All time']].map(([key, label]) => (
+                              <button key={key} className="btn btn-sm" onClick={() => setSessionsBreakdownRange(key)}
+                                style={{ background: sessionsBreakdownRange === key ? colour + '20' : undefined, borderColor: sessionsBreakdownRange === key ? colour : undefined, fontSize: 11 }}>{label}</button>
+                            ))}
+                          </div>
+                        </div>
+                        <div style={{ overflowX: 'auto' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                            <thead>
+                              <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                                <th style={{ textAlign: 'left', padding: '6px 8px' }}>Class</th>
+                                <th style={{ textAlign: 'center', padding: '6px 8px' }}>Potential</th>
+                                <th style={{ textAlign: 'center', padding: '6px 8px' }}>Attended</th>
+                                <th style={{ textAlign: 'center', padding: '6px 8px' }}>%</th>
+                                <th style={{ textAlign: 'center', padding: '6px 8px' }}>Hours</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {assignedClasses.map(a => {
+                                const cls = a.classes
+                                if (!cls) return null
+                                const jsDays = DAY_TO_JS_DAYS[cls.day_of_week]
+                                const potential = jsDays ? countWeekdaysInRange(jsDays) : null
+                                const attended = jsDays
+                                  ? attendanceData.filter(att => {
+                                      const d = new Date(att.session_date)
+                                      return d >= rangeStart && d <= now && jsDays.includes(d.getDay())
+                                    }).length
+                                  : null
+                                const pct = potential ? Math.round((attended / potential) * 100) : null
+                                const hours = attended != null ? +(attended * classDurationHours(cls)).toFixed(1) : null
+                                return (
+                                  <tr key={a.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                                    <td style={{ padding: '6px 8px' }}>{cls.name}</td>
+                                    <td style={{ textAlign: 'center', padding: '6px 8px' }}>{potential ?? '—'}</td>
+                                    <td style={{ textAlign: 'center', padding: '6px 8px' }}>{attended ?? '—'}</td>
+                                    <td style={{ textAlign: 'center', padding: '6px 8px', fontWeight: 600, color: pct != null ? colour : undefined }}>{pct != null ? `${pct}%` : '—'}</td>
+                                    <td style={{ textAlign: 'center', padding: '6px 8px' }}>{hours ?? '—'}</td>
+                                  </tr>
+                                )
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                        <p style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 8 }}>
+                          Attended sessions are matched by day of week within the selected range, since attendance isn't recorded against a specific class. Classes at Derby Moore/Moorways aren't day-based, so potential/attended can't be calculated for those.
+                        </p>
+                      </div>
+                    )
+                  })()}
 
                   {/* Attendance numbers */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10, marginBottom: 20 }}>
