@@ -523,36 +523,19 @@ const BOX_DIVISIONS = ['Schoolboy', 'Schoolgirl', 'Junior', 'Youth', 'Elite', 'S
 // ── PDP Tab Component ──────────────────────────────────────────────────────
 const PDP_SECTIONS = [
   { key: 'winning_ways',          label: '🏆 Winning ways',             colour: '#1D9E75', coachOnly: false },
-  { key: 'what_to_do',            label: '📋 What to do (general)',      colour: '#8B5CF6', coachOnly: false },
   { key: 'psychology_maintain',   label: '🧠 Psychology — maintain',     colour: '#8B5CF6', coachOnly: true  },
   { key: 'psychology_work_on',    label: '🧠 Psychology — work on',      colour: '#7C3AED', coachOnly: true  },
-  { key: 'psychology_what_to_do', label: '🧠 Psychology — what to do',   colour: '#A78BFA', coachOnly: true  },
   { key: 'tech_maintain',         label: '⚙️ Technical — maintain',      colour: '#378ADD', coachOnly: true  },
   { key: 'tech_work_on',          label: '⚙️ Technical — work on',       colour: '#EF9F27', coachOnly: true  },
-  { key: 'tech_what_to_do',       label: '⚙️ Technical — what to do',    colour: '#60A5FA', coachOnly: true  },
   { key: 'tact_maintain',         label: '🎯 Tactical — maintain',       colour: '#1D9E75', coachOnly: true  },
   { key: 'tact_work_on',          label: '🎯 Tactical — work on',        colour: '#E24B4A', coachOnly: true  },
-  { key: 'tact_what_to_do',       label: '🎯 Tactical — what to do',     colour: '#F87171', coachOnly: true  },
   { key: 'physical_maintain',     label: '💪 Physical — maintain',       colour: '#1D9E75', coachOnly: true  },
   { key: 'physical_work_on',      label: '💪 Physical — work on',        colour: '#059669', coachOnly: true  },
-  { key: 'physical_what_to_do',   label: '💪 Physical — what to do',     colour: '#34D399', coachOnly: true  },
   { key: 'skill_maintain',        label: '🥋 Skill — maintain',          colour: '#185FA5', coachOnly: true  },
   { key: 'skill_work_on',         label: '🥋 Skill — work on',           colour: '#0E7490', coachOnly: true  },
-  { key: 'skill_what_to_do',      label: '🥋 Skill — what to do',        colour: '#22D3EE', coachOnly: true  },
   { key: 'athlete_notes',         label: '📝 Your notes',                colour: '#185FA5', coachOnly: false },
   { key: 'notes',                 label: '📝 Coach notes',               colour: '#666',    coachOnly: true  },
 ]
-
-// Groups of 3 sections (Maintain / To work on / What to do) rendered
-// side by side as columns for each category, in the coach view.
-const PDP_CATEGORY_GROUPS = [
-  { label: 'Psychology', keys: ['psychology_maintain', 'psychology_work_on', 'psychology_what_to_do'] },
-  { label: 'Technical',  keys: ['tech_maintain', 'tech_work_on', 'tech_what_to_do'] },
-  { label: 'Tactical',   keys: ['tact_maintain', 'tact_work_on', 'tact_what_to_do'] },
-  { label: 'Physical',   keys: ['physical_maintain', 'physical_work_on', 'physical_what_to_do'] },
-  { label: 'Skill',      keys: ['skill_maintain', 'skill_work_on', 'skill_what_to_do'] },
-]
-const PDP_GROUPED_KEYS = new Set(PDP_CATEGORY_GROUPS.flatMap(g => g.keys))
 
 function PDPTab({ apData, setApData, student, isAdmin }) {
   const [pdpView, setPdpView]       = useState('coach') // 'coach' | 'athlete' | 'split'
@@ -710,189 +693,6 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
 
   const isEmpty = !pdp || Object.keys(pdp).every(k => !Array.isArray(pdp[k]) || pdp[k].length === 0)
 
-  // Renders a single PDP section card -- exact same behaviour as
-  // before (drag to reorder, click to edit, cut/copy/paste, send to
-  // athlete). Extracted into a function so it can be called either on
-  // its own, or grouped 3-at-a-time (Maintain/To work on/What to do)
-  // for the Psychology/Technical/Tactical/Physical/Skill categories.
-  function renderPDPSectionCard(section) {
-    const meta = pdp[`__meta_${section.key}`]
-    const sectionLabel = meta?.label || section.label
-    const sectionColour = meta?.colour || section.colour
-    const items = pdp[section.key] || []
-    const isShared = !!(shared[section.key]?.length)
-    const isEditing = editSection === section.key
-
-    return (
-      <div key={section.key} className="card"
-        draggable
-        onDragStart={e => e.dataTransfer.setData('pdp-section', section.key)}
-        onDragOver={e => { e.preventDefault(); e.currentTarget.style.outline = `2px dashed ${sectionColour}` }}
-        onDragLeave={e => { e.currentTarget.style.outline = 'none' }}
-        onDrop={e => {
-          e.preventDefault()
-          e.currentTarget.style.outline = 'none'
-          const fromKey = e.dataTransfer.getData('pdp-section')
-          if (!fromKey || fromKey === section.key) return
-          // Reorder section_order array — move fromKey to position of section.key
-          const currentOrder = pdp.section_order || PDP_SECTIONS.map(s => s.key)
-          const fromIdx = currentOrder.indexOf(fromKey)
-          const toIdx   = currentOrder.indexOf(section.key)
-          if (fromIdx === -1 || toIdx === -1) return
-          const newOrder = [...currentOrder]
-          newOrder.splice(fromIdx, 1)
-          newOrder.splice(toIdx, 0, fromKey)
-          const updated = { ...pdp, section_order: newOrder }
-          supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: updated }, { onConflict: 'student_id' })
-          setApData(a => ({ ...a, pdp_notes: updated }))
-        }}
-        style={{ borderLeft: `3px solid ${sectionColour}`, borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0', marginBottom: 10, cursor: isEditing ? 'default' : 'pointer' }}
-        onClick={() => { if (!isEditing) startEdit(section) }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isEditing ? 12 : items.length ? 8 : 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-            <span style={{ cursor: 'grab', color: 'var(--text-tertiary)', fontSize: 16, lineHeight: 1, userSelect: 'none' }}>⋮⋮</span>
-            <h3 style={{ fontSize: 13, fontWeight: 600, color: sectionColour, margin: 0 }}>
-              {sectionLabel}
-              {section.coachOnly && <span style={{ fontSize: 9, color: 'var(--text-tertiary)', marginLeft: 6, fontWeight: 400 }}>coach only</span>}
-              {isShared && !section.coachOnly && <span style={{ fontSize: 9, color: '#1d9e75', marginLeft: 6 }}>✓ shared</span>}
-            </h3>
-          </div>
-          <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
-            {items.length > 0 && (
-              <button className="btn btn-sm" style={{ fontSize: 10, background: '#eaf3de', color: '#3b6d11', border: '1px solid #3b6d1140' }}
-                onClick={() => setSendModal(section.key)}>
-                → Send to athlete
-              </button>
-            )}
-            {!isEditing && (
-              <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => duplicateSection(section)} title="Duplicate section">⧉</button>
-            )}
-            <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => isEditing ? setEditSection(null) : startEdit(section)}>
-              {isEditing ? 'Cancel' : items.length ? 'Edit' : '+ Add'}
-            </button>
-          </div>
-        </div>
-
-        {!isEditing && items.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }} onClick={e => e.stopPropagation()}>
-            {items.map((item, i) => (
-              <span key={i} onClick={() => toggleHighlight(section.key, item)} title="Click to highlight"
-                style={notePillStyle(sectionColour, section.key, item, { border: `1px solid ${section.colour}30`, padding: '4px 10px', fontSize: 12, cursor: 'pointer' })}>{item}</span>
-            ))}
-          </div>
-        )}
-
-        {isEditing && (
-          <div tabIndex={0} style={{ outline: 'none' }}
-            onKeyDown={e => {
-              if (selectedItems.length === 0) return
-              const col = editSectionMeta?.colour || section.colour
-              if ((e.ctrlKey || e.metaKey) && e.key === 'c') { e.preventDefault(); setClipboard(selectedItems.map(i => editItems[i])) }
-              if ((e.ctrlKey || e.metaKey) && e.key === 'x') { e.preventDefault(); setClipboard(selectedItems.map(i => editItems[i])); setEditItems(prev => prev.filter((_,i) => !selectedItems.includes(i))); setSelectedItems([]) }
-              if ((e.ctrlKey || e.metaKey) && e.key === 'v' && clipboard) { e.preventDefault(); const at = selectedItems.length ? Math.max(...selectedItems) + 1 : editItems.length; const items = Array.isArray(clipboard) ? clipboard : [clipboard]; setEditItems(prev => { const n=[...prev]; n.splice(at,0,...items); return n }); setSelectedItems(items.map((_,j)=>at+j)) }
-              if (e.key === 'Escape') setSelectedItems([])
-              if ((e.key === 'Backspace' || e.key === 'Delete') && selectedItems.length > 0) {
-                e.preventDefault()
-                setEditItems(prev => prev.filter((_,i) => !selectedItems.includes(i)))
-                setSelectedItems([])
-              }
-            }}>
-            {/* Section title + colour editor */}
-            {editSectionMeta && (
-              <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                <input value={editSectionMeta.label}
-                  onChange={e => setEditSectionMeta(m => ({ ...m, label: e.target.value }))}
-                  style={{ flex: 1, minWidth: 120, padding: '5px 8px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 12, background: 'var(--bg-secondary)', color: 'var(--text)', fontWeight: 600 }} />
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Colour:</span>
-                  <input type="color" value={editSectionMeta.colour}
-                    onChange={e => setEditSectionMeta(m => ({ ...m, colour: e.target.value }))}
-                    style={{ width: 32, height: 28, padding: 2, border: '1px solid var(--border-strong)', borderRadius: 4, cursor: 'pointer' }} />
-                </div>
-              </div>
-            )}
-
-            {/* Items with drag, cut, copy */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginBottom: 10 }}>
-              {editItems.map((item, i) => {
-                const col = editSectionMeta?.colour || section.colour
-                const isSel = selectedItems.includes(i)
-                return (
-                <span key={i} draggable
-                  onClick={(e) => { if (e.shiftKey) { setSelectedItems(prev => prev.includes(i) ? prev.filter(x=>x!==i) : [...prev,i]) } else { setSelectedItems(prev => prev.includes(i) && prev.length === 1 ? [] : [i]) } }}
-                  onDragStart={e => e.dataTransfer.setData('text/plain', i)}
-                  onDragOver={e => {
-                    e.preventDefault()
-                    // Scroll page if near edges during drag
-                    const margin = 80
-                    if (e.clientY < margin) window.scrollBy(0, -10)
-                    if (e.clientY > window.innerHeight - margin) window.scrollBy(0, 10)
-                  }}
-                  onDrop={e => {
-                    e.preventDefault()
-                    const from = parseInt(e.dataTransfer.getData('text/plain'))
-                    if (from === i) return
-                    setEditItems(prev => { const n=[...prev]; const [m]=n.splice(from,1); n.splice(i,0,m); return n })
-                  }}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: isSel ? col+'35' : col+'15', color: col, border: `${isSel?2:1}px solid ${col}${isSel?'':'30'}`, borderRadius: 20, padding: '4px 10px', fontSize: 12, cursor: 'grab', userSelect: 'none' }}>
-                  <span style={{ fontSize: 10, opacity: 0.5 }}>⠿</span>
-                  {item}
-                  <button title="Cut (Ctrl+X)" onClick={e => { e.stopPropagation(); const sel = selectedItems.includes(i) ? selectedItems : [i]; setClipboard(sel.map(idx=>editItems[idx])); setEditItems(prev => prev.filter((_,j)=>!sel.includes(j))); setSelectedItems([]) }}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, opacity: 0.6, padding: '0 2px' }}>✂</button>
-                  <button title="Copy (Ctrl+C)" onClick={e => { e.stopPropagation(); const sel = selectedItems.includes(i) ? selectedItems : [i]; setClipboard(sel.map(idx=>editItems[idx])); setSelectedItems(sel) }}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, opacity: 0.6, padding: '0 2px' }}>⧉</button>
-                  <button onClick={e => { e.stopPropagation(); removeItem(i) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: col, fontSize: 14, lineHeight: 1, padding: 0 }}>×</button>
-                </span>
-                )
-              })}
-              {selectedItems.length > 0 && <p style={{ fontSize: 10, color: 'var(--text-tertiary)', width: '100%', margin: '4px 0' }}>{selectedItems.length} selected · Ctrl+C copy · Ctrl+X cut · Ctrl+V paste · Shift+click multi-select · Esc deselect</p>}
-              {clipboard && (
-                <button onClick={() => { const items = Array.isArray(clipboard) ? clipboard : [clipboard]; setEditItems(prev => [...prev, ...items]) }}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--bg-tertiary)', border: '1px dashed var(--border-strong)', borderRadius: 20, padding: '4px 10px', fontSize: 11, cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'var(--font-sans)' }}>
-                  {Array.isArray(clipboard) ? `📋 Paste ${clipboard.length} item${clipboard.length>1?'s':''}` : `📋 Paste: "${clipboard?.slice?.(0,20)}${clipboard?.length>20?'…':''}"` }
-                </button>
-              )}
-            </div>
-
-            {/* Add new item */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-              <input value={newItem} onChange={e => setNewItem(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && addItem()}
-                placeholder="Type and press Enter · separate with , or ; · paste from Excel"
-                onPaste={e => {
-                  const text = e.clipboardData.getData('text')
-                  const parts = text.split(/[\t\n,;]+/).map(s => s.trim()).filter(Boolean)
-                  if (parts.length > 1) {
-                    e.preventDefault()
-                    setEditItems(prev => [...prev, ...parts])
-                    setNewItem('')
-                  }
-                }}
-                style={{ flex: 1, padding: '7px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
-              <button className="btn btn-sm" onClick={addItem}>Add</button>
-            </div>
-
-            {/* Save + Undo */}
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-primary btn-sm" onClick={saveSection} disabled={saving}>
-                {saving ? 'Saving…' : 'Save'}
-              </button>
-              {pdpHistory.length > 0 && (
-                <button className="btn btn-sm" onClick={async () => {
-                  const prev = pdpHistory[pdpHistory.length - 1]
-                  await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: prev }, { onConflict: 'student_id' })
-                  setApData(a => ({ ...a, pdp_notes: prev }))
-                  setPdpHistory(h => h.slice(0, -1))
-                  setEditSection(null)
-                }}>↩ Undo</button>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    )
-  }
-
   return (
     <div>
       {/* View toggle */}
@@ -990,6 +790,7 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
             const items = section.key === 'athlete_notes'
               ? (pdp.athlete_notes || [])
               : (shared[section.key] || [])
+            if (!items.length) return null
             const sentAt = shared[`${section.key}_sent_at`]
             return (
               <div key={section.key} className="card" style={{ borderLeft: `3px solid ${sectionColour}`, borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0', marginBottom: 10 }}>
@@ -999,15 +800,11 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
                     {section.label}</h3>
                   {sentAt && <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Sent {new Date(sentAt).toLocaleDateString('en-GB')}</span>}
                 </div>
-                {items.length > 0 ? (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
-                    {items.map((item, i) => (
-                      <span key={i} style={notePillStyle(sectionColour, section.key, item, { border: `1px solid ${section.colour}30`, padding: '4px 10px', fontSize: 12, fontWeight: 500 })}>{item}</span>
-                    ))}
-                  </div>
-                ) : (
-                  <p style={{ fontSize: 12, color: 'var(--text-tertiary)', margin: 0 }}>Nothing here yet.</p>
-                )}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+                  {items.map((item, i) => (
+                    <span key={i} style={notePillStyle(sectionColour, section.key, item, { border: `1px solid ${section.colour}30`, padding: '4px 10px', fontSize: 12, fontWeight: 500 })}>{item}</span>
+                  ))}
+                </div>
               </div>
             )
           })}
@@ -1053,45 +850,190 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
           )}
           {(() => {
             const allSections = [...PDP_SECTIONS, ...customSections]
-            const orderedSections = (() => {
-              if (pdp.section_order) {
-                const ordered = pdp.section_order.map(key => allSections.find(s => s.key === key)).filter(Boolean)
-                // Append any custom sections not yet in section_order
-                const missing = allSections.filter(s => !pdp.section_order.includes(s.key))
-                return [...ordered, ...missing]
-              }
-              return allSections
-            })()
+            if (pdp.section_order) {
+              const ordered = pdp.section_order.map(key => allSections.find(s => s.key === key)).filter(Boolean)
+              // Append any custom sections not yet in section_order
+              const missing = allSections.filter(s => !pdp.section_order.includes(s.key))
+              return [...ordered, ...missing]
+            }
+            return allSections
+          })().map(section => {
+            const meta = pdp[`__meta_${section.key}`]
+            const sectionLabel = meta?.label || section.label
+            const sectionColour = meta?.colour || section.colour
+            const items = pdp[section.key] || []
+            const isShared = !!(shared[section.key]?.length)
+            const isEditing = editSection === section.key
 
-            // Psychology/Technical/Tactical/Physical/Skill each render
-            // as one row of 3 columns (Maintain / To work on / What to
-            // do) instead of 3 separate stacked cards. Everything else
-            // (Winning ways, general What to do, Your notes, Coach
-            // notes, custom sections) renders as before.
-            const rendered = []
-            const renderedGroups = new Set()
-            orderedSections.forEach(section => {
-              const group = PDP_CATEGORY_GROUPS.find(g => g.keys.includes(section.key))
-              if (group) {
-                if (renderedGroups.has(group.label)) return
-                renderedGroups.add(group.label)
-                rendered.push(
-                  <div key={`group-${group.label}`} style={{ marginBottom: 10 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-tertiary)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>{group.label}</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-                      {group.keys.map(key => {
-                        const sec = allSections.find(s => s.key === key)
-                        return sec ? <div key={key}>{renderPDPSectionCard(sec)}</div> : null
+            return (
+              <div key={section.key} className="card"
+                draggable
+                onDragStart={e => e.dataTransfer.setData('pdp-section', section.key)}
+                onDragOver={e => { e.preventDefault(); e.currentTarget.style.outline = `2px dashed ${sectionColour}` }}
+                onDragLeave={e => { e.currentTarget.style.outline = 'none' }}
+                onDrop={e => {
+                  e.preventDefault()
+                  e.currentTarget.style.outline = 'none'
+                  const fromKey = e.dataTransfer.getData('pdp-section')
+                  if (!fromKey || fromKey === section.key) return
+                  // Reorder section_order array — move fromKey to position of section.key
+                  const currentOrder = pdp.section_order || PDP_SECTIONS.map(s => s.key)
+                  const fromIdx = currentOrder.indexOf(fromKey)
+                  const toIdx   = currentOrder.indexOf(section.key)
+                  if (fromIdx === -1 || toIdx === -1) return
+                  const newOrder = [...currentOrder]
+                  newOrder.splice(fromIdx, 1)
+                  newOrder.splice(toIdx, 0, fromKey)
+                  const updated = { ...pdp, section_order: newOrder }
+                  supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: updated }, { onConflict: 'student_id' })
+                  setApData(a => ({ ...a, pdp_notes: updated }))
+                }}
+                style={{ borderLeft: `3px solid ${sectionColour}`, borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0', marginBottom: 10, cursor: isEditing ? 'default' : 'pointer' }}
+                onClick={() => { if (!isEditing) startEdit(section) }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isEditing ? 12 : items.length ? 8 : 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <span style={{ cursor: 'grab', color: 'var(--text-tertiary)', fontSize: 16, lineHeight: 1, userSelect: 'none' }}>⋮⋮</span>
+                    <h3 style={{ fontSize: 13, fontWeight: 600, color: sectionColour, margin: 0 }}>
+                      {sectionLabel}
+                      {section.coachOnly && <span style={{ fontSize: 9, color: 'var(--text-tertiary)', marginLeft: 6, fontWeight: 400 }}>coach only</span>}
+                      {isShared && !section.coachOnly && <span style={{ fontSize: 9, color: '#1d9e75', marginLeft: 6 }}>✓ shared</span>}
+                    </h3>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
+                    {items.length > 0 && (
+                      <button className="btn btn-sm" style={{ fontSize: 10, background: '#eaf3de', color: '#3b6d11', border: '1px solid #3b6d1140' }}
+                        onClick={() => setSendModal(section.key)}>
+                        → Send to athlete
+                      </button>
+                    )}
+                    {!isEditing && (
+                      <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => duplicateSection(section)} title="Duplicate section">⧉</button>
+                    )}
+                    <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => isEditing ? setEditSection(null) : startEdit(section)}>
+                      {isEditing ? 'Cancel' : items.length ? 'Edit' : '+ Add'}
+                    </button>
+                  </div>
+                </div>
+
+                {!isEditing && items.length > 0 && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }} onClick={e => e.stopPropagation()}>
+                    {items.map((item, i) => (
+                      <span key={i} onClick={() => toggleHighlight(section.key, item)} title="Click to highlight"
+                        style={notePillStyle(sectionColour, section.key, item, { border: `1px solid ${section.colour}30`, padding: '4px 10px', fontSize: 12, cursor: 'pointer' })}>{item}</span>
+                    ))}
+                  </div>
+                )}
+
+                {isEditing && (
+                  <div tabIndex={0} style={{ outline: 'none' }}
+                    onKeyDown={e => {
+                      if (selectedItems.length === 0) return
+                      const col = editSectionMeta?.colour || section.colour
+                      if ((e.ctrlKey || e.metaKey) && e.key === 'c') { e.preventDefault(); setClipboard(selectedItems.map(i => editItems[i])) }
+                      if ((e.ctrlKey || e.metaKey) && e.key === 'x') { e.preventDefault(); setClipboard(selectedItems.map(i => editItems[i])); setEditItems(prev => prev.filter((_,i) => !selectedItems.includes(i))); setSelectedItems([]) }
+                      if ((e.ctrlKey || e.metaKey) && e.key === 'v' && clipboard) { e.preventDefault(); const at = selectedItems.length ? Math.max(...selectedItems) + 1 : editItems.length; const items = Array.isArray(clipboard) ? clipboard : [clipboard]; setEditItems(prev => { const n=[...prev]; n.splice(at,0,...items); return n }); setSelectedItems(items.map((_,j)=>at+j)) }
+                      if (e.key === 'Escape') setSelectedItems([])
+                      if ((e.key === 'Backspace' || e.key === 'Delete') && selectedItems.length > 0) {
+                        e.preventDefault()
+                        setEditItems(prev => prev.filter((_,i) => !selectedItems.includes(i)))
+                        setSelectedItems([])
+                      }
+                    }}>
+                    {/* Section title + colour editor */}
+                    {editSectionMeta && (
+                      <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <input value={editSectionMeta.label}
+                          onChange={e => setEditSectionMeta(m => ({ ...m, label: e.target.value }))}
+                          style={{ flex: 1, minWidth: 120, padding: '5px 8px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 12, background: 'var(--bg-secondary)', color: 'var(--text)', fontWeight: 600 }} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Colour:</span>
+                          <input type="color" value={editSectionMeta.colour}
+                            onChange={e => setEditSectionMeta(m => ({ ...m, colour: e.target.value }))}
+                            style={{ width: 32, height: 28, padding: 2, border: '1px solid var(--border-strong)', borderRadius: 4, cursor: 'pointer' }} />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Items with drag, cut, copy */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginBottom: 10 }}>
+                      {editItems.map((item, i) => {
+                        const col = editSectionMeta?.colour || section.colour
+                        const isSel = selectedItems.includes(i)
+                        return (
+                        <span key={i} draggable
+                          onClick={(e) => { if (e.shiftKey) { setSelectedItems(prev => prev.includes(i) ? prev.filter(x=>x!==i) : [...prev,i]) } else { setSelectedItems(prev => prev.includes(i) && prev.length === 1 ? [] : [i]) } }}
+                          onDragStart={e => e.dataTransfer.setData('text/plain', i)}
+                          onDragOver={e => {
+                            e.preventDefault()
+                            // Scroll page if near edges during drag
+                            const margin = 80
+                            if (e.clientY < margin) window.scrollBy(0, -10)
+                            if (e.clientY > window.innerHeight - margin) window.scrollBy(0, 10)
+                          }}
+                          onDrop={e => {
+                            e.preventDefault()
+                            const from = parseInt(e.dataTransfer.getData('text/plain'))
+                            if (from === i) return
+                            setEditItems(prev => { const n=[...prev]; const [m]=n.splice(from,1); n.splice(i,0,m); return n })
+                          }}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: isSel ? col+'35' : col+'15', color: col, border: `${isSel?2:1}px solid ${col}${isSel?'':'30'}`, borderRadius: 20, padding: '4px 10px', fontSize: 12, cursor: 'grab', userSelect: 'none' }}>
+                          <span style={{ fontSize: 10, opacity: 0.5 }}>⠿</span>
+                          {item}
+                          <button title="Cut (Ctrl+X)" onClick={e => { e.stopPropagation(); const sel = selectedItems.includes(i) ? selectedItems : [i]; setClipboard(sel.map(idx=>editItems[idx])); setEditItems(prev => prev.filter((_,j)=>!sel.includes(j))); setSelectedItems([]) }}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, opacity: 0.6, padding: '0 2px' }}>✂</button>
+                          <button title="Copy (Ctrl+C)" onClick={e => { e.stopPropagation(); const sel = selectedItems.includes(i) ? selectedItems : [i]; setClipboard(sel.map(idx=>editItems[idx])); setSelectedItems(sel) }}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, opacity: 0.6, padding: '0 2px' }}>⧉</button>
+                          <button onClick={e => { e.stopPropagation(); removeItem(i) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: col, fontSize: 14, lineHeight: 1, padding: 0 }}>×</button>
+                        </span>
+                        )
                       })}
+                      {selectedItems.length > 0 && <p style={{ fontSize: 10, color: 'var(--text-tertiary)', width: '100%', margin: '4px 0' }}>{selectedItems.length} selected · Ctrl+C copy · Ctrl+X cut · Ctrl+V paste · Shift+click multi-select · Esc deselect</p>}
+                      {clipboard && (
+                        <button onClick={() => { const items = Array.isArray(clipboard) ? clipboard : [clipboard]; setEditItems(prev => [...prev, ...items]) }}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--bg-tertiary)', border: '1px dashed var(--border-strong)', borderRadius: 20, padding: '4px 10px', fontSize: 11, cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'var(--font-sans)' }}>
+                          {Array.isArray(clipboard) ? `📋 Paste ${clipboard.length} item${clipboard.length>1?'s':''}` : `📋 Paste: "${clipboard?.slice?.(0,20)}${clipboard?.length>20?'…':''}"` }
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Add new item */}
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                      <input value={newItem} onChange={e => setNewItem(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && addItem()}
+                        placeholder="Type and press Enter · separate with , or ; · paste from Excel"
+                        onPaste={e => {
+                          const text = e.clipboardData.getData('text')
+                          const parts = text.split(/[\t\n,;]+/).map(s => s.trim()).filter(Boolean)
+                          if (parts.length > 1) {
+                            e.preventDefault()
+                            setEditItems(prev => [...prev, ...parts])
+                            setNewItem('')
+                          }
+                        }}
+                        style={{ flex: 1, padding: '7px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+                      <button className="btn btn-sm" onClick={addItem}>Add</button>
+                    </div>
+
+                    {/* Save + Undo */}
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button className="btn btn-primary btn-sm" onClick={saveSection} disabled={saving}>
+                        {saving ? 'Saving…' : 'Save'}
+                      </button>
+                      {pdpHistory.length > 0 && (
+                        <button className="btn btn-sm" onClick={async () => {
+                          const prev = pdpHistory[pdpHistory.length - 1]
+                          await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: prev }, { onConflict: 'student_id' })
+                          setApData(a => ({ ...a, pdp_notes: prev }))
+                          setPdpHistory(h => h.slice(0, -1))
+                          setEditSection(null)
+                        }}>↩ Undo</button>
+                      )}
                     </div>
                   </div>
-                )
-              } else {
-                rendered.push(renderPDPSectionCard(section))
-              }
-            })
-            return rendered
-          })()}
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 
