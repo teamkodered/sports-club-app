@@ -1066,6 +1066,10 @@ export default function AthleteProfiles() {
   const [houses, setHouses]         = useState([])
   const [truePointTotals, setTruePointTotals] = useState({})
   const [allAttendance, setAllAttendance] = useState([])
+  const [assignedClasses, setAssignedClasses] = useState([])
+  const [allClasses, setAllClasses] = useState([])
+  const [addingClassId, setAddingClassId] = useState('')
+  const [savingClassAssignment, setSavingClassAssignment] = useState(false)
   const [f2fStatsScope, setF2fStatsScope] = useState(0) // cycles through scope options
   const [f2fModule, setF2fModule] = useState(null) // 'watt_bike' | '10k' | 'circuit' | 'bleep' | 'grip'
   const [moduleSubType, setModuleSubType] = useState({}) // key -> currently selected sub-type per module
@@ -1256,6 +1260,11 @@ export default function AthleteProfiles() {
   useEffect(() => { loadStudents() }, [])
 
   useEffect(() => {
+    supabase.from('classes').select('*').eq('active', true).order('day_of_week').order('start_time')
+      .then(({ data }) => setAllClasses(data || []))
+  }, [])
+
+  useEffect(() => {
     const todaysDate = new Date().toISOString().split('T')[0]
     const todaysSession = f2fData.find(s => s.session_date === todaysDate)
     setTodaysWellbeing(todaysSession?.wellbeing || {})
@@ -1319,7 +1328,7 @@ export default function AthleteProfiles() {
     setTruePointTotals(totals)
 
     const { data: allAtt } = await supabase.from('attendance')
-      .select('student_id, session_date, attendance_type, students(discipline, class_schedule, class_time)')
+      .select('id, student_id, session_date, attendance_type, students(discipline, class_schedule, class_time)')
     setAllAttendance(allAtt || [])
 
     setLoading(false)
@@ -1479,6 +1488,55 @@ export default function AthleteProfiles() {
   // Saves a single test value directly into today's flat test map
   // (test: { [testName]: value }) -- same shape the log form and
   // results charts already use.
+  // Cycles a calendar day's attendance state: none -> attended (green) ->
+  // absent (red) -> none (deselect). Writes directly to the attendance
+  // table so it's immediately reflected in the admin Registers/reports.
+  async function cycleAttendanceDay(dateStr) {
+    const existing = allAttendance.find(a => a?.student_id === selected.id && a?.session_date === dateStr)
+    const attendedRecord = attendanceData.find(a => a.session_date === dateStr)
+
+    if (attendedRecord) {
+      // Currently green -> turn red (explicit absent)
+      const { error } = await supabase.from('attendance')
+        .update({ present: false, attendance_type: 'absent' }).eq('id', attendedRecord.id)
+      if (error) return alert('Error updating attendance: ' + error.message)
+      setAttendanceData(prev => prev.filter(a => a.id !== attendedRecord.id))
+      setAllAttendance(prev => prev.map(a => a?.id === attendedRecord.id ? { ...a, present: false, attendance_type: 'absent' } : a))
+    } else if (existing) {
+      // Currently red (explicit absent record exists) -> clear it entirely
+      const { error } = await supabase.from('attendance').delete().eq('id', existing.id)
+      if (error) return alert('Error clearing attendance: ' + error.message)
+      setAllAttendance(prev => prev.filter(a => a?.id !== existing.id))
+    } else {
+      // Currently blank -> mark attended (green)
+      const { data, error } = await supabase.from('attendance').insert({
+        student_id: selected.id, present: true, attendance_type: 'attended',
+        session_date: dateStr, attended_at: new Date(dateStr + 'T12:00:00').toISOString(),
+      }).select().single()
+      if (error) return alert('Error saving attendance: ' + error.message)
+      setAttendanceData(prev => [...prev, data])
+      setAllAttendance(prev => [...prev, data])
+    }
+  }
+
+  async function addClassAssignment() {
+    if (!addingClassId) return
+    setSavingClassAssignment(true)
+    const { data, error } = await supabase.from('student_class_assignments')
+      .insert({ student_id: selected.id, class_id: addingClassId })
+      .select('id, class_id, classes(*)').single()
+    if (error) { alert('Error adding class: ' + error.message); setSavingClassAssignment(false); return }
+    setAssignedClasses(prev => [...prev, data])
+    setAddingClassId('')
+    setSavingClassAssignment(false)
+  }
+
+  async function removeClassAssignment(assignmentId) {
+    const { error } = await supabase.from('student_class_assignments').delete().eq('id', assignmentId)
+    if (error) return alert('Error removing class: ' + error.message)
+    setAssignedClasses(prev => prev.filter(a => a.id !== assignmentId))
+  }
+
   async function saveTestValue(testName, value) {
     setSavingTest(true)
     const todaysDate = new Date().toISOString().split('T')[0]
@@ -1570,9 +1628,13 @@ export default function AthleteProfiles() {
       .then(({ data }) => setTptData(prev => ({ ...prev, boxing: data || [] })))
     // Load attendance history + coach points for the Sessions tab
     supabase.from('attendance').select('id, session_date, attendance_type, attended_at, note')
-      .eq('student_id', s.id)
+      .eq('student_id', s.id).neq('attendance_type', 'absent')
       .order('session_date', { ascending: false })
       .then(({ data, error }) => { if (!error) setAttendanceData(data || []) })
+    // Load classes this athlete is explicitly assigned to
+    supabase.from('student_class_assignments').select('id, class_id, classes(*)')
+      .eq('student_id', s.id)
+      .then(({ data, error }) => { if (!error) setAssignedClasses(data || []) })
     supabase.from('points_log').select('id, point_type, points_awarded, point_scope, note, awarded_at')
       .eq('student_id', s.id)
       .order('awarded_at', { ascending: false })
@@ -3056,6 +3118,12 @@ export default function AthleteProfiles() {
                           .map(a => a.session_date)
                           .filter(d => d && new Date(d).getFullYear() === year && new Date(d).getMonth() === month)
                       )
+                      const explicitlyAbsentDays = new Set(
+                        (allAttendance || [])
+                          .filter(a => a?.student_id === selected.id && a?.attendance_type === 'absent')
+                          .map(a => a?.session_date)
+                          .filter(d => d && new Date(d).getFullYear() === year && new Date(d).getMonth() === month)
+                      )
                       const cells = []
                       for (let i = 0; i < startWeekday; i++) cells.push(null)
                       for (let d = 1; d <= daysInMonth; d++) cells.push(d)
@@ -3076,25 +3144,64 @@ export default function AthleteProfiles() {
                               if (d === null) return <div key={i} />
                               const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`
                               const attended = attendedDays.has(dateStr)
+                              const explicitlyAbsent = explicitlyAbsentDays.has(dateStr)
                               const wasTrainingDay = allTrainingDays.has(dateStr)
-                              const bg = attended ? '#1D9E75' : wasTrainingDay ? '#E24B4A' : 'transparent'
-                              const fg = attended || wasTrainingDay ? '#fff' : 'var(--text-secondary)'
+                              const bg = attended ? '#1D9E75' : explicitlyAbsent ? '#E24B4A' : 'transparent'
+                              const fg = attended || explicitlyAbsent ? '#fff' : 'var(--text-secondary)'
                               return (
-                                <div key={i} title={attended ? 'Attended' : wasTrainingDay ? 'Missed' : ''} style={{
-                                  aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                  borderRadius: 6, fontSize: 12, background: bg, color: fg,
-                                  border: !attended && !wasTrainingDay ? '1px solid var(--border)' : 'none',
-                                }}>{d}</div>
+                                <button key={i} type="button" onClick={() => cycleAttendanceDay(dateStr)}
+                                  title={attended ? 'Attended — click to mark absent' : explicitlyAbsent ? 'Marked absent — click to clear' : wasTrainingDay ? 'A session happened this day — click to mark attended' : 'Click to mark attended'}
+                                  style={{
+                                    aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    borderRadius: 6, fontSize: 12, background: bg, color: fg, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                                    border: !attended && !explicitlyAbsent ? `1px solid ${wasTrainingDay ? 'var(--border-strong)' : 'var(--border)'}` : 'none',
+                                  }}>{d}</button>
                               )
                             })}
                           </div>
                           <div style={{ display: 'flex', gap: 14, marginTop: 12, fontSize: 11, color: 'var(--text-secondary)' }}>
                             <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#1D9E75', borderRadius: 2, marginRight: 4 }} />Attended</span>
-                            <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#E24B4A', borderRadius: 2, marginRight: 4 }} />Missed</span>
+                            <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#E24B4A', borderRadius: 2, marginRight: 4 }} />Absent</span>
                           </div>
+                          <p style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 6 }}>Tap a date to cycle: blank → attended → absent → blank.</p>
                         </>
                       )
                     })()}
+                  </div>
+
+                  {/* Assigned classes/sessions */}
+                  <div className="card" style={{ marginBottom: 20 }}>
+                    <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Assigned sessions</h3>
+                    {assignedClasses.length === 0 ? (
+                      <p style={{ fontSize: 13, color: 'var(--text-tertiary)', marginBottom: 12 }}>No classes assigned yet.</p>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                        {assignedClasses.map(a => (
+                          <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 600 }}>{a.classes?.name}</div>
+                              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                                {a.classes?.day_of_week} · {a.classes?.start_time?.slice(0,5)}–{a.classes?.end_time?.slice(0,5)} · {a.classes?.discipline}
+                              </div>
+                            </div>
+                            {isAdmin && (
+                              <button className="btn btn-sm" onClick={() => removeClassAssignment(a.id)}>Remove</button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {isAdmin && (
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <select value={addingClassId} onChange={e => setAddingClassId(e.target.value)} style={{ flex: 1 }}>
+                          <option value="">Add a class/session…</option>
+                          {allClasses.filter(c => !assignedClasses.some(a => a.class_id === c.id)).map(c => (
+                            <option key={c.id} value={c.id}>{c.name} — {c.day_of_week} {c.start_time?.slice(0,5)}</option>
+                          ))}
+                        </select>
+                        <button className="btn btn-sm" disabled={!addingClassId || savingClassAssignment} onClick={addClassAssignment}>Add</button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Attendance numbers */}
