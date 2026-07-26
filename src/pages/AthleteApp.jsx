@@ -1352,16 +1352,28 @@ export default function AthleteApp() {
                     </div>
                     )}
 
-                    <button type="button" onClick={() => setShowSncCards(v => !v)} style={{
-                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                      padding: '10px 6px', marginBottom: 8, cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                      borderRadius: 'var(--radius)', border: `1px solid ${todaysSnc.length ? '#8B5CF6' : 'var(--border)'}`,
-                      background: todaysSnc.length ? '#8B5CF612' : 'var(--bg-secondary)',
+                    <div style={{
+                      display: 'flex', alignItems: 'stretch', width: '100%', marginBottom: 8,
+                      background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                      overflow: 'hidden', fontFamily: 'var(--font-sans)',
                     }}>
-                      <span style={{ fontSize: 16 }}>{todaysSnc.length ? '✓' : '🏋️'}</span>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>SnC</span>
-                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{showSncCards ? '▲' : '▼'}</span>
-                    </button>
+                      <button onClick={() => setShowSncCards(v => !v)} style={{
+                        flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
+                        padding: '8px 4px', background: 'none', border: 'none', borderRight: '1px solid var(--border)', cursor: 'pointer',
+                        minWidth: 0,
+                      }}>
+                        <span style={{ fontSize: 16 }}>🏋️</span>
+                        <span style={{ fontSize: 9, fontWeight: 500, whiteSpace: 'nowrap' }}>SnC</span>
+                      </button>
+                      <button onClick={() => setShowSncCards(v => !v)} style={{
+                        width: 58, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                        padding: '8px 4px', background: 'none', border: 'none', cursor: 'pointer',
+                      }}>
+                        <span style={{ fontSize: 8, color: 'var(--text-tertiary)', textAlign: 'center', lineHeight: 1.3 }}>
+                          {todaysSnc.length > 0 ? `Logged ${todaysSnc.length}×` : 'Not logged'}
+                        </span>
+                      </button>
+                    </div>
                     {showSncCards && (
                       <div className="card" style={{ marginBottom: 8 }}>
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
