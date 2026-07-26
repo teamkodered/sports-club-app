@@ -558,6 +558,7 @@ const PDP_CHECKABLE_SECTIONS = new Set(PDP_CATEGORY_GROUPS.flatMap(g => g.keys.f
 function PDPTab({ apData, setApData, student, isAdmin }) {
   const [pdpView, setPdpView]       = useState('coach') // 'coach' | 'athlete' | 'split'
   const [editSection, setEditSection] = useState(null)
+  const editingCardRef = useRef(null)
   const [editItems, setEditItems]   = useState([])
   const [newItem, setNewItem]       = useState('')
   const [saving, setSaving]         = useState(false)
@@ -566,6 +567,7 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
   const [editSectionMeta, setEditSectionMeta] = useState(null) // {key, label, colour}
   const [clipboard, setClipboard] = useState(null)
   const [selectedItems, setSelectedItems] = useState([]) // multi-select indices
+  const [selectionAnchor, setSelectionAnchor] = useState(null) // last plain/ctrl-clicked index, for shift-click ranges
   const [customSections, setCustomSections] = useState([]) // user-added sections
 
   const pdp = apData?.pdp_notes || {}
@@ -625,6 +627,20 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
       .filter(Boolean)
     if (saved.length > 0) setCustomSections(saved)
   }, [apData])
+
+  // Clicking outside the section currently being edited exits edit
+  // mode (same as pressing Cancel) without saving.
+  useEffect(() => {
+    if (!editSection) return
+    function handleClick(e) {
+      if (editingCardRef.current && !editingCardRef.current.contains(e.target)) {
+        setEditSection(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [editSection])
+
   const shared = apData?.pdp_shared || {} // items shared to athlete view
 
   // Sections visible to athlete: non-coachOnly + any shared coach items
@@ -739,6 +755,7 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
 
     return (
       <div key={section.key} className="card"
+        ref={isEditing ? editingCardRef : null}
         draggable
         onDragStart={e => e.dataTransfer.setData('pdp-section', section.key)}
         onDragOver={e => { e.preventDefault(); e.currentTarget.style.outline = `2px dashed ${sectionColour}` }}
@@ -786,21 +803,37 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
           </div>
         </div>
 
-        {!isEditing && items.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }} onClick={e => e.stopPropagation()}>
-            {items.map((item, i) => {
-              const checkable = PDP_CHECKABLE_SECTIONS.has(section.key)
-              const done = checkable && isCompleted(section.key, item)
-              return (
-                <span key={i} onClick={() => checkable ? toggleCompleted(section.key, item) : toggleHighlight(section.key, item)}
-                  title={checkable ? (done ? 'Click to mark not done' : 'Click to mark done') : 'Click to highlight'}
-                  style={notePillStyle(sectionColour, section.key, item, { border: `1px solid ${section.colour}30`, padding: '4px 10px', fontSize: 12, cursor: 'pointer' })}>
-                  {checkable && <span style={{ marginRight: 6 }}>{done ? '☑' : '☐'}</span>}
-                  {item}
-                </span>
-              )
-            })}
-          </div>
+        {!isEditing && (items.length > 0 || section.key === 'winning_ways') && (
+          section.key === 'winning_ways' ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }} onClick={e => e.stopPropagation()}>
+              {[0, 1, 2].map(col => (
+                <div key={col} style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0, minHeight: 20 }}>
+                  {items.filter((_, i) => i % 3 === col).map((item) => {
+                    const i = items.indexOf(item)
+                    return (
+                      <span key={i} onClick={() => toggleHighlight(section.key, item)} title="Click to highlight"
+                        style={notePillStyle(sectionColour, section.key, item, { border: `1px solid ${section.colour}30`, padding: '4px 10px', fontSize: 12, cursor: 'pointer' })}>{item}</span>
+                    )
+                  })}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }} onClick={e => e.stopPropagation()}>
+              {items.map((item, i) => {
+                const checkable = PDP_CHECKABLE_SECTIONS.has(section.key)
+                const done = checkable && isCompleted(section.key, item)
+                return (
+                  <span key={i} onClick={() => checkable ? toggleCompleted(section.key, item) : toggleHighlight(section.key, item)}
+                    title={checkable ? (done ? 'Click to mark not done' : 'Click to mark done') : 'Click to highlight'}
+                    style={notePillStyle(sectionColour, section.key, item, { border: `1px solid ${section.colour}30`, padding: '4px 10px', fontSize: 12, cursor: 'pointer' })}>
+                    {checkable && <span style={{ marginRight: 6 }}>{done ? '☑' : '☐'}</span>}
+                    {item}
+                  </span>
+                )
+              })}
+            </div>
+          )
         )}
 
         {isEditing && (
@@ -811,7 +844,7 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
               if ((e.ctrlKey || e.metaKey) && e.key === 'c') { e.preventDefault(); setClipboard(selectedItems.map(i => editItems[i])) }
               if ((e.ctrlKey || e.metaKey) && e.key === 'x') { e.preventDefault(); setClipboard(selectedItems.map(i => editItems[i])); setEditItems(prev => prev.filter((_,i) => !selectedItems.includes(i))); setSelectedItems([]) }
               if ((e.ctrlKey || e.metaKey) && e.key === 'v' && clipboard) { e.preventDefault(); const at = selectedItems.length ? Math.max(...selectedItems) + 1 : editItems.length; const items = Array.isArray(clipboard) ? clipboard : [clipboard]; setEditItems(prev => { const n=[...prev]; n.splice(at,0,...items); return n }); setSelectedItems(items.map((_,j)=>at+j)) }
-              if (e.key === 'Escape') setSelectedItems([])
+              if (e.key === 'Escape') { setSelectedItems([]); setSelectionAnchor(null) }
               if ((e.key === 'Backspace' || e.key === 'Delete') && selectedItems.length > 0) {
                 e.preventDefault()
                 setEditItems(prev => prev.filter((_,i) => !selectedItems.includes(i)))
@@ -832,13 +865,32 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
               </div>
             )}
 
+            {editItems.length > 0 && (
+              <div style={{ marginBottom: 6 }}>
+                <button type="button" className="btn btn-sm" style={{ fontSize: 10 }}
+                  onClick={() => { setSelectedItems(editItems.map((_, i) => i)); setSelectionAnchor(0) }}>
+                  Select all ({editItems.length})
+                </button>
+              </div>
+            )}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
               {editItems.map((item, i) => {
                 const col = editSectionMeta?.colour || section.colour
                 const isSel = selectedItems.includes(i)
                 return (
                 <span key={i} draggable
-                  onClick={(e) => { if (e.shiftKey) { setSelectedItems(prev => prev.includes(i) ? prev.filter(x=>x!==i) : [...prev,i]) } else { setSelectedItems(prev => prev.includes(i) && prev.length === 1 ? [] : [i]) } }}
+                  onClick={(e) => {
+                    if (e.shiftKey && selectionAnchor != null) {
+                      const [lo, hi] = [Math.min(selectionAnchor, i), Math.max(selectionAnchor, i)]
+                      setSelectedItems(Array.from({ length: hi - lo + 1 }, (_, k) => lo + k))
+                    } else if (e.ctrlKey || e.metaKey) {
+                      setSelectedItems(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i])
+                      setSelectionAnchor(i)
+                    } else {
+                      setSelectedItems(prev => prev.includes(i) && prev.length === 1 ? [] : [i])
+                      setSelectionAnchor(i)
+                    }
+                  }}
                   onDragStart={e => e.dataTransfer.setData('text/plain', i)}
                   onDragOver={e => {
                     e.preventDefault()
@@ -863,7 +915,7 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
                 </span>
                 )
               })}
-              {selectedItems.length > 0 && <p style={{ fontSize: 10, color: 'var(--text-tertiary)', width: '100%', margin: '4px 0' }}>{selectedItems.length} selected · Ctrl+C copy · Ctrl+X cut · Ctrl+V paste · Shift+click multi-select · Esc deselect</p>}
+              {selectedItems.length > 0 && <p style={{ fontSize: 10, color: 'var(--text-tertiary)', width: '100%', margin: '4px 0' }}>{selectedItems.length} selected · Ctrl+C copy · Ctrl+X cut · Ctrl+V paste · Ctrl/Cmd+click add · Shift+click select range · Esc deselect</p>}
               {clipboard && (
                 <button onClick={() => { const items = Array.isArray(clipboard) ? clipboard : [clipboard]; setEditItems(prev => [...prev, ...items]) }}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--bg-tertiary)', border: '1px dashed var(--border-strong)', borderRadius: 20, padding: '4px 10px', fontSize: 11, cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'var(--font-sans)' }}>
@@ -2984,6 +3036,13 @@ export default function AthleteProfiles() {
                           ))}
                         </div>
                       ) : ([selected.is_kr && 'KR', selected.is_pts && 'PTs', selected.is_leader && 'Leader', selected.is_coach && 'Coach'].filter(Boolean).join(', ') || 'None') },
+                      ...(selected.is_kr || selected.discipline === 'KRBA' ? [{ label: 'Competition status', editable: true, render: () => isAdmin ? (
+                        <button onClick={() => toggleSelectedGroup('in_comp')}
+                          className={`badge ${selected.in_comp ? 'badge-green' : 'badge-gray'}`}
+                          style={{ fontSize: 10, cursor: 'pointer', border: 'none' }}>
+                          {selected.in_comp ? 'In comp' : 'Out of comp'}
+                        </button>
+                      ) : (selected.in_comp ? 'In comp' : 'Out of comp') }] : []),
                     ].map(({ label, render }, i, arr) => (
                       <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 14px', borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13 }}>
                         <span style={{ color: 'var(--text-secondary)' }}>{label}</span>

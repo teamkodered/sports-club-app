@@ -358,6 +358,12 @@ export default function Registers() {
     })
   }
 
+  async function toggleInComp(s) {
+    const { error } = await supabase.from('students').update({ in_comp: !s.in_comp }).eq('id', s.id)
+    if (error) { alert('Error updating: ' + error.message); return }
+    setStudents(prev => prev.map(x => x.id === s.id ? { ...x, in_comp: !s.in_comp } : x))
+  }
+
   async function markAttendance(type) {
     if (selectedStudents.length === 0) return
     setSaving(true)
@@ -741,6 +747,7 @@ export default function Registers() {
                 {visibleCols.includes('grade')       && <SortTh col="grade" label="Grade" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
                 {visibleCols.includes('class_time')  && <th>Class time</th>}
                 {isKR && <><th>Experience</th><th>Discipline</th><th>Weight</th><th>Age cat.</th></>}
+                {(regType === 'kr' || regType === 'krba') && <th style={{ textAlign: 'center' }}>In comp</th>}
                 {visibleCols.includes('groups')      && <th>Groups</th>}
                 {visibleCols.includes('attendance')  && <th style={{ textAlign: 'center' }}>
                   <div>Attend.</div>
@@ -808,6 +815,16 @@ export default function Registers() {
                         <td style={{ fontSize: 12 }}>{s.weight_kg ? `${s.weight_kg}kg` : '—'}</td>
                         <td style={{ fontSize: 11 }}>{s.age_category_kr || s.age_category || '—'}</td>
                       </>
+                    )}
+                    {(regType === 'kr' || regType === 'krba') && (
+                      <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                        <button onClick={() => toggleInComp(s)}
+                          className={`badge ${s.in_comp ? 'badge-green' : 'badge-gray'}`}
+                          style={{ fontSize: 9, cursor: 'pointer', border: 'none' }}
+                          title={s.in_comp ? 'Click to mark out of comp' : 'Click to mark in comp'}>
+                          {s.in_comp ? 'In comp' : 'Out of comp'}
+                        </button>
+                      </td>
                     )}
                     {visibleCols.includes('groups') && <td onClick={e => e.stopPropagation()}>
                       <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>

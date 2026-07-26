@@ -20,6 +20,7 @@ const ALL_COLUMNS = [
   { key: 'class_schedule',    label: 'Class',       sortable: true  },
   { key: 'class_time',        label: 'Time',        sortable: true  },
   { key: 'groups',            label: 'Groups',      sortable: true  },
+  { key: 'in_comp',           label: 'In comp',     sortable: true  },
   { key: 'status',            label: 'Status',      sortable: true  },
   { key: 'role',              label: 'Role',        sortable: true  },
   { key: 'email',             label: 'Email',       sortable: true  },
@@ -30,7 +31,7 @@ const ALL_COLUMNS = [
   { key: 'house_points',      label: 'H pts',       sortable: true  },
 ]
 
-const DEFAULT_VISIBLE = ['student_ref','first_name','last_name','age','house','grade','class_schedule','class_time','groups','status','media','house_points']
+const DEFAULT_VISIBLE = ['student_ref','first_name','last_name','age','house','grade','class_schedule','class_time','groups','in_comp','status','media','house_points']
 
 function SortTh({ col, label, sortKey, sortDir, onSort, style = {} }) {
   const active = sortKey === col
@@ -129,6 +130,7 @@ export default function StudentDatabase() {
       case 'class_schedule': return s.class_schedule || ''
       case 'class_time':     return s.class_time || ''
       case 'groups':         return [s.is_kr&&'KR',s.is_pts&&'PTs',s.is_leader&&'L'].filter(Boolean).join(',')
+      case 'in_comp':        return s.in_comp ? 1 : 0
       case 'status':         return m?.status || ''
       case 'role':           return m?.role || ''
       case 'email':          return m?.email || ''
@@ -445,6 +447,23 @@ export default function StudentDatabase() {
                           )}
                         </td>
                       )
+                      case 'in_comp': {
+                        const relevant = s.is_kr || s.discipline === 'KRBA'
+                        return (
+                          <td key={c.key} style={{ textAlign: 'center' }}>
+                            {!relevant ? <span style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>—</span> : isAdmin ? (
+                              <button onClick={() => toggleGroup(s, 'in_comp')}
+                                className={`badge ${s.in_comp ? 'badge-green' : 'badge-gray'}`}
+                                style={{ fontSize: 9, cursor: 'pointer', border: 'none' }}
+                                title={s.in_comp ? 'Click to mark out of comp' : 'Click to mark in comp'}>
+                                {s.in_comp ? 'In comp' : 'Out of comp'}
+                              </button>
+                            ) : (
+                              <span className={`badge ${s.in_comp ? 'badge-green' : 'badge-gray'}`} style={{ fontSize: 9 }}>{s.in_comp ? 'In comp' : 'Out of comp'}</span>
+                            )}
+                          </td>
+                        )
+                      }
                       case 'status':      return (
                         <td key={c.key}>
                           <span className={`badge ${m?.status==='active'?'badge-green':m?.status==='pending'?'badge-amber':m?.status==='stopped'?'badge-red':'badge-gray'}`} style={{ fontSize: 10 }}>

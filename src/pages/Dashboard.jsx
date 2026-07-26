@@ -47,7 +47,7 @@ export default function Dashboard() {
         supabase.from('points_log').select('*, student_id, students(member_id, is_kr, is_pts, discipline, members(first_name, last_name))').order('awarded_at', { ascending: false }).limit(8),
         supabase.from('attendance').select('id', { count: 'exact', head: true }).gte('attended_at', monthAgo),
         supabase.from('attendance').select('id', { count: 'exact', head: true }).eq('session_date', today),
-        supabase.from('students').select('id', { count: 'exact', head: true }).or('is_kr.eq.true,is_pts.eq.true,discipline.eq.KRBA'),
+        supabase.from('students').select('id', { count: 'exact', head: true }).eq('in_comp', true).or('is_kr.eq.true,discipline.eq.KRBA'),
       ])
 
       setStats({ memberCount: memberCount || 0, studentCount: studentCount || 0, checkIns: checkIns?.count || 0, todayCount: todayCount || 0, athleteCount: athleteCount || 0 })
