@@ -1272,7 +1272,7 @@ export default function AthleteApp() {
 
                     {showStretchCards && (
                     <div ref={stretchPanelRef}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 10 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 8 }}>
                       {STRETCH_FLOWS.map((flow, i) => {
                         const complete = !!todaysStretches[i]
                         return (
@@ -1282,31 +1282,19 @@ export default function AthleteApp() {
                               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
                               borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                               border: `2px solid ${complete ? '#EF9F27' : 'var(--border)'}`,
-                              background: complete ? '#EF9F2712' : 'var(--bg-secondary)',
+                              background: complete ? '#EF9F2712' : 'var(--bg-secondary)', textAlign: 'left',
                             }}>
-                            <span style={{ fontSize: 16 }}>{complete ? '✓' : '🤸'}</span>
-                            <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{flow.label}</span>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, width: '100%', marginBottom: 6 }}>
+                              <span style={{ fontSize: 16 }}>{complete ? '✓' : '🤸'}</span>
+                              <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{flow.label}</span>
+                              <span style={{ fontSize: 7, color: 'var(--text-tertiary)', textAlign: 'center' }}>{flow.timing}</span>
+                            </div>
+                            <ul style={{ margin: 0, paddingLeft: 14, fontSize: 8, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
+                              {flow.stretches.map(s => <li key={s}>{s}</li>)}
+                            </ul>
                           </button>
                         )
                       })}
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
-                      {STRETCH_FLOWS.map((flow, i) => (
-                        <div key={i}>
-                          <button type="button" className="btn btn-sm" style={{ fontSize: 11, width: '100%', justifyContent: 'space-between' }}
-                            onClick={() => setStretchInfoOpen(s => ({ ...s, [i]: !s[i] }))}>
-                            <span>{flow.label} — {flow.timing}</span>
-                            <span>{stretchInfoOpen[i] ? '▲' : '▼'}</span>
-                          </button>
-                          {stretchInfoOpen[i] && (
-                            <div className="card" style={{ marginTop: 6, fontSize: 12 }}>
-                              <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
-                                {flow.stretches.map(s => <li key={s}>{s}</li>)}
-                              </ul>
-                            </div>
-                          )}
-                        </div>
-                      ))}
                     </div>
                     {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8 }}>Saving…</p>}
                     </div>
