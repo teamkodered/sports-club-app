@@ -1094,6 +1094,8 @@ export default function AthleteProfiles() {
   const testSectionRef = useRef(null)
   const [showMentalitySection, setShowMentalitySection] = useState(false)
   const mentalitySectionRef = useRef(null)
+  const [showWellbeingSection, setShowWellbeingSection] = useState(false)
+  const wellbeingSectionRef = useRef(null)
   const physicalSectionRef = useRef(null)
   const runPanelRef = useRef(null)
   const wattPanelRef = useRef(null)
@@ -1151,6 +1153,18 @@ export default function AthleteProfiles() {
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [showMentalitySection])
+
+  useEffect(() => {
+    if (!showWellbeingSection) return
+    function handleClick(e) {
+      if (wellbeingSectionRef.current && !wellbeingSectionRef.current.contains(e.target)) {
+        setShowWellbeingSection(false)
+        setExpandedHomeWb(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showWellbeingSection])
 
   useEffect(() => {
     if (!expandedHomeRun) return
@@ -2454,10 +2468,21 @@ export default function AthleteProfiles() {
                   </div>
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
-                    <ModuleButton b={modules2[modules2.length - 1]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setRunChartFilter={setRunChartFilter} studentId={selected?.id} />
-                  </div>
+                  <div ref={wellbeingSectionRef}>
+                  <button type="button" onClick={() => { setShowWellbeingSection(v => { if (v) setExpandedHomeWb(null); return !v }) }} style={{
+                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    textAlign: 'center', padding: '10px 8px', marginBottom: 8, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                    background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                  }}>
+                    <span style={{ fontSize: 18 }}>🌱</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Wellbeing</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{showWellbeingSection ? '▲' : '▼'}</span>
+                  </button>
 
+                  <div style={{
+                    overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
+                    maxHeight: showWellbeingSection ? 6000 : 0, opacity: showWellbeingSection ? 1 : 0,
+                  }}>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeWb ? 10 : 8 }}>
                     {WELLBEING_QUESTIONS.map(q => {
                       const complete = isWellbeingQComplete(q.key, todaysWellbeing)
@@ -2672,6 +2697,8 @@ export default function AthleteProfiles() {
                       {savingWellbeing && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>Saving…</p>}
                     </div>
                   )}
+                  </div>
+                  </div>
 
                   <div style={{ height: 4 }} />
 
