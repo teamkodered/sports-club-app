@@ -1257,6 +1257,7 @@ export default function AthleteProfiles() {
   const [addingClassId, setAddingClassId] = useState('')
   const [savingClassAssignment, setSavingClassAssignment] = useState(false)
   const [sessionsBreakdownRange, setSessionsBreakdownRange] = useState('month')
+  const [breakdownExcluded, setBreakdownExcluded] = useState(new Set()) // assignment ids unchecked from the total (default: none, i.e. all included)
   const [f2fStatsScope, setF2fStatsScope] = useState(0) // cycles through scope options
   const [f2fModule, setF2fModule] = useState(null) // 'watt_bike' | '10k' | 'circuit' | 'bleep' | 'grip'
   const [moduleSubType, setModuleSubType] = useState({}) // key -> currently selected sub-type per module
@@ -3329,9 +3330,12 @@ export default function AthleteProfiles() {
                       for (let d = 1; d <= daysInMonth; d++) cells.push(d)
                       return (
                         <>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8 }}>
                             <button className="btn btn-sm" onClick={() => setSessionsCalMonth(m => m.month === 0 ? { year: m.year - 1, month: 11 } : { year: m.year, month: m.month - 1 })}>←</button>
                             <span style={{ fontSize: 13, fontWeight: 600 }}>{new Date(year, month, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</span>
+                            <input type="month" value={`${year}-${String(month+1).padStart(2,'0')}`}
+                              onChange={e => { const [y, m] = e.target.value.split('-').map(Number); if (y && m) setSessionsCalMonth({ year: y, month: m - 1 }) }}
+                              style={{ fontSize: 11, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
                             <button className="btn btn-sm" onClick={() => setSessionsCalMonth(m => m.month === 11 ? { year: m.year + 1, month: 0 } : { year: m.year, month: m.month + 1 })}>→</button>
                           </div>
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4, marginBottom: 8 }}>
@@ -3349,14 +3353,24 @@ export default function AthleteProfiles() {
                               const showAsRed = explicitlyAbsent || (wasTrainingDay && !attended)
                               const bg = attended ? '#1D9E75' : showAsRed ? '#E24B4A' : 'transparent'
                               const fg = attended || showAsRed ? '#fff' : 'var(--text-secondary)'
+                              const jsDay = new Date(year, month, d).getDay()
+                              const classTimes = assignedClasses
+                                .filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay))
+                                .map(a => a.classes?.start_time?.slice(0, 5))
+                                .filter(Boolean)
                               return (
                                 <button key={i} type="button" onClick={() => cycleAttendanceDay(dateStr)}
                                   title={attended ? 'Attended — click to mark absent' : explicitlyAbsent ? 'Marked absent — click to clear' : wasTrainingDay ? 'Missed (a session happened this day) — click to mark attended' : 'Click to mark attended'}
                                   style={{
-                                    aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    aspectRatio: '0.85', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1,
                                     borderRadius: 6, fontSize: 12, background: bg, color: fg, cursor: 'pointer', fontFamily: 'var(--font-sans)',
                                     border: !attended && !showAsRed ? '1px solid var(--border)' : 'none',
-                                  }}>{d}</button>
+                                  }}>
+                                  <span>{d}</span>
+                                  {classTimes.length > 0 && (
+                                    <span style={{ fontSize: 6.5, lineHeight: 1, opacity: 0.85 }}>{classTimes.join(', ')}</span>
+                                  )}
+                                </button>
                               )
                             })}
                           </div>
@@ -3448,6 +3462,7 @@ export default function AthleteProfiles() {
                           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                             <thead>
                               <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                                <th style={{ padding: '6px 8px', width: 24 }}></th>
                                 <th style={{ textAlign: 'left', padding: '6px 8px' }}>Class</th>
                                 <th style={{ textAlign: 'center', padding: '6px 8px' }}>Potential</th>
                                 <th style={{ textAlign: 'center', padding: '6px 8px' }}>Attended</th>
@@ -3456,29 +3471,61 @@ export default function AthleteProfiles() {
                               </tr>
                             </thead>
                             <tbody>
-                              {assignedClasses.map(a => {
-                                const cls = a.classes
-                                if (!cls) return null
-                                const jsDays = DAY_TO_JS_DAYS[cls.day_of_week]
-                                const potential = jsDays ? countWeekdaysInRange(jsDays) : null
-                                const attended = jsDays
-                                  ? attendanceData.filter(att => {
-                                      const d = new Date(att.session_date)
-                                      return d >= rangeStart && d <= now && jsDays.includes(d.getDay())
-                                    }).length
-                                  : null
-                                const pct = potential ? Math.round((attended / potential) * 100) : null
-                                const hours = attended != null ? +(attended * classDurationHours(cls)).toFixed(1) : null
+                              {(() => {
+                                let totalPotential = 0, totalAttended = 0, totalHours = 0
+                                const rows = assignedClasses.map(a => {
+                                  const cls = a.classes
+                                  if (!cls) return null
+                                  const jsDays = DAY_TO_JS_DAYS[cls.day_of_week]
+                                  const potential = jsDays ? countWeekdaysInRange(jsDays) : null
+                                  const attended = jsDays
+                                    ? attendanceData.filter(att => {
+                                        const d = new Date(att.session_date)
+                                        return d >= rangeStart && d <= now && jsDays.includes(d.getDay())
+                                      }).length
+                                    : null
+                                  const pct = potential ? Math.round((attended / potential) * 100) : null
+                                  const hours = attended != null ? +(attended * classDurationHours(cls)).toFixed(1) : null
+                                  const included = !breakdownExcluded.has(a.id)
+                                  if (included) {
+                                    totalPotential += potential || 0
+                                    totalAttended += attended || 0
+                                    totalHours += hours || 0
+                                  }
+                                  return (
+                                    <tr key={a.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                                      <td style={{ padding: '6px 8px' }}>
+                                        <input type="checkbox" checked={included}
+                                          onChange={() => setBreakdownExcluded(prev => {
+                                            const next = new Set(prev)
+                                            included ? next.add(a.id) : next.delete(a.id)
+                                            return next
+                                          })}
+                                          style={{ width: 14, height: 14, cursor: 'pointer' }} />
+                                      </td>
+                                      <td style={{ padding: '6px 8px' }}>{cls.name}</td>
+                                      <td style={{ textAlign: 'center', padding: '6px 8px' }}>{potential ?? '—'}</td>
+                                      <td style={{ textAlign: 'center', padding: '6px 8px' }}>{attended ?? '—'}</td>
+                                      <td style={{ textAlign: 'center', padding: '6px 8px', fontWeight: 600, color: pct != null ? colour : undefined }}>{pct != null ? `${pct}%` : '—'}</td>
+                                      <td style={{ textAlign: 'center', padding: '6px 8px' }}>{hours ?? '—'}</td>
+                                    </tr>
+                                  )
+                                })
+                                const totalPct = totalPotential ? Math.round((totalAttended / totalPotential) * 100) : null
                                 return (
-                                  <tr key={a.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                                    <td style={{ padding: '6px 8px' }}>{cls.name}</td>
-                                    <td style={{ textAlign: 'center', padding: '6px 8px' }}>{potential ?? '—'}</td>
-                                    <td style={{ textAlign: 'center', padding: '6px 8px' }}>{attended ?? '—'}</td>
-                                    <td style={{ textAlign: 'center', padding: '6px 8px', fontWeight: 600, color: pct != null ? colour : undefined }}>{pct != null ? `${pct}%` : '—'}</td>
-                                    <td style={{ textAlign: 'center', padding: '6px 8px' }}>{hours ?? '—'}</td>
-                                  </tr>
+                                  <>
+                                    {rows}
+                                    <tr style={{ borderTop: `2px solid ${colour}`, fontWeight: 700 }}>
+                                      <td></td>
+                                      <td style={{ padding: '6px 8px' }}>Total</td>
+                                      <td style={{ textAlign: 'center', padding: '6px 8px' }}>{totalPotential}</td>
+                                      <td style={{ textAlign: 'center', padding: '6px 8px' }}>{totalAttended}</td>
+                                      <td style={{ textAlign: 'center', padding: '6px 8px', color: colour }}>{totalPct != null ? `${totalPct}%` : '—'}</td>
+                                      <td style={{ textAlign: 'center', padding: '6px 8px' }}>{+totalHours.toFixed(1)}</td>
+                                    </tr>
+                                  </>
                                 )
-                              })}
+                              })()}
                             </tbody>
                           </table>
                         </div>

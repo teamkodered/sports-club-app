@@ -747,7 +747,16 @@ export default function Registers() {
                 {visibleCols.includes('grade')       && <SortTh col="grade" label="Grade" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
                 {visibleCols.includes('class_time')  && <th>Class time</th>}
                 {isKR && <><th>Experience</th><th>Discipline</th><th>Weight</th><th>Age cat.</th></>}
-                {(regType === 'kr' || regType === 'krba') && <th style={{ textAlign: 'center' }}>In comp</th>}
+                {(regType === 'kr' || regType === 'krba') && (() => {
+                  const inCount = displayStudents.filter(s => s.in_comp).length
+                  const outCount = displayStudents.length - inCount
+                  return (
+                    <th style={{ textAlign: 'center' }}>
+                      <div>In comp</div>
+                      <div style={{ fontSize: 9, fontWeight: 400, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>{inCount} in · {outCount} out</div>
+                    </th>
+                  )
+                })()}
                 {visibleCols.includes('groups')      && <th>Groups</th>}
                 {visibleCols.includes('attendance')  && <th style={{ textAlign: 'center' }}>
                   <div>Attend.</div>

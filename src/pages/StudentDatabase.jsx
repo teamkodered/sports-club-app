@@ -310,11 +310,18 @@ export default function StudentDatabase() {
         <table>
           <thead>
             <tr>
-              {cols.map(c => (
-                c.sortable
+              {cols.map(c => {
+                if (c.key === 'in_comp') {
+                  const relevant = filtered.filter(s => s.is_kr || s.discipline === 'KRBA')
+                  const inCount = relevant.filter(s => s.in_comp).length
+                  const outCount = relevant.length - inCount
+                  return <SortTh key={c.key} col={c.key} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}
+                    label={<>In comp<div style={{ fontSize: 9, fontWeight: 400, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>{inCount} in · {outCount} out</div></>} />
+                }
+                return c.sortable
                   ? <SortTh key={c.key} col={c.key} label={c.label} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                   : <th key={c.key}>{c.label}</th>
-              ))}
+              })}
               <th></th>
             </tr>
           </thead>
