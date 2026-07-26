@@ -2255,7 +2255,7 @@ export default function AthleteProfiles() {
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
                     <span style={{ fontSize: 18 }}>📋</span>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Notes</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Test</span>
                     <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{showTestSection ? '▲' : '▼'}</span>
                   </button>
 
