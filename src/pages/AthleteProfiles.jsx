@@ -165,6 +165,14 @@ function isWellbeingQComplete(key, w) {
 // the coach write in what the routine actually consists of.
 const SNC_ROUTINE_PRESETS = ['Routine 1', 'Routine 2', 'Routine 3', 'Routine 4']
 
+// Maps a class's day_of_week label to actual JS day-of-week numbers
+// (0=Sunday...6=Saturday), used to work out which calendar dates an
+// athlete's assigned classes actually run on.
+const DAY_TO_JS_DAYS = {
+  Monday: [1], Tuesday: [2], Wednesday: [3], Thursday: [4], Friday: [5], Saturday: [6], Sunday: [0],
+  'Mon/Fri': [1, 5], 'Tue/Thu': [2, 4],
+}
+
 const RUN_CATEGORY_CARDS = [
   { key: 'Timed Sprints', label: 'Timed Sprints', icon: '⚡' },
   { key: 'Timed Distance Run', label: 'Timed Distance Run', icon: '🏁' },
@@ -515,22 +523,18 @@ const BOX_DIVISIONS = ['Schoolboy', 'Schoolgirl', 'Junior', 'Youth', 'Elite', 'S
 // ── PDP Tab Component ──────────────────────────────────────────────────────
 const PDP_SECTIONS = [
   { key: 'winning_ways',          label: '🏆 Winning ways',             colour: '#1D9E75', coachOnly: false },
-  { key: 'maintain',              label: '✅ Maintain',                  colour: '#378ADD', coachOnly: false },
-  { key: 'to_work_on',            label: '🎯 To work on',                colour: '#EF9F27', coachOnly: false },
-  { key: 'what_to_do',            label: '📋 What to do',                colour: '#8B5CF6', coachOnly: false },
-  { key: 'technical_notes',       label: '⚙️ Technical notes',           colour: '#E24B4A', coachOnly: true  },
-  { key: 'tech_maintain',         label: '✅ Technical — maintain',      colour: '#378ADD', coachOnly: true  },
-  { key: 'tech_work_on',          label: '🎯 Technical — work on',       colour: '#EF9F27', coachOnly: true  },
-  { key: 'tact_maintain',         label: '✅ Tactical — maintain',       colour: '#1D9E75', coachOnly: true  },
-  { key: 'tact_work_on',          label: '🎯 Tactical — work on',        colour: '#E24B4A', coachOnly: true  },
   { key: 'psychology_maintain',   label: '🧠 Psychology — maintain',     colour: '#8B5CF6', coachOnly: true  },
   { key: 'psychology_work_on',    label: '🧠 Psychology — work on',      colour: '#7C3AED', coachOnly: true  },
+  { key: 'tech_maintain',         label: '⚙️ Technical — maintain',      colour: '#378ADD', coachOnly: true  },
+  { key: 'tech_work_on',          label: '⚙️ Technical — work on',       colour: '#EF9F27', coachOnly: true  },
+  { key: 'tact_maintain',         label: '🎯 Tactical — maintain',       colour: '#1D9E75', coachOnly: true  },
+  { key: 'tact_work_on',          label: '🎯 Tactical — work on',        colour: '#E24B4A', coachOnly: true  },
   { key: 'physical_maintain',     label: '💪 Physical — maintain',       colour: '#1D9E75', coachOnly: true  },
   { key: 'physical_work_on',      label: '💪 Physical — work on',        colour: '#059669', coachOnly: true  },
-  { key: 'coach_drills',          label: '🥊 Coach drills',              colour: '#E24B4A', coachOnly: true  },
-  { key: 'sparring_notes',        label: '🥋 Sparring / partners',       colour: '#854F0B', coachOnly: true  },
-  { key: 'notes',                 label: '📝 Coach notes',               colour: '#666',    coachOnly: true  },
+  { key: 'skill_maintain',        label: '🥋 Skill — maintain',          colour: '#185FA5', coachOnly: true  },
+  { key: 'skill_work_on',         label: '🥋 Skill — work on',           colour: '#0E7490', coachOnly: true  },
   { key: 'athlete_notes',         label: '📝 Your notes',                colour: '#185FA5', coachOnly: false },
+  { key: 'notes',                 label: '📝 Coach notes',               colour: '#666',    coachOnly: true  },
 ]
 
 function PDPTab({ apData, setApData, student, isAdmin }) {
@@ -796,7 +800,7 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
                     {section.label}</h3>
                   {sentAt && <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Sent {new Date(sentAt).toLocaleDateString('en-GB')}</span>}
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
                   {items.map((item, i) => (
                     <span key={i} style={notePillStyle(sectionColour, section.key, item, { border: `1px solid ${section.colour}30`, padding: '4px 10px', fontSize: 12, fontWeight: 500 })}>{item}</span>
                   ))}
@@ -912,7 +916,7 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
                 </div>
 
                 {!isEditing && items.length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }} onClick={e => e.stopPropagation()}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }} onClick={e => e.stopPropagation()}>
                     {items.map((item, i) => (
                       <span key={i} onClick={() => toggleHighlight(section.key, item)} title="Click to highlight"
                         style={notePillStyle(sectionColour, section.key, item, { border: `1px solid ${section.colour}30`, padding: '4px 10px', fontSize: 12, cursor: 'pointer' })}>{item}</span>
@@ -951,7 +955,7 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
                     )}
 
                     {/* Items with drag, cut, copy */}
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginBottom: 10 }}>
                       {editItems.map((item, i) => {
                         const col = editSectionMeta?.colour || section.colour
                         const isSel = selectedItems.includes(i)
@@ -3109,10 +3113,16 @@ export default function AthleteProfiles() {
                       const firstDay = new Date(year, month, 1)
                       const startWeekday = (firstDay.getDay() + 6) % 7
                       const daysInMonth = new Date(year, month + 1, 0).getDate()
+                      const assignedWeekdays = new Set(
+                        assignedClasses.flatMap(a => DAY_TO_JS_DAYS[a.classes?.day_of_week] || [])
+                      )
+                      const daysInMonthList = Array.from({ length: daysInMonth }, (_, i) => i + 1)
+                      const todayStr = new Date().toISOString().split('T')[0]
                       const allTrainingDays = new Set(
-                        (allAttendance || [])
-                          .map(a => a?.session_date)
-                          .filter(d => d && new Date(d).getFullYear() === year && new Date(d).getMonth() === month)
+                        daysInMonthList
+                          .filter(d => assignedWeekdays.has(new Date(year, month, d).getDay()))
+                          .map(d => `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`)
+                          .filter(dateStr => dateStr <= todayStr)
                       )
                       const attendedDays = new Set(
                         attendanceData
@@ -3214,10 +3224,6 @@ export default function AthleteProfiles() {
 
                   {/* Per-class breakdown: potential/attended/%/hours */}
                   {assignedClasses.length > 0 && (() => {
-                    const DAY_TO_JS_DAYS = {
-                      Monday: [1], Tuesday: [2], Wednesday: [3], Thursday: [4], Friday: [5], Saturday: [6], Sunday: [0],
-                      'Mon/Fri': [1, 5], 'Tue/Thu': [2, 4],
-                    }
                     const now = new Date()
                     let rangeStart
                     if (sessionsBreakdownRange === 'month') rangeStart = new Date(now.getFullYear(), now.getMonth(), 1)
