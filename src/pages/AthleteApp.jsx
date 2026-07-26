@@ -185,11 +185,26 @@ const WATT_BIKE_GROUPS = [
   { key: 'standard', label: 'Standard interval', icon: '🚴', match: m => WATT_BIKE_PRESETS.standard.includes(normalizeIntervalMode(m)) },
   { key: 'distance', label: 'Distance interval', icon: '📏', match: m => WATT_BIKE_PRESETS.distance.includes(normalizeIntervalMode(m)) },
 ]
+// Bodyweight now supports multiple exercises selected at once within
+// each category, each tracked independently. Entries store an explicit
+// `category` field for reliable matching; entries.category is checked
+// first, falling back to pattern-matching on the exercise name for any
+// data logged before this change, so nothing already recorded is lost.
 const BODYWEIGHT_GROUPS = [
-  { key: 'planks', label: 'Planks', icon: '🧘', match: t => /plank/i.test(t || '') },
-  { key: 'circuits', label: 'Fixed load circuits', icon: '🔴', match: t => /circuit/i.test(t || '') },
-  { key: 'reps', label: 'Reps', icon: '💪', match: t => !/plank|circuit/i.test(t || '') },
+  { key: 'circuit', label: 'Fixed load circuit', icon: '🔴', exercises: ['Red', 'Yellow', 'Green', 'Blue', 'Black'], metric: 'time', durations: null },
+  { key: 'compounds', label: 'Compounds', icon: '💪', exercises: ['Dips', 'Push-ups', 'Pull-ups', 'Squats'], metric: 'reps', durations: ['10 seconds', '30 seconds', '1 minute'] },
+  { key: 'isometrics', label: 'Isometrics', icon: '🧘', exercises: ['Flat plank', 'Side Plank - Right side up', 'Side Plank - Left side up', 'Bridge', 'Wall sit', 'Half push'], metric: 'time', durations: ['1 min', '2 min', '3 min', '5 min'] },
+  { key: 'abs', label: 'Abs circuit', icon: '🔥', exercises: ['Crunches', 'Full sit-ups', 'Side crunch', 'Dorsal raises'], metric: 'reps', durations: ['1 min', '2 min', '3 min', '5 min'] },
 ]
+function bodyweightMatchesGroup(e, grpKey) {
+  if (!e) return false
+  if (e.category) return e.category === grpKey
+  const t = e.type || ''
+  if (/circuit/i.test(t)) return grpKey === 'circuit'
+  if (/plank|bridge|wall sit|half push/i.test(t)) return grpKey === 'isometrics'
+  if (/crunch|sit-?up|dorsal/i.test(t)) return grpKey === 'abs'
+  return grpKey === 'compounds'
+}
 
 const TEST_CATEGORIES = [
   { key: 'bleep', label: 'Bleep test', icon: '🏃', tests: [
@@ -1158,9 +1173,9 @@ export default function AthleteApp() {
                     </div>
                     {showBodyweightCards && (
                     <div ref={bodyweightPanelRef}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeBodyweight ? 10 : 8 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeBodyweight ? 10 : 8 }}>
                       {BODYWEIGHT_GROUPS.map(grp => {
-                        const complete = todaysBodyweight.some(e => grp.match(e.type))
+                        const complete = todaysBodyweight.some(e => bodyweightMatchesGroup(e, grp.key))
                         const active = expandedHomeBodyweight === grp.key
                         return (
                           <button key={grp.key} type="button" onClick={() => openOnlyPhysicalPanel('bodyweight', active ? null : grp.key)} style={{
@@ -1177,27 +1192,52 @@ export default function AthleteApp() {
                     </div>
                     {expandedHomeBodyweight && (() => {
                       const grp = BODYWEIGHT_GROUPS.find(g => g.key === expandedHomeBodyweight)
-                      const groupTypes = bodyweightTypeOptions.filter(t => grp.match(t))
-                      const entry = todaysBodyweight.find(e => grp.match(e.type)) || { type: '', sets: [] }
-                      const upsert = updatedEntry => savePhysicalField('bodyweight', [...todaysBodyweight.filter(e => !grp.match(e.type)), updatedEntry], setTodaysBodyweight)
+                      const groupEntries = todaysBodyweight.filter(e => bodyweightMatchesGroup(e, grp.key))
+                      const upsertExercise = (exerciseName, updater) => {
+                        const existing = groupEntries.find(e => e.type === exerciseName) || { category: grp.key, type: exerciseName, duration: '', sets: [] }
+                        const updated = updater(existing)
+                        const others = todaysBodyweight.filter(e => !(bodyweightMatchesGroup(e, grp.key) && e.type === exerciseName))
+                        savePhysicalField('bodyweight', [...others, updated], setTodaysBodyweight)
+                      }
+                      const removeExercise = exerciseName => {
+                        savePhysicalField('bodyweight', todaysBodyweight.filter(e => !(bodyweightMatchesGroup(e, grp.key) && e.type === exerciseName)), setTodaysBodyweight)
+                      }
                       return (
                         <div className="card" style={{ marginBottom: 8 }}>
                           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                             <button type="button" className="btn btn-sm" style={{ fontSize: 11 }}
-                              onClick={() => savePhysicalField('bodyweight', todaysBodyweight.filter(e => !grp.match(e.type)), setTodaysBodyweight)}>✕ Clear</button>
+                              onClick={() => savePhysicalField('bodyweight', todaysBodyweight.filter(e => !bodyweightMatchesGroup(e, grp.key)), setTodaysBodyweight)}>✕ Clear all</button>
                           </div>
-                          <div className="field"><label>Exercise</label>
-                            <select value={entry.type || ''} onChange={e => upsert({ ...entry, type: e.target.value })}>
-                              <option value="">Select…</option>
-                              {groupTypes.map(t => <option key={t}>{t}</option>)}
-                            </select>
-                          </div>
-                          <div className="field" style={{ marginBottom: 0 }}><label>Result</label>
-                            <input defaultValue={entry.sets?.[0] || ''}
-                              onBlur={e => upsert({ ...entry, sets: [e.target.value] })}
-                              placeholder="e.g. 20 reps or 1:30" />
-                          </div>
-                          {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>Saving…</p>}
+                          {grp.exercises.map((ex, i) => {
+                            const entry = groupEntries.find(e => e.type === ex)
+                            const checked = !!entry
+                            return (
+                              <div key={ex} style={{ marginBottom: 10, paddingBottom: 10, borderBottom: i < grp.exercises.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>
+                                  <input type="checkbox" checked={checked}
+                                    onChange={e => e.target.checked ? upsertExercise(ex, cur => ({ ...cur, sets: cur.sets || [] })) : removeExercise(ex)}
+                                    style={{ width: 16, height: 16 }} />
+                                  {ex}
+                                </label>
+                                {checked && (
+                                  <div style={{ marginTop: 6, marginLeft: 24 }}>
+                                    {grp.durations && (
+                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+                                        {grp.durations.map(d => (
+                                          <button key={d} type="button" onClick={() => upsertExercise(ex, cur => ({ ...cur, duration: d }))}
+                                            className="btn btn-sm" style={{ background: entry.duration === d ? '#1D9E7520' : undefined, borderColor: entry.duration === d ? '#1D9E75' : undefined }}>{d}</button>
+                                        ))}
+                                      </div>
+                                    )}
+                                    <SetInput sets={entry.sets || []} onChange={sets => upsertExercise(ex, cur => ({ ...cur, sets }))}
+                                      inputType={grp.metric === 'reps' ? 'number' : 'text'}
+                                      placeholder={grp.metric === 'reps' ? 'e.g. 20' : 'e.g. 1:30'} />
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                          {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>Saving…</p>}
                         </div>
                       )
                     })()}
