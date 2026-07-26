@@ -573,6 +573,9 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
   const [newItem, setNewItem]       = useState('')
   const [saving, setSaving]         = useState(false)
   const [sendModal, setSendModal]   = useState(null)
+  const [timetableModal, setTimetableModal] = useState(null) // { sectionKey, item } when picking a day/time to send
+  const [timetableDraftDate, setTimetableDraftDate] = useState('')
+  const [timetableDraftTime, setTimetableDraftTime] = useState('')
   const [pdpHistory, setPdpHistory] = useState([]) // for undo
   const [editSectionMeta, setEditSectionMeta] = useState(null) // {key, label, colour}
   const [clipboard, setClipboard] = useState(null)
@@ -622,6 +625,67 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
     const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: newPdp }, { onConflict: 'student_id' })
     if (error) { alert('Error updating: ' + error.message); return }
     setApData(a => ({ ...a, pdp_notes: newPdp }))
+  }
+
+  // "What to do" (Check) notes can be sent to the athlete's timetable/
+  // calendar with a chosen day + time. Sent notes are stored per
+  // section as { [noteText]: { date, time } } and are darkened in the
+  // PDP view once sent; pressing a sent note then checks it off
+  // instead of re-opening the send picker.
+  function timetableEntry(sectionKey, item) {
+    return (pdp[`__timetable_${sectionKey}`] || {})[item] || null
+  }
+
+  async function sendNoteToTimetable() {
+    if (!timetableModal || !timetableDraftDate) return
+    const { sectionKey, item } = timetableModal
+    const key = `__timetable_${sectionKey}`
+    const current = pdp[key] || {}
+    const dayName = new Date(timetableDraftDate + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long' })
+    const timetable = { ...(pdp.timetable || {}) }
+    const entryText = timetableDraftTime ? `${timetableDraftTime} — ${item}` : item
+    // Avoid duplicating if this exact note was already sent to this day
+    const existingDay = timetable[dayName] || []
+    if (!existingDay.includes(entryText)) timetable[dayName] = [...existingDay, entryText]
+
+    const updated = {
+      ...pdp,
+      [key]: { ...current, [item]: { date: timetableDraftDate, time: timetableDraftTime || null, day: dayName } },
+      timetable,
+    }
+    const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: updated }, { onConflict: 'student_id' })
+    if (error) { alert('Error sending to timetable: ' + error.message); return }
+    setApData(a => ({ ...a, pdp_notes: updated }))
+    setTimetableModal(null)
+    setTimetableDraftDate('')
+    setTimetableDraftTime('')
+  }
+
+  async function removeFromTimetable(sectionKey, item) {
+    const key = `__timetable_${sectionKey}`
+    const current = { ...(pdp[key] || {}) }
+    const entry = current[item]
+    delete current[item]
+    const timetable = { ...(pdp.timetable || {}) }
+    if (entry?.day) {
+      const entryText = entry.time ? `${entry.time} — ${item}` : item
+      timetable[entry.day] = (timetable[entry.day] || []).filter(t => t !== entryText)
+    }
+    const updated = { ...pdp, [key]: current, timetable }
+    const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: updated }, { onConflict: 'student_id' })
+    if (error) { alert('Error removing from timetable: ' + error.message); return }
+    setApData(a => ({ ...a, pdp_notes: updated }))
+  }
+
+  // All PDP items sent to the timetable, across every category's Check
+  // column, for looking up what's scheduled on a given calendar date.
+  function allTimetableEntries() {
+    const out = []
+    PDP_CHECKABLE_SECTIONS.forEach(sectionKey => {
+      const map = pdp[`__timetable_${sectionKey}`] || {}
+      Object.entries(map).forEach(([item, entry]) => out.push({ sectionKey, item, ...entry }))
+    })
+    return out
   }
   // Restore custom sections from saved meta keys
   useEffect(() => {
@@ -876,17 +940,51 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
               {items.map((item, i) => {
                 const checkable = PDP_CHECKABLE_SECTIONS.has(section.key)
                 const done = checkable && isCompleted(section.key, item)
+                const sent = checkable && timetableEntry(section.key, item)
                 return (
-                  <span key={i} onClick={() => checkable ? toggleCompleted(section.key, item) : toggleHighlight(section.key, item)}
-                    title={checkable ? (done ? 'Click to mark not done' : 'Click to mark done') : 'Click to highlight'}
-                    style={notePillStyle(sectionColour, section.key, item, { border: `1px solid ${section.colour}30`, padding: '4px 10px', fontSize: 12, cursor: 'pointer' })}>
-                    {checkable && <span style={{ marginRight: 6 }}>{done ? '☑' : '☐'}</span>}
+                  <span key={i}
+                    onClick={() => {
+                      if (!checkable) return toggleHighlight(section.key, item)
+                      if (!sent) { setTimetableModal({ sectionKey: section.key, item }); setTimetableDraftDate(''); setTimetableDraftTime('') }
+                      else toggleCompleted(section.key, item)
+                    }}
+                    title={!checkable ? 'Click to highlight' : !sent ? 'Click to send to timetable' : done ? 'Click to mark not done' : 'Click to mark done'}
+                    style={{
+                      ...notePillStyle(sectionColour, section.key, item, { border: `1px solid ${section.colour}30`, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }),
+                      ...(sent ? { background: sectionColour + '40', fontWeight: 600 } : {}),
+                    }}>
+                    {checkable && sent && <span style={{ marginRight: 6 }}>{done ? '☑' : '☐'}</span>}
                     {item}
+                    {sent && (
+                      <>
+                        <span style={{ marginLeft: 6, fontSize: 10, opacity: 0.75 }}>
+                          📅 {new Date(sent.date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}{sent.time ? ` ${sent.time}` : ''}
+                        </span>
+                        <button onClick={e => { e.stopPropagation(); removeFromTimetable(section.key, item) }}
+                          title="Remove from timetable" style={{ background: 'none', border: 'none', cursor: 'pointer', marginLeft: 4, fontSize: 12, opacity: 0.6 }}>×</button>
+                      </>
+                    )}
                   </span>
                 )
               })}
             </div>
           )
+        )}
+
+        {timetableModal && timetableModal.sectionKey === section.key && (
+          <div onClick={e => e.stopPropagation()} style={{ marginTop: 8, padding: 10, border: `1px solid ${sectionColour}40`, borderRadius: 'var(--radius)', background: 'var(--bg-secondary)' }}>
+            <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Send "{timetableModal.item}" to timetable</p>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+              <input type="date" value={timetableDraftDate} onChange={e => setTimetableDraftDate(e.target.value)}
+                style={{ padding: '5px 8px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 12, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+              <input type="time" value={timetableDraftTime} onChange={e => setTimetableDraftTime(e.target.value)}
+                style={{ padding: '5px 8px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 12, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-primary btn-sm" disabled={!timetableDraftDate} onClick={sendNoteToTimetable}>Send</button>
+              <button className="btn btn-sm" onClick={() => setTimetableModal(null)}>Cancel</button>
+            </div>
+          </div>
         )}
 
         {isEditing && (
@@ -1169,6 +1267,29 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
               <p>Add notes using the sections below</p>
             </div>
           )}
+          {/* Weekly Timetable -- shows PDP "Check" items sent here from any category */}
+          {(() => {
+            const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday']
+            const timetable = pdp.timetable || {}
+            if (DAYS.every(d => !(timetable[d]?.length))) return null
+            return (
+              <div className="card" style={{ marginBottom: 16 }}>
+                <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>📅 Weekly Timetable</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
+                  {DAYS.map(day => (
+                    <div key={day} style={{ background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', padding: '10px 8px', minHeight: 60 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, textAlign: 'center' }}>{day.slice(0,3)}</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {(timetable[day] || []).map((note, i) => (
+                          <div key={i} style={{ fontSize: 11, background: 'var(--bg)', borderRadius: 8, padding: '3px 7px', color: 'var(--text)', border: '1px solid var(--border)' }}>{note}</div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
           {(() => {
             const allSections = [...PDP_SECTIONS, ...customSections]
             const orderedSections = (() => {
@@ -1690,13 +1811,25 @@ export default function AthleteProfiles() {
       if (error) return alert('Error updating attendance: ' + error.message)
       setAttendanceData(prev => prev.filter(a => a.id !== attendedRecord.id))
       setAllAttendance(prev => prev.map(a => a?.id === attendedRecord.id ? { ...a, present: false, attendance_type: 'absent' } : a))
-    } else if (existing) {
-      // Currently red (explicit absent record exists) -> clear it entirely
-      const { error } = await supabase.from('attendance').delete().eq('id', existing.id)
+    } else if (existing?.attendance_type === 'absent') {
+      // Currently red -> clear to blank. We keep the row (marked
+      // "excused") instead of deleting it, otherwise a date that
+      // matches an assigned class's weekday would immediately show
+      // as red again from the auto-missed inference.
+      const { error } = await supabase.from('attendance')
+        .update({ attendance_type: 'excused' }).eq('id', existing.id)
       if (error) return alert('Error clearing attendance: ' + error.message)
-      setAllAttendance(prev => prev.filter(a => a?.id !== existing.id))
+      setAllAttendance(prev => prev.map(a => a?.id === existing.id ? { ...a, attendance_type: 'excused' } : a))
+    } else if (existing?.attendance_type === 'excused') {
+      // Currently blank (explicitly cleared) -> mark attended (green)
+      const { error } = await supabase.from('attendance')
+        .update({ present: true, attendance_type: 'attended' }).eq('id', existing.id)
+      if (error) return alert('Error saving attendance: ' + error.message)
+      const updatedRecord = { ...existing, present: true, attendance_type: 'attended' }
+      setAttendanceData(prev => [...prev, updatedRecord])
+      setAllAttendance(prev => prev.map(a => a?.id === existing.id ? updatedRecord : a))
     } else {
-      // Currently blank -> mark attended (green)
+      // Currently blank (no record at all) -> mark attended (green)
       const { data, error } = await supabase.from('attendance').insert({
         student_id: selected.id, present: true, attendance_type: 'attended',
         session_date: dateStr, attended_at: new Date(dateStr + 'T12:00:00').toISOString(),
@@ -1816,7 +1949,7 @@ export default function AthleteProfiles() {
       .then(({ data }) => setTptData(prev => ({ ...prev, boxing: data || [] })))
     // Load attendance history + coach points for the Sessions tab
     supabase.from('attendance').select('id, session_date, attendance_type, attended_at, note')
-      .eq('student_id', s.id).neq('attendance_type', 'absent')
+      .eq('student_id', s.id).neq('attendance_type', 'absent').neq('attendance_type', 'excused')
       .order('session_date', { ascending: false })
       .then(({ data, error }) => { if (!error) setAttendanceData(data || []) })
     // Load classes this athlete is explicitly assigned to
@@ -3325,6 +3458,12 @@ export default function AthleteProfiles() {
                           .map(a => a?.session_date)
                           .filter(d => d && new Date(d).getFullYear() === year && new Date(d).getMonth() === month)
                       )
+                      const explicitlyExcusedDays = new Set(
+                        (allAttendance || [])
+                          .filter(a => a?.student_id === selected.id && a?.attendance_type === 'excused')
+                          .map(a => a?.session_date)
+                          .filter(d => d && new Date(d).getFullYear() === year && new Date(d).getMonth() === month)
+                      )
                       const cells = []
                       for (let i = 0; i < startWeekday; i++) cells.push(null)
                       for (let d = 1; d <= daysInMonth; d++) cells.push(d)
@@ -3349,8 +3488,9 @@ export default function AthleteProfiles() {
                               const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`
                               const attended = attendedDays.has(dateStr)
                               const explicitlyAbsent = explicitlyAbsentDays.has(dateStr)
+                              const explicitlyExcused = explicitlyExcusedDays.has(dateStr)
                               const wasTrainingDay = allTrainingDays.has(dateStr)
-                              const showAsRed = explicitlyAbsent || (wasTrainingDay && !attended)
+                              const showAsRed = explicitlyAbsent || (wasTrainingDay && !attended && !explicitlyExcused)
                               const bg = attended ? '#1D9E75' : showAsRed ? '#E24B4A' : 'transparent'
                               const fg = attended || showAsRed ? '#fff' : 'var(--text-secondary)'
                               const jsDay = new Date(year, month, d).getDay()
@@ -3358,22 +3498,43 @@ export default function AthleteProfiles() {
                                 .filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay))
                                 .map(a => a.classes?.start_time?.slice(0, 5))
                                 .filter(Boolean)
+                              const pdpItemsToday = allTimetableEntries().filter(e => e.date === dateStr)
                               return (
                                 <button key={i} type="button" onClick={() => cycleAttendanceDay(dateStr)}
-                                  title={attended ? 'Attended — click to mark absent' : explicitlyAbsent ? 'Marked absent — click to clear' : wasTrainingDay ? 'Missed (a session happened this day) — click to mark attended' : 'Click to mark attended'}
+                                  title={(attended ? 'Attended — click to mark absent' : explicitlyAbsent ? 'Marked absent — click to clear' : explicitlyExcused ? 'Cleared — click to mark attended' : wasTrainingDay ? 'Missed (a session happened this day) — click to mark attended' : 'Click to mark attended') + (pdpItemsToday.length ? `\nPDP: ${pdpItemsToday.map(e => e.item).join(', ')}` : '')}
                                   style={{
                                     aspectRatio: '0.85', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1,
                                     borderRadius: 6, fontSize: 12, background: bg, color: fg, cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                                    border: !attended && !showAsRed ? '1px solid var(--border)' : 'none',
+                                    border: !attended && !showAsRed ? '1px solid var(--border)' : 'none', position: 'relative',
                                   }}>
                                   <span>{d}</span>
                                   {classTimes.length > 0 && (
                                     <span style={{ fontSize: 6.5, lineHeight: 1, opacity: 0.85 }}>{classTimes.join(', ')}</span>
                                   )}
+                                  {pdpItemsToday.length > 0 && (
+                                    <span style={{ position: 'absolute', top: 2, right: 2, fontSize: 8 }}>📌</span>
+                                  )}
                                 </button>
                               )
                             })}
                           </div>
+                          {(() => {
+                            const monthItems = allTimetableEntries().filter(e => {
+                              const d = new Date(e.date)
+                              return d.getFullYear() === year && d.getMonth() === month
+                            }).sort((a, b) => a.date.localeCompare(b.date))
+                            if (monthItems.length === 0) return null
+                            return (
+                              <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                                <p style={{ fontSize: 11, fontWeight: 600, marginBottom: 6 }}>📌 PDP actions scheduled this month</p>
+                                {monthItems.map((e, idx) => (
+                                  <div key={idx} style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                                    <strong>{new Date(e.date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}{e.time ? ` ${e.time}` : ''}</strong> — {e.item}
+                                  </div>
+                                ))}
+                              </div>
+                            )
+                          })()}
                           <div style={{ display: 'flex', gap: 14, marginTop: 12, fontSize: 11, color: 'var(--text-secondary)' }}>
                             <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#1D9E75', borderRadius: 2, marginRight: 4 }} />Attended</span>
                             <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#E24B4A', borderRadius: 2, marginRight: 4 }} />Absent</span>
