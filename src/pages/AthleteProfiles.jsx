@@ -800,7 +800,7 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
                     {section.label}</h3>
                   {sentAt && <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Sent {new Date(sentAt).toLocaleDateString('en-GB')}</span>}
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {items.map((item, i) => (
                     <span key={i} style={notePillStyle(sectionColour, section.key, item, { border: `1px solid ${section.colour}30`, padding: '4px 10px', fontSize: 12, fontWeight: 500 })}>{item}</span>
                   ))}
@@ -916,7 +916,7 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
                 </div>
 
                 {!isEditing && items.length > 0 && (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }} onClick={e => e.stopPropagation()}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }} onClick={e => e.stopPropagation()}>
                     {items.map((item, i) => (
                       <span key={i} onClick={() => toggleHighlight(section.key, item)} title="Click to highlight"
                         style={notePillStyle(sectionColour, section.key, item, { border: `1px solid ${section.colour}30`, padding: '4px 10px', fontSize: 12, cursor: 'pointer' })}>{item}</span>
@@ -955,7 +955,7 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
                     )}
 
                     {/* Items with drag, cut, copy */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginBottom: 10 }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
                       {editItems.map((item, i) => {
                         const col = editSectionMeta?.colour || section.colour
                         const isSel = selectedItems.includes(i)
