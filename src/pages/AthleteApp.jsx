@@ -113,10 +113,15 @@ const RUN_PRESET_TESTS = {
   'Timed Sprints': ['30m', '40m', '50m', '100m', '200m', '300m', '400m', '800m'],
   'Timed Distance Run': ['2000m', '1600m', '4800m', '5000m', '10000m', '15000m'],
 }
+const WATT_BIKE_PRESETS = {
+  output: ['10 seconds on 90 seconds off', '15 seconds on 90 seconds off', '10 seconds on 20 seconds off', '15 seconds on 30 seconds off'],
+  standard: ['20 seconds on 20 seconds off', '20 seconds on 40 seconds off', '30 seconds on 30 seconds off'],
+  distance: ['30 seconds on 60 seconds off', '40 seconds on 40 seconds off', '90 seconds on 60 seconds off'],
+}
 const WATT_BIKE_GROUPS = [
-  { key: 'standard', label: 'Standard intervals', icon: '🚴', match: m => !/Output \(wattage\)|Distance \(km\)/i.test(m || '') },
-  { key: 'output', label: 'Output intervals', icon: '⚡', match: m => /Output \(wattage\)/i.test(m || '') },
-  { key: 'distance', label: 'Distance intervals', icon: '📏', match: m => /Distance \(km\)/i.test(m || '') },
+  { key: 'output', label: 'Output interval', icon: '⚡', match: m => WATT_BIKE_PRESETS.output.includes(normalizeIntervalMode(m)) },
+  { key: 'standard', label: 'Standard interval', icon: '🚴', match: m => WATT_BIKE_PRESETS.standard.includes(normalizeIntervalMode(m)) },
+  { key: 'distance', label: 'Distance interval', icon: '📏', match: m => WATT_BIKE_PRESETS.distance.includes(normalizeIntervalMode(m)) },
 ]
 const BODYWEIGHT_GROUPS = [
   { key: 'planks', label: 'Planks', icon: '🧘', match: t => /plank/i.test(t || '') },
@@ -1039,7 +1044,7 @@ export default function AthleteApp() {
                     </div>
                     {expandedHomeWatt && (() => {
                       const grp = WATT_BIKE_GROUPS.find(g => g.key === expandedHomeWatt)
-                      const groupModes = intervalModes.filter(m => grp.match(m))
+                      const presets = WATT_BIKE_PRESETS[grp.key] || []
                       const entry = todaysWattBike.find(e => grp.match(e.interval_mode || e.type)) || { interval_mode: '', sets: [] }
                       const upsert = updatedEntry => savePhysicalField('watt_bike', [...todaysWattBike.filter(e => !grp.match(e.interval_mode || e.type)), updatedEntry], setTodaysWattBike)
                       return (
@@ -1049,15 +1054,19 @@ export default function AthleteApp() {
                               onClick={() => savePhysicalField('watt_bike', todaysWattBike.filter(e => !grp.match(e.interval_mode || e.type)), setTodaysWattBike)}>✕ Clear</button>
                           </div>
                           <div className="field"><label>Interval</label>
-                            <select value={entry.interval_mode || ''} onChange={e => upsert({ ...entry, interval_mode: e.target.value })}>
-                              <option value="">Select…</option>
-                              {groupModes.map(m => <option key={m}>{m}</option>)}
-                            </select>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                              {presets.map(m => (
+                                <button key={m} type="button" onClick={() => upsert({ ...entry, interval_mode: m })}
+                                  className="btn btn-sm" style={{ background: normalizeIntervalMode(entry.interval_mode) === m ? '#378ADD20' : undefined, borderColor: normalizeIntervalMode(entry.interval_mode) === m ? '#378ADD' : undefined }}>{m}</button>
+                              ))}
+                              <input defaultValue={presets.includes(normalizeIntervalMode(entry.interval_mode)) ? '' : (entry.interval_mode || '')}
+                                onBlur={e => e.target.value && upsert({ ...entry, interval_mode: e.target.value })}
+                                placeholder="Other…" style={{ width: 90, flexShrink: 0 }} />
+                            </div>
                           </div>
-                          <div className="field" style={{ marginBottom: 0 }}><label>Result</label>
-                            <input defaultValue={entry.sets?.[0]?.wattage || ''}
-                              onBlur={e => upsert({ ...entry, sets: [{ wattage: e.target.value }] })}
-                              placeholder="e.g. 650" />
+                          <div className="field" style={{ marginBottom: 0 }}><label>Results (wattage)</label>
+                            <SetInput sets={(entry.sets || []).map(s => (s && typeof s === 'object') ? s.wattage : s)}
+                              onChange={sets => upsert({ ...entry, sets: sets.map(v => ({ wattage: v })) })} placeholder="e.g. 650" />
                           </div>
                           {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>Saving…</p>}
                         </div>
