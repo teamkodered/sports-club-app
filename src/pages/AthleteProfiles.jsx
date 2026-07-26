@@ -159,6 +159,12 @@ function isWellbeingQComplete(key, w) {
 // results charts already use (running.category/test/sets,
 // wattBike.interval_mode/sets, bodyweight.type/sets, stretches[i]), so
 // nothing already recorded is affected.
+// SnC (Strength and Conditioning) -- generic numbered routine presets,
+// since routines vary a lot and are best described by the coach rather
+// than picked from a fixed exercise list. A "description" field lets
+// the coach write in what the routine actually consists of.
+const SNC_ROUTINE_PRESETS = ['Routine 1', 'Routine 2', 'Routine 3', 'Routine 4']
+
 const RUN_CATEGORY_CARDS = [
   { key: 'Timed Sprints', label: 'Timed Sprints', icon: '⚡' },
   { key: 'Timed Distance Run', label: 'Timed Distance Run', icon: '🏁' },
@@ -1205,6 +1211,9 @@ export default function AthleteProfiles() {
   const [todaysWattBike, setTodaysWattBike] = useState([])
   const [todaysBodyweight, setTodaysBodyweight] = useState([])
   const [todaysStretches, setTodaysStretches] = useState(['', '', ''])
+  const [todaysSnc, setTodaysSnc] = useState([])
+  const [showSncCards, setShowSncCards] = useState(false)
+  const [sncRoutineDraft, setSncRoutineDraft] = useState('')
   const [savingPhysical, setSavingPhysical] = useState(false)
   const [showContribution, setShowContribution] = useState(false)
   const [showOverallPos, setShowOverallPos] = useState(false)
@@ -1256,6 +1265,7 @@ export default function AthleteProfiles() {
     setTodaysWattBike(toEntries(todaysSession?.watt_bike))
     setTodaysBodyweight(toEntries(todaysSession?.bodyweight))
     setTodaysStretches(todaysSession?.stretch_flows || ['', '', ''])
+    setTodaysSnc(toEntries(todaysSession?.snc))
   }, [f2fData])
 
   useEffect(() => {
@@ -2245,6 +2255,53 @@ export default function AthleteProfiles() {
                   {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8 }}>Saving…</p>}
                   </div>
                   )}
+
+                  <button type="button" onClick={() => setShowSncCards(v => !v)} style={{
+                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    padding: '10px 6px', marginBottom: 8, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                    borderRadius: 'var(--radius)', border: `1px solid ${todaysSnc.length ? '#8B5CF6' : 'var(--border)'}`,
+                    background: todaysSnc.length ? '#8B5CF612' : 'var(--bg-secondary)',
+                  }}>
+                    <span style={{ fontSize: 16 }}>{todaysSnc.length ? '✓' : '🏋️'}</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>SnC</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{showSncCards ? '▲' : '▼'}</span>
+                  </button>
+                  {showSncCards && (
+                    <div className="card" style={{ marginBottom: 8 }}>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+                        <button type="button" className="btn btn-sm" style={{ fontSize: 11 }}
+                          onClick={() => savePhysicalField('snc', [], setTodaysSnc)}>✕ Clear all</button>
+                      </div>
+                      {todaysSnc.map((entry, i) => (
+                        <div key={i} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                            <span style={{ fontSize: 13, fontWeight: 600 }}>{entry.routine}</span>
+                            <button onClick={() => savePhysicalField('snc', todaysSnc.filter((_, idx) => idx !== i), setTodaysSnc)}
+                              style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14 }}>×</button>
+                          </div>
+                          <input defaultValue={entry.description || ''}
+                            onBlur={e => { const next = [...todaysSnc]; next[i] = { ...next[i], description: e.target.value }; savePhysicalField('snc', next, setTodaysSnc) }}
+                            placeholder="What does this routine consist of?" style={{ marginBottom: 6 }} />
+                          <SetInput sets={entry.sets || []}
+                            onChange={sets => { const next = [...todaysSnc]; next[i] = { ...next[i], sets }; savePhysicalField('snc', next, setTodaysSnc) }}
+                            placeholder="e.g. done, or a time/score" />
+                        </div>
+                      ))}
+                      <div className="field"><label>Add a routine</label>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                          {SNC_ROUTINE_PRESETS.filter(r => !todaysSnc.some(e => e.routine === r)).map(r => (
+                            <button key={r} type="button" className="btn btn-sm"
+                              onClick={() => savePhysicalField('snc', [...todaysSnc, { routine: r, description: '', sets: [] }], setTodaysSnc)}>{r}</button>
+                          ))}
+                          <input value={sncRoutineDraft} onChange={e => setSncRoutineDraft(e.target.value)} placeholder="Or write your own…" style={{ width: 130 }} />
+                          <button type="button" className="btn btn-sm" disabled={!sncRoutineDraft}
+                            onClick={() => { savePhysicalField('snc', [...todaysSnc, { routine: sncRoutineDraft, description: '', sets: [] }], setTodaysSnc); setSncRoutineDraft('') }}>Add</button>
+                        </div>
+                      </div>
+                      {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>Saving…</p>}
+                    </div>
+                  )}
+
                   </div>
                   </div>
 
