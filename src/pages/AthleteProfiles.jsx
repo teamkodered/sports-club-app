@@ -594,6 +594,7 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
       fontSize: hl ? (base.fontSize || 11) * 2 : (base.fontSize || 11),
       fontWeight: hl ? 700 : (base.fontWeight || 400),
       textDecoration: done ? 'line-through' : 'none',
+      wordBreak: 'break-word', overflowWrap: 'break-word',
     }
   }
 
@@ -760,8 +761,8 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
         }}
         style={{ borderLeft: `3px solid ${sectionColour}`, borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0', marginBottom: 10, cursor: isEditing ? 'default' : 'pointer' }}
         onClick={() => { if (!isEditing) startEdit(section) }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isEditing ? 12 : items.length ? 8 : 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+        <div style={{ marginBottom: isEditing ? 12 : items.length ? 8 : 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
             <span style={{ cursor: 'grab', color: 'var(--text-tertiary)', fontSize: 16, lineHeight: 1, userSelect: 'none' }}>⋮⋮</span>
             <h3 style={{ fontSize: 13, fontWeight: 600, color: sectionColour, margin: 0 }}>
               {sectionLabel}
@@ -769,7 +770,7 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
               {isShared && !section.coachOnly && <span style={{ fontSize: 9, color: '#1d9e75', marginLeft: 6 }}>✓ shared</span>}
             </h3>
           </div>
-          <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
             {items.length > 0 && (
               <button className="btn btn-sm" style={{ fontSize: 10, background: '#eaf3de', color: '#3b6d11', border: '1px solid #3b6d1140' }}
                 onClick={() => setSendModal(section.key)}>
@@ -1087,7 +1088,7 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
                       {group.keys.map(key => {
                         const sec = allSections.find(s => s.key === key)
-                        return sec ? <div key={key}>{renderPDPSectionCard(sec)}</div> : null
+                        return sec ? <div key={key} style={{ minWidth: 0 }}>{renderPDPSectionCard(sec)}</div> : null
                       })}
                     </div>
                   </div>
