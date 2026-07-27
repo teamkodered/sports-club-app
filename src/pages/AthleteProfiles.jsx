@@ -523,10 +523,13 @@ const BOX_DIVISIONS = ['Schoolboy', 'Schoolgirl', 'Junior', 'Youth', 'Elite', 'S
 // ── PDP Tab Component ──────────────────────────────────────────────────────
 // Consistent colour per column TYPE (not per category), so every
 // category's Notes/Maintain/To work on/Check column matches visually.
-const PDP_COLUMN_COLOURS = { notes: '#666666', maintain: '#1D9E75', work_on: '#EF9F27', what_to_do: '#8B5CF6' }
+const PDP_COLUMN_COLOURS = { notes: '#666666', maintain: '#1D9E75', work_on: '#EF9F27', what_to_do: '#E24B4A' }
 
 const PDP_SECTIONS = [
   { key: 'winning_ways',          label: '🏆 Winning ways',             colour: '#1D9E75', coachOnly: false },
+  { key: 'winning_ways_maintain', label: '🏆 Winning ways — maintain',   colour: PDP_COLUMN_COLOURS.maintain,   coachOnly: true },
+  { key: 'winning_ways_work_on',  label: '🏆 Winning ways — work on',    colour: PDP_COLUMN_COLOURS.work_on,    coachOnly: true },
+  { key: 'winning_ways_what_to_do',    label: '🏆 Winning ways — check',      colour: PDP_COLUMN_COLOURS.what_to_do, coachOnly: true },
   { key: 'what_to_do',            label: '📋 What to do (general)',      colour: '#8B5CF6', coachOnly: false },
   { key: 'psychology_notes',      label: '🧠 Psychology — notes',        colour: PDP_COLUMN_COLOURS.notes,      coachOnly: true },
   { key: 'psychology_maintain',   label: '🧠 Psychology — maintain',     colour: PDP_COLUMN_COLOURS.maintain,   coachOnly: true },
@@ -549,13 +552,14 @@ const PDP_SECTIONS = [
   { key: 'skill_work_on',         label: '🥋 Skill — work on',           colour: PDP_COLUMN_COLOURS.work_on,    coachOnly: true },
   { key: 'skill_what_to_do',      label: '🥋 Skill — check',             colour: PDP_COLUMN_COLOURS.what_to_do, coachOnly: true },
   { key: 'athlete_notes',         label: '📝 Your notes',                colour: '#185FA5', coachOnly: false },
-  { key: 'notes',                 label: '📝 Coach notes',               colour: '#666',    coachOnly: true  },
+  { key: 'notes',                 label: '📝 Coach notes',               colour: '#666666', coachOnly: true  },
 ]
 
 // Groups of 4 sections (Notes / Maintain / To work on / Check) shown
 // as a horizontally-scrollable row for each category, 3 visible at a
 // time, coach view.
 const PDP_CATEGORY_GROUPS = [
+  { label: 'Winning ways', keys: ['winning_ways', 'winning_ways_maintain', 'winning_ways_work_on', 'winning_ways_what_to_do'] },
   { label: 'Psychology', keys: ['psychology_notes', 'psychology_maintain', 'psychology_work_on', 'psychology_what_to_do'] },
   { label: 'Technical',  keys: ['tech_notes', 'tech_maintain', 'tech_work_on', 'tech_what_to_do'] },
   { label: 'Tactical',   keys: ['tact_notes', 'tact_maintain', 'tact_work_on', 'tact_what_to_do'] },
@@ -744,12 +748,12 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
     const label = pdp[`__meta_${section.key}`]?.label || section.label
     const itemCount = (pdp[section.key] || []).length
     const confirmMsg = itemCount > 0
-      ? `Delete "${label}"? This will clear ${itemCount} note${itemCount === 1 ? '' : 's'}. You can undo this afterwards.`
-      : `Delete "${label}"?`
+      ? `Delete "${label}"? This will remove the section and clear ${itemCount} note${itemCount === 1 ? '' : 's'}. You can undo this afterwards.`
+      : `Delete "${label}"? This will remove the section.`
     if (!confirm(confirmMsg)) return
 
     setPdpHistory(prev => [...prev.slice(-9), pdp]) // so it can be undone
-    const updated = { ...pdp, [section.key]: [] }
+    const updated = { ...pdp, [section.key]: [], __hidden_sections: [...(pdp.__hidden_sections || []), section.key] }
     const isCustom = customSections.some(s => s.key === section.key)
     if (isCustom) {
       delete updated[`__meta_${section.key}`]
@@ -1024,12 +1028,12 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
                 </button>
               </div>
             )}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
               {editItems.map((item, i) => {
                 const col = editSectionMeta?.colour || section.colour
                 const isSel = selectedItems.includes(i)
                 return (
-                <span key={i} draggable
+                <div key={i} draggable
                   onClick={(e) => {
                     if (e.shiftKey && selectionAnchor != null) {
                       const [lo, hi] = [Math.min(selectionAnchor, i), Math.max(selectionAnchor, i)]
@@ -1055,18 +1059,18 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
                     if (from === i) return
                     setEditItems(prev => { const n=[...prev]; const [m]=n.splice(from,1); n.splice(i,0,m); return n })
                   }}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: isSel ? col+'35' : col+'15', color: col, border: `${isSel?2:1}px solid ${col}${isSel?'':'30'}`, borderRadius: 20, padding: '4px 10px', fontSize: 12, cursor: 'grab', userSelect: 'none' }}>
-                  <span style={{ fontSize: 10, opacity: 0.5 }}>⠿</span>
-                  {item}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', background: isSel ? col+'35' : col+'15', color: col, border: `${isSel?2:1}px solid ${col}${isSel?'':'30'}`, borderRadius: 8, padding: '6px 10px', fontSize: 12, cursor: 'grab', userSelect: 'none' }}>
+                  <span style={{ fontSize: 12, opacity: 0.5 }}>⠿</span>
+                  <span style={{ flex: 1, wordBreak: 'break-word' }}>{item}</span>
                   <button title="Cut (Ctrl+X)" onClick={e => { e.stopPropagation(); const sel = selectedItems.includes(i) ? selectedItems : [i]; setClipboard(sel.map(idx=>editItems[idx])); setEditItems(prev => prev.filter((_,j)=>!sel.includes(j))); setSelectedItems([]) }}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, opacity: 0.6, padding: '0 2px' }}>✂</button>
                   <button title="Copy (Ctrl+C)" onClick={e => { e.stopPropagation(); const sel = selectedItems.includes(i) ? selectedItems : [i]; setClipboard(sel.map(idx=>editItems[idx])); setSelectedItems(sel) }}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, opacity: 0.6, padding: '0 2px' }}>⧉</button>
                   <button onClick={e => { e.stopPropagation(); removeItem(i) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: col, fontSize: 14, lineHeight: 1, padding: 0 }}>×</button>
-                </span>
+                </div>
                 )
               })}
-              {selectedItems.length > 0 && <p style={{ fontSize: 10, color: 'var(--text-tertiary)', width: '100%', margin: '4px 0' }}>{selectedItems.length} selected · Ctrl+C copy · Ctrl+X cut · Ctrl+V paste · Ctrl/Cmd+click add · Shift+click select range · Esc deselect</p>}
+              {selectedItems.length > 0 && <p style={{ fontSize: 10, color: 'var(--text-tertiary)', margin: '4px 0' }}>{selectedItems.length} selected · Ctrl+C copy · Ctrl+X cut · Ctrl+V paste · Ctrl/Cmd+click add · Shift+click select range · Esc deselect</p>}
               {clipboard && (
                 <button onClick={() => { const items = Array.isArray(clipboard) ? clipboard : [clipboard]; setEditItems(prev => [...prev, ...items]) }}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--bg-tertiary)', border: '1px dashed var(--border-strong)', borderRadius: 20, padding: '4px 10px', fontSize: 11, cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'var(--font-sans)' }}>
@@ -1204,7 +1208,7 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
       {pdpView === 'athlete' && (
         <div>
           {/* Shared coach notes visible to athlete */}
-          {PDP_SECTIONS.filter(s => !s.coachOnly).map(section => {
+          {PDP_SECTIONS.filter(s => !s.coachOnly && !(pdp.__hidden_sections || []).includes(s.key)).map(section => {
             // Show athlete_notes always, shared coach sections if sent
             const items = section.key === 'athlete_notes'
               ? (pdp.athlete_notes || [])
@@ -1291,7 +1295,8 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
             )
           })()}
           {(() => {
-            const allSections = [...PDP_SECTIONS, ...customSections]
+            const hidden = new Set(pdp.__hidden_sections || [])
+            const allSections = [...PDP_SECTIONS, ...customSections].filter(s => !hidden.has(s.key))
             const orderedSections = (() => {
               if (pdp.section_order) {
                 const ordered = pdp.section_order.map(key => allSections.find(s => s.key === key)).filter(Boolean)
@@ -1321,14 +1326,6 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
                         ) : null
                       })}
                     </div>
-                  </div>
-                )
-              } else if (section.key === 'winning_ways') {
-                // Winning ways spans the same 3-column width as the
-                // category rows below it, for visual alignment.
-                rendered.push(
-                  <div key={section.key} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 10 }}>
-                    <div style={{ gridColumn: '1 / -1' }}>{renderPDPSectionCard(section)}</div>
                   </div>
                 )
               } else {
@@ -3498,7 +3495,10 @@ export default function AthleteProfiles() {
                                 .filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay))
                                 .map(a => a.classes?.start_time?.slice(0, 5))
                                 .filter(Boolean)
-                              const pdpItemsToday = allTimetableEntries().filter(e => e.date === dateStr)
+                              const pdpNotesData = apData?.pdp_notes || {}
+                              const pdpItemsToday = Array.from(PDP_CHECKABLE_SECTIONS).flatMap(sectionKey =>
+                                Object.entries(pdpNotesData[`__timetable_${sectionKey}`] || {}).map(([item, entry]) => ({ sectionKey, item, ...entry }))
+                              ).filter(e => e.date === dateStr)
                               return (
                                 <button key={i} type="button" onClick={() => cycleAttendanceDay(dateStr)}
                                   title={(attended ? 'Attended — click to mark absent' : explicitlyAbsent ? 'Marked absent — click to clear' : explicitlyExcused ? 'Cleared — click to mark attended' : wasTrainingDay ? 'Missed (a session happened this day) — click to mark attended' : 'Click to mark attended') + (pdpItemsToday.length ? `\nPDP: ${pdpItemsToday.map(e => e.item).join(', ')}` : '')}
@@ -3519,7 +3519,11 @@ export default function AthleteProfiles() {
                             })}
                           </div>
                           {(() => {
-                            const monthItems = allTimetableEntries().filter(e => {
+                            const pdpNotesData2 = apData?.pdp_notes || {}
+                            const allEntries = Array.from(PDP_CHECKABLE_SECTIONS).flatMap(sectionKey =>
+                              Object.entries(pdpNotesData2[`__timetable_${sectionKey}`] || {}).map(([item, entry]) => ({ sectionKey, item, ...entry }))
+                            )
+                            const monthItems = allEntries.filter(e => {
                               const d = new Date(e.date)
                               return d.getFullYear() === year && d.getMonth() === month
                             }).sort((a, b) => a.date.localeCompare(b.date))
