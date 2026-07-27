@@ -355,8 +355,16 @@ export default function BoxingTPT() {
                 ))}
               </div>
               <GroupAvg group={activeGroup} scores={scores} />
-              {CATEGORIES[activeGroup].map(c => (
-                <ScoreRow key={c.key} label={c.label} field={c.key} value={scores[c.key]} onChange={setScore} />
+              {CATEGORIES[activeGroup].map((c, i) => (
+                <div key={c.key}>
+                  {activeGroup === 'Physical' && i === 0 && (
+                    <div style={{ fontSize: 12, fontWeight: 700, color: GROUP_COLOURS.Physical, textTransform: 'uppercase', letterSpacing: 0.5, margin: '4px 0 6px' }}>Speed</div>
+                  )}
+                  {activeGroup === 'Physical' && i === 4 && (
+                    <div style={{ fontSize: 12, fontWeight: 700, color: GROUP_COLOURS.Physical, textTransform: 'uppercase', letterSpacing: 0.5, margin: '14px 0 6px' }}>Physical</div>
+                  )}
+                  <ScoreRow label={c.label} field={c.key} value={scores[c.key]} onChange={setScore} />
+                </div>
               ))}
             </div>
 
