@@ -565,6 +565,12 @@ const PDP_CATEGORY_GROUPS = [
 ]
 // "Check" columns get checkable pills to mark items done
 const PDP_CHECKABLE_SECTIONS = new Set(PDP_CATEGORY_GROUPS.flatMap(g => g.keys.filter(k => k.endsWith('what_to_do'))))
+// Checking off a Check item moves it to that category's Maintain list
+const PDP_MAINTAIN_FOR_CHECK = Object.fromEntries(
+  PDP_CATEGORY_GROUPS.map(g => [g.keys.find(k => k.endsWith('what_to_do')), g.keys.find(k => k.endsWith('maintain'))]).filter(([c]) => c)
+)
+// Checking off a Maintain item moves it to the Notes log as a completed PDP task
+const PDP_MAINTAIN_SECTIONS = new Set(PDP_CATEGORY_GROUPS.map(g => g.keys.find(k => k.endsWith('maintain'))).filter(Boolean))
 
 function PDPTab({ apData, setApData, student, isAdmin }) {
   const [pdpView, setPdpView]       = useState('coach') // 'coach' | 'athlete' | 'split'
@@ -621,11 +627,42 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
   async function toggleCompleted(sectionKey, item) {
     const key = `__completed_${sectionKey}`
     const current = pdp[key] || []
+    const isCompleting = !current.includes(item)
+
+    // Checking off a Check ("what to do") item moves it into that same
+    // category's Maintain list, rather than just marking it done.
+    const maintainKey = PDP_MAINTAIN_FOR_CHECK[sectionKey]
+    if (isCompleting && maintainKey) {
+      const updated = {
+        ...pdp,
+        [sectionKey]: (pdp[sectionKey] || []).filter(i => i !== item),
+        [maintainKey]: [...(pdp[maintainKey] || []), item],
+        [key]: current.filter(i => i !== item),
+      }
+      const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: updated }, { onConflict: 'student_id' })
+      if (error) { alert('Error moving to maintain: ' + error.message); return }
+      setApData(a => ({ ...a, pdp_notes: updated }))
+      return
+    }
+
     const updated = current.includes(item) ? current.filter(x => x !== item) : [...current, item]
     const newPdp = { ...pdp, [key]: updated }
     const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: newPdp }, { onConflict: 'student_id' })
     if (error) { alert('Error updating: ' + error.message); return }
     setApData(a => ({ ...a, pdp_notes: newPdp }))
+  }
+
+  // Checking off a Maintain item removes it from Maintain and logs it
+  // to the Notes tab as a dated "Completed PDP task".
+  async function completeMaintainItem(sectionKey, item) {
+    const updated = { ...pdp, [sectionKey]: (pdp[sectionKey] || []).filter(i => i !== item) }
+    const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: updated }, { onConflict: 'student_id' })
+    if (error) { alert('Error updating maintain list: ' + error.message); return }
+    const { error: err2 } = await supabase.from('athlete_notes_log').insert({
+      student_id: student.id, note_text: `Completed PDP task: ${item}`,
+    })
+    if (err2) { alert('Error logging completed task: ' + err2.message); return }
+    setApData(a => ({ ...a, pdp_notes: updated }))
   }
 
   // "What to do" (Check) notes can be sent to the athlete's timetable/
@@ -940,20 +977,26 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }} onClick={e => e.stopPropagation()}>
               {items.map((item, i) => {
                 const checkable = PDP_CHECKABLE_SECTIONS.has(section.key)
+                const isMaintain = PDP_MAINTAIN_SECTIONS.has(section.key)
                 const done = checkable && isCompleted(section.key, item)
                 const sent = checkable && timetableEntry(section.key, item)
                 return (
                   <span key={i}
                     onClick={() => {
+                      if (isMaintain) {
+                        if (confirm(`Mark "${item}" as complete? It'll move to the Notes tab as a completed PDP task.`)) completeMaintainItem(section.key, item)
+                        return
+                      }
                       if (!checkable) return toggleHighlight(section.key, item)
                       if (!sent) { setTimetableModal({ sectionKey: section.key, item }); setTimetableDraftDate(''); setTimetableDraftTime('') }
                       else toggleCompleted(section.key, item)
                     }}
-                    title={!checkable ? 'Click to highlight' : !sent ? 'Click to send to timetable' : done ? 'Click to mark not done' : 'Click to mark done'}
+                    title={isMaintain ? 'Click to mark complete (moves to Notes)' : !checkable ? 'Click to highlight' : !sent ? 'Click to send to timetable' : done ? 'Click to mark not done' : 'Click to mark done'}
                     style={{
                       ...notePillStyle(sectionColour, section.key, item, { border: `1px solid ${section.colour}30`, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }),
                       ...(sent ? { background: sectionColour + '40', fontWeight: 600 } : {}),
                     }}>
+                    {isMaintain && <span style={{ marginRight: 6 }}>☐</span>}
                     {checkable && sent && <span style={{ marginRight: 6 }}>{done ? '☑' : '☐'}</span>}
                     {item}
                     {sent && (
@@ -1376,6 +1419,9 @@ export default function AthleteProfiles() {
   const [truePointTotals, setTruePointTotals] = useState({})
   const [allAttendance, setAllAttendance] = useState([])
   const [assignedClasses, setAssignedClasses] = useState([])
+  const [notesLog, setNotesLog] = useState([])
+  const [newNoteText, setNewNoteText] = useState('')
+  const [savingNote, setSavingNote] = useState(false)
   const [allClasses, setAllClasses] = useState([])
   const [addingClassId, setAddingClassId] = useState('')
   const [savingClassAssignment, setSavingClassAssignment] = useState(false)
@@ -1864,6 +1910,51 @@ export default function AthleteProfiles() {
     setAssignedClasses(prev => prev.filter(a => a.id !== assignmentId))
   }
 
+  const NOTE_PDP_TARGETS = {
+    'Winning ways': 'winning_ways',
+    'Psychology':   'psychology_notes',
+    'Technical':    'tech_notes',
+    'Tactical':     'tact_notes',
+    'Physical':     'physical_notes',
+  }
+
+  async function addNote() {
+    if (!newNoteText.trim()) return
+    setSavingNote(true)
+    const { data, error } = await supabase.from('athlete_notes_log')
+      .insert({ student_id: selected.id, note_text: newNoteText.trim() })
+      .select('*').single()
+    if (error) { alert('Error saving note: ' + error.message); setSavingNote(false); return }
+    setNotesLog(prev => [data, ...prev])
+    setNewNoteText('')
+    setSavingNote(false)
+  }
+
+  async function deleteNote(noteId) {
+    if (!confirm('Delete this note?')) return
+    const { error } = await supabase.from('athlete_notes_log').delete().eq('id', noteId)
+    if (error) return alert('Error deleting note: ' + error.message)
+    setNotesLog(prev => prev.filter(n => n.id !== noteId))
+  }
+
+  async function sendNoteToPdpCategory(note, categoryLabel) {
+    const sectionKey = NOTE_PDP_TARGETS[categoryLabel]
+    if (!sectionKey) return
+    const pdpNotes = apData?.pdp_notes || {}
+    const current = pdpNotes[sectionKey] || []
+    const entryText = `${new Date(note.logged_at).toLocaleDateString('en-GB')} — ${note.note_text}`
+    if (current.includes(entryText)) return alert(`Already sent to ${categoryLabel}.`)
+    const updatedPdp = { ...pdpNotes, [sectionKey]: [...current, entryText] }
+    const { error } = await supabase.from('athlete_profiles').upsert({ student_id: selected.id, pdp_notes: updatedPdp }, { onConflict: 'student_id' })
+    if (error) return alert('Error sending to PDP: ' + error.message)
+    const sentTo = [...new Set([...(note.sent_to || []), categoryLabel])]
+    const { error: err2 } = await supabase.from('athlete_notes_log').update({ sent_to: sentTo }).eq('id', note.id)
+    if (err2) return alert('Error updating note: ' + err2.message)
+    setApData(a => ({ ...a, pdp_notes: updatedPdp }))
+    setNotesLog(prev => prev.map(n => n.id === note.id ? { ...n, sent_to: sentTo } : n))
+  }
+
+
   async function saveTestValue(testName, value) {
     setSavingTest(true)
     const todaysDate = new Date().toISOString().split('T')[0]
@@ -1962,6 +2053,10 @@ export default function AthleteProfiles() {
     supabase.from('student_class_assignments').select('id, class_id, classes(*)')
       .eq('student_id', s.id)
       .then(({ data, error }) => { if (!error) setAssignedClasses(data || []) })
+    supabase.from('athlete_notes_log').select('*')
+      .eq('student_id', s.id)
+      .order('logged_at', { ascending: false })
+      .then(({ data, error }) => { if (!error) setNotesLog(data || []) })
     supabase.from('points_log').select('id, point_type, points_awarded, point_scope, note, awarded_at')
       .eq('student_id', s.id)
       .order('awarded_at', { ascending: false })
@@ -2314,7 +2409,7 @@ export default function AthleteProfiles() {
 
             {/* Tabs */}
             <div className="hide-scrollbar" style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 14, overflowX: 'auto' }}>
-              {['home', 'sessions', 'pdp', 'fit2fight', 'tpt', 'media', 'report'].map(t => (
+              {['home', 'sessions', 'pdp', 'fit2fight', 'tpt', 'media', 'notes', 'report'].map(t => (
                 <button key={t} onClick={() => setTab(t)} style={{
                   padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
                   borderBottom: `2px solid ${tab === t ? 'var(--text)' : 'transparent'}`,
@@ -3359,6 +3454,23 @@ export default function AthleteProfiles() {
                       )}
                     </div>
                   )}
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 8 }}>
+                    {[
+                      { label: 'Media', icon: '🖼', colour: '#8B5CF6', tab: 'media' },
+                      { label: 'Notes', icon: '📝', colour: '#378ADD', tab: 'notes' },
+                    ].map(l => (
+                      <button key={l.label} onClick={() => setTab(l.tab)} style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                        padding: '14px 8px', background: l.colour + '12',
+                        border: `1px solid ${l.colour}30`, borderRadius: 'var(--border-radius-lg)',
+                        cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                      }}>
+                        <span style={{ fontSize: 24 }}>{l.icon}</span>
+                        <span style={{ fontSize: 12, fontWeight: 500, color: l.colour }}>{l.label}</span>
+                      </button>
+                    ))}
+                  </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 14 }}>
                     {[
@@ -4608,6 +4720,56 @@ export default function AthleteProfiles() {
                     ))}
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* ── Notes tab ── */}
+            {tab === 'notes' && (
+              <div>
+                <div className="card" style={{ marginBottom: 12 }}>
+                  <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>Log a note</h2>
+                  <textarea value={newNoteText} onChange={e => setNewNoteText(e.target.value)}
+                    placeholder="Write a note about this athlete…" rows={3}
+                    style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
+                  <button className="btn btn-primary btn-sm" disabled={!newNoteText.trim() || savingNote} onClick={addNote}>
+                    {savingNote ? 'Saving…' : '+ Log note'}
+                  </button>
+                </div>
+
+                {notesLog.length === 0 ? (
+                  <div className="empty-state"><h3>No notes yet</h3><p>Notes logged here can be sent to any PDP category</p></div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {notesLog.map(note => (
+                      <div key={note.id} className="card">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                          <div>
+                            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>
+                              {new Date(note.logged_at).toLocaleDateString('en-GB')} · {new Date(note.logged_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                            <p style={{ fontSize: 13, lineHeight: 1.5, margin: 0 }}>{note.note_text}</p>
+                          </div>
+                          <button onClick={() => deleteNote(note.id)} title="Delete note"
+                            style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 16, flexShrink: 0 }}>×</button>
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                          <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Send to:</span>
+                          {Object.keys(NOTE_PDP_TARGETS).map(label => {
+                            const sent = (note.sent_to || []).includes(label)
+                            return (
+                              <button key={label} className="btn btn-sm" disabled={sent}
+                                onClick={() => sendNoteToPdpCategory(note, label)}
+                                style={{ fontSize: 11, opacity: sent ? 0.5 : 1 }}
+                                title={sent ? `Already sent to ${label}` : `Send to ${label}`}>
+                                {sent ? `✓ ${label}` : label}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
