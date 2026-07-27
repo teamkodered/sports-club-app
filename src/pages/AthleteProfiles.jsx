@@ -527,9 +527,6 @@ const PDP_COLUMN_COLOURS = { notes: '#666666', maintain: '#1D9E75', work_on: '#E
 
 const PDP_SECTIONS = [
   { key: 'winning_ways',          label: '🏆 Winning ways',             colour: '#1D9E75', coachOnly: false },
-  { key: 'winning_ways_maintain', label: '🏆 Winning ways — maintain',   colour: PDP_COLUMN_COLOURS.maintain,   coachOnly: true },
-  { key: 'winning_ways_work_on',  label: '🏆 Winning ways — work on',    colour: PDP_COLUMN_COLOURS.work_on,    coachOnly: true },
-  { key: 'winning_ways_what_to_do',    label: '🏆 Winning ways — check',      colour: PDP_COLUMN_COLOURS.what_to_do, coachOnly: true },
   { key: 'what_to_do',            label: '📋 What to do (general)',      colour: '#8B5CF6', coachOnly: false },
   { key: 'psychology_notes',      label: '🧠 Psychology — notes',        colour: PDP_COLUMN_COLOURS.notes,      coachOnly: true },
   { key: 'psychology_maintain',   label: '🧠 Psychology — maintain',     colour: PDP_COLUMN_COLOURS.maintain,   coachOnly: true },
@@ -559,7 +556,6 @@ const PDP_SECTIONS = [
 // as a horizontally-scrollable row for each category, 3 visible at a
 // time, coach view.
 const PDP_CATEGORY_GROUPS = [
-  { label: 'Winning ways', keys: ['winning_ways', 'winning_ways_maintain', 'winning_ways_work_on', 'winning_ways_what_to_do'] },
   { label: 'Psychology', keys: ['psychology_notes', 'psychology_maintain', 'psychology_work_on', 'psychology_what_to_do'] },
   { label: 'Technical',  keys: ['tech_notes', 'tech_maintain', 'tech_work_on', 'tech_what_to_do'] },
   { label: 'Tactical',   keys: ['tact_notes', 'tact_maintain', 'tact_work_on', 'tact_what_to_do'] },
@@ -1326,6 +1322,14 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
                         ) : null
                       })}
                     </div>
+                  </div>
+                )
+              } else if (section.key === 'winning_ways') {
+                // Winning ways spans the same 3-column width as the
+                // category rows below it, for visual alignment.
+                rendered.push(
+                  <div key={section.key} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 10 }}>
+                    <div style={{ gridColumn: '1 / -1' }}>{renderPDPSectionCard(section)}</div>
                   </div>
                 )
               } else {
