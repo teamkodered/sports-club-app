@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Fragment } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
@@ -4533,8 +4533,7 @@ export default function AthleteProfiles() {
                         {tab === 'tpt' && (() => {
               const BOXING_GROUPS = [
                 { label: '🥊 Technical', colour: '#E24B4A', keys: ['shapes','punch_quality','footwork','defence','counters','attack','combinations','change_of_tempo','use_of_phases','distance','flow','self_expression'] },
-                { label: '⚡ Speed',     colour: '#EF9F27', keys: ['foot_speed','limb_speed','combination_speed','reaction'] },
-                { label: '💪 Physical',  colour: '#1D9E75', keys: ['punching_power','strength_upper','strength_lower','stability_core','agility','stop_n_go','stamina_aerobic','stamina_anaerobic','suppleness_upper','suppleness_lower','recovery','health'] },
+                { label: '💪 Physical',  colour: '#1D9E75', keys: ['foot_speed','limb_speed','combination_speed','reaction','punching_power','strength_upper','strength_lower','stability_core','agility','stop_n_go','stamina_aerobic','stamina_anaerobic','suppleness_upper','suppleness_lower','recovery','health'], subHeaders: { 0: 'Speed', 4: 'Physical' } },
                 { label: '🧠 Tactical',  colour: '#8B5CF6', keys: ['read_opponent','tempo_rhythm','tactical_intelligence','ring_awareness','know_strengths_weaknesses','heart_grit','concentration','timing'] },
               ]
               const KB_GROUPS = [
@@ -4605,13 +4604,20 @@ export default function AthleteProfiles() {
                           <div key={group.label} className="card" style={{ borderLeft: `3px solid ${group.colour}`, padding: '10px 14px' }}>
                             <div style={{ fontSize: 12, fontWeight: 600, color: group.colour, marginBottom: 8 }}>{group.label}</div>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 6 }}>
-                              {group.keys.map(k => (
-                                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                                  <span style={{ color: 'var(--text-secondary)' }}>{BOX_LABELS[k]}</span>
-                                  <span style={{ fontWeight: 700, color: b[k] >= 8 ? '#1d9e75' : b[k] >= 5 ? '#EF9F27' : b[k] ? '#E24B4A' : 'var(--text-tertiary)', background: 'var(--bg-secondary)', borderRadius: 20, padding: '1px 8px' }}>
-                                    {b[k] ?? '—'}
-                                  </span>
-                                </div>
+                              {group.keys.map((k, i) => (
+                                <Fragment key={k}>
+                                  {group.subHeaders?.[i] && (
+                                    <div style={{ gridColumn: '1 / -1', fontSize: 10, fontWeight: 700, color: group.colour, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: i > 0 ? 6 : 0 }}>
+                                      {group.subHeaders[i]}
+                                    </div>
+                                  )}
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                                    <span style={{ color: 'var(--text-secondary)' }}>{BOX_LABELS[k]}</span>
+                                    <span style={{ fontWeight: 700, color: b[k] >= 8 ? '#1d9e75' : b[k] >= 5 ? '#EF9F27' : b[k] ? '#E24B4A' : 'var(--text-tertiary)', background: 'var(--bg-secondary)', borderRadius: 20, padding: '1px 8px' }}>
+                                      {b[k] ?? '—'}
+                                    </span>
+                                  </div>
+                                </Fragment>
                               ))}
                             </div>
                           </div>
