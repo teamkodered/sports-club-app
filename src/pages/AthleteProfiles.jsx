@@ -164,6 +164,7 @@ function isWellbeingQComplete(key, w) {
 // than picked from a fixed exercise list. A "description" field lets
 // the coach write in what the routine actually consists of.
 const SNC_ROUTINE_PRESETS = ['Routine 1', 'Routine 2', 'Routine 3', 'Routine 4']
+const OTHER_SESSION_PRESETS = ['Bout/Comp', 'External Sparring', 'Training in other sport', 'Squad training session']
 
 // Maps a class's day_of_week label to actual JS day-of-week numbers
 // (0=Sunday...6=Saturday), used to work out which calendar dates an
@@ -1528,6 +1529,9 @@ export default function AthleteProfiles() {
   const [todaysSnc, setTodaysSnc] = useState([])
   const [showSncCards, setShowSncCards] = useState(false)
   const [sncRoutineDraft, setSncRoutineDraft] = useState('')
+  const [todaysOtherSession, setTodaysOtherSession] = useState([])
+  const [showOtherSessionCards, setShowOtherSessionCards] = useState(false)
+  const [otherSessionDraft, setOtherSessionDraft] = useState('')
   const [savingPhysical, setSavingPhysical] = useState(false)
   const [showContribution, setShowContribution] = useState(false)
   const [showOverallPos, setShowOverallPos] = useState(false)
@@ -1585,6 +1589,7 @@ export default function AthleteProfiles() {
     setTodaysBodyweight(toEntries(todaysSession?.bodyweight))
     setTodaysStretches(todaysSession?.stretch_flows || ['', '', ''])
     setTodaysSnc(toEntries(todaysSession?.snc))
+    setTodaysOtherSession(toEntries(todaysSession?.other_session))
   }, [f2fData])
 
   useEffect(() => {
@@ -2640,28 +2645,87 @@ export default function AthleteProfiles() {
                   </div>
                   )}
 
-                  <div style={{
-                    display: 'flex', alignItems: 'stretch', width: '100%', marginBottom: 8,
-                    background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
-                    overflow: 'hidden', fontFamily: 'var(--font-sans)',
-                  }}>
-                    <button onClick={() => setShowSncCards(v => !v)} style={{
-                      flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
-                      padding: '8px 4px', background: 'none', border: 'none', borderRight: '1px solid var(--border)', cursor: 'pointer',
-                      minWidth: 0,
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                    <div style={{
+                      display: 'flex', alignItems: 'stretch', width: '100%',
+                      background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                      overflow: 'hidden', fontFamily: 'var(--font-sans)',
                     }}>
-                      <span style={{ fontSize: 16 }}>🏋️</span>
-                      <span style={{ fontSize: 9, fontWeight: 500, whiteSpace: 'nowrap' }}>SnC</span>
-                    </button>
-                    <button onClick={() => setShowSncCards(v => !v)} style={{
-                      width: 58, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                      padding: '8px 4px', background: 'none', border: 'none', cursor: 'pointer',
+                      <button onClick={() => setShowSncCards(v => !v)} style={{
+                        flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
+                        padding: '8px 4px', background: 'none', border: 'none', borderRight: '1px solid var(--border)', cursor: 'pointer',
+                        minWidth: 0,
+                      }}>
+                        <span style={{ fontSize: 16 }}>🏋️</span>
+                        <span style={{ fontSize: 9, fontWeight: 500, whiteSpace: 'nowrap' }}>SnC</span>
+                      </button>
+                      <button onClick={() => setShowSncCards(v => !v)} style={{
+                        width: 58, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                        padding: '8px 4px', background: 'none', border: 'none', cursor: 'pointer',
+                      }}>
+                        <span style={{ fontSize: 8, color: 'var(--text-tertiary)', textAlign: 'center', lineHeight: 1.3 }}>
+                          {todaysSnc.length > 0 ? `Logged ${todaysSnc.length}×` : 'Not logged'}
+                        </span>
+                      </button>
+                    </div>
+                    <div style={{
+                      display: 'flex', alignItems: 'stretch', width: '100%',
+                      background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                      overflow: 'hidden', fontFamily: 'var(--font-sans)',
                     }}>
-                      <span style={{ fontSize: 8, color: 'var(--text-tertiary)', textAlign: 'center', lineHeight: 1.3 }}>
-                        {todaysSnc.length > 0 ? `Logged ${todaysSnc.length}×` : 'Not logged'}
-                      </span>
-                    </button>
+                      <button onClick={() => setShowOtherSessionCards(v => !v)} style={{
+                        flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
+                        padding: '8px 4px', background: 'none', border: 'none', borderRight: '1px solid var(--border)', cursor: 'pointer',
+                        minWidth: 0,
+                      }}>
+                        <span style={{ fontSize: 16 }}>🥋</span>
+                        <span style={{ fontSize: 9, fontWeight: 500, whiteSpace: 'nowrap' }}>Other session</span>
+                      </button>
+                      <button onClick={() => setShowOtherSessionCards(v => !v)} style={{
+                        width: 58, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                        padding: '8px 4px', background: 'none', border: 'none', cursor: 'pointer',
+                      }}>
+                        <span style={{ fontSize: 8, color: 'var(--text-tertiary)', textAlign: 'center', lineHeight: 1.3 }}>
+                          {todaysOtherSession.length > 0 ? `Logged ${todaysOtherSession.length}×` : 'Not logged'}
+                        </span>
+                      </button>
+                    </div>
                   </div>
+                  {showOtherSessionCards && (
+                    <div className="card" style={{ marginBottom: 8 }}>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+                        <button type="button" className="btn btn-sm" style={{ fontSize: 11 }}
+                          onClick={() => savePhysicalField('other_session', [], setTodaysOtherSession)}>✕ Clear all</button>
+                      </div>
+                      {todaysOtherSession.map((entry, i) => (
+                        <div key={i} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                            <span style={{ fontSize: 13, fontWeight: 600 }}>{entry.type}</span>
+                            <button onClick={() => savePhysicalField('other_session', todaysOtherSession.filter((_, idx) => idx !== i), setTodaysOtherSession)}
+                              style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14 }}>×</button>
+                          </div>
+                          <input defaultValue={entry.description || ''}
+                            onBlur={e => { const next = [...todaysOtherSession]; next[i] = { ...next[i], description: e.target.value }; savePhysicalField('other_session', next, setTodaysOtherSession) }}
+                            placeholder="Notes about this session" style={{ marginBottom: 6 }} />
+                          <SetInput sets={entry.sets || []}
+                            onChange={sets => { const next = [...todaysOtherSession]; next[i] = { ...next[i], sets }; savePhysicalField('other_session', next, setTodaysOtherSession) }}
+                            placeholder="e.g. result, score, or notes" />
+                        </div>
+                      ))}
+                      <div className="field"><label>Add a session type</label>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                          {OTHER_SESSION_PRESETS.filter(r => !todaysOtherSession.some(e => e.type === r)).map(r => (
+                            <button key={r} type="button" className="btn btn-sm"
+                              onClick={() => savePhysicalField('other_session', [...todaysOtherSession, { type: r, description: '', sets: [] }], setTodaysOtherSession)}>{r}</button>
+                          ))}
+                          <input value={otherSessionDraft} onChange={e => setOtherSessionDraft(e.target.value)} placeholder="Or write your own…" style={{ width: 130 }} />
+                          <button type="button" className="btn btn-sm" disabled={!otherSessionDraft}
+                            onClick={() => { savePhysicalField('other_session', [...todaysOtherSession, { type: otherSessionDraft, description: '', sets: [] }], setTodaysOtherSession); setOtherSessionDraft('') }}>Add</button>
+                        </div>
+                      </div>
+                      {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>Saving…</p>}
+                    </div>
+                  )}
                   {showSncCards && (
                     <div className="card" style={{ marginBottom: 8 }}>
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
