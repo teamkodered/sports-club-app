@@ -19,6 +19,16 @@ const CATEGORIES = {
     { key: 'flow',             label: 'Flow' },
     { key: 'self_expression',  label: 'Self expression' },
   ],
+  Mental: [
+    { key: 'read_opponent',             label: 'Ability to read opponent' },
+    { key: 'tempo_rhythm',              label: 'Tempo / rhythm control' },
+    { key: 'tactical_intelligence',     label: 'Tactical / strategic intelligence' },
+    { key: 'ring_awareness',            label: 'Ring awareness' },
+    { key: 'know_strengths_weaknesses', label: 'Know own strengths & weaknesses' },
+    { key: 'heart_grit',                label: 'Heart / grit / mental toughness' },
+    { key: 'concentration',             label: 'Concentration / thinking speed' },
+    { key: 'timing',                    label: 'Timing' },
+  ],
   Physical: [
     { key: 'foot_speed',         label: 'Foot speed' },
     { key: 'limb_speed',         label: 'Limb speed' },
@@ -36,16 +46,6 @@ const CATEGORIES = {
     { key: 'suppleness_lower',   label: 'Suppleness — lower body' },
     { key: 'recovery',           label: 'Recovery' },
     { key: 'health',             label: 'Health' },
-  ],
-  Mental: [
-    { key: 'read_opponent',             label: 'Ability to read opponent' },
-    { key: 'tempo_rhythm',              label: 'Tempo / rhythm control' },
-    { key: 'tactical_intelligence',     label: 'Tactical / strategic intelligence' },
-    { key: 'ring_awareness',            label: 'Ring awareness' },
-    { key: 'know_strengths_weaknesses', label: 'Know own strengths & weaknesses' },
-    { key: 'heart_grit',                label: 'Heart / grit / mental toughness' },
-    { key: 'concentration',             label: 'Concentration / thinking speed' },
-    { key: 'timing',                    label: 'Timing' },
   ],
 }
 
@@ -145,11 +145,12 @@ function ScoreRow({ label, field, value, onChange }) {
 // ── Group average badge ──
 function GroupAvg({ group, scores }) {
   const keys = CATEGORIES[group].map(c => c.key)
-  const avg = (keys.reduce((s, k) => s + (scores[k] || 0), 0) / keys.length).toFixed(1)
+  const total = keys.reduce((s, k) => s + (scores[k] || 0), 0)
+  const avg = (total / keys.length).toFixed(1)
   const colour = GROUP_COLOURS[group] || '#888'
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0 6px', marginBottom: 4 }}>
-      <h3 style={{ fontSize: 14, fontWeight: 600, color: colour }}>{group}</h3>
+      <h3 style={{ fontSize: 14, fontWeight: 600, color: colour }}>{group} <span style={{ fontWeight: 700 }}>{total}</span></h3>
       <div style={{ fontSize: 12, background: colour + '18', color: colour, borderRadius: 20, padding: '2px 10px', fontWeight: 600 }}>
         avg {avg} / 10
       </div>
@@ -242,7 +243,7 @@ export default function BoxingTPT() {
         <div style={{ maxWidth: 560, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 20 }}>
             <FormLogo formKey="boxing_tpt" fallbackEmoji="🥊" />
-            <h1 style={{ fontSize: 20, fontWeight: 600 }}>TPT Analysis saved</h1>
+            <h1 style={{ fontSize: 20, fontWeight: 600 }}>TTP Analysis saved</h1>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{student.first_name} {student.last_name}</p>
           </div>
           <div className="card" style={{ marginBottom: 14 }}>
@@ -280,7 +281,7 @@ export default function BoxingTPT() {
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <div>
-            <h1 style={{ fontSize: 20, fontWeight: 600 }}>🥊 Boxing TPT analysis</h1>
+            <h1 style={{ fontSize: 20, fontWeight: 600 }}>🥊 Boxing TTP analysis</h1>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Technical, Physical & Mental assessment</p>
           </div>
           <div style={{ display: 'flex', gap: 4 }}>
@@ -345,26 +346,21 @@ export default function BoxingTPT() {
             {/* Group tabs + sliders */}
             <div className="card" style={{ marginBottom: 12 }}>
               <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
-                {Object.keys(CATEGORIES).map(g => (
-                  <button key={g} onClick={() => setActiveGroup(g)} style={{
-                    padding: '7px 14px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
-                    borderBottom: `2px solid ${activeGroup === g ? GROUP_COLOURS[g] : 'transparent'}`,
-                    color: activeGroup === g ? GROUP_COLOURS[g] : 'var(--text-secondary)',
-                    fontWeight: activeGroup === g ? 600 : 400,
-                  }}>{g}</button>
-                ))}
+                {Object.keys(CATEGORIES).map(g => {
+                  const groupTotal = CATEGORIES[g].reduce((s, c) => s + (scores[c.key] || 0), 0)
+                  return (
+                    <button key={g} onClick={() => setActiveGroup(g)} style={{
+                      padding: '7px 14px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
+                      borderBottom: `2px solid ${activeGroup === g ? GROUP_COLOURS[g] : 'transparent'}`,
+                      color: activeGroup === g ? GROUP_COLOURS[g] : 'var(--text-secondary)',
+                      fontWeight: activeGroup === g ? 600 : 400,
+                    }}>{g} <span style={{ opacity: 0.7 }}>{groupTotal}</span></button>
+                  )
+                })}
               </div>
               <GroupAvg group={activeGroup} scores={scores} />
-              {CATEGORIES[activeGroup].map((c, i) => (
-                <div key={c.key}>
-                  {activeGroup === 'Physical' && i === 0 && (
-                    <div style={{ fontSize: 12, fontWeight: 700, color: GROUP_COLOURS.Physical, textTransform: 'uppercase', letterSpacing: 0.5, margin: '4px 0 6px' }}>Speed</div>
-                  )}
-                  {activeGroup === 'Physical' && i === 4 && (
-                    <div style={{ fontSize: 12, fontWeight: 700, color: GROUP_COLOURS.Physical, textTransform: 'uppercase', letterSpacing: 0.5, margin: '14px 0 6px' }}>Physical</div>
-                  )}
-                  <ScoreRow label={c.label} field={c.key} value={scores[c.key]} onChange={setScore} />
-                </div>
+              {CATEGORIES[activeGroup].map(c => (
+                <ScoreRow key={c.key} label={c.label} field={c.key} value={scores[c.key]} onChange={setScore} />
               ))}
             </div>
 
@@ -379,7 +375,7 @@ export default function BoxingTPT() {
 
             <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '11px' }}
               onClick={submit} disabled={submitting || !student.first_name}>
-              {submitting ? 'Saving…' : 'Save TPT analysis'}
+              {submitting ? 'Saving…' : 'Save TTP analysis'}
             </button>
           </>
         )}

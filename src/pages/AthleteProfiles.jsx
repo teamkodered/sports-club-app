@@ -2037,7 +2037,7 @@ export default function AthleteProfiles() {
     supabase.from('fit2fight_sessions').select('*').eq('student_id', s.id)
       .order('session_date', { ascending: false })
       .then(({ data }) => setF2fData(data || []))
-    // Load TPT data
+    // Load TTP data
     supabase.from('tpt_kickboxing').select('*').eq('student_id', s.id)
       .order('assessed_at', { ascending: false }).limit(1)
       .then(({ data }) => setTptData(prev => ({ ...prev, kickboxing: data || [] })))
@@ -2415,7 +2415,7 @@ export default function AthleteProfiles() {
                   borderBottom: `2px solid ${tab === t ? 'var(--text)' : 'transparent'}`,
                   color: tab === t ? 'var(--text)' : 'var(--text-secondary)',
                   fontWeight: tab === t ? 500 : 400, textTransform: 'capitalize', whiteSpace: 'nowrap', flexShrink: 0,
-                }}>{t}</button>
+                }}>{t === 'tpt' ? 'TTP' : t}</button>
               ))}
             </div>
 
@@ -3475,7 +3475,7 @@ export default function AthleteProfiles() {
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 14 }}>
                     {[
                       { label: 'PDP', icon: '🎯', colour: '#1D9E75', tab: 'pdp' },
-                      { label: 'TPT', icon: '📊', colour: '#E24B4A', tab: 'tpt' },
+                      { label: 'TTP', icon: '📊', colour: '#E24B4A', tab: 'tpt' },
                     ].map(l => (
                       <button key={l.label} onClick={() => setTab(l.tab)} style={{
                         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
@@ -4529,12 +4529,12 @@ export default function AthleteProfiles() {
               )
             })()}
 
-            {/* ── TPT tab ── */}
+            {/* ── TTP tab ── */}
                         {tab === 'tpt' && (() => {
               const BOXING_GROUPS = [
                 { label: '🥊 Technical', colour: '#E24B4A', keys: ['shapes','punch_quality','footwork','defence','counters','attack','combinations','change_of_tempo','use_of_phases','distance','flow','self_expression'] },
-                { label: '💪 Physical',  colour: '#1D9E75', keys: ['foot_speed','limb_speed','combination_speed','reaction','punching_power','strength_upper','strength_lower','stability_core','agility','stop_n_go','stamina_aerobic','stamina_anaerobic','suppleness_upper','suppleness_lower','recovery','health'], subHeaders: { 0: 'Speed', 4: 'Physical' } },
                 { label: '🧠 Tactical',  colour: '#8B5CF6', keys: ['read_opponent','tempo_rhythm','tactical_intelligence','ring_awareness','know_strengths_weaknesses','heart_grit','concentration','timing'] },
+                { label: '💪 Physical',  colour: '#1D9E75', keys: ['foot_speed','limb_speed','combination_speed','reaction','punching_power','strength_upper','strength_lower','stability_core','agility','stop_n_go','stamina_aerobic','stamina_anaerobic','suppleness_upper','suppleness_lower','recovery','health'] },
               ]
               const KB_GROUPS = [
                 { label: '📏 Measurements', colour: '#378ADD', keys: [
@@ -4582,53 +4582,52 @@ export default function AthleteProfiles() {
               return (
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                    <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Technical Performance Tracker</h3>
+                    <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Technical Tactical Physical (TTP)</h3>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <a href={`/boxing-tpt-form?student_id=${selected?.id}`} className="btn btn-sm" style={{ fontSize: 11 }}>+ Boxing TPT</a>
+                      <a href={`/boxing-tpt-form?student_id=${selected?.id}`} className="btn btn-sm" style={{ fontSize: 11 }}>+ Boxing TTP</a>
                     </div>
                   </div>
                   {!b && !kb ? (
-                    <div className="empty-state"><p>No TPT data recorded yet.</p></div>
+                    <div className="empty-state"><p>No TTP data recorded yet.</p></div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-                      {/* Boxing TPT */}
+                      {/* Boxing TTP */}
                       {b && <>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <h4 style={{ fontSize: 13, fontWeight: 600, color: '#E24B4A', margin: 0 }}>🥊 Boxing TPT</h4>
+                          <h4 style={{ fontSize: 13, fontWeight: 600, color: '#E24B4A', margin: 0 }}>🥊 Boxing TTP</h4>
                           <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
                             {b.assessed_at ? new Date(b.assessed_at).toLocaleDateString('en-GB') : ''}
                           </span>
                         </div>
-                        {BOXING_GROUPS.map(group => (
+                        {BOXING_GROUPS.map(group => {
+                          const groupTotal = group.keys.reduce((s, k) => s + (b[k] || 0), 0)
+                          return (
                           <div key={group.label} className="card" style={{ borderLeft: `3px solid ${group.colour}`, padding: '10px 14px' }}>
-                            <div style={{ fontSize: 12, fontWeight: 600, color: group.colour, marginBottom: 8 }}>{group.label}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                              <span style={{ fontSize: 12, fontWeight: 600, color: group.colour }}>{group.label}</span>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: group.colour }}>{groupTotal}</span>
+                            </div>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 6 }}>
-                              {group.keys.map((k, i) => (
-                                <Fragment key={k}>
-                                  {group.subHeaders?.[i] && (
-                                    <div style={{ gridColumn: '1 / -1', fontSize: 10, fontWeight: 700, color: group.colour, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: i > 0 ? 6 : 0 }}>
-                                      {group.subHeaders[i]}
-                                    </div>
-                                  )}
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                                    <span style={{ color: 'var(--text-secondary)' }}>{BOX_LABELS[k]}</span>
-                                    <span style={{ fontWeight: 700, color: b[k] >= 8 ? '#1d9e75' : b[k] >= 5 ? '#EF9F27' : b[k] ? '#E24B4A' : 'var(--text-tertiary)', background: 'var(--bg-secondary)', borderRadius: 20, padding: '1px 8px' }}>
-                                      {b[k] ?? '—'}
-                                    </span>
-                                  </div>
-                                </Fragment>
+                              {group.keys.map(k => (
+                                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                                  <span style={{ color: 'var(--text-secondary)' }}>{BOX_LABELS[k]}</span>
+                                  <span style={{ fontWeight: 700, color: b[k] >= 8 ? '#1d9e75' : b[k] >= 5 ? '#EF9F27' : b[k] ? '#E24B4A' : 'var(--text-tertiary)', background: 'var(--bg-secondary)', borderRadius: 20, padding: '1px 8px' }}>
+                                    {b[k] ?? '—'}
+                                  </span>
+                                </div>
                               ))}
                             </div>
                           </div>
-                        ))}
+                          )
+                        })}
                         {b.notes && <div className="card" style={{ fontSize: 12 }}><strong>Notes:</strong> {b.notes}</div>}
                       </>}
 
-                      {/* Kickboxing TPT */}
+                      {/* Kickboxing TTP */}
                       {kb && <>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: b ? 8 : 0 }}>
-                          <h4 style={{ fontSize: 13, fontWeight: 600, color: '#378ADD', margin: 0 }}>🥋 Kickboxing TPT</h4>
+                          <h4 style={{ fontSize: 13, fontWeight: 600, color: '#378ADD', margin: 0 }}>🥋 Kickboxing TTP</h4>
                           <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
                             {kb.assessed_at ? new Date(kb.assessed_at).toLocaleDateString('en-GB') : ''}
                           </span>
@@ -4863,13 +4862,13 @@ export default function AthleteProfiles() {
                       </div>
                     )}
 
-                    {/* TPT snapshots */}
+                    {/* TTP snapshots */}
                     {(reportData.tptKb.length > 0 || reportData.tptBox.length > 0) && (
                       <div className="card" style={{ marginBottom: 12 }}>
-                        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Latest TPT assessments</h3>
+                        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Latest TTP assessments</h3>
                         {reportData.tptKb[0] && (
                           <div style={{ marginBottom: 10 }}>
-                            <div style={{ fontSize: 12, fontWeight: 600, color: '#378ADD', marginBottom: 6 }}>Kickboxing TPT — {new Date(reportData.tptKb[0].assessed_at).toLocaleDateString('en-GB')}</div>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: '#378ADD', marginBottom: 6 }}>Kickboxing TTP — {new Date(reportData.tptKb[0].assessed_at).toLocaleDateString('en-GB')}</div>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
                               {[
                                 ['Weight', `${reportData.tptKb[0].weight_kg}kg`],
@@ -4889,7 +4888,7 @@ export default function AthleteProfiles() {
                         )}
                         {reportData.tptBox[0] && (
                           <div>
-                            <div style={{ fontSize: 12, fontWeight: 600, color: '#E24B4A', marginBottom: 6 }}>Boxing TPT — {new Date(reportData.tptBox[0].assessed_at).toLocaleDateString('en-GB')}</div>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: '#E24B4A', marginBottom: 6 }}>Boxing TTP — {new Date(reportData.tptBox[0].assessed_at).toLocaleDateString('en-GB')}</div>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
                               {[['Shape', reportData.tptBox[0].shapes], ['Punch quality', reportData.tptBox[0].punch_quality], ['Footwork', reportData.tptBox[0].footwork], ['Defence', reportData.tptBox[0].defence], ['Heart/grit', reportData.tptBox[0].heart_grit]].map(([l, v]) => (
                                 <div key={l} style={{ background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', padding: '7px 10px' }}>

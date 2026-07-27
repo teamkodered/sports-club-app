@@ -2031,11 +2031,11 @@ export default function AthleteApp() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <Link to="/kickboxing-tpt" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 20, color: '#378ADD' }}>
               <div style={{ fontSize: 32, marginBottom: 8 }}>📊</div>
-              <div style={{ fontWeight: 600 }}>Kickboxing TPT</div>
+              <div style={{ fontWeight: 600 }}>Kickboxing TTP</div>
             </Link>
             <Link to="/boxing-tpt" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 20, color: '#E24B4A' }}>
               <div style={{ fontSize: 32, marginBottom: 8 }}>📊</div>
-              <div style={{ fontWeight: 600 }}>Boxing TPT</div>
+              <div style={{ fontWeight: 600 }}>Boxing TTP</div>
             </Link>
             <Link to="/grading" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 20, color: '#1D9E75' }}>
               <div style={{ fontSize: 32, marginBottom: 8 }}>🎽</div>

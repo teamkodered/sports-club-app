@@ -255,7 +255,7 @@ export default function KickboxingTPT() {
         <div style={{ maxWidth: 560, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 20 }}>
             <FormLogo formKey="kickboxing_tpt" fallbackEmoji="🥋" />
-            <h1 style={{ fontSize: 20, fontWeight: 600 }}>TPT Analysis saved</h1>
+            <h1 style={{ fontSize: 20, fontWeight: 600 }}>TTP Analysis saved</h1>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
               {student.first_name} {student.last_name} · {countFilled()} / {ALL_FIELDS.length} fields recorded
             </p>
@@ -296,7 +296,7 @@ export default function KickboxingTPT() {
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <div>
-            <h1 style={{ fontSize: 20, fontWeight: 600 }}>🥋 Kickboxing TPT analysis</h1>
+            <h1 style={{ fontSize: 20, fontWeight: 600 }}>🥋 Kickboxing TTP analysis</h1>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Kode Red — physical performance assessment</p>
           </div>
           <div style={{ display: 'flex', gap: 4 }}>
@@ -409,7 +409,7 @@ export default function KickboxingTPT() {
 
             <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: 11 }}
               onClick={submit} disabled={submitting || !student.first_name || countFilled() === 0}>
-              {submitting ? 'Saving…' : `Save TPT analysis (${countFilled()} fields)`}
+              {submitting ? 'Saving…' : `Save TTP analysis (${countFilled()} fields)`}
             </button>
           </>
         )}
