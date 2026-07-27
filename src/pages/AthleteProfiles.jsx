@@ -532,23 +532,23 @@ const PDP_SECTIONS = [
   { key: 'psychology_notes',      label: '🧠 Psychology — notes',        colour: PDP_COLUMN_COLOURS.notes,      coachOnly: true },
   { key: 'psychology_maintain',   label: '🧠 Psychology — maintain',     colour: PDP_COLUMN_COLOURS.maintain,   coachOnly: true },
   { key: 'psychology_work_on',    label: '🧠 Psychology — work on',      colour: PDP_COLUMN_COLOURS.work_on,    coachOnly: true },
-  { key: 'psychology_what_to_do', label: '🧠 Psychology — check',        colour: PDP_COLUMN_COLOURS.what_to_do, coachOnly: true },
+  { key: 'psychology_what_to_do', label: '🧠 Psychology — to do',        colour: PDP_COLUMN_COLOURS.what_to_do, coachOnly: true },
   { key: 'tech_notes',            label: '⚙️ Technical — notes',         colour: PDP_COLUMN_COLOURS.notes,      coachOnly: true },
   { key: 'tech_maintain',         label: '⚙️ Technical — maintain',      colour: PDP_COLUMN_COLOURS.maintain,   coachOnly: true },
   { key: 'tech_work_on',          label: '⚙️ Technical — work on',       colour: PDP_COLUMN_COLOURS.work_on,    coachOnly: true },
-  { key: 'tech_what_to_do',       label: '⚙️ Technical — check',         colour: PDP_COLUMN_COLOURS.what_to_do, coachOnly: true },
+  { key: 'tech_what_to_do',       label: '⚙️ Technical — to do',         colour: PDP_COLUMN_COLOURS.what_to_do, coachOnly: true },
   { key: 'tact_notes',            label: '🎯 Tactical — notes',          colour: PDP_COLUMN_COLOURS.notes,      coachOnly: true },
   { key: 'tact_maintain',         label: '🎯 Tactical — maintain',       colour: PDP_COLUMN_COLOURS.maintain,   coachOnly: true },
   { key: 'tact_work_on',          label: '🎯 Tactical — work on',        colour: PDP_COLUMN_COLOURS.work_on,    coachOnly: true },
-  { key: 'tact_what_to_do',       label: '🎯 Tactical — check',          colour: PDP_COLUMN_COLOURS.what_to_do, coachOnly: true },
+  { key: 'tact_what_to_do',       label: '🎯 Tactical — to do',          colour: PDP_COLUMN_COLOURS.what_to_do, coachOnly: true },
   { key: 'physical_notes',        label: '💪 Physical — notes',          colour: PDP_COLUMN_COLOURS.notes,      coachOnly: true },
   { key: 'physical_maintain',     label: '💪 Physical — maintain',       colour: PDP_COLUMN_COLOURS.maintain,   coachOnly: true },
   { key: 'physical_work_on',      label: '💪 Physical — work on',        colour: PDP_COLUMN_COLOURS.work_on,    coachOnly: true },
-  { key: 'physical_what_to_do',   label: '💪 Physical — check',          colour: PDP_COLUMN_COLOURS.what_to_do, coachOnly: true },
+  { key: 'physical_what_to_do',   label: '💪 Physical — to do',          colour: PDP_COLUMN_COLOURS.what_to_do, coachOnly: true },
   { key: 'skill_notes',           label: '🥋 Skill — notes',             colour: PDP_COLUMN_COLOURS.notes,      coachOnly: true },
   { key: 'skill_maintain',        label: '🥋 Skill — maintain',          colour: PDP_COLUMN_COLOURS.maintain,   coachOnly: true },
   { key: 'skill_work_on',         label: '🥋 Skill — work on',           colour: PDP_COLUMN_COLOURS.work_on,    coachOnly: true },
-  { key: 'skill_what_to_do',      label: '🥋 Skill — check',             colour: PDP_COLUMN_COLOURS.what_to_do, coachOnly: true },
+  { key: 'skill_what_to_do',      label: '🥋 Skill — to do',             colour: PDP_COLUMN_COLOURS.what_to_do, coachOnly: true },
   { key: 'athlete_notes',         label: '📝 Your notes',                colour: '#185FA5', coachOnly: false },
   { key: 'notes',                 label: '📝 Coach notes',               colour: '#666666', coachOnly: true  },
 ]
@@ -1355,7 +1355,7 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
                 renderedGroups.add(group.label)
                 rendered.push(
                   <div key={`group-${group.label}`} style={{ marginBottom: 10 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-tertiary)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>{group.label}</div>
+                    <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', marginBottom: 10, letterSpacing: 0.3 }}>{group.label}</div>
                     <div style={{ display: 'flex', overflowX: 'auto', gap: 10, scrollSnapType: 'x mandatory', paddingBottom: 4 }}>
                       {group.keys.map(key => {
                         const sec = allSections.find(s => s.key === key)
@@ -1942,7 +1942,7 @@ export default function AthleteProfiles() {
     if (!sectionKey) return
     const pdpNotes = apData?.pdp_notes || {}
     const current = pdpNotes[sectionKey] || []
-    const entryText = `${new Date(note.logged_at).toLocaleDateString('en-GB')} — ${note.note_text}`
+    const entryText = note.note_text
     if (current.includes(entryText)) return alert(`Already sent to ${categoryLabel}.`)
     const updatedPdp = { ...pdpNotes, [sectionKey]: [...current, entryText] }
     const { error } = await supabase.from('athlete_profiles').upsert({ student_id: selected.id, pdp_notes: updatedPdp }, { onConflict: 'student_id' })
