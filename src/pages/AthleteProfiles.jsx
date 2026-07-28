@@ -436,6 +436,30 @@ const MEDITATION_TYPE_OPTIONS = ['Guided meditation', 'Breathing meditation', 'B
 const VISUALISATION_OPTIONS = ['Performing a technique', 'Performing in competition']
 const ACTIVE_RECOVERY_OPTIONS = ['Swimming', 'Walking', 'Yoga']
 
+// Config for the Athlete Dashboard's team overview -- mirrors the
+// same sections/sub-categories shown on a real athlete's Home page,
+// but each card shows the team % logged today instead of an
+// individual's own log, and drills down into targets rather than
+// data entry.
+const DASHBOARD_SECTIONS = [
+  { key: 'physical', icon: '💪', label: 'Physical', subItems: [
+    { key: 'running', label: 'Running', field: 'running' },
+    { key: 'watt_bike', label: 'Watt Bike', field: 'watt_bike' },
+    { key: 'bodyweight', label: 'Bodyweight', field: 'bodyweight' },
+    { key: 'stretch_flows', label: 'Stretch flows', field: 'stretch_flows' },
+    { key: 'snc', label: 'SnC', field: 'snc' },
+    { key: 'other_session', label: 'Other session', field: 'other_session' },
+  ]},
+  { key: 'technique', icon: '🥊', label: 'Technique', subItems: [
+    { key: 'Boxing', label: 'Boxing', matchStyle: 'Boxing' },
+    { key: 'Kickboxing', label: 'Kickboxing', matchStyle: 'Kickboxing' },
+  ]},
+  { key: 'tactical', icon: '🧩', label: 'Tactical', subItems: Object.keys(TACTICAL_CATEGORIES).map(cat => ({ key: cat, label: cat, matchCategory: cat })) },
+  { key: 'mentality', icon: '🧠', label: 'Mentality', subItems: MENTALITY_QUESTIONS.map(q => ({ key: q.key, label: q.label, mentalityQ: q.key })) },
+  { key: 'wellbeing', icon: '🌱', label: 'Wellbeing', subItems: WELLBEING_QUESTIONS.map(q => ({ key: q.key, label: q.label, wellbeingQ: q.key })) },
+  { key: 'test', icon: '📋', label: 'Test', subItems: TEST_CATEGORIES.map(c => ({ key: c.key, label: c.label, testCategory: c })) },
+]
+
 function isMentalityQComplete(key, m) {
   if (!m) return false
   switch (key) {
@@ -1589,6 +1613,8 @@ export default function AthleteProfiles() {
   const [newTargetValue, setNewTargetValue] = useState('')
   const [newTargetNotes, setNewTargetNotes] = useState('')
   const [savingTarget, setSavingTarget] = useState(false)
+  const [expandedDashSection, setExpandedDashSection] = useState(null)
+  const [expandedDashSubItem, setExpandedDashSubItem] = useState(null) // "sectionKey::subKey"
   const [newEventTitle, setNewEventTitle] = useState('')
   const [newEventDate, setNewEventDate] = useState('')
   const [newEventTime, setNewEventTime] = useState('')
@@ -2422,7 +2448,8 @@ export default function AthleteProfiles() {
     const idx = filtered.findIndex(s => s.id === selected.id)
     if (idx === -1) return
     const nextIdx = idx + direction
-    if (nextIdx < 0 || nextIdx >= filtered.length) return
+    if (nextIdx < 0) { goHome(); return }
+    if (nextIdx >= filtered.length) return
     selectStudent(filtered[nextIdx])
   }
 
@@ -2633,10 +2660,17 @@ export default function AthleteProfiles() {
       {/* ── Right: profile detail ── */}
       <div style={{ flex: 1, minWidth: 0 }}>
         {!selected ? (
-          <div style={{ maxWidth: 700 }}>
+          <div style={{ maxWidth: 700 }}
+            onTouchStart={e => { swipeStartX.current = e.touches[0].clientX }}
+            onTouchEnd={e => {
+              if (swipeStartX.current == null) return
+              const delta = e.changedTouches[0].clientX - swipeStartX.current
+              if (delta < -60 && filtered.length > 0) selectStudent(filtered[0])
+              swipeStartX.current = null
+            }}>
             <div className="empty-state" style={{ paddingTop: 20, paddingBottom: 20 }}>
               <h3>Athlete Dashboard</h3>
-              <p>Choose an athlete from the list to view their profile — or use the tools below</p>
+              <p>Choose an athlete from the list to view their profile — or use the tools below. Swipe left to browse athletes.</p>
             </div>
 
             {/* Team notes */}
@@ -2750,90 +2784,114 @@ export default function AthleteProfiles() {
               </div>
             </div>
 
-            {/* Team averages */}
-            <div className="card" style={{ padding: 0, marginBottom: 14 }}>
-              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
-                <h2 style={{ fontSize: 14, fontWeight: 600 }}>📊 Team averages — today</h2>
-              </div>
-              <div style={{ padding: 16 }}>
-                {(() => {
-                  const teamAthletes = students.filter(s => s.is_kr || s.is_pts || s.discipline === 'KRBA')
-                  const teamCount = teamAthletes.length || 1
-                  const teamIds = new Set(teamAthletes.map(s => s.id))
-                  const teamSessions = todaysAllSessions.filter(s => teamIds.has(s.student_id))
+            {/* Athlete Home overview -- same banner/card form as a real athlete's Home page */}
+            {(() => {
+              const teamAthletes = students.filter(s => s.is_kr || s.is_pts || s.discipline === 'KRBA')
+              const teamCount = teamAthletes.length || 1
+              const teamIds = new Set(teamAthletes.map(s => s.id))
+              const teamSessions = todaysAllSessions.filter(s => teamIds.has(s.student_id))
+              const hasContent = v => Array.isArray(v) ? v.length > 0 : (v && typeof v === 'object' ? Object.keys(v).length > 0 : !!v)
 
-                  const hasContent = v => Array.isArray(v) ? v.length > 0 : (v && typeof v === 'object' ? Object.keys(v).length > 0 : !!v)
-                  const pctLogged = fields => {
-                    const loggedIds = new Set(teamSessions.filter(s => fields.some(f => hasContent(s[f]))).map(s => s.student_id))
-                    return { count: loggedIds.size, pct: Math.round((loggedIds.size / teamCount) * 100) }
-                  }
+              const subItemLogged = (subItem, s) => {
+                if (subItem.field) return hasContent(s[subItem.field])
+                if (subItem.matchStyle) return (s.techniques || []).some(t => t.style === subItem.matchStyle)
+                if (subItem.matchCategory) return (s.tactical || []).some(t => t.category === subItem.matchCategory)
+                if (subItem.mentalityQ) return isMentalityQComplete(subItem.mentalityQ, s.mentality_log)
+                if (subItem.wellbeingQ) return isWellbeingQComplete(subItem.wellbeingQ, s.wellbeing)
+                if (subItem.testCategory) return subItem.testCategory.tests.some(t => s.test?.[t.name])
+                return false
+              }
+              const pctFor = subItems => {
+                const loggedIds = new Set(teamSessions.filter(s => subItems.some(si => subItemLogged(si, s))).map(s => s.student_id))
+                return { count: loggedIds.size, pct: Math.round((loggedIds.size / teamCount) * 100) }
+              }
+              const targetFor = (sectionKey, questionLabel = null) =>
+                teamTargets.find(t => t.section_key === sectionKey && (t.question_label || null) === questionLabel)
 
-                  const physical = pctLogged(['running', 'watt_bike', 'bodyweight', 'stretch_flows', 'snc', 'other_session'])
-                  const technique = pctLogged(['techniques'])
-                  const tactical = pctLogged(['tactical'])
-                  const mentality = pctLogged(['mentality_log'])
-                  const wellbeing = pctLogged(['wellbeing'])
-                  const test = pctLogged(['test'])
+              return DASHBOARD_SECTIONS.map(section => {
+                const overall = pctFor(section.subItems)
+                const sectionTarget = targetFor(section.key)
+                const isOpen = expandedDashSection === section.key
+                return (
+                  <div key={section.key} style={{ marginBottom: 8 }}>
+                    <button type="button" onClick={() => { setExpandedDashSection(isOpen ? null : section.key); setExpandedDashSubItem(null) }} style={{
+                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                      padding: '10px 14px', cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                      background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                    }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 18 }}>{section.icon}</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{section.label}</span>
+                      </span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontSize: 15, fontWeight: 700, color: colour }}>{overall.pct}%</span>
+                        <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{overall.count}/{teamCount}</span>
+                        {sectionTarget && <span style={{ fontSize: 10, color: '#EF9F27' }}>🎯 {sectionTarget.target_value}</span>}
+                        <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{isOpen ? '▲' : '▼'}</span>
+                      </span>
+                    </button>
 
-                  const wbSessions = teamSessions.filter(s => hasContent(s.wellbeing))
-                  const sleepValues = wbSessions.map(s => parseFloat(s.wellbeing?.sleep?.hours)).filter(v => !isNaN(v))
-                  const avgSleep = sleepValues.length ? (sleepValues.reduce((a, b) => a + b, 0) / sleepValues.length).toFixed(1) : null
-                  const hydrationValues = wbSessions.map(s => parseFloat(s.wellbeing?.hydration?.total)).filter(v => !isNaN(v) && v > 0)
-                  const avgHydration = hydrationValues.length ? (hydrationValues.reduce((a, b) => a + b, 0) / hydrationValues.length).toFixed(2) : null
+                    {isOpen && (
+                      <div className="card" style={{ marginTop: 6 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                          <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Tap a card for more insight & to set a target</p>
+                          <button className="btn btn-sm" onClick={() => {
+                            setNewTargetSection(section.key); setNewTargetQuestion(''); setShowAddTarget(true)
+                          }}>+ Section target</button>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 8 }}>
+                          {section.subItems.map(sub => {
+                            const stat = pctFor([sub])
+                            const subKey = `${section.key}::${sub.key}`
+                            const active = expandedDashSubItem === subKey
+                            const target = targetFor(section.key, sub.label)
+                            return (
+                              <button key={sub.key} type="button"
+                                onClick={() => setExpandedDashSubItem(active ? null : subKey)}
+                                style={{
+                                  display: 'flex', flexDirection: 'column', gap: 2, padding: '8px 10px', textAlign: 'left',
+                                  borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                                  border: `2px solid ${active ? '#E24B4A' : 'var(--border)'}`, background: 'var(--bg-secondary)',
+                                }}>
+                                <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--text)' }}>{sub.label}</span>
+                                <span style={{ fontSize: 15, fontWeight: 700, color: colour }}>{stat.pct}%</span>
+                                <span style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>{stat.count}/{teamCount}</span>
+                                {target && <span style={{ fontSize: 9, color: '#EF9F27' }}>🎯 {target.target_value}</span>}
+                              </button>
+                            )
+                          })}
+                        </div>
 
-                  const rows = [
-                    { label: '💪 Physical', sectionKey: 'physical', ...physical },
-                    { label: '🥊 Technique', sectionKey: 'technique', ...technique },
-                    { label: '🧩 Tactical', sectionKey: 'tactical', ...tactical },
-                    { label: '🧠 Mentality', sectionKey: 'mentality', ...mentality },
-                    { label: '🌱 Wellbeing', sectionKey: 'wellbeing', ...wellbeing },
-                    { label: '📋 Test', sectionKey: 'test', ...test },
-                  ]
-                  const targetFor = (sectionKey, questionLabel = null) =>
-                    teamTargets.find(t => t.section_key === sectionKey && (t.question_label || null) === questionLabel)
-
-                  return (
-                    <>
-                      <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 12 }}>Based on {teamCount} athletes (KR/KRBA/PTs)</p>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10, marginBottom: wbSessions.length ? 14 : 0 }}>
-                        {rows.map(r => {
-                          const target = targetFor(r.sectionKey)
+                        {section.subItems.map(sub => {
+                          const subKey = `${section.key}::${sub.key}`
+                          if (expandedDashSubItem !== subKey) return null
+                          const target = targetFor(section.key, sub.label)
                           return (
-                            <div key={r.label} style={{ padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-                              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>{r.label}</div>
-                              <div style={{ fontSize: 20, fontWeight: 700, color: colour }}>{r.pct}%</div>
-                              <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{r.count} of {teamCount} logged</div>
-                              {target && <div style={{ fontSize: 10, color: '#EF9F27', marginTop: 4 }}>🎯 Target: {target.target_value}</div>}
+                            <div key={subKey} style={{ marginTop: 10, padding: 10, background: 'var(--bg-secondary)', borderRadius: 'var(--radius)' }}>
+                              <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>{sub.label}</p>
+                              {target ? (
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                  <span style={{ fontSize: 12, color: '#EF9F27' }}>🎯 Current target: {target.target_value}</span>
+                                  <button onClick={() => deleteTeamTarget(target.id)} className="btn btn-sm" style={{ fontSize: 10 }}>Remove</button>
+                                </div>
+                              ) : (
+                                <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8 }}>No target set for {sub.label} yet.</p>
+                              )}
+                              <button className="btn btn-sm" onClick={() => {
+                                setNewTargetSection(section.key); setNewTargetQuestion(sub.label); setShowAddTarget(true)
+                              }}>{target ? 'Change target' : '+ Set target'}</button>
                             </div>
                           )
                         })}
                       </div>
-                      {wbSessions.length > 0 && (
-                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                          {avgSleep && (
-                            <div style={{ padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-                              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>😴 Avg sleep</div>
-                              <div style={{ fontSize: 16, fontWeight: 700 }}>{avgSleep} hrs</div>
-                              {targetFor('wellbeing', 'Sleep') && <div style={{ fontSize: 10, color: '#EF9F27' }}>🎯 {targetFor('wellbeing', 'Sleep').target_value}</div>}
-                            </div>
-                          )}
-                          {avgHydration && (
-                            <div style={{ padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-                              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>💧 Avg hydration</div>
-                              <div style={{ fontSize: 16, fontWeight: 700 }}>{avgHydration}L</div>
-                              {targetFor('wellbeing', 'Hydration') && <div style={{ fontSize: 10, color: '#EF9F27' }}>🎯 {targetFor('wellbeing', 'Hydration').target_value}</div>}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </>
-                  )
-                })()}
-              </div>
-            </div>
+                    )}
+                  </div>
+                )
+              })
+            })()}
 
-            {/* Targets */}
-            <div className="card" style={{ padding: 0, marginBottom: 14 }}>
+            {/* Targets management */}
+            <div className="card" style={{ padding: 0, marginBottom: 14, marginTop: 14 }}>
               <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h2 style={{ fontSize: 14, fontWeight: 600 }}>🎯 Targets</h2>
                 <button className="btn btn-sm" onClick={() => setShowAddTarget(v => !v)}>{showAddTarget ? 'Cancel' : '+ Add target'}</button>
@@ -2895,8 +2953,8 @@ export default function AthleteProfiles() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <button className="btn btn-sm" onClick={goHome}>← Back</button>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button className="btn btn-sm" disabled={filtered.findIndex(s => s.id === selected.id) <= 0}
-                  onClick={() => goToAdjacentAthlete(-1)} title="Previous athlete">← Prev</button>
+                <button className="btn btn-sm"
+                  onClick={() => goToAdjacentAthlete(-1)} title="Previous athlete (or back to Dashboard)">← Prev</button>
                 <button className="btn btn-sm" disabled={filtered.findIndex(s => s.id === selected.id) >= filtered.length - 1}
                   onClick={() => goToAdjacentAthlete(1)} title="Next athlete">Next →</button>
               </div>
