@@ -1571,6 +1571,20 @@ export default function AthleteProfiles() {
   const [allAttendance, setAllAttendance] = useState([])
   const [assignedClasses, setAssignedClasses] = useState([])
   const [clubEvents, setClubEvents] = useState([])
+  // Athlete Dashboard (shown when no athlete is selected): team notes + events
+  const [teamNotes, setTeamNotes] = useState([])
+  const [dashNoteText, setDashNoteText] = useState('')
+  const [dashNoteTarget, setDashNoteTarget] = useState('team') // 'team' or a student object
+  const [dashNoteSearch, setDashNoteSearch] = useState('')
+  const [dashNoteSearchResults, setDashNoteSearchResults] = useState([])
+  const [savingDashNote, setSavingDashNote] = useState(false)
+  const [showAddEvent, setShowAddEvent] = useState(false)
+  const [newEventTitle, setNewEventTitle] = useState('')
+  const [newEventDate, setNewEventDate] = useState('')
+  const [newEventTime, setNewEventTime] = useState('')
+  const [newEventDesc, setNewEventDesc] = useState('')
+  const [newEventSendAll, setNewEventSendAll] = useState(true)
+  const [savingEvent, setSavingEvent] = useState(false)
   const [notesLog, setNotesLog] = useState([])
   const [newNoteText, setNewNoteText] = useState('')
   const [savingNote, setSavingNote] = useState(false)
@@ -1815,6 +1829,74 @@ export default function AthleteProfiles() {
     supabase.from('club_events').select('*').order('event_date')
       .then(({ data }) => setClubEvents(data || []))
   }, [])
+
+  useEffect(() => {
+    supabase.from('team_notes').select('*').order('created_at', { ascending: false }).limit(20)
+      .then(({ data }) => setTeamNotes(data || []))
+  }, [])
+
+  // Athlete search for targeting a dashboard note
+  useEffect(() => {
+    if (dashNoteSearch.length < 3) { setDashNoteSearchResults([]); return }
+    const t = setTimeout(async () => {
+      const { data: memberData } = await supabase
+        .from('members').select('id, first_name, last_name, status')
+        .or(`first_name.ilike.%${dashNoteSearch}%,last_name.ilike.%${dashNoteSearch}%`).limit(10)
+      const eligible = (memberData || []).filter(m => m.status !== 'stopped' && m.status !== 'not_started')
+      if (!eligible.length) { setDashNoteSearchResults([]); return }
+      const { data: stuData } = await supabase
+        .from('students').select('id, student_ref, member_id, members(first_name, last_name)')
+        .in('member_id', eligible.map(m => m.id))
+      setDashNoteSearchResults(stuData || [])
+    }, 250)
+    return () => clearTimeout(t)
+  }, [dashNoteSearch])
+
+  async function addDashNote() {
+    if (!dashNoteText.trim()) return
+    setSavingDashNote(true)
+    if (dashNoteTarget === 'team') {
+      const { data, error } = await supabase.from('team_notes').insert({ note_text: dashNoteText.trim() }).select('*').single()
+      if (error) { alert('Error saving note: ' + error.message); setSavingDashNote(false); return }
+      setTeamNotes(prev => [data, ...prev])
+    } else {
+      const { error } = await supabase.from('athlete_notes_log').insert({ student_id: dashNoteTarget.id, note_text: dashNoteText.trim() })
+      if (error) { alert('Error saving note: ' + error.message); setSavingDashNote(false); return }
+    }
+    setDashNoteText('')
+    setDashNoteTarget('team')
+    setDashNoteSearch('')
+    setSavingDashNote(false)
+  }
+
+  async function deleteTeamNote(id) {
+    if (!confirm('Delete this note?')) return
+    const { error } = await supabase.from('team_notes').delete().eq('id', id)
+    if (error) return alert('Error: ' + error.message)
+    setTeamNotes(prev => prev.filter(n => n.id !== id))
+  }
+
+  async function addEvent() {
+    if (!newEventTitle.trim() || !newEventDate) return
+    setSavingEvent(true)
+    const { data, error } = await supabase.from('club_events').insert({
+      title: newEventTitle.trim(), description: newEventDesc.trim() || null,
+      event_date: newEventDate, event_time: newEventTime || null,
+      send_to_all_students: newEventSendAll,
+    }).select('*').single()
+    if (error) { alert('Error saving event: ' + error.message); setSavingEvent(false); return }
+    setClubEvents(prev => [...prev, data].sort((a, b) => a.event_date.localeCompare(b.event_date)))
+    setNewEventTitle(''); setNewEventDate(''); setNewEventTime(''); setNewEventDesc(''); setNewEventSendAll(true)
+    setShowAddEvent(false)
+    setSavingEvent(false)
+  }
+
+  async function deleteEvent(id) {
+    if (!confirm('Delete this event?')) return
+    const { error } = await supabase.from('club_events').delete().eq('id', id)
+    if (error) return alert('Error: ' + error.message)
+    setClubEvents(prev => prev.filter(e => e.id !== id))
+  }
 
   useEffect(() => {
     supabase.from('classes').select('*').eq('active', true).order('day_of_week').order('start_time')
@@ -2497,9 +2579,114 @@ export default function AthleteProfiles() {
       {/* ── Right: profile detail ── */}
       <div style={{ flex: 1, minWidth: 0 }}>
         {!selected ? (
-          <div className="empty-state" style={{ paddingTop: 80 }}>
-            <h3>Select an athlete</h3>
-            <p>Choose an athlete from the list to view their profile</p>
+          <div style={{ maxWidth: 700 }}>
+            <div className="empty-state" style={{ paddingTop: 20, paddingBottom: 20 }}>
+              <h3>Athlete Dashboard</h3>
+              <p>Choose an athlete from the list to view their profile — or use the tools below</p>
+            </div>
+
+            {/* Team notes */}
+            <div className="card" style={{ padding: 0, marginBottom: 14 }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+                <h2 style={{ fontSize: 14, fontWeight: 600 }}>📝 Notes</h2>
+              </div>
+              <div style={{ padding: 16 }}>
+                <textarea value={dashNoteText} onChange={e => setDashNoteText(e.target.value)}
+                  placeholder="Write a note…" rows={2}
+                  style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
+                  <button className="btn btn-sm" onClick={() => { setDashNoteTarget('team'); setDashNoteSearch('') }}
+                    style={{ background: dashNoteTarget === 'team' ? '#378ADD20' : undefined, borderColor: dashNoteTarget === 'team' ? '#378ADD' : undefined }}>
+                    👥 Team
+                  </button>
+                  {dashNoteTarget !== 'team' && (
+                    <span className="btn btn-sm" style={{ background: '#1D9E7520', borderColor: '#1D9E75' }}>
+                      → {dashNoteTarget.members?.first_name} {dashNoteTarget.members?.last_name}
+                    </span>
+                  )}
+                  <div style={{ position: 'relative', flex: 1, minWidth: 160 }}>
+                    <input value={dashNoteSearch} onChange={e => setDashNoteSearch(e.target.value)} placeholder="Or search an athlete to send to…"
+                      style={{ width: '100%' }} />
+                    {dashNoteSearchResults.length > 0 && (
+                      <div className="card" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10, padding: 4, maxHeight: 200, overflowY: 'auto' }}>
+                        {dashNoteSearchResults.map(s => (
+                          <button key={s.id} onClick={() => { setDashNoteTarget(s); setDashNoteSearch('') }}
+                            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, borderRadius: 6 }}>
+                            {s.members?.first_name} {s.members?.last_name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <button className="btn btn-primary btn-sm" disabled={!dashNoteText.trim() || savingDashNote} onClick={addDashNote}>
+                  {savingDashNote ? 'Saving…' : dashNoteTarget === 'team' ? '+ Post to team' : `+ Send to ${dashNoteTarget.members?.first_name}`}
+                </button>
+
+                {teamNotes.length > 0 && (
+                  <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {teamNotes.map(note => (
+                      <div key={note.id} style={{ padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>
+                            {new Date(note.created_at).toLocaleDateString('en-GB')} · {new Date(note.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                          <button onClick={() => deleteTeamNote(note.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14 }}>×</button>
+                        </div>
+                        <p style={{ fontSize: 13, margin: 0 }}>{note.note_text}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Club events */}
+            <div className="card" style={{ padding: 0, marginBottom: 14 }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h2 style={{ fontSize: 14, fontWeight: 600 }}>📅 Events</h2>
+                <button className="btn btn-sm" onClick={() => setShowAddEvent(v => !v)}>{showAddEvent ? 'Cancel' : '+ Add event'}</button>
+              </div>
+              <div style={{ padding: 16 }}>
+                {showAddEvent && (
+                  <div style={{ marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--border)' }}>
+                    <input value={newEventTitle} onChange={e => setNewEventTitle(e.target.value)} placeholder="Event title" style={{ marginBottom: 8 }} />
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                      <input type="date" value={newEventDate} onChange={e => setNewEventDate(e.target.value)} style={{ flex: 1, minWidth: 140 }} />
+                      <input type="time" value={newEventTime} onChange={e => setNewEventTime(e.target.value)} style={{ flex: 1, minWidth: 100 }} />
+                    </div>
+                    <textarea value={newEventDesc} onChange={e => setNewEventDesc(e.target.value)} placeholder="Description (optional)" rows={2}
+                      style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 10, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={newEventSendAll} onChange={e => setNewEventSendAll(e.target.checked)} style={{ width: 16, height: 16 }} />
+                      Send to all students (shows in their Sessions tab)
+                    </label>
+                    <button className="btn btn-primary btn-sm" disabled={!newEventTitle.trim() || !newEventDate || savingEvent} onClick={addEvent}>
+                      {savingEvent ? 'Saving…' : 'Add event'}
+                    </button>
+                  </div>
+                )}
+                {clubEvents.filter(e => e.event_date >= new Date().toISOString().split('T')[0]).length === 0 ? (
+                  <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No upcoming events.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {clubEvents.filter(e => e.event_date >= new Date().toISOString().split('T')[0]).map(ev => (
+                      <div key={ev.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 600 }}>{ev.title}</div>
+                          <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                            {new Date(ev.event_date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}{ev.event_time ? ` · ${ev.event_time.slice(0,5)}` : ''}
+                            {ev.send_to_all_students && <span style={{ marginLeft: 6, color: '#1D9E75' }}>· sent to all students</span>}
+                          </div>
+                          {ev.description && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{ev.description}</div>}
+                        </div>
+                        <button onClick={() => deleteEvent(ev.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14 }}>×</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         ) : (
           <div style={{ maxWidth: 640, margin: '0 auto' }}>
