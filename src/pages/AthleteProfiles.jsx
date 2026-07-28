@@ -710,6 +710,7 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
   const [pdpView, setPdpView]       = useState('coach') // 'coach' | 'athlete' | 'split'
   const [editSection, setEditSection] = useState(null)
   const editingCardRef = useRef(null)
+  const swipeStartX = useRef(null)
   const [editItems, setEditItems]   = useState([])
   const [newItem, setNewItem]       = useState('')
   const [saving, setSaving]         = useState(false)
@@ -2413,6 +2414,18 @@ export default function AthleteProfiles() {
     }
   }
 
+  // Prev/next navigation between athletes -- an alternative to using
+  // the list, matching the order shown there (alphabetical, respecting
+  // any active search filter).
+  function goToAdjacentAthlete(direction) {
+    if (!selected) return
+    const idx = filtered.findIndex(s => s.id === selected.id)
+    if (idx === -1) return
+    const nextIdx = idx + direction
+    if (nextIdx < 0 || nextIdx >= filtered.length) return
+    selectStudent(filtered[nextIdx])
+  }
+
   async function saveFit2FightSession() {
     if (!selected) return
     setSavingSession(true)
@@ -2871,8 +2884,23 @@ export default function AthleteProfiles() {
             </div>
           </div>
         ) : (
-          <div style={{ maxWidth: 640, margin: '0 auto' }}>
-            <button className="btn btn-sm" onClick={goHome} style={{ marginBottom: 10 }}>← Back</button>
+          <div style={{ maxWidth: 640, margin: '0 auto' }}
+            onTouchStart={e => { swipeStartX.current = e.touches[0].clientX }}
+            onTouchEnd={e => {
+              if (swipeStartX.current == null) return
+              const delta = e.changedTouches[0].clientX - swipeStartX.current
+              if (Math.abs(delta) > 60) goToAdjacentAthlete(delta < 0 ? 1 : -1)
+              swipeStartX.current = null
+            }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <button className="btn btn-sm" onClick={goHome}>← Back</button>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button className="btn btn-sm" disabled={filtered.findIndex(s => s.id === selected.id) <= 0}
+                  onClick={() => goToAdjacentAthlete(-1)} title="Previous athlete">← Prev</button>
+                <button className="btn btn-sm" disabled={filtered.findIndex(s => s.id === selected.id) >= filtered.length - 1}
+                  onClick={() => goToAdjacentAthlete(1)} title="Next athlete">Next →</button>
+              </div>
+            </div>
 
             {/* Athlete header */}
             <div className="card" style={{ marginBottom: 12, borderLeft: `3px solid ${colour}`, borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0' }}>
