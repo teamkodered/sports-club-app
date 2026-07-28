@@ -1574,9 +1574,10 @@ export default function AthleteProfiles() {
   // Athlete Dashboard (shown when no athlete is selected): team notes + events
   const [teamNotes, setTeamNotes] = useState([])
   const [dashNoteText, setDashNoteText] = useState('')
-  const [dashNoteTarget, setDashNoteTarget] = useState('team') // 'team' or a student object
+  const [dashNoteToTeam, setDashNoteToTeam] = useState(true)
+  const [dashNoteTargets, setDashNoteTargets] = useState([]) // array of selected student objects
   const [dashNoteSearch, setDashNoteSearch] = useState('')
-  const [dashNoteSearchResults, setDashNoteSearchResults] = useState([])
+  const [showDashNoteDropdown, setShowDashNoteDropdown] = useState(false)
   const [savingDashNote, setSavingDashNote] = useState(false)
   const [showAddEvent, setShowAddEvent] = useState(false)
   const [newEventTitle, setNewEventTitle] = useState('')
@@ -1835,37 +1836,35 @@ export default function AthleteProfiles() {
       .then(({ data }) => setTeamNotes(data || []))
   }, [])
 
-  // Athlete search for targeting a dashboard note
-  useEffect(() => {
-    if (dashNoteSearch.length < 3) { setDashNoteSearchResults([]); return }
-    const t = setTimeout(async () => {
-      const { data: memberData } = await supabase
-        .from('members').select('id, first_name, last_name, status')
-        .or(`first_name.ilike.%${dashNoteSearch}%,last_name.ilike.%${dashNoteSearch}%`).limit(10)
-      const eligible = (memberData || []).filter(m => m.status !== 'stopped' && m.status !== 'not_started')
-      if (!eligible.length) { setDashNoteSearchResults([]); return }
-      const { data: stuData } = await supabase
-        .from('students').select('id, student_ref, member_id, members(first_name, last_name)')
-        .in('member_id', eligible.map(m => m.id))
-      setDashNoteSearchResults(stuData || [])
-    }, 250)
-    return () => clearTimeout(t)
-  }, [dashNoteSearch])
+  // Athlete dropdown for targeting a dashboard note -- reuses the
+  // already-loaded students list, showing everyone when the search is
+  // empty (full dropdown) or filtering as you type. Multi-select.
+  const dashNoteDropdownResults = students
+    .filter(s => !dashNoteTargets.find(t => t.id === s.id))
+    .filter(s => {
+      if (!dashNoteSearch) return true
+      const name = `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.toLowerCase()
+      return name.includes(dashNoteSearch.toLowerCase())
+    })
 
   async function addDashNote() {
     if (!dashNoteText.trim()) return
+    if (!dashNoteToTeam && dashNoteTargets.length === 0) return
     setSavingDashNote(true)
-    if (dashNoteTarget === 'team') {
+    if (dashNoteToTeam) {
       const { data, error } = await supabase.from('team_notes').insert({ note_text: dashNoteText.trim() }).select('*').single()
       if (error) { alert('Error saving note: ' + error.message); setSavingDashNote(false); return }
       setTeamNotes(prev => [data, ...prev])
-    } else {
-      const { error } = await supabase.from('athlete_notes_log').insert({ student_id: dashNoteTarget.id, note_text: dashNoteText.trim() })
-      if (error) { alert('Error saving note: ' + error.message); setSavingDashNote(false); return }
+    }
+    for (const s of dashNoteTargets) {
+      const { error } = await supabase.from('athlete_notes_log').insert({ student_id: s.id, note_text: dashNoteText.trim() })
+      if (error) { alert(`Error saving note for ${s.members?.first_name}: ` + error.message); setSavingDashNote(false); return }
     }
     setDashNoteText('')
-    setDashNoteTarget('team')
+    setDashNoteToTeam(true)
+    setDashNoteTargets([])
     setDashNoteSearch('')
+    setShowDashNoteDropdown(false)
     setSavingDashNote(false)
   }
 
@@ -2595,22 +2594,30 @@ export default function AthleteProfiles() {
                   placeholder="Write a note…" rows={2}
                   style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
-                  <button className="btn btn-sm" onClick={() => { setDashNoteTarget('team'); setDashNoteSearch('') }}
-                    style={{ background: dashNoteTarget === 'team' ? '#378ADD20' : undefined, borderColor: dashNoteTarget === 'team' ? '#378ADD' : undefined }}>
-                    👥 Team
+                  <button className="btn btn-sm" onClick={() => setDashNoteToTeam(v => !v)}
+                    style={{ background: dashNoteToTeam ? '#378ADD20' : undefined, borderColor: dashNoteToTeam ? '#378ADD' : undefined }}>
+                    👥 Team {dashNoteToTeam ? '✓' : ''}
                   </button>
-                  {dashNoteTarget !== 'team' && (
-                    <span className="btn btn-sm" style={{ background: '#1D9E7520', borderColor: '#1D9E75' }}>
-                      → {dashNoteTarget.members?.first_name} {dashNoteTarget.members?.last_name}
+                  {dashNoteTargets.map(s => (
+                    <span key={s.id} className="btn btn-sm" style={{ background: '#1D9E7520', borderColor: '#1D9E75', cursor: 'pointer' }}
+                      onClick={() => setDashNoteTargets(prev => prev.filter(t => t.id !== s.id))} title="Click to remove">
+                      → {s.members?.first_name} {s.members?.last_name} ×
                     </span>
-                  )}
+                  ))}
                   <div style={{ position: 'relative', flex: 1, minWidth: 160 }}>
-                    <input value={dashNoteSearch} onChange={e => setDashNoteSearch(e.target.value)} placeholder="Or search an athlete to send to…"
+                    <input value={dashNoteSearch} onChange={e => setDashNoteSearch(e.target.value)}
+                      onFocus={() => setShowDashNoteDropdown(true)}
+                      placeholder="Or search/select athletes to send to…"
                       style={{ width: '100%' }} />
-                    {dashNoteSearchResults.length > 0 && (
-                      <div className="card" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10, padding: 4, maxHeight: 200, overflowY: 'auto' }}>
-                        {dashNoteSearchResults.map(s => (
-                          <button key={s.id} onClick={() => { setDashNoteTarget(s); setDashNoteSearch('') }}
+                    {showDashNoteDropdown && (
+                      <div className="card" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10, padding: 4, maxHeight: 240, overflowY: 'auto' }}>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '2px 4px 4px' }}>
+                          <button onClick={() => setShowDashNoteDropdown(false)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 12 }}>Close</button>
+                        </div>
+                        {dashNoteDropdownResults.length === 0 ? (
+                          <p style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: '6px 8px' }}>No matching athletes.</p>
+                        ) : dashNoteDropdownResults.map(s => (
+                          <button key={s.id} onClick={() => { setDashNoteTargets(prev => [...prev, s]); setDashNoteSearch('') }}
                             style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, borderRadius: 6 }}>
                             {s.members?.first_name} {s.members?.last_name}
                           </button>
@@ -2619,8 +2626,8 @@ export default function AthleteProfiles() {
                     )}
                   </div>
                 </div>
-                <button className="btn btn-primary btn-sm" disabled={!dashNoteText.trim() || savingDashNote} onClick={addDashNote}>
-                  {savingDashNote ? 'Saving…' : dashNoteTarget === 'team' ? '+ Post to team' : `+ Send to ${dashNoteTarget.members?.first_name}`}
+                <button className="btn btn-primary btn-sm" disabled={!dashNoteText.trim() || (!dashNoteToTeam && dashNoteTargets.length === 0) || savingDashNote} onClick={addDashNote}>
+                  {savingDashNote ? 'Saving…' : '+ Send note'}
                 </button>
 
                 {teamNotes.length > 0 && (
@@ -2690,7 +2697,7 @@ export default function AthleteProfiles() {
           </div>
         ) : (
           <div style={{ maxWidth: 640, margin: '0 auto' }}>
-            <button className="btn btn-sm" onClick={() => navigate(-1)} style={{ marginBottom: 10 }}>← Back</button>
+            <button className="btn btn-sm" onClick={goHome} style={{ marginBottom: 10 }}>← Back</button>
 
             {/* Athlete header */}
             <div className="card" style={{ marginBottom: 12, borderLeft: `3px solid ${colour}`, borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0' }}>
