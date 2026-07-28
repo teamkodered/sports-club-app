@@ -652,6 +652,7 @@ export default function AthleteApp() {
   const [showOverallPos, setShowOverallPos] = useState(false)
   const [apData, setApData]     = useState(null)
   const [assignedClasses, setAssignedClasses] = useState([])
+  const [clubEvents, setClubEvents] = useState([])
   const [sessionsCalMonth, setSessionsCalMonth] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() } })
   const [weekTimetableStart, setWeekTimetableStart] = useState(() => {
     const d = new Date()
@@ -883,6 +884,9 @@ export default function AthleteApp() {
         supabase.from('student_class_assignments').select('id, class_id, classes(*)')
           .eq('student_id', s.id)
           .then(({ data, error }) => { if (!error) setAssignedClasses(data || []) })
+
+        supabase.from('club_events').select('*').eq('send_to_all_students', true).order('event_date')
+          .then(({ data, error }) => { if (!error) setClubEvents(data || []) })
 
         const [{ data: houseData }, { data: rankData }] = await Promise.all([
           supabase.from('houses').select('id, name, points').order('points', { ascending: false }),
@@ -2386,11 +2390,13 @@ export default function AthleteApp() {
                   const jsDay = new Date(year, month, d).getDay()
                   const classesToday = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay))
                   const pdpItemsToday = allPdpEntries.filter(e => e.date === dateStr)
+                  const eventsToday = clubEvents.filter(e => e.event_date === dateStr)
                   return (
                     <div key={i}
                       title={(attended ? 'Attended' : showAsRed ? 'Missed' : '')
                         + (classesToday.length ? `\nClass: ${classesToday.map(a => `${a.classes?.name} ${a.classes?.start_time?.slice(0,5)}`).join(', ')}` : '')
-                        + (pdpItemsToday.length ? `\nPDP: ${pdpItemsToday.map(e => `${e.item}${e.time ? ` ${e.time}` : ''}`).join(', ')}` : '')}
+                        + (pdpItemsToday.length ? `\nPDP: ${pdpItemsToday.map(e => `${e.item}${e.time ? ` ${e.time}` : ''}`).join(', ')}` : '')
+                        + (eventsToday.length ? `\nEvent: ${eventsToday.map(e => `${e.title}${e.event_time ? ` ${e.event_time.slice(0,5)}` : ''}`).join(', ')}` : '')}
                       style={{
                         aspectRatio: '0.85', display: 'flex', alignItems: 'center', justifyContent: 'center',
                         borderRadius: 6, fontSize: 12, background: bg, color: fg, fontFamily: 'var(--font-sans)',
@@ -2407,6 +2413,10 @@ export default function AthleteApp() {
                         if (pct == null) return null
                         return <div key={pi} style={{ position: 'absolute', left: 2, right: 2, top: `${pct}%`, height: 2, background: '#8B5CF6', borderRadius: 1 }} />
                       })}
+                      {eventsToday.map((e, ei) => {
+                        const pct = timeToTimelinePercent(e.event_time?.slice(0, 5)) ?? 2
+                        return <div key={ei} style={{ position: 'absolute', left: 2, right: 2, top: `${pct}%`, height: 2, background: '#EF9F27', borderRadius: 1 }} />
+                      })}
                     </div>
                   )
                 })}
@@ -2416,6 +2426,7 @@ export default function AthleteApp() {
                 <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#E24B4A', borderRadius: 2, marginRight: 4 }} />Absent</span>
                 <span><span style={{ display: 'inline-block', width: 8, height: 2, background: '#378ADD', borderRadius: 2, marginRight: 4 }} />Class time</span>
                 <span><span style={{ display: 'inline-block', width: 8, height: 2, background: '#8B5CF6', borderRadius: 2, marginRight: 4 }} />PDP action</span>
+                <span><span style={{ display: 'inline-block', width: 8, height: 2, background: '#EF9F27', borderRadius: 2, marginRight: 4 }} />Event</span>
               </div>
             </div>
 
@@ -2440,6 +2451,7 @@ export default function AthleteApp() {
                   const jsDay = d.getDay()
                   const classesToday = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay))
                   const pdpToday = allPdpEntries.filter(e => e.date === dateStr)
+                  const eventsToday = clubEvents.filter(e => e.event_date === dateStr)
                   const isToday = dateStr === todayStr
                   return (
                     <div key={di} style={{ flex: '0 0 90px', borderLeft: '1px solid var(--border)' }}>
@@ -2470,6 +2482,15 @@ export default function AthleteApp() {
                             </div>
                           )
                         })}
+                        {eventsToday.map((e, ei) => {
+                          const pct = timeToTimelinePercent(e.event_time?.slice(0, 5)) ?? 1
+                          return (
+                            <div key={ei} title={`${e.title}${e.event_time ? ` ${e.event_time.slice(0,5)}` : ''}`}
+                              style={{ position: 'absolute', left: 2, right: 2, top: `${pct}%`, background: '#EF9F2722', border: '1px solid #EF9F27', borderRadius: 3, padding: '1px 3px', fontSize: 8, color: '#EF9F27', lineHeight: 1.3, zIndex: 3 }}>
+                              {e.event_time ? `${e.event_time.slice(0,5)} ` : ''}{e.title}
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
                   )
@@ -2478,6 +2499,7 @@ export default function AthleteApp() {
               <div style={{ display: 'flex', gap: 14, marginTop: 10, fontSize: 11, color: 'var(--text-secondary)' }}>
                 <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#378ADD22', border: '1px solid #378ADD', borderRadius: 2, marginRight: 4 }} />Class time</span>
                 <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#8B5CF622', border: '1px solid #8B5CF6', borderRadius: 2, marginRight: 4 }} />PDP action</span>
+                <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#EF9F2722', border: '1px solid #EF9F27', borderRadius: 2, marginRight: 4 }} />Event</span>
               </div>
             </div>
           </div>

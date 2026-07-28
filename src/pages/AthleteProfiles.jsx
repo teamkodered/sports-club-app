@@ -1570,6 +1570,7 @@ export default function AthleteProfiles() {
   const [truePointTotals, setTruePointTotals] = useState({})
   const [allAttendance, setAllAttendance] = useState([])
   const [assignedClasses, setAssignedClasses] = useState([])
+  const [clubEvents, setClubEvents] = useState([])
   const [notesLog, setNotesLog] = useState([])
   const [newNoteText, setNewNoteText] = useState('')
   const [savingNote, setSavingNote] = useState(false)
@@ -1809,6 +1810,11 @@ export default function AthleteProfiles() {
   const [showQr, setShowQr] = useState(false)
 
   useEffect(() => { loadStudents() }, [])
+
+  useEffect(() => {
+    supabase.from('club_events').select('*').order('event_date')
+      .then(({ data }) => setClubEvents(data || []))
+  }, [])
 
   useEffect(() => {
     supabase.from('classes').select('*').eq('active', true).order('day_of_week').order('start_time')
@@ -4024,11 +4030,13 @@ export default function AthleteProfiles() {
                               const pdpItemsToday = Array.from(PDP_CHECKABLE_SECTIONS).flatMap(sectionKey =>
                                 Object.entries(pdpNotesData[`__timetable_${sectionKey}`] || {}).map(([item, entry]) => ({ sectionKey, item, ...entry }))
                               ).filter(e => e.date === dateStr)
+                              const eventsToday = clubEvents.filter(e => e.event_date === dateStr)
                               return (
                                 <button key={i} type="button" onClick={() => cycleAttendanceDay(dateStr)}
                                   title={(attended ? 'Attended — click to mark absent' : explicitlyAbsent ? 'Marked absent — click to clear' : explicitlyExcused ? 'Cleared — click to mark attended' : wasTrainingDay ? 'Missed (a session happened this day) — click to mark attended' : 'Click to mark attended')
                                     + (classesToday.length ? `\nClass: ${classesToday.map(a => `${a.classes?.name} ${a.classes?.start_time?.slice(0,5)}`).join(', ')}` : '')
-                                    + (pdpItemsToday.length ? `\nPDP: ${pdpItemsToday.map(e => `${e.item}${e.time ? ` ${e.time}` : ''}`).join(', ')}` : '')}
+                                    + (pdpItemsToday.length ? `\nPDP: ${pdpItemsToday.map(e => `${e.item}${e.time ? ` ${e.time}` : ''}`).join(', ')}` : '')
+                                    + (eventsToday.length ? `\nEvent: ${eventsToday.map(e => `${e.title}${e.event_time ? ` ${e.event_time.slice(0,5)}` : ''}`).join(', ')}` : '')}
                                   style={{
                                     aspectRatio: '0.85', display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     borderRadius: 6, fontSize: 12, background: bg, color: fg, cursor: 'pointer', fontFamily: 'var(--font-sans)',
@@ -4046,6 +4054,11 @@ export default function AthleteProfiles() {
                                     if (pct == null) return null
                                     return <div key={pi} title={`${e.item}${e.time ? ` ${e.time}` : ''}`}
                                       style={{ position: 'absolute', left: 2, right: 2, top: `${pct}%`, height: 2, background: '#8B5CF6', borderRadius: 1 }} />
+                                  })}
+                                  {eventsToday.map((e, ei) => {
+                                    const pct = timeToTimelinePercent(e.event_time?.slice(0, 5)) ?? 2
+                                    return <div key={ei} title={`${e.title}${e.event_time ? ` ${e.event_time.slice(0,5)}` : ''}`}
+                                      style={{ position: 'absolute', left: 2, right: 2, top: `${pct}%`, height: 2, background: '#EF9F27', borderRadius: 1 }} />
                                   })}
                                 </button>
                               )
@@ -4077,6 +4090,7 @@ export default function AthleteProfiles() {
                             <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#E24B4A', borderRadius: 2, marginRight: 4 }} />Absent</span>
                             <span><span style={{ display: 'inline-block', width: 8, height: 2, background: '#378ADD', borderRadius: 2, marginRight: 4 }} />Class time</span>
                             <span><span style={{ display: 'inline-block', width: 8, height: 2, background: '#8B5CF6', borderRadius: 2, marginRight: 4 }} />PDP action</span>
+                            <span><span style={{ display: 'inline-block', width: 8, height: 2, background: '#EF9F27', borderRadius: 2, marginRight: 4 }} />Event</span>
                           </div>
                           <p style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 6 }}>Red shows automatically for missed sessions, or tap any date to mark attended/absent/clear. Lines show roughly where in the day (6am-10pm) a class or PDP action falls.</p>
                         </>
@@ -4120,6 +4134,7 @@ export default function AthleteProfiles() {
                               const jsDay = d.getDay()
                               const classesToday = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay))
                               const pdpToday = allPdpEntries.filter(e => e.date === dateStr)
+                              const eventsToday = clubEvents.filter(e => e.event_date === dateStr)
                               const isToday = dateStr === new Date().toISOString().split('T')[0]
                               return (
                                 <div key={di} style={{ flex: '0 0 90px', borderLeft: '1px solid var(--border)' }}>
@@ -4150,6 +4165,15 @@ export default function AthleteProfiles() {
                                         </div>
                                       )
                                     })}
+                                    {eventsToday.map((e, ei) => {
+                                      const pct = timeToTimelinePercent(e.event_time?.slice(0, 5)) ?? 1
+                                      return (
+                                        <div key={ei} title={`${e.title}${e.event_time ? ` ${e.event_time.slice(0,5)}` : ''}`}
+                                          style={{ position: 'absolute', left: 2, right: 2, top: `${pct}%`, background: '#EF9F2722', border: '1px solid #EF9F27', borderRadius: 3, padding: '1px 3px', fontSize: 8, color: '#EF9F27', lineHeight: 1.3, zIndex: 3 }}>
+                                          {e.event_time ? `${e.event_time.slice(0,5)} ` : ''}{e.title}
+                                        </div>
+                                      )
+                                    })}
                                   </div>
                                 </div>
                               )
@@ -4158,6 +4182,7 @@ export default function AthleteProfiles() {
                           <div style={{ display: 'flex', gap: 14, marginTop: 10, fontSize: 11, color: 'var(--text-secondary)' }}>
                             <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#378ADD22', border: '1px solid #378ADD', borderRadius: 2, marginRight: 4 }} />Class time</span>
                             <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#8B5CF622', border: '1px solid #8B5CF6', borderRadius: 2, marginRight: 4 }} />PDP action</span>
+                            <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#EF9F2722', border: '1px solid #EF9F27', borderRadius: 2, marginRight: 4 }} />Event</span>
                           </div>
                         </>
                       )
