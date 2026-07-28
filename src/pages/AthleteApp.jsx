@@ -163,6 +163,28 @@ function isWellbeingQComplete(key, w) {
 // the coach write in what the routine actually consists of.
 const SNC_ROUTINE_PRESETS = ['Routine 1', 'Routine 2', 'Routine 3', 'Routine 4']
 
+// Maps a class's day_of_week label to actual JS day-of-week numbers,
+// and converts a "HH:MM" time into a 0-100% vertical position within
+// a 06:00-22:00 day range, for the Sessions calendar/weekly timetable.
+const DAY_TO_JS_DAYS = {
+  Monday: [1], Tuesday: [2], Wednesday: [3], Thursday: [4], Friday: [5], Saturday: [6], Sunday: [0],
+  'Mon/Fri': [1, 5], 'Tue/Thu': [2, 4],
+}
+const DAY_TIMELINE_START_MIN = 6 * 60
+const DAY_TIMELINE_END_MIN = 22 * 60
+function timeToTimelinePercent(timeStr) {
+  if (!timeStr) return null
+  const [h, m] = timeStr.split(':').map(Number)
+  if (Number.isNaN(h)) return null
+  const mins = h * 60 + (m || 0)
+  const pct = ((mins - DAY_TIMELINE_START_MIN) / (DAY_TIMELINE_END_MIN - DAY_TIMELINE_START_MIN)) * 100
+  return Math.max(0, Math.min(100, pct))
+}
+// PDP "Check" category keys -- used to read any items sent to the
+// timetable from the PDP, for display on the Sessions calendar/weekly
+// timetable here.
+const PDP_TIMETABLE_SECTION_KEYS = ['psychology_what_to_do', 'tech_what_to_do', 'tact_what_to_do', 'physical_what_to_do', 'skill_what_to_do']
+
 // Technique presets -- multi-select per category, note added once
 // selected. Two styles (Boxing/Kickboxing), each split into several
 // named categories.
@@ -536,6 +558,16 @@ export default function AthleteApp() {
   const [showContribution, setShowContribution] = useState(false)
   const [showOverallPos, setShowOverallPos] = useState(false)
   const [apData, setApData]     = useState(null)
+  const [assignedClasses, setAssignedClasses] = useState([])
+  const [sessionsCalMonth, setSessionsCalMonth] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() } })
+  const [weekTimetableStart, setWeekTimetableStart] = useState(() => {
+    const d = new Date()
+    const day = d.getDay()
+    const diffToMonday = day === 0 ? -6 : 1 - day
+    d.setDate(d.getDate() + diffToMonday)
+    d.setHours(0, 0, 0, 0)
+    return d
+  })
   const [points, setPoints]     = useState([])
   const [sessions, setSessions] = useState([])
   const [attendanceData, setAttendanceData] = useState([])
@@ -738,6 +770,10 @@ export default function AthleteApp() {
         const { data: allAtt } = await supabase.from('attendance')
           .select('student_id, session_date, attendance_type, students(discipline, class_schedule, class_time)')
         setAllAttendance(allAtt || [])
+
+        supabase.from('student_class_assignments').select('id, class_id, classes(*)')
+          .eq('student_id', s.id)
+          .then(({ data, error }) => { if (!error) setAssignedClasses(data || []) })
 
         const [{ data: houseData }, { data: rankData }] = await Promise.all([
           supabase.from('houses').select('id, name, points').order('points', { ascending: false }),
@@ -1011,6 +1047,7 @@ export default function AthleteApp() {
 
   const TABS = [
     ['home',      '🏠 Home'],
+    ['sessions',  '📅 Sessions'],
     ['pdp',       '🎯 My PDP'],
     ['analysis',  '📊 Analysis'],
     ['fit2fight', '💪 Fit II Fight'],
@@ -2100,6 +2137,168 @@ export default function AthleteApp() {
           )}
         </div>
       )}
+
+      {/* ── Sessions ── */}
+      {tab === 'sessions' && student && (() => {
+        const { year, month } = sessionsCalMonth
+        const firstDay = new Date(year, month, 1)
+        const daysInMonth = new Date(year, month + 1, 0).getDate()
+        const startWeekday = (firstDay.getDay() + 6) % 7 // Monday-first
+        const cells = []
+        for (let i = 0; i < startWeekday; i++) cells.push(null)
+        for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+
+        const myAttendance = attendanceData.filter(a => a.attendance_type !== 'absent' && a.attendance_type !== 'excused')
+        const attendedDays = new Set(myAttendance.map(a => a.session_date).filter(d => d && new Date(d).getFullYear() === year && new Date(d).getMonth() === month))
+        const explicitlyAbsentDays = new Set(
+          attendanceData.filter(a => a.attendance_type === 'absent').map(a => a.session_date).filter(d => d && new Date(d).getFullYear() === year && new Date(d).getMonth() === month)
+        )
+        const assignedWeekdays = new Set(assignedClasses.flatMap(a => DAY_TO_JS_DAYS[a.classes?.day_of_week] || []))
+        const todayStr = new Date().toISOString().split('T')[0]
+        const allTrainingDays = new Set(
+          Array.from({ length: daysInMonth }, (_, i) => i + 1)
+            .filter(d => assignedWeekdays.has(new Date(year, month, d).getDay()))
+            .map(d => `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`)
+            .filter(dateStr => dateStr <= todayStr)
+        )
+        const pdpNotesData = apData?.pdp_notes || {}
+        const allPdpEntries = PDP_TIMETABLE_SECTION_KEYS.flatMap(sectionKey =>
+          Object.entries(pdpNotesData[`__timetable_${sectionKey}`] || {}).map(([item, entry]) => ({ sectionKey, item, ...entry }))
+        )
+
+        const weekDays = Array.from({ length: 7 }, (_, i) => {
+          const d = new Date(weekTimetableStart)
+          d.setDate(d.getDate() + i)
+          return d
+        })
+        const hourMarks = Array.from({ length: 9 }, (_, i) => 6 + i * 2)
+
+        return (
+          <div>
+            <div className="card" style={{ marginBottom: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8 }}>
+                <button className="btn btn-sm" onClick={() => setSessionsCalMonth(m => m.month === 0 ? { year: m.year - 1, month: 11 } : { year: m.year, month: m.month - 1 })}>←</button>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>{new Date(year, month, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</span>
+                <input type="month" value={`${year}-${String(month+1).padStart(2,'0')}`}
+                  onChange={e => { const [y, m] = e.target.value.split('-').map(Number); if (y && m) setSessionsCalMonth({ year: y, month: m - 1 }) }}
+                  style={{ fontSize: 11, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+                <button className="btn btn-sm" onClick={() => setSessionsCalMonth(m => m.month === 11 ? { year: m.year + 1, month: 0 } : { year: m.year, month: m.month + 1 })}>→</button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 6 }}>
+                {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d => (
+                  <div key={d} style={{ textAlign: 'center', fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 600 }}>{d}</div>
+                ))}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
+                {cells.map((d, i) => {
+                  if (d === null) return <div key={i} />
+                  const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`
+                  const attended = attendedDays.has(dateStr)
+                  const explicitlyAbsent = explicitlyAbsentDays.has(dateStr)
+                  const wasTrainingDay = allTrainingDays.has(dateStr)
+                  const showAsRed = explicitlyAbsent || (wasTrainingDay && !attended)
+                  const bg = attended ? '#1D9E75' : showAsRed ? '#E24B4A' : 'transparent'
+                  const fg = attended || showAsRed ? '#fff' : 'var(--text-secondary)'
+                  const jsDay = new Date(year, month, d).getDay()
+                  const classesToday = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay))
+                  const pdpItemsToday = allPdpEntries.filter(e => e.date === dateStr)
+                  return (
+                    <div key={i}
+                      title={(attended ? 'Attended' : showAsRed ? 'Missed' : '')
+                        + (classesToday.length ? `\nClass: ${classesToday.map(a => `${a.classes?.name} ${a.classes?.start_time?.slice(0,5)}`).join(', ')}` : '')
+                        + (pdpItemsToday.length ? `\nPDP: ${pdpItemsToday.map(e => `${e.item}${e.time ? ` ${e.time}` : ''}`).join(', ')}` : '')}
+                      style={{
+                        aspectRatio: '0.85', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        borderRadius: 6, fontSize: 12, background: bg, color: fg, fontFamily: 'var(--font-sans)',
+                        border: !attended && !showAsRed ? '1px solid var(--border)' : 'none', position: 'relative', overflow: 'hidden',
+                      }}>
+                      <span style={{ position: 'relative', zIndex: 1 }}>{d}</span>
+                      {classesToday.map((a, ci) => {
+                        const pct = timeToTimelinePercent(a.classes?.start_time?.slice(0, 5))
+                        if (pct == null) return null
+                        return <div key={ci} style={{ position: 'absolute', left: 2, right: 2, top: `${pct}%`, height: 2, background: '#378ADD', borderRadius: 1 }} />
+                      })}
+                      {pdpItemsToday.map((e, pi) => {
+                        const pct = timeToTimelinePercent(e.time)
+                        if (pct == null) return null
+                        return <div key={pi} style={{ position: 'absolute', left: 2, right: 2, top: `${pct}%`, height: 2, background: '#8B5CF6', borderRadius: 1 }} />
+                      })}
+                    </div>
+                  )
+                })}
+              </div>
+              <div style={{ display: 'flex', gap: 14, marginTop: 12, fontSize: 11, color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
+                <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#1D9E75', borderRadius: 2, marginRight: 4 }} />Attended</span>
+                <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#E24B4A', borderRadius: 2, marginRight: 4 }} />Absent</span>
+                <span><span style={{ display: 'inline-block', width: 8, height: 2, background: '#378ADD', borderRadius: 2, marginRight: 4 }} />Class time</span>
+                <span><span style={{ display: 'inline-block', width: 8, height: 2, background: '#8B5CF6', borderRadius: 2, marginRight: 4 }} />PDP action</span>
+              </div>
+            </div>
+
+            <div className="card" style={{ marginBottom: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <button className="btn btn-sm" onClick={() => setWeekTimetableStart(d => { const n = new Date(d); n.setDate(n.getDate() - 7); return n })}>←</button>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>
+                  Weekly timetable — {weekDays[0].toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – {weekDays[6].toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                </span>
+                <button className="btn btn-sm" onClick={() => setWeekTimetableStart(d => { const n = new Date(d); n.setDate(n.getDate() + 7); return n })}>→</button>
+              </div>
+              <div style={{ display: 'flex', overflowX: 'auto' }}>
+                <div style={{ flexShrink: 0, width: 34, position: 'relative', height: 320 }}>
+                  {hourMarks.map(h => (
+                    <div key={h} style={{ position: 'absolute', top: `${timeToTimelinePercent(`${h}:00`)}%`, fontSize: 9, color: 'var(--text-tertiary)', transform: 'translateY(-50%)' }}>
+                      {h}:00
+                    </div>
+                  ))}
+                </div>
+                {weekDays.map((d, di) => {
+                  const dateStr = d.toISOString().split('T')[0]
+                  const jsDay = d.getDay()
+                  const classesToday = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay))
+                  const pdpToday = allPdpEntries.filter(e => e.date === dateStr)
+                  const isToday = dateStr === todayStr
+                  return (
+                    <div key={di} style={{ flex: '0 0 90px', borderLeft: '1px solid var(--border)' }}>
+                      <div style={{ textAlign: 'center', fontSize: 10, fontWeight: isToday ? 700 : 500, color: isToday ? colour : 'var(--text-secondary)', marginBottom: 4 }}>
+                        {d.toLocaleDateString('en-GB', { weekday: 'short' })}<br />{d.getDate()}
+                      </div>
+                      <div style={{ position: 'relative', height: 320, background: isToday ? colour + '08' : 'transparent', borderRadius: 4 }}>
+                        {hourMarks.map(h => (
+                          <div key={h} style={{ position: 'absolute', top: `${timeToTimelinePercent(`${h}:00`)}%`, left: 0, right: 0, borderTop: '1px solid var(--border)', opacity: 0.5 }} />
+                        ))}
+                        {classesToday.map((a, ci) => {
+                          const pct = timeToTimelinePercent(a.classes?.start_time?.slice(0, 5))
+                          if (pct == null) return null
+                          return (
+                            <div key={ci} title={`${a.classes?.name} ${a.classes?.start_time?.slice(0,5)}`}
+                              style={{ position: 'absolute', left: 2, right: 2, top: `${pct}%`, background: '#378ADD22', border: '1px solid #378ADD', borderRadius: 3, padding: '1px 3px', fontSize: 8, color: '#378ADD', lineHeight: 1.3, zIndex: 1 }}>
+                              {a.classes?.start_time?.slice(0,5)} {a.classes?.name}
+                            </div>
+                          )
+                        })}
+                        {pdpToday.map((e, pi) => {
+                          const pct = timeToTimelinePercent(e.time)
+                          if (pct == null) return null
+                          return (
+                            <div key={pi} title={`${e.item}${e.time ? ` ${e.time}` : ''}`}
+                              style={{ position: 'absolute', left: 2, right: 2, top: `${pct}%`, background: '#8B5CF622', border: '1px solid #8B5CF6', borderRadius: 3, padding: '1px 3px', fontSize: 8, color: '#8B5CF6', lineHeight: 1.3, zIndex: 2 }}>
+                              {e.time ? `${e.time} ` : ''}{e.item}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              <div style={{ display: 'flex', gap: 14, marginTop: 10, fontSize: 11, color: 'var(--text-secondary)' }}>
+                <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#378ADD22', border: '1px solid #378ADD', borderRadius: 2, marginRight: 4 }} />Class time</span>
+                <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#8B5CF622', border: '1px solid #8B5CF6', borderRadius: 2, marginRight: 4 }} />PDP action</span>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ── PDP ── */}
       {tab === 'pdp' && (
