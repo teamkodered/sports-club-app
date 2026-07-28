@@ -615,6 +615,7 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
   const [clipboard, setClipboard] = useState(null)
   const [selectedItems, setSelectedItems] = useState([]) // multi-select indices
   const [selectionAnchor, setSelectionAnchor] = useState(null) // last plain/ctrl-clicked index, for shift-click ranges
+  const pillClickTimer = useRef(null)
   const [customSections, setCustomSections] = useState([]) // user-added sections
 
   const pdp = apData?.pdp_notes || {}
@@ -767,18 +768,18 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
     if (saved.length > 0) setCustomSections(saved)
   }, [apData])
 
-  // Clicking outside the section currently being edited exits edit
-  // mode (same as pressing Cancel) without saving.
+  // Clicking outside the section currently being edited auto-saves
+  // and exits edit mode -- no explicit Save needed.
   useEffect(() => {
     if (!editSection) return
     function handleClick(e) {
       if (editingCardRef.current && !editingCardRef.current.contains(e.target)) {
-        setEditSection(null)
+        saveSection()
       }
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
-  }, [editSection])
+  }, [editSection, editItems, editSectionMeta])
 
   const shared = apData?.pdp_shared || {} // items shared to athlete view
 
@@ -961,10 +962,12 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
               {section.coachOnly && <span style={{ fontSize: 9, color: 'var(--text-tertiary)', marginLeft: 6, fontWeight: 400 }}>coach only</span>}
               {isShared && !section.coachOnly && <span style={{ fontSize: 9, color: '#1d9e75', marginLeft: 6 }}>✓ shared</span>}
             </h3>
-            <input type="color" value={sectionColour} onClick={e => e.stopPropagation()}
-              onChange={e => quickChangeColour(section, e.target.value)}
-              title="Change column colour"
-              style={{ width: 20, height: 20, padding: 0, border: 'none', borderRadius: 4, cursor: 'pointer', flexShrink: 0 }} />
+            {isEditing && (
+              <input type="color" value={sectionColour} onClick={e => e.stopPropagation()}
+                onChange={e => quickChangeColour(section, e.target.value)}
+                title="Change column colour"
+                style={{ width: 20, height: 20, padding: 0, border: 'none', borderRadius: 4, cursor: 'pointer', flexShrink: 0 }} />
+            )}
           </div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
             {items.length > 0 && (
@@ -979,8 +982,8 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
             {!isEditing && (
               <button className="btn btn-sm" style={{ fontSize: 10, color: '#E24B4A' }} onClick={() => deleteSection(section)} title="Delete section">🗑</button>
             )}
-            <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => isEditing ? setEditSection(null) : startEdit(section)}>
-              {isEditing ? 'Cancel' : items.length ? 'Edit' : '+ Add'}
+            <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => isEditing ? saveSection() : startEdit(section)}>
+              {isEditing ? 'Done' : items.length ? 'Edit' : '+ Add'}
             </button>
           </div>
         </div>
@@ -1014,11 +1017,27 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
                         if (confirm(`Mark "${item}" as complete? It'll move to the Notes tab as a completed PDP task.`)) completeMaintainItem(section.key, item)
                         return
                       }
-                      if (!checkable) return toggleHighlight(section.key, item)
-                      if (!sent) { setTimetableModal({ sectionKey: section.key, item }); setTimetableDraftDate(''); setTimetableDraftTime('') }
-                      else toggleCompleted(section.key, item)
+                      if (checkable) {
+                        if (!sent) { setTimetableModal({ sectionKey: section.key, item }); setTimetableDraftDate(''); setTimetableDraftTime('') }
+                        else toggleCompleted(section.key, item)
+                        return
+                      }
+                      // Plain pill: single click starts editing the
+                      // section, double-click highlights instead.
+                      // Debounced so the first click of a double-click
+                      // doesn't prematurely jump into edit mode.
+                      if (pillClickTimer.current) {
+                        clearTimeout(pillClickTimer.current)
+                        pillClickTimer.current = null
+                        toggleHighlight(section.key, item)
+                      } else {
+                        pillClickTimer.current = setTimeout(() => {
+                          pillClickTimer.current = null
+                          startEdit(section)
+                        }, 250)
+                      }
                     }}
-                    title={isMaintain ? 'Click to mark complete (moves to Notes)' : !checkable ? 'Click to highlight' : !sent ? 'Click to send to timetable' : done ? 'Click to mark not done' : 'Click to mark done'}
+                    title={isMaintain ? 'Click to mark complete (moves to Notes)' : !checkable ? 'Click to edit · double-click to highlight' : !sent ? 'Click to send to timetable' : done ? 'Click to mark not done' : 'Click to mark done'}
                     style={{
                       ...notePillStyle(sectionColour, section.key, item, { border: `1px solid ${section.colour}30`, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }),
                       ...(sent ? { background: sectionColour + '40', fontWeight: 600 } : {}),
@@ -1163,11 +1182,8 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
               <button className="btn btn-sm" onClick={addItem}>Add</button>
             </div>
 
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-primary btn-sm" onClick={saveSection} disabled={saving}>
-                {saving ? 'Saving…' : 'Save'}
-              </button>
-              {pdpHistory.length > 0 && (
+            {pdpHistory.length > 0 && (
+              <div style={{ display: 'flex', gap: 8 }}>
                 <button className="btn btn-sm" onClick={async () => {
                   const prev = pdpHistory[pdpHistory.length - 1]
                   await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: prev }, { onConflict: 'student_id' })
@@ -1175,8 +1191,9 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
                   setPdpHistory(h => h.slice(0, -1))
                   setEditSection(null)
                 }}>↩ Undo</button>
-              )}
-            </div>
+              </div>
+            )}
+            {saving && <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Saving…</p>}
           </div>
         )}
       </div>
