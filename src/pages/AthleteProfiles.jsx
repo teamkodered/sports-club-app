@@ -1581,6 +1581,13 @@ export default function AthleteProfiles() {
   const [savingDashNote, setSavingDashNote] = useState(false)
   const [showAddEvent, setShowAddEvent] = useState(false)
   const [todaysAllSessions, setTodaysAllSessions] = useState([])
+  const [teamTargets, setTeamTargets] = useState([])
+  const [showAddTarget, setShowAddTarget] = useState(false)
+  const [newTargetSection, setNewTargetSection] = useState('physical')
+  const [newTargetQuestion, setNewTargetQuestion] = useState('')
+  const [newTargetValue, setNewTargetValue] = useState('')
+  const [newTargetNotes, setNewTargetNotes] = useState('')
+  const [savingTarget, setSavingTarget] = useState(false)
   const [newEventTitle, setNewEventTitle] = useState('')
   const [newEventDate, setNewEventDate] = useState('')
   const [newEventTime, setNewEventTime] = useState('')
@@ -1842,6 +1849,34 @@ export default function AthleteProfiles() {
     supabase.from('fit2fight_sessions').select('*').eq('session_date', todayStr)
       .then(({ data }) => setTodaysAllSessions(data || []))
   }, [])
+
+  useEffect(() => {
+    supabase.from('team_targets').select('*').order('section_key').order('question_label')
+      .then(({ data }) => setTeamTargets(data || []))
+  }, [])
+
+  async function addTeamTarget() {
+    if (!newTargetValue.trim()) return
+    setSavingTarget(true)
+    const { data, error } = await supabase.from('team_targets').insert({
+      section_key: newTargetSection,
+      question_label: newTargetQuestion.trim() || null,
+      target_value: newTargetValue.trim(),
+      notes: newTargetNotes.trim() || null,
+    }).select('*').single()
+    if (error) { alert('Error saving target: ' + error.message); setSavingTarget(false); return }
+    setTeamTargets(prev => [...prev, data].sort((a, b) => a.section_key.localeCompare(b.section_key)))
+    setNewTargetQuestion(''); setNewTargetValue(''); setNewTargetNotes('')
+    setShowAddTarget(false)
+    setSavingTarget(false)
+  }
+
+  async function deleteTeamTarget(id) {
+    if (!confirm('Delete this target?')) return
+    const { error } = await supabase.from('team_targets').delete().eq('id', id)
+    if (error) return alert('Error: ' + error.message)
+    setTeamTargets(prev => prev.filter(t => t.id !== id))
+  }
 
   // Athlete dropdown for targeting a dashboard note -- reuses the
   // already-loaded students list, showing everyone when the search is
@@ -2734,25 +2769,31 @@ export default function AthleteProfiles() {
                   const avgHydration = hydrationValues.length ? (hydrationValues.reduce((a, b) => a + b, 0) / hydrationValues.length).toFixed(2) : null
 
                   const rows = [
-                    { label: '💪 Physical', ...physical },
-                    { label: '🥊 Technique', ...technique },
-                    { label: '🧩 Tactical', ...tactical },
-                    { label: '🧠 Mentality', ...mentality },
-                    { label: '🌱 Wellbeing', ...wellbeing },
-                    { label: '📋 Test', ...test },
+                    { label: '💪 Physical', sectionKey: 'physical', ...physical },
+                    { label: '🥊 Technique', sectionKey: 'technique', ...technique },
+                    { label: '🧩 Tactical', sectionKey: 'tactical', ...tactical },
+                    { label: '🧠 Mentality', sectionKey: 'mentality', ...mentality },
+                    { label: '🌱 Wellbeing', sectionKey: 'wellbeing', ...wellbeing },
+                    { label: '📋 Test', sectionKey: 'test', ...test },
                   ]
+                  const targetFor = (sectionKey, questionLabel = null) =>
+                    teamTargets.find(t => t.section_key === sectionKey && (t.question_label || null) === questionLabel)
 
                   return (
                     <>
                       <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 12 }}>Based on {teamCount} athletes (KR/KRBA/PTs)</p>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10, marginBottom: wbSessions.length ? 14 : 0 }}>
-                        {rows.map(r => (
-                          <div key={r.label} style={{ padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-                            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>{r.label}</div>
-                            <div style={{ fontSize: 20, fontWeight: 700, color: colour }}>{r.pct}%</div>
-                            <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{r.count} of {teamCount} logged</div>
-                          </div>
-                        ))}
+                        {rows.map(r => {
+                          const target = targetFor(r.sectionKey)
+                          return (
+                            <div key={r.label} style={{ padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>{r.label}</div>
+                              <div style={{ fontSize: 20, fontWeight: 700, color: colour }}>{r.pct}%</div>
+                              <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{r.count} of {teamCount} logged</div>
+                              {target && <div style={{ fontSize: 10, color: '#EF9F27', marginTop: 4 }}>🎯 Target: {target.target_value}</div>}
+                            </div>
+                          )
+                        })}
                       </div>
                       {wbSessions.length > 0 && (
                         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -2760,12 +2801,14 @@ export default function AthleteProfiles() {
                             <div style={{ padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
                               <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>😴 Avg sleep</div>
                               <div style={{ fontSize: 16, fontWeight: 700 }}>{avgSleep} hrs</div>
+                              {targetFor('wellbeing', 'Sleep') && <div style={{ fontSize: 10, color: '#EF9F27' }}>🎯 {targetFor('wellbeing', 'Sleep').target_value}</div>}
                             </div>
                           )}
                           {avgHydration && (
                             <div style={{ padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
                               <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>💧 Avg hydration</div>
                               <div style={{ fontSize: 16, fontWeight: 700 }}>{avgHydration}L</div>
+                              {targetFor('wellbeing', 'Hydration') && <div style={{ fontSize: 10, color: '#EF9F27' }}>🎯 {targetFor('wellbeing', 'Hydration').target_value}</div>}
                             </div>
                           )}
                         </div>
@@ -2773,6 +2816,57 @@ export default function AthleteProfiles() {
                     </>
                   )
                 })()}
+              </div>
+            </div>
+
+            {/* Targets */}
+            <div className="card" style={{ padding: 0, marginBottom: 14 }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h2 style={{ fontSize: 14, fontWeight: 600 }}>🎯 Targets</h2>
+                <button className="btn btn-sm" onClick={() => setShowAddTarget(v => !v)}>{showAddTarget ? 'Cancel' : '+ Add target'}</button>
+              </div>
+              <div style={{ padding: 16 }}>
+                {showAddTarget && (
+                  <div style={{ marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                      <select value={newTargetSection} onChange={e => setNewTargetSection(e.target.value)} style={{ flex: 1, minWidth: 140 }}>
+                        <option value="physical">Physical</option>
+                        <option value="technique">Technique</option>
+                        <option value="tactical">Tactical</option>
+                        <option value="mentality">Mentality</option>
+                        <option value="wellbeing">Wellbeing</option>
+                        <option value="test">Test</option>
+                      </select>
+                      <input value={newTargetQuestion} onChange={e => setNewTargetQuestion(e.target.value)}
+                        placeholder="Question/metric (optional, e.g. Sleep)" style={{ flex: 1, minWidth: 160 }} />
+                    </div>
+                    <input value={newTargetValue} onChange={e => setNewTargetValue(e.target.value)}
+                      placeholder="Target (e.g. 8 hours, 3x per week, Level 10)" style={{ marginBottom: 8 }} />
+                    <textarea value={newTargetNotes} onChange={e => setNewTargetNotes(e.target.value)} placeholder="Notes (optional)" rows={2}
+                      style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
+                    <button className="btn btn-primary btn-sm" disabled={!newTargetValue.trim() || savingTarget} onClick={addTeamTarget}>
+                      {savingTarget ? 'Saving…' : 'Add target'}
+                    </button>
+                  </div>
+                )}
+                {teamTargets.length === 0 ? (
+                  <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No targets set yet.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {teamTargets.map(t => (
+                      <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 600, textTransform: 'capitalize' }}>
+                            {t.section_key}{t.question_label ? ` — ${t.question_label}` : ''}
+                          </div>
+                          <div style={{ fontSize: 12, color: '#EF9F27' }}>Target: {t.target_value}</div>
+                          {t.notes && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{t.notes}</div>}
+                        </div>
+                        <button onClick={() => deleteTeamTarget(t.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14 }}>×</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
