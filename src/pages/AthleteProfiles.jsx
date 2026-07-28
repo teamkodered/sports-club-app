@@ -1580,6 +1580,7 @@ export default function AthleteProfiles() {
   const [showDashNoteDropdown, setShowDashNoteDropdown] = useState(false)
   const [savingDashNote, setSavingDashNote] = useState(false)
   const [showAddEvent, setShowAddEvent] = useState(false)
+  const [todaysAllSessions, setTodaysAllSessions] = useState([])
   const [newEventTitle, setNewEventTitle] = useState('')
   const [newEventDate, setNewEventDate] = useState('')
   const [newEventTime, setNewEventTime] = useState('')
@@ -1834,6 +1835,12 @@ export default function AthleteProfiles() {
   useEffect(() => {
     supabase.from('team_notes').select('*').order('created_at', { ascending: false }).limit(20)
       .then(({ data }) => setTeamNotes(data || []))
+  }, [])
+
+  useEffect(() => {
+    const todayStr = new Date().toISOString().split('T')[0]
+    supabase.from('fit2fight_sessions').select('*').eq('session_date', todayStr)
+      .then(({ data }) => setTodaysAllSessions(data || []))
   }, [])
 
   // Athlete dropdown for targeting a dashboard note -- reuses the
@@ -2692,6 +2699,80 @@ export default function AthleteProfiles() {
                     ))}
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* Team averages */}
+            <div className="card" style={{ padding: 0, marginBottom: 14 }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+                <h2 style={{ fontSize: 14, fontWeight: 600 }}>📊 Team averages — today</h2>
+              </div>
+              <div style={{ padding: 16 }}>
+                {(() => {
+                  const teamAthletes = students.filter(s => s.is_kr || s.is_pts || s.discipline === 'KRBA')
+                  const teamCount = teamAthletes.length || 1
+                  const teamIds = new Set(teamAthletes.map(s => s.id))
+                  const teamSessions = todaysAllSessions.filter(s => teamIds.has(s.student_id))
+
+                  const hasContent = v => Array.isArray(v) ? v.length > 0 : (v && typeof v === 'object' ? Object.keys(v).length > 0 : !!v)
+                  const pctLogged = fields => {
+                    const loggedIds = new Set(teamSessions.filter(s => fields.some(f => hasContent(s[f]))).map(s => s.student_id))
+                    return { count: loggedIds.size, pct: Math.round((loggedIds.size / teamCount) * 100) }
+                  }
+
+                  const physical = pctLogged(['running', 'watt_bike', 'bodyweight', 'stretch_flows', 'snc', 'other_session'])
+                  const technique = pctLogged(['techniques'])
+                  const tactical = pctLogged(['tactical'])
+                  const mentality = pctLogged(['mentality_log'])
+                  const wellbeing = pctLogged(['wellbeing'])
+                  const test = pctLogged(['test'])
+
+                  const wbSessions = teamSessions.filter(s => hasContent(s.wellbeing))
+                  const sleepValues = wbSessions.map(s => parseFloat(s.wellbeing?.sleep?.hours)).filter(v => !isNaN(v))
+                  const avgSleep = sleepValues.length ? (sleepValues.reduce((a, b) => a + b, 0) / sleepValues.length).toFixed(1) : null
+                  const hydrationValues = wbSessions.map(s => parseFloat(s.wellbeing?.hydration?.total)).filter(v => !isNaN(v) && v > 0)
+                  const avgHydration = hydrationValues.length ? (hydrationValues.reduce((a, b) => a + b, 0) / hydrationValues.length).toFixed(2) : null
+
+                  const rows = [
+                    { label: '💪 Physical', ...physical },
+                    { label: '🥊 Technique', ...technique },
+                    { label: '🧩 Tactical', ...tactical },
+                    { label: '🧠 Mentality', ...mentality },
+                    { label: '🌱 Wellbeing', ...wellbeing },
+                    { label: '📋 Test', ...test },
+                  ]
+
+                  return (
+                    <>
+                      <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 12 }}>Based on {teamCount} athletes (KR/KRBA/PTs)</p>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10, marginBottom: wbSessions.length ? 14 : 0 }}>
+                        {rows.map(r => (
+                          <div key={r.label} style={{ padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>{r.label}</div>
+                            <div style={{ fontSize: 20, fontWeight: 700, color: colour }}>{r.pct}%</div>
+                            <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{r.count} of {teamCount} logged</div>
+                          </div>
+                        ))}
+                      </div>
+                      {wbSessions.length > 0 && (
+                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                          {avgSleep && (
+                            <div style={{ padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>😴 Avg sleep</div>
+                              <div style={{ fontSize: 16, fontWeight: 700 }}>{avgSleep} hrs</div>
+                            </div>
+                          )}
+                          {avgHydration && (
+                            <div style={{ padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>💧 Avg hydration</div>
+                              <div style={{ fontSize: 16, fontWeight: 700 }}>{avgHydration}L</div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )
+                })()}
               </div>
             </div>
           </div>
