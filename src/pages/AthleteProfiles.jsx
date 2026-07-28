@@ -1606,6 +1606,10 @@ export default function AthleteProfiles() {
   const [savingDashNote, setSavingDashNote] = useState(false)
   const [showAddEvent, setShowAddEvent] = useState(false)
   const [todaysAllSessions, setTodaysAllSessions] = useState([])
+  const [allAthleteProfiles, setAllAthleteProfiles] = useState([]) // for PDP/Media team stats
+  const [todaysAllAttendance, setTodaysAllAttendance] = useState([])
+  const [todaysAllNotes, setTodaysAllNotes] = useState([])
+  const [todaysAllTtp, setTodaysAllTtp] = useState([])
   const [teamTargets, setTeamTargets] = useState([])
   const [showAddTarget, setShowAddTarget] = useState(false)
   const [newTargetSection, setNewTargetSection] = useState('physical')
@@ -1875,6 +1879,33 @@ export default function AthleteProfiles() {
     const todayStr = new Date().toISOString().split('T')[0]
     supabase.from('fit2fight_sessions').select('*').eq('session_date', todayStr)
       .then(({ data }) => setTodaysAllSessions(data || []))
+  }, [])
+
+  useEffect(() => {
+    supabase.from('athlete_profiles').select('student_id, pdp_notes, media_files')
+      .then(({ data }) => setAllAthleteProfiles(data || []))
+  }, [])
+
+  useEffect(() => {
+    const todayStr = new Date().toISOString().split('T')[0]
+    supabase.from('attendance').select('student_id, session_date, attendance_type').eq('session_date', todayStr)
+      .neq('attendance_type', 'absent').neq('attendance_type', 'excused')
+      .then(({ data }) => setTodaysAllAttendance(data || []))
+  }, [])
+
+  useEffect(() => {
+    const todayStr = new Date().toISOString().split('T')[0]
+    supabase.from('athlete_notes_log').select('student_id, logged_at')
+      .gte('logged_at', todayStr).lt('logged_at', todayStr + 'T23:59:59')
+      .then(({ data }) => setTodaysAllNotes(data || []))
+  }, [])
+
+  useEffect(() => {
+    const todayStr = new Date().toISOString().split('T')[0]
+    Promise.all([
+      supabase.from('tpt_boxing').select('student_id, assessed_at').gte('assessed_at', todayStr).lt('assessed_at', todayStr + 'T23:59:59'),
+      supabase.from('tpt_kickboxing').select('student_id, assessed_at').gte('assessed_at', todayStr).lt('assessed_at', todayStr + 'T23:59:59'),
+    ]).then(([box, kb]) => setTodaysAllTtp([...(box.data || []), ...(kb.data || [])]))
   }, [])
 
   useEffect(() => {
@@ -2890,6 +2921,92 @@ export default function AthleteProfiles() {
               })
             })()}
 
+            {/* Additional team overview cards -- same banner style, simple % + target (no sub-item drill-down since these aren't structured the same way as the daily-log sections) */}
+            {(() => {
+              const teamAthletes = students.filter(s => s.is_kr || s.is_pts || s.discipline === 'KRBA')
+              const teamCount = teamAthletes.length || 1
+              const teamIds = new Set(teamAthletes.map(s => s.id))
+              const todayStr = new Date().toISOString().split('T')[0]
+              const hasContent = v => Array.isArray(v) ? v.length > 0 : (v && typeof v === 'object' ? Object.keys(v).length > 0 : !!v)
+              const pctFromIds = idList => {
+                const loggedIds = new Set(idList.filter(id => teamIds.has(id)))
+                return { count: loggedIds.size, pct: Math.round((loggedIds.size / teamCount) * 100) }
+              }
+              const targetFor = key => teamTargets.find(t => t.section_key === key && !t.question_label)
+
+              // All sessions / Check in -- both driven by today's attendance
+              // (kept as two separate cards per the request, though they
+              // currently compute from the same underlying data since
+              // there's no distinct "check in" concept in the data yet)
+              const attendedIds = todaysAllAttendance.map(a => a.student_id)
+              const allSessions = pctFromIds(attendedIds)
+              const checkIn = pctFromIds(attendedIds)
+
+              // F2F sessions -- any fit2fight_sessions row today with some content in it
+              const f2fIds = todaysAllSessions.filter(s =>
+                ['running','watt_bike','bodyweight','stretch_flows','snc','other_session','techniques','tactical','mentality_log','wellbeing','test'].some(f => hasContent(s[f]))
+              ).map(s => s.student_id)
+              const f2fSessions = pctFromIds(f2fIds)
+
+              // PDP -- has a "Check" item scheduled to the timetable today
+              const pdpIds = allAthleteProfiles.filter(ap => {
+                const pdp = ap.pdp_notes || {}
+                return Array.from(PDP_CHECKABLE_SECTIONS).some(k =>
+                  Object.values(pdp[`__timetable_${k}`] || {}).some(e => e.date === todayStr))
+              }).map(ap => ap.student_id)
+              const pdp = pctFromIds(pdpIds)
+
+              // Media -- a file uploaded today
+              const mediaIds = allAthleteProfiles.filter(ap =>
+                (ap.media_files || []).some(f => f.uploaded_at?.slice(0, 10) === todayStr)
+              ).map(ap => ap.student_id)
+              const media = pctFromIds(mediaIds)
+
+              // Notes -- an athlete_notes_log entry today
+              const notesIds = todaysAllNotes.map(n => n.student_id)
+              const notes = pctFromIds(notesIds)
+
+              // TTP -- a boxing or kickboxing assessment today
+              const ttpIds = todaysAllTtp.map(t => t.student_id)
+              const ttp = pctFromIds(ttpIds)
+
+              const cards = [
+                { key: 'all_sessions', icon: '📅', label: 'All sessions', ...allSessions },
+                { key: 'f2f_sessions', icon: '💪', label: 'F2F sessions', ...f2fSessions },
+                { key: 'pdp', icon: '🎯', label: 'PDP', ...pdp },
+                { key: 'media', icon: '🖼', label: 'Media', ...media },
+                { key: 'notes', icon: '📝', label: 'Notes', ...notes },
+                { key: 'ttp', icon: '📊', label: 'TTP', ...ttp },
+                { key: 'check_in', icon: '✅', label: 'Check in', ...checkIn },
+              ]
+
+              return cards.map(c => {
+                const target = targetFor(c.key)
+                return (
+                  <div key={c.key} style={{ marginBottom: 8 }}>
+                    <div style={{
+                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                      padding: '10px 14px', fontFamily: 'var(--font-sans)',
+                      background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                    }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 18 }}>{c.icon}</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{c.label}</span>
+                      </span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontSize: 15, fontWeight: 700, color: colour }}>{c.pct}%</span>
+                        <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{c.count}/{teamCount}</span>
+                        {target && <span style={{ fontSize: 10, color: '#EF9F27' }}>🎯 {target.target_value}</span>}
+                        <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => {
+                          setNewTargetSection(c.key); setNewTargetQuestion(''); setShowAddTarget(true)
+                        }}>{target ? 'Edit' : '+ Target'}</button>
+                      </span>
+                    </div>
+                  </div>
+                )
+              })
+            })()}
+
             {/* Targets management */}
             <div className="card" style={{ padding: 0, marginBottom: 14, marginTop: 14 }}>
               <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -2907,6 +3024,13 @@ export default function AthleteProfiles() {
                         <option value="mentality">Mentality</option>
                         <option value="wellbeing">Wellbeing</option>
                         <option value="test">Test</option>
+                        <option value="all_sessions">All sessions</option>
+                        <option value="f2f_sessions">F2F sessions</option>
+                        <option value="pdp">PDP</option>
+                        <option value="media">Media</option>
+                        <option value="notes">Notes</option>
+                        <option value="ttp">TTP</option>
+                        <option value="check_in">Check in</option>
                       </select>
                       <input value={newTargetQuestion} onChange={e => setNewTargetQuestion(e.target.value)}
                         placeholder="Question/metric (optional, e.g. Sleep)" style={{ flex: 1, minWidth: 160 }} />
