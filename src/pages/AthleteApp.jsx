@@ -1300,80 +1300,6 @@ export default function AthleteApp() {
                       </button>
                     </div>
 
-                    <div ref={tacticalSectionRef}>
-                    <button type="button" onClick={() => { setShowTacticalSection(v => { if (v) setExpandedTacticalCategory(null); return !v }) }} style={{
-                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                      textAlign: 'center', padding: '10px 8px', marginBottom: 8, cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                      background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
-                    }}>
-                      <span style={{ fontSize: 18 }}>🧩</span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Tactical</span>
-                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{showTacticalSection ? '▲' : '▼'}</span>
-                    </button>
-
-                    <div style={{
-                      overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
-                      maxHeight: showTacticalSection ? 8000 : 0, opacity: showTacticalSection ? 1 : 0,
-                    }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 8 }}>
-                      {Object.keys(TACTICAL_CATEGORIES).map(cat => {
-                        const active = expandedTacticalCategory === cat
-                        const count = todaysTactical.filter(t => t.category === cat).length
-                        return (
-                          <button key={cat} type="button"
-                            onClick={() => setExpandedTacticalCategory(active ? null : cat)}
-                            style={{
-                              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
-                              borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                              border: `2px solid ${active ? '#E24B4A' : count ? '#1D9E75' : 'var(--border)'}`,
-                              background: count ? '#1D9E7512' : 'var(--bg-secondary)',
-                            }}>
-                            <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat}</span>
-                            {count > 0 && <span style={{ fontSize: 8, color: '#1D9E75' }}>{count} selected</span>}
-                          </button>
-                        )
-                      })}
-                    </div>
-                    {Object.entries(TACTICAL_CATEGORIES).map(([cat, items]) => {
-                      if (expandedTacticalCategory !== cat) return null
-                      return (
-                        <div key={cat} className="card" style={{ marginBottom: 8 }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                            {items.map(item => {
-                              const entry = todaysTactical.find(t => t.category === cat && t.item === item)
-                              const selected = !!entry
-                              return (
-                                <div key={item}>
-                                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
-                                    <input type="checkbox" checked={selected}
-                                      onChange={() => {
-                                        const next = selected
-                                          ? todaysTactical.filter(t => !(t.category === cat && t.item === item))
-                                          : [...todaysTactical, { category: cat, item, note: '' }]
-                                        savePhysicalField('tactical', next, setTodaysTactical)
-                                      }}
-                                      style={{ width: 16, height: 16, flexShrink: 0 }} />
-                                    {item}
-                                  </label>
-                                  {selected && (
-                                    <input defaultValue={entry.note || ''} placeholder="Add a note…"
-                                      onBlur={e => {
-                                        const next = todaysTactical.map(t => (t.category === cat && t.item === item) ? { ...t, note: e.target.value } : t)
-                                        savePhysicalField('tactical', next, setTodaysTactical)
-                                      }}
-                                      style={{ marginTop: 4, marginLeft: 24, width: 'calc(100% - 24px)', fontSize: 12 }} />
-                                  )}
-                                </div>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      )
-                    })}
-                    {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8 }}>Saving…</p>}
-                    </div>
-                    </div>
-
                     <div ref={physicalSectionRef}>
                     <button type="button" onClick={togglePhysicalSection} style={{
                       width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -1755,6 +1681,80 @@ export default function AthleteApp() {
                         })}
                       </div>
                     ))}
+                    {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8 }}>Saving…</p>}
+                    </div>
+                    </div>
+
+                    <div ref={tacticalSectionRef}>
+                    <button type="button" onClick={() => { setShowTacticalSection(v => { if (v) setExpandedTacticalCategory(null); return !v }) }} style={{
+                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      textAlign: 'center', padding: '10px 8px', marginBottom: 8, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                      background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                    }}>
+                      <span style={{ fontSize: 18 }}>🧩</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Tactical</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{showTacticalSection ? '▲' : '▼'}</span>
+                    </button>
+
+                    <div style={{
+                      overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
+                      maxHeight: showTacticalSection ? 8000 : 0, opacity: showTacticalSection ? 1 : 0,
+                    }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 8 }}>
+                      {Object.keys(TACTICAL_CATEGORIES).map(cat => {
+                        const active = expandedTacticalCategory === cat
+                        const count = todaysTactical.filter(t => t.category === cat).length
+                        return (
+                          <button key={cat} type="button"
+                            onClick={() => setExpandedTacticalCategory(active ? null : cat)}
+                            style={{
+                              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
+                              borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                              border: `2px solid ${active ? '#E24B4A' : count ? '#1D9E75' : 'var(--border)'}`,
+                              background: count ? '#1D9E7512' : 'var(--bg-secondary)',
+                            }}>
+                            <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat}</span>
+                            {count > 0 && <span style={{ fontSize: 8, color: '#1D9E75' }}>{count} selected</span>}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {Object.entries(TACTICAL_CATEGORIES).map(([cat, items]) => {
+                      if (expandedTacticalCategory !== cat) return null
+                      return (
+                        <div key={cat} className="card" style={{ marginBottom: 8 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {items.map(item => {
+                              const entry = todaysTactical.find(t => t.category === cat && t.item === item)
+                              const selected = !!entry
+                              return (
+                                <div key={item}>
+                                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                                    <input type="checkbox" checked={selected}
+                                      onChange={() => {
+                                        const next = selected
+                                          ? todaysTactical.filter(t => !(t.category === cat && t.item === item))
+                                          : [...todaysTactical, { category: cat, item, note: '' }]
+                                        savePhysicalField('tactical', next, setTodaysTactical)
+                                      }}
+                                      style={{ width: 16, height: 16, flexShrink: 0 }} />
+                                    {item}
+                                  </label>
+                                  {selected && (
+                                    <input defaultValue={entry.note || ''} placeholder="Add a note…"
+                                      onBlur={e => {
+                                        const next = todaysTactical.map(t => (t.category === cat && t.item === item) ? { ...t, note: e.target.value } : t)
+                                        savePhysicalField('tactical', next, setTodaysTactical)
+                                      }}
+                                      style={{ marginTop: 4, marginLeft: 24, width: 'calc(100% - 24px)', fontSize: 12 }} />
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )
+                    })}
                     {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8 }}>Saving…</p>}
                     </div>
                     </div>
