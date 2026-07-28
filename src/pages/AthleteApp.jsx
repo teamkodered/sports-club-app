@@ -163,6 +163,33 @@ function isWellbeingQComplete(key, w) {
 // the coach write in what the routine actually consists of.
 const SNC_ROUTINE_PRESETS = ['Routine 1', 'Routine 2', 'Routine 3', 'Routine 4']
 
+// Technique presets -- multi-select per category, note added once
+// selected. Two styles (Boxing/Kickboxing), each split into several
+// named categories.
+const TECHNIQUE_STYLES = [
+  { style: 'Boxing', categories: {
+    'Stance & Movement': ['Orthodox stance', 'Southpaw stance', 'Fighting stance', 'High guard', 'Peek-a-boo guard', 'Philly Shell (shoulder roll)', 'Long guard', 'Foot positioning', 'Forward step', 'Backward step', 'Side step', 'Pivot', 'L-step', 'Shuffle', 'Circle left/right', 'Ring cutting', 'Angle changes', 'Weight transfer', 'Bounce movement', 'Set and fire'],
+    'Offensive Punches': ['Jab', 'Double jab', 'Triple jab', 'Power jab', 'Flick jab', 'Body jab', 'Cross', 'Straight right/left', 'Lead hook', 'Rear hook', 'Check hook', 'Body hook', 'Lead uppercut', 'Rear uppercut', 'Shovel hook', 'Overhand right', 'Overhand left', 'Corkscrew punch', 'Long hook', 'Short hook'],
+    'Defence': ['High guard', 'Parry', 'Catch', 'Slip inside', 'Slip outside', 'Bob and weave', 'Duck', 'Pull back', 'Shoulder roll', 'Elbow block', 'Forearm block', 'Step back defence', 'Pivot defence', 'Clinch', 'Frame'],
+    'Counter Punching': ['Slip jab-cross', 'Pull counter', 'Check hook', 'Counter uppercut', 'Parry jab-cross', 'Catch and shoot', 'Body counter', 'Angle counter', 'Shoulder roll counter'],
+    'Feints': ['Jab feint', 'Shoulder feint', 'Hip feint', 'Foot feint', 'Level change', 'Hand feint', 'Rhythm change', 'Eye feint'],
+    'Inside Fighting': ['Short hooks', 'Short uppercuts', 'Body ripping', 'Framing', 'Head positioning', 'Clinch control', 'Bumping', 'Shoulder pressure'],
+    'Ring Craft': ['Corner escape', 'Cutting off the ring', 'Rope work', 'Pressure fighting', 'Counter fighting', 'Out-boxing', 'Distance management', 'Tempo control'],
+  }},
+  { style: 'Kickboxing', categories: {
+    'Stance & Footwork': ['Orthodox stance', 'Southpaw stance', 'Fighting stance', 'High guard', 'Long guard', 'Bounce movement', 'Step and slide', 'Pivot', 'L-step', 'Side step', 'Circle movement', 'Ring control', 'Angle changes'],
+    'Punches': ['Jab', 'Cross', 'Lead hook', 'Rear hook', 'Lead uppercut', 'Rear uppercut', 'Overhand', 'Body shots', 'Shovel hook', 'Spinning back fist (ruleset dependent)'],
+    'Lead Leg Kicks': ['Front kick (Teep)', 'Snap front kick', 'Push kick', 'Front leg round kick', 'Front leg side kick', 'Front leg hook kick', 'Front leg axe kick'],
+    'Rear Leg Kicks': ['Rear round kick', 'Body round kick', 'Low kick', 'High kick', 'Rear push kick', 'Side kick', 'Hook kick', 'Axe kick', 'Head knee'],
+    'Spinning Techniques': ['Spinning back kick', 'Spinning hook kick', 'Spinning heel kick', 'Tornado kick', 'Jump spinning back kick', 'Jump spinning hook kick', 'Jump spinning heel kick'],
+    'Defensive Skills': ['High guard', 'Long guard', 'Shin block', 'Knee check', 'Leg check', 'Catch kick', 'Scoop kick', 'Parry', 'Slip', 'Duck', 'Pull back', 'Clinch', 'Footwork defence'],
+    'Sweeps & Dumps (Ruleset Dependent)': ['Inside sweep', 'Outside sweep', 'Catch-and-sweep', 'Off-balancing'],
+    'Counters': ['Check-return kick', 'Catch-return kick', 'Slip-cross', 'Pull-cross', 'Counter low kick', 'Counter teep', 'Counter knee', 'Counter spinning kick'],
+    'Feints': ['Jab feint', 'Kick feint', 'Teep feint', 'Shoulder feint', 'Hip feint', 'Step feint', 'Level change', 'Rhythm change'],
+    'Advanced Skills': ['Switch kick', 'Question mark kick', 'Brazilian kick', 'Crescent kick', 'Jump side kick', 'Flying side kick', 'Rolling thunder kick (ruleset dependent)', 'Fake-low to high kick', 'Fake-teep to round kick', 'Angle kick setups'],
+  }},
+]
+
 const RUN_CATEGORY_CARDS = [
   { key: 'Timed Sprints', label: 'Timed Sprints', icon: '⚡' },
   { key: 'Timed Distance Run', label: 'Timed Distance Run', icon: '🏁' },
@@ -543,6 +570,10 @@ export default function AthleteApp() {
   const [showPhysicalSection, setShowPhysicalSection] = useState(false)
   const [showTestSection, setShowTestSection] = useState(false)
   const testSectionRef = useRef(null)
+  const [showTechniqueSection, setShowTechniqueSection] = useState(false)
+  const techniqueSectionRef = useRef(null)
+  const [expandedTechniqueCategory, setExpandedTechniqueCategory] = useState(null) // "Boxing::Stance & Movement"
+  const [todaysTechniques, setTodaysTechniques] = useState([])
   const [showMentalitySection, setShowMentalitySection] = useState(false)
   const mentalitySectionRef = useRef(null)
   const [showWellbeingSection, setShowWellbeingSection] = useState(false)
@@ -592,6 +623,18 @@ export default function AthleteApp() {
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [showTestSection])
+
+  useEffect(() => {
+    if (!showTechniqueSection) return
+    function handleClick(e) {
+      if (techniqueSectionRef.current && !techniqueSectionRef.current.contains(e.target)) {
+        setShowTechniqueSection(false)
+        setExpandedTechniqueCategory(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showTechniqueSection])
 
   useEffect(() => {
     if (!showMentalitySection) return
@@ -741,6 +784,7 @@ export default function AthleteApp() {
     setTodaysBodyweight(toEntries(todaysSession?.bodyweight))
     setTodaysStretches(todaysSession?.stretch_flows || ['', '', ''])
     setTodaysSnc(toEntries(todaysSession?.snc))
+    setTodaysTechniques(toEntries(todaysSession?.techniques))
   }, [sessions])
 
   useEffect(() => {
@@ -1413,57 +1457,84 @@ export default function AthleteApp() {
                     </div>
                     </div>
 
-                    <div ref={testSectionRef}>
-                    <button type="button" onClick={() => { setShowTestSection(v => { if (v) setExpandedHomeTestCategory(null); return !v }) }} style={{
+                    <div ref={techniqueSectionRef}>
+                    <button type="button" onClick={() => { setShowTechniqueSection(v => { if (v) setExpandedTechniqueCategory(null); return !v }) }} style={{
                       width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                       textAlign: 'center', padding: '10px 8px', marginBottom: 8, cursor: 'pointer', fontFamily: 'var(--font-sans)',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
-                      <span style={{ fontSize: 18 }}>📋</span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Test</span>
-                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{showTestSection ? '▲' : '▼'}</span>
+                      <span style={{ fontSize: 18 }}>🥊</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Technique</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{showTechniqueSection ? '▲' : '▼'}</span>
                     </button>
 
                     <div style={{
                       overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
-                      maxHeight: showTestSection ? 4000 : 0, opacity: showTestSection ? 1 : 0,
+                      maxHeight: showTechniqueSection ? 8000 : 0, opacity: showTechniqueSection ? 1 : 0,
                     }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeTestCategory ? 10 : 8 }}>
-                      {TEST_CATEGORIES.map(cat => {
-                        const complete = cat.tests.some(t => todaysTest[t.name] != null && todaysTest[t.name] !== '')
-                        const active = expandedHomeTestCategory === cat.key
-                        return (
-                          <button key={cat.key} type="button" onClick={() => setExpandedHomeTestCategory(active ? null : cat.key)} style={{
-                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
-                            borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                            border: `2px solid ${active ? colour : complete ? '#8B5CF6' : 'var(--border)'}`,
-                            background: complete ? '#8B5CF612' : 'var(--bg-secondary)',
-                          }}>
-                            <span style={{ fontSize: 16 }}>{cat.icon}</span>
-                            <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat.label}</span>
-                          </button>
-                        )
-                      })}
-                    </div>
-
-                    {expandedHomeTestCategory && (() => {
-                      const cat = TEST_CATEGORIES.find(c => c.key === expandedHomeTestCategory)
-                      return (
-                        <div className="card" style={{ marginBottom: 8 }}>
-                          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-                            <button type="button" className="btn btn-sm" onClick={() => clearTestCategory(cat.key)} style={{ fontSize: 11 }}>✕ Clear</button>
-                          </div>
-                          {cat.tests.map(t => (
-                            <div className="field" key={t.name}><label>{t.name}{t.unit ? ` (${t.unit})` : ''}</label>
-                              <input type="text" inputMode="decimal" defaultValue={todaysTest[t.name] ?? ''}
-                                onBlur={e => saveTestValue(t.name, e.target.value)}
-                                placeholder={`e.g. ${t.unit === 'sec' ? '32:15' : t.unit === 'level' ? '11.4' : '25'}`} />
-                            </div>
-                          ))}
-                          {savingTest && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>Saving…</p>}
+                    {TECHNIQUE_STYLES.map(({ style, categories }) => (
+                      <div key={style} style={{ marginBottom: 14 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>{style} Techniques</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 8 }}>
+                          {Object.keys(categories).map(cat => {
+                            const catKey = `${style}::${cat}`
+                            const active = expandedTechniqueCategory === catKey
+                            const count = todaysTechniques.filter(t => t.style === style && t.category === cat).length
+                            return (
+                              <button key={cat} type="button"
+                                onClick={() => setExpandedTechniqueCategory(active ? null : catKey)}
+                                style={{
+                                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
+                                  borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                                  border: `2px solid ${active ? '#E24B4A' : count ? '#1D9E75' : 'var(--border)'}`,
+                                  background: count ? '#1D9E7512' : 'var(--bg-secondary)',
+                                }}>
+                                <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat}</span>
+                                {count > 0 && <span style={{ fontSize: 8, color: '#1D9E75' }}>{count} selected</span>}
+                              </button>
+                            )
+                          })}
                         </div>
-                      )
-                    })()}
+                        {Object.entries(categories).map(([cat, items]) => {
+                          const catKey = `${style}::${cat}`
+                          if (expandedTechniqueCategory !== catKey) return null
+                          return (
+                            <div key={catKey} className="card" style={{ marginBottom: 8 }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                {items.map(technique => {
+                                  const entry = todaysTechniques.find(t => t.style === style && t.category === cat && t.technique === technique)
+                                  const selected = !!entry
+                                  return (
+                                    <div key={technique}>
+                                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                                        <input type="checkbox" checked={selected}
+                                          onChange={() => {
+                                            const next = selected
+                                              ? todaysTechniques.filter(t => !(t.style === style && t.category === cat && t.technique === technique))
+                                              : [...todaysTechniques, { style, category: cat, technique, note: '' }]
+                                            savePhysicalField('techniques', next, setTodaysTechniques)
+                                          }}
+                                          style={{ width: 16, height: 16 }} />
+                                        {technique}
+                                      </label>
+                                      {selected && (
+                                        <input defaultValue={entry.note || ''} placeholder="Add a note…"
+                                          onBlur={e => {
+                                            const next = todaysTechniques.map(t => (t.style === style && t.category === cat && t.technique === technique) ? { ...t, note: e.target.value } : t)
+                                            savePhysicalField('techniques', next, setTodaysTechniques)
+                                          }}
+                                          style={{ marginTop: 4, marginLeft: 24, width: 'calc(100% - 24px)', fontSize: 12 }} />
+                                      )}
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ))}
+                    {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8 }}>Saving…</p>}
                     </div>
                     </div>
 
@@ -1864,6 +1935,60 @@ export default function AthleteApp() {
                     )}
                     </div>
                     </div>
+                    <div ref={testSectionRef}>
+                    <button type="button" onClick={() => { setShowTestSection(v => { if (v) setExpandedHomeTestCategory(null); return !v }) }} style={{
+                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      textAlign: 'center', padding: '10px 8px', marginBottom: 8, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                      background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                    }}>
+                      <span style={{ fontSize: 18 }}>📋</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Test</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{showTestSection ? '▲' : '▼'}</span>
+                    </button>
+
+                    <div style={{
+                      overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
+                      maxHeight: showTestSection ? 4000 : 0, opacity: showTestSection ? 1 : 0,
+                    }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeTestCategory ? 10 : 8 }}>
+                      {TEST_CATEGORIES.map(cat => {
+                        const complete = cat.tests.some(t => todaysTest[t.name] != null && todaysTest[t.name] !== '')
+                        const active = expandedHomeTestCategory === cat.key
+                        return (
+                          <button key={cat.key} type="button" onClick={() => setExpandedHomeTestCategory(active ? null : cat.key)} style={{
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
+                            borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                            border: `2px solid ${active ? colour : complete ? '#8B5CF6' : 'var(--border)'}`,
+                            background: complete ? '#8B5CF612' : 'var(--bg-secondary)',
+                          }}>
+                            <span style={{ fontSize: 16 }}>{cat.icon}</span>
+                            <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat.label}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+
+                    {expandedHomeTestCategory && (() => {
+                      const cat = TEST_CATEGORIES.find(c => c.key === expandedHomeTestCategory)
+                      return (
+                        <div className="card" style={{ marginBottom: 8 }}>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+                            <button type="button" className="btn btn-sm" onClick={() => clearTestCategory(cat.key)} style={{ fontSize: 11 }}>✕ Clear</button>
+                          </div>
+                          {cat.tests.map(t => (
+                            <div className="field" key={t.name}><label>{t.name}{t.unit ? ` (${t.unit})` : ''}</label>
+                              <input type="text" inputMode="decimal" defaultValue={todaysTest[t.name] ?? ''}
+                                onBlur={e => saveTestValue(t.name, e.target.value)}
+                                placeholder={`e.g. ${t.unit === 'sec' ? '32:15' : t.unit === 'level' ? '11.4' : '25'}`} />
+                            </div>
+                          ))}
+                          {savingTest && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>Saving…</p>}
+                        </div>
+                      )
+                    })()}
+                    </div>
+                    </div>
+
 
                     <div className="card" style={{ padding: 0, marginBottom: 14 }}>
                       <div style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)' }}>Profile</div>
