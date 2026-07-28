@@ -193,12 +193,119 @@ const TECHNIQUE_STYLES = [
 ]
 const OTHER_SESSION_PRESETS = ['Bout/Comp', 'External Sparring', 'Training in other sport', 'Squad training session']
 
+// Tactical development presets -- multi-select per category, note
+// added once selected (same pattern as Techniques).
+const TACTICAL_CATEGORIES = {
+  'Fight Analysis': [
+    'Watch one full fight and identify the winning tactics.',
+    'Watch the same fight twice—once focusing on each fighter.',
+    'Watch fights round by round and score them yourself.',
+    'Identify the moment the momentum changed.',
+    'Count successful jabs, counters, or kicks.',
+    'Identify every tactical adjustment made by each corner.',
+    'Compare an amateur and professional version of the same fighter.',
+    'Study fighters with different styles (pressure, counter, out-boxer, etc.).',
+  ],
+  'Pattern Recognition': [
+    'Predict the next combination before it happens.',
+    'Pause footage and decide what you would do next.',
+    'Identify repeated habits in each fighter.',
+    'Spot defensive weaknesses.',
+    'Identify favourite exits after combinations.',
+    'Predict which fighter is controlling the distance.',
+    'Identify who is dictating the pace.',
+    'Recognise feints that consistently create openings.',
+  ],
+  'Tactical Journaling': [
+    'Write three things you learned from every fight you watch.',
+    'Keep a "Lessons from Champions" notebook.',
+    'Record mistakes you repeatedly make.',
+    'Write one tactical goal for the next session.',
+    'Create a strengths and weaknesses list.',
+    'Keep an "opponent types" journal.',
+    'Record combinations that worked well.',
+    'Reflect on how you handled pressure.',
+  ],
+  'Game Planning': [
+    'Build a game plan for different opponent styles.',
+    'Design first-round strategies.',
+    "Plan what to do if you're ahead on points.",
+    "Plan what to do if you're behind.",
+    'Prepare opening combinations.',
+    'Prepare defensive responses to common attacks.',
+    'Develop multiple plans (Plan A, B and C).',
+    'Write a between-round adjustment checklist.',
+  ],
+  'Visualisation': [
+    'Mentally rehearse walking into the ring.',
+    'Visualise defending against difficult opponents.',
+    'Imagine solving tactical problems calmly.',
+    'Picture successful counters.',
+    'Rehearse winning the final round.',
+    'Visualise escaping pressure.',
+    'Mentally perform perfect footwork.',
+    'Imagine executing your game plan from start to finish.',
+  ],
+  'Opponent Study': [
+    'Research different fighting styles.',
+    'Learn common habits of southpaws.',
+    'Study pressure fighters.',
+    'Study counter fighters.',
+    'Study tall versus short fighters.',
+    'Learn the strengths and weaknesses of each style.',
+    'Analyse previous opponents if available.',
+  ],
+  'Coaching Mindset': [
+    'Explain tactics to someone else.',
+    'Draw ring diagrams and movement patterns.',
+    'Sketch combinations and likely reactions.',
+    'Build tactical flowcharts.',
+    '"If this happens, then I\'ll do this" decision trees.',
+    'Design sparring scenarios for yourself.',
+    'Write coaching notes from fights you watch.',
+  ],
+  'Mental Performance': [
+    'Practise concentration exercises.',
+    'Improve observation skills by noticing small details in everyday life.',
+    'Train patience through puzzles or strategy games.',
+    'Develop emotional control through breathing practice.',
+    'Reflect on decision-making after competitions.',
+    'Read books on sports psychology and performance.',
+    'Study leadership and communication.',
+    'Learn how elite athletes prepare mentally.',
+  ],
+  'Self-Review': [
+    'What did I do well?',
+    'What tactical mistakes did I make?',
+    'What surprised me?',
+    'What patterns did I notice?',
+    'What would I change next time?',
+    'What will I focus on in my next session?',
+    'What is one habit I want to improve this week?',
+    'What is one strength I should continue developing?',
+  ],
+}
+
 // Maps a class's day_of_week label to actual JS day-of-week numbers
 // (0=Sunday...6=Saturday), used to work out which calendar dates an
 // athlete's assigned classes actually run on.
 const DAY_TO_JS_DAYS = {
   Monday: [1], Tuesday: [2], Wednesday: [3], Thursday: [4], Friday: [5], Saturday: [6], Sunday: [0],
   'Mon/Fri': [1, 5], 'Tue/Thu': [2, 4],
+}
+
+// A "day" for the calendar/weekly timetable's visual timeline runs
+// 06:00-22:00 (16 hours) -- converts a "HH:MM" time into a 0-100%
+// vertical position within that range, clamped to the visible range.
+const DAY_TIMELINE_START_MIN = 6 * 60
+const DAY_TIMELINE_END_MIN = 22 * 60
+function timeToTimelinePercent(timeStr) {
+  if (!timeStr) return null
+  const [h, m] = timeStr.split(':').map(Number)
+  if (Number.isNaN(h)) return null
+  const mins = h * 60 + (m || 0)
+  const pct = ((mins - DAY_TIMELINE_START_MIN) / (DAY_TIMELINE_END_MIN - DAY_TIMELINE_START_MIN)) * 100
+  return Math.max(0, Math.min(100, pct))
 }
 
 const RUN_CATEGORY_CARDS = [
@@ -1507,6 +1614,10 @@ export default function AthleteProfiles() {
   const techniqueSectionRef = useRef(null)
   const [expandedTechniqueCategory, setExpandedTechniqueCategory] = useState(null)
   const [todaysTechniques, setTodaysTechniques] = useState([])
+  const [showTacticalSection, setShowTacticalSection] = useState(false)
+  const tacticalSectionRef = useRef(null)
+  const [expandedTacticalCategory, setExpandedTacticalCategory] = useState(null)
+  const [todaysTactical, setTodaysTactical] = useState([])
   const [showMentalitySection, setShowMentalitySection] = useState(false)
   const mentalitySectionRef = useRef(null)
   const [showWellbeingSection, setShowWellbeingSection] = useState(false)
@@ -1568,6 +1679,18 @@ export default function AthleteProfiles() {
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [showTechniqueSection])
+
+  useEffect(() => {
+    if (!showTacticalSection) return
+    function handleClick(e) {
+      if (tacticalSectionRef.current && !tacticalSectionRef.current.contains(e.target)) {
+        setShowTacticalSection(false)
+        setExpandedTacticalCategory(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showTacticalSection])
 
   useEffect(() => {
     if (!showMentalitySection) return
@@ -1661,6 +1784,14 @@ export default function AthleteProfiles() {
   const [bwChartFilter, setBwChartFilter]     = useState('all')
   const [techChartFilter, setTechChartFilter] = useState('all')
   const [sessionsCalMonth, setSessionsCalMonth] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() } })
+  const [weekTimetableStart, setWeekTimetableStart] = useState(() => {
+    const d = new Date()
+    const day = d.getDay() // 0=Sun
+    const diffToMonday = day === 0 ? -6 : 1 - day
+    d.setDate(d.getDate() + diffToMonday)
+    d.setHours(0, 0, 0, 0)
+    return d
+  })
   const [runChartFilter, setRunChartFilter]   = useState('all')
   const [editingSession, setEditingSession] = useState(null) // {} for add, session object for edit
   const [sessionForm, setSessionForm] = useState({})
@@ -1696,6 +1827,7 @@ export default function AthleteProfiles() {
     setTodaysStretches(todaysSession?.stretch_flows || ['', '', ''])
     setTodaysSnc(toEntries(todaysSession?.snc))
     setTodaysTechniques(toEntries(todaysSession?.techniques))
+    setTodaysTactical(toEntries(todaysSession?.tactical))
     setTodaysOtherSession(toEntries(todaysSession?.other_session))
   }, [f2fData])
 
@@ -2556,6 +2688,80 @@ export default function AthleteProfiles() {
                       </div>
                       <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>PDP</div>
                     </button>
+                  </div>
+
+                  <div ref={tacticalSectionRef}>
+                  <button type="button" onClick={() => { setShowTacticalSection(v => { if (v) setExpandedTacticalCategory(null); return !v }) }} style={{
+                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    textAlign: 'center', padding: '10px 8px', marginBottom: 8, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                    background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                  }}>
+                    <span style={{ fontSize: 18 }}>🧩</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Tactical</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{showTacticalSection ? '▲' : '▼'}</span>
+                  </button>
+
+                  <div style={{
+                    overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
+                    maxHeight: showTacticalSection ? 8000 : 0, opacity: showTacticalSection ? 1 : 0,
+                  }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 8 }}>
+                    {Object.keys(TACTICAL_CATEGORIES).map(cat => {
+                      const active = expandedTacticalCategory === cat
+                      const count = todaysTactical.filter(t => t.category === cat).length
+                      return (
+                        <button key={cat} type="button"
+                          onClick={() => setExpandedTacticalCategory(active ? null : cat)}
+                          style={{
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
+                            borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                            border: `2px solid ${active ? '#E24B4A' : count ? '#1D9E75' : 'var(--border)'}`,
+                            background: count ? '#1D9E7512' : 'var(--bg-secondary)',
+                          }}>
+                          <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat}</span>
+                          {count > 0 && <span style={{ fontSize: 8, color: '#1D9E75' }}>{count} selected</span>}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {Object.entries(TACTICAL_CATEGORIES).map(([cat, items]) => {
+                    if (expandedTacticalCategory !== cat) return null
+                    return (
+                      <div key={cat} className="card" style={{ marginBottom: 8 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {items.map(item => {
+                            const entry = todaysTactical.find(t => t.category === cat && t.item === item)
+                            const selected = !!entry
+                            return (
+                              <div key={item}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                                  <input type="checkbox" checked={selected}
+                                    onChange={() => {
+                                      const next = selected
+                                        ? todaysTactical.filter(t => !(t.category === cat && t.item === item))
+                                        : [...todaysTactical, { category: cat, item, note: '' }]
+                                      savePhysicalField('tactical', next, setTodaysTactical)
+                                    }}
+                                    style={{ width: 16, height: 16, flexShrink: 0 }} />
+                                  {item}
+                                </label>
+                                {selected && (
+                                  <input defaultValue={entry.note || ''} placeholder="Add a note…"
+                                    onBlur={e => {
+                                      const next = todaysTactical.map(t => (t.category === cat && t.item === item) ? { ...t, note: e.target.value } : t)
+                                      savePhysicalField('tactical', next, setTodaysTactical)
+                                    }}
+                                    style={{ marginTop: 4, marginLeft: 24, width: 'calc(100% - 24px)', fontSize: 12 }} />
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
+                  {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8 }}>Saving…</p>}
+                  </div>
                   </div>
 
                   <div ref={physicalSectionRef}>
@@ -3813,29 +4019,34 @@ export default function AthleteProfiles() {
                               const bg = attended ? '#1D9E75' : showAsRed ? '#E24B4A' : 'transparent'
                               const fg = attended || showAsRed ? '#fff' : 'var(--text-secondary)'
                               const jsDay = new Date(year, month, d).getDay()
-                              const classTimes = assignedClasses
-                                .filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay))
-                                .map(a => a.classes?.start_time?.slice(0, 5))
-                                .filter(Boolean)
+                              const classesToday = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay))
                               const pdpNotesData = apData?.pdp_notes || {}
                               const pdpItemsToday = Array.from(PDP_CHECKABLE_SECTIONS).flatMap(sectionKey =>
                                 Object.entries(pdpNotesData[`__timetable_${sectionKey}`] || {}).map(([item, entry]) => ({ sectionKey, item, ...entry }))
                               ).filter(e => e.date === dateStr)
                               return (
                                 <button key={i} type="button" onClick={() => cycleAttendanceDay(dateStr)}
-                                  title={(attended ? 'Attended — click to mark absent' : explicitlyAbsent ? 'Marked absent — click to clear' : explicitlyExcused ? 'Cleared — click to mark attended' : wasTrainingDay ? 'Missed (a session happened this day) — click to mark attended' : 'Click to mark attended') + (pdpItemsToday.length ? `\nPDP: ${pdpItemsToday.map(e => e.item).join(', ')}` : '')}
+                                  title={(attended ? 'Attended — click to mark absent' : explicitlyAbsent ? 'Marked absent — click to clear' : explicitlyExcused ? 'Cleared — click to mark attended' : wasTrainingDay ? 'Missed (a session happened this day) — click to mark attended' : 'Click to mark attended')
+                                    + (classesToday.length ? `\nClass: ${classesToday.map(a => `${a.classes?.name} ${a.classes?.start_time?.slice(0,5)}`).join(', ')}` : '')
+                                    + (pdpItemsToday.length ? `\nPDP: ${pdpItemsToday.map(e => `${e.item}${e.time ? ` ${e.time}` : ''}`).join(', ')}` : '')}
                                   style={{
-                                    aspectRatio: '0.85', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1,
+                                    aspectRatio: '0.85', display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     borderRadius: 6, fontSize: 12, background: bg, color: fg, cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                                    border: !attended && !showAsRed ? '1px solid var(--border)' : 'none', position: 'relative',
+                                    border: !attended && !showAsRed ? '1px solid var(--border)' : 'none', position: 'relative', overflow: 'hidden',
                                   }}>
-                                  <span>{d}</span>
-                                  {classTimes.length > 0 && (
-                                    <span style={{ fontSize: 6.5, lineHeight: 1, opacity: 0.85 }}>{classTimes.join(', ')}</span>
-                                  )}
-                                  {pdpItemsToday.length > 0 && (
-                                    <span style={{ position: 'absolute', top: 2, right: 2, fontSize: 8 }}>📌</span>
-                                  )}
+                                  <span style={{ position: 'relative', zIndex: 1 }}>{d}</span>
+                                  {classesToday.map((a, ci) => {
+                                    const pct = timeToTimelinePercent(a.classes?.start_time?.slice(0, 5))
+                                    if (pct == null) return null
+                                    return <div key={ci} title={`${a.classes?.name} ${a.classes?.start_time?.slice(0,5)}`}
+                                      style={{ position: 'absolute', left: 2, right: 2, top: `${pct}%`, height: 2, background: '#378ADD', borderRadius: 1 }} />
+                                  })}
+                                  {pdpItemsToday.map((e, pi) => {
+                                    const pct = timeToTimelinePercent(e.time)
+                                    if (pct == null) return null
+                                    return <div key={pi} title={`${e.item}${e.time ? ` ${e.time}` : ''}`}
+                                      style={{ position: 'absolute', left: 2, right: 2, top: `${pct}%`, height: 2, background: '#8B5CF6', borderRadius: 1 }} />
+                                  })}
                                 </button>
                               )
                             })}
@@ -3861,11 +4072,93 @@ export default function AthleteProfiles() {
                               </div>
                             )
                           })()}
-                          <div style={{ display: 'flex', gap: 14, marginTop: 12, fontSize: 11, color: 'var(--text-secondary)' }}>
+                          <div style={{ display: 'flex', gap: 14, marginTop: 12, fontSize: 11, color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
                             <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#1D9E75', borderRadius: 2, marginRight: 4 }} />Attended</span>
                             <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#E24B4A', borderRadius: 2, marginRight: 4 }} />Absent</span>
+                            <span><span style={{ display: 'inline-block', width: 8, height: 2, background: '#378ADD', borderRadius: 2, marginRight: 4 }} />Class time</span>
+                            <span><span style={{ display: 'inline-block', width: 8, height: 2, background: '#8B5CF6', borderRadius: 2, marginRight: 4 }} />PDP action</span>
                           </div>
-                          <p style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 6 }}>Red shows automatically for missed sessions, or tap any date to mark attended/absent/clear.</p>
+                          <p style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 6 }}>Red shows automatically for missed sessions, or tap any date to mark attended/absent/clear. Lines show roughly where in the day (6am-10pm) a class or PDP action falls.</p>
+                        </>
+                      )
+                    })()}
+                  </div>
+
+                  {/* Weekly timetable */}
+                  <div className="card" style={{ marginBottom: 20 }}>
+                    {(() => {
+                      const weekDays = Array.from({ length: 7 }, (_, i) => {
+                        const d = new Date(weekTimetableStart)
+                        d.setDate(d.getDate() + i)
+                        return d
+                      })
+                      const hourMarks = Array.from({ length: 9 }, (_, i) => 6 + i * 2) // 6,8,...,22
+                      const pdpNotesData = apData?.pdp_notes || {}
+                      const allPdpEntries = Array.from(PDP_CHECKABLE_SECTIONS).flatMap(sectionKey =>
+                        Object.entries(pdpNotesData[`__timetable_${sectionKey}`] || {}).map(([item, entry]) => ({ sectionKey, item, ...entry }))
+                      )
+                      return (
+                        <>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                            <button className="btn btn-sm" onClick={() => setWeekTimetableStart(d => { const n = new Date(d); n.setDate(n.getDate() - 7); return n })}>←</button>
+                            <span style={{ fontSize: 13, fontWeight: 600 }}>
+                              Weekly timetable — {weekDays[0].toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – {weekDays[6].toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                            </span>
+                            <button className="btn btn-sm" onClick={() => setWeekTimetableStart(d => { const n = new Date(d); n.setDate(n.getDate() + 7); return n })}>→</button>
+                          </div>
+                          <div style={{ display: 'flex', overflowX: 'auto' }}>
+                            {/* Hour axis */}
+                            <div style={{ flexShrink: 0, width: 34, position: 'relative', height: 320 }}>
+                              {hourMarks.map(h => (
+                                <div key={h} style={{ position: 'absolute', top: `${timeToTimelinePercent(`${h}:00`)}%`, fontSize: 9, color: 'var(--text-tertiary)', transform: 'translateY(-50%)' }}>
+                                  {h}:00
+                                </div>
+                              ))}
+                            </div>
+                            {weekDays.map((d, di) => {
+                              const dateStr = d.toISOString().split('T')[0]
+                              const jsDay = d.getDay()
+                              const classesToday = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay))
+                              const pdpToday = allPdpEntries.filter(e => e.date === dateStr)
+                              const isToday = dateStr === new Date().toISOString().split('T')[0]
+                              return (
+                                <div key={di} style={{ flex: '0 0 90px', borderLeft: '1px solid var(--border)' }}>
+                                  <div style={{ textAlign: 'center', fontSize: 10, fontWeight: isToday ? 700 : 500, color: isToday ? colour : 'var(--text-secondary)', marginBottom: 4 }}>
+                                    {d.toLocaleDateString('en-GB', { weekday: 'short' })}<br />{d.getDate()}
+                                  </div>
+                                  <div style={{ position: 'relative', height: 320, background: isToday ? colour + '08' : 'transparent', borderRadius: 4 }}>
+                                    {hourMarks.map(h => (
+                                      <div key={h} style={{ position: 'absolute', top: `${timeToTimelinePercent(`${h}:00`)}%`, left: 0, right: 0, borderTop: '1px solid var(--border)', opacity: 0.5 }} />
+                                    ))}
+                                    {classesToday.map((a, ci) => {
+                                      const pct = timeToTimelinePercent(a.classes?.start_time?.slice(0, 5))
+                                      if (pct == null) return null
+                                      return (
+                                        <div key={ci} title={`${a.classes?.name} ${a.classes?.start_time?.slice(0,5)}`}
+                                          style={{ position: 'absolute', left: 2, right: 2, top: `${pct}%`, background: '#378ADD22', border: '1px solid #378ADD', borderRadius: 3, padding: '1px 3px', fontSize: 8, color: '#378ADD', lineHeight: 1.3, zIndex: 1 }}>
+                                          {a.classes?.start_time?.slice(0,5)} {a.classes?.name}
+                                        </div>
+                                      )
+                                    })}
+                                    {pdpToday.map((e, pi) => {
+                                      const pct = timeToTimelinePercent(e.time)
+                                      if (pct == null) return null
+                                      return (
+                                        <div key={pi} title={`${e.item}${e.time ? ` ${e.time}` : ''}`}
+                                          style={{ position: 'absolute', left: 2, right: 2, top: `${pct}%`, background: '#8B5CF622', border: '1px solid #8B5CF6', borderRadius: 3, padding: '1px 3px', fontSize: 8, color: '#8B5CF6', lineHeight: 1.3, zIndex: 2 }}>
+                                          {e.time ? `${e.time} ` : ''}{e.item}
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                          <div style={{ display: 'flex', gap: 14, marginTop: 10, fontSize: 11, color: 'var(--text-secondary)' }}>
+                            <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#378ADD22', border: '1px solid #378ADD', borderRadius: 2, marginRight: 4 }} />Class time</span>
+                            <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#8B5CF622', border: '1px solid #8B5CF6', borderRadius: 2, marginRight: 4 }} />PDP action</span>
+                          </div>
                         </>
                       )
                     })()}

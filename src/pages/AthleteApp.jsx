@@ -185,6 +185,99 @@ function timeToTimelinePercent(timeStr) {
 // timetable here.
 const PDP_TIMETABLE_SECTION_KEYS = ['psychology_what_to_do', 'tech_what_to_do', 'tact_what_to_do', 'physical_what_to_do', 'skill_what_to_do']
 
+// Tactical development presets -- multi-select per category, note
+// added once selected (same pattern as Techniques).
+const TACTICAL_CATEGORIES = {
+  'Fight Analysis': [
+    'Watch one full fight and identify the winning tactics.',
+    'Watch the same fight twice—once focusing on each fighter.',
+    'Watch fights round by round and score them yourself.',
+    'Identify the moment the momentum changed.',
+    'Count successful jabs, counters, or kicks.',
+    'Identify every tactical adjustment made by each corner.',
+    'Compare an amateur and professional version of the same fighter.',
+    'Study fighters with different styles (pressure, counter, out-boxer, etc.).',
+  ],
+  'Pattern Recognition': [
+    'Predict the next combination before it happens.',
+    'Pause footage and decide what you would do next.',
+    'Identify repeated habits in each fighter.',
+    'Spot defensive weaknesses.',
+    'Identify favourite exits after combinations.',
+    'Predict which fighter is controlling the distance.',
+    'Identify who is dictating the pace.',
+    'Recognise feints that consistently create openings.',
+  ],
+  'Tactical Journaling': [
+    'Write three things you learned from every fight you watch.',
+    'Keep a "Lessons from Champions" notebook.',
+    'Record mistakes you repeatedly make.',
+    'Write one tactical goal for the next session.',
+    'Create a strengths and weaknesses list.',
+    'Keep an "opponent types" journal.',
+    'Record combinations that worked well.',
+    'Reflect on how you handled pressure.',
+  ],
+  'Game Planning': [
+    'Build a game plan for different opponent styles.',
+    'Design first-round strategies.',
+    "Plan what to do if you're ahead on points.",
+    "Plan what to do if you're behind.",
+    'Prepare opening combinations.',
+    'Prepare defensive responses to common attacks.',
+    'Develop multiple plans (Plan A, B and C).',
+    'Write a between-round adjustment checklist.',
+  ],
+  'Visualisation': [
+    'Mentally rehearse walking into the ring.',
+    'Visualise defending against difficult opponents.',
+    'Imagine solving tactical problems calmly.',
+    'Picture successful counters.',
+    'Rehearse winning the final round.',
+    'Visualise escaping pressure.',
+    'Mentally perform perfect footwork.',
+    'Imagine executing your game plan from start to finish.',
+  ],
+  'Opponent Study': [
+    'Research different fighting styles.',
+    'Learn common habits of southpaws.',
+    'Study pressure fighters.',
+    'Study counter fighters.',
+    'Study tall versus short fighters.',
+    'Learn the strengths and weaknesses of each style.',
+    'Analyse previous opponents if available.',
+  ],
+  'Coaching Mindset': [
+    'Explain tactics to someone else.',
+    'Draw ring diagrams and movement patterns.',
+    'Sketch combinations and likely reactions.',
+    'Build tactical flowcharts.',
+    '"If this happens, then I\'ll do this" decision trees.',
+    'Design sparring scenarios for yourself.',
+    'Write coaching notes from fights you watch.',
+  ],
+  'Mental Performance': [
+    'Practise concentration exercises.',
+    'Improve observation skills by noticing small details in everyday life.',
+    'Train patience through puzzles or strategy games.',
+    'Develop emotional control through breathing practice.',
+    'Reflect on decision-making after competitions.',
+    'Read books on sports psychology and performance.',
+    'Study leadership and communication.',
+    'Learn how elite athletes prepare mentally.',
+  ],
+  'Self-Review': [
+    'What did I do well?',
+    'What tactical mistakes did I make?',
+    'What surprised me?',
+    'What patterns did I notice?',
+    'What would I change next time?',
+    'What will I focus on in my next session?',
+    'What is one habit I want to improve this week?',
+    'What is one strength I should continue developing?',
+  ],
+}
+
 // Technique presets -- multi-select per category, note added once
 // selected. Two styles (Boxing/Kickboxing), each split into several
 // named categories.
@@ -606,6 +699,10 @@ export default function AthleteApp() {
   const techniqueSectionRef = useRef(null)
   const [expandedTechniqueCategory, setExpandedTechniqueCategory] = useState(null) // "Boxing::Stance & Movement"
   const [todaysTechniques, setTodaysTechniques] = useState([])
+  const [showTacticalSection, setShowTacticalSection] = useState(false)
+  const tacticalSectionRef = useRef(null)
+  const [expandedTacticalCategory, setExpandedTacticalCategory] = useState(null)
+  const [todaysTactical, setTodaysTactical] = useState([])
   const [showMentalitySection, setShowMentalitySection] = useState(false)
   const mentalitySectionRef = useRef(null)
   const [showWellbeingSection, setShowWellbeingSection] = useState(false)
@@ -667,6 +764,18 @@ export default function AthleteApp() {
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [showTechniqueSection])
+
+  useEffect(() => {
+    if (!showTacticalSection) return
+    function handleClick(e) {
+      if (tacticalSectionRef.current && !tacticalSectionRef.current.contains(e.target)) {
+        setShowTacticalSection(false)
+        setExpandedTacticalCategory(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showTacticalSection])
 
   useEffect(() => {
     if (!showMentalitySection) return
@@ -821,6 +930,7 @@ export default function AthleteApp() {
     setTodaysStretches(todaysSession?.stretch_flows || ['', '', ''])
     setTodaysSnc(toEntries(todaysSession?.snc))
     setTodaysTechniques(toEntries(todaysSession?.techniques))
+    setTodaysTactical(toEntries(todaysSession?.tactical))
   }, [sessions])
 
   useEffect(() => {
@@ -1188,6 +1298,80 @@ export default function AthleteApp() {
                         </div>
                         <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>PDP</div>
                       </button>
+                    </div>
+
+                    <div ref={tacticalSectionRef}>
+                    <button type="button" onClick={() => { setShowTacticalSection(v => { if (v) setExpandedTacticalCategory(null); return !v }) }} style={{
+                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      textAlign: 'center', padding: '10px 8px', marginBottom: 8, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                      background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                    }}>
+                      <span style={{ fontSize: 18 }}>🧩</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Tactical</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{showTacticalSection ? '▲' : '▼'}</span>
+                    </button>
+
+                    <div style={{
+                      overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
+                      maxHeight: showTacticalSection ? 8000 : 0, opacity: showTacticalSection ? 1 : 0,
+                    }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 8 }}>
+                      {Object.keys(TACTICAL_CATEGORIES).map(cat => {
+                        const active = expandedTacticalCategory === cat
+                        const count = todaysTactical.filter(t => t.category === cat).length
+                        return (
+                          <button key={cat} type="button"
+                            onClick={() => setExpandedTacticalCategory(active ? null : cat)}
+                            style={{
+                              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
+                              borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                              border: `2px solid ${active ? '#E24B4A' : count ? '#1D9E75' : 'var(--border)'}`,
+                              background: count ? '#1D9E7512' : 'var(--bg-secondary)',
+                            }}>
+                            <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat}</span>
+                            {count > 0 && <span style={{ fontSize: 8, color: '#1D9E75' }}>{count} selected</span>}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {Object.entries(TACTICAL_CATEGORIES).map(([cat, items]) => {
+                      if (expandedTacticalCategory !== cat) return null
+                      return (
+                        <div key={cat} className="card" style={{ marginBottom: 8 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {items.map(item => {
+                              const entry = todaysTactical.find(t => t.category === cat && t.item === item)
+                              const selected = !!entry
+                              return (
+                                <div key={item}>
+                                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                                    <input type="checkbox" checked={selected}
+                                      onChange={() => {
+                                        const next = selected
+                                          ? todaysTactical.filter(t => !(t.category === cat && t.item === item))
+                                          : [...todaysTactical, { category: cat, item, note: '' }]
+                                        savePhysicalField('tactical', next, setTodaysTactical)
+                                      }}
+                                      style={{ width: 16, height: 16, flexShrink: 0 }} />
+                                    {item}
+                                  </label>
+                                  {selected && (
+                                    <input defaultValue={entry.note || ''} placeholder="Add a note…"
+                                      onBlur={e => {
+                                        const next = todaysTactical.map(t => (t.category === cat && t.item === item) ? { ...t, note: e.target.value } : t)
+                                        savePhysicalField('tactical', next, setTodaysTactical)
+                                      }}
+                                      style={{ marginTop: 4, marginLeft: 24, width: 'calc(100% - 24px)', fontSize: 12 }} />
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )
+                    })}
+                    {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8 }}>Saving…</p>}
+                    </div>
                     </div>
 
                     <div ref={physicalSectionRef}>
