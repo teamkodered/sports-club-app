@@ -1583,7 +1583,7 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
                 rendered.push(
                   <div key={`group-${group.label}`} style={{ marginBottom: 10 }}>
                     <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', marginBottom: 10, letterSpacing: 0.3 }}>{group.label}</div>
-                    <div style={{ display: 'flex', overflowX: 'auto', gap: 10, scrollSnapType: 'x mandatory', paddingBottom: 4 }}>
+                    <div className="hscroll-area" style={{ display: 'flex', overflowX: 'auto', gap: 10, scrollSnapType: 'x mandatory', paddingBottom: 4 }}>
                       {group.keys.map(key => {
                         const sec = allSections.find(s => s.key === key)
                         return sec ? (
@@ -3011,7 +3011,9 @@ export default function AthleteProfiles() {
       <div style={{ flex: 1, minWidth: 0 }}>
         {!selected ? (
           <div style={{ maxWidth: 900 }}
-            onTouchStart={e => { swipeStartX.current = e.touches[0].clientX }}
+            onTouchStart={e => {
+              swipeStartX.current = e.target.closest('.hscroll-area') ? null : e.touches[0].clientX
+            }}
             onTouchEnd={e => {
               if (swipeStartX.current == null) return
               const delta = e.changedTouches[0].clientX - swipeStartX.current
@@ -3619,7 +3621,9 @@ export default function AthleteProfiles() {
           </div>
         ) : (
           <div style={{ maxWidth: 640, margin: '0 auto' }}
-            onTouchStart={e => { swipeStartX.current = e.touches[0].clientX }}
+            onTouchStart={e => {
+              swipeStartX.current = e.target.closest('.hscroll-area') ? null : e.touches[0].clientX
+            }}
             onTouchEnd={e => {
               if (swipeStartX.current == null) return
               const delta = e.changedTouches[0].clientX - swipeStartX.current
@@ -3738,7 +3742,7 @@ export default function AthleteProfiles() {
             )}
 
             {/* Tabs */}
-            <div className="hide-scrollbar" style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 14, overflowX: 'auto' }}>
+            <div className="hide-scrollbar hscroll-area" style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 14, overflowX: 'auto' }}>
               {['home', 'sessions', 'fit2fight', 'pdp', 'tpt', 'media', 'notes', 'report'].map(t => (
                 <button key={t} onClick={() => setTab(t)} style={{
                   padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
@@ -5257,7 +5261,7 @@ export default function AthleteProfiles() {
                             </span>
                             <button className="btn btn-sm" onClick={() => setWeekTimetableStart(d => { const n = new Date(d); n.setDate(n.getDate() + 7); return n })}>→</button>
                           </div>
-                          <div style={{ display: 'flex', overflowX: 'auto' }}>
+                          <div className="hscroll-area" style={{ display: 'flex', overflowX: 'auto' }}>
                             {/* Hour axis */}
                             <div style={{ flexShrink: 0, width: 34, position: 'relative', height: 320 }}>
                               {hourMarks.map(h => (
@@ -5400,7 +5404,7 @@ export default function AthleteProfiles() {
                             ))}
                           </div>
                         </div>
-                        <div style={{ overflowX: 'auto' }}>
+                        <div className="hscroll-area" style={{ overflowX: 'auto' }}>
                           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                             <thead>
                               <tr style={{ borderBottom: '1px solid var(--border)' }}>
@@ -5674,7 +5678,7 @@ export default function AthleteProfiles() {
                 return (
                   <div style={{ marginBottom: 16 }}>
                     <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>{title}</div>
-                    <div style={{ overflowX: 'auto' }}>
+                    <div className="hscroll-area" style={{ overflowX: 'auto' }}>
                       <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', minWidth: 280, height: 'auto' }}>
                         {[0,0.25,0.5,0.75,1].map((t,i) => {
                           const yv = pad.t + ih * (1-t)
