@@ -3749,7 +3749,7 @@ export default function AthleteProfiles() {
                   borderBottom: `2px solid ${tab === t ? 'var(--text)' : 'transparent'}`,
                   color: tab === t ? 'var(--text)' : 'var(--text-secondary)',
                   fontWeight: tab === t ? 500 : 400, textTransform: 'capitalize', whiteSpace: 'nowrap', flexShrink: 0,
-                }}>{t === 'tpt' ? 'TTP' : t === 'sessions' ? 'Attendance' : t}</button>
+                }}>{t === 'tpt' ? 'TTP' : t === 'sessions' ? 'Attendance' : t === 'fit2fight' ? 'Results' : t}</button>
               ))}
             </div>
 
@@ -3808,11 +3808,11 @@ export default function AthleteProfiles() {
               return (
                 <div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 8 }}>
-                    <div className="card" style={{ textAlign: 'center', padding: '10px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
-                      <button onClick={() => setF2fStatsScope(v => v - 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4 }}>◀</button>
+                    <div className="card" style={{ textAlign: 'center', padding: '10px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, background: 'var(--bg-secondary)' }}>
+                      <button onClick={() => setF2fStatsScope(v => v - 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4, appearance: 'none', WebkitAppearance: 'none', fontFamily: 'var(--font-sans)' }}>◀</button>
                       <div style={{ flex: 1 }}>
                         <button onClick={() => setTab('sessions')} title="View Sessions tab"
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, marginBottom: 2, padding: 0, fontFamily: 'var(--font-sans)' }}>✅</button>
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, marginBottom: 2, padding: 0, fontFamily: 'var(--font-sans)', appearance: 'none', WebkitAppearance: 'none' }}>✅</button>
                         <div onClick={() => setAttendanceDisplayPct(v => !v)} title="Click to toggle percentage/numbers"
                           style={{ fontSize: 19, fontWeight: 700, color: colour, cursor: 'pointer' }}>
                           {attendanceDisplayPct
@@ -3826,7 +3826,7 @@ export default function AthleteProfiles() {
                     <button onClick={() => setTab('fit2fight')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg)', appearance: 'none', WebkitAppearance: 'none' }} title="View Fit II Fight results">
                       <div style={{ fontSize: 22, marginBottom: 4 }}>🔥</div>
                       <div style={{ fontSize: 22, fontWeight: 700, color: '#378ADD' }}>{f2fData.length}</div>
-                      <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>F2F sessions</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>F2F Results</div>
                     </button>
                     <button onClick={() => setTab('pdp')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg)', appearance: 'none', WebkitAppearance: 'none' }} title="View PDP">
                       <div style={{ fontSize: 22, marginBottom: 4 }}>🎯</div>
@@ -5642,6 +5642,9 @@ export default function AthleteProfiles() {
               // SVG line chart helper
               function LineChart({ data, lines, height=160, title, unit='' }) {
                 const [hidden, setHidden] = useState({})
+                const [chartPopup, setChartPopup] = useState(null) // { x, y, label, value }
+                const pressTimer = useRef(null)
+                const heldRef = useRef(false)
                 if (!data.length) return (
                   <div style={{ marginBottom: 16 }}>
                     <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>{title}</div>
@@ -5701,12 +5704,32 @@ export default function AthleteProfiles() {
                             {pts.length >= 2 && <polyline points={pts.join(' ')} fill="none" stroke={line.colour} strokeWidth="2" strokeLinejoin="round"/>}
                             {data.map((d,i) => d[line.key] != null && (
                               <g key={i}>
-                                <circle cx={x(i)} cy={y(d[line.key])} r="4" fill={line.colour} stroke="var(--bg)" strokeWidth="1.5"/>
-                                <title>{new Date(d.session_date).toLocaleDateString('en-GB')}: {d[line.key]}{unit}</title>
+                                <circle cx={x(i)} cy={y(d[line.key])} r="4" fill={line.colour} stroke="var(--bg)" strokeWidth="1.5" style={{ cursor: 'pointer' }}
+                                  onPointerDown={() => {
+                                    heldRef.current = false
+                                    pressTimer.current = setTimeout(() => {
+                                      heldRef.current = true
+                                      setChartPopup({ x: x(i), y: y(d[line.key]), label: new Date(d.session_date).toLocaleDateString('en-GB'), value: `${d[line.key]}${unit}` })
+                                    }, 400)
+                                  }}
+                                  onPointerUp={() => {
+                                    clearTimeout(pressTimer.current)
+                                    if (heldRef.current) { setChartPopup(null); return }
+                                    navigate(`/fit2fight?student_id=${selected?.id}&date=${d.session_date}`)
+                                  }}
+                                  onPointerLeave={() => clearTimeout(pressTimer.current)}
+                                />
                               </g>
                             ))}
                           </g>
                         })}
+                        {chartPopup && (
+                          <g>
+                            <rect x={chartPopup.x - 45} y={chartPopup.y - 38} width="90" height="30" rx="6" fill="var(--text)" opacity="0.9" />
+                            <text x={chartPopup.x} y={chartPopup.y - 24} textAnchor="middle" fontSize="9" fill="var(--bg)">{chartPopup.label}</text>
+                            <text x={chartPopup.x} y={chartPopup.y - 12} textAnchor="middle" fontSize="11" fontWeight="700" fill="var(--bg)">{chartPopup.value}</text>
+                          </g>
+                        )}
                       </svg>
                     </div>
                     {/* Toggle buttons */}

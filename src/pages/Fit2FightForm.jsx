@@ -13,7 +13,7 @@ export default function Fit2FightForm() {
   const [student, setStudent] = useState(null)
 
   const [form, setForm] = useState({
-    session_date: new Date().toISOString().split('T')[0],
+    session_date: searchParams.get('date') || new Date().toISOString().split('T')[0],
     weight_before: '', weight_after: '',
     height_cm: '', reach_cm: '',
     notes: '',
