@@ -787,6 +787,8 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
   const [editSection, setEditSection] = useState(null)
   const editingCardRef = useRef(null)
   const swipeStartX = useRef(null)
+  const [isMobileView, setIsMobileView] = useState(() => typeof window !== 'undefined' && window.innerWidth < 900)
+  const [mobilePanel, setMobilePanel] = useState('dashboard') // 'list' | 'dashboard' -- which of the two "screens" mobile is showing
   const [editItems, setEditItems]   = useState([])
   const [newItem, setNewItem]       = useState('')
   const [saving, setSaving]         = useState(false)
@@ -1947,6 +1949,12 @@ export default function AthleteProfiles() {
   useEffect(() => { loadStudents() }, [])
 
   useEffect(() => {
+    function handleResize() { setIsMobileView(window.innerWidth < 900) }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  useEffect(() => {
     supabase.from('club_events').select('*').order('event_date')
       .then(({ data }) => setClubEvents(data || []))
   }, [])
@@ -2926,11 +2934,31 @@ export default function AthleteProfiles() {
   if (loading) return <div className="loading">Loading athlete profiles…</div>
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minHeight: 600 }}>
+    <div style={{ display: 'flex', flexDirection: isMobileView ? 'column' : 'row', gap: 16, minHeight: 600 }}>
+
+      {!selected && isMobileView && (
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-sm" onClick={() => setMobilePanel('list')}
+            style={{ flex: 1, background: mobilePanel === 'list' ? '#378ADD20' : undefined, borderColor: mobilePanel === 'list' ? '#378ADD' : undefined }}>
+            📋 List
+          </button>
+          <button className="btn btn-sm" onClick={() => setMobilePanel('dashboard')}
+            style={{ flex: 1, background: mobilePanel === 'dashboard' ? '#378ADD20' : undefined, borderColor: mobilePanel === 'dashboard' ? '#378ADD' : undefined }}>
+            📊 Dashboard
+          </button>
+        </div>
+      )}
 
       {/* ── Athlete list ── */}
-      {!selected && (
-      <div style={{ width: '100%' }}>
+      {!selected && (!isMobileView || mobilePanel === 'list') && (
+      <div style={{ width: isMobileView ? '100%' : 320, flexShrink: 0 }}
+        onTouchStart={isMobileView ? e => { swipeStartX.current = e.touches[0].clientX } : undefined}
+        onTouchEnd={isMobileView ? e => {
+          if (swipeStartX.current == null) return
+          const delta = e.changedTouches[0].clientX - swipeStartX.current
+          if (delta < -60) setMobilePanel('dashboard')
+          swipeStartX.current = null
+        } : undefined}>
         <input value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Search athletes…"
           style={{ width: '100%', padding: '12px 14px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 15, background: 'var(--bg-secondary)', color: 'var(--text)', marginBottom: 12 }} />
@@ -2961,7 +2989,8 @@ export default function AthleteProfiles() {
       </div>
       )}
 
-      {/* ── Athlete Dashboard / profile detail -- under the list ── */}
+      {/* ── Athlete Dashboard / profile detail -- to the right of the list on desktop, a separate swipeable screen on mobile ── */}
+      {(selected || !isMobileView || mobilePanel === 'dashboard') && (
       <div style={{ flex: 1, minWidth: 0 }}>
         {!selected ? (
           <div style={{ maxWidth: 900 }}
@@ -2969,6 +2998,7 @@ export default function AthleteProfiles() {
             onTouchEnd={e => {
               if (swipeStartX.current == null) return
               const delta = e.changedTouches[0].clientX - swipeStartX.current
+              if (isMobileView && delta > 60) { setMobilePanel('list'); swipeStartX.current = null; return }
               if (delta < -60 && filtered.length > 0) selectStudent(filtered[0])
               swipeStartX.current = null
             }}>
@@ -6501,6 +6531,7 @@ export default function AthleteProfiles() {
           </div>
         )}
       </div>
+      )}
     </div>
   )
 }
