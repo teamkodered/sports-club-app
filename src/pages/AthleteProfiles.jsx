@@ -2028,6 +2028,30 @@ export default function AthleteProfiles() {
     setSavingTarget(false)
   }
 
+  // Inline target form -- rendered right under whichever section/card
+  // triggered it (see showAddTarget/newTargetSection/newTargetQuestion
+  // checks at each trigger point), instead of a single form at the
+  // bottom of the page.
+  function renderInlineTargetForm() {
+    return (
+      <div style={{ marginTop: 8, padding: 10, background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+        <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 6, textTransform: 'capitalize' }}>
+          Setting target for: <strong>{newTargetSection.replace(/_/g, ' ')}{newTargetQuestion ? ` — ${newTargetQuestion}` : ''}</strong>
+        </p>
+        <input value={newTargetValue} onChange={e => setNewTargetValue(e.target.value)}
+          placeholder="Target (e.g. 8 hours, 3x per week, Level 10)" style={{ marginBottom: 8, width: '100%' }} />
+        <textarea value={newTargetNotes} onChange={e => setNewTargetNotes(e.target.value)} placeholder="Notes (optional)" rows={2}
+          style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-primary btn-sm" disabled={!newTargetValue.trim() || savingTarget} onClick={addTeamTarget}>
+            {savingTarget ? 'Saving…' : 'Save target'}
+          </button>
+          <button className="btn btn-sm" onClick={() => setShowAddTarget(false)}>Cancel</button>
+        </div>
+      </div>
+    )
+  }
+
   async function deleteTeamTarget(id) {
     if (!confirm('Delete this target?')) return
     const { error } = await supabase.from('team_targets').delete().eq('id', id)
@@ -2804,7 +2828,7 @@ export default function AthleteProfiles() {
         <input value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Search athletes…"
           style={{ width: '100%', padding: '12px 14px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 15, background: 'var(--bg-secondary)', color: 'var(--text)', marginBottom: 12 }} />
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 10 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {filtered.map(s => {
             const col = HOUSE_COLOURS[s.members?.houses?.name] || '#888'
             const isSelected = selected?.id === s.id
@@ -2844,7 +2868,6 @@ export default function AthleteProfiles() {
             }}>
             <div className="empty-state" style={{ paddingTop: 20, paddingBottom: 20 }}>
               <h3>Athlete Dashboard</h3>
-              <p>Choose an athlete from the list to view their profile — or use the tools below. Swipe left to browse athletes.</p>
             </div>
 
             {/* Team notes */}
@@ -3099,6 +3122,7 @@ export default function AthleteProfiles() {
                         <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => {
                           setNewTargetSection(c.key); setNewTargetQuestion(''); setShowAddTarget(true)
                         }}>{target ? 'Edit target' : '+ Target'}</button>
+                        {showAddTarget && newTargetSection === c.key && newTargetQuestion === '' && renderInlineTargetForm()}
                       </div>
                     )
                   })}
@@ -3228,6 +3252,7 @@ export default function AthleteProfiles() {
                             setNewTargetSection(section.key); setNewTargetQuestion(''); setShowAddTarget(true)
                           }}>+ Section target</button>
                         </div>
+                        {showAddTarget && newTargetSection === section.key && newTargetQuestion === '' && renderInlineTargetForm()}
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 8 }}>
                           {section.subItems.map(sub => {
                             const target = targetFor(section.key, sub.label)
@@ -3279,6 +3304,7 @@ export default function AthleteProfiles() {
                               <button className="btn btn-sm" onClick={() => {
                                 setNewTargetSection(section.key); setNewTargetQuestion(sub.label); setShowAddTarget(true)
                               }}>{target ? 'Change target' : '+ Set target'}</button>
+                              {showAddTarget && newTargetSection === section.key && newTargetQuestion === sub.label && renderInlineTargetForm()}
                             </div>
                           )
                         })}
@@ -3346,6 +3372,7 @@ export default function AthleteProfiles() {
                             setNewTargetSection(c.key); setNewTargetQuestion(''); setShowAddTarget(true)
                           }}>{target ? 'Edit' : '+ Target'}</button>
                         </span>
+                        {showAddTarget && newTargetSection === c.key && newTargetQuestion === '' && renderInlineTargetForm()}
                       </div>
                     )
                   })}
@@ -3404,52 +3431,21 @@ export default function AthleteProfiles() {
               </div>
             </div>
 
-            {/* Targets management */}
+            {/* Targets management -- all existing targets in one place; use the "+ Target"/"+ Set target" buttons on each card above to add a new one right where you need it */}
             <div className="card" style={{ padding: 0, marginBottom: 14, marginTop: 14 }}>
-              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h2 style={{ fontSize: 14, fontWeight: 600 }}>🎯 Targets</h2>
-                <button className="btn btn-sm" onClick={() => setShowAddTarget(v => !v)}>{showAddTarget ? 'Cancel' : '+ Add target'}</button>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+                <h2 style={{ fontSize: 14, fontWeight: 600 }}>🎯 All Targets</h2>
               </div>
               <div style={{ padding: 16 }}>
-                {showAddTarget && (
-                  <div style={{ marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--border)' }}>
-                    <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-                      <select value={newTargetSection} onChange={e => setNewTargetSection(e.target.value)} style={{ flex: 1, minWidth: 140 }}>
-                        <option value="physical">Physical</option>
-                        <option value="technique">Technique</option>
-                        <option value="tactical">Tactical</option>
-                        <option value="mentality">Mentality</option>
-                        <option value="wellbeing">Wellbeing</option>
-                        <option value="test">Test</option>
-                        <option value="all_sessions">All sessions</option>
-                        <option value="f2f_sessions">F2F sessions</option>
-                        <option value="pdp">PDP</option>
-                        <option value="media">Media</option>
-                        <option value="notes">Notes</option>
-                        <option value="ttp">TTP</option>
-                        <option value="check_in">Check in</option>
-                      </select>
-                      <input value={newTargetQuestion} onChange={e => setNewTargetQuestion(e.target.value)}
-                        placeholder="Question/metric (optional, e.g. Sleep)" style={{ flex: 1, minWidth: 160 }} />
-                    </div>
-                    <input value={newTargetValue} onChange={e => setNewTargetValue(e.target.value)}
-                      placeholder="Target (e.g. 8 hours, 3x per week, Level 10)" style={{ marginBottom: 8 }} />
-                    <textarea value={newTargetNotes} onChange={e => setNewTargetNotes(e.target.value)} placeholder="Notes (optional)" rows={2}
-                      style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
-                    <button className="btn btn-primary btn-sm" disabled={!newTargetValue.trim() || savingTarget} onClick={addTeamTarget}>
-                      {savingTarget ? 'Saving…' : 'Add target'}
-                    </button>
-                  </div>
-                )}
                 {teamTargets.length === 0 ? (
-                  <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No targets set yet.</p>
+                  <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No targets set yet. Use the "+ Target" button on any card above to add one.</p>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {teamTargets.map(t => (
                       <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
                         <div>
                           <div style={{ fontSize: 13, fontWeight: 600, textTransform: 'capitalize' }}>
-                            {t.section_key}{t.question_label ? ` — ${t.question_label}` : ''}
+                            {t.section_key.replace(/_/g, ' ')}{t.question_label ? ` — ${t.question_label}` : ''}
                           </div>
                           <div style={{ fontSize: 12, color: '#EF9F27' }}>Target: {t.target_value}</div>
                           {t.notes && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{t.notes}</div>}
