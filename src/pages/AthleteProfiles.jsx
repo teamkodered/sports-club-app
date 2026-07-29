@@ -5783,22 +5783,33 @@ export default function AthleteProfiles() {
                               <span style={{ fontSize: 12, fontWeight: 600, color: group.colour }}>{group.label}</span>
                               <span style={{ fontSize: 12, fontWeight: 700, color: group.colour }}>{groupTotal}</span>
                             </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 6 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 6 }}>
                               {group.keys.map(k => {
-                                const scoreBox = (val, style = {}) => (
+                                const plainBox = (val, style = {}) => (
                                   <span style={{
                                     fontWeight: 700, color: val >= 8 ? '#1d9e75' : val >= 5 ? '#EF9F27' : val ? '#E24B4A' : 'var(--text-tertiary)',
                                     background: 'var(--bg-secondary)', borderRadius: 6, padding: '1px 8px', minWidth: 22, textAlign: 'center',
                                     border: 'none', ...style,
                                   }}>{val ?? '—'}</span>
                                 )
+                                const latestVal = b[k]
+                                const prevVal = bPrev?.[k]
+                                let trendColour = '#EF9F27', arrow = ''
+                                if (prevVal != null && latestVal != null) {
+                                  if (latestVal > prevVal) { trendColour = '#1d9e75'; arrow = '▲' }
+                                  else if (latestVal < prevVal) { trendColour = '#E24B4A'; arrow = '▼' }
+                                }
                                 return (
-                                  <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
+                                  <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, gap: 4 }}>
                                     <span style={{ color: 'var(--text-secondary)' }}>{BOX_LABELS[k]}</span>
-                                    <span style={{ display: 'flex', gap: 4 }}>
-                                      {scoreBox(b[k])}
-                                      {bPrev && scoreBox(bPrev[k], { opacity: 0.5, border: '1px dashed var(--border-strong)' })}
-                                      {ttpBenchmark && scoreBox(ttpBenchmark[k], { opacity: 0.7, border: '1px dashed #EF9F27' })}
+                                    <span style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                                      {ttpBenchmark && plainBox(ttpBenchmark[k], { opacity: 0.7, border: '1px dashed #EF9F27' })}
+                                      {bPrev ? plainBox(prevVal, { opacity: 0.5, border: '1px dashed var(--border-strong)' })
+                                        : <span style={{ minWidth: 22, textAlign: 'center', color: 'var(--text-tertiary)' }}>—</span>}
+                                      <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                        {arrow && <span style={{ color: trendColour, fontSize: 10 }}>{arrow}</span>}
+                                        {plainBox(latestVal, { color: prevVal != null ? trendColour : undefined })}
+                                      </span>
                                     </span>
                                   </div>
                                 )
@@ -5807,11 +5818,11 @@ export default function AthleteProfiles() {
                           </div>
                           )
                         })}
-                        {(tptData.boxing.length > 1 || ttpBenchmark) && (
+                        {(tptData.boxing.length > 0 || ttpBenchmark) && (
                           <p style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: -4, marginBottom: 8 }}>
-                            Solid box = latest ({new Date(b.assessed_at).toLocaleDateString('en-GB')})
-                            {bPrev && ` · grey dashed = previous (${new Date(bPrev.assessed_at).toLocaleDateString('en-GB')})`}
-                            {ttpBenchmark && ` · orange dashed = team benchmark (${new Date(ttpBenchmark.set_at).toLocaleDateString('en-GB')})`}
+                            {ttpBenchmark && `Orange dashed = team benchmark (${new Date(ttpBenchmark.set_at).toLocaleDateString('en-GB')}) · `}
+                            Grey dashed = previous assessment{bPrev ? ` (${new Date(bPrev.assessed_at).toLocaleDateString('en-GB')})` : ' — shows as a dash until a second assessment exists'}
+                            {' · '}Rightmost = latest ({new Date(b.assessed_at).toLocaleDateString('en-GB')}), green ▲ if improved, red ▼ if lower, orange if unchanged
                           </p>
                         )}
                         {b.notes && <div className="card" style={{ fontSize: 12 }}><strong>Notes:</strong> {b.notes}</div>}
