@@ -460,6 +460,23 @@ const DASHBOARD_SECTIONS = [
   { key: 'test', icon: '📋', label: 'Test', subItems: TEST_CATEGORIES.map(c => ({ key: c.key, label: c.label, testCategory: c })) },
 ]
 
+// Boxing TTP field -> display label, shared between the Coach
+// Dashboard's benchmark form and an athlete's own TTP tab.
+const BOX_LABELS = {
+  shapes:'Shape(s)', punch_quality:'Punch quality', footwork:'Footwork', defence:'Defence',
+  counters:'Counters', attack:'Attack', combinations:'Combinations', change_of_tempo:'Change of tempo',
+  use_of_phases:'Use of phases', distance:'Distance', flow:'Flow', self_expression:'Self expression',
+  foot_speed:'Foot speed', limb_speed:'Limb speed', combination_speed:'Combination speed', reaction:'Reaction',
+  punching_power:'Punching power', strength_upper:'Strength upper', strength_lower:'Strength lower',
+  stability_core:'Stability core', agility:'Agility', stop_n_go:'Stop & go',
+  stamina_aerobic:'Stamina aerobic', stamina_anaerobic:'Stamina anaerobic',
+  suppleness_upper:'Suppleness upper', suppleness_lower:'Suppleness lower',
+  recovery:'Recovery', health:'Health', read_opponent:'Read opponent',
+  tempo_rhythm:'Tempo / rhythm', tactical_intelligence:'Tactical intelligence',
+  ring_awareness:'Ring awareness', know_strengths_weaknesses:'Know S&W',
+  heart_grit:'Heart / grit', concentration:'Concentration', timing:'Timing',
+}
+
 function isMentalityQComplete(key, m) {
   if (!m) return false
   switch (key) {
@@ -1610,6 +1627,11 @@ export default function AthleteProfiles() {
   const [todaysAllAttendance, setTodaysAllAttendance] = useState([])
   const [todaysAllNotes, setTodaysAllNotes] = useState([])
   const [todaysAllTtp, setTodaysAllTtp] = useState([])
+  const [ttpBenchmark, setTtpBenchmark] = useState(null) // current boxing benchmark
+  const [showSetBenchmark, setShowSetBenchmark] = useState(false)
+  const [benchmarkScores, setBenchmarkScores] = useState({})
+  const [benchmarkNotes, setBenchmarkNotes] = useState('')
+  const [savingBenchmark, setSavingBenchmark] = useState(false)
   const [teamTargets, setTeamTargets] = useState([])
   const [showAddTarget, setShowAddTarget] = useState(false)
   const [newTargetSection, setNewTargetSection] = useState('physical')
@@ -1907,6 +1929,36 @@ export default function AthleteProfiles() {
       supabase.from('tpt_kickboxing').select('student_id, assessed_at').gte('assessed_at', todayStr).lt('assessed_at', todayStr + 'T23:59:59'),
     ]).then(([box, kb]) => setTodaysAllTtp([...(box.data || []), ...(kb.data || [])]))
   }, [])
+
+  useEffect(() => {
+    supabase.from('ttp_benchmarks').select('*').eq('discipline', 'boxing')
+      .order('set_at', { ascending: false }).limit(1)
+      .then(({ data }) => setTtpBenchmark(data?.[0] || null))
+  }, [])
+
+  const TTP_BENCHMARK_FIELDS = [
+    'shapes','punch_quality','footwork','defence','counters','attack','combinations',
+    'change_of_tempo','use_of_phases','distance','flow','self_expression',
+    'foot_speed','limb_speed','combination_speed','reaction','punching_power',
+    'strength_upper','strength_lower','stability_core','agility','stop_n_go',
+    'stamina_aerobic','stamina_anaerobic','suppleness_upper','suppleness_lower',
+    'recovery','health',
+    'read_opponent','tempo_rhythm','tactical_intelligence','ring_awareness',
+    'know_strengths_weaknesses','heart_grit','concentration','timing',
+  ]
+
+  async function saveNewBenchmark() {
+    setSavingBenchmark(true)
+    const payload = { discipline: 'boxing', notes: benchmarkNotes.trim() || null }
+    TTP_BENCHMARK_FIELDS.forEach(f => { payload[f] = benchmarkScores[f] ? Number(benchmarkScores[f]) : null })
+    const { data, error } = await supabase.from('ttp_benchmarks').insert(payload).select('*').single()
+    if (error) { alert('Error saving benchmark: ' + error.message); setSavingBenchmark(false); return }
+    setTtpBenchmark(data)
+    setShowSetBenchmark(false)
+    setBenchmarkScores({})
+    setBenchmarkNotes('')
+    setSavingBenchmark(false)
+  }
 
   useEffect(() => {
     supabase.from('team_targets').select('*').order('section_key').order('question_label')
@@ -2417,12 +2469,12 @@ export default function AthleteProfiles() {
     supabase.from('fit2fight_sessions').select('*').eq('student_id', s.id)
       .order('session_date', { ascending: false })
       .then(({ data }) => setF2fData(data || []))
-    // Load TTP data
+    // Load TTP data -- latest 2, to show side by side for comparison
     supabase.from('tpt_kickboxing').select('*').eq('student_id', s.id)
-      .order('assessed_at', { ascending: false }).limit(1)
+      .order('assessed_at', { ascending: false }).limit(2)
       .then(({ data }) => setTptData(prev => ({ ...prev, kickboxing: data || [] })))
     supabase.from('tpt_boxing').select('*').eq('student_id', s.id)
-      .order('assessed_at', { ascending: false }).limit(1)
+      .order('assessed_at', { ascending: false }).limit(2)
       .then(({ data }) => setTptData(prev => ({ ...prev, boxing: data || [] })))
     // Load attendance history + coach points for the Sessions tab
     supabase.from('attendance').select('id, session_date, attendance_type, attended_at, note')
@@ -3052,6 +3104,57 @@ export default function AthleteProfiles() {
                 </div>
               )
             })()}
+
+            {/* TTP Benchmark */}
+            <div className="card" style={{ padding: 0, marginBottom: 14 }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h2 style={{ fontSize: 14, fontWeight: 600 }}>🎯 TTP Benchmark</h2>
+                <button className="btn btn-sm" onClick={() => {
+                  if (!showSetBenchmark) setBenchmarkScores(ttpBenchmark ? Object.fromEntries(TTP_BENCHMARK_FIELDS.map(f => [f, ttpBenchmark[f] ?? ''])) : {})
+                  setShowSetBenchmark(v => !v)
+                }}>{showSetBenchmark ? 'Cancel' : '+ Set new benchmark'}</button>
+              </div>
+              <div style={{ padding: 16 }}>
+                {ttpBenchmark ? (
+                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: showSetBenchmark ? 14 : 0 }}>
+                    Current benchmark set {new Date(ttpBenchmark.set_at).toLocaleDateString('en-GB')}
+                    {ttpBenchmark.notes ? ` — ${ttpBenchmark.notes}` : ''}. Shown for comparison on every athlete's TTP page.
+                  </p>
+                ) : (
+                  <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: showSetBenchmark ? 14 : 0 }}>No benchmark set yet.</p>
+                )}
+
+                {showSetBenchmark && (
+                  <div style={{ borderTop: ttpBenchmark ? '1px solid var(--border)' : 'none', paddingTop: ttpBenchmark ? 14 : 0 }}>
+                    <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Complete a TTP form to set this as the new team benchmark</p>
+                    {[
+                      { label: 'Technical', fields: ['shapes','punch_quality','footwork','defence','counters','attack','combinations','change_of_tempo','use_of_phases','distance','flow','self_expression'] },
+                      { label: 'Tactical', fields: ['read_opponent','tempo_rhythm','tactical_intelligence','ring_awareness','know_strengths_weaknesses','heart_grit','concentration','timing'] },
+                      { label: 'Physical', fields: ['foot_speed','limb_speed','combination_speed','reaction','punching_power','strength_upper','strength_lower','stability_core','agility','stop_n_go','stamina_aerobic','stamina_anaerobic','suppleness_upper','suppleness_lower','recovery','health'] },
+                    ].map(group => (
+                      <div key={group.label} style={{ marginBottom: 14 }}>
+                        <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, textTransform: 'uppercase' }}>{group.label}</p>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 8 }}>
+                          {group.fields.map(f => (
+                            <div key={f} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
+                              <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{BOX_LABELS[f] || f}</span>
+                              <input type="number" min="0" max="10" value={benchmarkScores[f] ?? ''}
+                                onChange={e => setBenchmarkScores(prev => ({ ...prev, [f]: e.target.value }))}
+                                style={{ width: 50, padding: '3px 6px', fontSize: 12 }} />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                    <textarea value={benchmarkNotes} onChange={e => setBenchmarkNotes(e.target.value)} placeholder="Notes (optional)" rows={2}
+                      style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
+                    <button className="btn btn-primary btn-sm" disabled={savingBenchmark} onClick={saveNewBenchmark}>
+                      {savingBenchmark ? 'Saving…' : 'Save as new benchmark'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
 
             {/* Targets management */}
             <div className="card" style={{ padding: 0, marginBottom: 14, marginTop: 14 }}>
@@ -5648,21 +5751,8 @@ export default function AthleteProfiles() {
                   ['vertical_jump','Vertical jump'], ['long_jump','Long jump'],
                 ]},
               ]
-              const BOX_LABELS = {
-                shapes:'Shape(s)', punch_quality:'Punch quality', footwork:'Footwork', defence:'Defence',
-                counters:'Counters', attack:'Attack', combinations:'Combinations', change_of_tempo:'Change of tempo',
-                use_of_phases:'Use of phases', distance:'Distance', flow:'Flow', self_expression:'Self expression',
-                foot_speed:'Foot speed', limb_speed:'Limb speed', combination_speed:'Combination speed', reaction:'Reaction',
-                punching_power:'Punching power', strength_upper:'Strength upper', strength_lower:'Strength lower',
-                stability_core:'Stability core', agility:'Agility', stop_n_go:'Stop & go',
-                stamina_aerobic:'Stamina aerobic', stamina_anaerobic:'Stamina anaerobic',
-                suppleness_upper:'Suppleness upper', suppleness_lower:'Suppleness lower',
-                recovery:'Recovery', health:'Health', read_opponent:'Read opponent',
-                tempo_rhythm:'Tempo / rhythm', tactical_intelligence:'Tactical intelligence',
-                ring_awareness:'Ring awareness', know_strengths_weaknesses:'Know S&W',
-                heart_grit:'Heart / grit', concentration:'Concentration', timing:'Timing',
-              }
               const b = tptData.boxing[0]
+              const bPrev = tptData.boxing[1]
               const kb = tptData.kickboxing[0]
               return (
                 <div>
@@ -5693,19 +5783,37 @@ export default function AthleteProfiles() {
                               <span style={{ fontSize: 12, fontWeight: 600, color: group.colour }}>{group.label}</span>
                               <span style={{ fontSize: 12, fontWeight: 700, color: group.colour }}>{groupTotal}</span>
                             </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 6 }}>
-                              {group.keys.map(k => (
-                                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                                  <span style={{ color: 'var(--text-secondary)' }}>{BOX_LABELS[k]}</span>
-                                  <span style={{ fontWeight: 700, color: b[k] >= 8 ? '#1d9e75' : b[k] >= 5 ? '#EF9F27' : b[k] ? '#E24B4A' : 'var(--text-tertiary)', background: 'var(--bg-secondary)', borderRadius: 20, padding: '1px 8px' }}>
-                                    {b[k] ?? '—'}
-                                  </span>
-                                </div>
-                              ))}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 6 }}>
+                              {group.keys.map(k => {
+                                const scoreBox = (val, style = {}) => (
+                                  <span style={{
+                                    fontWeight: 700, color: val >= 8 ? '#1d9e75' : val >= 5 ? '#EF9F27' : val ? '#E24B4A' : 'var(--text-tertiary)',
+                                    background: 'var(--bg-secondary)', borderRadius: 6, padding: '1px 8px', minWidth: 22, textAlign: 'center',
+                                    border: 'none', ...style,
+                                  }}>{val ?? '—'}</span>
+                                )
+                                return (
+                                  <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
+                                    <span style={{ color: 'var(--text-secondary)' }}>{BOX_LABELS[k]}</span>
+                                    <span style={{ display: 'flex', gap: 4 }}>
+                                      {scoreBox(b[k])}
+                                      {bPrev && scoreBox(bPrev[k], { opacity: 0.5, border: '1px dashed var(--border-strong)' })}
+                                      {ttpBenchmark && scoreBox(ttpBenchmark[k], { opacity: 0.7, border: '1px dashed #EF9F27' })}
+                                    </span>
+                                  </div>
+                                )
+                              })}
                             </div>
                           </div>
                           )
                         })}
+                        {(tptData.boxing.length > 1 || ttpBenchmark) && (
+                          <p style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: -4, marginBottom: 8 }}>
+                            Solid box = latest ({new Date(b.assessed_at).toLocaleDateString('en-GB')})
+                            {bPrev && ` · grey dashed = previous (${new Date(bPrev.assessed_at).toLocaleDateString('en-GB')})`}
+                            {ttpBenchmark && ` · orange dashed = team benchmark (${new Date(ttpBenchmark.set_at).toLocaleDateString('en-GB')})`}
+                          </p>
+                        )}
                         {b.notes && <div className="card" style={{ fontSize: 12 }}><strong>Notes:</strong> {b.notes}</div>}
                       </>}
 
