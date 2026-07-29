@@ -1681,6 +1681,7 @@ export default function AthleteProfiles() {
   const [targetFreqPeriod, setTargetFreqPeriod] = useState('day')
   const [targetUseFreeText, setTargetUseFreeText] = useState(false)
   const targetFormRef = useRef(null)
+  const targetDropdownRef = useRef(null)
   const [expandedDashSection, setExpandedDashSection] = useState(null)
   const [expandedDashSubItem, setExpandedDashSubItem] = useState(null) // "sectionKey::subKey"
   const [newEventTitle, setNewEventTitle] = useState('')
@@ -1821,6 +1822,21 @@ export default function AthleteProfiles() {
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [showAddTarget])
+
+  useEffect(() => {
+    if (showAddTarget) setShowTargetAthleteDropdown(false)
+  }, [showAddTarget])
+
+  useEffect(() => {
+    if (!showTargetAthleteDropdown) return
+    function handleClick(e) {
+      if (targetDropdownRef.current && !targetDropdownRef.current.contains(e.target)) {
+        setShowTargetAthleteDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showTargetAthleteDropdown])
 
   useEffect(() => {
     if (!showMentalitySection) return
@@ -2101,7 +2117,7 @@ export default function AthleteProfiles() {
                 → {targetAthlete.members?.first_name} {targetAthlete.members?.last_name} ×
               </span>
             ) : (
-              <div style={{ position: 'relative', flex: 1, minWidth: 140 }}>
+              <div ref={targetDropdownRef} style={{ position: 'relative', flex: 1, minWidth: 140 }}>
                 <input value={targetAthleteSearch} onChange={e => setTargetAthleteSearch(e.target.value)}
                   onFocus={() => setShowTargetAthleteDropdown(true)}
                   placeholder="Or search an individual athlete…" style={{ width: '100%', fontSize: 12 }} />
@@ -3006,204 +3022,6 @@ export default function AthleteProfiles() {
               <h3>Athlete Dashboard</h3>
             </div>
 
-            {/* Team notes */}
-            <div className="card" style={{ padding: 0, marginBottom: 14 }}>
-              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
-                <h2 style={{ fontSize: 14, fontWeight: 600 }}>📝 Notes</h2>
-              </div>
-              <div style={{ padding: 16 }}>
-                <textarea value={dashNoteText} onChange={e => setDashNoteText(e.target.value)}
-                  placeholder="Write a note…" rows={2}
-                  style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
-                <button className="btn btn-primary btn-sm" disabled={!dashNoteText.trim() || savingDashNote} onClick={addDashNote}>
-                  {savingDashNote ? 'Saving…' : 'Save here'}
-                </button>
-
-                {teamNotes.length > 0 && (
-                  <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {teamNotes.map(note => {
-                      const sentIds = note.sent_to_student_ids || []
-                      const sentStudents = students.filter(s => sentIds.includes(s.id))
-                      const isIndividual = sentIds.length > 0
-                      const targeting = expandedNoteTargeting === note.id
-                      return (
-                        <div key={note.id} style={{ padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>
-                              {new Date(note.created_at).toLocaleDateString('en-GB')} · {new Date(note.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
-                            </div>
-                            <button onClick={() => deleteTeamNote(note.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14 }}>×</button>
-                          </div>
-                          <p style={{ fontSize: 13, margin: '0 0 8px' }}>{note.note_text}</p>
-
-                          <button className="btn btn-sm" style={{ fontSize: 11 }}
-                            onClick={() => { setExpandedNoteTargeting(targeting ? null : note.id); setNoteTargetSearch('') }}>
-                            {isIndividual ? `☑ Individual (${sentIds.length})` : '👥 Team'} {targeting ? '▲' : '▼'}
-                          </button>
-
-                          {targeting && (
-                            <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
-                              {sentStudents.length > 0 && (
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-                                  {sentStudents.map(s => (
-                                    <span key={s.id} className="btn btn-sm" style={{ background: '#1D9E7520', borderColor: '#1D9E75', cursor: 'pointer', fontSize: 11 }}
-                                      onClick={() => removeNoteTarget(note, s.id)} title="Click to remove">
-                                      → {s.members?.first_name} {s.members?.last_name} ×
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                              <div style={{ position: 'relative' }}>
-                                <input value={noteTargetSearch} onChange={e => setNoteTargetSearch(e.target.value)}
-                                  placeholder="Search athletes to also send this note to…" style={{ width: '100%', fontSize: 12 }} />
-                                <div className="card" style={{ marginTop: 4, padding: 4, maxHeight: 200, overflowY: 'auto' }}>
-                                  {noteDropdownResultsFor(note).length === 0 ? (
-                                    <p style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: '6px 8px' }}>No matching athletes.</p>
-                                  ) : noteDropdownResultsFor(note).map(s => (
-                                    <button key={s.id} onClick={() => sendNoteToAthlete(note, s)}
-                                      style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, borderRadius: 6 }}>
-                                      {s.members?.first_name} {s.members?.last_name}
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Send Reports */}
-            <div className="card" style={{ padding: 0, marginBottom: 14 }}>
-              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h2 style={{ fontSize: 14, fontWeight: 600 }}>📄 Send Reports</h2>
-                <button className="btn btn-sm" onClick={() => setShowSendReports(v => !v)}>{showSendReports ? 'Cancel' : '+ Send reports'}</button>
-              </div>
-              <div style={{ padding: 16 }}>
-                {showSendReports && (
-                  <div style={{ marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--border)' }}>
-                    <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-                      <button className="btn btn-sm" onClick={() => setSendReportsTarget('all')}
-                        style={{ background: sendReportsTarget === 'all' ? '#378ADD20' : undefined, borderColor: sendReportsTarget === 'all' ? '#378ADD' : undefined }}>
-                        👥 All athletes
-                      </button>
-                      <button className="btn btn-sm" onClick={() => setSendReportsTarget('selected')}
-                        style={{ background: sendReportsTarget === 'selected' ? '#378ADD20' : undefined, borderColor: sendReportsTarget === 'selected' ? '#378ADD' : undefined }}>
-                        ☑ Checked individuals {sendReportsSelected.length > 0 ? `(${sendReportsSelected.length})` : ''}
-                      </button>
-                    </div>
-
-                    {sendReportsTarget === 'selected' && (
-                      <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 8, marginBottom: 10 }}>
-                        {students.filter(s => s.is_kr || s.is_pts || s.discipline === 'KRBA').map(s => {
-                          const checked = sendReportsSelected.some(t => t.id === s.id)
-                          return (
-                            <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, padding: '4px 0', cursor: 'pointer' }}>
-                              <input type="checkbox" checked={checked}
-                                onChange={() => setSendReportsSelected(prev => checked ? prev.filter(t => t.id !== s.id) : [...prev, s])}
-                                style={{ width: 15, height: 15 }} />
-                              {s.members?.first_name} {s.members?.last_name}
-                            </label>
-                          )
-                        })}
-                      </div>
-                    )}
-
-                    <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-                      <div>
-                        <label style={{ fontSize: 11, color: 'var(--text-tertiary)', display: 'block', marginBottom: 2 }}>From</label>
-                        <input type="date" value={sendReportsFrom} onChange={e => setSendReportsFrom(e.target.value)} />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: 11, color: 'var(--text-tertiary)', display: 'block', marginBottom: 2 }}>To</label>
-                        <input type="date" value={sendReportsTo} onChange={e => setSendReportsTo(e.target.value)} />
-                      </div>
-                    </div>
-
-                    <button className="btn btn-primary btn-sm"
-                      disabled={sendingReports || (sendReportsTarget === 'selected' && sendReportsSelected.length === 0)}
-                      onClick={sendReportsBulk}>
-                      {sendingReports ? `Sending… ${sendReportsProgress?.done ?? 0}/${sendReportsProgress?.total ?? 0}` : 'Generate & Send'}
-                    </button>
-                    <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 6 }}>
-                      Reports appear in each athlete's own app, and in the list below for you to view too.
-                    </p>
-                  </div>
-                )}
-
-                {recentSentReports.length === 0 ? (
-                  <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No reports sent yet.</p>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {recentSentReports.map(r => (
-                      <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: 12 }}>
-                        <span>{r.students?.members?.first_name} {r.students?.members?.last_name} — {new Date(r.date_from).toLocaleDateString('en-GB')} to {new Date(r.date_to).toLocaleDateString('en-GB')}</span>
-                        <span style={{ color: 'var(--text-tertiary)' }}>{new Date(r.sent_at).toLocaleDateString('en-GB')}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Club events */}
-            <div className="card" style={{ padding: 0, marginBottom: 14 }}>
-              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h2 style={{ fontSize: 14, fontWeight: 600 }}>📅 Events</h2>
-                <button className="btn btn-sm" onClick={() => setShowAddEvent(v => !v)}>{showAddEvent ? 'Cancel' : '+ Add event'}</button>
-              </div>
-              <div style={{ padding: 16 }}>
-                {showAddEvent && (
-                  <div style={{ marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--border)' }}>
-                    <input value={newEventTitle} onChange={e => setNewEventTitle(e.target.value)} placeholder="Event title" style={{ marginBottom: 8 }} />
-                    <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-                      <input type="date" value={newEventDate} onChange={e => setNewEventDate(e.target.value)} style={{ flex: 1, minWidth: 140 }} />
-                      <input type="time" value={newEventTime} onChange={e => setNewEventTime(e.target.value)} style={{ flex: 1, minWidth: 100 }} />
-                    </div>
-                    <textarea value={newEventDesc} onChange={e => setNewEventDesc(e.target.value)} placeholder="Description (optional)" rows={2}
-                      style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 10, cursor: 'pointer' }}>
-                      <input type="checkbox" checked={newEventSendAll} onChange={e => setNewEventSendAll(e.target.checked)} style={{ width: 16, height: 16 }} />
-                      Send to all students (shows in their Sessions tab)
-                    </label>
-                    <button className="btn btn-primary btn-sm" disabled={!newEventTitle.trim() || !newEventDate || savingEvent} onClick={addEvent}>
-                      {savingEvent ? 'Saving…' : 'Add event'}
-                    </button>
-                  </div>
-                )}
-                {clubEvents.filter(e => e.event_date >= new Date().toISOString().split('T')[0]).length === 0 ? (
-                  <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No upcoming events.</p>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {clubEvents.filter(e => e.event_date >= new Date().toISOString().split('T')[0]).map(ev => (
-                      <div key={ev.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 600 }}>{ev.title}</div>
-                          <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-                            {new Date(ev.event_date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}{ev.event_time ? ` · ${ev.event_time.slice(0,5)}` : ''}
-                            {ev.send_to_all_students && <span style={{ marginLeft: 6, color: '#1D9E75' }}>· sent to all students</span>}
-                          </div>
-                          {ev.description && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{ev.description}</div>}
-                        </div>
-                        <button onClick={() => deleteEvent(ev.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14 }}>×</button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Scroll to browse athlete profiles -- same as swiping */}
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 14 }}>
-              <button className="btn btn-sm" disabled>← Prev</button>
-              <button className="btn btn-sm" disabled={filtered.length === 0}
-                onClick={() => filtered.length > 0 && selectStudent(filtered[0])} title="Browse athlete profiles">Next →</button>
-            </div>
-
             {/* All sessions / F2F sessions / PDP -- above Physical, side by side */}
             {(() => {
               const teamAthletes = students.filter(s => s.is_kr || s.is_pts || s.discipline === 'KRBA')
@@ -3565,6 +3383,204 @@ export default function AthleteProfiles() {
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Team notes */}
+            <div className="card" style={{ padding: 0, marginBottom: 14 }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+                <h2 style={{ fontSize: 14, fontWeight: 600 }}>📝 Notes</h2>
+              </div>
+              <div style={{ padding: 16 }}>
+                <textarea value={dashNoteText} onChange={e => setDashNoteText(e.target.value)}
+                  placeholder="Write a note…" rows={2}
+                  style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
+                <button className="btn btn-primary btn-sm" disabled={!dashNoteText.trim() || savingDashNote} onClick={addDashNote}>
+                  {savingDashNote ? 'Saving…' : 'Save here'}
+                </button>
+
+                {teamNotes.length > 0 && (
+                  <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {teamNotes.map(note => {
+                      const sentIds = note.sent_to_student_ids || []
+                      const sentStudents = students.filter(s => sentIds.includes(s.id))
+                      const isIndividual = sentIds.length > 0
+                      const targeting = expandedNoteTargeting === note.id
+                      return (
+                        <div key={note.id} style={{ padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>
+                              {new Date(note.created_at).toLocaleDateString('en-GB')} · {new Date(note.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                            <button onClick={() => deleteTeamNote(note.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14 }}>×</button>
+                          </div>
+                          <p style={{ fontSize: 13, margin: '0 0 8px' }}>{note.note_text}</p>
+
+                          <button className="btn btn-sm" style={{ fontSize: 11 }}
+                            onClick={() => { setExpandedNoteTargeting(targeting ? null : note.id); setNoteTargetSearch('') }}>
+                            {isIndividual ? `☑ Individual (${sentIds.length})` : '👥 Team'} {targeting ? '▲' : '▼'}
+                          </button>
+
+                          {targeting && (
+                            <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+                              {sentStudents.length > 0 && (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                                  {sentStudents.map(s => (
+                                    <span key={s.id} className="btn btn-sm" style={{ background: '#1D9E7520', borderColor: '#1D9E75', cursor: 'pointer', fontSize: 11 }}
+                                      onClick={() => removeNoteTarget(note, s.id)} title="Click to remove">
+                                      → {s.members?.first_name} {s.members?.last_name} ×
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                              <div style={{ position: 'relative' }}>
+                                <input value={noteTargetSearch} onChange={e => setNoteTargetSearch(e.target.value)}
+                                  placeholder="Search athletes to also send this note to…" style={{ width: '100%', fontSize: 12 }} />
+                                <div className="card" style={{ marginTop: 4, padding: 4, maxHeight: 200, overflowY: 'auto' }}>
+                                  {noteDropdownResultsFor(note).length === 0 ? (
+                                    <p style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: '6px 8px' }}>No matching athletes.</p>
+                                  ) : noteDropdownResultsFor(note).map(s => (
+                                    <button key={s.id} onClick={() => sendNoteToAthlete(note, s)}
+                                      style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, borderRadius: 6 }}>
+                                      {s.members?.first_name} {s.members?.last_name}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Send Reports */}
+            <div className="card" style={{ padding: 0, marginBottom: 14 }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h2 style={{ fontSize: 14, fontWeight: 600 }}>📄 Send Reports</h2>
+                <button className="btn btn-sm" onClick={() => setShowSendReports(v => !v)}>{showSendReports ? 'Cancel' : '+ Send reports'}</button>
+              </div>
+              <div style={{ padding: 16 }}>
+                {showSendReports && (
+                  <div style={{ marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                      <button className="btn btn-sm" onClick={() => setSendReportsTarget('all')}
+                        style={{ background: sendReportsTarget === 'all' ? '#378ADD20' : undefined, borderColor: sendReportsTarget === 'all' ? '#378ADD' : undefined }}>
+                        👥 All athletes
+                      </button>
+                      <button className="btn btn-sm" onClick={() => setSendReportsTarget('selected')}
+                        style={{ background: sendReportsTarget === 'selected' ? '#378ADD20' : undefined, borderColor: sendReportsTarget === 'selected' ? '#378ADD' : undefined }}>
+                        ☑ Checked individuals {sendReportsSelected.length > 0 ? `(${sendReportsSelected.length})` : ''}
+                      </button>
+                    </div>
+
+                    {sendReportsTarget === 'selected' && (
+                      <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 8, marginBottom: 10 }}>
+                        {students.filter(s => s.is_kr || s.is_pts || s.discipline === 'KRBA').map(s => {
+                          const checked = sendReportsSelected.some(t => t.id === s.id)
+                          return (
+                            <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, padding: '4px 0', cursor: 'pointer' }}>
+                              <input type="checkbox" checked={checked}
+                                onChange={() => setSendReportsSelected(prev => checked ? prev.filter(t => t.id !== s.id) : [...prev, s])}
+                                style={{ width: 15, height: 15 }} />
+                              {s.members?.first_name} {s.members?.last_name}
+                            </label>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+                      <div>
+                        <label style={{ fontSize: 11, color: 'var(--text-tertiary)', display: 'block', marginBottom: 2 }}>From</label>
+                        <input type="date" value={sendReportsFrom} onChange={e => setSendReportsFrom(e.target.value)} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, color: 'var(--text-tertiary)', display: 'block', marginBottom: 2 }}>To</label>
+                        <input type="date" value={sendReportsTo} onChange={e => setSendReportsTo(e.target.value)} />
+                      </div>
+                    </div>
+
+                    <button className="btn btn-primary btn-sm"
+                      disabled={sendingReports || (sendReportsTarget === 'selected' && sendReportsSelected.length === 0)}
+                      onClick={sendReportsBulk}>
+                      {sendingReports ? `Sending… ${sendReportsProgress?.done ?? 0}/${sendReportsProgress?.total ?? 0}` : 'Generate & Send'}
+                    </button>
+                    <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 6 }}>
+                      Reports appear in each athlete's own app, and in the list below for you to view too.
+                    </p>
+                  </div>
+                )}
+
+                {recentSentReports.length === 0 ? (
+                  <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No reports sent yet.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {recentSentReports.map(r => (
+                      <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: 12 }}>
+                        <span>{r.students?.members?.first_name} {r.students?.members?.last_name} — {new Date(r.date_from).toLocaleDateString('en-GB')} to {new Date(r.date_to).toLocaleDateString('en-GB')}</span>
+                        <span style={{ color: 'var(--text-tertiary)' }}>{new Date(r.sent_at).toLocaleDateString('en-GB')}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Club events */}
+            <div className="card" style={{ padding: 0, marginBottom: 14 }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h2 style={{ fontSize: 14, fontWeight: 600 }}>📅 Events</h2>
+                <button className="btn btn-sm" onClick={() => setShowAddEvent(v => !v)}>{showAddEvent ? 'Cancel' : '+ Add event'}</button>
+              </div>
+              <div style={{ padding: 16 }}>
+                {showAddEvent && (
+                  <div style={{ marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--border)' }}>
+                    <input value={newEventTitle} onChange={e => setNewEventTitle(e.target.value)} placeholder="Event title" style={{ marginBottom: 8 }} />
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                      <input type="date" value={newEventDate} onChange={e => setNewEventDate(e.target.value)} style={{ flex: 1, minWidth: 140 }} />
+                      <input type="time" value={newEventTime} onChange={e => setNewEventTime(e.target.value)} style={{ flex: 1, minWidth: 100 }} />
+                    </div>
+                    <textarea value={newEventDesc} onChange={e => setNewEventDesc(e.target.value)} placeholder="Description (optional)" rows={2}
+                      style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 10, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={newEventSendAll} onChange={e => setNewEventSendAll(e.target.checked)} style={{ width: 16, height: 16 }} />
+                      Send to all students (shows in their Sessions tab)
+                    </label>
+                    <button className="btn btn-primary btn-sm" disabled={!newEventTitle.trim() || !newEventDate || savingEvent} onClick={addEvent}>
+                      {savingEvent ? 'Saving…' : 'Add event'}
+                    </button>
+                  </div>
+                )}
+                {clubEvents.filter(e => e.event_date >= new Date().toISOString().split('T')[0]).length === 0 ? (
+                  <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No upcoming events.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {clubEvents.filter(e => e.event_date >= new Date().toISOString().split('T')[0]).map(ev => (
+                      <div key={ev.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 600 }}>{ev.title}</div>
+                          <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                            {new Date(ev.event_date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}{ev.event_time ? ` · ${ev.event_time.slice(0,5)}` : ''}
+                            {ev.send_to_all_students && <span style={{ marginLeft: 6, color: '#1D9E75' }}>· sent to all students</span>}
+                          </div>
+                          {ev.description && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{ev.description}</div>}
+                        </div>
+                        <button onClick={() => deleteEvent(ev.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14 }}>×</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Scroll to browse athlete profiles -- same as swiping */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 14 }}>
+              <button className="btn btn-sm" disabled>← Prev</button>
+              <button className="btn btn-sm" disabled={filtered.length === 0}
+                onClick={() => filtered.length > 0 && selectStudent(filtered[0])} title="Browse athlete profiles">Next →</button>
             </div>
 
             {/* Targets management -- all existing targets in one place; use the "+ Target"/"+ Set target" buttons on each card above to add a new one right where you need it */}
