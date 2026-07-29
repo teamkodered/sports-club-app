@@ -1672,6 +1672,13 @@ export default function AthleteProfiles() {
   const [newTargetValue, setNewTargetValue] = useState('')
   const [newTargetNotes, setNewTargetNotes] = useState('')
   const [savingTarget, setSavingTarget] = useState(false)
+  const [targetAthlete, setTargetAthlete] = useState(null) // null = whole team, or a student object
+  const [targetAthleteSearch, setTargetAthleteSearch] = useState('')
+  const [showTargetAthleteDropdown, setShowTargetAthleteDropdown] = useState(false)
+  const [targetFreqNumber, setTargetFreqNumber] = useState('')
+  const [targetFreqPeriod, setTargetFreqPeriod] = useState('day')
+  const [targetUseFreeText, setTargetUseFreeText] = useState(false)
+  const targetFormRef = useRef(null)
   const [expandedDashSection, setExpandedDashSection] = useState(null)
   const [expandedDashSubItem, setExpandedDashSubItem] = useState(null) // "sectionKey::subKey"
   const [newEventTitle, setNewEventTitle] = useState('')
@@ -1801,6 +1808,17 @@ export default function AthleteProfiles() {
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [showTacticalSection])
+
+  useEffect(() => {
+    if (!showAddTarget) return
+    function handleClick(e) {
+      if (targetFormRef.current && !targetFormRef.current.contains(e.target)) {
+        setShowAddTarget(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showAddTarget])
 
   useEffect(() => {
     if (!showMentalitySection) return
@@ -2013,17 +2031,24 @@ export default function AthleteProfiles() {
   }, [])
 
   async function addTeamTarget() {
-    if (!newTargetValue.trim()) return
+    const isSectionLevel = !newTargetQuestion
+    const finalValue = (isSectionLevel && !targetUseFreeText)
+      ? (targetFreqNumber ? `${targetFreqNumber} per ${targetFreqPeriod === 'day' ? '1 day' : targetFreqPeriod === 'week' ? '1 week' : '1 month'}` : '')
+      : newTargetValue.trim()
+    if (!finalValue) return
     setSavingTarget(true)
     const { data, error } = await supabase.from('team_targets').insert({
       section_key: newTargetSection,
       question_label: newTargetQuestion.trim() || null,
-      target_value: newTargetValue.trim(),
+      target_value: finalValue,
       notes: newTargetNotes.trim() || null,
+      student_id: targetAthlete?.id || null,
     }).select('*').single()
     if (error) { alert('Error saving target: ' + error.message); setSavingTarget(false); return }
     setTeamTargets(prev => [...prev, data].sort((a, b) => a.section_key.localeCompare(b.section_key)))
     setNewTargetQuestion(''); setNewTargetValue(''); setNewTargetNotes('')
+    setTargetFreqNumber(''); setTargetFreqPeriod('day'); setTargetUseFreeText(false)
+    setTargetAthlete(null); setTargetAthleteSearch('')
     setShowAddTarget(false)
     setSavingTarget(false)
   }
@@ -2033,17 +2058,98 @@ export default function AthleteProfiles() {
   // checks at each trigger point), instead of a single form at the
   // bottom of the page.
   function renderInlineTargetForm() {
+    const sectionConfig = DASHBOARD_SECTIONS.find(s => s.key === newTargetSection)
+    const questionOptions = sectionConfig?.subItems || []
+    const isSectionLevel = !newTargetQuestion
+    const athleteResults = students
+      .filter(s => !targetAthleteSearch || `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.toLowerCase().includes(targetAthleteSearch.toLowerCase()))
+
     return (
-      <div style={{ marginTop: 8, padding: 10, background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
-        <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 6, textTransform: 'capitalize' }}>
-          Setting target for: <strong>{newTargetSection.replace(/_/g, ' ')}{newTargetQuestion ? ` — ${newTargetQuestion}` : ''}</strong>
+      <div ref={targetFormRef} style={{ marginTop: 8, padding: 10, background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+        <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8, textTransform: 'capitalize' }}>
+          Setting target for: <strong>{newTargetSection.replace(/_/g, ' ')}</strong>
         </p>
-        <input value={newTargetValue} onChange={e => setNewTargetValue(e.target.value)}
-          placeholder="Target (e.g. 8 hours, 3x per week, Level 10)" style={{ marginBottom: 8, width: '100%' }} />
+
+        {questionOptions.length > 0 && (
+          <div style={{ marginBottom: 8 }}>
+            <label style={{ fontSize: 11, color: 'var(--text-tertiary)', display: 'block', marginBottom: 2 }}>Question / metric</label>
+            <select value={newTargetQuestion} onChange={e => setNewTargetQuestion(e.target.value)} style={{ width: '100%' }}>
+              <option value="">— Whole section (no specific question) —</option>
+              {questionOptions.map(q => <option key={q.key} value={q.label}>{q.label}</option>)}
+            </select>
+          </div>
+        )}
+
+        <div style={{ marginBottom: 8 }}>
+          <label style={{ fontSize: 11, color: 'var(--text-tertiary)', display: 'block', marginBottom: 2 }}>Applies to</label>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button className="btn btn-sm" onClick={() => { setTargetAthlete(null); setTargetAthleteSearch('') }}
+              style={{ background: !targetAthlete ? '#378ADD20' : undefined, borderColor: !targetAthlete ? '#378ADD' : undefined }}>
+              👥 Whole team
+            </button>
+            {targetAthlete ? (
+              <span className="btn btn-sm" style={{ background: '#1D9E7520', borderColor: '#1D9E75', cursor: 'pointer' }}
+                onClick={() => setTargetAthlete(null)} title="Click to remove">
+                → {targetAthlete.members?.first_name} {targetAthlete.members?.last_name} ×
+              </span>
+            ) : (
+              <div style={{ position: 'relative', flex: 1, minWidth: 140 }}>
+                <input value={targetAthleteSearch} onChange={e => setTargetAthleteSearch(e.target.value)}
+                  onFocus={() => setShowTargetAthleteDropdown(true)}
+                  placeholder="Or search an individual athlete…" style={{ width: '100%', fontSize: 12 }} />
+                {showTargetAthleteDropdown && (
+                  <div className="card" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10, padding: 4, maxHeight: 180, overflowY: 'auto' }}>
+                    {athleteResults.length === 0 ? (
+                      <p style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: '6px 8px' }}>No matching athletes.</p>
+                    ) : athleteResults.map(s => (
+                      <button key={s.id} onClick={() => { setTargetAthlete(s); setShowTargetAthleteDropdown(false) }}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, borderRadius: 6 }}>
+                        {s.members?.first_name} {s.members?.last_name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {isSectionLevel && !targetUseFreeText ? (
+          <div style={{ marginBottom: 8 }}>
+            <label style={{ fontSize: 11, color: 'var(--text-tertiary)', display: 'block', marginBottom: 2 }}>
+              Target (complete this many items, per timescale)
+            </label>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input type="number" min="1" value={targetFreqNumber} onChange={e => setTargetFreqNumber(e.target.value)}
+                placeholder="3" style={{ width: 70 }} />
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>times per</span>
+              <select value={targetFreqPeriod} onChange={e => setTargetFreqPeriod(e.target.value)} style={{ flex: 1 }}>
+                <option value="day">1 day</option>
+                <option value="week">1 week</option>
+                <option value="month">1 month</option>
+              </select>
+            </div>
+            <button onClick={() => setTargetUseFreeText(true)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 11, padding: 0, marginTop: 6, textDecoration: 'underline' }}>
+              Use custom text instead
+            </button>
+          </div>
+        ) : (
+          <div style={{ marginBottom: 8 }}>
+            <label style={{ fontSize: 11, color: 'var(--text-tertiary)', display: 'block', marginBottom: 2 }}>Target</label>
+            <input value={newTargetValue} onChange={e => setNewTargetValue(e.target.value)}
+              placeholder="e.g. 8 hours, 3 litres, Level 10" style={{ width: '100%' }} />
+            {isSectionLevel && (
+              <button onClick={() => setTargetUseFreeText(false)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 11, padding: 0, marginTop: 6, textDecoration: 'underline' }}>
+                Use number + timescale instead
+              </button>
+            )}
+          </div>
+        )}
+
         <textarea value={newTargetNotes} onChange={e => setNewTargetNotes(e.target.value)} placeholder="Notes (optional)" rows={2}
           style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-primary btn-sm" disabled={!newTargetValue.trim() || savingTarget} onClick={addTeamTarget}>
+          <button className="btn btn-primary btn-sm" disabled={savingTarget} onClick={addTeamTarget}>
             {savingTarget ? 'Saving…' : 'Save target'}
           </button>
           <button className="btn btn-sm" onClick={() => setShowAddTarget(false)}>Cancel</button>
@@ -3079,7 +3185,7 @@ export default function AthleteProfiles() {
                 const loggedIds = new Set(idList.filter(id => teamIds.has(id)))
                 return { count: loggedIds.size, pct: Math.round((loggedIds.size / teamCount) * 100) }
               }
-              const targetFor = key => teamTargets.find(t => t.section_key === key && !t.question_label)
+              const targetFor = key => teamTargets.find(t => t.section_key === key && !t.question_label && !t.student_id)
 
               const attendedIds = todaysAllAttendance.map(a => a.student_id)
               const allSessions = pctFromIds(attendedIds)
@@ -3154,7 +3260,7 @@ export default function AthleteProfiles() {
                 return { count: loggedIds.size, pct: Math.round((loggedIds.size / teamCount) * 100) }
               }
               const targetFor = (sectionKey, questionLabel = null) =>
-                teamTargets.find(t => t.section_key === sectionKey && (t.question_label || null) === questionLabel)
+                teamTargets.find(t => t.section_key === sectionKey && (t.question_label || null) === questionLabel && !t.student_id)
               // Section-level target frequency (e.g. "3x per week" or "3
               // items" -> 3): the athlete needs to complete at least this
               // many distinct items in the section, regardless of which
@@ -3325,7 +3431,7 @@ export default function AthleteProfiles() {
                 const loggedIds = new Set(idList.filter(id => teamIds.has(id)))
                 return { count: loggedIds.size, pct: Math.round((loggedIds.size / teamCount) * 100) }
               }
-              const targetFor = key => teamTargets.find(t => t.section_key === key && !t.question_label)
+              const targetFor = key => teamTargets.find(t => t.section_key === key && !t.question_label && !t.student_id)
 
               const attendedIds = todaysAllAttendance.map(a => a.student_id)
               const checkIn = pctFromIds(attendedIds)
@@ -3441,18 +3547,24 @@ export default function AthleteProfiles() {
                   <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No targets set yet. Use the "+ Target" button on any card above to add one.</p>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {teamTargets.map(t => (
+                    {teamTargets.map(t => {
+                      const forStudent = t.student_id ? students.find(s => s.id === t.student_id) : null
+                      return (
                       <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
                         <div>
                           <div style={{ fontSize: 13, fontWeight: 600, textTransform: 'capitalize' }}>
                             {t.section_key.replace(/_/g, ' ')}{t.question_label ? ` — ${t.question_label}` : ''}
                           </div>
                           <div style={{ fontSize: 12, color: '#EF9F27' }}>Target: {t.target_value}</div>
+                          <div style={{ fontSize: 11, color: forStudent ? '#1D9E75' : 'var(--text-tertiary)' }}>
+                            {forStudent ? `👤 Individual: ${forStudent.members?.first_name} ${forStudent.members?.last_name}` : '👥 Whole team'}
+                          </div>
                           {t.notes && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{t.notes}</div>}
                         </div>
                         <button onClick={() => deleteTeamTarget(t.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14 }}>×</button>
                       </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </div>
