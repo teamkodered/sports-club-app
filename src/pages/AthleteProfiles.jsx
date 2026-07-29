@@ -2815,6 +2815,74 @@ export default function AthleteProfiles() {
               </div>
             </div>
 
+            {/* Scroll to browse athlete profiles -- same as swiping */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 14 }}>
+              <button className="btn btn-sm" disabled>← Prev</button>
+              <button className="btn btn-sm" disabled={filtered.length === 0}
+                onClick={() => filtered.length > 0 && selectStudent(filtered[0])} title="Browse athlete profiles">Next →</button>
+            </div>
+
+            {/* All sessions / F2F sessions / PDP -- above Physical, side by side */}
+            {(() => {
+              const teamAthletes = students.filter(s => s.is_kr || s.is_pts || s.discipline === 'KRBA')
+              const teamCount = teamAthletes.length || 1
+              const teamIds = new Set(teamAthletes.map(s => s.id))
+              const todayStr = new Date().toISOString().split('T')[0]
+              const hasContent = v => Array.isArray(v) ? v.length > 0 : (v && typeof v === 'object' ? Object.keys(v).length > 0 : !!v)
+              const pctFromIds = idList => {
+                const loggedIds = new Set(idList.filter(id => teamIds.has(id)))
+                return { count: loggedIds.size, pct: Math.round((loggedIds.size / teamCount) * 100) }
+              }
+              const targetFor = key => teamTargets.find(t => t.section_key === key && !t.question_label)
+
+              const attendedIds = todaysAllAttendance.map(a => a.student_id)
+              const allSessions = pctFromIds(attendedIds)
+
+              const f2fIds = todaysAllSessions.filter(s =>
+                ['running','watt_bike','bodyweight','stretch_flows','snc','other_session','techniques','tactical','mentality_log','wellbeing','test'].some(f => hasContent(s[f]))
+              ).map(s => s.student_id)
+              const f2fSessions = pctFromIds(f2fIds)
+
+              const pdpIds = allAthleteProfiles.filter(ap => {
+                const pdp = ap.pdp_notes || {}
+                return Array.from(PDP_CHECKABLE_SECTIONS).some(k =>
+                  Object.values(pdp[`__timetable_${k}`] || {}).some(e => e.date === todayStr))
+              }).map(ap => ap.student_id)
+              const pdp = pctFromIds(pdpIds)
+
+              const cards = [
+                { key: 'all_sessions', icon: '📅', label: 'All sessions', ...allSessions },
+                { key: 'f2f_sessions', icon: '💪', label: 'F2F sessions', ...f2fSessions },
+                { key: 'pdp', icon: '🎯', label: 'PDP', ...pdp },
+              ]
+
+              return (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 14 }}>
+                  {cards.map(c => {
+                    const target = targetFor(c.key)
+                    return (
+                      <div key={c.key} style={{
+                        display: 'flex', flexDirection: 'column', gap: 6,
+                        padding: '10px 12px', fontFamily: 'var(--font-sans)',
+                        background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                      }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontSize: 16 }}>{c.icon}</span>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{c.label}</span>
+                        </span>
+                        <span style={{ fontSize: 18, fontWeight: 700, color: colour }}>{c.pct}%</span>
+                        <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{c.count}/{teamCount}</span>
+                        {target && <span style={{ fontSize: 10, color: '#EF9F27' }}>🎯 {target.target_value}</span>}
+                        <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => {
+                          setNewTargetSection(c.key); setNewTargetQuestion(''); setShowAddTarget(true)
+                        }}>{target ? 'Edit target' : '+ Target'}</button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
+
             {/* Athlete Home overview -- same banner/card form as a real athlete's Home page */}
             {(() => {
               const teamAthletes = students.filter(s => s.is_kr || s.is_pts || s.discipline === 'KRBA')
@@ -2921,90 +2989,68 @@ export default function AthleteProfiles() {
               })
             })()}
 
-            {/* Additional team overview cards -- same banner style, simple % + target (no sub-item drill-down since these aren't structured the same way as the daily-log sections) */}
+            {/* Media/Notes/TTP/Check in -- stay at the bottom, laid out two by two */}
             {(() => {
               const teamAthletes = students.filter(s => s.is_kr || s.is_pts || s.discipline === 'KRBA')
               const teamCount = teamAthletes.length || 1
               const teamIds = new Set(teamAthletes.map(s => s.id))
               const todayStr = new Date().toISOString().split('T')[0]
-              const hasContent = v => Array.isArray(v) ? v.length > 0 : (v && typeof v === 'object' ? Object.keys(v).length > 0 : !!v)
               const pctFromIds = idList => {
                 const loggedIds = new Set(idList.filter(id => teamIds.has(id)))
                 return { count: loggedIds.size, pct: Math.round((loggedIds.size / teamCount) * 100) }
               }
               const targetFor = key => teamTargets.find(t => t.section_key === key && !t.question_label)
 
-              // All sessions / Check in -- both driven by today's attendance
-              // (kept as two separate cards per the request, though they
-              // currently compute from the same underlying data since
-              // there's no distinct "check in" concept in the data yet)
               const attendedIds = todaysAllAttendance.map(a => a.student_id)
-              const allSessions = pctFromIds(attendedIds)
               const checkIn = pctFromIds(attendedIds)
 
-              // F2F sessions -- any fit2fight_sessions row today with some content in it
-              const f2fIds = todaysAllSessions.filter(s =>
-                ['running','watt_bike','bodyweight','stretch_flows','snc','other_session','techniques','tactical','mentality_log','wellbeing','test'].some(f => hasContent(s[f]))
-              ).map(s => s.student_id)
-              const f2fSessions = pctFromIds(f2fIds)
-
-              // PDP -- has a "Check" item scheduled to the timetable today
-              const pdpIds = allAthleteProfiles.filter(ap => {
-                const pdp = ap.pdp_notes || {}
-                return Array.from(PDP_CHECKABLE_SECTIONS).some(k =>
-                  Object.values(pdp[`__timetable_${k}`] || {}).some(e => e.date === todayStr))
-              }).map(ap => ap.student_id)
-              const pdp = pctFromIds(pdpIds)
-
-              // Media -- a file uploaded today
               const mediaIds = allAthleteProfiles.filter(ap =>
                 (ap.media_files || []).some(f => f.uploaded_at?.slice(0, 10) === todayStr)
               ).map(ap => ap.student_id)
               const media = pctFromIds(mediaIds)
 
-              // Notes -- an athlete_notes_log entry today
               const notesIds = todaysAllNotes.map(n => n.student_id)
               const notes = pctFromIds(notesIds)
 
-              // TTP -- a boxing or kickboxing assessment today
               const ttpIds = todaysAllTtp.map(t => t.student_id)
               const ttp = pctFromIds(ttpIds)
 
               const cards = [
-                { key: 'all_sessions', icon: '📅', label: 'All sessions', ...allSessions },
-                { key: 'f2f_sessions', icon: '💪', label: 'F2F sessions', ...f2fSessions },
-                { key: 'pdp', icon: '🎯', label: 'PDP', ...pdp },
                 { key: 'media', icon: '🖼', label: 'Media', ...media },
                 { key: 'notes', icon: '📝', label: 'Notes', ...notes },
                 { key: 'ttp', icon: '📊', label: 'TTP', ...ttp },
                 { key: 'check_in', icon: '✅', label: 'Check in', ...checkIn },
               ]
 
-              return cards.map(c => {
-                const target = targetFor(c.key)
-                return (
-                  <div key={c.key} style={{ marginBottom: 8 }}>
-                    <div style={{
-                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                      padding: '10px 14px', fontFamily: 'var(--font-sans)',
-                      background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
-                    }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 18 }}>{c.icon}</span>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{c.label}</span>
-                      </span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span style={{ fontSize: 15, fontWeight: 700, color: colour }}>{c.pct}%</span>
-                        <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{c.count}/{teamCount}</span>
-                        {target && <span style={{ fontSize: 10, color: '#EF9F27' }}>🎯 {target.target_value}</span>}
-                        <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => {
-                          setNewTargetSection(c.key); setNewTargetQuestion(''); setShowAddTarget(true)
-                        }}>{target ? 'Edit' : '+ Target'}</button>
-                      </span>
-                    </div>
-                  </div>
-                )
-              })
+              return (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginBottom: 14 }}>
+                  {cards.map(c => {
+                    const target = targetFor(c.key)
+                    return (
+                      <div key={c.key} style={{
+                        display: 'flex', flexDirection: 'column', gap: 6,
+                        padding: '10px 14px', fontFamily: 'var(--font-sans)',
+                        background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                      }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 18 }}>{c.icon}</span>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{c.label}</span>
+                        </span>
+                        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 15, fontWeight: 700, color: colour }}>{c.pct}%</span>
+                            <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{c.count}/{teamCount}</span>
+                          </span>
+                          {target && <span style={{ fontSize: 10, color: '#EF9F27' }}>🎯 {target.target_value}</span>}
+                          <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => {
+                            setNewTargetSection(c.key); setNewTargetQuestion(''); setShowAddTarget(true)
+                          }}>{target ? 'Edit' : '+ Target'}</button>
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
             })()}
 
             {/* Targets management */}
