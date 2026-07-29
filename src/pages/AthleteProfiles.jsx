@@ -1699,6 +1699,7 @@ export default function AthleteProfiles() {
   const [sessionsBreakdownRange, setSessionsBreakdownRange] = useState('month')
   const [breakdownExcluded, setBreakdownExcluded] = useState(new Set()) // assignment ids unchecked from the total (default: none, i.e. all included)
   const [f2fStatsScope, setF2fStatsScope] = useState(0) // cycles through scope options
+  const [attendanceDisplayPct, setAttendanceDisplayPct] = useState(false)
   const [f2fModule, setF2fModule] = useState(null) // 'watt_bike' | '10k' | 'circuit' | 'bleep' | 'grip'
   const [moduleSubType, setModuleSubType] = useState({}) // key -> currently selected sub-type per module
   const [expandedHomeWb, setExpandedHomeWb] = useState(null) // which wellbeing question card is expanded on Home
@@ -3738,13 +3739,13 @@ export default function AthleteProfiles() {
 
             {/* Tabs */}
             <div className="hide-scrollbar" style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 14, overflowX: 'auto' }}>
-              {['home', 'sessions', 'pdp', 'fit2fight', 'tpt', 'media', 'notes', 'report'].map(t => (
+              {['home', 'sessions', 'fit2fight', 'pdp', 'tpt', 'media', 'notes', 'report'].map(t => (
                 <button key={t} onClick={() => setTab(t)} style={{
                   padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
                   borderBottom: `2px solid ${tab === t ? 'var(--text)' : 'transparent'}`,
                   color: tab === t ? 'var(--text)' : 'var(--text-secondary)',
                   fontWeight: tab === t ? 500 : 400, textTransform: 'capitalize', whiteSpace: 'nowrap', flexShrink: 0,
-                }}>{t === 'tpt' ? 'TTP' : t}</button>
+                }}>{t === 'tpt' ? 'TTP' : t === 'sessions' ? 'Attendance' : t}</button>
               ))}
             </div>
 
@@ -3805,15 +3806,21 @@ export default function AthleteProfiles() {
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 8 }}>
                     <div className="card" style={{ textAlign: 'center', padding: '10px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
                       <button onClick={() => setF2fStatsScope(v => v - 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4 }}>◀</button>
-                      <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => setTab('sessions')} title="View sessions">
-                        <div style={{ fontSize: 20, marginBottom: 2 }}>✅</div>
-                        <div style={{ fontSize: 19, fontWeight: 700, color: colour }}>{attendanceData.length}/{possibleSessions || attendanceData.length}</div>
+                      <div style={{ flex: 1 }}>
+                        <button onClick={() => setTab('sessions')} title="View Sessions tab"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, marginBottom: 2, padding: 0, fontFamily: 'var(--font-sans)' }}>✅</button>
+                        <div onClick={() => setAttendanceDisplayPct(v => !v)} title="Click to toggle percentage/numbers"
+                          style={{ fontSize: 19, fontWeight: 700, color: colour, cursor: 'pointer' }}>
+                          {attendanceDisplayPct
+                            ? `${possibleSessions ? Math.round((attendanceData.length / possibleSessions) * 100) : 0}%`
+                            : `${attendanceData.length}/${possibleSessions || attendanceData.length}`}
+                        </div>
                         <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>{scopeLabel}</div>
                       </div>
                       <button onClick={() => setF2fStatsScope(v => v + 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4 }}>▶</button>
                     </div>
                     <button onClick={() => setTab('fit2fight')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg)', appearance: 'none', WebkitAppearance: 'none' }} title="View Fit II Fight results">
-                      <div style={{ fontSize: 22, marginBottom: 4 }}>📈</div>
+                      <div style={{ fontSize: 22, marginBottom: 4 }}>🔥</div>
                       <div style={{ fontSize: 22, fontWeight: 700, color: '#378ADD' }}>{f2fData.length}</div>
                       <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>F2F sessions</div>
                     </button>

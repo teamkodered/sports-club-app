@@ -669,6 +669,7 @@ export default function AthleteApp() {
   const [attendanceData, setAttendanceData] = useState([])
   const [allAttendance, setAllAttendance] = useState([])
   const [f2fStatsScope, setF2fStatsScope] = useState(0)
+  const [attendanceDisplayPct, setAttendanceDisplayPct] = useState(false)
   const [expandedHomeWb, setExpandedHomeWb] = useState(null)
   const [todaysWellbeing, setTodaysWellbeing] = useState({})
   const [savingWellbeing, setSavingWellbeing] = useState(false)
@@ -1166,11 +1167,11 @@ export default function AthleteApp() {
 
   const TABS = [
     ['home',      '🏠 Home'],
-    ['sessions',  '📅 Sessions'],
+    ['sessions',  '📅 Attendance'],
+    ['fit2fight', '💪 Fit II Fight'],
     ['pdp',       '🎯 My PDP'],
     ['reports',   '📄 Reports'],
     ['analysis',  '📊 Analysis'],
-    ['fit2fight', '💪 Fit II Fight'],
     ['points',    '⭐ Points'],
     ['search',    '🔍 Find athlete'],
   ]
@@ -1290,14 +1291,20 @@ export default function AthleteApp() {
                       <div className="card" style={{ textAlign: 'center', padding: '10px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
                         <button onClick={() => setF2fStatsScope(v => v - 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4 }}>◀</button>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 20, marginBottom: 2 }}>✅</div>
-                          <div style={{ fontSize: 19, fontWeight: 700, color: colour }}>{attendanceData.length}/{possibleSessions || attendanceData.length}</div>
+                          <button onClick={() => setTab('sessions')} title="View Sessions tab"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, marginBottom: 2, padding: 0, fontFamily: 'var(--font-sans)' }}>✅</button>
+                          <div onClick={() => setAttendanceDisplayPct(v => !v)} title="Tap to toggle percentage/numbers"
+                            style={{ fontSize: 19, fontWeight: 700, color: colour, cursor: 'pointer' }}>
+                            {attendanceDisplayPct
+                              ? `${possibleSessions ? Math.round((attendanceData.length / possibleSessions) * 100) : 0}%`
+                              : `${attendanceData.length}/${possibleSessions || attendanceData.length}`}
+                          </div>
                           <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>{scopeLabel}</div>
                         </div>
                         <button onClick={() => setF2fStatsScope(v => v + 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4 }}>▶</button>
                       </div>
                       <button onClick={() => setTab('fit2fight')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg)', appearance: 'none', WebkitAppearance: 'none' }}>
-                        <div style={{ fontSize: 22, marginBottom: 4 }}>📈</div>
+                        <div style={{ fontSize: 22, marginBottom: 4 }}>🔥</div>
                         <div style={{ fontSize: 22, fontWeight: 700, color: '#378ADD' }}>{sessions.length}</div>
                         <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>F2F sessions</div>
                       </button>
