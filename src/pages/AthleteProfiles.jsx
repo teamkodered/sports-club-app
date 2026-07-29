@@ -460,6 +460,41 @@ const DASHBOARD_SECTIONS = [
   { key: 'test', icon: '📋', label: 'Test', subItems: TEST_CATEGORIES.map(c => ({ key: c.key, label: c.label, testCategory: c })) },
 ]
 
+// Phase 2 of targets: question-level numeric rules. Maps a
+// Wellbeing question key to how to pull a genuinely comparable
+// number + unit out of the stored data, so a target like "7 hours"
+// can be checked against the athlete's actual logged value rather
+// than just "did they log something".
+//
+// Audit note: Nutrition (quality/preset based: Excellent/Good/Poor)
+// and Screen free (mixed hour/minute presets) aren't stored as a
+// single comparable number today, so they're intentionally left out
+// -- they still fall back to simple completion checking until their
+// data model is revisited.
+const WELLBEING_VALUE_EXTRACTORS = {
+  sleep:        { get: w => parseFloat(w?.sleep?.hours), unit: 'hours' },
+  hydration:    { get: w => parseFloat(w?.hydration?.total), unit: 'litres' },
+  outdoors:     { get: w => parseFloat(w?.outdoors?.totalMinutes), unit: 'mins' },
+  talk:         { get: w => parseFloat(w?.talk?.count), unit: 'count' },
+  journal:      { get: w => parseFloat(w?.journal?.count), unit: 'count' },
+  creative:     { get: w => parseFloat(w?.creative?.count), unit: 'count' },
+  productivity: { get: w => parseFloat(w?.productivity?.count), unit: 'count' },
+}
+
+// Mentality: chess/reading/gaming/eyeTracking/coldWater/gratitude are
+// stored as a simple count, so genuinely comparable. videoAnalysis,
+// meditation, visualisation, and activeRecovery are preset/type-based
+// (a dropdown choice, not a number) and are left on completion
+// checking until their data model captures an actual number.
+const MENTALITY_VALUE_EXTRACTORS = {
+  chess:       { get: m => parseFloat(m?.chess?.count), unit: 'count' },
+  reading:     { get: m => parseFloat(m?.reading?.count), unit: 'count' },
+  gaming:      { get: m => parseFloat(m?.gaming?.count), unit: 'count' },
+  eyeTracking: { get: m => parseFloat(m?.eyeTracking?.count), unit: 'count' },
+  coldWater:   { get: m => parseFloat(m?.coldWater?.count), unit: 'count' },
+  gratitude:   { get: m => parseFloat(m?.gratitude?.count), unit: 'count' },
+}
+
 // Boxing TTP field -> display label, shared between the Coach
 // Dashboard's benchmark form and an athlete's own TTP tab.
 const BOX_LABELS = {
@@ -3088,20 +3123,87 @@ export default function AthleteProfiles() {
                 if (subItem.testCategory) return subItem.testCategory.tests.some(t => s.test?.[t.name])
                 return false
               }
-              const pctFor = subItems => {
-                const loggedIds = new Set(teamSessions.filter(s => subItems.some(si => subItemLogged(si, s))).map(s => s.student_id))
+              const pctFor = (subItems, requiredCount = 1) => {
+                const loggedIds = new Set(
+                  teamSessions.filter(s => subItems.filter(si => subItemLogged(si, s)).length >= requiredCount).map(s => s.student_id)
+                )
                 return { count: loggedIds.size, pct: Math.round((loggedIds.size / teamCount) * 100) }
               }
               const targetFor = (sectionKey, questionLabel = null) =>
                 teamTargets.find(t => t.section_key === sectionKey && (t.question_label || null) === questionLabel)
+              // Section-level target frequency (e.g. "3x per week" or "3
+              // items" -> 3): the athlete needs to complete at least this
+              // many distinct items in the section, regardless of which
+              // ones or their individual values. No target = just 1
+              // (matches previous "logged anything" behaviour).
+              const parseFrequency = targetValue => {
+                if (!targetValue) return null
+                const match = targetValue.match(/(\d+)/)
+                return match ? parseInt(match[1], 10) : null
+              }
+
+              const parseNumericTarget = targetValue => {
+                if (!targetValue) return null
+                const match = targetValue.match(/(\d+(\.\d+)?)/)
+                return match ? parseFloat(match[1]) : null
+              }
+              // Question-level numeric evaluation (Phase 2): resolves a
+              // "get value from this athlete's session" function per
+              // sub-item type, then -- if the target has a parseable
+              // number -- checks the athlete's actual logged value
+              // against it, rather than just completion.
+              //
+              // - Wellbeing/Mentality: uses the extractor maps above
+              //   (only for genuinely numeric questions)
+              // - Physical/Technique/Tactical: no single "value" exists,
+              //   so this counts how many sessions/items were logged
+              //   today as a frequency (e.g. "Running: 3x" = 3 sessions)
+              // - Test: uses the first test in the category as the
+              //   representative metric, rather than averaging, since
+              //   some categories (e.g. Watt Bike) mix units (W vs km)
+              //   that can't be meaningfully averaged together
+              const resolveExtractor = sub => {
+                if (sub.wellbeingQ && WELLBEING_VALUE_EXTRACTORS[sub.wellbeingQ]) {
+                  const e = WELLBEING_VALUE_EXTRACTORS[sub.wellbeingQ]
+                  return { get: s => e.get(s.wellbeing), unit: e.unit }
+                }
+                if (sub.mentalityQ && MENTALITY_VALUE_EXTRACTORS[sub.mentalityQ]) {
+                  const e = MENTALITY_VALUE_EXTRACTORS[sub.mentalityQ]
+                  return { get: s => e.get(s.mentality_log), unit: e.unit }
+                }
+                if (sub.field) return { get: s => toEntries(s[sub.field]).length, unit: 'sessions' }
+                if (sub.matchStyle) return { get: s => (s.techniques || []).filter(t => t.style === sub.matchStyle).length, unit: 'techniques' }
+                if (sub.matchCategory) return { get: s => (s.tactical || []).filter(t => t.category === sub.matchCategory).length, unit: 'items' }
+                if (sub.testCategory) {
+                  const firstTest = sub.testCategory.tests[0]
+                  return { get: s => parseFloat(s.test?.[firstTest.name]), unit: firstTest.unit }
+                }
+                return null
+              }
+              const pctForSubItem = (sub, target) => {
+                const extractor = resolveExtractor(sub)
+                const targetNum = target && parseNumericTarget(target.target_value)
+                if (extractor && targetNum != null) {
+                  const values = teamSessions
+                    .map(s => ({ id: s.student_id, val: extractor.get(s) }))
+                    .filter(v => v.val != null && !isNaN(v.val))
+                  const metIds = new Set(values.filter(v => v.val >= targetNum).map(v => v.id))
+                  const avg = values.length ? (values.reduce((a, v) => a + v.val, 0) / values.length) : null
+                  return { count: metIds.size, pct: Math.round((metIds.size / teamCount) * 100), avg, unit: extractor.unit, numeric: true }
+                }
+                return { ...pctFor([sub]), numeric: false }
+              }
 
               return DASHBOARD_SECTIONS.map(section => {
-                const overall = pctFor(section.subItems)
                 const sectionTarget = targetFor(section.key)
+                const requiredCount = sectionTarget ? (parseFrequency(sectionTarget.target_value) || 1) : 1
+                const overall = pctFor(section.subItems, requiredCount)
                 const isOpen = expandedDashSection === section.key
                 return (
                   <div key={section.key} style={{ marginBottom: 8 }}>
-                    <button type="button" onClick={() => { setExpandedDashSection(isOpen ? null : section.key); setExpandedDashSubItem(null) }} style={{
+                    <button type="button" onClick={() => { setExpandedDashSection(isOpen ? null : section.key); setExpandedDashSubItem(null) }}
+                      title={sectionTarget ? `% of team who completed at least ${requiredCount} item${requiredCount === 1 ? '' : 's'} in this section today` : '% of team who logged anything in this section today'}
+                      style={{
                       width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
                       padding: '10px 14px', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
@@ -3128,13 +3230,14 @@ export default function AthleteProfiles() {
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 8 }}>
                           {section.subItems.map(sub => {
-                            const stat = pctFor([sub])
+                            const target = targetFor(section.key, sub.label)
+                            const stat = pctForSubItem(sub, target)
                             const subKey = `${section.key}::${sub.key}`
                             const active = expandedDashSubItem === subKey
-                            const target = targetFor(section.key, sub.label)
                             return (
                               <button key={sub.key} type="button"
                                 onClick={() => setExpandedDashSubItem(active ? null : subKey)}
+                                title={stat.numeric ? `${stat.count}/${teamCount} athletes hit this numeric target today` : undefined}
                                 style={{
                                   display: 'flex', flexDirection: 'column', gap: 2, padding: '8px 10px', textAlign: 'left',
                                   borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
@@ -3142,7 +3245,8 @@ export default function AthleteProfiles() {
                                 }}>
                                 <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--text)' }}>{sub.label}</span>
                                 <span style={{ fontSize: 15, fontWeight: 700, color: colour }}>{stat.pct}%</span>
-                                <span style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>{stat.count}/{teamCount}</span>
+                                <span style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>{stat.count}/{teamCount}{stat.numeric ? ' hit target' : ''}</span>
+                                {stat.numeric && stat.avg != null && <span style={{ fontSize: 9, color: 'var(--text-secondary)' }}>Avg: {stat.avg.toFixed(1)} {stat.unit}</span>}
                                 {target && <span style={{ fontSize: 9, color: '#EF9F27' }}>🎯 {target.target_value}</span>}
                               </button>
                             )
@@ -3153,13 +3257,21 @@ export default function AthleteProfiles() {
                           const subKey = `${section.key}::${sub.key}`
                           if (expandedDashSubItem !== subKey) return null
                           const target = targetFor(section.key, sub.label)
+                          const stat = pctForSubItem(sub, target)
                           return (
                             <div key={subKey} style={{ marginTop: 10, padding: 10, background: 'var(--bg-secondary)', borderRadius: 'var(--radius)' }}>
                               <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>{sub.label}</p>
                               {target ? (
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                                  <span style={{ fontSize: 12, color: '#EF9F27' }}>🎯 Current target: {target.target_value}</span>
-                                  <button onClick={() => deleteTeamTarget(target.id)} className="btn btn-sm" style={{ fontSize: 10 }}>Remove</button>
+                                <div style={{ marginBottom: 8 }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ fontSize: 12, color: '#EF9F27' }}>🎯 Current target: {target.target_value}</span>
+                                    <button onClick={() => deleteTeamTarget(target.id)} className="btn btn-sm" style={{ fontSize: 10 }}>Remove</button>
+                                  </div>
+                                  <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>
+                                    {stat.numeric
+                                      ? `Checking actual logged value (${stat.avg != null ? `team avg ${stat.avg.toFixed(1)} ${stat.unit}` : 'no data yet'}) against this target — ${stat.count}/${teamCount} athletes hit it today.`
+                                      : `This question doesn't have a numeric value tracked yet, so this target still checks simple completion (logged or not) rather than an exact number.`}
+                                  </p>
                                 </div>
                               ) : (
                                 <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8 }}>No target set for {sub.label} yet.</p>
