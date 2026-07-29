@@ -786,9 +786,6 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
   const [pdpView, setPdpView]       = useState('coach') // 'coach' | 'athlete' | 'split'
   const [editSection, setEditSection] = useState(null)
   const editingCardRef = useRef(null)
-  const swipeStartX = useRef(null)
-  const [isMobileView, setIsMobileView] = useState(() => typeof window !== 'undefined' && window.innerWidth < 900)
-  const [mobilePanel, setMobilePanel] = useState('dashboard') // 'list' | 'dashboard' -- which of the two "screens" mobile is showing
   const [editItems, setEditItems]   = useState([])
   const [newItem, setNewItem]       = useState('')
   const [saving, setSaving]         = useState(false)
@@ -1644,6 +1641,9 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
 export default function AthleteProfiles() {
   const { profile, isAdmin } = useAuth()
   const navigate = useNavigate()
+  const swipeStartX = useRef(null)
+  const [isMobileView, setIsMobileView] = useState(() => typeof window !== 'undefined' && window.innerWidth < 900)
+  const [mobilePanel, setMobilePanel] = useState('dashboard') // 'list' | 'dashboard' -- which of the two "screens" mobile is showing
   const [students, setStudents]     = useState([])
   const [houses, setHouses]         = useState([])
   const [truePointTotals, setTruePointTotals] = useState({})
