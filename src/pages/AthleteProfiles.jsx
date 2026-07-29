@@ -1616,10 +1616,8 @@ export default function AthleteProfiles() {
   // Athlete Dashboard (shown when no athlete is selected): team notes + events
   const [teamNotes, setTeamNotes] = useState([])
   const [dashNoteText, setDashNoteText] = useState('')
-  const [dashNoteToTeam, setDashNoteToTeam] = useState(true)
-  const [dashNoteTargets, setDashNoteTargets] = useState([]) // array of selected student objects
-  const [dashNoteSearch, setDashNoteSearch] = useState('')
-  const [showDashNoteDropdown, setShowDashNoteDropdown] = useState(false)
+  const [expandedNoteTargeting, setExpandedNoteTargeting] = useState(null) // team_notes.id whose targeting panel is open
+  const [noteTargetSearch, setNoteTargetSearch] = useState('')
   const [savingDashNote, setSavingDashNote] = useState(false)
   const [showAddEvent, setShowAddEvent] = useState(false)
   const [todaysAllSessions, setTodaysAllSessions] = useState([])
@@ -2002,36 +2000,46 @@ export default function AthleteProfiles() {
     setTeamTargets(prev => prev.filter(t => t.id !== id))
   }
 
-  // Athlete dropdown for targeting a dashboard note -- reuses the
+  // Athlete dropdown for targeting a specific saved note -- reuses the
   // already-loaded students list, showing everyone when the search is
-  // empty (full dropdown) or filtering as you type. Multi-select.
-  const dashNoteDropdownResults = students
-    .filter(s => !dashNoteTargets.find(t => t.id === s.id))
-    .filter(s => {
-      if (!dashNoteSearch) return true
-      const name = `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.toLowerCase()
-      return name.includes(dashNoteSearch.toLowerCase())
-    })
+  // empty (full dropdown) or filtering as you type. Multi-select,
+  // excludes athletes this note has already been sent to.
+  function noteDropdownResultsFor(note) {
+    const sentIds = new Set(note.sent_to_student_ids || [])
+    return students
+      .filter(s => !sentIds.has(s.id))
+      .filter(s => {
+        if (!noteTargetSearch) return true
+        const name = `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.toLowerCase()
+        return name.includes(noteTargetSearch.toLowerCase())
+      })
+  }
 
   async function addDashNote() {
     if (!dashNoteText.trim()) return
-    if (!dashNoteToTeam && dashNoteTargets.length === 0) return
     setSavingDashNote(true)
-    if (dashNoteToTeam) {
-      const { data, error } = await supabase.from('team_notes').insert({ note_text: dashNoteText.trim() }).select('*').single()
-      if (error) { alert('Error saving note: ' + error.message); setSavingDashNote(false); return }
-      setTeamNotes(prev => [data, ...prev])
-    }
-    for (const s of dashNoteTargets) {
-      const { error } = await supabase.from('athlete_notes_log').insert({ student_id: s.id, note_text: dashNoteText.trim() })
-      if (error) { alert(`Error saving note for ${s.members?.first_name}: ` + error.message); setSavingDashNote(false); return }
-    }
+    const { data, error } = await supabase.from('team_notes').insert({ note_text: dashNoteText.trim() }).select('*').single()
+    if (error) { alert('Error saving note: ' + error.message); setSavingDashNote(false); return }
+    setTeamNotes(prev => [data, ...prev])
     setDashNoteText('')
-    setDashNoteToTeam(true)
-    setDashNoteTargets([])
-    setDashNoteSearch('')
-    setShowDashNoteDropdown(false)
     setSavingDashNote(false)
+  }
+
+  async function sendNoteToAthlete(note, student) {
+    const { error } = await supabase.from('athlete_notes_log').insert({ student_id: student.id, note_text: note.note_text })
+    if (error) return alert(`Error sending to ${student.members?.first_name}: ` + error.message)
+    const updatedIds = [...new Set([...(note.sent_to_student_ids || []), student.id])]
+    const { error: err2 } = await supabase.from('team_notes').update({ sent_to_student_ids: updatedIds }).eq('id', note.id)
+    if (err2) return alert('Error updating note: ' + err2.message)
+    setTeamNotes(prev => prev.map(n => n.id === note.id ? { ...n, sent_to_student_ids: updatedIds } : n))
+    setNoteTargetSearch('')
+  }
+
+  async function removeNoteTarget(note, studentId) {
+    const updatedIds = (note.sent_to_student_ids || []).filter(id => id !== studentId)
+    const { error } = await supabase.from('team_notes').update({ sent_to_student_ids: updatedIds }).eq('id', note.id)
+    if (error) return alert('Error updating note: ' + error.message)
+    setTeamNotes(prev => prev.map(n => n.id === note.id ? { ...n, sent_to_student_ids: updatedIds } : n))
   }
 
   async function deleteTeamNote(id) {
@@ -2753,33 +2761,33 @@ export default function AthleteProfiles() {
   if (loading) return <div className="loading">Loading athlete profiles…</div>
 
   return (
-    <div style={{ display: 'flex', gap: 16, minHeight: 600 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minHeight: 600 }}>
 
-      {/* ── Left: student list ── */}
+      {/* ── Athlete list ── */}
       {!selected && (
-      <div style={{ width: 220, flexShrink: 0 }}>
+      <div style={{ width: '100%' }}>
         <input value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Search athletes…"
-          style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 12, background: 'var(--bg-secondary)', color: 'var(--text)', marginBottom: 8 }} />
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 560, overflowY: 'auto' }}>
+          style={{ width: '100%', padding: '12px 14px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 15, background: 'var(--bg-secondary)', color: 'var(--text)', marginBottom: 12 }} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 10 }}>
           {filtered.map(s => {
             const col = HOUSE_COLOURS[s.members?.houses?.name] || '#888'
             const isSelected = selected?.id === s.id
             return (
               <div key={s.id} onClick={() => selectStudent(s)} style={{
-                padding: '9px 10px', borderRadius: 'var(--radius)', cursor: 'pointer',
+                padding: '14px 16px', borderRadius: 'var(--border-radius-lg)', cursor: 'pointer',
                 background: isSelected ? col + '18' : 'var(--bg)',
                 border: `1px solid ${isSelected ? col : 'var(--border)'}`,
-                display: 'flex', alignItems: 'center', gap: 8,
+                display: 'flex', alignItems: 'center', gap: 12,
               }}>
-                <div style={{ width: 28, height: 28, borderRadius: '50%', background: col + '22', color: col, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
+                <div style={{ width: 44, height: 44, borderRadius: '50%', background: col + '22', color: col, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, flexShrink: 0 }}>
                   {(s.members?.first_name?.[0] || '') + (s.members?.last_name?.[0] || '')}
                 </div>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div style={{ fontSize: 16, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {s.members?.first_name} {s.members?.last_name}
                   </div>
-                  <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{s.student_ref}</div>
+                  <div style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>{s.student_ref}</div>
                 </div>
               </div>
             )
@@ -2788,10 +2796,10 @@ export default function AthleteProfiles() {
       </div>
       )}
 
-      {/* ── Right: profile detail ── */}
+      {/* ── Athlete Dashboard / profile detail -- under the list ── */}
       <div style={{ flex: 1, minWidth: 0 }}>
         {!selected ? (
-          <div style={{ maxWidth: 700 }}
+          <div style={{ maxWidth: 900 }}
             onTouchStart={e => { swipeStartX.current = e.touches[0].clientX }}
             onTouchEnd={e => {
               if (swipeStartX.current == null) return
@@ -2813,56 +2821,63 @@ export default function AthleteProfiles() {
                 <textarea value={dashNoteText} onChange={e => setDashNoteText(e.target.value)}
                   placeholder="Write a note…" rows={2}
                   style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
-                  <button className="btn btn-sm" onClick={() => setDashNoteToTeam(v => !v)}
-                    style={{ background: dashNoteToTeam ? '#378ADD20' : undefined, borderColor: dashNoteToTeam ? '#378ADD' : undefined }}>
-                    👥 Team {dashNoteToTeam ? '✓' : ''}
-                  </button>
-                  {dashNoteTargets.map(s => (
-                    <span key={s.id} className="btn btn-sm" style={{ background: '#1D9E7520', borderColor: '#1D9E75', cursor: 'pointer' }}
-                      onClick={() => setDashNoteTargets(prev => prev.filter(t => t.id !== s.id))} title="Click to remove">
-                      → {s.members?.first_name} {s.members?.last_name} ×
-                    </span>
-                  ))}
-                  <div style={{ position: 'relative', flex: 1, minWidth: 160 }}>
-                    <input value={dashNoteSearch} onChange={e => setDashNoteSearch(e.target.value)}
-                      onFocus={() => setShowDashNoteDropdown(true)}
-                      placeholder="Or search/select athletes to send to…"
-                      style={{ width: '100%' }} />
-                    {showDashNoteDropdown && (
-                      <div className="card" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10, padding: 4, maxHeight: 240, overflowY: 'auto' }}>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '2px 4px 4px' }}>
-                          <button onClick={() => setShowDashNoteDropdown(false)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 12 }}>Close</button>
-                        </div>
-                        {dashNoteDropdownResults.length === 0 ? (
-                          <p style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: '6px 8px' }}>No matching athletes.</p>
-                        ) : dashNoteDropdownResults.map(s => (
-                          <button key={s.id} onClick={() => { setDashNoteTargets(prev => [...prev, s]); setDashNoteSearch('') }}
-                            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, borderRadius: 6 }}>
-                            {s.members?.first_name} {s.members?.last_name}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <button className="btn btn-primary btn-sm" disabled={!dashNoteText.trim() || (!dashNoteToTeam && dashNoteTargets.length === 0) || savingDashNote} onClick={addDashNote}>
-                  {savingDashNote ? 'Saving…' : '+ Send note'}
+                <button className="btn btn-primary btn-sm" disabled={!dashNoteText.trim() || savingDashNote} onClick={addDashNote}>
+                  {savingDashNote ? 'Saving…' : 'Save here'}
                 </button>
 
                 {teamNotes.length > 0 && (
                   <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {teamNotes.map(note => (
-                      <div key={note.id} style={{ padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                          <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>
-                            {new Date(note.created_at).toLocaleDateString('en-GB')} · {new Date(note.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                    {teamNotes.map(note => {
+                      const sentIds = note.sent_to_student_ids || []
+                      const sentStudents = students.filter(s => sentIds.includes(s.id))
+                      const isIndividual = sentIds.length > 0
+                      const targeting = expandedNoteTargeting === note.id
+                      return (
+                        <div key={note.id} style={{ padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>
+                              {new Date(note.created_at).toLocaleDateString('en-GB')} · {new Date(note.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                            <button onClick={() => deleteTeamNote(note.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14 }}>×</button>
                           </div>
-                          <button onClick={() => deleteTeamNote(note.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14 }}>×</button>
+                          <p style={{ fontSize: 13, margin: '0 0 8px' }}>{note.note_text}</p>
+
+                          <button className="btn btn-sm" style={{ fontSize: 11 }}
+                            onClick={() => { setExpandedNoteTargeting(targeting ? null : note.id); setNoteTargetSearch('') }}>
+                            {isIndividual ? `☑ Individual (${sentIds.length})` : '👥 Team'} {targeting ? '▲' : '▼'}
+                          </button>
+
+                          {targeting && (
+                            <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+                              {sentStudents.length > 0 && (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                                  {sentStudents.map(s => (
+                                    <span key={s.id} className="btn btn-sm" style={{ background: '#1D9E7520', borderColor: '#1D9E75', cursor: 'pointer', fontSize: 11 }}
+                                      onClick={() => removeNoteTarget(note, s.id)} title="Click to remove">
+                                      → {s.members?.first_name} {s.members?.last_name} ×
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                              <div style={{ position: 'relative' }}>
+                                <input value={noteTargetSearch} onChange={e => setNoteTargetSearch(e.target.value)}
+                                  placeholder="Search athletes to also send this note to…" style={{ width: '100%', fontSize: 12 }} />
+                                <div className="card" style={{ marginTop: 4, padding: 4, maxHeight: 200, overflowY: 'auto' }}>
+                                  {noteDropdownResultsFor(note).length === 0 ? (
+                                    <p style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: '6px 8px' }}>No matching athletes.</p>
+                                  ) : noteDropdownResultsFor(note).map(s => (
+                                    <button key={s.id} onClick={() => sendNoteToAthlete(note, s)}
+                                      style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, borderRadius: 6 }}>
+                                      {s.members?.first_name} {s.members?.last_name}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
-                        <p style={{ fontSize: 13, margin: 0 }}>{note.note_text}</p>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </div>
