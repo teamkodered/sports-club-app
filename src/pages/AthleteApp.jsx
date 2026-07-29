@@ -653,6 +653,8 @@ export default function AthleteApp() {
   const [apData, setApData]     = useState(null)
   const [assignedClasses, setAssignedClasses] = useState([])
   const [clubEvents, setClubEvents] = useState([])
+  const [myReports, setMyReports] = useState([])
+  const [expandedReportId, setExpandedReportId] = useState(null)
   const [sessionsCalMonth, setSessionsCalMonth] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() } })
   const [weekTimetableStart, setWeekTimetableStart] = useState(() => {
     const d = new Date()
@@ -887,6 +889,9 @@ export default function AthleteApp() {
 
         supabase.from('club_events').select('*').eq('send_to_all_students', true).order('event_date')
           .then(({ data, error }) => { if (!error) setClubEvents(data || []) })
+
+        supabase.from('athlete_reports').select('*').eq('student_id', s.id).order('sent_at', { ascending: false })
+          .then(({ data, error }) => { if (!error) setMyReports(data || []) })
 
         const [{ data: houseData }, { data: rankData }] = await Promise.all([
           supabase.from('houses').select('id, name, points').order('points', { ascending: false }),
@@ -1163,6 +1168,7 @@ export default function AthleteApp() {
     ['home',      '🏠 Home'],
     ['sessions',  '📅 Sessions'],
     ['pdp',       '🎯 My PDP'],
+    ['reports',   '📄 Reports'],
     ['analysis',  '📊 Analysis'],
     ['fit2fight', '💪 Fit II Fight'],
     ['points',    '⭐ Points'],
@@ -2545,6 +2551,66 @@ export default function AthleteApp() {
                         {items.length > 0 ? items.map((item, i) => (
                           <span key={i} style={{ background: section.colour + '15', color: section.colour, borderRadius: 20, padding: '4px 10px', fontSize: 12 }}>{item}</span>
                         )) : <span style={{ fontSize: 12, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>No notes yet</span>}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Reports ── */}
+      {tab === 'reports' && (
+        <div>
+          {myReports.length === 0 ? (
+            <div className="empty-state"><h3>No reports yet</h3><p>Reports your coach sends will appear here</p></div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {myReports.map(r => {
+                const d = r.report_data
+                const expanded = expandedReportId === r.id
+                return (
+                  <div key={r.id} className="card" style={{ cursor: 'pointer' }} onClick={() => setExpandedReportId(expanded ? null : r.id)}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 600 }}>
+                          {new Date(r.date_from).toLocaleDateString('en-GB')} – {new Date(r.date_to).toLocaleDateString('en-GB')}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Sent {new Date(r.sent_at).toLocaleDateString('en-GB')}</div>
+                      </div>
+                      <span style={{ fontSize: 12, color: colour }}>{expanded ? '▲ Hide' : '▼ View'}</span>
+                    </div>
+                    {expanded && (
+                      <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 8, marginBottom: 12 }}>
+                          {[
+                            { label: 'Total points', value: d.points?.total ?? 0, colour: colour },
+                            { label: 'Class champ', value: `🏆 ${d.points?.champ ?? 0}x`, colour: '#EF9F27' },
+                            { label: 'Sessions', value: d.sessions?.length ?? 0, colour: '#378ADD' },
+                            { label: 'Weight change', value: d.weightChange ? `${d.weightChange > 0 ? '+' : ''}${d.weightChange}kg` : '—', colour: '#1D9E75' },
+                          ].map(stat => (
+                            <div key={stat.label} style={{ padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                              <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{stat.label}</div>
+                              <div style={{ fontSize: 16, fontWeight: 700, color: stat.colour }}>{stat.value}</div>
+                            </div>
+                          ))}
+                        </div>
+                        {d.points?.log?.length > 0 && (
+                          <div style={{ marginBottom: 12 }}>
+                            <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Points log ({d.points.log.length} entries)</p>
+                            {d.points.log.slice(0, 10).map((p, i) => (
+                              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '3px 0', borderBottom: '1px solid var(--border)' }}>
+                                <span>{p.point_type}</span>
+                                <span style={{ color: 'var(--text-tertiary)' }}>+{p.points_awarded} · {new Date(p.awarded_at).toLocaleDateString('en-GB')}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {(d.tptBox?.[0] || d.tptKb?.[0]) && (
+                          <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>TTP assessments are included in this report's underlying data — view your TTP tab on the admin profile page for the full breakdown.</p>
+                        )}
                       </div>
                     )}
                   </div>

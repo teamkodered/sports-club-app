@@ -1882,6 +1882,14 @@ export default function AthleteProfiles() {
   const [reportLoading, setReportLoading] = useState(false)
   const [reportFrom, setReportFrom] = useState(() => { const d = new Date(); d.setMonth(d.getMonth()-3); return d.toISOString().split('T')[0] })
   const [reportTo, setReportTo]     = useState(new Date().toISOString().split('T')[0])
+  const [showSendReports, setShowSendReports] = useState(false)
+  const [sendReportsTarget, setSendReportsTarget] = useState('all') // 'all' or 'selected'
+  const [sendReportsSelected, setSendReportsSelected] = useState([]) // array of student objects
+  const [sendReportsFrom, setSendReportsFrom] = useState(() => { const d = new Date(); d.setMonth(d.getMonth()-3); return d.toISOString().split('T')[0] })
+  const [sendReportsTo, setSendReportsTo] = useState(new Date().toISOString().split('T')[0])
+  const [sendingReports, setSendingReports] = useState(false)
+  const [sendReportsProgress, setSendReportsProgress] = useState(null) // { done, total }
+  const [recentSentReports, setRecentSentReports] = useState([])
   const [invitingId, setInvitingId] = useState(null)
   const [showQr, setShowQr] = useState(false)
 
@@ -1963,6 +1971,12 @@ export default function AthleteProfiles() {
   useEffect(() => {
     supabase.from('team_targets').select('*').order('section_key').order('question_label')
       .then(({ data }) => setTeamTargets(data || []))
+  }, [])
+
+  useEffect(() => {
+    supabase.from('athlete_reports').select('id, student_id, date_from, date_to, sent_at, students(student_ref, members(first_name, last_name))')
+      .order('sent_at', { ascending: false }).limit(20)
+      .then(({ data }) => setRecentSentReports(data || []))
   }, [])
 
   async function addTeamTarget() {
@@ -2047,6 +2061,34 @@ export default function AthleteProfiles() {
     const { error } = await supabase.from('club_events').delete().eq('id', id)
     if (error) return alert('Error: ' + error.message)
     setClubEvents(prev => prev.filter(e => e.id !== id))
+  }
+
+  async function sendReportsBulk() {
+    const targets = sendReportsTarget === 'all'
+      ? students.filter(s => s.is_kr || s.is_pts || s.discipline === 'KRBA')
+      : sendReportsSelected
+    if (targets.length === 0) return
+    setSendingReports(true)
+    setSendReportsProgress({ done: 0, total: targets.length })
+    let sentCount = 0
+    for (const student of targets) {
+      const data = await buildReportData(student, sendReportsFrom, sendReportsTo)
+      const { error } = await supabase.from('athlete_reports').insert({
+        student_id: student.id, report_data: data, date_from: sendReportsFrom, date_to: sendReportsTo,
+      })
+      if (error) alert(`Error sending report for ${student.members?.first_name}: ` + error.message)
+      else sentCount++
+      setSendReportsProgress(p => ({ done: p.done + 1, total: p.total }))
+    }
+    const { data: refreshed } = await supabase.from('athlete_reports')
+      .select('id, student_id, date_from, date_to, sent_at, students(student_ref, members(first_name, last_name))')
+      .order('sent_at', { ascending: false }).limit(20)
+    setRecentSentReports(refreshed || [])
+    setSendingReports(false)
+    setSendReportsProgress(null)
+    setSendReportsSelected([])
+    setShowSendReports(false)
+    alert(`Sent ${sentCount} report${sentCount === 1 ? '' : 's'}.`)
   }
 
   useEffect(() => {
@@ -2607,36 +2649,35 @@ export default function AthleteProfiles() {
     setSaving(false)
   }
 
-  async function generateReport() {
-    if (!selected) return
-    setReportLoading(true)
-
-    const [{ data: pts }, { data: sessions }, { data: tptKb }, { data: tptBox }] = await Promise.all([
+  async function buildReportData(student, from, to) {
+    const [{ data: pts }, { data: sessions }, { data: tptKb }, { data: tptBox }, { data: apRows }] = await Promise.all([
       supabase.from('points_log')
         .select('point_type, points_awarded, point_scope, awarded_at')
-        .eq('student_id', selected.id)
-        .gte('awarded_at', reportFrom)
-        .lte('awarded_at', reportTo + 'T23:59:59')
+        .eq('student_id', student.id)
+        .gte('awarded_at', from)
+        .lte('awarded_at', to + 'T23:59:59')
         .order('awarded_at', { ascending: false }),
 
       supabase.from('fit2fight_sessions')
         .select('session_date, weight_before, weight_after, running, watt_bike, bodyweight')
-        .eq('student_id', selected.id)
-        .gte('session_date', reportFrom)
-        .lte('session_date', reportTo)
+        .eq('student_id', student.id)
+        .gte('session_date', from)
+        .lte('session_date', to)
         .order('session_date', { ascending: false }),
 
       supabase.from('tpt_kickboxing')
         .select('assessed_at, weight_kg, straight_punches, push_ups, flat_plank, bleep_test_level, vertical_jump')
-        .eq('student_id', selected.id)
+        .eq('student_id', student.id)
         .order('assessed_at', { ascending: false })
         .limit(5),
 
       supabase.from('tpt_boxing')
         .select('assessed_at, shapes, punch_quality, footwork, defence, heart_grit')
-        .eq('student_id', selected.id)
+        .eq('student_id', student.id)
         .order('assessed_at', { ascending: false })
         .limit(5),
+
+      supabase.from('athlete_profiles').select('*').eq('student_id', student.id).limit(1),
     ])
 
     const totalPts = (pts || []).reduce((s, p) => s + (p.points_awarded || 0), 0)
@@ -2644,16 +2685,23 @@ export default function AthleteProfiles() {
     const firstWeight = sessions?.find(s => s.weight_before)?.weight_before
     const lastWeight  = [...(sessions || [])].reverse().find(s => s.weight_after)?.weight_after
 
-    setReportData({
-      student: selected,
-      period: { from: reportFrom, to: reportTo },
+    return {
+      student,
+      period: { from, to },
       points: { total: totalPts, champ: champCount, log: pts || [] },
       sessions: sessions || [],
       tptKb: tptKb || [],
       tptBox: tptBox || [],
       weightChange: firstWeight && lastWeight ? (parseFloat(lastWeight) - parseFloat(firstWeight)).toFixed(2) : null,
-      profile: apData,
-    })
+      profile: apRows?.[0] || null,
+    }
+  }
+
+  async function generateReport() {
+    if (!selected) return
+    setReportLoading(true)
+    const data = await buildReportData(selected, reportFrom, reportTo)
+    setReportData(data)
     setReportLoading(false)
   }
 
@@ -2813,6 +2861,79 @@ export default function AthleteProfiles() {
                           <button onClick={() => deleteTeamNote(note.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14 }}>×</button>
                         </div>
                         <p style={{ fontSize: 13, margin: 0 }}>{note.note_text}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Send Reports */}
+            <div className="card" style={{ padding: 0, marginBottom: 14 }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h2 style={{ fontSize: 14, fontWeight: 600 }}>📄 Send Reports</h2>
+                <button className="btn btn-sm" onClick={() => setShowSendReports(v => !v)}>{showSendReports ? 'Cancel' : '+ Send reports'}</button>
+              </div>
+              <div style={{ padding: 16 }}>
+                {showSendReports && (
+                  <div style={{ marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                      <button className="btn btn-sm" onClick={() => setSendReportsTarget('all')}
+                        style={{ background: sendReportsTarget === 'all' ? '#378ADD20' : undefined, borderColor: sendReportsTarget === 'all' ? '#378ADD' : undefined }}>
+                        👥 All athletes
+                      </button>
+                      <button className="btn btn-sm" onClick={() => setSendReportsTarget('selected')}
+                        style={{ background: sendReportsTarget === 'selected' ? '#378ADD20' : undefined, borderColor: sendReportsTarget === 'selected' ? '#378ADD' : undefined }}>
+                        ☑ Checked individuals {sendReportsSelected.length > 0 ? `(${sendReportsSelected.length})` : ''}
+                      </button>
+                    </div>
+
+                    {sendReportsTarget === 'selected' && (
+                      <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 8, marginBottom: 10 }}>
+                        {students.filter(s => s.is_kr || s.is_pts || s.discipline === 'KRBA').map(s => {
+                          const checked = sendReportsSelected.some(t => t.id === s.id)
+                          return (
+                            <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, padding: '4px 0', cursor: 'pointer' }}>
+                              <input type="checkbox" checked={checked}
+                                onChange={() => setSendReportsSelected(prev => checked ? prev.filter(t => t.id !== s.id) : [...prev, s])}
+                                style={{ width: 15, height: 15 }} />
+                              {s.members?.first_name} {s.members?.last_name}
+                            </label>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+                      <div>
+                        <label style={{ fontSize: 11, color: 'var(--text-tertiary)', display: 'block', marginBottom: 2 }}>From</label>
+                        <input type="date" value={sendReportsFrom} onChange={e => setSendReportsFrom(e.target.value)} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, color: 'var(--text-tertiary)', display: 'block', marginBottom: 2 }}>To</label>
+                        <input type="date" value={sendReportsTo} onChange={e => setSendReportsTo(e.target.value)} />
+                      </div>
+                    </div>
+
+                    <button className="btn btn-primary btn-sm"
+                      disabled={sendingReports || (sendReportsTarget === 'selected' && sendReportsSelected.length === 0)}
+                      onClick={sendReportsBulk}>
+                      {sendingReports ? `Sending… ${sendReportsProgress?.done ?? 0}/${sendReportsProgress?.total ?? 0}` : 'Generate & Send'}
+                    </button>
+                    <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 6 }}>
+                      Reports appear in each athlete's own app, and in the list below for you to view too.
+                    </p>
+                  </div>
+                )}
+
+                {recentSentReports.length === 0 ? (
+                  <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No reports sent yet.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {recentSentReports.map(r => (
+                      <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: 12 }}>
+                        <span>{r.students?.members?.first_name} {r.students?.members?.last_name} — {new Date(r.date_from).toLocaleDateString('en-GB')} to {new Date(r.date_to).toLocaleDateString('en-GB')}</span>
+                        <span style={{ color: 'var(--text-tertiary)' }}>{new Date(r.sent_at).toLocaleDateString('en-GB')}</span>
                       </div>
                     ))}
                   </div>
