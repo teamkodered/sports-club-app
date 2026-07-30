@@ -3821,7 +3821,7 @@ export default function AthleteProfiles() {
                       {isAdmin && <span style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 400 }}>Tap a field to edit</span>}
                     </div>
                     {[
-                      { label: 'Discipline', editable: true, render: () => {
+                      { label: 'Club', editable: true, render: () => {
                         const codeDisplay = selected.discipline_codes || selected.discipline || '—'
                         return isAdmin ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
