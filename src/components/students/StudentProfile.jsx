@@ -15,6 +15,11 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
   const [houses, setHouses] = useState([])
   const [saving, setSaving] = useState(false)
   const [localStudent, setLocalStudent] = useState(student)
+  const [assignedClasses, setAssignedClasses] = useState([])
+  const [allClasses, setAllClasses] = useState([])
+  const [addingClass, setAddingClass] = useState(false)
+  const [addClassSelection, setAddClassSelection] = useState('')
+  const [savingClassAdd, setSavingClassAdd] = useState(false)
 
   useEffect(() => { setLocalStudent(student) }, [student?.id])
 
@@ -25,6 +30,40 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
   useEffect(() => {
     supabase.from('houses').select('id,name').order('name').then(({ data }) => setHouses(data || []))
   }, [])
+
+  useEffect(() => {
+    supabase.from('classes').select('*').eq('active', true).order('day_of_week').order('start_time')
+      .then(({ data }) => setAllClasses(data || []))
+  }, [])
+
+  useEffect(() => {
+    loadAssignedClasses()
+  }, [localStudent?.id])
+
+  async function loadAssignedClasses() {
+    if (!localStudent?.id) return
+    const { data } = await supabase.from('student_class_assignments').select('id, class_id, classes(*)').eq('student_id', localStudent.id)
+    setAssignedClasses(data || [])
+  }
+
+  async function addClassAssignment() {
+    if (!addClassSelection) return
+    setSavingClassAdd(true)
+    const { data, error } = await supabase.from('student_class_assignments')
+      .insert({ student_id: localStudent.id, class_id: addClassSelection })
+      .select('id, class_id, classes(*)').single()
+    if (error) { alert('Error adding class: ' + error.message); setSavingClassAdd(false); return }
+    setAssignedClasses(prev => [...prev, data])
+    setAddingClass(false)
+    setAddClassSelection('')
+    setSavingClassAdd(false)
+  }
+
+  async function removeClassAssignment(assignmentId) {
+    const { error } = await supabase.from('student_class_assignments').delete().eq('id', assignmentId)
+    if (error) return alert('Error removing class: ' + error.message)
+    setAssignedClasses(prev => prev.filter(a => a.id !== assignmentId))
+  }
 
   useEffect(() => {
     loadSettings()
@@ -198,6 +237,43 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
                         <div style={{ fontSize: 13, fontWeight: 500 }}>{val}</div>
                       </div>
                     ))}
+                  </div>
+                  <div style={{ marginTop: 16 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <h3 style={{ fontSize: 13, fontWeight: 600 }}>Classes</h3>
+                      {isAdmin && (
+                        <button className="btn btn-sm" onClick={() => { setAddingClass(v => !v); setAddClassSelection('') }}>
+                          {addingClass ? 'Cancel' : '+ Add class'}
+                        </button>
+                      )}
+                    </div>
+                    {addingClass && (
+                      <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+                        <select value={addClassSelection} onChange={e => setAddClassSelection(e.target.value)} style={{ flex: 1, minWidth: 160 }}>
+                          <option value="">— Select a class —</option>
+                          {allClasses.filter(cl => !assignedClasses.some(a => a.class_id === cl.id)).map(cl => (
+                            <option key={cl.id} value={cl.id}>{cl.name} ({cl.day_of_week} {cl.start_time?.slice(0,5)})</option>
+                          ))}
+                        </select>
+                        <button className="btn btn-sm btn-primary" disabled={!addClassSelection || savingClassAdd} onClick={addClassAssignment}>
+                          {savingClassAdd ? '…' : 'Add'}
+                        </button>
+                      </div>
+                    )}
+                    {assignedClasses.length === 0 ? (
+                      <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No classes assigned yet.</p>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {assignedClasses.map(a => (
+                          <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: 13 }}>
+                            <span>{a.classes?.name} — {a.classes?.day_of_week} {a.classes?.start_time?.slice(0,5)}</span>
+                            {isAdmin && (
+                              <button onClick={() => removeClassAssignment(a.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14 }}>×</button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   {isAdmin && (
                     <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>

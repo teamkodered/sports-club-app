@@ -56,6 +56,10 @@ export default function StudentDatabase() {
   const [statusFilter, setStatusFilter] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
   const [selected, setSelected]       = useState(null)
+  const [allClasses, setAllClasses] = useState([])
+  const [addingClassFor, setAddingClassFor] = useState(null) // student id currently showing the add-class row
+  const [addClassSelection, setAddClassSelection] = useState('')
+  const [savingClassAdd, setSavingClassAdd] = useState(false)
   const [stopping, setStopping]       = useState(null)
   const [roleEdit, setRoleEdit]       = useState(null)
   const [sortKey, setSortKey]         = useState('last_name')
@@ -88,6 +92,10 @@ export default function StudentDatabase() {
   }
 
   useEffect(() => { load() }, [])
+  useEffect(() => {
+    supabase.from('classes').select('*').eq('active', true).order('day_of_week').order('start_time')
+      .then(({ data }) => setAllClasses(data || []))
+  }, [])
 
   useEffect(() => {
     const id = searchParams.get('id')
@@ -209,6 +217,16 @@ export default function StudentDatabase() {
     const { error } = await supabase.from('students').update({ [field]: value }).eq('id', studentId)
     if (error) { alert('Error saving change: ' + error.message); return }
     setStudents(prev => prev.map(s => s.id === studentId ? { ...s, [field]: value } : s))
+  }
+
+  async function addClassAssignment(studentId) {
+    if (!addClassSelection) return
+    setSavingClassAdd(true)
+    const { error } = await supabase.from('student_class_assignments').insert({ student_id: studentId, class_id: addClassSelection })
+    if (error) { alert('Error adding class: ' + error.message); setSavingClassAdd(false); return }
+    setAddingClassFor(null)
+    setAddClassSelection('')
+    setSavingClassAdd(false)
   }
 
   async function updateGrade(s, value) {
@@ -397,25 +415,46 @@ export default function StudentDatabase() {
                       )
                       case 'class_schedule': return (
                         <td key={c.key}>
-                          {isAdmin ? (
-                            <select value={s.class_schedule || ''} onChange={e => updateStudentField(s.id, 'class_schedule', e.target.value || null)}
+                          {addingClassFor === s.id ? (
+                            <select value={addClassSelection} onChange={e => setAddClassSelection(e.target.value)}
                               style={{ fontSize: 12, padding: '3px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
-                              <option value="">— Not set —</option>
-                              <option>Mon/Fri</option>
-                              <option>Tue/Thu</option>
-                              <option>Wed/Sun</option>
-                              <option>Wednesday</option>
-                              <option>Saturday</option>
-                              <option>Sunday</option>
-                              <option>Derby Moore</option>
-                              <option>Moorways</option>
+                              <option value="">— Select a class —</option>
+                              {allClasses.map(cl => <option key={cl.id} value={cl.id}>{cl.name} ({cl.day_of_week} {cl.start_time?.slice(0,5)})</option>)}
                             </select>
-                          ) : <span style={{ fontSize: 12 }}>{s.class_schedule || '—'}</span>}
+                          ) : (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                              {isAdmin && (
+                                <button onClick={() => { setAddingClassFor(s.id); setAddClassSelection('') }}
+                                  title="Add an extra class for this student"
+                                  style={{ background: 'none', border: '1px solid var(--border-strong)', borderRadius: 4, cursor: 'pointer', fontSize: 11, width: 18, height: 18, lineHeight: 1, padding: 0, color: 'var(--text-secondary)' }}>+</button>
+                              )}
+                              {isAdmin ? (
+                                <select value={s.class_schedule || ''} onChange={e => updateStudentField(s.id, 'class_schedule', e.target.value || null)}
+                                  style={{ fontSize: 12, padding: '3px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
+                                  <option value="">— Not set —</option>
+                                  <option>Mon/Fri</option>
+                                  <option>Tue/Thu</option>
+                                  <option>Wed/Sun</option>
+                                  <option>Wednesday</option>
+                                  <option>Saturday</option>
+                                  <option>Sunday</option>
+                                  <option>Derby Moore</option>
+                                  <option>Moorways</option>
+                                </select>
+                              ) : <span style={{ fontSize: 12 }}>{s.class_schedule || '—'}</span>}
+                            </div>
+                          )}
                         </td>
                       )
                       case 'class_time':   return (
                         <td key={c.key}>
-                          {isAdmin ? (
+                          {addingClassFor === s.id ? (
+                            <div style={{ display: 'flex', gap: 4 }}>
+                              <button className="btn btn-sm" style={{ fontSize: 11 }} disabled={!addClassSelection || savingClassAdd}
+                                onClick={() => addClassAssignment(s.id)}>{savingClassAdd ? '…' : 'Add'}</button>
+                              <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => setAddingClassFor(null)}>Cancel</button>
+                            </div>
+                          ) : isAdmin ? (
                             <select value={s.class_time || ''} onChange={e => updateStudentField(s.id, 'class_time', e.target.value || null)}
                               style={{ fontSize: 12, padding: '3px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
                               <option value="">— Not set —</option>
