@@ -1710,6 +1710,7 @@ export default function AthleteProfiles() {
   const [dashClubFilter, setDashClubFilter] = useState('all') // 'all' | 'PKA' | 'KRBA'
   const [showDashWeightList, setShowDashWeightList] = useState(false)
   const [dashLevelIndex, setDashLevelIndex] = useState(0)
+  const [highlightedEntryId, setHighlightedEntryId] = useState(null)
   const [showRecordAsPct, setShowRecordAsPct] = useState(false)
   const recordPressTimer = useRef(null)
   const [showTeamKrDropdown, setShowTeamKrDropdown] = useState(false)
@@ -5971,10 +5972,10 @@ export default function AthleteProfiles() {
               // s.watt_bike.* / s.running.* the same way as before.
               const wattData = sorted.flatMap(s => toEntries(s.watt_bike)
                 .filter(e => Array.isArray(e.sets) && e.sets.length > 0)
-                .map(e => ({ session_date: s.session_date, watt_bike: e })))
+                .map(e => ({ id: s.id, session_date: s.session_date, watt_bike: e })))
               const runData = sorted.flatMap(s => toEntries(s.running)
                 .filter(e => Array.isArray(e.sets) && e.sets.length > 0)
-                .map(e => ({ session_date: s.session_date, running: e })))
+                .map(e => ({ id: s.id, session_date: s.session_date, running: e })))
 
               // SVG line chart helper
               function LineChart({ data, lines, height=160, title, unit='' }) {
@@ -6052,7 +6053,12 @@ export default function AthleteProfiles() {
                                   onPointerUp={() => {
                                     clearTimeout(pressTimer.current)
                                     if (heldRef.current) { setChartPopup(null); return }
-                                    navigate(`/fit2fight?student_id=${selected?.id}&date=${d.session_date}`)
+                                    if (d.id == null) return
+                                    const el = document.getElementById(`f2f-entry-${d.id}`)
+                                    if (!el) return
+                                    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                                    setHighlightedEntryId(d.id)
+                                    setTimeout(() => setHighlightedEntryId(cur => cur === d.id ? null : cur), 2000)
                                   }}
                                   onPointerLeave={() => clearTimeout(pressTimer.current)}
                                 />
@@ -6122,7 +6128,7 @@ export default function AthleteProfiles() {
                   <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
                     <a href={`/fit2fight?student_id=${selected?.id}`} className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, zIndex: 1 }}>+ Log</a>
                     <LineChart
-                      data={weightData.map(s => ({ session_date: s.session_date, before: s.weight_before, after: s.weight_after }))}
+                      data={weightData.map(s => ({ id: s.id, session_date: s.session_date, before: s.weight_before, after: s.weight_after }))}
                       lines={[
                         { key: 'before', label: 'Before', colour: '#378ADD' },
                         { key: 'after',  label: 'After',  colour: '#1D9E75' },
@@ -6143,7 +6149,7 @@ export default function AthleteProfiles() {
                     key: `set${i}`, label: `Set ${i+1}`, colour: SET_COLOURS[i % SET_COLOURS.length]
                   }))
                   const chartData = filteredWatt.map(s => {
-                    const obj = { session_date: s.session_date }
+                    const obj = { id: s.id, session_date: s.session_date }
                     ;(s.watt_bike?.sets || []).forEach((v,i) => {
                       // New shape is {wattage, distance}; older entries were a plain number/string
                       obj[`set${i}`] = (v && typeof v === 'object') ? v.wattage : v
@@ -6190,7 +6196,7 @@ export default function AthleteProfiles() {
                     return v
                   }
                   const chartData = filteredRun.map(s => {
-                    const obj = { session_date: s.session_date }
+                    const obj = { id: s.id, session_date: s.session_date }
                     ;(s.running?.sets || []).forEach((v,i) => { obj[`set${i}`] = toChartValue(v) })
                     return obj
                   })
@@ -6218,7 +6224,7 @@ export default function AthleteProfiles() {
                   const bleepData = sorted.filter(s => s.test && Object.keys(s.test).some(k => k.toLowerCase().includes('bleep')))
                     .map(s => {
                       const entry = Object.entries(s.test).find(([k]) => k.toLowerCase().includes('bleep'))
-                      return { session_date: s.session_date, level: entry ? parseFloat(entry[1]) : null }
+                      return { id: s.id, session_date: s.session_date, level: entry ? parseFloat(entry[1]) : null }
                     }).filter(s => s.level != null)
                   return (
                     <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
@@ -6242,6 +6248,7 @@ export default function AthleteProfiles() {
                       const left = Object.entries(s.test).find(([k]) => k.toLowerCase().includes('left') && k.toLowerCase().includes('grip'))
                       const right = Object.entries(s.test).find(([k]) => k.toLowerCase().includes('right') && k.toLowerCase().includes('grip'))
                       return {
+                        id: s.id,
                         session_date: s.session_date,
                         left: left ? parseFloat(left[1]) : null,
                         right: right ? parseFloat(right[1]) : null,
@@ -6270,7 +6277,7 @@ export default function AthleteProfiles() {
                   const circuitData = sorted.filter(s => s.test && Object.keys(s.test).some(k => k.toLowerCase().includes('fixed load circuit')))
                     .map(s => {
                       const entry = Object.entries(s.test).find(([k]) => k.toLowerCase().includes('fixed load circuit'))
-                      return { session_date: s.session_date, value: entry ? parseFloat(entry[1]) : null }
+                      return { id: s.id, session_date: s.session_date, value: entry ? parseFloat(entry[1]) : null }
                     }).filter(s => s.value != null)
                   return (
                     <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
@@ -6291,14 +6298,14 @@ export default function AthleteProfiles() {
                 {(() => {
                   const bwData = sorted.flatMap(s => toEntries(s.bodyweight)
                     .filter(e => Array.isArray(e.sets) && e.sets.length > 0)
-                    .map(e => ({ session_date: s.session_date, bodyweight: e })))
+                    .map(e => ({ id: s.id, session_date: s.session_date, bodyweight: e })))
                   const bwTypes = [...new Set(bwData.map(s => s.bodyweight?.type).filter(Boolean))]
                   const filteredBw = bwChartFilter === 'all' ? bwData : bwData.filter(s => s.bodyweight?.type === bwChartFilter)
                   const maxSets = Math.max(1, ...filteredBw.map(s => s.bodyweight?.sets?.length || 0))
                   const SET_COLOURS = ['#1D9E75','#378ADD','#E24B4A','#EF9F27','#8B5CF6','#EC4899']
                   const setLines = Array.from({length: maxSets}, (_,i) => ({ key: `set${i}`, label: `Set ${i+1}`, colour: SET_COLOURS[i % SET_COLOURS.length] }))
                   const chartData = filteredBw.map(s => {
-                    const obj = { session_date: s.session_date }
+                    const obj = { id: s.id, session_date: s.session_date }
                     ;(s.bodyweight?.sets || []).forEach((v,i) => { obj[`set${i}`] = parseFloat(v) })
                     return obj
                   })
@@ -6330,7 +6337,7 @@ export default function AthleteProfiles() {
                   const SET_COLOURS = ['#E24B4A','#378ADD','#1D9E75','#EF9F27','#8B5CF6','#EC4899']
                   const setLines = Array.from({length: maxSets}, (_,i) => ({ key: `set${i}`, label: `Set ${i+1}`, colour: SET_COLOURS[i % SET_COLOURS.length] }))
                   const chartData = filteredTech.map(s => {
-                    const obj = { session_date: s.session_date }
+                    const obj = { id: s.id, session_date: s.session_date }
                     ;(s.techniques?.sets || []).forEach((v,i) => { obj[`set${i}`] = parseFloat(v) })
                     return obj
                   })
@@ -6368,7 +6375,11 @@ export default function AthleteProfiles() {
                       ].filter(Boolean)
                       const isWeightOnly = exercises.length === 0 && !s.notes && (s.weight_before || s.weight_after)
                       return (
-                        <div key={i} className="card" style={{ borderLeft: '3px solid #378ADD' }}>
+                        <div key={i} id={`f2f-entry-${s.id}`} className="card" style={{
+                          borderLeft: '3px solid #378ADD',
+                          outline: highlightedEntryId === s.id ? '2px solid #EF9F27' : 'none',
+                          transition: 'outline 0.3s',
+                        }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                               <span style={{ fontWeight: 600, fontSize: 13 }}>
