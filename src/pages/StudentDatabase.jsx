@@ -57,6 +57,7 @@ export default function StudentDatabase() {
   const [roleFilter, setRoleFilter] = useState('')
   const [selected, setSelected]       = useState(null)
   const [allClasses, setAllClasses] = useState([])
+  const [allAssignments, setAllAssignments] = useState([])
   const [addingClassFor, setAddingClassFor] = useState(null) // student id currently showing the add-class row
   const [addClassSelection, setAddClassSelection] = useState('')
   const [savingClassAdd, setSavingClassAdd] = useState(false)
@@ -96,6 +97,14 @@ export default function StudentDatabase() {
     supabase.from('classes').select('*').eq('active', true).order('day_of_week').order('start_time')
       .then(({ data }) => setAllClasses(data || []))
   }, [])
+  useEffect(() => {
+    loadAllAssignments()
+  }, [])
+
+  async function loadAllAssignments() {
+    const { data } = await supabase.from('student_class_assignments').select('id, student_id, class_id, classes(*)')
+    setAllAssignments(data || [])
+  }
 
   useEffect(() => {
     const id = searchParams.get('id')
@@ -222,11 +231,20 @@ export default function StudentDatabase() {
   async function addClassAssignment(studentId) {
     if (!addClassSelection) return
     setSavingClassAdd(true)
-    const { error } = await supabase.from('student_class_assignments').insert({ student_id: studentId, class_id: addClassSelection })
+    const { data, error } = await supabase.from('student_class_assignments')
+      .insert({ student_id: studentId, class_id: addClassSelection })
+      .select('id, student_id, class_id, classes(*)').single()
     if (error) { alert('Error adding class: ' + error.message); setSavingClassAdd(false); return }
-    setAddingClassFor(null)
+    setAllAssignments(prev => [...prev, data])
     setAddClassSelection('')
     setSavingClassAdd(false)
+  }
+
+  async function removeClassAssignment(assignmentId) {
+    if (!confirm('Remove this class?')) return
+    const { error } = await supabase.from('student_class_assignments').delete().eq('id', assignmentId)
+    if (error) return alert('Error removing class: ' + error.message)
+    setAllAssignments(prev => prev.filter(a => a.id !== assignmentId))
   }
 
   async function updateGrade(s, value) {
@@ -414,47 +432,72 @@ export default function StudentDatabase() {
                         </td>
                       )
                       case 'class_schedule': return (
-                        <td key={c.key}>
-                          {addingClassFor === s.id ? (
-                            <select value={addClassSelection} onChange={e => setAddClassSelection(e.target.value)}
-                              style={{ fontSize: 12, padding: '3px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
-                              <option value="">— Select a class —</option>
-                              {allClasses.map(cl => <option key={cl.id} value={cl.id}>{cl.name} ({cl.day_of_week} {cl.start_time?.slice(0,5)})</option>)}
-                            </select>
-                          ) : (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                              {isAdmin && (
-                                <button onClick={() => { setAddingClassFor(s.id); setAddClassSelection('') }}
-                                  title="Add an extra class for this student"
-                                  style={{ background: 'none', border: '1px solid var(--border-strong)', borderRadius: 4, cursor: 'pointer', fontSize: 11, width: 18, height: 18, lineHeight: 1, padding: 0, color: 'var(--text-secondary)' }}>+</button>
-                              )}
-                              {isAdmin ? (
-                                <select value={s.class_schedule || ''} onChange={e => updateStudentField(s.id, 'class_schedule', e.target.value || null)}
-                                  style={{ fontSize: 12, padding: '3px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
-                                  <option value="">— Not set —</option>
-                                  <option>Mon/Fri</option>
-                                  <option>Tue/Thu</option>
-                                  <option>Wed/Sun</option>
-                                  <option>Wednesday</option>
-                                  <option>Saturday</option>
-                                  <option>Sunday</option>
-                                  <option>Derby Moore</option>
-                                  <option>Moorways</option>
-                                </select>
-                              ) : <span style={{ fontSize: 12 }}>{s.class_schedule || '—'}</span>}
-                            </div>
-                          )}
+                        <td key={c.key} style={{ position: 'relative' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            {isAdmin && (() => {
+                              const studentAssignments = allAssignments.filter(a => a.student_id === s.id)
+                              const hasExtra = studentAssignments.length > 0
+                              return (
+                                <div style={{ position: 'relative' }}>
+                                  <button onClick={() => setAddingClassFor(addingClassFor === s.id ? null : s.id)}
+                                    title={hasExtra ? `${studentAssignments.length} extra class${studentAssignments.length === 1 ? '' : 'es'} assigned — click to view/add` : 'Add an extra class for this student'}
+                                    style={{
+                                      background: hasExtra ? '#1D9E7520' : 'none',
+                                      border: `1px solid ${hasExtra ? '#1D9E75' : 'var(--border-strong)'}`,
+                                      borderRadius: 4, cursor: 'pointer', fontSize: 11, width: 18, height: 18, lineHeight: 1, padding: 0,
+                                      color: hasExtra ? '#1D9E75' : 'var(--text-secondary)', fontWeight: hasExtra ? 700 : 400,
+                                    }}>+</button>
+                                  {addingClassFor === s.id && (
+                                    <div className="card" style={{ position: 'absolute', top: '100%', left: 0, zIndex: 30, width: 260, marginTop: 4, padding: 10 }}>
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                        <span style={{ fontSize: 12, fontWeight: 600 }}>Extra classes</span>
+                                        <button onClick={() => setAddingClassFor(null)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14 }}>×</button>
+                                      </div>
+                                      {studentAssignments.length > 0 && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
+                                          {studentAssignments.map(a => (
+                                            <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', background: 'var(--bg-secondary)', borderRadius: 6, fontSize: 12 }}>
+                                              <span>{a.classes?.name} ({a.classes?.day_of_week} {a.classes?.start_time?.slice(0,5)})</span>
+                                              <button onClick={() => removeClassAssignment(a.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 13 }}>×</button>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                      <div style={{ display: 'flex', gap: 6 }}>
+                                        <select value={addClassSelection} onChange={e => setAddClassSelection(e.target.value)} style={{ flex: 1, fontSize: 12 }}>
+                                          <option value="">— Select a class —</option>
+                                          {allClasses.filter(cl => !studentAssignments.some(a => a.class_id === cl.id)).map(cl => (
+                                            <option key={cl.id} value={cl.id}>{cl.name} ({cl.day_of_week} {cl.start_time?.slice(0,5)})</option>
+                                          ))}
+                                        </select>
+                                        <button className="btn btn-sm" style={{ fontSize: 11 }} disabled={!addClassSelection || savingClassAdd}
+                                          onClick={() => addClassAssignment(s.id)}>{savingClassAdd ? '…' : 'Add'}</button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })()}
+                            {isAdmin ? (
+                              <select value={s.class_schedule || ''} onChange={e => updateStudentField(s.id, 'class_schedule', e.target.value || null)}
+                                style={{ fontSize: 12, padding: '3px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
+                                <option value="">— Not set —</option>
+                                <option>Mon/Fri</option>
+                                <option>Tue/Thu</option>
+                                <option>Wed/Sun</option>
+                                <option>Wednesday</option>
+                                <option>Saturday</option>
+                                <option>Sunday</option>
+                                <option>Derby Moore</option>
+                                <option>Moorways</option>
+                              </select>
+                            ) : <span style={{ fontSize: 12 }}>{s.class_schedule || '—'}</span>}
+                          </div>
                         </td>
                       )
                       case 'class_time':   return (
                         <td key={c.key}>
-                          {addingClassFor === s.id ? (
-                            <div style={{ display: 'flex', gap: 4 }}>
-                              <button className="btn btn-sm" style={{ fontSize: 11 }} disabled={!addClassSelection || savingClassAdd}
-                                onClick={() => addClassAssignment(s.id)}>{savingClassAdd ? '…' : 'Add'}</button>
-                              <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => setAddingClassFor(null)}>Cancel</button>
-                            </div>
-                          ) : isAdmin ? (
+                          {isAdmin ? (
                             <select value={s.class_time || ''} onChange={e => updateStudentField(s.id, 'class_time', e.target.value || null)}
                               style={{ fontSize: 12, padding: '3px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
                               <option value="">— Not set —</option>

@@ -260,9 +260,19 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
                         </button>
                       </div>
                     )}
-                    {assignedClasses.length === 0 ? (
-                      <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No classes assigned yet.</p>
-                    ) : (
+                    {(localStudent.class_schedule || assignedClasses.length === 0) && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: assignedClasses.length > 0 ? 6 : 0 }}>
+                        {localStudent.class_schedule ? (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)' }}>
+                            <span>{localStudent.class_schedule}{localStudent.class_time ? ` — ${localStudent.class_time}` : ''}</span>
+                            <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Main class</span>
+                          </div>
+                        ) : assignedClasses.length === 0 && (
+                          <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No classes assigned yet.</p>
+                        )}
+                      </div>
+                    )}
+                    {assignedClasses.length > 0 && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         {assignedClasses.map(a => (
                           <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: 13 }}>

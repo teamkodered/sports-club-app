@@ -652,6 +652,10 @@ export default function AthleteApp() {
   const [showOverallPos, setShowOverallPos] = useState(false)
   const [apData, setApData]     = useState(null)
   const [assignedClasses, setAssignedClasses] = useState([])
+  const [allClasses, setAllClasses] = useState([])
+  const [showAddClass, setShowAddClass] = useState(false)
+  const [addClassSelection, setAddClassSelection] = useState('')
+  const [savingClassAdd, setSavingClassAdd] = useState(false)
   const [clubEvents, setClubEvents] = useState([])
   const [myReports, setMyReports] = useState([])
   const [expandedReportId, setExpandedReportId] = useState(null)
@@ -888,6 +892,9 @@ export default function AthleteApp() {
           .eq('student_id', s.id)
           .then(({ data, error }) => { if (!error) setAssignedClasses(data || []) })
 
+        supabase.from('classes').select('*').eq('active', true).order('day_of_week').order('start_time')
+          .then(({ data, error }) => { if (!error) setAllClasses(data || []) })
+
         supabase.from('club_events').select('*').eq('send_to_all_students', true).order('event_date')
           .then(({ data, error }) => { if (!error) setClubEvents(data || []) })
 
@@ -1111,6 +1118,26 @@ export default function AthleteApp() {
     }
     if (error) alert('Error saving: ' + error.message)
     setSavingPhysical(false)
+  }
+
+  async function addClassAssignment() {
+    if (!addClassSelection || !student) return
+    setSavingClassAdd(true)
+    const { data, error } = await supabase.from('student_class_assignments')
+      .insert({ student_id: student.id, class_id: addClassSelection })
+      .select('id, class_id, classes(*)').single()
+    if (error) { alert('Error adding class: ' + error.message); setSavingClassAdd(false); return }
+    setAssignedClasses(prev => [...prev, data])
+    setShowAddClass(false)
+    setAddClassSelection('')
+    setSavingClassAdd(false)
+  }
+
+  async function removeClassAssignment(assignmentId) {
+    if (!confirm('Remove this class?')) return
+    const { error } = await supabase.from('student_class_assignments').delete().eq('id', assignmentId)
+    if (error) return alert('Error removing class: ' + error.message)
+    setAssignedClasses(prev => prev.filter(a => a.id !== assignmentId))
   }
 
   async function checkInNow(attendanceType) {
@@ -2517,6 +2544,41 @@ export default function AthleteApp() {
                 <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#8B5CF622', border: '1px solid #8B5CF6', borderRadius: 2, marginRight: 4 }} />PDP action</span>
                 <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#EF9F2722', border: '1px solid #EF9F27', borderRadius: 2, marginRight: 4 }} />Event</span>
               </div>
+            </div>
+
+            {/* Assigned sessions -- taken from the actual class register (classes table), same data used by Registers/Students pages */}
+            <div className="card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <h3 style={{ fontSize: 13, fontWeight: 600 }}>Assigned sessions</h3>
+                <button className="btn btn-sm" onClick={() => { setShowAddClass(v => !v); setAddClassSelection('') }}>
+                  {showAddClass ? 'Cancel' : '+ Add class'}
+                </button>
+              </div>
+              {showAddClass && (
+                <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+                  <select value={addClassSelection} onChange={e => setAddClassSelection(e.target.value)} style={{ flex: 1, minWidth: 160 }}>
+                    <option value="">— Select a class —</option>
+                    {allClasses.filter(cl => !assignedClasses.some(a => a.class_id === cl.id)).map(cl => (
+                      <option key={cl.id} value={cl.id}>{cl.name} ({cl.day_of_week} {cl.start_time?.slice(0,5)})</option>
+                    ))}
+                  </select>
+                  <button className="btn btn-sm btn-primary" disabled={!addClassSelection || savingClassAdd} onClick={addClassAssignment}>
+                    {savingClassAdd ? '…' : 'Add'}
+                  </button>
+                </div>
+              )}
+              {assignedClasses.length === 0 ? (
+                <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No classes assigned yet.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {assignedClasses.map(a => (
+                    <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: 13 }}>
+                      <span>{a.classes?.name} — {a.classes?.day_of_week} {a.classes?.start_time?.slice(0,5)}</span>
+                      <button onClick={() => removeClassAssignment(a.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14 }}>×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )
