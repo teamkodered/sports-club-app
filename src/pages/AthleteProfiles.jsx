@@ -2903,8 +2903,12 @@ export default function AthleteProfiles() {
 
   async function deleteFit2FightSession(session) {
     if (!confirm(`Delete the ${new Date(session.session_date).toLocaleDateString('en-GB')} entry? This can't be undone.`)) return
-    const { error } = await supabase.from('fit2fight_sessions').delete().eq('id', session.id)
+    const { data, error } = await supabase.from('fit2fight_sessions').delete().eq('id', session.id).select('id')
     if (error) { alert('Error deleting: ' + error.message); return }
+    if (!data || data.length === 0) {
+      alert('The entry could not be deleted — this usually means a permissions (RLS) policy is blocking the delete rather than a real error. Check with whoever manages the database.')
+      return
+    }
     setF2fData(prev => prev.filter(s => s.id !== session.id))
   }
 
@@ -6004,7 +6008,7 @@ export default function AthleteProfiles() {
                             {pts.length >= 2 && <polyline points={pts.join(' ')} fill="none" stroke={line.colour} strokeWidth="2" strokeLinejoin="round"/>}
                             {data.map((d,i) => d[line.key] != null && (
                               <g key={i}>
-                                <circle cx={x(i)} cy={y(d[line.key])} r="4" fill={line.colour} stroke="var(--bg)" strokeWidth="1.5" style={{ cursor: 'pointer' }}
+                                <circle cx={x(i)} cy={y(d[line.key])} r="4" fill={line.colour} stroke="var(--bg)" strokeWidth="1.5" style={{ cursor: 'pointer', touchAction: 'none' }}
                                   onPointerDown={() => {
                                     heldRef.current = false
                                     pressTimer.current = setTimeout(() => {

@@ -349,7 +349,7 @@ export default function FitToFight() {
   const [techniqueTypes, setTechniqueTypes]   = useState(DEFAULT_TECHNIQUE_TYPES)
   const [intervalModes, setIntervalModes]     = useState([...DEFAULT_INTERVAL_MODES, 'Custom'])
   const [student, setStudent] = useState({ first_name: '', last_name: '' })
-  const [sessionDate, setSessionDate] = useState(new Date().toISOString().split('T')[0])
+  const [sessionDate, setSessionDate] = useState(() => searchParams.get('date') || new Date().toISOString().split('T')[0])
   const [weightBefore, setWeightBefore] = useState('')
   const [weightAfter, setWeightAfter]   = useState('')
   const [height, setHeight]             = useState('')
@@ -526,7 +526,14 @@ export default function FitToFight() {
       notes,
     }
     const { error } = await supabase.from('fit2fight_sessions').insert(payload)
-    if (!error) setSubmitted(true)
+    if (!error) {
+      const isToday = sessionDate === new Date().toISOString().split('T')[0]
+      if (isToday && student.id && (payload.weight_before != null || payload.weight_after != null)) {
+        const latestWeight = payload.weight_after ?? payload.weight_before
+        await supabase.from('students').update({ weight_kg: latestWeight }).eq('id', student.id)
+      }
+      setSubmitted(true)
+    }
     setSubmitting(false)
   }
 
