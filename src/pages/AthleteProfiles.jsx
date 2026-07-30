@@ -3821,19 +3821,14 @@ export default function AthleteProfiles() {
                       {isAdmin && <span style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 400 }}>Tap a field to edit</span>}
                     </div>
                     {[
-                      { label: 'Club', editable: true, render: () => {
-                        const codeDisplay = selected.discipline_codes || selected.discipline || '—'
-                        return isAdmin ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
-                            {selected.discipline_codes && <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{selected.discipline_codes}</span>}
-                            <select value={selected.discipline || ''} onChange={e => updateSelectedField('discipline', e.target.value)}
-                              style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
-                              <option value="PKA">PKA</option>
-                              <option value="KRBA">KRBA</option>
-                            </select>
-                          </div>
-                        ) : codeDisplay
-                      } },
+                      { label: 'Club', editable: true, render: () => isAdmin ? (
+                        <select value={selected.discipline || ''} onChange={e => updateSelectedField('discipline', e.target.value)}
+                          style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
+                          <option value="PKA">PKA</option>
+                          <option value="KRBA">KRBA</option>
+                        </select>
+                      ) : (selected.discipline || '—') },
+                      ...(selected.is_kr ? [{ label: 'Discipline', editable: false, render: () => selected.discipline_codes || '—' }] : []),
                       { label: selected.discipline === 'KRBA' ? 'Level' : selected.is_kr ? 'Experience' : 'Grade', editable: true, render: () => {
                         if (selected.discipline === 'KRBA') {
                           return isAdmin ? (
