@@ -1685,6 +1685,29 @@ export default function AthleteProfiles() {
   const [expandedDashSection, setExpandedDashSection] = useState(null)
   const [dashClubFilter, setDashClubFilter] = useState('all') // 'all' | 'PKA' | 'KRBA'
   const [showDashWeightList, setShowDashWeightList] = useState(false)
+  const [dashLevelIndex, setDashLevelIndex] = useState(0)
+  const [showTeamKrDropdown, setShowTeamKrDropdown] = useState(false)
+  const [showTeamKrbaDropdown, setShowTeamKrbaDropdown] = useState(false)
+  const teamKrDropdownRef = useRef(null)
+  const teamKrbaDropdownRef = useRef(null)
+
+  useEffect(() => {
+    if (!showTeamKrDropdown) return
+    function handleClick(e) {
+      if (teamKrDropdownRef.current && !teamKrDropdownRef.current.contains(e.target)) setShowTeamKrDropdown(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showTeamKrDropdown])
+
+  useEffect(() => {
+    if (!showTeamKrbaDropdown) return
+    function handleClick(e) {
+      if (teamKrbaDropdownRef.current && !teamKrbaDropdownRef.current.contains(e.target)) setShowTeamKrbaDropdown(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showTeamKrbaDropdown])
   const dashWeightListRef = useRef(null)
 
   useEffect(() => {
@@ -3073,6 +3096,44 @@ export default function AthleteProfiles() {
               <h3>Athlete Dashboard</h3>
             </div>
 
+            {/* Team KR / KRBA -- dropdown of respective athletes, positioned above the row below */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+              <div ref={teamKrDropdownRef} style={{ position: 'relative' }}>
+                <button className="btn btn-sm" onClick={() => setShowTeamKrDropdown(v => !v)}>
+                  👥 Team KR {showTeamKrDropdown ? '▲' : '▼'}
+                </button>
+                {showTeamKrDropdown && (
+                  <div className="card" style={{ position: 'absolute', top: '100%', left: 0, zIndex: 20, width: 320, marginTop: 4, padding: 8, maxHeight: 320, overflowY: 'auto' }}>
+                    {students.filter(s => s.is_kr).length === 0 ? (
+                      <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No KR athletes.</p>
+                    ) : students.filter(s => s.is_kr).sort((a, b) => `${a.members?.first_name} ${a.members?.last_name}`.localeCompare(`${b.members?.first_name} ${b.members?.last_name}`)).map(s => (
+                      <button key={s.id} onClick={() => { selectStudent(s); setShowTeamKrDropdown(false) }}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, borderRadius: 6, color: 'var(--text)', fontFamily: 'var(--font-sans)' }}>
+                        {s.members?.first_name} {s.members?.last_name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div ref={teamKrbaDropdownRef} style={{ position: 'relative' }}>
+                <button className="btn btn-sm" onClick={() => setShowTeamKrbaDropdown(v => !v)}>
+                  👥 KRBA {showTeamKrbaDropdown ? '▲' : '▼'}
+                </button>
+                {showTeamKrbaDropdown && (
+                  <div className="card" style={{ position: 'absolute', top: '100%', right: 0, zIndex: 20, width: 320, marginTop: 4, padding: 8, maxHeight: 320, overflowY: 'auto' }}>
+                    {students.filter(s => s.discipline === 'KRBA').length === 0 ? (
+                      <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No KRBA athletes.</p>
+                    ) : students.filter(s => s.discipline === 'KRBA').sort((a, b) => `${a.members?.first_name} ${a.members?.last_name}`.localeCompare(`${b.members?.first_name} ${b.members?.last_name}`)).map(s => (
+                      <button key={s.id} onClick={() => { selectStudent(s); setShowTeamKrbaDropdown(false) }}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, borderRadius: 6, color: 'var(--text)', fontFamily: 'var(--font-sans)' }}>
+                        {s.members?.first_name} {s.members?.last_name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* All sessions / F2F sessions / PDP -- above Physical, side by side */}
             {(() => {
               const teamAthletes = students.filter(s => s.is_kr || s.is_pts || s.discipline === 'KRBA')
@@ -3172,11 +3233,24 @@ export default function AthleteProfiles() {
                       <span style={{ color: 'var(--text-secondary)' }}>Record (avg)</span>
                       <span style={{ fontWeight: 500 }}>{avgWins}W {avgLosses}L {avgDraws}D</span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '8px 14px', borderBottom: '1px solid var(--border)', fontSize: 13, gap: 10 }}>
-                      <span style={{ color: 'var(--text-secondary)', flexShrink: 0 }}>Level</span>
-                      <span style={{ fontWeight: 500, textAlign: 'right', fontSize: 12 }}>
-                        {levelBreakdown.length === 0 ? '—' : levelBreakdown.map(([l, c]) => `${l}: ${c}`).join(' · ')}
-                      </span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 14px', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Level</span>
+                      {levelBreakdown.length === 0 ? (
+                        <span style={{ fontWeight: 500, fontSize: 12 }}>—</span>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <button onClick={() => setDashLevelIndex(i => (i - 1 + levelBreakdown.length) % levelBreakdown.length)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-tertiary)', padding: 2 }}>◀</button>
+                          <span style={{
+                            fontWeight: 500, fontSize: 12, padding: '3px 10px', borderRadius: 20,
+                            background: 'var(--bg-secondary)', border: '1px solid var(--border-strong)', whiteSpace: 'nowrap',
+                          }}>
+                            {levelBreakdown[dashLevelIndex % levelBreakdown.length]?.[0]}: {levelBreakdown[dashLevelIndex % levelBreakdown.length]?.[1]}
+                          </span>
+                          <button onClick={() => setDashLevelIndex(i => (i + 1) % levelBreakdown.length)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-tertiary)', padding: 2 }}>▶</button>
+                        </div>
+                      )}
                     </div>
                     <div ref={dashWeightListRef} style={{ position: 'relative', padding: '8px 14px', fontSize: 13 }}>
                       <button onClick={() => setShowDashWeightList(v => !v)} style={{
@@ -3193,10 +3267,16 @@ export default function AthleteProfiles() {
                           ) : weightSorted.map(s => {
                             const wAge = s.members?.date_of_birth ? Math.floor((Date.now() - new Date(s.members.date_of_birth)) / (365.25 * 24 * 60 * 60 * 1000)) : null
                             return (
-                              <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 6px', fontSize: 12, borderBottom: '1px solid var(--border)' }}>
+                              <button key={s.id} onClick={() => { selectStudent(s); setShowDashWeightList(false) }}
+                                style={{
+                                  display: 'flex', justifyContent: 'space-between', width: '100%', textAlign: 'left',
+                                  padding: '6px 8px', fontSize: 12, borderBottom: '1px solid var(--border)',
+                                  background: 'none', border: 'none', borderRadius: 6, cursor: 'pointer',
+                                  color: 'var(--text)', fontFamily: 'var(--font-sans)',
+                                }}>
                                 <span>{s.members?.first_name} {s.members?.last_name}{wAge ? ` (${wAge})` : ''}</span>
                                 <span style={{ fontWeight: 600 }}>{s.weight_kg}kg</span>
-                              </div>
+                              </button>
                             )
                           })}
                         </div>
