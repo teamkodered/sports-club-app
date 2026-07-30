@@ -3677,18 +3677,17 @@ export default function AthleteProfiles() {
                         #{showOverallPos ? overallPosition : positionInHouse}
                       </button>
                     )}
-                    <div ref={nameDropdownRef} style={{ position: 'relative' }}>
+                    <div ref={nameDropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
                       <button onClick={() => setShowNameDropdown(v => !v)} title="Click to switch athlete"
                         style={{ fontSize: 21, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-sans)', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
                         {m?.first_name} {m?.last_name} <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{showNameDropdown ? '▲' : '▼'}</span>
                       </button>
                       {showNameDropdown && (
-                        <div className="card" style={{ position: 'absolute', top: '100%', left: 0, zIndex: 20, width: 260, marginTop: 4, padding: 8, maxHeight: 320, overflowY: 'auto' }}>
+                        <div className="card" style={{ position: 'absolute', top: '100%', left: 0, zIndex: 20, width: '100%', minWidth: 220, marginTop: 4, padding: 8, maxHeight: 320, overflowY: 'auto' }}>
                           <input value={nameDropdownSearch} onChange={e => setNameDropdownSearch(e.target.value)}
                             placeholder="Search athletes…" autoFocus style={{ width: '100%', fontSize: 13, marginBottom: 6 }} />
-                          {students
+                          {athletes
                             .filter(s => !nameDropdownSearch || `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.toLowerCase().includes(nameDropdownSearch.toLowerCase()))
-                            .sort((a, b) => `${a.members?.first_name} ${a.members?.last_name}`.localeCompare(`${b.members?.first_name} ${b.members?.last_name}`))
                             .map(s => (
                               <button key={s.id} onClick={() => { selectStudent(s); setShowNameDropdown(false); setNameDropdownSearch('') }}
                                 style={{
