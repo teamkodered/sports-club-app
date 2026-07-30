@@ -1683,6 +1683,20 @@ export default function AthleteProfiles() {
   const targetFormRef = useRef(null)
   const targetDropdownRef = useRef(null)
   const [expandedDashSection, setExpandedDashSection] = useState(null)
+  const [dashClubFilter, setDashClubFilter] = useState('all') // 'all' | 'PKA' | 'KRBA'
+  const [showDashWeightList, setShowDashWeightList] = useState(false)
+  const dashWeightListRef = useRef(null)
+
+  useEffect(() => {
+    if (!showDashWeightList) return
+    function handleClick(e) {
+      if (dashWeightListRef.current && !dashWeightListRef.current.contains(e.target)) {
+        setShowDashWeightList(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showDashWeightList])
   const [expandedDashSubItem, setExpandedDashSubItem] = useState(null) // "sectionKey::subKey"
   const [newEventTitle, setNewEventTitle] = useState('')
   const [newEventDate, setNewEventDate] = useState('')
@@ -3120,6 +3134,78 @@ export default function AthleteProfiles() {
                 </div>
               )
             })()}
+
+            {/* Coach Profile card -- team-wide, mirrors the athlete's own Profile card structure */}
+            <div className="card" style={{ padding: 0, marginBottom: 14 }}>
+              <div style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)' }}>Profile</div>
+              {(() => {
+                const clubFiltered = students.filter(s =>
+                  (s.is_kr || s.is_pts || s.discipline === 'KRBA') && (dashClubFilter === 'all' || s.discipline === dashClubFilter)
+                )
+                const count = clubFiltered.length || 1
+                const avgWins = (clubFiltered.reduce((a, s) => a + (s.wins || 0), 0) / count).toFixed(1)
+                const avgLosses = (clubFiltered.reduce((a, s) => a + (s.losses || 0), 0) / count).toFixed(1)
+                const avgDraws = (clubFiltered.reduce((a, s) => a + (s.draws || 0), 0) / count).toFixed(1)
+
+                const levelOf = s => s.discipline === 'KRBA' ? (s.krba_level || '—') : s.is_kr ? (s.competition_team || '—') : (s.pka_belt || '—')
+                const levelCounts = {}
+                clubFiltered.forEach(s => { const l = levelOf(s); levelCounts[l] = (levelCounts[l] || 0) + 1 })
+                const levelBreakdown = Object.entries(levelCounts).sort((a, b) => b[1] - a[1])
+
+                const weightSorted = [...clubFiltered].filter(s => s.weight_kg).sort((a, b) => (a.weight_kg || 0) - (b.weight_kg || 0))
+
+                return (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 14px', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Club</span>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        {['all', 'PKA', 'KRBA'].map(f => (
+                          <button key={f} onClick={() => setDashClubFilter(f)} style={{
+                            fontSize: 11, padding: '3px 8px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                            border: `1px solid ${dashClubFilter === f ? '#378ADD' : 'var(--border-strong)'}`,
+                            background: dashClubFilter === f ? '#378ADD20' : 'none', color: dashClubFilter === f ? '#378ADD' : 'var(--text-secondary)',
+                          }}>{f === 'all' ? 'All' : f}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 14px', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Record (avg)</span>
+                      <span style={{ fontWeight: 500 }}>{avgWins}W {avgLosses}L {avgDraws}D</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '8px 14px', borderBottom: '1px solid var(--border)', fontSize: 13, gap: 10 }}>
+                      <span style={{ color: 'var(--text-secondary)', flexShrink: 0 }}>Level</span>
+                      <span style={{ fontWeight: 500, textAlign: 'right', fontSize: 12 }}>
+                        {levelBreakdown.length === 0 ? '—' : levelBreakdown.map(([l, c]) => `${l}: ${c}`).join(' · ')}
+                      </span>
+                    </div>
+                    <div ref={dashWeightListRef} style={{ position: 'relative', padding: '8px 14px', fontSize: 13 }}>
+                      <button onClick={() => setShowDashWeightList(v => !v)} style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%',
+                        background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-sans)', color: 'var(--text)',
+                      }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>Weight</span>
+                        <span style={{ fontWeight: 500 }}>{showDashWeightList ? '▲' : '▼'} View by weight</span>
+                      </button>
+                      {showDashWeightList && (
+                        <div className="card" style={{ position: 'absolute', top: '100%', left: 14, right: 14, zIndex: 20, marginTop: 4, padding: 8, maxHeight: 280, overflowY: 'auto' }}>
+                          {weightSorted.length === 0 ? (
+                            <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No weights recorded.</p>
+                          ) : weightSorted.map(s => {
+                            const wAge = s.members?.date_of_birth ? Math.floor((Date.now() - new Date(s.members.date_of_birth)) / (365.25 * 24 * 60 * 60 * 1000)) : null
+                            return (
+                              <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 6px', fontSize: 12, borderBottom: '1px solid var(--border)' }}>
+                                <span>{s.members?.first_name} {s.members?.last_name}{wAge ? ` (${wAge})` : ''}</span>
+                                <span style={{ fontWeight: 600 }}>{s.weight_kg}kg</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )
+              })()}
+            </div>
 
             {/* Athlete Home overview -- same banner/card form as a real athlete's Home page */}
             {(() => {
