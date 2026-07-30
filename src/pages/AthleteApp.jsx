@@ -1353,7 +1353,13 @@ export default function AthleteApp() {
                       </div>
                       <button onClick={() => setTab('fit2fight')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg)', appearance: 'none', WebkitAppearance: 'none' }}>
                         <div style={{ fontSize: 22, marginBottom: 4 }}>🔥</div>
-                        <div style={{ fontSize: 22, fontWeight: 700, color: '#378ADD' }}>{sessions.length}</div>
+                        <div style={{ fontSize: 22, fontWeight: 700, color: '#378ADD' }}>
+                          {(() => {
+                            const hasContent = v => Array.isArray(v) ? v.length > 0 : (v && typeof v === 'object' ? Object.keys(v).length > 0 : !!v)
+                            const activityFields = ['running', 'watt_bike', 'bodyweight', 'stretch_flows', 'snc', 'other_session', 'techniques', 'tactical', 'mentality_log', 'wellbeing', 'test']
+                            return sessions.filter(s => activityFields.some(f => hasContent(s[f]))).length
+                          })()}
+                        </div>
                         <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>F2F Results</div>
                       </button>
                       <button onClick={() => setTab('pdp')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg)', appearance: 'none', WebkitAppearance: 'none' }}>

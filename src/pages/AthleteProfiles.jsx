@@ -4265,7 +4265,13 @@ export default function AthleteProfiles() {
                     </div>
                     <button onClick={() => setTab('fit2fight')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg)', appearance: 'none', WebkitAppearance: 'none' }} title="View Fit II Fight results">
                       <div style={{ fontSize: 22, marginBottom: 4 }}>🔥</div>
-                      <div style={{ fontSize: 22, fontWeight: 700, color: '#378ADD' }}>{f2fData.length}</div>
+                      <div style={{ fontSize: 22, fontWeight: 700, color: '#378ADD' }}>
+                        {(() => {
+                          const hasContent = v => Array.isArray(v) ? v.length > 0 : (v && typeof v === 'object' ? Object.keys(v).length > 0 : !!v)
+                          const activityFields = ['running', 'watt_bike', 'bodyweight', 'stretch_flows', 'snc', 'other_session', 'techniques', 'tactical', 'mentality_log', 'wellbeing', 'test']
+                          return f2fData.filter(s => activityFields.some(f => hasContent(s[f]))).length
+                        })()}
+                      </div>
                       <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>F2F Results</div>
                     </button>
                     <button onClick={() => setTab('pdp')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg)', appearance: 'none', WebkitAppearance: 'none' }} title="View PDP">
@@ -5268,7 +5274,7 @@ export default function AthleteProfiles() {
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 14 }}>
                     {(() => {
                       const completedPdpCount = notesLog.filter(n =>
-                        n.note_text?.startsWith('Completed PDP task') && !n.note_text.toLowerCase().includes('weight')
+                        n.note_text?.startsWith('Completed PDP task') && !/weigh/i.test(n.note_text)
                       ).length
                       return [
                         { label: 'PDP', icon: '🎯', colour: '#1D9E75', tab: 'pdp', badge: completedPdpCount > 0 ? `${completedPdpCount} completed → Notes` : null },
