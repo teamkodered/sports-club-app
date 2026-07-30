@@ -1825,17 +1825,6 @@ export default function AthleteProfiles() {
   }, [showAddTarget])
 
   useEffect(() => {
-    if (!showNameDropdown) return
-    function handleClick(e) {
-      if (nameDropdownRef.current && !nameDropdownRef.current.contains(e.target)) {
-        setShowNameDropdown(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [showNameDropdown])
-
-  useEffect(() => {
     if (showAddTarget) setShowTargetAthleteDropdown(false)
   }, [showAddTarget])
 
@@ -1977,6 +1966,17 @@ export default function AthleteProfiles() {
   const [showNameDropdown, setShowNameDropdown] = useState(false)
   const [nameDropdownSearch, setNameDropdownSearch] = useState('')
   const nameDropdownRef = useRef(null)
+
+  useEffect(() => {
+    if (!showNameDropdown) return
+    function handleClick(e) {
+      if (nameDropdownRef.current && !nameDropdownRef.current.contains(e.target)) {
+        setShowNameDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showNameDropdown])
 
   useEffect(() => { loadStudents() }, [])
 
@@ -3805,6 +3805,149 @@ export default function AthleteProfiles() {
               </div>
             )}
 
+                  <div style={{ height: 4 }} />
+
+                  <div className="card" style={{ padding: 0, marginBottom: 14 }}>
+                    <div style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Profile</span>
+                      {isAdmin && <span style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 400 }}>Tap a field to edit</span>}
+                    </div>
+                    {[
+                      { label: 'Discipline', editable: true, render: () => {
+                        const codeDisplay = selected.discipline_codes || selected.discipline || '—'
+                        return isAdmin ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+                            {selected.discipline_codes && <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{selected.discipline_codes}</span>}
+                            <select value={selected.discipline || ''} onChange={e => updateSelectedField('discipline', e.target.value)}
+                              style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
+                              <option value="PKA">PKA</option>
+                              <option value="KRBA">KRBA</option>
+                            </select>
+                          </div>
+                        ) : codeDisplay
+                      } },
+                      { label: selected.discipline === 'KRBA' ? 'Level' : selected.is_kr ? 'Experience' : 'Grade', editable: true, render: () => {
+                        if (selected.discipline === 'KRBA') {
+                          return isAdmin ? (
+                            <select value={selected.krba_level || ''} onChange={e => updateSelectedField('krba_level', e.target.value || null)}
+                              style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
+                              <option value="">— Select —</option>
+                              {belts.krba.map(b => <option key={b}>{b}</option>)}
+                            </select>
+                          ) : (selected.krba_level || '—')
+                        }
+                        if (selected.is_kr) {
+                          return isAdmin ? (
+                            <select value={selected.competition_team || ''} onChange={e => updateSelectedField('competition_team', e.target.value || null)}
+                              style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
+                              <option value="">— Select —</option>
+                              <option>Beginner</option><option>Intermediate</option><option>Advanced</option>
+                            </select>
+                          ) : (selected.competition_team || '—')
+                        }
+                        const opts = age < 16 ? belts.junior : belts.senior
+                        return isAdmin ? (
+                          <select value={selected.pka_belt || ''} onChange={e => updateSelectedField('pka_belt', e.target.value || null)}
+                            style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
+                            <option value="">— Select —</option>
+                            {opts.map(b => <option key={b}>{b}</option>)}
+                          </select>
+                        ) : (selected.pka_belt || '—')
+                      } },
+                      { label: 'Weight', editable: true, render: () => isAdmin ? (
+                        <input type="number" step="0.1" defaultValue={selected.weight_kg || ''} placeholder="kg"
+                          onBlur={e => { const v = e.target.value ? parseFloat(e.target.value) : null; if (v !== selected.weight_kg) updateSelectedField('weight_kg', v) }}
+                          style={{ width: 70, fontSize: 12, padding: '4px 6px', textAlign: 'right', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+                      ) : (selected.weight_kg ? `${selected.weight_kg}kg${selected.weight_category ? ` (${selected.weight_category})` : ''}` : '—') },
+                      { label: 'Comp weight', editable: true, render: () => isAdmin ? (
+                        <input defaultValue={apData?.weight_division || ''} placeholder="e.g. -60kg"
+                          onBlur={e => { if (e.target.value !== (apData?.weight_division || '')) saveCompWeightHere(e.target.value || null) }}
+                          style={{ width: 90, fontSize: 12, padding: '4px 6px', textAlign: 'right', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+                      ) : (apData?.weight_division || '—') },
+                      { label: 'Groups', editable: true, render: () => isAdmin ? (
+                        <div style={{ display: 'flex', gap: 3 }}>
+                          {[
+                            { key: 'is_kr', label: 'KR', cls: 'badge-purple' },
+                            { key: 'is_pts', label: 'PTs', cls: 'badge-blue' },
+                            { key: 'is_leader', label: 'Leader', cls: 'badge-green' },
+                            { key: 'is_coach', label: 'Coach', cls: 'badge-amber' },
+                          ].map(g => (
+                            <button key={g.key} onClick={() => toggleSelectedGroup(g.key)}
+                              className={`badge ${g.cls}`}
+                              style={{ fontSize: 9, cursor: 'pointer', border: 'none', opacity: selected[g.key] ? 1 : 0.25 }}>
+                              {g.label}
+                            </button>
+                          ))}
+                        </div>
+                      ) : ([selected.is_kr && 'KR', selected.is_pts && 'PTs', selected.is_leader && 'Leader', selected.is_coach && 'Coach'].filter(Boolean).join(', ') || 'None') },
+                      ...(selected.is_kr || selected.discipline === 'KRBA' ? [{ label: 'Competition status', editable: true, render: () => isAdmin ? (
+                        <button onClick={() => toggleSelectedGroup('in_comp')}
+                          className={`badge ${selected.in_comp ? 'badge-green' : 'badge-gray'}`}
+                          style={{ fontSize: 10, cursor: 'pointer', border: 'none' }}>
+                          {selected.in_comp ? 'In comp' : 'Out of comp'}
+                        </button>
+                      ) : (selected.in_comp ? 'In comp' : 'Out of comp') }] : []),
+                    ].map(({ label, render }, i, arr) => (
+                      <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 14px', borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13 }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
+                        <span style={{ fontWeight: 500, textAlign: 'right' }}>{render()}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {apData && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                      {(apData.age_division_kickboxing || apData.age_division_boxing || apData.weight_division || apData.kode_red_debut) && (
+                        <div className="card">
+                          <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: colour }}>Competition divisions</h3>
+                          {[
+                            ['Kickboxing', apData.age_division_kickboxing],
+                            ['Boxing', apData.age_division_boxing],
+                            ['Weight division', apData.weight_division],
+                            ['Kode Red debut', apData.kode_red_debut],
+                          ].map(([l, v]) => v && (
+                            <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                              <span style={{ color: 'var(--text-secondary)' }}>{l}</span>
+                              <span style={{ fontWeight: 500 }}>{v}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {(apData.favourite_technique || apData.training_music || apData.social_media || apData.sponsor_links) && (
+                        <div className="card">
+                          <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: colour }}>Athlete info</h3>
+                          {[
+                            ['Favourite technique', apData.favourite_technique],
+                            ['Training music', apData.training_music],
+                            ['Social media', apData.social_media],
+                            ['Sponsors', apData.sponsor_links],
+                          ].map(([l, v]) => v && (
+                            <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                              <span style={{ color: 'var(--text-secondary)' }}>{l}</span>
+                              <span style={{ fontWeight: 500, maxWidth: '55%', textAlign: 'right' }}>{v}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {apData.top_achievements && (
+                        <div className="card" style={{ gridColumn: '1/-1' }}>
+                          <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: colour }}>🏆 Top achievements</h3>
+                          <p style={{ fontSize: 13, lineHeight: 1.6 }}>{apData.top_achievements}</p>
+                        </div>
+                      )}
+                      {Array.isArray(apData.recent_results) && apData.recent_results.length > 0 && (
+                        <div className="card" style={{ gridColumn: '1/-1' }}>
+                          <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Recent results</h3>
+                          {apData.recent_results.map((r, i) => (
+                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                              <span style={{ fontSize: 16 }}>🎖</span>{r}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
             {/* Tabs */}
             <div className="hide-scrollbar hscroll-area" style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 14, overflowX: 'auto' }}>
               {['home', 'sessions', 'fit2fight', 'pdp', 'tpt', 'media', 'notes', 'report'].map(t => (
@@ -4871,148 +5014,6 @@ export default function AthleteProfiles() {
                   </div>
 
 
-                  <div style={{ height: 4 }} />
-
-                  <div className="card" style={{ padding: 0, marginBottom: 14 }}>
-                    <div style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Profile</span>
-                      {isAdmin && <span style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 400 }}>Tap a field to edit</span>}
-                    </div>
-                    {[
-                      { label: 'Discipline', editable: true, render: () => {
-                        const codeDisplay = selected.discipline_codes || selected.discipline || '—'
-                        return isAdmin ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
-                            {selected.discipline_codes && <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{selected.discipline_codes}</span>}
-                            <select value={selected.discipline || ''} onChange={e => updateSelectedField('discipline', e.target.value)}
-                              style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
-                              <option value="PKA">PKA</option>
-                              <option value="KRBA">KRBA</option>
-                            </select>
-                          </div>
-                        ) : codeDisplay
-                      } },
-                      { label: selected.discipline === 'KRBA' ? 'Level' : selected.is_kr ? 'Experience' : 'Grade', editable: true, render: () => {
-                        if (selected.discipline === 'KRBA') {
-                          return isAdmin ? (
-                            <select value={selected.krba_level || ''} onChange={e => updateSelectedField('krba_level', e.target.value || null)}
-                              style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
-                              <option value="">— Select —</option>
-                              {belts.krba.map(b => <option key={b}>{b}</option>)}
-                            </select>
-                          ) : (selected.krba_level || '—')
-                        }
-                        if (selected.is_kr) {
-                          return isAdmin ? (
-                            <select value={selected.competition_team || ''} onChange={e => updateSelectedField('competition_team', e.target.value || null)}
-                              style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
-                              <option value="">— Select —</option>
-                              <option>Beginner</option><option>Intermediate</option><option>Advanced</option>
-                            </select>
-                          ) : (selected.competition_team || '—')
-                        }
-                        const opts = age < 16 ? belts.junior : belts.senior
-                        return isAdmin ? (
-                          <select value={selected.pka_belt || ''} onChange={e => updateSelectedField('pka_belt', e.target.value || null)}
-                            style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
-                            <option value="">— Select —</option>
-                            {opts.map(b => <option key={b}>{b}</option>)}
-                          </select>
-                        ) : (selected.pka_belt || '—')
-                      } },
-                      { label: 'Weight', editable: true, render: () => isAdmin ? (
-                        <input type="number" step="0.1" defaultValue={selected.weight_kg || ''} placeholder="kg"
-                          onBlur={e => { const v = e.target.value ? parseFloat(e.target.value) : null; if (v !== selected.weight_kg) updateSelectedField('weight_kg', v) }}
-                          style={{ width: 70, fontSize: 12, padding: '4px 6px', textAlign: 'right', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
-                      ) : (selected.weight_kg ? `${selected.weight_kg}kg${selected.weight_category ? ` (${selected.weight_category})` : ''}` : '—') },
-                      { label: 'Comp weight', editable: true, render: () => isAdmin ? (
-                        <input defaultValue={apData?.weight_division || ''} placeholder="e.g. -60kg"
-                          onBlur={e => { if (e.target.value !== (apData?.weight_division || '')) saveCompWeightHere(e.target.value || null) }}
-                          style={{ width: 90, fontSize: 12, padding: '4px 6px', textAlign: 'right', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
-                      ) : (apData?.weight_division || '—') },
-                      { label: 'Groups', editable: true, render: () => isAdmin ? (
-                        <div style={{ display: 'flex', gap: 3 }}>
-                          {[
-                            { key: 'is_kr', label: 'KR', cls: 'badge-purple' },
-                            { key: 'is_pts', label: 'PTs', cls: 'badge-blue' },
-                            { key: 'is_leader', label: 'Leader', cls: 'badge-green' },
-                            { key: 'is_coach', label: 'Coach', cls: 'badge-amber' },
-                          ].map(g => (
-                            <button key={g.key} onClick={() => toggleSelectedGroup(g.key)}
-                              className={`badge ${g.cls}`}
-                              style={{ fontSize: 9, cursor: 'pointer', border: 'none', opacity: selected[g.key] ? 1 : 0.25 }}>
-                              {g.label}
-                            </button>
-                          ))}
-                        </div>
-                      ) : ([selected.is_kr && 'KR', selected.is_pts && 'PTs', selected.is_leader && 'Leader', selected.is_coach && 'Coach'].filter(Boolean).join(', ') || 'None') },
-                      ...(selected.is_kr || selected.discipline === 'KRBA' ? [{ label: 'Competition status', editable: true, render: () => isAdmin ? (
-                        <button onClick={() => toggleSelectedGroup('in_comp')}
-                          className={`badge ${selected.in_comp ? 'badge-green' : 'badge-gray'}`}
-                          style={{ fontSize: 10, cursor: 'pointer', border: 'none' }}>
-                          {selected.in_comp ? 'In comp' : 'Out of comp'}
-                        </button>
-                      ) : (selected.in_comp ? 'In comp' : 'Out of comp') }] : []),
-                    ].map(({ label, render }, i, arr) => (
-                      <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 14px', borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13 }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
-                        <span style={{ fontWeight: 500, textAlign: 'right' }}>{render()}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {apData && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-                      {(apData.age_division_kickboxing || apData.age_division_boxing || apData.weight_division || apData.kode_red_debut) && (
-                        <div className="card">
-                          <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: colour }}>Competition divisions</h3>
-                          {[
-                            ['Kickboxing', apData.age_division_kickboxing],
-                            ['Boxing', apData.age_division_boxing],
-                            ['Weight division', apData.weight_division],
-                            ['Kode Red debut', apData.kode_red_debut],
-                          ].map(([l, v]) => v && (
-                            <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
-                              <span style={{ color: 'var(--text-secondary)' }}>{l}</span>
-                              <span style={{ fontWeight: 500 }}>{v}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      {(apData.favourite_technique || apData.training_music || apData.social_media || apData.sponsor_links) && (
-                        <div className="card">
-                          <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: colour }}>Athlete info</h3>
-                          {[
-                            ['Favourite technique', apData.favourite_technique],
-                            ['Training music', apData.training_music],
-                            ['Social media', apData.social_media],
-                            ['Sponsors', apData.sponsor_links],
-                          ].map(([l, v]) => v && (
-                            <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
-                              <span style={{ color: 'var(--text-secondary)' }}>{l}</span>
-                              <span style={{ fontWeight: 500, maxWidth: '55%', textAlign: 'right' }}>{v}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      {apData.top_achievements && (
-                        <div className="card" style={{ gridColumn: '1/-1' }}>
-                          <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: colour }}>🏆 Top achievements</h3>
-                          <p style={{ fontSize: 13, lineHeight: 1.6 }}>{apData.top_achievements}</p>
-                        </div>
-                      )}
-                      {Array.isArray(apData.recent_results) && apData.recent_results.length > 0 && (
-                        <div className="card" style={{ gridColumn: '1/-1' }}>
-                          <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Recent results</h3>
-                          {apData.recent_results.map((r, i) => (
-                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
-                              <span style={{ fontSize: 16 }}>🎖</span>{r}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 8 }}>
                     {[
