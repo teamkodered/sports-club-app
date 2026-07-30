@@ -1920,6 +1920,18 @@ export default function AthleteProfiles() {
   const [tab, setTab]               = useState('profile')
   const [search, setSearch]         = useState('')
   const [editing, setEditing]       = useState(false)
+  const editProfileRef = useRef(null)
+
+  useEffect(() => {
+    if (!editing) return
+    function handleClick(e) {
+      if (editProfileRef.current && !editProfileRef.current.contains(e.target)) {
+        setEditing(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [editing])
   const [editForm, setEditForm]     = useState({})
   const [results, setResults]       = useState(['', ''])
   const [reportTab, setReportTab]   = useState('individual')
@@ -3730,9 +3742,6 @@ export default function AthleteProfiles() {
                     )}
                   </div>
                 </div>
-                {apData?.show_on_website && (
-                  <span className="badge badge-green" style={{ fontSize: 10, alignSelf: 'flex-start' }}>🌐 On website</span>
-                )}
               </div>
 
               {/* Actions row -- moved below the name/house details so it fits better on mobile */}
@@ -3886,6 +3895,9 @@ export default function AthleteProfiles() {
                           {selected.in_comp ? 'In comp' : 'Out of comp'}
                         </button>
                       ) : (selected.in_comp ? 'In comp' : 'Out of comp') }] : []),
+                      ...(apData?.show_on_website ? [{ label: 'Website', editable: false, render: () => (
+                        <span className="badge badge-green" style={{ fontSize: 10 }}>🌐 On website</span>
+                      ) }] : []),
                     ].map(({ label, render }, i, arr) => (
                       <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 14px', borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13 }}>
                         <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
@@ -5032,20 +5044,24 @@ export default function AthleteProfiles() {
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 14 }}>
-                    {[
-                      { label: 'PDP', icon: '🎯', colour: '#1D9E75', tab: 'pdp' },
-                      { label: 'TTP', icon: '📊', colour: '#E24B4A', tab: 'tpt' },
-                    ].map(l => (
-                      <button key={l.label} onClick={() => setTab(l.tab)} style={{
-                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                        padding: '14px 8px', background: l.colour + '12',
-                        border: `1px solid ${l.colour}30`, borderRadius: 'var(--border-radius-lg)',
-                        cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                      }}>
-                        <span style={{ fontSize: 24 }}>{l.icon}</span>
-                        <span style={{ fontSize: 12, fontWeight: 500, color: l.colour }}>{l.label}</span>
-                      </button>
-                    ))}
+                    {(() => {
+                      const completedPdpCount = notesLog.filter(n => n.note_text?.startsWith('Completed PDP task')).length
+                      return [
+                        { label: 'PDP', icon: '🎯', colour: '#1D9E75', tab: 'pdp', badge: completedPdpCount > 0 ? `${completedPdpCount} completed → Notes` : null },
+                        { label: 'TTP', icon: '📊', colour: '#E24B4A', tab: 'tpt', badge: null },
+                      ].map(l => (
+                        <button key={l.label} onClick={() => setTab(l.tab)} style={{
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                          padding: '14px 8px', background: l.colour + '12',
+                          border: `1px solid ${l.colour}30`, borderRadius: 'var(--border-radius-lg)',
+                          cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                        }}>
+                          <span style={{ fontSize: 24 }}>{l.icon}</span>
+                          <span style={{ fontSize: 12, fontWeight: 500, color: l.colour }}>{l.label}</span>
+                          {l.badge && <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{l.badge}</span>}
+                        </button>
+                      ))
+                    })()}
                     <a href={`/fit2fight?student_id=${selected?.id}`} style={{
                       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
                       padding: '14px 8px', background: '#EF9F2712',
@@ -5076,7 +5092,7 @@ export default function AthleteProfiles() {
             })()}
 
             {editing && (
-                  <div className="card">
+                  <div className="card" ref={editProfileRef}>
                     <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 14 }}>Edit athlete profile</h2>
                     <div className="field-row">
                       <div className="field"><label>Age division (kickboxing)</label>
