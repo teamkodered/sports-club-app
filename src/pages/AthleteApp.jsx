@@ -553,11 +553,12 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
   const noNumericStat = ['stretch', 'eye_training', 'one_percenters', 'mentality', 'wellbeing'].includes(b.key)
   const { mostRecent, pb, unit } = noNumericStat ? { mostRecent: null, pb: null, unit: '' } : computeModuleStats(sorted, b.key, currentSubType)
   const lastLogged = noNumericStat ? computeLastLogged(sorted, b.key) : null
+  const swipeStart = useRef(null)
 
-  function cycleType() {
+  function cycleType(direction = 1) {
     if (!subTypeOptions.length) return
     const idx = subTypeOptions.indexOf(currentSubType)
-    const next = subTypeOptions[(idx + 1) % subTypeOptions.length]
+    const next = subTypeOptions[(idx + direction + subTypeOptions.length) % subTypeOptions.length]
     setModuleSubType(prev => ({ ...prev, [b.key]: next }))
   }
 
@@ -565,18 +566,34 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
   const isPhysicalModule = ['running', 'watt_bike', 'bodyweight', 'stretch'].includes(b.key)
   const isSimplifiedModule = ['wellbeing', 'mentality', 'test'].includes(b.key)
   const hideLeftZone = isSimplifiedModule || isPhysicalModule
+  const canCycle = subTypeOptions.length > 1
 
   return (
-    <div style={{
-      display: 'flex', alignItems: 'stretch', width: '100%',
-      background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
-      overflow: 'hidden', fontFamily: 'var(--font-sans)',
-    }}>
-      {/* Left: quick-log link to the full form. Wellbeing/Mentality/
-          Test/Running/Watt bike/Bodyweight/Stretch flows all have their
-          own dedicated card grids on this page, so this zone is skipped
-          for them entirely. */}
-      {!hideLeftZone && (
+    <div
+      onTouchStart={e => { if (canCycle) swipeStart.current = e.touches[0].clientX }}
+      onTouchEnd={e => {
+        if (!canCycle || swipeStart.current == null) return
+        const delta = e.changedTouches[0].clientX - swipeStart.current
+        if (Math.abs(delta) > 40) cycleType(delta < 0 ? 1 : -1)
+        swipeStart.current = null
+      }}
+      style={{
+        display: 'flex', alignItems: 'stretch', width: '100%',
+        background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+        overflow: 'hidden', fontFamily: 'var(--font-sans)',
+      }}>
+      {/* Left: quick-log link to the full form, or (when there are
+          multiple sub-types) a prev arrow for laptop/desktop use where
+          swipe isn't available. Wellbeing/Mentality/Test/Running/Watt
+          bike/Bodyweight/Stretch flows all have their own dedicated
+          card grids on this page, so the log-link is skipped for them
+          entirely -- the arrow still shows if they can cycle. */}
+      {canCycle ? (
+        <button onClick={() => cycleType(-1)} title="Previous type" style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, flexShrink: 0,
+          color: 'var(--text-tertiary)', fontSize: 12, background: 'none', border: 'none', borderRight: '1px solid var(--border)', cursor: 'pointer',
+        }}>◀</button>
+      ) : !hideLeftZone && (
         <a href={logHref} title={`Log ${b.label}${currentSubType ? ` — ${currentSubType}` : ''}`} style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, flexShrink: 0,
           color: colour, fontSize: 18, fontWeight: 700, textDecoration: 'none', borderRight: '1px solid var(--border)',
@@ -587,8 +604,8 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
           section as the button below the card. For Test, tap switches to
           results (icon only, no label/sub-type text -- Test has its own
           dedicated card grid below for logging). Other modules keep
-          cycling sub-type. */}
-      <button onClick={() => isPhysicalModule ? onToggleLog?.(b.key) : b.key === 'test' ? setTab('fit2fight') : cycleType()} style={{
+          cycling sub-type on tap too, alongside the swipe/arrows above. */}
+      <button onClick={() => isPhysicalModule ? onToggleLog?.(b.key) : b.key === 'test' ? setTab('fit2fight') : cycleType(1)} style={{
         flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
         padding: '8px 4px', background: 'none', border: 'none', borderRight: isSimplifiedModule ? 'none' : '1px solid var(--border)',
         cursor: (b.key === 'test' || subTypeOptions.length > 1) ? 'pointer' : 'default',
@@ -597,12 +614,12 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
         <span style={{ fontSize: 16 }}>{b.icon}</span>
         {b.key !== 'test' && <span style={{ fontSize: 9, fontWeight: 500, whiteSpace: 'nowrap' }}>{b.label}</span>}
         {b.key !== 'test' && currentSubType && <span style={{ fontSize: 7, color: colour, fontWeight: 600, textAlign: 'center', lineHeight: 1.2 }}>{currentSubType}</span>}
-        {!isPhysicalModule && b.key !== 'test' && subTypeOptions.length > 1 && <span style={{ fontSize: 7, color: 'var(--text-tertiary)' }}>tap to cycle</span>}
       </button>
 
       {/* Right: recent/PB (or last-logged), tap to view results --
           skipped for Wellbeing/Mentality/Test, which have their own
-          dedicated card grids below instead. */}
+          dedicated card grids below instead. Next arrow sits right
+          after it when this card can cycle sub-types. */}
       {!isSimplifiedModule && (
       <button onClick={() => setTab('fit2fight')} style={{
         width: 58, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -619,6 +636,12 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
           </>
         )}
       </button>
+      )}
+      {canCycle && (
+        <button onClick={() => cycleType(1)} title="Next type" style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, flexShrink: 0,
+          color: 'var(--text-tertiary)', fontSize: 12, background: 'none', border: 'none', borderLeft: '1px solid var(--border)', cursor: 'pointer',
+        }}>▶</button>
       )}
     </div>
   )
