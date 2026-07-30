@@ -4041,12 +4041,12 @@ export default function AthleteProfiles() {
                         </div>
                       ) : `${selected.wins || 0}W ${selected.losses || 0}L ${selected.draws || 0}D` },
                       { label: 'Weight', editable: true, render: () => isAdmin ? (
-                        <input type="number" step="0.1" defaultValue={selected.weight_kg || ''} placeholder="kg"
+                        <input key={`weight-${selected.id}`} type="number" step="0.1" defaultValue={selected.weight_kg || ''} placeholder="kg"
                           onBlur={e => { const v = e.target.value ? parseFloat(e.target.value) : null; if (v !== selected.weight_kg) updateSelectedField('weight_kg', v) }}
                           style={{ width: 70, fontSize: 12, padding: '4px 6px', textAlign: 'right', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
                       ) : (selected.weight_kg ? `${selected.weight_kg}kg${selected.weight_category ? ` (${selected.weight_category})` : ''}` : '—') },
                       { label: 'Comp weight', editable: true, render: () => isAdmin ? (
-                        <input defaultValue={apData?.weight_division || ''} placeholder="e.g. -60kg"
+                        <input key={`compweight-${selected.id}`} defaultValue={apData?.weight_division || ''} placeholder="e.g. -60kg"
                           onBlur={e => { if (e.target.value !== (apData?.weight_division || '')) saveCompWeightHere(e.target.value || null) }}
                           style={{ width: 90, fontSize: 12, padding: '4px 6px', textAlign: 'right', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
                       ) : (apData?.weight_division || '—') },
