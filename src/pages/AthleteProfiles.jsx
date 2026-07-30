@@ -2041,6 +2041,7 @@ export default function AthleteProfiles() {
   const [showNameDropdown, setShowNameDropdown] = useState(false)
   const [nameDropdownSearch, setNameDropdownSearch] = useState('')
   const nameDropdownRef = useRef(null)
+  const selectingIdRef = useRef(null) // tracks the most recently requested athlete, so a slower/stale fetch response for a previous athlete can be ignored if the coach has since switched
 
   useEffect(() => {
     if (!showNameDropdown) return
@@ -2793,6 +2794,7 @@ export default function AthleteProfiles() {
   }
 
   async function selectStudent(s) {
+    selectingIdRef.current = s.id
     setSelected(s)
     setTab('home')
     setEditing(false)
@@ -2805,36 +2807,37 @@ export default function AthleteProfiles() {
     // Load F2F sessions
     supabase.from('fit2fight_sessions').select('*').eq('student_id', s.id)
       .order('session_date', { ascending: false })
-      .then(({ data }) => setF2fData(data || []))
+      .then(({ data }) => { if (selectingIdRef.current === s.id) setF2fData(data || []) })
     // Load TTP data -- latest 2, to show side by side for comparison
     supabase.from('tpt_kickboxing').select('*').eq('student_id', s.id)
       .order('assessed_at', { ascending: false }).limit(2)
-      .then(({ data }) => setTptData(prev => ({ ...prev, kickboxing: data || [] })))
+      .then(({ data }) => { if (selectingIdRef.current === s.id) setTptData(prev => ({ ...prev, kickboxing: data || [] })) })
     supabase.from('tpt_boxing').select('*').eq('student_id', s.id)
       .order('assessed_at', { ascending: false }).limit(2)
-      .then(({ data }) => setTptData(prev => ({ ...prev, boxing: data || [] })))
+      .then(({ data }) => { if (selectingIdRef.current === s.id) setTptData(prev => ({ ...prev, boxing: data || [] })) })
     // Load attendance history + coach points for the Sessions tab
     supabase.from('attendance').select('id, session_date, attendance_type, attended_at, note')
       .eq('student_id', s.id).neq('attendance_type', 'absent').neq('attendance_type', 'excused')
       .order('session_date', { ascending: false })
-      .then(({ data, error }) => { if (!error) setAttendanceData(data || []) })
+      .then(({ data, error }) => { if (!error && selectingIdRef.current === s.id) setAttendanceData(data || []) })
     // Load classes this athlete is explicitly assigned to
     supabase.from('student_class_assignments').select('id, class_id, classes(*)')
       .eq('student_id', s.id)
-      .then(({ data, error }) => { if (!error) setAssignedClasses(data || []) })
+      .then(({ data, error }) => { if (!error && selectingIdRef.current === s.id) setAssignedClasses(data || []) })
     supabase.from('athlete_notes_log').select('*')
       .eq('student_id', s.id)
       .order('logged_at', { ascending: false })
-      .then(({ data, error }) => { if (!error) setNotesLog(data || []) })
+      .then(({ data, error }) => { if (!error && selectingIdRef.current === s.id) setNotesLog(data || []) })
     supabase.from('points_log').select('id, point_type, points_awarded, point_scope, note, awarded_at')
       .eq('student_id', s.id)
       .order('awarded_at', { ascending: false })
-      .then(({ data, error }) => { if (!error) setSessionPoints(data || []) })
+      .then(({ data, error }) => { if (!error && selectingIdRef.current === s.id) setSessionPoints(data || []) })
     const { data } = await supabase
       .from('athlete_profiles')
       .select('*, pdp_notes, pdp_shared')
       .eq('student_id', s.id)
       .single()
+    if (selectingIdRef.current !== s.id) return // a newer selection has since started; don't apply this stale response
     setApData(data || null)
     if (data) {
       setEditForm({
