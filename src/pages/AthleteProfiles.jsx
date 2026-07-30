@@ -3858,7 +3858,8 @@ export default function AthleteProfiles() {
                         ) : (selected.pka_belt || '—')
                       } },
                       { label: 'Record', editable: true, render: () => isAdmin ? (
-                        <div style={{ display: 'flex', gap: 4, alignItems: 'center', justifyContent: 'flex-end' }}>
+                        <div style={{ display: 'flex', gap: 4, alignItems: 'center', justifyContent: 'flex-end' }}
+                          onTouchStart={e => e.stopPropagation()} onTouchEnd={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
                           <input type="number" min="0" defaultValue={selected.wins || 0} title="Wins"
                             onBlur={e => { const v = parseInt(e.target.value) || 0; if (v !== (selected.wins || 0)) updateSelectedField('wins', v) }}
                             style={{ width: 38, fontSize: 12, padding: '4px 4px', textAlign: 'center', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />

@@ -843,7 +843,7 @@ export default function Registers() {
                       </td>
                     )}
                     {(regType === 'kr' || regType === 'krba') && (
-                      <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                      <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()} onTouchStart={e => e.stopPropagation()} onTouchEnd={e => e.stopPropagation()}>
                         <div style={{ display: 'flex', gap: 2, alignItems: 'center', justifyContent: 'center' }}>
                           <input type="number" min="0" defaultValue={s.wins || 0} title="Wins"
                             onBlur={e => { const v = parseInt(e.target.value) || 0; if (v !== (s.wins || 0)) updateWLD(s.id, 'wins', v) }}
