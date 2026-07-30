@@ -5045,7 +5045,9 @@ export default function AthleteProfiles() {
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 14 }}>
                     {(() => {
-                      const completedPdpCount = notesLog.filter(n => n.note_text?.startsWith('Completed PDP task')).length
+                      const completedPdpCount = notesLog.filter(n =>
+                        n.note_text?.startsWith('Completed PDP task') && !n.note_text.toLowerCase().includes('weight')
+                      ).length
                       return [
                         { label: 'PDP', icon: '🎯', colour: '#1D9E75', tab: 'pdp', badge: completedPdpCount > 0 ? `${completedPdpCount} completed → Notes` : null },
                         { label: 'TTP', icon: '📊', colour: '#E24B4A', tab: 'tpt', badge: null },
