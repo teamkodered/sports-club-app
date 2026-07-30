@@ -1224,6 +1224,25 @@ export default function AthleteApp() {
         </div>
       </div>
 
+      {student && (
+      <div className="card" style={{ padding: 0, marginBottom: 14 }}>
+        <div style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)' }}>Profile</div>
+        {[
+          ['Discipline', student.discipline_codes || student.discipline || '—'],
+          [student.discipline === 'KRBA' ? 'Level' : student.is_kr ? 'Experience' : 'Grade',
+            student.discipline === 'KRBA' ? (student.krba_level || '—') : student.is_kr ? (student.competition_team || '—') : (student.pka_belt || '—')],
+          ['Weight', student.weight_kg ? `${student.weight_kg}kg${student.weight_category ? ` (${student.weight_category})` : ''}` : '—'],
+          ['Comp weight', apData?.weight_division || '—'],
+          ['Groups', [student.is_kr && 'KR', student.is_pts && 'PTs', student.is_leader && 'Leader', student.is_coach && 'Coach'].filter(Boolean).join(', ') || 'None'],
+        ].map(([label, val], i, arr) => (
+          <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 14px', borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13 }}>
+            <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
+            <span style={{ fontWeight: 500, textAlign: 'right' }}>{val}</span>
+          </div>
+        ))}
+      </div>
+      )}
+
       {/* Tabs */}
       <div className="hide-scrollbar" style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 14, overflowX: 'auto' }}>
         {TABS.map(([key, label]) => (
@@ -2228,22 +2247,6 @@ export default function AthleteApp() {
                     </div>
 
 
-                    <div className="card" style={{ padding: 0, marginBottom: 14 }}>
-                      <div style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)' }}>Profile</div>
-                      {[
-                        ['Discipline', student.discipline_codes || student.discipline || '—'],
-                        [student.discipline === 'KRBA' ? 'Level' : student.is_kr ? 'Experience' : 'Grade',
-                          student.discipline === 'KRBA' ? (student.krba_level || '—') : student.is_kr ? (student.competition_team || '—') : (student.pka_belt || '—')],
-                        ['Weight', student.weight_kg ? `${student.weight_kg}kg${student.weight_category ? ` (${student.weight_category})` : ''}` : '—'],
-                        ['Comp weight', apData?.weight_division || '—'],
-                        ['Groups', [student.is_kr && 'KR', student.is_pts && 'PTs', student.is_leader && 'Leader', student.is_coach && 'Coach'].filter(Boolean).join(', ') || 'None'],
-                      ].map(([label, val], i, arr) => (
-                        <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 14px', borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13 }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
-                          <span style={{ fontWeight: 500, textAlign: 'right' }}>{val}</span>
-                        </div>
-                      ))}
-                    </div>
 
                     {apData && (apData.age_division_kickboxing || apData.age_division_boxing || apData.weight_division || apData.top_achievements || (Array.isArray(apData.recent_results) && apData.recent_results.length > 0)) && (
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>

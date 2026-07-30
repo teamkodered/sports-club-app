@@ -1962,6 +1962,7 @@ export default function AthleteProfiles() {
   const [recentSentReports, setRecentSentReports] = useState([])
   const [invitingId, setInvitingId] = useState(null)
   const [showQr, setShowQr] = useState(false)
+  const [showInviteMenu, setShowInviteMenu] = useState(false)
 
   useEffect(() => { loadStudents() }, [])
 
@@ -2377,6 +2378,13 @@ export default function AthleteProfiles() {
     } catch (e) {
       alert('Could not copy automatically. Here is the message to share:\n\n' + msg)
     }
+  }
+
+  function whatsappInvite(s) {
+    const url = `https://klasschamp.netlify.app/claim?ref=${encodeURIComponent(s.student_ref)}`
+    const msg = encodeURIComponent(`Hi ${s.members?.first_name || 'there'}, you've been invited to the KR Centre athlete app. Tap this link to confirm it's you and set up your login: ${url}`)
+    const phone = s.members?.phone ? s.members.phone.replace(/\D/g, '') : ''
+    window.open(`https://wa.me/${phone}?text=${msg}`, '_blank')
   }
 
   async function inviteStudent(s, method) {
@@ -3693,31 +3701,9 @@ export default function AthleteProfiles() {
 
               {/* Actions row -- moved below the name/house details so it fits better on mobile */}
               <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-                {isAdmin && m?.status !== 'stopped' && (() => {
-                  const hasRealEmail = m?.email && !m.email.includes('@kr-centre.placeholder')
-                  return (
-                    <>
-                      <button className="btn btn-sm" onClick={() => inviteStudent(selected, 'email')} disabled={invitingId === selected.id}
-                        title={hasRealEmail ? `Email invite to ${m.email}` : 'No real email on file'}
-                        style={!hasRealEmail ? { opacity: 0.4 } : undefined}>
-                        {invitingId === selected.id ? '…' : '✉️ Email invite'}
-                      </button>
-                      <button className="btn btn-sm" onClick={() => inviteStudent(selected, 'sms')} disabled={invitingId === selected.id}
-                        title={m?.phone ? `SMS invite to ${m.phone}` : 'No phone on file'}
-                        style={!m?.phone ? { opacity: 0.4 } : undefined}>
-                        📱 SMS invite
-                      </button>
-                      <button className="btn btn-sm" onClick={() => copyInviteLink(selected)}
-                        title="Copy the invite message to share any way you like">
-                        📋 Copy link
-                      </button>
-                      <button className="btn btn-sm" onClick={() => setShowQr(true)}
-                        title="Show a QR code for this athlete's invite link">
-                        ▦ QR code
-                      </button>
-                    </>
-                  )
-                })()}
+                {isAdmin && m?.status !== 'stopped' && (
+                  <button className="btn btn-sm" onClick={() => setShowInviteMenu(true)}>📨 Invite</button>
+                )}
                 {isAdmin && !editing && (
                   <button className="btn btn-sm" onClick={() => setEditing(true)}>Edit profile</button>
                 )}
@@ -3726,6 +3712,47 @@ export default function AthleteProfiles() {
                 )}
               </div>
             </div>
+
+            {showInviteMenu && (() => {
+              const hasRealEmail = m?.email && !m.email.includes('@kr-centre.placeholder')
+              return (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 16 }}
+                  onClick={() => setShowInviteMenu(false)}>
+                  <div className="card" style={{ maxWidth: 320, width: '100%' }} onClick={e => e.stopPropagation()}>
+                    <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Invite {m?.first_name}</h3>
+                    <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>Choose how to share their invite</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <button className="btn btn-sm" style={{ justifyContent: 'flex-start' }} disabled={!hasRealEmail || invitingId === selected.id}
+                        onClick={() => { setShowInviteMenu(false); inviteStudent(selected, 'email') }}
+                        title={hasRealEmail ? `Email invite to ${m.email}` : 'No real email on file'}>
+                        {invitingId === selected.id ? '…' : '✉️ Email invite'}
+                      </button>
+                      <button className="btn btn-sm" style={{ justifyContent: 'flex-start' }} disabled={!m?.phone}
+                        onClick={() => { setShowInviteMenu(false); inviteStudent(selected, 'sms') }}
+                        title={m?.phone ? `SMS invite to ${m.phone}` : 'No phone on file'}>
+                        📱 SMS invite
+                      </button>
+                      <button className="btn btn-sm" style={{ justifyContent: 'flex-start' }}
+                        onClick={() => { setShowInviteMenu(false); whatsappInvite(selected) }}
+                        title="Share via WhatsApp">
+                        💬 WhatsApp invite
+                      </button>
+                      <button className="btn btn-sm" style={{ justifyContent: 'flex-start' }}
+                        onClick={() => { setShowInviteMenu(false); copyInviteLink(selected) }}
+                        title="Copy the invite message to share any way you like">
+                        📋 Copy link
+                      </button>
+                      <button className="btn btn-sm" style={{ justifyContent: 'flex-start' }}
+                        onClick={() => { setShowInviteMenu(false); setShowQr(true) }}
+                        title="Show a QR code for this athlete's invite link">
+                        ▦ QR code
+                      </button>
+                    </div>
+                    <button className="btn" style={{ width: '100%', justifyContent: 'center', marginTop: 12 }} onClick={() => setShowInviteMenu(false)}>Cancel</button>
+                  </div>
+                </div>
+              )
+            })()}
 
             {showQr && (
               <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 16 }}
