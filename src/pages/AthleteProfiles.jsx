@@ -1825,6 +1825,17 @@ export default function AthleteProfiles() {
   }, [showAddTarget])
 
   useEffect(() => {
+    if (!showNameDropdown) return
+    function handleClick(e) {
+      if (nameDropdownRef.current && !nameDropdownRef.current.contains(e.target)) {
+        setShowNameDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showNameDropdown])
+
+  useEffect(() => {
     if (showAddTarget) setShowTargetAthleteDropdown(false)
   }, [showAddTarget])
 
@@ -1963,6 +1974,9 @@ export default function AthleteProfiles() {
   const [invitingId, setInvitingId] = useState(null)
   const [showQr, setShowQr] = useState(false)
   const [showInviteMenu, setShowInviteMenu] = useState(false)
+  const [showNameDropdown, setShowNameDropdown] = useState(false)
+  const [nameDropdownSearch, setNameDropdownSearch] = useState('')
+  const nameDropdownRef = useRef(null)
 
   useEffect(() => { loadStudents() }, [])
 
@@ -3020,7 +3034,7 @@ export default function AthleteProfiles() {
         {!selected ? (
           <div style={{ maxWidth: 900 }}
             onTouchStart={e => {
-              swipeStartX.current = e.target.closest('.hscroll-area') ? null : e.touches[0].clientX
+              swipeStartX.current = e.target.closest('.swipe-zone') ? e.touches[0].clientX : null
             }}
             onTouchEnd={e => {
               if (swipeStartX.current == null) return
@@ -3029,7 +3043,7 @@ export default function AthleteProfiles() {
               if (delta < -60 && filtered.length > 0) selectStudent(filtered[0])
               swipeStartX.current = null
             }}>
-            <div className="empty-state" style={{ paddingTop: 20, paddingBottom: 20 }}>
+            <div className="empty-state swipe-zone" style={{ paddingTop: 20, paddingBottom: 20 }}>
               <h3>Athlete Dashboard</h3>
             </div>
 
@@ -3630,7 +3644,7 @@ export default function AthleteProfiles() {
         ) : (
           <div style={{ maxWidth: 640, margin: '0 auto' }}
             onTouchStart={e => {
-              swipeStartX.current = e.target.closest('.hscroll-area') ? null : e.touches[0].clientX
+              swipeStartX.current = e.target.closest('.swipe-zone') ? e.touches[0].clientX : null
             }}
             onTouchEnd={e => {
               if (swipeStartX.current == null) return
@@ -3638,7 +3652,7 @@ export default function AthleteProfiles() {
               if (Math.abs(delta) > 60) goToAdjacentAthlete(delta < 0 ? 1 : -1)
               swipeStartX.current = null
             }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div className="swipe-zone" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <button className="btn btn-sm" onClick={goHome}>← Back</button>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button className="btn btn-sm"
@@ -3649,7 +3663,7 @@ export default function AthleteProfiles() {
             </div>
 
             {/* Athlete header */}
-            <div className="card" style={{ marginBottom: 12, borderLeft: `3px solid ${colour}`, borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0' }}>
+            <div className="card swipe-zone" style={{ marginBottom: 12, borderLeft: `3px solid ${colour}`, borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                 <div style={{ width: 64, height: 64, borderRadius: '50%', background: colour + '22', color: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 700, flexShrink: 0 }}>
                   {initials}
@@ -3663,7 +3677,30 @@ export default function AthleteProfiles() {
                         #{showOverallPos ? overallPosition : positionInHouse}
                       </button>
                     )}
-                    <div style={{ fontSize: 21, fontWeight: 600 }}>{m?.first_name} {m?.last_name}</div>
+                    <div ref={nameDropdownRef} style={{ position: 'relative' }}>
+                      <button onClick={() => setShowNameDropdown(v => !v)} title="Click to switch athlete"
+                        style={{ fontSize: 21, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-sans)', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {m?.first_name} {m?.last_name} <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{showNameDropdown ? '▲' : '▼'}</span>
+                      </button>
+                      {showNameDropdown && (
+                        <div className="card" style={{ position: 'absolute', top: '100%', left: 0, zIndex: 20, width: 260, marginTop: 4, padding: 8, maxHeight: 320, overflowY: 'auto' }}>
+                          <input value={nameDropdownSearch} onChange={e => setNameDropdownSearch(e.target.value)}
+                            placeholder="Search athletes…" autoFocus style={{ width: '100%', fontSize: 13, marginBottom: 6 }} />
+                          {students
+                            .filter(s => !nameDropdownSearch || `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.toLowerCase().includes(nameDropdownSearch.toLowerCase()))
+                            .sort((a, b) => `${a.members?.first_name} ${a.members?.last_name}`.localeCompare(`${b.members?.first_name} ${b.members?.last_name}`))
+                            .map(s => (
+                              <button key={s.id} onClick={() => { selectStudent(s); setShowNameDropdown(false); setNameDropdownSearch('') }}
+                                style={{
+                                  display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', borderRadius: 6, fontSize: 13,
+                                  background: s.id === selected.id ? colour + '15' : 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', fontFamily: 'var(--font-sans)',
+                                }}>
+                                {s.members?.first_name} {s.members?.last_name}
+                              </button>
+                            ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 3 }}>
                     {selected.discipline}{age ? ` · Age ${age}` : ''}
