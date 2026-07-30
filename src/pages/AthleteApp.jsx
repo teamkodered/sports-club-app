@@ -1258,6 +1258,7 @@ export default function AthleteApp() {
           ['Discipline', student.discipline_codes || student.discipline || '—'],
           [student.discipline === 'KRBA' ? 'Level' : student.is_kr ? 'Experience' : 'Grade',
             student.discipline === 'KRBA' ? (student.krba_level || '—') : student.is_kr ? (student.competition_team || '—') : (student.pka_belt || '—')],
+          ['Record', `${student.wins || 0}W ${student.losses || 0}L ${student.draws || 0}D`],
           ['Weight', student.weight_kg ? `${student.weight_kg}kg${student.weight_category ? ` (${student.weight_category})` : ''}` : '—'],
           ['Comp weight', apData?.weight_division || '—'],
           ['Groups', [student.is_kr && 'KR', student.is_pts && 'PTs', student.is_leader && 'Leader', student.is_coach && 'Coach'].filter(Boolean).join(', ') || 'None'],

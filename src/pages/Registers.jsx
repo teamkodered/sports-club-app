@@ -364,6 +364,12 @@ export default function Registers() {
     setStudents(prev => prev.map(x => x.id === s.id ? { ...x, in_comp: !s.in_comp } : x))
   }
 
+  async function updateWLD(studentId, field, value) {
+    const { error } = await supabase.from('students').update({ [field]: value }).eq('id', studentId)
+    if (error) { alert('Error updating: ' + error.message); return }
+    setStudents(prev => prev.map(x => x.id === studentId ? { ...x, [field]: value } : x))
+  }
+
   async function markAttendance(type) {
     if (selectedStudents.length === 0) return
     setSaving(true)
@@ -757,6 +763,7 @@ export default function Registers() {
                     </th>
                   )
                 })()}
+                {(regType === 'kr' || regType === 'krba') && <th style={{ textAlign: 'center' }}>Record</th>}
                 {visibleCols.includes('groups')      && <th>Groups</th>}
                 {visibleCols.includes('attendance')  && <th style={{ textAlign: 'center' }}>
                   <div>Attend.</div>
@@ -833,6 +840,21 @@ export default function Registers() {
                           title={s.in_comp ? 'Click to mark out of comp' : 'Click to mark in comp'}>
                           {s.in_comp ? 'In comp' : 'Out of comp'}
                         </button>
+                      </td>
+                    )}
+                    {(regType === 'kr' || regType === 'krba') && (
+                      <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', gap: 2, alignItems: 'center', justifyContent: 'center' }}>
+                          <input type="number" min="0" defaultValue={s.wins || 0} title="Wins"
+                            onBlur={e => { const v = parseInt(e.target.value) || 0; if (v !== (s.wins || 0)) updateWLD(s.id, 'wins', v) }}
+                            style={{ width: 30, fontSize: 11, padding: '2px 2px', textAlign: 'center', border: '1px solid var(--border-strong)', borderRadius: 4, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+                          <input type="number" min="0" defaultValue={s.losses || 0} title="Losses"
+                            onBlur={e => { const v = parseInt(e.target.value) || 0; if (v !== (s.losses || 0)) updateWLD(s.id, 'losses', v) }}
+                            style={{ width: 30, fontSize: 11, padding: '2px 2px', textAlign: 'center', border: '1px solid var(--border-strong)', borderRadius: 4, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+                          <input type="number" min="0" defaultValue={s.draws || 0} title="Draws"
+                            onBlur={e => { const v = parseInt(e.target.value) || 0; if (v !== (s.draws || 0)) updateWLD(s.id, 'draws', v) }}
+                            style={{ width: 30, fontSize: 11, padding: '2px 2px', textAlign: 'center', border: '1px solid var(--border-strong)', borderRadius: 4, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+                        </div>
                       </td>
                     )}
                     {visibleCols.includes('groups') && <td onClick={e => e.stopPropagation()}>

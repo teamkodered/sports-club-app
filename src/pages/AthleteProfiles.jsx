@@ -3862,6 +3862,22 @@ export default function AthleteProfiles() {
                           </select>
                         ) : (selected.pka_belt || '—')
                       } },
+                      { label: 'Record', editable: true, render: () => isAdmin ? (
+                        <div style={{ display: 'flex', gap: 4, alignItems: 'center', justifyContent: 'flex-end' }}>
+                          <input type="number" min="0" defaultValue={selected.wins || 0} title="Wins"
+                            onBlur={e => { const v = parseInt(e.target.value) || 0; if (v !== (selected.wins || 0)) updateSelectedField('wins', v) }}
+                            style={{ width: 38, fontSize: 12, padding: '4px 4px', textAlign: 'center', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+                          <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>W</span>
+                          <input type="number" min="0" defaultValue={selected.losses || 0} title="Losses"
+                            onBlur={e => { const v = parseInt(e.target.value) || 0; if (v !== (selected.losses || 0)) updateSelectedField('losses', v) }}
+                            style={{ width: 38, fontSize: 12, padding: '4px 4px', textAlign: 'center', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+                          <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>L</span>
+                          <input type="number" min="0" defaultValue={selected.draws || 0} title="Draws"
+                            onBlur={e => { const v = parseInt(e.target.value) || 0; if (v !== (selected.draws || 0)) updateSelectedField('draws', v) }}
+                            style={{ width: 38, fontSize: 12, padding: '4px 4px', textAlign: 'center', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+                          <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>D</span>
+                        </div>
+                      ) : `${selected.wins || 0}W ${selected.losses || 0}L ${selected.draws || 0}D` },
                       { label: 'Weight', editable: true, render: () => isAdmin ? (
                         <input type="number" step="0.1" defaultValue={selected.weight_kg || ''} placeholder="kg"
                           onBlur={e => { const v = e.target.value ? parseFloat(e.target.value) : null; if (v !== selected.weight_kg) updateSelectedField('weight_kg', v) }}
