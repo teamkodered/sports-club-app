@@ -57,6 +57,7 @@ export default function CheckInPublic() {
             weight_after: parseFloat(weightOut),
           })
         }
+        await supabase.from('students').update({ weight_kg: parseFloat(weightOut) }).eq('id', checking.id)
       }
       setConfirmed({ name: `${checking.members?.first_name} ${checking.members?.last_name}`, mode: attendMode, weight: weightOut })
       setChecking(null); setWeight(''); setWeightOut(''); setSearch(''); setResults([])
@@ -82,6 +83,7 @@ export default function CheckInPublic() {
           weight_before: parseFloat(weight),
         })
       }
+      await supabase.from('students').update({ weight_kg: parseFloat(weight) }).eq('id', checking.id)
     }
     setConfirmed({ name: `${checking.members?.first_name} ${checking.members?.last_name}`, mode: attendMode, weight })
     setChecking(null); setWeight(''); setWeightOut(''); setSearch(''); setResults([])

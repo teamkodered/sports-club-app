@@ -1686,6 +1686,8 @@ export default function AthleteProfiles() {
   const [dashClubFilter, setDashClubFilter] = useState('all') // 'all' | 'PKA' | 'KRBA'
   const [showDashWeightList, setShowDashWeightList] = useState(false)
   const [dashLevelIndex, setDashLevelIndex] = useState(0)
+  const [showRecordAsPct, setShowRecordAsPct] = useState(false)
+  const recordPressTimer = useRef(null)
   const [showTeamKrDropdown, setShowTeamKrDropdown] = useState(false)
   const [showTeamKrbaDropdown, setShowTeamKrbaDropdown] = useState(false)
   const teamKrDropdownRef = useRef(null)
@@ -2847,6 +2849,32 @@ export default function AthleteProfiles() {
     selectStudent(filtered[nextIdx])
   }
 
+  // Keeps students.weight_kg in sync with whichever weigh-in is most
+  // recent across the known sources (Fit2Fight session weight checks,
+  // TTP kickboxing assessments), rather than relying on it being
+  // manually kept up to date.
+  async function syncStudentWeightFromLatest(studentId) {
+    const [{ data: f2fRows }, { data: tptRows }] = await Promise.all([
+      supabase.from('fit2fight_sessions').select('session_date, weight_before, weight_after')
+        .eq('student_id', studentId).order('session_date', { ascending: false }).limit(5),
+      supabase.from('tpt_kickboxing').select('assessed_at, weight_kg')
+        .eq('student_id', studentId).order('assessed_at', { ascending: false }).limit(1),
+    ])
+    let latestDate = null, latestWeight = null
+    const latestF2f = (f2fRows || []).find(s => (s.weight_after ?? s.weight_before) != null)
+    if (latestF2f) { latestDate = latestF2f.session_date; latestWeight = latestF2f.weight_after ?? latestF2f.weight_before }
+    const tpt = tptRows?.[0]
+    if (tpt?.weight_kg != null && tpt.assessed_at) {
+      const tptDate = tpt.assessed_at.slice(0, 10)
+      if (!latestDate || tptDate > latestDate) { latestDate = tptDate; latestWeight = tpt.weight_kg }
+    }
+    if (latestWeight == null) return
+    const { error } = await supabase.from('students').update({ weight_kg: latestWeight }).eq('id', studentId)
+    if (error) return
+    setStudents(prev => prev.map(s => s.id === studentId ? { ...s, weight_kg: latestWeight } : s))
+    setSelected(prev => prev?.id === studentId ? { ...prev, weight_kg: latestWeight } : prev)
+  }
+
   async function saveFit2FightSession() {
     if (!selected) return
     setSavingSession(true)
@@ -2868,6 +2896,7 @@ export default function AthleteProfiles() {
     if (error) { alert('Error saving session: ' + error.message); setSavingSession(false); return }
     const { data } = await supabase.from('fit2fight_sessions').select('*').eq('student_id', selected.id).order('session_date', { ascending: false })
     setF2fData(data || [])
+    if (payload.weight_before != null || payload.weight_after != null) await syncStudentWeightFromLatest(selected.id)
     setEditingSession(null)
     setSavingSession(false)
   }
@@ -3204,9 +3233,11 @@ export default function AthleteProfiles() {
                   (s.is_kr || s.is_pts || s.discipline === 'KRBA') && (dashClubFilter === 'all' || s.discipline === dashClubFilter)
                 )
                 const count = clubFiltered.length || 1
-                const avgWins = (clubFiltered.reduce((a, s) => a + (s.wins || 0), 0) / count).toFixed(1)
-                const avgLosses = (clubFiltered.reduce((a, s) => a + (s.losses || 0), 0) / count).toFixed(1)
-                const avgDraws = (clubFiltered.reduce((a, s) => a + (s.draws || 0), 0) / count).toFixed(1)
+                const totalWins = clubFiltered.reduce((a, s) => a + (Number(s.wins) || 0), 0)
+                const totalLosses = clubFiltered.reduce((a, s) => a + (Number(s.losses) || 0), 0)
+                const totalDraws = clubFiltered.reduce((a, s) => a + (Number(s.draws) || 0), 0)
+                const totalGames = totalWins + totalLosses + totalDraws
+                const winPct = totalGames > 0 ? Math.round((totalWins / totalGames) * 100) : 0
 
                 const levelOf = s => s.discipline === 'KRBA' ? (s.krba_level || '—') : s.is_kr ? (s.competition_team || '—') : (s.pka_belt || '—')
                 const levelCounts = {}
@@ -3230,8 +3261,17 @@ export default function AthleteProfiles() {
                       </div>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 14px', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Record (avg)</span>
-                      <span style={{ fontWeight: 500 }}>{avgWins}W {avgLosses}L {avgDraws}D</span>
+                      <span style={{ color: 'var(--text-secondary)' }}>Record</span>
+                      <span
+                        onMouseDown={() => { recordPressTimer.current = setTimeout(() => setShowRecordAsPct(true), 400) }}
+                        onMouseUp={() => { clearTimeout(recordPressTimer.current); setShowRecordAsPct(false) }}
+                        onMouseLeave={() => { clearTimeout(recordPressTimer.current); setShowRecordAsPct(false) }}
+                        onTouchStart={() => { recordPressTimer.current = setTimeout(() => setShowRecordAsPct(true), 400) }}
+                        onTouchEnd={() => { clearTimeout(recordPressTimer.current); setShowRecordAsPct(false) }}
+                        title="Hold to see win %"
+                        style={{ fontWeight: 500, cursor: 'pointer', userSelect: 'none' }}>
+                        {showRecordAsPct ? `${winPct}% wins` : `${totalWins}W ${totalLosses}L ${totalDraws}D`}
+                      </span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 14px', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
                       <span style={{ color: 'var(--text-secondary)' }}>Level</span>

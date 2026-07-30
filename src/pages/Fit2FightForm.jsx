@@ -58,6 +58,11 @@ export default function Fit2FightForm() {
     }
     const { error } = await supabase.from('fit2fight_sessions').insert(payload)
     if (error) { alert('Error saving: ' + error.message); setSaving(false); return }
+    const isToday = form.session_date === new Date().toISOString().split('T')[0]
+    if (isToday && (payload.weight_before != null || payload.weight_after != null)) {
+      const latestWeight = payload.weight_after ?? payload.weight_before
+      await supabase.from('students').update({ weight_kg: latestWeight }).eq('id', student.id)
+    }
     setSaved(true)
     setSaving(false)
   }
