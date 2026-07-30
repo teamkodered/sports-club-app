@@ -220,7 +220,7 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
                 <>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
                     {[
-                      ['Discipline', localStudent.discipline],
+                      ['Club', localStudent.discipline],
                       ['Belt / level', currentBelt || '—'],
                       ['Age category', localStudent.age_category || '—'],
                       ['House', houseName || '—'],
@@ -473,7 +473,7 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
             <div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0, marginBottom: 16 }}>
                 {[
-                  ['Discipline', localStudent.discipline],
+                  ['Club', localStudent.discipline],
                   ['Current belt', currentBelt || '—'],
                   ['Class champion', `${localStudent.class_champion_count || 0}x`],
                   ['Individual pts', localStudent.individual_points || 0],
