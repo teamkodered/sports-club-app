@@ -340,6 +340,47 @@ export default function Registers() {
     setAdhocPills(prev => prev.filter(p => p.id !== id))
   }
 
+  async function awardAttendancePoints(student, type) {
+    // Reverse any attendance points already awarded to this student
+    // for this session first, so cycling the pill through
+    // attended -> full_kit reflects only the final state's points,
+    // rather than stacking both awards.
+    const { data: previousEntries } = await supabase.from('points_log')
+      .select('id, points_awarded, point_type')
+      .eq('student_id', student.id)
+      .in('point_type', ['Attendance', 'Full Kit'])
+      .gte('awarded_at', date + 'T00:00:00')
+      .lt('awarded_at', date + 'T23:59:59')
+    let reversedPts = 0
+    if (previousEntries?.length) {
+      reversedPts = previousEntries.reduce((sum, e) => sum + (e.points_awarded || 0), 0)
+      await supabase.from('points_log').delete().in('id', previousEntries.map(e => e.id))
+    }
+
+    const pointLabel = type === 'full_kit' ? 'Full Kit' : 'Attendance'
+    const pt = pointTypes.find(p => p.label === pointLabel)
+    const pts = pt ? pt.points : (type === 'full_kit' ? 2 : 1)
+    const netChange = pts - reversedPts
+
+    await supabase.from('points_log').insert({
+      student_id: student.id, point_type: pointLabel,
+      points_awarded: pts, point_scope: 'both',
+      awarded_at: new Date(date).toISOString(),
+    })
+    await supabase.from('students').update({
+      house_points: (student.house_points || 0) + netChange,
+      individual_points: (student.individual_points || 0) + netChange,
+    }).eq('id', student.id)
+
+    const houseName = student.members?.houses?.name
+    if (houseName) {
+      const { data: house } = await supabase.from('houses').select('points').eq('name', houseName).single()
+      if (house) await supabase.from('houses').update({ points: (house.points || 0) + netChange }).eq('name', houseName)
+    }
+
+    setStudents(prev => prev.map(s => s.id === student.id ? { ...s, house_points: (s.house_points || 0) + netChange, individual_points: (s.individual_points || 0) + netChange } : s))
+  }
+
   async function toggleAttendance(id) {
     const cur = attendance[id] || 'none'
     const next = cur === 'none' ? 'attended' : cur === 'attended' ? 'full_kit' : 'none'
@@ -362,7 +403,10 @@ export default function Registers() {
       if (error) {
         alert('Error saving attendance: ' + error.message)
         setAttendance(prev => ({ ...prev, [id]: cur })) // revert the optimistic update
+        return
       }
+      const student = students.find(s => s.id === id)
+      if (student) await awardAttendancePoints(student, next)
     }
   }
 
@@ -385,11 +429,6 @@ export default function Registers() {
     const targets = displayStudents.filter(s => selectedStudents.includes(s.id))
     const newAtt = {}
 
-    // Find matching point type for this attendance type
-    const pointLabel = type === 'full_kit' ? 'Full Kit' : 'Attendance'
-    const pt = pointTypes.find(p => p.label === pointLabel)
-    const pts = pt ? pt.points : (type === 'full_kit' ? 2 : 1)
-
     for (const s of targets) {
       newAtt[s.id] = type
 
@@ -408,30 +447,10 @@ export default function Registers() {
         attended_at: new Date(date + 'T12:00:00').toISOString(),
       })
 
-      // Award points
-      await supabase.from('points_log').insert({
-        student_id: s.id, point_type: pointLabel,
-        points_awarded: pts, point_scope: 'both',
-        awarded_at: new Date(date).toISOString(),
-      })
-      await supabase.from('students').update({
-        house_points: (s.house_points || 0) + pts,
-        individual_points: (s.individual_points || 0) + pts,
-      }).eq('id', s.id)
-
-      const houseName = s.members?.houses?.name
-      if (houseName) {
-        const { data: house } = await supabase.from('houses').select('points').eq('name', houseName).single()
-        if (house) await supabase.from('houses').update({ points: (house.points || 0) + pts }).eq('name', houseName)
-      }
+      await awardAttendancePoints(s, type)
     }
 
     setAttendance(prev => ({ ...prev, ...newAtt }))
-    setStudents(prev => prev.map(s =>
-      selectedStudents.includes(s.id)
-        ? { ...s, house_points: (s.house_points || 0) + pts, individual_points: (s.individual_points || 0) + pts }
-        : s
-    ))
     // Keep selection at current position - don't clear
     setSaving(false)
   }
