@@ -341,21 +341,29 @@ export default function Registers() {
   }
 
   async function toggleAttendance(id) {
-    setAttendance(prev => {
-      const cur = prev[id] || 'none'
-      const next = cur === 'none' ? 'attended' : cur === 'attended' ? 'full_kit' : 'none'
-      // Save to attendance table
-      if (next !== 'none') {
-        supabase.from('attendance').insert({
-          student_id: id,
-          present: true,
-          attendance_type: next,
-          session_date: date,
-          attended_at: new Date(date + 'T12:00:00').toISOString(),
-        }).then(() => {})
+    const cur = attendance[id] || 'none'
+    const next = cur === 'none' ? 'attended' : cur === 'attended' ? 'full_kit' : 'none'
+    setAttendance(prev => ({ ...prev, [id]: next }))
+
+    // Always clear any existing row for this student+date first --
+    // this both handles the undo case (cycling back to 'none') and
+    // prevents duplicate rows from piling up as the type cycles
+    // through attended -> full_kit -> none.
+    await supabase.from('attendance').delete().eq('student_id', id).eq('session_date', date)
+
+    if (next !== 'none') {
+      const { error } = await supabase.from('attendance').insert({
+        student_id: id,
+        present: true,
+        attendance_type: next,
+        session_date: date,
+        attended_at: new Date(date + 'T12:00:00').toISOString(),
+      })
+      if (error) {
+        alert('Error saving attendance: ' + error.message)
+        setAttendance(prev => ({ ...prev, [id]: cur })) // revert the optimistic update
       }
-      return { ...prev, [id]: next }
-    })
+    }
   }
 
   async function toggleInComp(s) {
@@ -384,6 +392,11 @@ export default function Registers() {
 
     for (const s of targets) {
       newAtt[s.id] = type
+
+      // Clear any existing row for this student+date first, to
+      // prevent duplicate attendance rows piling up if they were
+      // already marked something else for this session
+      await supabase.from('attendance').delete().eq('student_id', s.id).eq('session_date', date)
 
       // Log to attendance table
       await supabase.from('attendance').insert({
