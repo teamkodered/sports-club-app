@@ -40,7 +40,7 @@ export default function Dashboard() {
         { count: todayCount },
         { count: athleteCount },
       ] = await Promise.all([
-        supabase.from('members').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+        supabase.from('members').select('id', { count: 'exact', head: true }).eq('status', 'active').not('joined_date', 'is', null),
         supabase.from('students').select('id, members!inner(status)', { count: 'exact', head: true }).neq('members.status', 'stopped').neq('members.status', 'not_started'),
         supabase.from('houses').select('*').order('points', { ascending: false }),
         supabase.from('students').select('id, house_points, individual_points, class_champion_count, house_name, member_id, is_kr, is_pts, discipline, members(first_name, last_name, houses(name))').order('house_points', { ascending: false }).limit(5),
