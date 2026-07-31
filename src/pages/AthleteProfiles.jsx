@@ -1821,6 +1821,9 @@ export default function AthleteProfiles() {
   const [savingNote, setSavingNote] = useState(false)
   const [allClasses, setAllClasses] = useState([])
   const [addingClassId, setAddingClassId] = useState('')
+  const [customSessionTitle, setCustomSessionTitle] = useState('')
+  const [customSessionDay, setCustomSessionDay] = useState('')
+  const [customSessionTime, setCustomSessionTime] = useState('')
   const [savingClassAssignment, setSavingClassAssignment] = useState(false)
   const [sessionsBreakdownRange, setSessionsBreakdownRange] = useState('month')
   const [breakdownExcluded, setBreakdownExcluded] = useState(new Set()) // assignment ids unchecked from the total (default: none, i.e. all included)
@@ -2795,6 +2798,25 @@ export default function AthleteProfiles() {
     if (error) { alert('Error adding class: ' + error.message); setSavingClassAssignment(false); return }
     setAssignedClasses(prev => [...prev, data])
     setAddingClassId('')
+    setSavingClassAssignment(false)
+  }
+
+  async function addCustomSessionAssignment() {
+    if (!customSessionTitle.trim() || !customSessionDay || !customSessionTime) return
+    setSavingClassAssignment(true)
+    const { data: newClass, error: classError } = await supabase.from('classes')
+      .insert({ name: customSessionTitle.trim(), day_of_week: customSessionDay, start_time: customSessionTime, active: true })
+      .select('*').single()
+    if (classError) { alert('Error creating session: ' + classError.message); setSavingClassAssignment(false); return }
+    setAllClasses(prev => [...prev, newClass].sort((a,b) => (a.day_of_week||'').localeCompare(b.day_of_week||'') || (a.start_time||'').localeCompare(b.start_time||'')))
+
+    const { data, error } = await supabase.from('student_class_assignments')
+      .insert({ student_id: selected.id, class_id: newClass.id })
+      .select('id, class_id, classes(*)').single()
+    if (error) { alert('Error assigning session: ' + error.message); setSavingClassAssignment(false); return }
+    setAssignedClasses(prev => [...prev, data])
+    setAddingClassId('')
+    setCustomSessionTitle(''); setCustomSessionDay(''); setCustomSessionTime('')
     setSavingClassAssignment(false)
   }
 
@@ -6502,15 +6524,33 @@ export default function AthleteProfiles() {
                       </div>
                     )}
                     {isAdmin && (
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <select value={addingClassId} onChange={e => setAddingClassId(e.target.value)} style={{ flex: 1 }}>
-                          <option value="">Add a class/session…</option>
-                          {allClasses.filter(c => !assignedClasses.some(a => a.class_id === c.id))
-                            .slice().sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(c => (
-                            <option key={c.id} value={c.id}>{c.name} — {c.day_of_week} {c.start_time?.slice(0,5)}</option>
-                          ))}
-                        </select>
-                        <button className="btn btn-sm" disabled={!addingClassId || savingClassAssignment} onClick={addClassAssignment}>Add</button>
+                      <div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <select value={addingClassId} onChange={e => setAddingClassId(e.target.value)} style={{ flex: 1 }}>
+                            <option value="">Add a class/session…</option>
+                            {allClasses.filter(c => !assignedClasses.some(a => a.class_id === c.id))
+                              .slice().sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(c => (
+                              <option key={c.id} value={c.id}>{c.name} — {c.day_of_week} {c.start_time?.slice(0,5)}</option>
+                            ))}
+                            <option value="__other__">Other (custom session)…</option>
+                          </select>
+                          {addingClassId !== '__other__' && (
+                            <button className="btn btn-sm" disabled={!addingClassId || savingClassAssignment} onClick={addClassAssignment}>Add</button>
+                          )}
+                        </div>
+                        {addingClassId === '__other__' && (
+                          <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                            <input value={customSessionTitle} onChange={e => setCustomSessionTitle(e.target.value)} placeholder="Title" style={{ flex: 2, minWidth: 120 }} />
+                            <select value={customSessionDay} onChange={e => setCustomSessionDay(e.target.value)} style={{ flex: 1, minWidth: 100 }}>
+                              <option value="">Day…</option>
+                              {['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map(d => <option key={d} value={d}>{d}</option>)}
+                            </select>
+                            <input type="time" value={customSessionTime} onChange={e => setCustomSessionTime(e.target.value)} style={{ flex: 1, minWidth: 90 }} />
+                            <button className="btn btn-sm btn-primary" disabled={!customSessionTitle.trim() || !customSessionDay || !customSessionTime || savingClassAssignment} onClick={addCustomSessionAssignment}>
+                              {savingClassAssignment ? 'Adding…' : 'Add'}
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
