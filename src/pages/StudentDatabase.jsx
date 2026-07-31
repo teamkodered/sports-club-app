@@ -237,15 +237,19 @@ export default function StudentDatabase() {
     setStudents(prev => prev.map(s => s.id === studentId ? { ...s, [field]: value } : s))
   }
 
+  async function setMemberStatus(student, status) {
+    const memberId = student.member_id
+    const { error } = await supabase.from('members').update({ status }).eq('id', memberId)
+    if (error) { alert('Error updating status: ' + error.message); return }
+    setStudents(prev => prev.map(s => s.id === student.id ? { ...s, members: { ...s.members, status } } : s))
+  }
+
   async function cycleMemberStatus(student) {
     const order = ['active', 'pending', 'stopped']
     const current = student.members?.status || 'active'
     const currentIdx = order.indexOf(current) // -1 for 'not_started' -- next becomes 'active', a sensible reset
     const next = order[(currentIdx + 1) % order.length]
-    const memberId = student.member_id
-    const { error } = await supabase.from('members').update({ status: next }).eq('id', memberId)
-    if (error) { alert('Error updating status: ' + error.message); return }
-    setStudents(prev => prev.map(s => s.id === student.id ? { ...s, members: { ...s.members, status: next } } : s))
+    await setMemberStatus(student, next)
   }
 
   async function handleClassTimeChange(student, newTime) {
@@ -599,8 +603,13 @@ export default function StudentDatabase() {
                       case 'status':      return (
                         <td key={c.key}>
                           <span onClick={isAdmin ? () => cycleMemberStatus(s) : undefined}
+                            onContextMenu={isAdmin ? e => {
+                              e.preventDefault()
+                              if (confirm(`Set ${s.members?.first_name}'s status to Not Started?`)) setMemberStatus(s, 'not_started')
+                            } : undefined}
                             className={`badge ${m?.status==='active'?'badge-green':m?.status==='pending'?'badge-amber':m?.status==='stopped'?'badge-red':'badge-gray'}`}
-                            style={{ fontSize: 10, cursor: isAdmin ? 'pointer' : 'default' }}>
+                            style={{ fontSize: 10, cursor: isAdmin ? 'pointer' : 'default' }}
+                            title={isAdmin ? 'Click to cycle Active/Pending/Stopped — right-click for Not Started' : undefined}>
                             {m?.status || 'active'}
                           </span>
                         </td>
