@@ -1246,11 +1246,9 @@ export default function AthleteApp() {
   return (
     <div style={{ maxWidth: 640, margin: '0 auto', padding: '20px 16px', minHeight: '100vh' }}>
 
-      {isStaff && (
-        <Link to="/dashboard" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 10, fontSize: 13, color: 'var(--text-secondary)', textDecoration: 'none' }}>
-          ← Back to main site
-        </Link>
-      )}
+      <Link to="/dashboard" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 10, fontSize: 13, color: 'var(--text-secondary)', textDecoration: 'none' }}>
+        ← Back to main site
+      </Link>
 
       {/* Profile header */}
       <div className="card" style={{ marginBottom: 12, borderLeft: `4px solid ${colour}` }}>
