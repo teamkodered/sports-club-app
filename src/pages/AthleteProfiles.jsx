@@ -1761,6 +1761,15 @@ export default function AthleteProfiles() {
   const [showTeamKrbaDropdown, setShowTeamKrbaDropdown] = useState(false)
   const [teamKrSearch, setTeamKrSearch] = useState('')
   const [teamCalMonth, setTeamCalMonth] = useState(() => ({ year: new Date().getFullYear(), month: new Date().getMonth() }))
+  const [calDayModal, setCalDayModal] = useState(null) // dateStr when a calendar day is clicked
+  const [calDayAddEvent, setCalDayAddEvent] = useState(false)
+  const [weeklyPlannerAthlete, setWeeklyPlannerAthlete] = useState(null) // null = Team view
+  const [weeklyPlannerSearch, setWeeklyPlannerSearch] = useState('')
+  const [weeklyPlannerStart, setWeeklyPlannerStart] = useState(() => {
+    const d = new Date(); const day = d.getDay(); d.setDate(d.getDate() - ((day + 6) % 7)); d.setHours(0,0,0,0); return d
+  })
+  const [weeklyPlannerAssignedClasses, setWeeklyPlannerAssignedClasses] = useState([])
+  const [weeklyPlannerApData, setWeeklyPlannerApData] = useState(null)
   const [showAddEventTarget, setShowAddEventTarget] = useState('all') // 'all' | 'kr' | 'krba' | 'individual'
   const [addEventAthleteSearch, setAddEventAthleteSearch] = useState('')
   const [addEventAthlete, setAddEventAthlete] = useState(null)
@@ -2144,6 +2153,14 @@ export default function AthleteProfiles() {
     const { data: apRow } = await supabase.from('athlete_profiles').select('*').eq('student_id', studentRow.id).maybeSingle()
     setTeamPdpApData(apRow || null)
   }
+
+  useEffect(() => {
+    if (!weeklyPlannerAthlete) { setWeeklyPlannerAssignedClasses([]); setWeeklyPlannerApData(null); return }
+    supabase.from('student_class_assignments').select('id, class_id, classes(*)').eq('student_id', weeklyPlannerAthlete.id)
+      .then(({ data }) => setWeeklyPlannerAssignedClasses(data || []))
+    supabase.from('athlete_profiles').select('*').eq('student_id', weeklyPlannerAthlete.id).maybeSingle()
+      .then(({ data }) => setWeeklyPlannerApData(data || null))
+  }, [weeklyPlannerAthlete])
 
   useEffect(() => {
     function handleResize() { setIsMobileView(window.innerWidth < 900) }
@@ -3518,7 +3535,7 @@ export default function AthleteProfiles() {
                         const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`
                         const eventsThatDay = clubEvents.filter(ev => ev.event_date === dateStr)
                         return (
-                          <div key={i} style={{ minHeight: 52, border: '1px solid var(--border)', borderRadius: 6, padding: 3 }}>
+                          <div key={i} onClick={() => setCalDayModal(dateStr)} style={{ minHeight: 52, border: '1px solid var(--border)', borderRadius: 6, padding: 3, cursor: 'pointer' }}>
                             <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{d}</div>
                             {classesThatDay.map(cl => (
                               <div key={cl.id} title={`${cl.name} ${cl.start_time?.slice(0,5) || ''}`} style={{ height: 3, background: classColour(cl), borderRadius: 2, marginTop: 2 }} />
@@ -3540,6 +3557,178 @@ export default function AthleteProfiles() {
                 )
               })()}
             </div>
+
+            {/* Weekly planner -- starts on Team, switchable to any individual athlete's own weekly planner */}
+            <div className="card" style={{ marginBottom: 14 }}>
+              {(() => {
+                const weekDays = Array.from({ length: 7 }, (_, i) => {
+                  const d = new Date(weeklyPlannerStart)
+                  d.setDate(d.getDate() + i)
+                  return d
+                })
+                const hourMarks = Array.from({ length: 9 }, (_, i) => 6 + i * 2)
+                const isTeamView = !weeklyPlannerAthlete
+                const classesSource = isTeamView ? allClasses.map(cl => ({ classes: cl })) : weeklyPlannerAssignedClasses
+                const pdpNotesData = weeklyPlannerApData?.pdp_notes || {}
+                const allPdpEntries = isTeamView ? [] : Array.from(PDP_CHECKABLE_SECTIONS).flatMap(sectionKey =>
+                  Object.entries(pdpNotesData[`__timetable_${sectionKey}`] || {}).map(([item, entry]) => ({ sectionKey, item, ...entry }))
+                )
+
+                return (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8, flexWrap: 'wrap' }}>
+                      <h2 style={{ fontSize: 14, fontWeight: 600 }}>🗓️ Weekly planner</h2>
+                      <div style={{ position: 'relative' }}>
+                        {weeklyPlannerAthlete ? (
+                          <span className="btn btn-sm" style={{ background: '#378ADD20', borderColor: '#378ADD', cursor: 'pointer' }}
+                            onClick={() => setWeeklyPlannerAthlete(null)} title="Click to go back to Team view">
+                            👤 {weeklyPlannerAthlete.members?.first_name} {weeklyPlannerAthlete.members?.last_name} ×
+                          </span>
+                        ) : (
+                          <input value={weeklyPlannerSearch} onChange={e => setWeeklyPlannerSearch(e.target.value)}
+                            placeholder="🔍 Search an athlete…" style={{ width: 200 }} />
+                        )}
+                        {!weeklyPlannerAthlete && weeklyPlannerSearch && (
+                          <div className="card" style={{ position: 'absolute', top: '100%', right: 0, zIndex: 20, width: 240, marginTop: 4, padding: 4, maxHeight: 220, overflowY: 'auto' }}>
+                            {students.filter(s => `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.toLowerCase().includes(weeklyPlannerSearch.toLowerCase())).slice(0, 10).map(s => (
+                              <button key={s.id} onClick={() => { setWeeklyPlannerAthlete(s); setWeeklyPlannerSearch('') }}
+                                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, borderRadius: 6, color: 'var(--text)', fontFamily: 'var(--font-sans)' }}>
+                                {s.members?.first_name} {s.members?.last_name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                      <button className="btn btn-sm" onClick={() => setWeeklyPlannerStart(d => { const n = new Date(d); n.setDate(n.getDate() - 7); return n })}>←</button>
+                      <span style={{ fontSize: 13, fontWeight: 600 }}>{weekDays[0].toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – {weekDays[6].toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
+                      <button className="btn btn-sm" onClick={() => setWeeklyPlannerStart(d => { const n = new Date(d); n.setDate(n.getDate() + 7); return n })}>→</button>
+                    </div>
+                    {weeklyPlannerAthlete && (
+                      <a href={`/athletes?id=${weeklyPlannerAthlete.id}&tab=pdp`} className="btn btn-sm btn-primary" style={{ marginBottom: 10, display: 'inline-block' }}>
+                        ✏️ Edit {weeklyPlannerAthlete.members?.first_name}'s PDP / classes
+                      </a>
+                    )}
+                    <div className="hscroll-area" style={{ display: 'flex', overflowX: 'auto' }}>
+                      <div style={{ flexShrink: 0, width: 34, position: 'relative', height: 320 }}>
+                        {hourMarks.map(h => (
+                          <div key={h} style={{ position: 'absolute', top: `${timeToTimelinePercent(`${h}:00`)}%`, fontSize: 9, color: 'var(--text-tertiary)', transform: 'translateY(-50%)' }}>{h}:00</div>
+                        ))}
+                      </div>
+                      {weekDays.map((d, di) => {
+                        const dateStr = d.toISOString().split('T')[0]
+                        const jsDay = d.getDay()
+                        const classesToday = classesSource.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay))
+                        const pdpToday = allPdpEntries.filter(e => e.date === dateStr)
+                        const eventsToday = clubEvents.filter(e => e.event_date === dateStr)
+                        const isToday = dateStr === new Date().toISOString().split('T')[0]
+                        return (
+                          <div key={di} style={{ flex: '0 0 90px', borderLeft: '1px solid var(--border)' }}>
+                            <div style={{ textAlign: 'center', fontSize: 10, fontWeight: isToday ? 700 : 500, color: isToday ? colour : 'var(--text-secondary)', marginBottom: 4 }}>
+                              {d.toLocaleDateString('en-GB', { weekday: 'short' })}<br />{d.getDate()}
+                            </div>
+                            <div style={{ position: 'relative', height: 320, background: isToday ? colour + '08' : 'transparent', borderRadius: 4 }}>
+                              {hourMarks.map(h => (
+                                <div key={h} style={{ position: 'absolute', top: `${timeToTimelinePercent(`${h}:00`)}%`, left: 0, right: 0, borderTop: '1px solid var(--border)', opacity: 0.5 }} />
+                              ))}
+                              {classesToday.map((a, ci) => {
+                                const pct = timeToTimelinePercent(a.classes?.start_time?.slice(0, 5))
+                                if (pct == null) return null
+                                return (
+                                  <div key={ci} title={`${a.classes?.name} ${a.classes?.start_time?.slice(0,5)}`}
+                                    style={{ position: 'absolute', left: 2, right: 2, top: `${pct}%`, background: '#378ADD22', border: '1px solid #378ADD', borderRadius: 3, padding: '1px 3px', fontSize: 8, color: '#378ADD', lineHeight: 1.3, zIndex: 1 }}>
+                                    {a.classes?.start_time?.slice(0,5)} {a.classes?.name}
+                                  </div>
+                                )
+                              })}
+                              {pdpToday.map((e, pi) => {
+                                const pct = timeToTimelinePercent(e.time)
+                                if (pct == null) return null
+                                return (
+                                  <div key={pi} title={`${e.item}${e.time ? ` ${e.time}` : ''}`}
+                                    style={{ position: 'absolute', left: 2, right: 2, top: `${pct}%`, background: '#8B5CF622', border: '1px solid #8B5CF6', borderRadius: 3, padding: '1px 3px', fontSize: 8, color: '#8B5CF6', lineHeight: 1.3, zIndex: 2 }}>
+                                    {e.time ? `${e.time} ` : ''}{e.item}
+                                  </div>
+                                )
+                              })}
+                              {eventsToday.map((e, ei) => {
+                                const pct = timeToTimelinePercent(e.event_time?.slice(0, 5)) ?? 1
+                                return (
+                                  <div key={ei} title={`${e.title}${e.event_time ? ` ${e.event_time.slice(0,5)}` : ''}`}
+                                    style={{ position: 'absolute', left: 2, right: 2, top: `${pct}%`, background: '#EF9F2722', border: '1px solid #EF9F27', borderRadius: 3, padding: '1px 3px', fontSize: 8, color: '#EF9F27', lineHeight: 1.3, zIndex: 3 }}>
+                                    {e.event_time ? `${e.event_time.slice(0,5)} ` : ''}{e.title}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <div style={{ display: 'flex', gap: 14, marginTop: 10, fontSize: 11, color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
+                      <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#378ADD22', border: '1px solid #378ADD', borderRadius: 2, marginRight: 4 }} />Class time</span>
+                      {!isTeamView && <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#8B5CF622', border: '1px solid #8B5CF6', borderRadius: 2, marginRight: 4 }} />PDP action</span>}
+                      <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#EF9F2722', border: '1px solid #EF9F27', borderRadius: 2, marginRight: 4 }} />Event</span>
+                    </div>
+                  </>
+                )
+              })()}
+            </div>
+
+            {/* Day view/edit modal */}
+            {calDayModal && (() => {
+              const classesThatDay = allClasses.filter(cl => (DAY_TO_JS_DAYS[cl.day_of_week] || []).includes(new Date(calDayModal + 'T12:00:00').getDay()))
+              const eventsThatDay = clubEvents.filter(ev => ev.event_date === calDayModal)
+              return (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}
+                  onClick={() => { setCalDayModal(null); setCalDayAddEvent(false) }}>
+                  <div className="card" style={{ width: 380, maxHeight: '80vh', overflowY: 'auto', padding: 16 }} onClick={e => e.stopPropagation()}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                      <h2 style={{ fontSize: 15, fontWeight: 600 }}>{new Date(calDayModal + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</h2>
+                      <button onClick={() => { setCalDayModal(null); setCalDayAddEvent(false) }} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
+                    </div>
+                    <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>Classes</p>
+                    {classesThatDay.length === 0 ? (
+                      <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 12 }}>No classes scheduled.</p>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+                        {classesThatDay.map(cl => (
+                          <div key={cl.id} style={{ padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 13 }}>
+                            {cl.name} — {cl.start_time?.slice(0,5)}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>Events</p>
+                    {eventsThatDay.length === 0 ? (
+                      <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 12 }}>No events.</p>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+                        {eventsThatDay.map(ev => (
+                          <div key={ev.id} style={{ padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 13 }}>
+                            {ev.title}{ev.event_time ? ` — ${ev.event_time.slice(0,5)}` : ''}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {calDayAddEvent ? (
+                      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+                        <input value={newEventTitle} onChange={e => setNewEventTitle(e.target.value)} placeholder="Event title" style={{ marginBottom: 8, width: '100%' }} />
+                        <input type="time" value={newEventTime} onChange={e => setNewEventTime(e.target.value)} style={{ marginBottom: 8, width: '100%' }} />
+                        <button className="btn btn-primary btn-sm" disabled={!newEventTitle.trim() || savingEvent} onClick={async () => {
+                          setNewEventDate(calDayModal); setShowAddEventTarget('all')
+                          await addEvent()
+                          setCalDayAddEvent(false)
+                        }}>{savingEvent ? 'Saving…' : 'Add event'}</button>
+                      </div>
+                    ) : (
+                      <button className="btn btn-sm" onClick={() => setCalDayAddEvent(true)}>+ Add event on this day</button>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
 
               </div>
             )}
