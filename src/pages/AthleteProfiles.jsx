@@ -441,6 +441,29 @@ const ACTIVE_RECOVERY_OPTIONS = ['Swimming', 'Walking', 'Yoga']
 // but each card shows the team % logged today instead of an
 // individual's own log, and drills down into targets rather than
 // data entry.
+// Team-wide Results table (Coach Dashboard) -- one row per athlete
+// session, with show/hide + sort, matching the same pattern as the
+// Students page's column picker.
+const RESULTS_ALL_COLUMNS = [
+  { key: 'athlete', label: 'Athlete' },
+  { key: 'date', label: 'Date' },
+  { key: 'weight_before', label: 'Weight before' },
+  { key: 'weight_after', label: 'Weight after' },
+  { key: 'weight_change', label: 'Weight change' },
+  { key: 'running', label: 'Running' },
+  { key: 'watt_bike', label: 'Watt bike' },
+  { key: 'bodyweight', label: 'Bodyweight' },
+  { key: 'stretch_flows', label: 'Stretch flows' },
+  { key: 'snc', label: 'SnC' },
+  { key: 'other_session', label: 'Other session' },
+  { key: 'techniques', label: 'Techniques' },
+  { key: 'tactical', label: 'Tactical' },
+  { key: 'mentality_log', label: 'Mentality' },
+  { key: 'wellbeing', label: 'Wellbeing' },
+  { key: 'test', label: 'Test' },
+]
+const RESULTS_DEFAULT_VISIBLE = ['athlete', 'date', 'weight_before', 'weight_after', 'weight_change', 'running', 'watt_bike', 'techniques', 'test']
+
 const DASHBOARD_SECTIONS = [
   { key: 'physical', icon: '💪', label: 'Physical', subItems: [
     { key: 'running', label: 'Running', field: 'running' },
@@ -1682,6 +1705,13 @@ export default function AthleteProfiles() {
   const [savingDashNote, setSavingDashNote] = useState(false)
   const [showAddEvent, setShowAddEvent] = useState(false)
   const [todaysAllSessions, setTodaysAllSessions] = useState([])
+  const [allTeamSessions, setAllTeamSessions] = useState([])
+  const [showResultsColPicker, setShowResultsColPicker] = useState(false)
+  const [resultsVisibleCols, setResultsVisibleCols] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('results_visible_cols')) || RESULTS_DEFAULT_VISIBLE } catch { return RESULTS_DEFAULT_VISIBLE }
+  })
+  const [resultsSortKey, setResultsSortKey] = useState('date')
+  const [resultsSortDir, setResultsSortDir] = useState('desc')
   const [allAthleteProfiles, setAllAthleteProfiles] = useState([]) // for PDP/Media team stats
   const [todaysAllAttendance, setTodaysAllAttendance] = useState([])
   const [todaysAllNotes, setTodaysAllNotes] = useState([])
@@ -1715,6 +1745,12 @@ export default function AthleteProfiles() {
   const recordPressTimer = useRef(null)
   const [showTeamKrDropdown, setShowTeamKrDropdown] = useState(false)
   const [showTeamKrbaDropdown, setShowTeamKrbaDropdown] = useState(false)
+  const [teamKrSearch, setTeamKrSearch] = useState('')
+  const [teamCalMonth, setTeamCalMonth] = useState(() => ({ year: new Date().getFullYear(), month: new Date().getMonth() }))
+  const [showAddEventTarget, setShowAddEventTarget] = useState('all') // 'all' | 'kr' | 'krba' | 'individual'
+  const [addEventAthleteSearch, setAddEventAthleteSearch] = useState('')
+  const [addEventAthlete, setAddEventAthlete] = useState(null)
+  const [teamKrbaSearch, setTeamKrbaSearch] = useState('')
   const teamKrDropdownRef = useRef(null)
   const teamKrbaDropdownRef = useRef(null)
 
@@ -2080,6 +2116,12 @@ export default function AthleteProfiles() {
   }, [])
 
   useEffect(() => {
+    supabase.from('fit2fight_sessions').select('*, students(student_ref, is_kr, is_pts, discipline, members(first_name, last_name))')
+      .order('session_date', { ascending: false }).limit(1000)
+      .then(({ data }) => setAllTeamSessions(data || []))
+  }, [])
+
+  useEffect(() => {
     supabase.from('athlete_profiles').select('student_id, pdp_notes, media_files')
       .then(({ data }) => setAllAthleteProfiles(data || []))
   }, [])
@@ -2333,15 +2375,19 @@ export default function AthleteProfiles() {
 
   async function addEvent() {
     if (!newEventTitle.trim() || !newEventDate) return
+    if (showAddEventTarget === 'individual' && !addEventAthlete) return
     setSavingEvent(true)
     const { data, error } = await supabase.from('club_events').insert({
       title: newEventTitle.trim(), description: newEventDesc.trim() || null,
       event_date: newEventDate, event_time: newEventTime || null,
       send_to_all_students: newEventSendAll,
+      target_type: showAddEventTarget,
+      target_student_id: showAddEventTarget === 'individual' ? addEventAthlete.id : null,
     }).select('*').single()
     if (error) { alert('Error saving event: ' + error.message); setSavingEvent(false); return }
     setClubEvents(prev => [...prev, data].sort((a, b) => a.event_date.localeCompare(b.event_date)))
     setNewEventTitle(''); setNewEventDate(''); setNewEventTime(''); setNewEventDesc(''); setNewEventSendAll(true)
+    setShowAddEventTarget('all'); setAddEventAthlete(null); setAddEventAthleteSearch('')
     setShowAddEvent(false)
     setSavingEvent(false)
   }
@@ -2426,10 +2472,15 @@ export default function AthleteProfiles() {
     if (id && students.length > 0) {
       const found = students.find(s => s.id === id)
       if (found) {
-        selectStudent(found)
+        if (selected?.id !== found.id) selectStudent(found)
         const initialTab = searchParams.get('tab')
         if (initialTab) setTab(initialTab)
       }
+    } else if (!id && selected) {
+      // id was removed from the URL (e.g. browser/device back button) --
+      // return to the Athlete Dashboard rather than leaving the previous
+      // athlete's profile showing
+      setSelected(null)
     }
   }, [searchParams, students])
 
@@ -2800,6 +2851,9 @@ export default function AthleteProfiles() {
     setTab('home')
     setEditing(false)
     setReportData(null)
+    if (searchParams.get('id') !== s.id) {
+      setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('id', s.id); return next })
+    }
     setF2fData([])
     setTptData({ kickboxing: [], boxing: [] })
     setAttendanceData([])
@@ -3083,64 +3137,10 @@ export default function AthleteProfiles() {
   if (loading) return <div className="loading">Loading athlete profiles…</div>
 
   return (
-    <div style={{ display: 'flex', flexDirection: isMobileView ? 'column' : 'row', gap: 16, minHeight: 600 }}>
+    <div style={{ minHeight: 600 }}>
 
-      {!selected && isMobileView && (
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-sm" onClick={() => setMobilePanel('list')}
-            style={{ flex: 1, background: mobilePanel === 'list' ? '#378ADD20' : undefined, borderColor: mobilePanel === 'list' ? '#378ADD' : undefined }}>
-            📋 List
-          </button>
-          <button className="btn btn-sm" onClick={() => setMobilePanel('dashboard')}
-            style={{ flex: 1, background: mobilePanel === 'dashboard' ? '#378ADD20' : undefined, borderColor: mobilePanel === 'dashboard' ? '#378ADD' : undefined }}>
-            📊 Dashboard
-          </button>
-        </div>
-      )}
-
-      {/* ── Athlete list ── */}
-      {!selected && (!isMobileView || mobilePanel === 'list') && (
-      <div style={{ width: isMobileView ? '100%' : 320, flexShrink: 0 }}
-        onTouchStart={isMobileView ? e => { swipeStartX.current = e.touches[0].clientX } : undefined}
-        onTouchEnd={isMobileView ? e => {
-          if (swipeStartX.current == null) return
-          const delta = e.changedTouches[0].clientX - swipeStartX.current
-          if (delta < -60) setMobilePanel('dashboard')
-          swipeStartX.current = null
-        } : undefined}>
-        <input value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="Search athletes…"
-          style={{ width: '100%', padding: '12px 14px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 15, background: 'var(--bg-secondary)', color: 'var(--text)', marginBottom: 12 }} />
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {filtered.map(s => {
-            const col = HOUSE_COLOURS[s.members?.houses?.name] || '#888'
-            const isSelected = selected?.id === s.id
-            return (
-              <div key={s.id} onClick={() => selectStudent(s)} style={{
-                padding: '14px 16px', borderRadius: 'var(--border-radius-lg)', cursor: 'pointer',
-                background: isSelected ? col + '18' : 'var(--bg)',
-                border: `1px solid ${isSelected ? col : 'var(--border)'}`,
-                display: 'flex', alignItems: 'center', gap: 12,
-              }}>
-                <div style={{ width: 44, height: 44, borderRadius: '50%', background: col + '22', color: col, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, flexShrink: 0 }}>
-                  {(s.members?.first_name?.[0] || '') + (s.members?.last_name?.[0] || '')}
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 16, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {s.members?.first_name} {s.members?.last_name}
-                  </div>
-                  <div style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>{s.student_ref}</div>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-      )}
-
-      {/* ── Athlete Dashboard / profile detail -- to the right of the list on desktop, a separate swipeable screen on mobile ── */}
-      {(selected || !isMobileView || mobilePanel === 'dashboard') && (
-      <div style={{ flex: 1, minWidth: 0 }}>
+      {/* ── Athlete Dashboard / profile detail ── */}
+      <div style={{ minWidth: 0 }}>
         {!selected ? (
           <div style={{ maxWidth: 900 }}
             onTouchStart={e => {
@@ -3149,7 +3149,6 @@ export default function AthleteProfiles() {
             onTouchEnd={e => {
               if (swipeStartX.current == null) return
               const delta = e.changedTouches[0].clientX - swipeStartX.current
-              if (isMobileView && delta > 60) { setMobilePanel('list'); swipeStartX.current = null; return }
               if (delta < -60 && filtered.length > 0) selectStudent(filtered[0])
               swipeStartX.current = null
             }}>
@@ -3163,35 +3162,85 @@ export default function AthleteProfiles() {
                 <button className="btn btn-sm" onClick={() => setShowTeamKrDropdown(v => !v)}>
                   👥 Team KR {showTeamKrDropdown ? '▲' : '▼'}
                 </button>
-                {showTeamKrDropdown && (
-                  <div className="card" style={{ position: 'absolute', top: '100%', left: 0, zIndex: 20, width: 320, marginTop: 4, padding: 8, maxHeight: 320, overflowY: 'auto' }}>
-                    {students.filter(s => s.is_kr).length === 0 ? (
-                      <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No KR athletes.</p>
-                    ) : students.filter(s => s.is_kr).sort((a, b) => `${a.members?.first_name} ${a.members?.last_name}`.localeCompare(`${b.members?.first_name} ${b.members?.last_name}`)).map(s => (
-                      <button key={s.id} onClick={() => { selectStudent(s); setShowTeamKrDropdown(false) }}
-                        style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, borderRadius: 6, color: 'var(--text)', fontFamily: 'var(--font-sans)' }}>
-                        {s.members?.first_name} {s.members?.last_name}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                {showTeamKrDropdown && (() => {
+                  const krAthletes = students.filter(s => s.is_kr)
+                    .filter(s => !teamKrSearch || `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.toLowerCase().includes(teamKrSearch.toLowerCase()))
+                    .sort((a, b) => `${a.members?.first_name} ${a.members?.last_name}`.localeCompare(`${b.members?.first_name} ${b.members?.last_name}`))
+                  return (
+                    <div className="card" style={{ position: 'absolute', top: '100%', left: 0, zIndex: 20, width: 320, marginTop: 4, padding: 12, maxHeight: 420, overflowY: 'auto' }}>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>Team KR athletes</p>
+                      <input value={teamKrSearch} onChange={e => setTeamKrSearch(e.target.value)}
+                        placeholder="Search athletes…" autoFocus
+                        style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 14, background: 'var(--bg-secondary)', color: 'var(--text)', marginBottom: 10 }} />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {krAthletes.length === 0 ? (
+                          <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No KR athletes found.</p>
+                        ) : krAthletes.map(s => {
+                          const col = HOUSE_COLOURS[s.members?.houses?.name] || '#888'
+                          return (
+                            <div key={s.id} onClick={() => { selectStudent(s); setShowTeamKrDropdown(false); setTeamKrSearch('') }} style={{
+                              padding: '12px 14px', borderRadius: 'var(--border-radius-lg)', cursor: 'pointer',
+                              background: 'var(--bg)', border: '1px solid var(--border)',
+                              display: 'flex', alignItems: 'center', gap: 10,
+                            }}>
+                              <div style={{ width: 36, height: 36, borderRadius: '50%', background: col + '22', color: col, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+                                {(s.members?.first_name?.[0] || '') + (s.members?.last_name?.[0] || '')}
+                              </div>
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {s.members?.first_name} {s.members?.last_name}
+                                </div>
+                                <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{s.student_ref}</div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
               <div ref={teamKrbaDropdownRef} style={{ position: 'relative' }}>
                 <button className="btn btn-sm" onClick={() => setShowTeamKrbaDropdown(v => !v)}>
                   👥 KRBA {showTeamKrbaDropdown ? '▲' : '▼'}
                 </button>
-                {showTeamKrbaDropdown && (
-                  <div className="card" style={{ position: 'absolute', top: '100%', right: 0, zIndex: 20, width: 320, marginTop: 4, padding: 8, maxHeight: 320, overflowY: 'auto' }}>
-                    {students.filter(s => s.discipline === 'KRBA').length === 0 ? (
-                      <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No KRBA athletes.</p>
-                    ) : students.filter(s => s.discipline === 'KRBA').sort((a, b) => `${a.members?.first_name} ${a.members?.last_name}`.localeCompare(`${b.members?.first_name} ${b.members?.last_name}`)).map(s => (
-                      <button key={s.id} onClick={() => { selectStudent(s); setShowTeamKrbaDropdown(false) }}
-                        style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, borderRadius: 6, color: 'var(--text)', fontFamily: 'var(--font-sans)' }}>
-                        {s.members?.first_name} {s.members?.last_name}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                {showTeamKrbaDropdown && (() => {
+                  const krbaAthletes = students.filter(s => s.discipline === 'KRBA')
+                    .filter(s => !teamKrbaSearch || `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.toLowerCase().includes(teamKrbaSearch.toLowerCase()))
+                    .sort((a, b) => `${a.members?.first_name} ${a.members?.last_name}`.localeCompare(`${b.members?.first_name} ${b.members?.last_name}`))
+                  return (
+                    <div className="card" style={{ position: 'absolute', top: '100%', right: 0, zIndex: 20, width: 320, marginTop: 4, padding: 12, maxHeight: 420, overflowY: 'auto' }}>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>KRBA athletes</p>
+                      <input value={teamKrbaSearch} onChange={e => setTeamKrbaSearch(e.target.value)}
+                        placeholder="Search athletes…" autoFocus
+                        style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 14, background: 'var(--bg-secondary)', color: 'var(--text)', marginBottom: 10 }} />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {krbaAthletes.length === 0 ? (
+                          <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No KRBA athletes found.</p>
+                        ) : krbaAthletes.map(s => {
+                          const col = HOUSE_COLOURS[s.members?.houses?.name] || '#888'
+                          return (
+                            <div key={s.id} onClick={() => { selectStudent(s); setShowTeamKrbaDropdown(false); setTeamKrbaSearch('') }} style={{
+                              padding: '12px 14px', borderRadius: 'var(--border-radius-lg)', cursor: 'pointer',
+                              background: 'var(--bg)', border: '1px solid var(--border)',
+                              display: 'flex', alignItems: 'center', gap: 10,
+                            }}>
+                              <div style={{ width: 36, height: 36, borderRadius: '50%', background: col + '22', color: col, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+                                {(s.members?.first_name?.[0] || '') + (s.members?.last_name?.[0] || '')}
+                              </div>
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {s.members?.first_name} {s.members?.last_name}
+                                </div>
+                                <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{s.student_ref}</div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
             </div>
 
@@ -3239,7 +3288,9 @@ export default function AthleteProfiles() {
                         padding: '10px 12px', fontFamily: 'var(--font-sans)',
                         background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                       }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span
+                          onClick={c.key === 'all_sessions' ? () => document.getElementById('team-calendar')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) : undefined}
+                          style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: c.key === 'all_sessions' ? 'pointer' : 'default' }}>
                           <span style={{ fontSize: 16 }}>{c.icon}</span>
                           <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{c.label}</span>
                         </span>
@@ -3820,11 +3871,46 @@ export default function AthleteProfiles() {
                     </div>
                     <textarea value={newEventDesc} onChange={e => setNewEventDesc(e.target.value)} placeholder="Description (optional)" rows={2}
                       style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
+                    <label style={{ fontSize: 11, color: 'var(--text-tertiary)', display: 'block', marginBottom: 4 }}>Who is this event for?</label>
+                    <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+                      {[['all', 'Everyone'], ['kr', 'All KR'], ['krba', 'All KRBA'], ['individual', 'One athlete']].map(([val, label]) => (
+                        <button key={val} onClick={() => setShowAddEventTarget(val)} style={{
+                          fontSize: 12, padding: '5px 10px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                          border: `1px solid ${showAddEventTarget === val ? '#378ADD' : 'var(--border-strong)'}`,
+                          background: showAddEventTarget === val ? '#378ADD20' : 'none', color: showAddEventTarget === val ? '#378ADD' : 'var(--text-secondary)',
+                        }}>{label}</button>
+                      ))}
+                    </div>
+                    {showAddEventTarget === 'individual' && (
+                      <div style={{ marginBottom: 10 }}>
+                        {addEventAthlete ? (
+                          <span className="btn btn-sm" style={{ background: '#1D9E7520', borderColor: '#1D9E75', cursor: 'pointer' }}
+                            onClick={() => setAddEventAthlete(null)} title="Click to remove">
+                            → {addEventAthlete.members?.first_name} {addEventAthlete.members?.last_name} ×
+                          </span>
+                        ) : (
+                          <div style={{ position: 'relative' }}>
+                            <input value={addEventAthleteSearch} onChange={e => setAddEventAthleteSearch(e.target.value)}
+                              placeholder="Search athlete…" style={{ width: '100%' }} />
+                            {addEventAthleteSearch && (
+                              <div className="card" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20, padding: 4, maxHeight: 200, overflowY: 'auto' }}>
+                                {students.filter(s => `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.toLowerCase().includes(addEventAthleteSearch.toLowerCase())).slice(0, 10).map(s => (
+                                  <button key={s.id} onClick={() => { setAddEventAthlete(s); setAddEventAthleteSearch('') }}
+                                    style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, borderRadius: 6, color: 'var(--text)', fontFamily: 'var(--font-sans)' }}>
+                                    {s.members?.first_name} {s.members?.last_name}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 10, cursor: 'pointer' }}>
                       <input type="checkbox" checked={newEventSendAll} onChange={e => setNewEventSendAll(e.target.checked)} style={{ width: 16, height: 16 }} />
-                      Send to all students (shows in their Sessions tab)
+                      Also show in the Sessions tab of whoever this targets
                     </label>
-                    <button className="btn btn-primary btn-sm" disabled={!newEventTitle.trim() || !newEventDate || savingEvent} onClick={addEvent}>
+                    <button className="btn btn-primary btn-sm" disabled={!newEventTitle.trim() || !newEventDate || (showAddEventTarget === 'individual' && !addEventAthlete) || savingEvent} onClick={addEvent}>
                       {savingEvent ? 'Saving…' : 'Add event'}
                     </button>
                   </div>
@@ -3839,7 +3925,13 @@ export default function AthleteProfiles() {
                           <div style={{ fontSize: 13, fontWeight: 600 }}>{ev.title}</div>
                           <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
                             {new Date(ev.event_date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}{ev.event_time ? ` · ${ev.event_time.slice(0,5)}` : ''}
-                            {ev.send_to_all_students && <span style={{ marginLeft: 6, color: '#1D9E75' }}>· sent to all students</span>}
+                            {ev.target_type === 'individual' && ev.target_student_id && (() => {
+                              const s = students.find(st => st.id === ev.target_student_id)
+                              return s ? <span style={{ marginLeft: 6, color: '#EF9F27' }}>· {s.members?.first_name} {s.members?.last_name}</span> : null
+                            })()}
+                            {ev.target_type === 'kr' && <span style={{ marginLeft: 6, color: '#EF9F27' }}>· All KR</span>}
+                            {ev.target_type === 'krba' && <span style={{ marginLeft: 6, color: '#EF9F27' }}>· All KRBA</span>}
+                            {ev.send_to_all_students && <span style={{ marginLeft: 6, color: '#1D9E75' }}>· sent to Sessions tab</span>}
                           </div>
                           {ev.description && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{ev.description}</div>}
                         </div>
@@ -3849,6 +3941,216 @@ export default function AthleteProfiles() {
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Team calendar -- shows the recurring class schedule, colour-coded by type */}
+            <div className="card" id="team-calendar" style={{ marginBottom: 14 }}>
+              {(() => {
+                const { year, month } = teamCalMonth
+                const firstDay = new Date(year, month, 1)
+                const startWeekday = (firstDay.getDay() + 6) % 7
+                const daysInMonth = new Date(year, month + 1, 0).getDate()
+                const cells = []
+                for (let i = 0; i < startWeekday; i++) cells.push(null)
+                for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+
+                const classColour = cl => {
+                  const n = (cl.name || '').toLowerCase()
+                  if (n.includes('krba')) return '#E24B4A' // red
+                  if (n.includes('khaos') || n.includes('snc') || n.includes('s&c') || n.includes('strength')) return '#888' // grey
+                  if (n.includes('kr')) return '#1a1a1a' // black
+                  return '#378ADD' // fallback for anything else
+                }
+
+                return (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8 }}>
+                      <h2 style={{ fontSize: 14, fontWeight: 600 }}>📅 Team calendar</h2>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <button className="btn btn-sm" onClick={() => setTeamCalMonth(m => m.month === 0 ? { year: m.year - 1, month: 11 } : { year: m.year, month: m.month - 1 })}>←</button>
+                        <span style={{ fontSize: 13, fontWeight: 600, minWidth: 120, textAlign: 'center' }}>{new Date(year, month, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</span>
+                        <button className="btn btn-sm" onClick={() => setTeamCalMonth(m => m.month === 11 ? { year: m.year + 1, month: 0 } : { year: m.year, month: m.month + 1 })}>→</button>
+                      </div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4, marginBottom: 8 }}>
+                      {['Mo','Tu','We','Th','Fr','Sa','Su'].map(d => (
+                        <div key={d} style={{ textAlign: 'center', fontSize: 10, color: 'var(--text-tertiary)' }}>{d}</div>
+                      ))}
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4 }}>
+                      {cells.map((d, i) => {
+                        if (d === null) return <div key={i} />
+                        const jsDay = new Date(year, month, d).getDay()
+                        const classesThatDay = allClasses.filter(cl => (DAY_TO_JS_DAYS[cl.day_of_week] || []).includes(jsDay))
+                        const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`
+                        const eventsThatDay = clubEvents.filter(ev => ev.event_date === dateStr)
+                        return (
+                          <div key={i} style={{ minHeight: 52, border: '1px solid var(--border)', borderRadius: 6, padding: 3 }}>
+                            <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{d}</div>
+                            {classesThatDay.map(cl => (
+                              <div key={cl.id} title={`${cl.name} ${cl.start_time?.slice(0,5) || ''}`} style={{ height: 3, background: classColour(cl), borderRadius: 2, marginTop: 2 }} />
+                            ))}
+                            {eventsThatDay.map(ev => (
+                              <div key={ev.id} title={ev.title} style={{ height: 3, background: '#EF9F27', borderRadius: 2, marginTop: 2, border: '1px dashed #EF9F27' }} />
+                            ))}
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <div style={{ display: 'flex', gap: 14, marginTop: 10, fontSize: 11, color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
+                      <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#E24B4A', borderRadius: 2, marginRight: 4 }} />KRBA sessions</span>
+                      <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#1a1a1a', borderRadius: 2, marginRight: 4 }} />KR sessions</span>
+                      <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#888', borderRadius: 2, marginRight: 4 }} />Khaos / SnC</span>
+                      <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#EF9F27', border: '1px dashed #EF9F27', borderRadius: 2, marginRight: 4 }} />Events</span>
+                    </div>
+                  </>
+                )
+              })()}
+            </div>
+
+            {/* F2F Results -- team-wide graph at top, full sortable/customisable table at bottom */}
+            <div className="card" style={{ marginBottom: 14 }}>
+              <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>📊 F2F Results</h2>
+              {(() => {
+                const teamIds = new Set(students.filter(s => s.is_kr || s.is_pts || s.discipline === 'KRBA').map(s => s.id))
+                const teamSessions = allTeamSessions.filter(s => teamIds.has(s.student_id))
+
+                // Sessions logged per week, last 8 weeks
+                const weeks = []
+                const now = new Date()
+                for (let i = 7; i >= 0; i--) {
+                  const start = new Date(now); start.setDate(now.getDate() - now.getDay() - (i * 7) + 1)
+                  start.setHours(0,0,0,0)
+                  const end = new Date(start); end.setDate(start.getDate() + 6)
+                  weeks.push({ label: start.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }), start, end, count: 0 })
+                }
+                teamSessions.forEach(s => {
+                  const d = new Date(s.session_date)
+                  const w = weeks.find(wk => d >= wk.start && d <= wk.end)
+                  if (w) w.count++
+                })
+                const maxCount = Math.max(1, ...weeks.map(w => w.count))
+
+                const hasContent = v => Array.isArray(v) ? v.length > 0 : (v && typeof v === 'object' ? Object.keys(v).length > 0 : !!v)
+                const summarise = v => {
+                  if (!hasContent(v)) return '—'
+                  if (Array.isArray(v)) return `${v.length} entr${v.length === 1 ? 'y' : 'ies'}`
+                  return 'Logged'
+                }
+
+                const rows = teamSessions.map(s => ({
+                  id: s.id,
+                  student_id: s.student_id,
+                  athlete: `${s.students?.members?.first_name || ''} ${s.students?.members?.last_name || ''}`.trim() || '—',
+                  date: s.session_date,
+                  weight_before: s.weight_before ?? null,
+                  weight_after: s.weight_after ?? null,
+                  weight_change: (s.weight_before != null && s.weight_after != null) ? (parseFloat(s.weight_after) - parseFloat(s.weight_before)).toFixed(1) : null,
+                  running: summarise(s.running), watt_bike: summarise(s.watt_bike), bodyweight: summarise(s.bodyweight),
+                  stretch_flows: summarise(s.stretch_flows), snc: summarise(s.snc), other_session: summarise(s.other_session),
+                  techniques: summarise(s.techniques), tactical: summarise(s.tactical),
+                  mentality_log: summarise(s.mentality_log), wellbeing: summarise(s.wellbeing), test: summarise(s.test),
+                }))
+
+                const sorted = [...rows].sort((a, b) => {
+                  let av = a[resultsSortKey], bv = b[resultsSortKey]
+                  if (av == null) av = ''
+                  if (bv == null) bv = ''
+                  if (typeof av === 'number' || typeof bv === 'number' || (!isNaN(parseFloat(av)) && !isNaN(parseFloat(bv)) && av !== '' && bv !== '')) {
+                    av = parseFloat(av) || 0; bv = parseFloat(bv) || 0
+                    return resultsSortDir === 'asc' ? av - bv : bv - av
+                  }
+                  return resultsSortDir === 'asc' ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av))
+                })
+
+                function toggleResultsSort(key) {
+                  if (resultsSortKey === key) setResultsSortDir(d => d === 'asc' ? 'desc' : 'asc')
+                  else { setResultsSortKey(key); setResultsSortDir('asc') }
+                }
+                function toggleResultsCol(key) {
+                  setResultsVisibleCols(prev => {
+                    const next = prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+                    localStorage.setItem('results_visible_cols', JSON.stringify(next))
+                    return next
+                  })
+                }
+                const visibleColumns = RESULTS_ALL_COLUMNS.filter(c => resultsVisibleCols.includes(c.key))
+
+                return (
+                  <>
+                    {/* Graph: sessions logged per week */}
+                    <div style={{ marginBottom: 20 }}>
+                      <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 8 }}>Sessions logged per week</p>
+                      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 100 }}>
+                        {weeks.map((w, i) => (
+                          <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                            <span style={{ fontSize: 10, fontWeight: 600 }}>{w.count}</span>
+                            <div style={{ width: '100%', height: `${(w.count / maxCount) * 70}px`, minHeight: w.count > 0 ? 4 : 0, background: colour, borderRadius: 3 }} />
+                            <span style={{ fontSize: 8, color: 'var(--text-tertiary)' }}>{w.label}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Column show/hide */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{sorted.length} sessions across the team</p>
+                      <button className="btn btn-sm" onClick={() => setShowResultsColPicker(v => !v)}>{showResultsColPicker ? 'Close' : '⚙ Columns'}</button>
+                    </div>
+                    {showResultsColPicker && (
+                      <div className="card" style={{ marginBottom: 12, padding: 12, background: 'var(--bg-secondary)' }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Show / hide columns</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {RESULTS_ALL_COLUMNS.map(c => (
+                            <button key={c.key} onClick={() => toggleResultsCol(c.key)} style={{
+                              padding: '4px 10px', borderRadius: 20, fontSize: 11, cursor: 'pointer',
+                              border: `1px solid ${resultsVisibleCols.includes(c.key) ? 'var(--text)' : 'var(--border-strong)'}`,
+                              background: resultsVisibleCols.includes(c.key) ? 'var(--text)' : 'var(--bg)',
+                              color: resultsVisibleCols.includes(c.key) ? 'var(--bg)' : 'var(--text-secondary)',
+                            }}>{c.label}</button>
+                          ))}
+                        </div>
+                        <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => {
+                          setResultsVisibleCols(RESULTS_DEFAULT_VISIBLE); localStorage.setItem('results_visible_cols', JSON.stringify(RESULTS_DEFAULT_VISIBLE))
+                        }}>Reset to default</button>
+                      </div>
+                    )}
+
+                    {/* Table */}
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                            {visibleColumns.map(c => (
+                              <th key={c.key} onClick={() => toggleResultsSort(c.key)} style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', textAlign: 'left', padding: '6px 8px' }}>
+                                {c.label}<span style={{ marginLeft: 4, fontSize: 9, opacity: resultsSortKey === c.key ? 1 : 0.35 }}>
+                                  {resultsSortKey === c.key ? (resultsSortDir === 'asc' ? '↑' : '↓') : '↕'}
+                                </span>
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {sorted.map(r => (
+                            <tr key={r.id} onClick={() => { const s = students.find(st => st.id === r.student_id); if (s) selectStudent(s) }}
+                              style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
+                              {visibleColumns.map(c => (
+                                <td key={c.key} style={{ padding: '6px 8px', whiteSpace: 'nowrap' }}>
+                                  {c.key === 'date' ? new Date(r.date).toLocaleDateString('en-GB') :
+                                   c.key === 'weight_before' ? (r.weight_before != null ? `${r.weight_before}kg` : '—') :
+                                   c.key === 'weight_after' ? (r.weight_after != null ? `${r.weight_after}kg` : '—') :
+                                   c.key === 'weight_change' ? (r.weight_change != null ? `${r.weight_change > 0 ? '+' : ''}${r.weight_change}kg` : '—') :
+                                   r[c.key]}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )
+              })()}
             </div>
 
             {/* Scroll to browse athlete profiles -- same as swiping */}
@@ -3903,7 +4205,7 @@ export default function AthleteProfiles() {
               swipeStartX.current = null
             }}>
             <div className="swipe-zone" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <button className="btn btn-sm" onClick={goHome}>← Back</button>
+              <button className="btn btn-sm" onClick={goHome}>← Athlete Dashboard</button>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button className="btn btn-sm"
                   onClick={() => goToAdjacentAthlete(-1)} title="Previous athlete (or back to Dashboard)">← Prev</button>
@@ -6056,6 +6358,8 @@ export default function AthleteProfiles() {
                             {data.map((d,i) => d[line.key] != null && (
                               <g key={i}>
                                 <circle cx={x(i)} cy={y(d[line.key])} r="4" fill={line.colour} stroke="var(--bg)" strokeWidth="1.5" style={{ cursor: 'pointer', touchAction: 'none' }}
+                                  onMouseEnter={() => setChartPopup({ x: x(i), y: y(d[line.key]), label: new Date(d.session_date).toLocaleDateString('en-GB'), value: `${d[line.key]}${unit}` })}
+                                  onMouseLeave={() => setChartPopup(null)}
                                   onPointerDown={() => {
                                     heldRef.current = false
                                     pressTimer.current = setTimeout(() => {
@@ -6942,7 +7246,6 @@ export default function AthleteProfiles() {
           </div>
         )}
       </div>
-      )}
     </div>
   )
 }

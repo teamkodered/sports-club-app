@@ -663,7 +663,7 @@ const PDP_SECTIONS = [
 ]
 
 export default function AthleteApp() {
-  const { profile } = useAuth()
+  const { profile, isStaff } = useAuth()
   const [tab, setTab]           = useState('home')
   const [checkingIn, setCheckingIn]   = useState(false)
   const [checkedInMsg, setCheckedInMsg] = useState(null)
@@ -676,6 +676,10 @@ export default function AthleteApp() {
   const [apData, setApData]     = useState(null)
   const [assignedClasses, setAssignedClasses] = useState([])
   const [myNotesLog, setMyNotesLog] = useState([])
+  const [myChartPopup, setMyChartPopup] = useState(null)
+  const [highlightedMyEntryId, setHighlightedMyEntryId] = useState(null)
+  const myPressTimer = useRef(null)
+  const myHeldRef = useRef(false)
   const [allClasses, setAllClasses] = useState([])
   const [showAddClass, setShowAddClass] = useState(false)
   const [addClassSelection, setAddClassSelection] = useState('')
@@ -923,7 +927,16 @@ export default function AthleteApp() {
           .then(({ data, error }) => { if (!error) setAllClasses(data || []) })
 
         supabase.from('club_events').select('*').eq('send_to_all_students', true).order('event_date')
-          .then(({ data, error }) => { if (!error) setClubEvents(data || []) })
+          .then(({ data, error }) => {
+            if (error) return
+            const relevant = (data || []).filter(ev => {
+              if (ev.target_type === 'individual') return ev.target_student_id === s.id
+              if (ev.target_type === 'kr') return !!s.is_kr
+              if (ev.target_type === 'krba') return s.discipline === 'KRBA'
+              return true // 'all' or unset (older events)
+            })
+            setClubEvents(relevant)
+          })
 
         supabase.from('athlete_reports').select('*').eq('student_id', s.id).order('sent_at', { ascending: false })
           .then(({ data, error }) => { if (!error) setMyReports(data || []) })
@@ -1232,6 +1245,12 @@ export default function AthleteApp() {
 
   return (
     <div style={{ maxWidth: 640, margin: '0 auto', padding: '20px 16px', minHeight: '100vh' }}>
+
+      {isStaff && (
+        <Link to="/dashboard" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 10, fontSize: 13, color: 'var(--text-secondary)', textDecoration: 'none' }}>
+          ← Back to main site
+        </Link>
+      )}
 
       {/* Profile header */}
       <div className="card" style={{ marginBottom: 12, borderLeft: `4px solid ${colour}` }}>
@@ -2758,26 +2777,87 @@ export default function AthleteApp() {
           {sessions.length === 0 ? (
             <div className="empty-state"><h3>No sessions yet</h3></div>
           ) : (
-            <div className="card" style={{ padding: 0 }}>
-              <table>
-                <thead><tr><th>Date</th><th style={{ textAlign: 'center' }}>Before</th><th style={{ textAlign: 'center' }}>After</th><th style={{ textAlign: 'center' }}>Change</th></tr></thead>
-                <tbody>
-                  {sessions.map((s,i) => {
-                    const wc = s.weight_before && s.weight_after ? (parseFloat(s.weight_after) - parseFloat(s.weight_before)).toFixed(1) : null
-                    return (
-                      <tr key={i}>
-                        <td style={{ fontSize: 12 }}>{new Date(s.session_date).toLocaleDateString('en-GB')}</td>
-                        <td style={{ textAlign: 'center', fontSize: 13 }}>{s.weight_before ? `${s.weight_before}kg` : '—'}</td>
-                        <td style={{ textAlign: 'center', fontSize: 13 }}>{s.weight_after  ? `${s.weight_after}kg`  : '—'}</td>
-                        <td style={{ textAlign: 'center', fontWeight: 700, color: wc < 0 ? '#1d9e75' : wc > 0 ? '#a32d2d' : 'var(--text-secondary)' }}>
-                          {wc ? `${wc > 0 ? '+' : ''}${wc}kg` : '—'}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <>
+              {(() => {
+                const weightRows = [...sessions].reverse().filter(s => s.weight_before != null || s.weight_after != null)
+                if (weightRows.length < 2) return null
+                const w = 560, h = 160, pad = { t: 10, r: 10, b: 20, l: 30 }
+                const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b
+                const allVals = weightRows.flatMap(s => [s.weight_before, s.weight_after].filter(v => v != null).map(parseFloat))
+                const minV = Math.min(...allVals) - 1, maxV = Math.max(...allVals) + 1
+                const x = i => pad.l + (weightRows.length > 1 ? (i / (weightRows.length - 1)) * iw : iw / 2)
+                const y = v => pad.t + ih - ((v - minV) / (maxV - minV || 1)) * ih
+                const linePts = key => weightRows.map((s, i) => s[key] != null ? [x(i), y(parseFloat(s[key]))] : null).filter(Boolean)
+                const beforePts = linePts('weight_before'), afterPts = linePts('weight_after')
+                return (
+                  <div className="card" style={{ marginBottom: 14 }}>
+                    <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>⚖️ Weight over time</p>
+                    <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', height: 'auto' }}>
+                      {beforePts.length >= 2 && <polyline points={beforePts.map(p => p.join(',')).join(' ')} fill="none" stroke="#378ADD" strokeWidth="2" strokeLinejoin="round" />}
+                      {afterPts.length >= 2 && <polyline points={afterPts.map(p => p.join(',')).join(' ')} fill="none" stroke="#1D9E75" strokeWidth="2" strokeLinejoin="round" />}
+                      {weightRows.map((s, i) => ['weight_before', 'weight_after'].map(key => s[key] == null ? null : (
+                        <circle key={`${i}-${key}`} cx={x(i)} cy={y(parseFloat(s[key]))} r="4"
+                          fill={key === 'weight_before' ? '#378ADD' : '#1D9E75'} stroke="var(--bg)" strokeWidth="1.5"
+                          style={{ cursor: 'pointer', touchAction: 'none' }}
+                          onMouseEnter={() => setMyChartPopup({ x: x(i), y: y(parseFloat(s[key])), label: new Date(s.session_date).toLocaleDateString('en-GB'), value: `${s[key]}kg` })}
+                          onMouseLeave={() => setMyChartPopup(null)}
+                          onPointerDown={() => {
+                            // Reversed vs the coach view: press shows the result, hold jumps to the entry
+                            myHeldRef.current = false
+                            setMyChartPopup({ x: x(i), y: y(parseFloat(s[key])), label: new Date(s.session_date).toLocaleDateString('en-GB'), value: `${s[key]}kg` })
+                            myPressTimer.current = setTimeout(() => {
+                              myHeldRef.current = true
+                              const el = document.getElementById(`my-f2f-entry-${s.id}`)
+                              if (el) {
+                                el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                                setHighlightedMyEntryId(s.id)
+                                setTimeout(() => setHighlightedMyEntryId(cur => cur === s.id ? null : cur), 2000)
+                              }
+                            }, 400)
+                          }}
+                          onPointerUp={() => {
+                            clearTimeout(myPressTimer.current)
+                            if (!myHeldRef.current) setMyChartPopup(null)
+                          }}
+                          onPointerLeave={() => clearTimeout(myPressTimer.current)}
+                        />
+                      )))}
+                      {myChartPopup && (
+                        <g>
+                          <rect x={myChartPopup.x - 45} y={myChartPopup.y - 38} width="90" height="30" rx="6" fill="var(--text)" opacity="0.9" />
+                          <text x={myChartPopup.x} y={myChartPopup.y - 24} textAnchor="middle" fontSize="9" fill="var(--bg)">{myChartPopup.label}</text>
+                          <text x={myChartPopup.x} y={myChartPopup.y - 12} textAnchor="middle" fontSize="11" fontWeight="700" fill="var(--bg)">{myChartPopup.value}</text>
+                        </g>
+                      )}
+                    </svg>
+                    <div style={{ display: 'flex', gap: 14, marginTop: 6, fontSize: 11, color: 'var(--text-secondary)' }}>
+                      <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#378ADD', borderRadius: '50%', marginRight: 4 }} />Before</span>
+                      <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#1D9E75', borderRadius: '50%', marginRight: 4 }} />After</span>
+                    </div>
+                  </div>
+                )
+              })()}
+              <div className="card" style={{ padding: 0 }}>
+                <table>
+                  <thead><tr><th>Date</th><th style={{ textAlign: 'center' }}>Before</th><th style={{ textAlign: 'center' }}>After</th><th style={{ textAlign: 'center' }}>Change</th></tr></thead>
+                  <tbody>
+                    {sessions.map((s,i) => {
+                      const wc = s.weight_before && s.weight_after ? (parseFloat(s.weight_after) - parseFloat(s.weight_before)).toFixed(1) : null
+                      return (
+                        <tr key={i} id={`my-f2f-entry-${s.id}`} style={{ outline: highlightedMyEntryId === s.id ? '2px solid #EF9F27' : 'none', transition: 'outline 0.3s' }}>
+                          <td style={{ fontSize: 12 }}>{new Date(s.session_date).toLocaleDateString('en-GB')}</td>
+                          <td style={{ textAlign: 'center', fontSize: 13 }}>{s.weight_before ? `${s.weight_before}kg` : '—'}</td>
+                          <td style={{ textAlign: 'center', fontSize: 13 }}>{s.weight_after  ? `${s.weight_after}kg`  : '—'}</td>
+                          <td style={{ textAlign: 'center', fontWeight: 700, color: wc < 0 ? '#1d9e75' : wc > 0 ? '#a32d2d' : 'var(--text-secondary)' }}>
+                            {wc ? `${wc > 0 ? '+' : ''}${wc}kg` : '—'}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       )}
