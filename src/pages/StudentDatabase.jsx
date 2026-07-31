@@ -57,6 +57,7 @@ export default function StudentDatabase() {
   const [statusFilter, setStatusFilter] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
   const [selected, setSelected]       = useState(null)
+  const [pendingStatusChanges, setPendingStatusChanges] = useState({}) // studentId -> previewed status, not yet saved
   const [allClasses, setAllClasses] = useState([])
   const [allAssignments, setAllAssignments] = useState([])
   const [addingClassFor, setAddingClassFor] = useState(null) // student id currently showing the add-class row
@@ -221,13 +222,6 @@ export default function StudentDatabase() {
   const activeStudentsCount = students.filter(s => s.members?.status !== 'stopped' && s.members?.status !== 'not_started').length
   const cols = ALL_COLUMNS.filter(c => visibleCols.includes(c.key) || (c.key === 'stopped_at' && tab === 'Stopped'))
 
-  async function stopStudent(s) {
-    if (!confirm(`Stop training for ${s.members?.first_name} ${s.members?.last_name}?`)) return
-    const { error } = await supabase.from('members').update({ status: 'stopped', stopped_at: new Date().toISOString() }).eq('id', s.member_id)
-    if (!error) setStudents(prev => prev.map(x => x.id === s.id ? { ...x, members: { ...x.members, status: 'stopped', stopped_at: new Date().toISOString() } } : x))
-    else alert('Error stopping student: ' + error.message)
-  }
-
   async function updateRole(memberId, role) {
     await supabase.from('members').update({ role }).eq('id', memberId)
     setStudents(prev => prev.map(s => s.member_id === memberId ? { ...s, members: { ...s.members, role } } : s))
@@ -247,12 +241,23 @@ export default function StudentDatabase() {
     setStudents(prev => prev.map(s => s.id === student.id ? { ...s, members: { ...s.members, ...payload } } : s))
   }
 
-  async function cycleMemberStatus(student) {
+  function previewCycleStatus(student) {
     const order = ['active', 'pending', 'stopped']
-    const current = student.members?.status || 'active'
+    const current = pendingStatusChanges[student.id] ?? student.members?.status ?? 'active'
     const currentIdx = order.indexOf(current) // -1 for 'not_started' -- next becomes 'active', a sensible reset
     const next = order[(currentIdx + 1) % order.length]
-    await setMemberStatus(student, next)
+    setPendingStatusChanges(prev => ({ ...prev, [student.id]: next }))
+  }
+
+  function previewSetStatus(student, status) {
+    setPendingStatusChanges(prev => ({ ...prev, [student.id]: status }))
+  }
+
+  async function commitPendingStatus(student) {
+    const pending = pendingStatusChanges[student.id]
+    if (!pending) return
+    await setMemberStatus(student, pending)
+    setPendingStatusChanges(prev => { const next = { ...prev }; delete next[student.id]; return next })
   }
 
   async function handleClassTimeChange(student, newTime) {
@@ -611,18 +616,22 @@ export default function StudentDatabase() {
                               title="Reactivate this student — restores them to the active list, keeping their previous class">
                               ↻ Restart
                             </button>
-                          ) : (
-                            <span onClick={isAdmin ? () => cycleMemberStatus(s) : undefined}
-                              onContextMenu={isAdmin ? e => {
-                                e.preventDefault()
-                                if (confirm(`Set ${s.members?.first_name}'s status to Not Started?`)) setMemberStatus(s, 'not_started')
-                              } : undefined}
-                              className={`badge ${m?.status==='active'?'badge-green':m?.status==='pending'?'badge-amber':m?.status==='stopped'?'badge-red':'badge-gray'}`}
-                              style={{ fontSize: 10, cursor: isAdmin ? 'pointer' : 'default' }}
-                              title={isAdmin ? 'Click to cycle Active/Pending/Stopped — right-click for Not Started' : undefined}>
-                              {m?.status || 'active'}
-                            </span>
-                          )}
+                          ) : (() => {
+                            const pending = pendingStatusChanges[s.id]
+                            const displayStatus = pending ?? m?.status ?? 'active'
+                            return (
+                              <span onClick={isAdmin ? () => previewCycleStatus(s) : undefined}
+                                onContextMenu={isAdmin ? e => {
+                                  e.preventDefault()
+                                  previewSetStatus(s, 'not_started')
+                                } : undefined}
+                                className={`badge ${displayStatus==='active'?'badge-green':displayStatus==='pending'?'badge-amber':displayStatus==='stopped'?'badge-red':'badge-gray'}`}
+                                style={{ fontSize: 10, cursor: isAdmin ? 'pointer' : 'default', outline: pending ? '2px dashed #378ADD' : 'none', outlineOffset: 2 }}
+                                title={isAdmin ? (pending ? 'Not saved yet — press Send to confirm' : 'Click to cycle Active/Pending/Stopped — right-click for Not Started') : undefined}>
+                                {displayStatus}
+                              </span>
+                            )
+                          })()}
                         </td>
                       )
                       case 'stopped_at':  return (
@@ -653,9 +662,13 @@ export default function StudentDatabase() {
                   <td>
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button className="btn btn-sm" onClick={() => setSelected(s)}>Edit</button>
-                      {m?.status !== 'stopped' && isAdmin && (
-                        <button className="btn btn-sm" style={{ color: '#a32d2d', border: '1px solid #a32d2d' }}
-                          onClick={() => stopStudent(s)}>Stop</button>
+                      {isAdmin && (
+                        <button className="btn btn-sm" disabled={!pendingStatusChanges[s.id]}
+                          style={pendingStatusChanges[s.id] ? { color: '#378ADD', border: '1px solid #378ADD' } : { opacity: 0.4 }}
+                          onClick={() => commitPendingStatus(s)}
+                          title={pendingStatusChanges[s.id] ? `Send to ${pendingStatusChanges[s.id]}` : 'Change the status pill first to enable this'}>
+                          Send
+                        </button>
                       )}
                     </div>
                   </td>
