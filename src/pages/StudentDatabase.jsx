@@ -497,16 +497,17 @@ export default function StudentDatabase() {
                       )
                       case 'class_time':   return (
                         <td key={c.key}>
-                          {isAdmin ? (
-                            <select value={s.class_time || ''} onChange={e => updateStudentField(s.id, 'class_time', e.target.value || null)}
-                              style={{ fontSize: 12, padding: '3px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
-                              <option value="">— Not set —</option>
-                              <option>17:00</option>
-                              <option>18:00</option>
-                              <option>19:00</option>
-                              <option>20:00</option>
-                            </select>
-                          ) : <span style={{ fontSize: 12 }}>{s.class_time || '—'}</span>}
+                          {isAdmin ? (() => {
+                            const allTimes = [...new Set(allClasses.map(cl => cl.start_time?.slice(0,5)).filter(Boolean))].sort()
+                            return (
+                              <select value={s.class_time || ''} onChange={e => updateStudentField(s.id, 'class_time', e.target.value || null)}
+                                style={{ fontSize: 12, padding: '3px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
+                                <option value="">— Not set —</option>
+                                {allTimes.map(t => <option key={t}>{t}</option>)}
+                                {s.class_time && !allTimes.includes(s.class_time) && <option>{s.class_time}</option>}
+                              </select>
+                            )
+                          })() : <span style={{ fontSize: 12 }}>{s.class_time || '—'}</span>}
                         </td>
                       )
                       case 'groups':       return (
