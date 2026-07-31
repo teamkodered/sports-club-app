@@ -238,9 +238,10 @@ export default function StudentDatabase() {
   }
 
   async function cycleMemberStatus(student) {
-    const order = ['active', 'pending', 'stopped', 'not_started']
+    const order = ['active', 'pending', 'stopped']
     const current = student.members?.status || 'active'
-    const next = order[(order.indexOf(current) + 1) % order.length]
+    const currentIdx = order.indexOf(current) // -1 for 'not_started' -- next becomes 'active', a sensible reset
+    const next = order[(currentIdx + 1) % order.length]
     const memberId = student.member_id
     const { error } = await supabase.from('members').update({ status: next }).eq('id', memberId)
     if (error) { alert('Error updating status: ' + error.message); return }
