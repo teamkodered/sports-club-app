@@ -1716,6 +1716,9 @@ export default function AthleteProfiles() {
     try { return JSON.parse(localStorage.getItem('results_visible_cols')) || RESULTS_DEFAULT_VISIBLE } catch { return RESULTS_DEFAULT_VISIBLE }
   })
   const [resultsSortKey, setResultsSortKey] = useState('date')
+  const [resultsMetricSection, setResultsMetricSection] = useState('') // 'Physical' | 'Test'
+  const [resultsMetricQuestion, setResultsMetricQuestion] = useState('') // e.g. 'Watt bike'
+  const [resultsMetricType, setResultsMetricType] = useState('') // sub-type, e.g. interval mode
   const [resultsSortDir, setResultsSortDir] = useState('desc')
   const [allAthleteProfiles, setAllAthleteProfiles] = useState([]) // for PDP/Media team stats
   const [todaysAllAttendance, setTodaysAllAttendance] = useState([])
@@ -3817,6 +3820,142 @@ export default function AthleteProfiles() {
                           </div>
                         ))}
                       </div>
+                    </div>
+
+                    {/* Metric filter: Section -> Question -> Type, with per-athlete
+                        lines + team average, and a ranked leaderboard */}
+                    <div style={{ marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid var(--border)' }}>
+                      <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Filter by metric</p>
+                      {(() => {
+                        const PHYSICAL_QUESTIONS = {
+                          'Running': { key: 'running', getTypes: () => [...new Set(teamSessions.flatMap(s => toEntries(s.running).map(e => e.category)).filter(Boolean))] },
+                          'Watt Bike': { key: 'watt_bike', getTypes: () => [...new Set(teamSessions.flatMap(s => toEntries(s.watt_bike).map(e => normalizeIntervalMode(e.interval_mode || e.type))).filter(Boolean))] },
+                          'Bodyweight': { key: 'bodyweight', getTypes: () => [...new Set(teamSessions.flatMap(s => toEntries(s.bodyweight).map(e => e.type)).filter(Boolean))] },
+                          'Techniques': { key: 'techniques', getTypes: () => [...new Set(teamSessions.map(s => s.techniques?.type).filter(Boolean))] },
+                        }
+                        const questionOptions = resultsMetricSection === 'Physical' ? Object.keys(PHYSICAL_QUESTIONS)
+                          : resultsMetricSection === 'Test' ? TEST_CATEGORIES.map(c => c.label) : []
+                        const typeOptions = !resultsMetricQuestion ? []
+                          : resultsMetricSection === 'Physical' ? (PHYSICAL_QUESTIONS[resultsMetricQuestion]?.getTypes() || [])
+                          : (TEST_CATEGORIES.find(c => c.label === resultsMetricQuestion)?.tests.map(t => t.name) || [])
+
+                        // Extract a numeric value for one session, given the current filter selection
+                        function extractValue(session) {
+                          if (resultsMetricSection === 'Physical') {
+                            const q = PHYSICAL_QUESTIONS[resultsMetricQuestion]
+                            if (!q) return null
+                            if (q.key === 'techniques') {
+                              if (session.techniques?.type !== resultsMetricType) return null
+                              const vals = numSets(session.techniques?.sets)
+                              return vals.length ? Math.max(...vals) : null
+                            }
+                            const entries = toEntries(session[q.key]).filter(e => {
+                              if (q.key === 'running') return e.category === resultsMetricType
+                              if (q.key === 'watt_bike') return normalizeIntervalMode(e.interval_mode || e.type) === resultsMetricType
+                              if (q.key === 'bodyweight') return e.type === resultsMetricType
+                              return true
+                            })
+                            const vals = entries.flatMap(e => numSets(e.sets))
+                            return vals.length ? Math.max(...vals) : null
+                          }
+                          if (resultsMetricSection === 'Test') {
+                            const v = session.test?.[resultsMetricType]
+                            return v != null && v !== '' ? parseFloat(v) : null
+                          }
+                          return null
+                        }
+                        function numSets(arr) {
+                          return Array.isArray(arr) ? arr.map(v => parseFloat((v && typeof v === 'object') ? v.wattage : v)).filter(v => !isNaN(v)) : []
+                        }
+
+                        const metricReady = resultsMetricSection && resultsMetricQuestion && resultsMetricType
+
+                        // Build per-athlete series + leaderboard once fully filtered
+                        let athleteSeries = [], allDates = [], leaderboard = []
+                        if (metricReady) {
+                          const byAthlete = {}
+                          teamSessions.forEach(s => {
+                            const v = extractValue(s)
+                            if (v == null) return
+                            if (!byAthlete[s.student_id]) byAthlete[s.student_id] = { name: `${s.students?.members?.first_name || ''} ${s.students?.members?.last_name || ''}`.trim(), points: [] }
+                            byAthlete[s.student_id].points.push({ date: s.session_date, value: v })
+                          })
+                          athleteSeries = Object.values(byAthlete).map(a => ({ ...a, points: a.points.sort((x,y) => x.date.localeCompare(y.date)) }))
+                          allDates = [...new Set(athleteSeries.flatMap(a => a.points.map(p => p.date)))].sort()
+                          leaderboard = athleteSeries.map(a => ({
+                            name: a.name,
+                            latest: a.points[a.points.length - 1]?.value ?? null,
+                            best: Math.max(...a.points.map(p => p.value)),
+                          })).sort((x, y) => y.best - x.best)
+                        }
+
+                        return (
+                          <>
+                            <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+                              <select value={resultsMetricSection} onChange={e => { setResultsMetricSection(e.target.value); setResultsMetricQuestion(''); setResultsMetricType('') }} style={{ flex: 1, minWidth: 120 }}>
+                                <option value="">Section…</option>
+                                <option value="Physical">Physical</option>
+                                <option value="Test">Test</option>
+                              </select>
+                              <select value={resultsMetricQuestion} onChange={e => { setResultsMetricQuestion(e.target.value); setResultsMetricType('') }} disabled={!resultsMetricSection} style={{ flex: 1, minWidth: 120 }}>
+                                <option value="">Question…</option>
+                                {questionOptions.map(q => <option key={q} value={q}>{q}</option>)}
+                              </select>
+                              <select value={resultsMetricType} onChange={e => setResultsMetricType(e.target.value)} disabled={!resultsMetricQuestion} style={{ flex: 1, minWidth: 120 }}>
+                                <option value="">Type…</option>
+                                {typeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+                              </select>
+                            </div>
+
+                            {metricReady && (athleteSeries.length === 0 ? (
+                              <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No results logged yet for {resultsMetricSection} → {resultsMetricQuestion} → {resultsMetricType}.</p>
+                            ) : (() => {
+                              const w = 640, h = 200, pad = { t: 10, r: 10, b: 20, l: 34 }
+                              const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b
+                              const allVals = athleteSeries.flatMap(a => a.points.map(p => p.value))
+                              const minV = Math.min(...allVals), maxV = Math.max(...allVals)
+                              const range = (maxV - minV) || 1
+                              const x = i => pad.l + (allDates.length > 1 ? (i / (allDates.length - 1)) * iw : iw / 2)
+                              const y = v => pad.t + ih - ((v - minV) / range) * ih
+                              const avgByDate = allDates.map(d => {
+                                const vals = athleteSeries.map(a => a.points.find(p => p.date === d)?.value).filter(v => v != null)
+                                return vals.length ? vals.reduce((a,b) => a+b, 0) / vals.length : null
+                              })
+                              return (
+                                <>
+                                  <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', height: 'auto', marginBottom: 14 }}>
+                                    {athleteSeries.map((a, ai) => {
+                                      const pts = allDates.map((d, i) => {
+                                        const p = a.points.find(pt => pt.date === d)
+                                        return p ? [x(i), y(p.value)] : null
+                                      }).filter(Boolean)
+                                      if (pts.length < 2) return null
+                                      return <polyline key={ai} points={pts.map(p => p.join(',')).join(' ')} fill="none" stroke={colour} strokeWidth="1" opacity="0.25" />
+                                    })}
+                                    {(() => {
+                                      const avgPts = allDates.map((d, i) => avgByDate[i] != null ? [x(i), y(avgByDate[i])] : null).filter(Boolean)
+                                      return avgPts.length >= 2 && <polyline points={avgPts.map(p => p.join(',')).join(' ')} fill="none" stroke={colour} strokeWidth="3" />
+                                    })()}
+                                  </svg>
+                                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 14 }}>
+                                    <span style={{ display: 'inline-block', width: 16, height: 3, background: colour, opacity: 0.25, marginRight: 6, verticalAlign: 'middle' }} />Individual athletes
+                                    <span style={{ display: 'inline-block', width: 16, height: 3, background: colour, marginLeft: 14, marginRight: 6, verticalAlign: 'middle' }} />Team average
+                                  </div>
+                                  <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Leaderboard</p>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                    {leaderboard.map((row, i) => (
+                                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: i === 0 ? colour + '12' : 'var(--bg-secondary)', borderRadius: 6, fontSize: 13 }}>
+                                        <span>{i + 1}. {row.name}</span>
+                                        <span style={{ fontWeight: 600 }}>Best: {row.best} · Latest: {row.latest}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </>
+                              )
+                            })())}
+                          </>
+                        )
+                      })()}
                     </div>
 
                     {/* Column show/hide */}
