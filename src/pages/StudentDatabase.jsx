@@ -29,6 +29,7 @@ const ALL_COLUMNS = [
   { key: 'trained_for',       label: 'Trained (mo)',sortable: true  },
   { key: 'media',             label: 'Media',       sortable: true  },
   { key: 'house_points',      label: 'H pts',       sortable: true  },
+  { key: 'stopped_at',        label: 'Date Stopped',sortable: true  },
 ]
 
 const DEFAULT_VISIBLE = ['student_ref','first_name','last_name','age','house','grade','class_schedule','class_time','groups','in_comp','status','media','house_points']
@@ -155,6 +156,7 @@ export default function StudentDatabase() {
       case 'trained_for':    return m?.joined_date ? Math.floor((Date.now()-new Date(m.joined_date))/(30*24*60*60*1000)) : 0
       case 'media':          return s.media_restriction || ''
       case 'house_points':   return s.house_points || 0
+      case 'stopped_at':     return m?.stopped_at || ''
       default:               return ''
     }
   }
@@ -217,7 +219,7 @@ export default function StudentDatabase() {
     return [...seen.values()].sort()
   })()
   const activeStudentsCount = students.filter(s => s.members?.status !== 'stopped' && s.members?.status !== 'not_started').length
-  const cols = ALL_COLUMNS.filter(c => visibleCols.includes(c.key))
+  const cols = ALL_COLUMNS.filter(c => visibleCols.includes(c.key) || (c.key === 'stopped_at' && tab === 'Stopped'))
 
   async function stopStudent(s) {
     if (!confirm(`Stop training for ${s.members?.first_name} ${s.members?.last_name}?`)) return
@@ -239,9 +241,10 @@ export default function StudentDatabase() {
 
   async function setMemberStatus(student, status) {
     const memberId = student.member_id
-    const { error } = await supabase.from('members').update({ status }).eq('id', memberId)
+    const payload = { status, stopped_at: status === 'stopped' ? new Date().toISOString() : null }
+    const { error } = await supabase.from('members').update(payload).eq('id', memberId)
     if (error) { alert('Error updating status: ' + error.message); return }
-    setStudents(prev => prev.map(s => s.id === student.id ? { ...s, members: { ...s.members, status } } : s))
+    setStudents(prev => prev.map(s => s.id === student.id ? { ...s, members: { ...s.members, ...payload } } : s))
   }
 
   async function cycleMemberStatus(student) {
@@ -602,16 +605,29 @@ export default function StudentDatabase() {
                       }
                       case 'status':      return (
                         <td key={c.key}>
-                          <span onClick={isAdmin ? () => cycleMemberStatus(s) : undefined}
-                            onContextMenu={isAdmin ? e => {
-                              e.preventDefault()
-                              if (confirm(`Set ${s.members?.first_name}'s status to Not Started?`)) setMemberStatus(s, 'not_started')
-                            } : undefined}
-                            className={`badge ${m?.status==='active'?'badge-green':m?.status==='pending'?'badge-amber':m?.status==='stopped'?'badge-red':'badge-gray'}`}
-                            style={{ fontSize: 10, cursor: isAdmin ? 'pointer' : 'default' }}
-                            title={isAdmin ? 'Click to cycle Active/Pending/Stopped — right-click for Not Started' : undefined}>
-                            {m?.status || 'active'}
-                          </span>
+                          {tab === 'Stopped' && m?.status === 'stopped' ? (
+                            <button onClick={isAdmin ? () => setMemberStatus(s, 'active') : undefined}
+                              className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }}
+                              title="Reactivate this student — restores them to the active list, keeping their previous class">
+                              ↻ Restart
+                            </button>
+                          ) : (
+                            <span onClick={isAdmin ? () => cycleMemberStatus(s) : undefined}
+                              onContextMenu={isAdmin ? e => {
+                                e.preventDefault()
+                                if (confirm(`Set ${s.members?.first_name}'s status to Not Started?`)) setMemberStatus(s, 'not_started')
+                              } : undefined}
+                              className={`badge ${m?.status==='active'?'badge-green':m?.status==='pending'?'badge-amber':m?.status==='stopped'?'badge-red':'badge-gray'}`}
+                              style={{ fontSize: 10, cursor: isAdmin ? 'pointer' : 'default' }}
+                              title={isAdmin ? 'Click to cycle Active/Pending/Stopped — right-click for Not Started' : undefined}>
+                              {m?.status || 'active'}
+                            </span>
+                          )}
+                        </td>
+                      )
+                      case 'stopped_at':  return (
+                        <td key={c.key} style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                          {m?.stopped_at ? new Date(m.stopped_at).toLocaleDateString('en-GB') : '—'}
                         </td>
                       )
                       case 'role':        return <td key={c.key} style={{ fontSize: 12, textTransform: 'capitalize' }}>{m?.role || '—'}</td>
