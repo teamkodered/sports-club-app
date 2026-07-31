@@ -667,7 +667,12 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
   const subTypeOptions = getSubTypeOptions(sorted, b.key)
   const currentSubType = moduleSubType[b.key] ?? subTypeOptions[0] ?? null
   const noNumericStat = ['stretch', 'eye_training', 'one_percenters', 'mentality', 'wellbeing'].includes(b.key)
-  const { mostRecent, pb, unit } = noNumericStat ? { mostRecent: null, pb: null, unit: '' } : computeModuleStats(sorted, b.key, currentSubType)
+  const { mostRecent, unit } = noNumericStat ? { mostRecent: null, unit: '' } : computeModuleStats(sorted, b.key, currentSubType)
+  // PB is the athlete's overall best for this exercise across every
+  // sub-type, not just whichever one is currently being viewed --
+  // otherwise a genuine best set on a different sub-type would never
+  // show while cycling through the others.
+  const { pb } = noNumericStat ? { pb: null } : computeModuleStats(sorted, b.key, null)
   const lastLogged = noNumericStat ? computeLastLogged(sorted, b.key) : null
   const swipeStart = useRef(null)
 

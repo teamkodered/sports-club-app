@@ -491,34 +491,46 @@ function getSubTypeOptions(sorted, key) {
 
 function computeModuleStats(sorted, key, subType) {
   try {
-    let entries = [], unit = '', higherIsBetter = true
+    let entries = [], allTypeEntries = [], unit = '', higherIsBetter = true
     const numSets = arr => Array.isArray(arr) ? arr.map(v => parseFloat((v && typeof v === 'object') ? v.wattage : v)).filter(v => !isNaN(v)) : []
     if (key === 'running') {
       entries = sorted.flatMap(s => toEntries(s.running)
         .filter(e => !subType || e.category === subType)
         .flatMap(e => (Array.isArray(e.sets) ? e.sets : []).filter(v => v !== '' && v != null).map(v => ({ date: s.session_date, value: v }))))
       higherIsBetter = subType === 'Interval'
+      allTypeEntries = entries // different categories mix time vs distance -- PB stays scoped to the selected type
     } else if (key === 'watt_bike') {
       entries = sorted.flatMap(s => toEntries(s.watt_bike)
         .filter(e => !subType || normalizeIntervalMode(e.interval_mode || e.type) === subType)
         .map(e => ({ date: s.session_date, value: numSets(e.sets).length ? Math.max(...numSets(e.sets)) : null }))
         .filter(e => e.value != null))
       unit = 'W'
+      // PB spans every interval mode -- same unit/direction throughout,
+      // so the athlete's absolute best watt output is a meaningful PB
+      // regardless of which mode is currently being viewed
+      allTypeEntries = sorted.flatMap(s => toEntries(s.watt_bike)
+        .map(e => ({ date: s.session_date, value: numSets(e.sets).length ? Math.max(...numSets(e.sets)) : null }))
+        .filter(e => e.value != null))
     } else if (key === 'bodyweight') {
       entries = sorted.flatMap(s => toEntries(s.bodyweight)
         .filter(e => !subType || e.type === subType)
         .map(e => ({ date: s.session_date, value: numSets(e.sets).length ? Math.max(...numSets(e.sets)) : null }))
         .filter(e => e.value != null))
       unit = ' reps'
+      allTypeEntries = sorted.flatMap(s => toEntries(s.bodyweight)
+        .map(e => ({ date: s.session_date, value: numSets(e.sets).length ? Math.max(...numSets(e.sets)) : null }))
+        .filter(e => e.value != null))
     } else if (key === 'test') {
       entries = subType ? sorted.filter(s => s.test?.[subType] != null).map(s => ({ date: s.session_date, value: s.test[subType] })) : []
       higherIsBetter = !['200m sprint', '1600m time trial', '4800m time trial'].includes(subType)
+      allTypeEntries = entries // different tests mix units entirely -- PB stays scoped to the selected test
     } else if (key === 'techniques') {
       const filtered = sorted.filter(s => !subType || s.techniques?.type === subType)
       entries = filtered.map(s => ({ date: s.session_date, value: numSets(s.techniques?.sets).length ? Math.max(...numSets(s.techniques?.sets)) : null })).filter(e => e.value != null)
+      allTypeEntries = entries
     }
     const mostRecent = entries[entries.length - 1] || null
-    const pb = entries.reduce((best, e) => !best ? e : ((higherIsBetter ? e.value > best.value : e.value < best.value) ? e : best), null)
+    const pb = allTypeEntries.reduce((best, e) => !best ? e : ((higherIsBetter ? e.value > best.value : e.value < best.value) ? e : best), null)
     return { mostRecent, pb, unit }
   } catch (e) { return { mostRecent: null, pb: null, unit: '' } }
 }
@@ -551,7 +563,12 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
   const subTypeOptions = getSubTypeOptions(sorted, b.key)
   const currentSubType = moduleSubType[b.key] ?? subTypeOptions[0] ?? null
   const noNumericStat = ['stretch', 'eye_training', 'one_percenters', 'mentality', 'wellbeing'].includes(b.key)
-  const { mostRecent, pb, unit } = noNumericStat ? { mostRecent: null, pb: null, unit: '' } : computeModuleStats(sorted, b.key, currentSubType)
+  const { mostRecent, unit } = noNumericStat ? { mostRecent: null, unit: '' } : computeModuleStats(sorted, b.key, currentSubType)
+  // PB is the athlete's overall best for this exercise across every
+  // sub-type, not just whichever one is currently being viewed --
+  // otherwise a genuine best set on a different sub-type would never
+  // show while cycling through the others.
+  const { pb } = noNumericStat ? { pb: null } : computeModuleStats(sorted, b.key, null)
   const lastLogged = noNumericStat ? computeLastLogged(sorted, b.key) : null
   const swipeStart = useRef(null)
 

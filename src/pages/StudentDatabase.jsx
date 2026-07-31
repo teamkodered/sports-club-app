@@ -176,7 +176,7 @@ export default function StudentDatabase() {
         `${s.members?.first_name} ${s.members?.last_name} ${s.student_ref} ${s.members?.email} ${s.members?.phone}`.toLowerCase().includes(q)
       )
     }
-    if (houseFilter) list = list.filter(s => (s.house_name || s.members?.houses?.name) === houseFilter)
+    if (houseFilter) list = list.filter(s => (s.house_name || s.members?.houses?.name || '').trim().toLowerCase() === houseFilter.trim().toLowerCase())
     if (statusFilter) list = list.filter(s => s.members?.status === statusFilter)
     if (groupFilter === 'kr')     list = list.filter(s => s.is_kr)
     if (groupFilter === 'pts')    list = list.filter(s => s.is_pts)
@@ -206,7 +206,16 @@ export default function StudentDatabase() {
     setFiltered(list)
   }, [search, tab, houseFilter, groupFilter, statusFilter, students, sortKey, sortDir])
 
-  const houses = [...new Set(students.map(s => s.house_name || s.members?.houses?.name).filter(Boolean))].sort()
+  const houses = (() => {
+    const seen = new Map() // normalised key -> original display name (first one encountered)
+    students.forEach(s => {
+      const name = (s.house_name || s.members?.houses?.name || '').trim()
+      if (!name) return
+      const key = name.toLowerCase()
+      if (!seen.has(key)) seen.set(key, name)
+    })
+    return [...seen.values()].sort()
+  })()
   const activeStudentsCount = students.filter(s => s.members?.status !== 'stopped' && s.members?.status !== 'not_started').length
   const cols = ALL_COLUMNS.filter(c => visibleCols.includes(c.key))
 
@@ -226,6 +235,35 @@ export default function StudentDatabase() {
     const { error } = await supabase.from('students').update({ [field]: value }).eq('id', studentId)
     if (error) { alert('Error saving change: ' + error.message); return }
     setStudents(prev => prev.map(s => s.id === studentId ? { ...s, [field]: value } : s))
+  }
+
+  async function cycleMemberStatus(student) {
+    const order = ['active', 'pending', 'stopped', 'not_started']
+    const current = student.members?.status || 'active'
+    const next = order[(order.indexOf(current) + 1) % order.length]
+    const memberId = student.member_id
+    const { error } = await supabase.from('members').update({ status: next }).eq('id', memberId)
+    if (error) { alert('Error updating status: ' + error.message); return }
+    setStudents(prev => prev.map(s => s.id === student.id ? { ...s, members: { ...s.members, status: next } } : s))
+  }
+
+  async function handleClassTimeChange(student, newTime) {
+    if (newTime && !/^\d{1,2}:\d{2}$/.test(newTime)) { alert('Please enter a time like 11:00'); return }
+    const normalised = newTime ? newTime.padStart(5, '0') : null
+    await updateStudentField(student.id, 'class_time', normalised)
+    if (!normalised) return
+
+    const matchesExisting = allClasses.some(cl => cl.start_time?.slice(0,5) === normalised)
+    if (matchesExisting) return
+
+    if (!confirm(`No class currently exists at ${normalised}. Create one now so times only ever reflect real classes?`)) return
+    const day = prompt('What day of the week is this class on? (e.g. Sunday)')
+    if (!day) return
+    const name = prompt('Class name?', `${day} ${normalised} class`)
+    if (!name) return
+    const { data, error } = await supabase.from('classes').insert({ name, day_of_week: day, start_time: normalised, active: true }).select('*').single()
+    if (error) { alert('Error creating class: ' + error.message); return }
+    setAllClasses(prev => [...prev, data].sort((a,b) => (a.day_of_week||'').localeCompare(b.day_of_week||'') || (a.start_time||'').localeCompare(b.start_time||'')))
   }
 
   async function addClassAssignment(studentId) {
@@ -500,12 +538,15 @@ export default function StudentDatabase() {
                           {isAdmin ? (() => {
                             const allTimes = [...new Set(allClasses.map(cl => cl.start_time?.slice(0,5)).filter(Boolean))].sort()
                             return (
-                              <select value={s.class_time || ''} onChange={e => updateStudentField(s.id, 'class_time', e.target.value || null)}
-                                style={{ fontSize: 12, padding: '3px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
-                                <option value="">— Not set —</option>
-                                {allTimes.map(t => <option key={t}>{t}</option>)}
-                                {s.class_time && !allTimes.includes(s.class_time) && <option>{s.class_time}</option>}
-                              </select>
+                              <>
+                                <input list={`class-times-${s.id}`} defaultValue={s.class_time || ''}
+                                  onBlur={e => handleClassTimeChange(s, e.target.value.trim())}
+                                  placeholder="e.g. 11:00"
+                                  style={{ width: 74, fontSize: 12, padding: '3px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+                                <datalist id={`class-times-${s.id}`}>
+                                  {allTimes.map(t => <option key={t} value={t} />)}
+                                </datalist>
+                              </>
                             )
                           })() : <span style={{ fontSize: 12 }}>{s.class_time || '—'}</span>}
                         </td>
@@ -556,7 +597,9 @@ export default function StudentDatabase() {
                       }
                       case 'status':      return (
                         <td key={c.key}>
-                          <span className={`badge ${m?.status==='active'?'badge-green':m?.status==='pending'?'badge-amber':m?.status==='stopped'?'badge-red':'badge-gray'}`} style={{ fontSize: 10 }}>
+                          <span onClick={isAdmin ? () => cycleMemberStatus(s) : undefined}
+                            className={`badge ${m?.status==='active'?'badge-green':m?.status==='pending'?'badge-amber':m?.status==='stopped'?'badge-red':'badge-gray'}`}
+                            style={{ fontSize: 10, cursor: isAdmin ? 'pointer' : 'default' }}>
                             {m?.status || 'active'}
                           </span>
                         </td>
