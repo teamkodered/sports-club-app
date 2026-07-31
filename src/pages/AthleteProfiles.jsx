@@ -5309,22 +5309,28 @@ export default function AthleteProfiles() {
                         { label: 'PDP', icon: '🎯', colour: '#1D9E75', tab: 'pdp', badge: completedPdpCount > 0 ? `${completedPdpCount} completed → Notes` : null, diagNotes: completedPdpNotes },
                         { label: 'TTP', icon: '📊', colour: '#E24B4A', tab: 'tpt', badge: null, diagNotes: null },
                       ].map(l => (
-                        <button key={l.label} onClick={() => setTab(l.tab)} style={{
-                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                          padding: '14px 8px', background: l.colour + '12',
-                          border: `1px solid ${l.colour}30`, borderRadius: 'var(--border-radius-lg)',
-                          cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                        }}>
-                          <span style={{ fontSize: 24 }}>{l.icon}</span>
-                          <span style={{ fontSize: 12, fontWeight: 500, color: l.colour }}>{l.label}</span>
-                          {l.badge && (
-                            <span onClick={e => {
-                              e.stopPropagation()
+                        <div key={l.label} style={{ position: 'relative' }}>
+                          <button onClick={() => setTab(l.tab)} style={{
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: '100%',
+                            padding: '14px 8px', background: l.colour + '12',
+                            border: `1px solid ${l.colour}30`, borderRadius: 'var(--border-radius-lg)',
+                            cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                          }}>
+                            <span style={{ fontSize: 24 }}>{l.icon}</span>
+                            <span style={{ fontSize: 12, fontWeight: 500, color: l.colour }}>{l.label}</span>
+                            {l.badge && <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{l.badge}</span>}
+                          </button>
+                          {l.diagNotes && l.diagNotes.length > 0 && (
+                            <button onClick={() => {
                               const sample = l.diagNotes.slice(0, 15).map(n => `• ${n.note_text}  (${new Date(n.logged_at).toLocaleDateString('en-GB')})`).join('\n')
                               alert(`Total counted: ${l.diagNotes.length} (raw notesLog size: ${notesLog.length})\n\nFirst 15:\n${sample}`)
-                            }} style={{ fontSize: 10, color: 'var(--text-tertiary)', textDecoration: 'underline' }}>{l.badge}</span>
+                            }} title="Show what's being counted" style={{
+                              position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: '50%',
+                              background: 'var(--bg)', border: '1px solid var(--border-strong)', cursor: 'pointer', fontSize: 11,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+                            }}>🔍</button>
                           )}
-                        </button>
+                        </div>
                       ))
                     })()}
                     <a href={`/fit2fight?student_id=${selected?.id}`} style={{
