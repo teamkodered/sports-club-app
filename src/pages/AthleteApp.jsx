@@ -559,7 +559,7 @@ function computeLastLogged(sorted, key) {
 // Defined at module scope (not inside the page component's render) so
 // React treats it as a stable component across renders, rather than
 // unmounting/remounting it every time the parent re-renders.
-function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setTab, studentId, onToggleLog }) {
+function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setTab, studentId, onToggleLog, onQuickLog }) {
   const subTypeOptions = getSubTypeOptions(sorted, b.key)
   const currentSubType = moduleSubType[b.key] ?? subTypeOptions[0] ?? null
   const noNumericStat = ['stretch', 'eye_training', 'one_percenters', 'mentality', 'wellbeing'].includes(b.key)
@@ -571,6 +571,8 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
   const { pb } = noNumericStat ? { pb: null } : computeModuleStats(sorted, b.key, null)
   const lastLogged = noNumericStat ? computeLastLogged(sorted, b.key) : null
   const swipeStart = useRef(null)
+  const holdTimer = useRef(null)
+  const heldRef = useRef(false)
 
   function cycleType(direction = 1) {
     if (!subTypeOptions.length) return
@@ -618,11 +620,30 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
       )}
 
       {/* Middle: for Physical modules, tap opens the same "Log a result"
-          section as the button below the card. For Test, tap switches to
-          results (icon only, no label/sub-type text -- Test has its own
-          dedicated card grid below for logging). Other modules keep
-          cycling sub-type on tap too, alongside the swipe/arrows above. */}
-      <button onClick={() => isPhysicalModule ? onToggleLog?.(b.key) : b.key === 'test' ? setTab('fit2fight') : cycleType(1)} style={{
+          section as the button below the card; holding (~500ms)
+          instead quick-logs it as "done today" with no specific
+          numbers, so it can be filled in with real detail later. For
+          Test, tap switches to results (icon only, no label/sub-type
+          text -- Test has its own dedicated card grid below for
+          logging). Other modules keep cycling sub-type on tap too,
+          alongside the swipe/arrows above. */}
+      <button
+        onPointerDown={() => {
+          if (!isPhysicalModule || !onQuickLog) return
+          heldRef.current = false
+          holdTimer.current = setTimeout(() => {
+            heldRef.current = true
+            onQuickLog(b.key)
+          }, 500)
+        }}
+        onPointerUp={() => clearTimeout(holdTimer.current)}
+        onPointerLeave={() => clearTimeout(holdTimer.current)}
+        onClick={() => {
+          if (heldRef.current) { heldRef.current = false; return } // already handled by the hold
+          isPhysicalModule ? onToggleLog?.(b.key) : b.key === 'test' ? setTab('fit2fight') : cycleType(1)
+        }}
+        title={isPhysicalModule ? 'Tap to log in detail — hold to quick-log as done today' : undefined}
+        style={{
         flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
         padding: '8px 4px', background: 'none', border: 'none', borderRight: isSimplifiedModule ? 'none' : '1px solid var(--border)',
         cursor: (b.key === 'test' || subTypeOptions.length > 1) ? 'pointer' : 'default',
@@ -1018,6 +1039,52 @@ export default function AthleteApp() {
       })
   }, [])
 
+  // Hold-to-quick-log: marks a card as "done today" without requiring
+  // specific values yet -- appends a lightweight marker entry that
+  // can be expanded with real detail later. Reuses the same
+  // upsert-today's-session pattern as saveWellbeingField below.
+  async function quickLogArrayField(field, currentEntries, setter) {
+    if (!student) return
+    const todaysDate = new Date().toISOString().split('T')[0]
+    const newEntries = [...currentEntries, { quickLogged: true, sets: [] }]
+    setter(newEntries)
+
+    const existing = sessions.find(s => s.session_date === todaysDate)
+    let error
+    if (existing) {
+      ;({ error } = await supabase.from('fit2fight_sessions').update({ [field]: newEntries }).eq('id', existing.id))
+      if (!error) setSessions(prev => prev.map(s => s.id === existing.id ? { ...s, [field]: newEntries } : s))
+    } else {
+      const { data, error: insertErr } = await supabase.from('fit2fight_sessions')
+        .insert({ student_id: student.id, session_date: todaysDate, [field]: newEntries })
+        .select().single()
+      error = insertErr
+      if (!error && data) setSessions(prev => [data, ...prev])
+    }
+    if (error) alert('Error saving: ' + error.message)
+  }
+
+  async function quickLogStretch() {
+    if (!student) return
+    const todaysDate = new Date().toISOString().split('T')[0]
+    const newStretches = [...todaysStretches.filter(Boolean), 'Quick logged']
+    setTodaysStretches(newStretches)
+
+    const existing = sessions.find(s => s.session_date === todaysDate)
+    let error
+    if (existing) {
+      ;({ error } = await supabase.from('fit2fight_sessions').update({ stretch_flows: newStretches }).eq('id', existing.id))
+      if (!error) setSessions(prev => prev.map(s => s.id === existing.id ? { ...s, stretch_flows: newStretches } : s))
+    } else {
+      const { data, error: insertErr } = await supabase.from('fit2fight_sessions')
+        .insert({ student_id: student.id, session_date: todaysDate, stretch_flows: newStretches })
+        .select().single()
+      error = insertErr
+      if (!error && data) setSessions(prev => [data, ...prev])
+    }
+    if (error) alert('Error saving: ' + error.message)
+  }
+
   // Save a single wellbeing question's data directly from the Home page,
   // without needing to open the full Fit2Fight log form. Updates today's
   // session if one already exists, otherwise creates one.
@@ -1377,6 +1444,12 @@ export default function AthleteApp() {
                 const togglePhysicalLog = key => {
                   setActivePhysicalCategory(cur => cur === key ? null : key)
                 }
+                const handleQuickLog = key => {
+                  if (key === 'running') quickLogArrayField('running', todaysRunning, setTodaysRunning)
+                  else if (key === 'watt_bike') quickLogArrayField('watt_bike', todaysWattBike, setTodaysWattBike)
+                  else if (key === 'bodyweight') quickLogArrayField('bodyweight', todaysBodyweight, setTodaysBodyweight)
+                  else if (key === 'stretch') quickLogStretch()
+                }
                 // Opens one Physical detail panel and explicitly closes the
                 // other three, so only one is ever open at a time --
                 // pressing outside still works too, but this guarantees it
@@ -1448,8 +1521,8 @@ export default function AthleteApp() {
                       maxHeight: showPhysicalSection ? 4000 : 0, opacity: showPhysicalSection ? 1 : 0,
                     }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-                      <ModuleButton b={modules[0]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} onToggleLog={togglePhysicalLog} />
-                      <ModuleButton b={modules[1]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} onToggleLog={togglePhysicalLog} />
+                      <ModuleButton b={modules[0]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} />
+                      <ModuleButton b={modules[1]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} />
                     </div>
                     {showRunCards && (
                     <div ref={runPanelRef}>
@@ -1569,8 +1642,8 @@ export default function AthleteApp() {
                     )}
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-                      <ModuleButton b={modules[2]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} onToggleLog={togglePhysicalLog} />
-                      <ModuleButton b={modules[3]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} onToggleLog={togglePhysicalLog} />
+                      <ModuleButton b={modules[2]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} />
+                      <ModuleButton b={modules[3]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} />
                     </div>
                     {showBodyweightCards && (
                     <div ref={bodyweightPanelRef}>
