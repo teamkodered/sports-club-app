@@ -5301,12 +5301,13 @@ export default function AthleteProfiles() {
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 14 }}>
                     {(() => {
-                      const completedPdpCount = notesLog.filter(n =>
+                      const completedPdpNotes = notesLog.filter(n =>
                         n.note_text?.startsWith('Completed PDP task') && !/weigh/i.test(n.note_text)
-                      ).length
+                      )
+                      const completedPdpCount = completedPdpNotes.length
                       return [
-                        { label: 'PDP', icon: '🎯', colour: '#1D9E75', tab: 'pdp', badge: completedPdpCount > 0 ? `${completedPdpCount} completed → Notes` : null },
-                        { label: 'TTP', icon: '📊', colour: '#E24B4A', tab: 'tpt', badge: null },
+                        { label: 'PDP', icon: '🎯', colour: '#1D9E75', tab: 'pdp', badge: completedPdpCount > 0 ? `${completedPdpCount} completed → Notes` : null, diagNotes: completedPdpNotes },
+                        { label: 'TTP', icon: '📊', colour: '#E24B4A', tab: 'tpt', badge: null, diagNotes: null },
                       ].map(l => (
                         <button key={l.label} onClick={() => setTab(l.tab)} style={{
                           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
@@ -5316,7 +5317,13 @@ export default function AthleteProfiles() {
                         }}>
                           <span style={{ fontSize: 24 }}>{l.icon}</span>
                           <span style={{ fontSize: 12, fontWeight: 500, color: l.colour }}>{l.label}</span>
-                          {l.badge && <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{l.badge}</span>}
+                          {l.badge && (
+                            <span onClick={e => {
+                              e.stopPropagation()
+                              const sample = l.diagNotes.slice(0, 15).map(n => `• ${n.note_text}  (${new Date(n.logged_at).toLocaleDateString('en-GB')})`).join('\n')
+                              alert(`Total counted: ${l.diagNotes.length} (raw notesLog size: ${notesLog.length})\n\nFirst 15:\n${sample}`)
+                            }} style={{ fontSize: 10, color: 'var(--text-tertiary)', textDecoration: 'underline' }}>{l.badge}</span>
+                          )}
                         </button>
                       ))
                     })()}
