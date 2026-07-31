@@ -675,6 +675,7 @@ export default function AthleteApp() {
   const [showOverallPos, setShowOverallPos] = useState(false)
   const [apData, setApData]     = useState(null)
   const [assignedClasses, setAssignedClasses] = useState([])
+  const [myNotesLog, setMyNotesLog] = useState([])
   const [allClasses, setAllClasses] = useState([])
   const [showAddClass, setShowAddClass] = useState(false)
   const [addClassSelection, setAddClassSelection] = useState('')
@@ -914,6 +915,9 @@ export default function AthleteApp() {
         supabase.from('student_class_assignments').select('id, class_id, classes(*)')
           .eq('student_id', s.id)
           .then(({ data, error }) => { if (!error) setAssignedClasses(data || []) })
+
+        supabase.from('athlete_notes_log').select('*').eq('student_id', s.id)
+          .then(({ data, error }) => { if (!error) setMyNotesLog(data || []) })
 
         supabase.from('classes').select('*').eq('active', true).order('day_of_week').order('start_time')
           .then(({ data, error }) => { if (!error) setAllClasses(data || []) })
@@ -1388,7 +1392,7 @@ export default function AthleteApp() {
                       <button onClick={() => setTab('pdp')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg)', appearance: 'none', WebkitAppearance: 'none' }}>
                         <div style={{ fontSize: 22, marginBottom: 4 }}>🎯</div>
                         <div style={{ fontSize: 22, fontWeight: 700, color: '#EF9F27' }}>
-                          {Object.entries(apData?.pdp_notes || {}).filter(([k]) => !k.startsWith('__')).reduce((sum, [, v]) => sum + (Array.isArray(v) ? v.length : 0), 0)}
+                          {myNotesLog.filter(n => n.note_text?.startsWith('Completed PDP task') && !/weigh/i.test(n.note_text)).length}
                         </div>
                         <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>PDP</div>
                       </button>

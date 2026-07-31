@@ -4305,7 +4305,7 @@ export default function AthleteProfiles() {
                     <button onClick={() => setTab('pdp')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg)', appearance: 'none', WebkitAppearance: 'none' }} title="View PDP">
                       <div style={{ fontSize: 22, marginBottom: 4 }}>🎯</div>
                       <div style={{ fontSize: 22, fontWeight: 700, color: '#EF9F27' }}>
-                        {Object.entries(apData?.pdp_notes || {}).filter(([k]) => !k.startsWith('__')).reduce((sum, [, v]) => sum + (Array.isArray(v) ? v.length : 0), 0)}
+                        {notesLog.filter(n => n.note_text?.startsWith('Completed PDP task') && !/weigh/i.test(n.note_text)).length}
                       </div>
                       <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>PDP</div>
                     </button>
