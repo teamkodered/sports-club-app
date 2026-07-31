@@ -2313,13 +2313,29 @@ export default function AthleteApp() {
                           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                             <button type="button" className="btn btn-sm" onClick={() => clearTestCategory(cat.key)} style={{ fontSize: 11 }}>✕ Clear</button>
                           </div>
-                          {cat.tests.map(t => (
-                            <div className="field" key={t.name}><label>{t.name}{t.unit ? ` (${t.unit})` : ''}</label>
-                              <input type="text" inputMode="decimal" defaultValue={todaysTest[t.name] ?? ''}
-                                onBlur={e => saveTestValue(t.name, e.target.value)}
-                                placeholder={`e.g. ${t.unit === 'sec' ? '32:15' : t.unit === 'level' ? '11.4' : '25'}`} />
-                            </div>
-                          ))}
+                          {cat.tests.map(t => {
+                            const allValues = sorted.map(s => parseFloat(s.test?.[t.name])).filter(v => !isNaN(v))
+                            const mostRecentSession = [...sorted].reverse().find(s => s.test?.[t.name] != null && s.test[t.name] !== '')
+                            const mostRecent = mostRecentSession ? mostRecentSession.test[t.name] : null
+                            const isTimeBased = t.unit === 'sec'
+                            const pb = allValues.length ? (isTimeBased ? Math.min(...allValues) : Math.max(...allValues)) : null
+                            return (
+                              <div className="field" key={t.name}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                                  <label>{t.name}{t.unit ? ` (${t.unit})` : ''}</label>
+                                  {(mostRecent != null || pb != null) && (
+                                    <span style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                                      {mostRecent != null && <span style={{ fontSize: 15, fontWeight: 700 }}>{mostRecent}{t.unit}</span>}
+                                      {pb != null && <span style={{ fontSize: 10, color: colour, fontWeight: 600 }}>🏅 {pb}{t.unit}</span>}
+                                    </span>
+                                  )}
+                                </div>
+                                <input type="text" inputMode="decimal" defaultValue={todaysTest[t.name] ?? ''}
+                                  onBlur={e => saveTestValue(t.name, e.target.value)}
+                                  placeholder={`e.g. ${t.unit === 'sec' ? '32:15' : t.unit === 'level' ? '11.4' : '25'}`} />
+                              </div>
+                            )
+                          })}
                           {savingTest && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>Saving…</p>}
                         </div>
                       )
