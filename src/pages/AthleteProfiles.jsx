@@ -1863,6 +1863,8 @@ export default function AthleteProfiles() {
   const [customSessionDay, setCustomSessionDay] = useState('')
   const [customSessionTime, setCustomSessionTime] = useState('')
   const [savingClassAssignment, setSavingClassAssignment] = useState(false)
+  const [copiedSession, setCopiedSession] = useState(null) // { title, day, time } -- persists across athletes since this component doesn't unmount when switching
+  const sessionHoldTimer = useRef(null)
   const [sessionsBreakdownRange, setSessionsBreakdownRange] = useState('month')
   const [breakdownExcluded, setBreakdownExcluded] = useState(new Set()) // assignment ids unchecked from the total (default: none, i.e. all included)
   const [f2fStatsScope, setF2fStatsScope] = useState(0) // cycles through scope options
@@ -6815,7 +6817,15 @@ export default function AthleteProfiles() {
                           if (da !== db) return da - db
                           return (a.classes?.start_time || '').localeCompare(b.classes?.start_time || '')
                         }).map(a => (
-                          <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                          <div key={a.id}
+                            onPointerDown={() => {
+                              sessionHoldTimer.current = setTimeout(() => {
+                                setCopiedSession({ title: a.classes?.name, day: a.classes?.day_of_week, time: a.classes?.start_time?.slice(0,5) })
+                              }, 500)
+                            }}
+                            onPointerUp={() => clearTimeout(sessionHoldTimer.current)}
+                            title="Hold to copy this session"
+                            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', touchAction: 'none' }}>
                             <div>
                               <div style={{ fontSize: 13, fontWeight: 600 }}>{a.classes?.name}</div>
                               <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
@@ -6828,6 +6838,17 @@ export default function AthleteProfiles() {
                           </div>
                         ))}
                       </div>
+                    )}
+                    {isAdmin && copiedSession && (
+                      <button className="btn btn-sm" style={{ marginBottom: 8 }}
+                        onClick={() => {
+                          setAddingClassId('__other__')
+                          setCustomSessionTitle(copiedSession.title || '')
+                          setCustomSessionDay(copiedSession.day || '')
+                          setCustomSessionTime(copiedSession.time || '')
+                        }}>
+                        📋 Paste copied session ({copiedSession.title})
+                      </button>
                     )}
                     {isAdmin && (
                       <div>
