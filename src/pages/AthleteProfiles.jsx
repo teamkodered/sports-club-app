@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import StudentProfile from '../components/students/StudentProfile.jsx'
+import * as XLSX from 'xlsx'
 
 const HOUSE_COLOURS = {
   'Dragon House': '#E24B4A', 'Super House': '#378ADD',
@@ -1782,6 +1783,8 @@ export default function AthleteProfiles() {
   const recordPressTimer = useRef(null)
   const [showTeamKrDropdown, setShowTeamKrDropdown] = useState(false)
   const metricSwipeStart = useRef(null)
+  const [showExportModal, setShowExportModal] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [showTeamKrbaDropdown, setShowTeamKrbaDropdown] = useState(false)
   const [teamKrSearch, setTeamKrSearch] = useState('')
   const [teamCalMonth, setTeamCalMonth] = useState(() => ({ year: new Date().getFullYear(), month: new Date().getMonth() }))
@@ -2170,6 +2173,107 @@ export default function AthleteProfiles() {
   useEffect(() => {
     loadTeamPdpTemplate()
   }, [])
+
+  // Gathers everything currently loaded for the selected athlete into
+  // a structured shape that all three export formats build from.
+  function buildExportData() {
+    const s = selected
+    const name = `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.trim()
+
+    const profile = [
+      ['Name', name],
+      ['Student ref', s.student_ref || ''],
+      ['Club', s.discipline || ''],
+      ['Level', s.discipline === 'KRBA' ? s.krba_level : s.is_kr ? s.competition_team : s.pka_belt],
+      ['Weight', s.weight_kg ? `${s.weight_kg}kg` : ''],
+      ['Record', `${s.wins || 0}W ${s.losses || 0}L ${s.draws || 0}D`],
+      ['Groups', [s.is_kr && 'KR', s.is_pts && 'PTs', s.is_leader && 'Leader', s.is_coach && 'Coach'].filter(Boolean).join(', ')],
+      ['Competition status', s.in_comp ? 'In comp' : 'Out of comp'],
+      ['Email', s.members?.email || ''],
+      ['Joined', s.members?.joined_date || ''],
+    ]
+
+    const attendance = attendanceData.map(a => ({
+      Date: a.session_date, Type: a.attendance_type, 'Attended at': a.attended_at, Note: a.note || '',
+    }))
+
+    const f2fSessions = f2fData.map(f => ({
+      Date: f.session_date,
+      'Weight before': f.weight_before, 'Weight after': f.weight_after,
+      Running: f.running ? JSON.stringify(f.running) : '',
+      'Watt bike': f.watt_bike ? JSON.stringify(f.watt_bike) : '',
+      Bodyweight: f.bodyweight ? JSON.stringify(f.bodyweight) : '',
+      Techniques: f.techniques ? JSON.stringify(f.techniques) : '',
+      Test: f.test ? JSON.stringify(f.test) : '',
+    }))
+
+    const notes = notesLog.map(n => ({ Date: n.logged_at, Note: n.note_text }))
+    const points = sessionPoints.map(p => ({ Date: p.awarded_at, Type: p.point_type, Points: p.points_awarded, Note: p.note || '' }))
+    const ttp = [
+      ...tptData.kickboxing.map(t => ({ Discipline: 'Kickboxing', Date: t.assessed_at, ...t })),
+      ...tptData.boxing.map(t => ({ Discipline: 'Boxing', Date: t.assessed_at, ...t })),
+    ]
+    const classes = assignedClasses.map(a => ({ Class: a.classes?.name, Day: a.classes?.day_of_week, Time: a.classes?.start_time }))
+
+    return { name, profile, attendance, f2fSessions, notes, points, ttp, classes }
+  }
+
+  function exportToExcel() {
+    const data = buildExportData()
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Field', 'Value'], ...data.profile]), 'Profile')
+    if (data.attendance.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.attendance), 'Attendance')
+    if (data.f2fSessions.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.f2fSessions), 'F2F Results')
+    if (data.ttp.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.ttp), 'TTP')
+    if (data.notes.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.notes), 'Notes')
+    if (data.points.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.points), 'Points')
+    if (data.classes.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.classes), 'Classes')
+    XLSX.writeFile(wb, `${data.name.replace(/\s+/g, '_')}_export.xlsx`)
+  }
+
+  function buildExportHtml(data) {
+    const section = (title, rows, cols) => !rows.length ? '' : `
+      <h2 style="font-size:16px;margin:24px 0 8px;">${title}</h2>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead><tr>${cols.map(c => `<th style="border:1px solid #ccc;padding:4px 8px;background:#f5f5f5;text-align:left;">${c}</th>`).join('')}</tr></thead>
+        <tbody>${rows.map(r => `<tr>${cols.map(c => `<td style="border:1px solid #ccc;padding:4px 8px;">${r[c] ?? ''}</td>`).join('')}</tr>`).join('')}</tbody>
+      </table>`
+    return `
+      <html><head><meta charset="utf-8"><title>${data.name} export</title></head>
+      <body style="font-family:Arial,sans-serif;padding:24px;">
+        <h1 style="font-size:20px;">${data.name} — Full export</h1>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:20px;">
+          ${data.profile.map(([k, v]) => `<tr><td style="padding:4px 8px;font-weight:bold;width:160px;">${k}</td><td style="padding:4px 8px;">${v || ''}</td></tr>`).join('')}
+        </table>
+        ${section('Attendance', data.attendance, ['Date', 'Type', 'Attended at', 'Note'])}
+        ${section('F2F Results', data.f2fSessions, ['Date', 'Weight before', 'Weight after', 'Running', 'Watt bike', 'Bodyweight', 'Techniques', 'Test'])}
+        ${section('TTP Assessments', data.ttp, ['Discipline', 'Date'])}
+        ${section('Notes', data.notes, ['Date', 'Note'])}
+        ${section('Points', data.points, ['Date', 'Type', 'Points', 'Note'])}
+        ${section('Assigned classes', data.classes, ['Class', 'Day', 'Time'])}
+      </body></html>`
+  }
+
+  function exportToWord() {
+    const data = buildExportData()
+    const html = buildExportHtml(data)
+    const blob = new Blob(['\ufeff', html], { type: 'application/msword' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${data.name.replace(/\s+/g, '_')}_export.doc`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function exportToPdf() {
+    const data = buildExportData()
+    const html = buildExportHtml(data)
+    const win = window.open('', '_blank')
+    win.document.write(html)
+    win.document.close()
+    setTimeout(() => win.print(), 300)
+  }
 
   async function loadTeamPdpTemplate() {
     const { data: memberRow } = await supabase.from('members').select('id').eq('email', 'team-template@kr-centre.placeholder').maybeSingle()
@@ -7921,6 +8025,42 @@ export default function AthleteProfiles() {
                     </button>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Export all data -- visible regardless of which tab is open */}
+            <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+              <button className="btn" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setShowExportModal(true)}>
+                ⬇️ Export all data
+              </button>
+            </div>
+
+            {showExportModal && (
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}
+                onClick={() => setShowExportModal(false)}>
+                <div className="card" style={{ width: 340, padding: 20 }} onClick={e => e.stopPropagation()}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <h2 style={{ fontSize: 15, fontWeight: 600 }}>Export {selected.members?.first_name}'s data</h2>
+                    <button onClick={() => setShowExportModal(false)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
+                  </div>
+                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16 }}>
+                    Includes profile, attendance, F2F results, TTP assessments, notes, points, and assigned classes.
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <button className="btn btn-primary" style={{ justifyContent: 'flex-start' }} disabled={exporting}
+                      onClick={() => { setExporting(true); exportToExcel(); setExporting(false); setShowExportModal(false) }}>
+                      📊 Excel (.xlsx)
+                    </button>
+                    <button className="btn btn-primary" style={{ justifyContent: 'flex-start' }} disabled={exporting}
+                      onClick={() => { setExporting(true); exportToPdf(); setExporting(false); setShowExportModal(false) }}>
+                      📄 PDF (print/save)
+                    </button>
+                    <button className="btn btn-primary" style={{ justifyContent: 'flex-start' }} disabled={exporting}
+                      onClick={() => { setExporting(true); exportToWord(); setExporting(false); setShowExportModal(false) }}>
+                      📝 Word (.doc)
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
