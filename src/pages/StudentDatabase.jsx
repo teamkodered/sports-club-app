@@ -274,7 +274,7 @@ export default function StudentDatabase() {
     if (!day) return
     const name = prompt('Class name?', `${day} ${normalised} class`)
     if (!name) return
-    const { data, error } = await supabase.from('classes').insert({ name, day_of_week: day, start_time: normalised, active: true }).select('*').single()
+    const { data, error } = await supabase.from('classes').insert({ name, day_of_week: day, start_time: normalised, active: true, discipline: student.discipline || 'PKA' }).select('*').single()
     if (error) { alert('Error creating class: ' + error.message); return }
     setAllClasses(prev => [...prev, data].sort((a,b) => (a.day_of_week||'').localeCompare(b.day_of_week||'') || (a.start_time||'').localeCompare(b.start_time||'')))
   }

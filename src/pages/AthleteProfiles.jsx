@@ -2824,7 +2824,7 @@ export default function AthleteProfiles() {
     if (!customSessionTitle.trim() || !customSessionDay || !customSessionTime) return
     setSavingClassAssignment(true)
     const { data: newClass, error: classError } = await supabase.from('classes')
-      .insert({ name: customSessionTitle.trim(), day_of_week: customSessionDay, start_time: customSessionTime, active: true })
+      .insert({ name: customSessionTitle.trim(), day_of_week: customSessionDay, start_time: customSessionTime, active: true, discipline: selected?.discipline || 'PKA' })
       .select('*').single()
     if (classError) { alert('Error creating session: ' + classError.message); setSavingClassAssignment(false); return }
     setAllClasses(prev => [...prev, newClass].sort((a,b) => (a.day_of_week||'').localeCompare(b.day_of_week||'') || (a.start_time||'').localeCompare(b.start_time||'')))
@@ -3808,7 +3808,11 @@ export default function AthleteProfiles() {
                   if (Array.isArray(v)) return `${v.length} entr${v.length === 1 ? 'y' : 'ies'}`
                   return 'Logged'
                 }
-
+                const summariseTest = v => {
+                  if (!hasContent(v)) return '—'
+                  return Object.entries(v).filter(([, val]) => val != null && val !== '')
+                    .map(([key, val]) => `${key.replace(/\s*\(.*?\)/, '')}: ${val}`).join(', ')
+                }
                 const rows = teamSessions.map(s => ({
                   id: s.id,
                   student_id: s.student_id,
@@ -3820,7 +3824,7 @@ export default function AthleteProfiles() {
                   running: summarise(s.running), watt_bike: summarise(s.watt_bike), bodyweight: summarise(s.bodyweight),
                   stretch_flows: summarise(s.stretch_flows), snc: summarise(s.snc), other_session: summarise(s.other_session),
                   techniques: summarise(s.techniques), tactical: summarise(s.tactical),
-                  mentality_log: summarise(s.mentality_log), wellbeing: summarise(s.wellbeing), test: summarise(s.test),
+                  mentality_log: summarise(s.mentality_log), wellbeing: summarise(s.wellbeing), test: summariseTest(s.test),
                 }))
 
                 const sorted = [...rows].sort((a, b) => {
