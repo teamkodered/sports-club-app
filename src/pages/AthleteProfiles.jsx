@@ -3396,10 +3396,10 @@ export default function AthleteProfiles() {
                   {cards.map(c => {
                     const target = targetFor(c.key)
                     return (
-                      <div key={c.key} className="card" style={{
+                      <div key={c.key} style={{
                         display: 'flex', flexDirection: 'column', gap: 6,
                         padding: '10px 12px', fontFamily: 'var(--font-sans)',
-                        background: 'var(--bg-secondary)',
+                        background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                       }}>
                         <span
                           onClick={c.key === 'all_sessions' ? () => setDashboardTab('calendar') : c.key === 'pdp' ? () => setDashboardTab('pdp') : c.key === 'f2f_sessions' ? () => setDashboardTab('results') : undefined}
@@ -3806,25 +3806,37 @@ export default function AthleteProfiles() {
                 const numSetVals = sets => Array.isArray(sets) ? sets.map(v => parseFloat((v && typeof v === 'object') ? (v.wattage ?? v.distance ?? v.reps ?? v.value) : v)).filter(v => !isNaN(v)) : []
                 // For arrays of entries like [{type/category, sets: [...]}] --
                 // shows the max numeric value actually logged, per entry type,
-                // instead of just a count
+                // instead of just a count. Defensively handles legacy data
+                // that might store this as a single object instead of an array.
                 const summariseEntries = v => {
                   if (!hasContent(v)) return '—'
+                  const entries = Array.isArray(v) ? v : [v]
                   const byType = {}
-                  v.forEach(e => {
+                  entries.forEach(e => {
+                    if (!e || typeof e !== 'object') return
                     const label = e.type || e.category || 'Logged'
                     const vals = numSetVals(e.sets)
                     if (!vals.length) { byType[label] = byType[label] ?? null; return }
                     byType[label] = Math.max(byType[label] ?? -Infinity, ...vals)
                   })
-                  return Object.entries(byType).map(([label, val]) => val == null ? label : `${label}: ${val}`).join(', ')
+                  return Object.keys(byType).length
+                    ? Object.entries(byType).map(([label, val]) => val == null ? label : `${label}: ${val}`).join(', ')
+                    : 'Logged'
                 }
-                // Stretch flows is a simple array of strings
-                const summariseStrings = v => !hasContent(v) ? '—' : v.filter(Boolean).join(', ')
-                // Techniques/Tactical is a single {type, sets} object, not an array
+                // Stretch flows is normally a simple array of strings
+                const summariseStrings = v => {
+                  if (!hasContent(v)) return '—'
+                  if (!Array.isArray(v)) return 'Logged'
+                  return v.filter(Boolean).join(', ') || 'Logged'
+                }
+                // Techniques/Tactical is normally a single {type, sets} object,
+                // not an array -- but defend against the reverse too
                 const summariseSingleEntry = v => {
                   if (!hasContent(v)) return '—'
-                  const vals = numSetVals(v.sets)
-                  const label = v.type || 'Logged'
+                  const entry = Array.isArray(v) ? v[0] : v
+                  if (!entry || typeof entry !== 'object') return 'Logged'
+                  const vals = numSetVals(entry.sets)
+                  const label = entry.type || 'Logged'
                   return vals.length ? `${label}: ${Math.max(...vals)}` : label
                 }
                 // Mentality/Wellbeing hold many different sub-questions -- list
@@ -3832,16 +3844,18 @@ export default function AthleteProfiles() {
                 // a simple number/string
                 const summariseQuestions = v => {
                   if (!hasContent(v)) return '—'
+                  if (Array.isArray(v) || typeof v !== 'object') return 'Logged'
                   return Object.entries(v).filter(([, val]) => val != null && val !== '' && !(Array.isArray(val) && val.length === 0))
                     .map(([key, val]) => {
                       if (typeof val === 'object') return key
                       return `${key}: ${val}`
-                    }).join(', ')
+                    }).join(', ') || 'Logged'
                 }
                 const summariseTest = v => {
                   if (!hasContent(v)) return '—'
+                  if (Array.isArray(v) || typeof v !== 'object') return 'Logged'
                   return Object.entries(v).filter(([, val]) => val != null && val !== '')
-                    .map(([key, val]) => `${key.replace(/\s*\(.*?\)/, '')}: ${val}`).join(', ')
+                    .map(([key, val]) => `${key.replace(/\s*\(.*?\)/, '')}: ${val}`).join(', ') || 'Logged'
                 }
                 const rows = teamSessions.map(s => ({
                   id: s.id,
