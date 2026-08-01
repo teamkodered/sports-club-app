@@ -559,7 +559,7 @@ function computeLastLogged(sorted, key) {
 // Defined at module scope (not inside the page component's render) so
 // React treats it as a stable component across renders, rather than
 // unmounting/remounting it every time the parent re-renders.
-function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setTab, studentId, onToggleLog, onQuickLog }) {
+function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setTab, studentId, onToggleLog, onQuickLog, large }) {
   const subTypeOptions = getSubTypeOptions(sorted, b.key)
   const currentSubType = moduleSubType[b.key] ?? subTypeOptions[0] ?? null
   const noNumericStat = ['stretch', 'eye_training', 'one_percenters', 'mentality', 'wellbeing'].includes(b.key)
@@ -598,7 +598,7 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
       }}
       style={{
         display: 'flex', alignItems: 'stretch', width: '100%',
-        background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+        background: 'var(--bg-secondary)', border: `${large ? 2 : 1}px solid ${large ? colour : 'var(--border)'}`, borderRadius: 'var(--radius)',
         overflow: 'hidden', fontFamily: 'var(--font-sans)',
       }}>
       {/* Left: quick-log link to the full form, or (when there are
@@ -644,13 +644,13 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
         title={isPhysicalModule ? 'Tap to log in detail — hold to quick-log as done today' : undefined}
         style={{
         flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
-        padding: '8px 4px', background: 'none', border: 'none', borderRight: isSimplifiedModule ? 'none' : '1px solid var(--border)',
+        padding: large ? '16px 8px' : '8px 4px', background: 'none', border: 'none', borderRight: isSimplifiedModule ? 'none' : '1px solid var(--border)',
         cursor: (b.key === 'test' || subTypeOptions.length > 1) ? 'pointer' : 'default',
         minWidth: 0, touchAction: isPhysicalModule ? 'none' : undefined,
       }}>
-        <span style={{ fontSize: 16 }}>{b.icon}</span>
-        {b.key !== 'test' && <span style={{ fontSize: 9, fontWeight: 500, whiteSpace: 'nowrap' }}>{b.label}</span>}
-        {b.key !== 'test' && currentSubType && <span style={{ fontSize: 7, color: colour, fontWeight: 600, textAlign: 'center', lineHeight: 1.2 }}>{currentSubType}</span>}
+        <span style={{ fontSize: large ? 26 : 16 }}>{b.icon}</span>
+        {b.key !== 'test' && <span style={{ fontSize: large ? 14 : 9, fontWeight: 600, whiteSpace: 'nowrap' }}>{b.label}</span>}
+        {b.key !== 'test' && currentSubType && <span style={{ fontSize: large ? 10 : 7, color: colour, fontWeight: 600, textAlign: 'center', lineHeight: 1.2 }}>{currentSubType}</span>}
       </button>
 
       {/* Right: recent/PB (or last-logged), tap to view results --
@@ -1548,9 +1548,13 @@ export default function AthleteApp() {
                       overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
                       maxHeight: showPhysicalSection ? 4000 : 0, opacity: showPhysicalSection ? 1 : 0,
                     }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-                      <ModuleButton b={modules[0]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} />
-                      <ModuleButton b={modules[1]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} />
+                    <div style={{ display: 'grid', gridTemplateColumns: activePhysicalCategory && (activePhysicalCategory === 'running' || activePhysicalCategory === 'watt_bike') ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                      {(!activePhysicalCategory || activePhysicalCategory === 'running') && (
+                        <ModuleButton b={modules[0]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'running'} />
+                      )}
+                      {(!activePhysicalCategory || activePhysicalCategory === 'watt_bike') && (
+                        <ModuleButton b={modules[1]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'watt_bike'} />
+                      )}
                     </div>
                     {showRunCards && (
                     <div ref={runPanelRef}>
@@ -1669,9 +1673,13 @@ export default function AthleteApp() {
                     </div>
                     )}
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-                      <ModuleButton b={modules[2]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} />
-                      <ModuleButton b={modules[3]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} />
+                    <div style={{ display: 'grid', gridTemplateColumns: activePhysicalCategory && (activePhysicalCategory === 'bodyweight' || activePhysicalCategory === 'stretch') ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                      {(!activePhysicalCategory || activePhysicalCategory === 'bodyweight') && (
+                        <ModuleButton b={modules[2]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'bodyweight'} />
+                      )}
+                      {(!activePhysicalCategory || activePhysicalCategory === 'stretch') && (
+                        <ModuleButton b={modules[3]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'stretch'} />
+                      )}
                     </div>
                     {showBodyweightCards && (
                     <div ref={bodyweightPanelRef}>
