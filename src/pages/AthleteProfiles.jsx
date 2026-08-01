@@ -3532,7 +3532,7 @@ export default function AthleteProfiles() {
                       <div key={c.key} style={{
                         display: 'flex', flexDirection: 'column', gap: 6,
                         padding: '10px 12px', fontFamily: 'var(--font-sans)',
-                        background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                        background: 'var(--bg-secondary)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)',
                       }}>
                         <span
                           onClick={c.key === 'all_sessions' ? () => setDashboardTab('calendar') : c.key === 'pdp' ? () => setDashboardTab('pdp') : c.key === 'f2f_sessions' ? () => setDashboardTab('results') : undefined}
@@ -4484,7 +4484,7 @@ export default function AthleteProfiles() {
                       style={{
                       width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
                       padding: '10px 14px', cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                      background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                      background: 'var(--bg-secondary)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)',
                     }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ fontSize: 18 }}>{section.icon}</span>
@@ -4610,7 +4610,7 @@ export default function AthleteProfiles() {
                       <div key={c.key} style={{
                         display: 'flex', flexDirection: 'column', gap: 6,
                         padding: '10px 14px', fontFamily: 'var(--font-sans)',
-                        background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                        background: 'var(--bg-secondary)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)',
                       }}>
                         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <span style={{ fontSize: 18 }}>{c.icon}</span>
