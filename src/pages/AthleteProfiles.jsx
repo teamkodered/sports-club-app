@@ -3592,12 +3592,8 @@ export default function AthleteProfiles() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 14px', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
                       <span style={{ color: 'var(--text-secondary)' }}>Record</span>
                       <span
-                        onMouseDown={() => { recordPressTimer.current = setTimeout(() => setShowRecordAsPct(true), 400) }}
-                        onMouseUp={() => { clearTimeout(recordPressTimer.current); setShowRecordAsPct(false) }}
-                        onMouseLeave={() => { clearTimeout(recordPressTimer.current); setShowRecordAsPct(false) }}
-                        onTouchStart={() => { recordPressTimer.current = setTimeout(() => setShowRecordAsPct(true), 400) }}
-                        onTouchEnd={() => { clearTimeout(recordPressTimer.current); setShowRecordAsPct(false) }}
-                        title="Hold to see win %"
+                        onClick={() => setShowRecordAsPct(v => !v)}
+                        title="Press to toggle win %"
                         style={{ fontWeight: 500, cursor: 'pointer', userSelect: 'none' }}>
                         {showRecordAsPct ? `${winPct}% wins` : `${totalWins}W ${totalLosses}L ${totalDraws}D`}
                       </span>
