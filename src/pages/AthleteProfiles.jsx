@@ -1736,8 +1736,8 @@ export default function AthleteProfiles() {
     try { return JSON.parse(localStorage.getItem('results_visible_cols')) || RESULTS_DEFAULT_VISIBLE } catch { return RESULTS_DEFAULT_VISIBLE }
   })
   const [resultsSortKey, setResultsSortKey] = useState('date')
-  const [resultsMetricSection, setResultsMetricSection] = useState('') // 'Physical' | 'Test'
-  const [resultsMetricQuestion, setResultsMetricQuestion] = useState('') // e.g. 'Watt bike'
+  const [resultsMetricSection, setResultsMetricSection] = useState('Physical') // 'Physical' | 'Test'
+  const [resultsMetricQuestion, setResultsMetricQuestion] = useState('Weight') // e.g. 'Watt bike'
   const [resultsMetricType, setResultsMetricType] = useState('') // sub-type, e.g. interval mode
   const [resultsSortDir, setResultsSortDir] = useState('desc')
   const [allAthleteProfiles, setAllAthleteProfiles] = useState([]) // for PDP/Media team stats
@@ -1781,6 +1781,7 @@ export default function AthleteProfiles() {
   const [showRecordAsPct, setShowRecordAsPct] = useState(false)
   const recordPressTimer = useRef(null)
   const [showTeamKrDropdown, setShowTeamKrDropdown] = useState(false)
+  const metricSwipeStart = useRef(null)
   const [showTeamKrbaDropdown, setShowTeamKrbaDropdown] = useState(false)
   const [teamKrSearch, setTeamKrSearch] = useState('')
   const [teamCalMonth, setTeamCalMonth] = useState(() => ({ year: new Date().getFullYear(), month: new Date().getMonth() }))
@@ -3816,7 +3817,14 @@ export default function AthleteProfiles() {
                   entries.forEach(e => {
                     if (!e || typeof e !== 'object') return
                     const label = e.type || e.category || 'Logged'
-                    const vals = numSetVals(e.sets)
+                    let vals = numSetVals(e.sets)
+                    // Watt Bike (and possibly others) track summary numbers
+                    // separately from individual sets -- fall back to those
+                    // when the sets array itself doesn't have usable values
+                    if (!vals.length) {
+                      const fallback = [e.max_wattage, e.avg_wattage, e.total_distance].map(parseFloat).filter(n => !isNaN(n))
+                      if (fallback.length) vals = fallback
+                    }
                     if (!vals.length) { byType[label] = byType[label] ?? null; return }
                     byType[label] = Math.max(byType[label] ?? -Infinity, ...vals)
                   })
@@ -3859,6 +3867,7 @@ export default function AthleteProfiles() {
                     .map(([key, val]) => `${key.replace(/\s*\(.*?\)/, '')}: ${val}`).join(', ') || 'Logged'
                 }
                 const PHYSICAL_QUESTIONS = {
+                  'Weight': { key: 'weight', getTypes: () => [] },
                   'Running': { key: 'running', getTypes: () => [...new Set(teamSessions.flatMap(s => toEntries(s.running).map(e => e.category)).filter(Boolean))] },
                   'Watt Bike': { key: 'watt_bike', getTypes: () => [...new Set(teamSessions.flatMap(s => toEntries(s.watt_bike).map(e => normalizeIntervalMode(e.interval_mode || e.type))).filter(Boolean))] },
                   'Bodyweight': { key: 'bodyweight', getTypes: () => [...new Set(teamSessions.flatMap(s => toEntries(s.bodyweight).map(e => e.type)).filter(Boolean))] },
@@ -3878,6 +3887,11 @@ export default function AthleteProfiles() {
                     questionsToCheck.forEach(qName => {
                       const q = PHYSICAL_QUESTIONS[qName]
                       if (!q) return
+                      if (q.key === 'weight') {
+                        const v = session.weight_after ?? session.weight_before
+                        if (v != null) allVals.push(parseFloat(v))
+                        return
+                      }
                       if (q.key === 'techniques') {
                         if (resultsMetricType && session.techniques?.type !== resultsMetricType) return
                         allVals.push(...numSets(session.techniques?.sets))
@@ -3890,7 +3904,14 @@ export default function AthleteProfiles() {
                         if (q.key === 'bodyweight') return e.type === resultsMetricType
                         return true
                       })
-                      allVals.push(...entries.flatMap(e => numSets(e.sets)))
+                      allVals.push(...entries.flatMap(e => {
+                        const setVals = numSets(e.sets)
+                        if (setVals.length) return setVals
+                        // Watt Bike tracks summary numbers separately from
+                        // individual sets -- fall back to those when sets
+                        // itself doesn't have usable values
+                        return [e.max_wattage, e.avg_wattage, e.total_distance].map(parseFloat).filter(n => !isNaN(n))
+                      }))
                     })
                     return allVals.length ? Math.max(...allVals) : null
                   }
@@ -4030,9 +4051,24 @@ export default function AthleteProfiles() {
                             {metricReady && (athleteSeries.length === 0 ? (
                               <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No results logged yet for {metricLabel}.</p>
                             ) : (() => {
+                              function cycleQuestion(direction) {
+                                if (!questionOptions.length) return
+                                const idx = questionOptions.indexOf(resultsMetricQuestion)
+                                const next = questionOptions[(idx + direction + questionOptions.length) % questionOptions.length]
+                                setResultsMetricQuestion(next)
+                                setResultsMetricType('')
+                              }
                               return (
+                              <div
+                                onTouchStart={e => { metricSwipeStart.current = e.touches[0].clientX }}
+                                onTouchEnd={e => {
+                                  if (metricSwipeStart.current == null) return
+                                  const delta = e.changedTouches[0].clientX - metricSwipeStart.current
+                                  if (Math.abs(delta) > 50) cycleQuestion(delta < 0 ? 1 : -1)
+                                  metricSwipeStart.current = null
+                                }}>
                               <>
-                              <p style={{ fontSize: 12, fontWeight: 600, color: colour, marginBottom: 8 }}>{metricLabel}</p>
+                              <p style={{ fontSize: 12, fontWeight: 600, color: colour, marginBottom: 8 }}>{metricLabel} <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--text-tertiary)' }}>(swipe to change)</span></p>
                               {(() => {
                               const w = 640, h = 200, pad = { t: 10, r: 10, b: 20, l: 34 }
                               const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b
@@ -4078,6 +4114,7 @@ export default function AthleteProfiles() {
                               )
                             })()}
                               </>
+                              </div>
                               )
                             })())}
                           </>
