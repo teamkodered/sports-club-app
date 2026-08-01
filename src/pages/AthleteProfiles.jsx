@@ -751,7 +751,6 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
           }, 500)
         }}
         onPointerUp={() => clearTimeout(holdTimer.current)}
-        onPointerLeave={() => clearTimeout(holdTimer.current)}
         onClick={() => {
           if (heldRef.current) { heldRef.current = false; return }
           isPhysicalModule ? onToggleLog?.(b.key) : b.key === 'test' ? goToChart() : cycleType(1)

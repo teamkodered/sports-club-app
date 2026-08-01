@@ -637,7 +637,6 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
           }, 500)
         }}
         onPointerUp={() => clearTimeout(holdTimer.current)}
-        onPointerLeave={() => clearTimeout(holdTimer.current)}
         onClick={() => {
           if (heldRef.current) { heldRef.current = false; return } // already handled by the hold
           isPhysicalModule ? onToggleLog?.(b.key) : b.key === 'test' ? setTab('fit2fight') : cycleType(1)
