@@ -461,6 +461,7 @@ const RESULTS_ALL_COLUMNS = [
   { key: 'mentality_log', label: 'Mentality' },
   { key: 'wellbeing', label: 'Wellbeing' },
   { key: 'test', label: 'Test' },
+  { key: 'metric_value', label: 'Filtered metric' },
 ]
 const RESULTS_DEFAULT_VISIBLE = ['athlete', 'date', 'weight_before', 'weight_after', 'weight_change', 'running', 'watt_bike', 'techniques', 'test']
 
@@ -3857,7 +3858,73 @@ export default function AthleteProfiles() {
                   return Object.entries(v).filter(([, val]) => val != null && val !== '')
                     .map(([key, val]) => `${key.replace(/\s*\(.*?\)/, '')}: ${val}`).join(', ') || 'Logged'
                 }
-                const rows = teamSessions.map(s => ({
+                const PHYSICAL_QUESTIONS = {
+                  'Running': { key: 'running', getTypes: () => [...new Set(teamSessions.flatMap(s => toEntries(s.running).map(e => e.category)).filter(Boolean))] },
+                  'Watt Bike': { key: 'watt_bike', getTypes: () => [...new Set(teamSessions.flatMap(s => toEntries(s.watt_bike).map(e => normalizeIntervalMode(e.interval_mode || e.type))).filter(Boolean))] },
+                  'Bodyweight': { key: 'bodyweight', getTypes: () => [...new Set(teamSessions.flatMap(s => toEntries(s.bodyweight).map(e => e.type)).filter(Boolean))] },
+                  'Techniques': { key: 'techniques', getTypes: () => [...new Set(teamSessions.map(s => s.techniques?.type).filter(Boolean))] },
+                }
+                // Extract a numeric value for one session, given however much of the
+                // filter is currently selected -- progressively more specific as
+                // Section -> Question -> Type get filled in. Section only: combines
+                // every question in that section. Section + Question: combines every
+                // type for that question. All three: the specific value for that
+                // exact type. Shared by both the graph/leaderboard and the table
+                // below, so both respond to the same filter.
+                function extractValue(session) {
+                  if (resultsMetricSection === 'Physical') {
+                    const questionsToCheck = resultsMetricQuestion ? [resultsMetricQuestion] : Object.keys(PHYSICAL_QUESTIONS)
+                    const allVals = []
+                    questionsToCheck.forEach(qName => {
+                      const q = PHYSICAL_QUESTIONS[qName]
+                      if (!q) return
+                      if (q.key === 'techniques') {
+                        if (resultsMetricType && session.techniques?.type !== resultsMetricType) return
+                        allVals.push(...numSets(session.techniques?.sets))
+                        return
+                      }
+                      const entries = toEntries(session[q.key]).filter(e => {
+                        if (!resultsMetricType) return true
+                        if (q.key === 'running') return e.category === resultsMetricType
+                        if (q.key === 'watt_bike') return normalizeIntervalMode(e.interval_mode || e.type) === resultsMetricType
+                        if (q.key === 'bodyweight') return e.type === resultsMetricType
+                        return true
+                      })
+                      allVals.push(...entries.flatMap(e => numSets(e.sets)))
+                    })
+                    return allVals.length ? Math.max(...allVals) : null
+                  }
+                  if (resultsMetricSection === 'Test') {
+                    if (resultsMetricType) {
+                      const v = session.test?.[resultsMetricType]
+                      return v != null && v !== '' ? parseFloat(v) : null
+                    }
+                    // Question selected but no specific type yet -- combine every
+                    // test within that category; no question yet -- combine every
+                    // test in the whole Test section
+                    const categories = resultsMetricQuestion
+                      ? [TEST_CATEGORIES.find(c => c.label === resultsMetricQuestion)].filter(Boolean)
+                      : TEST_CATEGORIES
+                    const allVals = categories.flatMap(cat => cat.tests
+                      .map(t => session.test?.[t.name])
+                      .filter(v => v != null && v !== '')
+                      .map(v => parseFloat(v)))
+                    return allVals.length ? Math.max(...allVals) : null
+                  }
+                  return null
+                }
+                function numSets(arr) {
+                  return Array.isArray(arr) ? arr.map(v => parseFloat((v && typeof v === 'object') ? v.wattage : v)).filter(v => !isNaN(v)) : []
+                }
+                const metricReady = !!resultsMetricSection
+                const metricLabel = [resultsMetricSection, resultsMetricQuestion, resultsMetricType].filter(Boolean).join(' → ')
+                // When a metric filter is active, only keep sessions with a value
+                // for it, and attach that value so the table can show/sort by it
+                const metricFilteredSessions = metricReady
+                  ? teamSessions.map(s => ({ s, metricValue: extractValue(s) })).filter(x => x.metricValue != null)
+                  : teamSessions.map(s => ({ s, metricValue: null }))
+
+                const rows = metricFilteredSessions.map(({ s, metricValue }) => ({
                   id: s.id,
                   student_id: s.student_id,
                   athlete: `${s.students?.members?.first_name || ''} ${s.students?.members?.last_name || ''}`.trim() || '—',
@@ -3869,6 +3936,7 @@ export default function AthleteProfiles() {
                   stretch_flows: summariseStrings(s.stretch_flows), snc: summariseStrings(s.snc), other_session: summariseStrings(s.other_session),
                   techniques: summariseSingleEntry(s.techniques), tactical: summariseSingleEntry(s.tactical),
                   mentality_log: summariseQuestions(s.mentality_log), wellbeing: summariseQuestions(s.wellbeing), test: summariseTest(s.test),
+                  metric_value: metricValue,
                 }))
 
                 const sorted = [...rows].sort((a, b) => {
@@ -3893,7 +3961,7 @@ export default function AthleteProfiles() {
                     return next
                   })
                 }
-                const visibleColumns = RESULTS_ALL_COLUMNS.filter(c => resultsVisibleCols.includes(c.key))
+                const visibleColumns = RESULTS_ALL_COLUMNS.filter(c => resultsVisibleCols.includes(c.key) || (c.key === 'metric_value' && metricReady))
 
                 return (
                   <>
@@ -3916,48 +3984,11 @@ export default function AthleteProfiles() {
                     <div style={{ marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid var(--border)' }}>
                       <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Filter by metric</p>
                       {(() => {
-                        const PHYSICAL_QUESTIONS = {
-                          'Running': { key: 'running', getTypes: () => [...new Set(teamSessions.flatMap(s => toEntries(s.running).map(e => e.category)).filter(Boolean))] },
-                          'Watt Bike': { key: 'watt_bike', getTypes: () => [...new Set(teamSessions.flatMap(s => toEntries(s.watt_bike).map(e => normalizeIntervalMode(e.interval_mode || e.type))).filter(Boolean))] },
-                          'Bodyweight': { key: 'bodyweight', getTypes: () => [...new Set(teamSessions.flatMap(s => toEntries(s.bodyweight).map(e => e.type)).filter(Boolean))] },
-                          'Techniques': { key: 'techniques', getTypes: () => [...new Set(teamSessions.map(s => s.techniques?.type).filter(Boolean))] },
-                        }
                         const questionOptions = resultsMetricSection === 'Physical' ? Object.keys(PHYSICAL_QUESTIONS)
                           : resultsMetricSection === 'Test' ? TEST_CATEGORIES.map(c => c.label) : []
                         const typeOptions = !resultsMetricQuestion ? []
                           : resultsMetricSection === 'Physical' ? (PHYSICAL_QUESTIONS[resultsMetricQuestion]?.getTypes() || [])
                           : (TEST_CATEGORIES.find(c => c.label === resultsMetricQuestion)?.tests.map(t => t.name) || [])
-
-                        // Extract a numeric value for one session, given the current filter selection
-                        function extractValue(session) {
-                          if (resultsMetricSection === 'Physical') {
-                            const q = PHYSICAL_QUESTIONS[resultsMetricQuestion]
-                            if (!q) return null
-                            if (q.key === 'techniques') {
-                              if (session.techniques?.type !== resultsMetricType) return null
-                              const vals = numSets(session.techniques?.sets)
-                              return vals.length ? Math.max(...vals) : null
-                            }
-                            const entries = toEntries(session[q.key]).filter(e => {
-                              if (q.key === 'running') return e.category === resultsMetricType
-                              if (q.key === 'watt_bike') return normalizeIntervalMode(e.interval_mode || e.type) === resultsMetricType
-                              if (q.key === 'bodyweight') return e.type === resultsMetricType
-                              return true
-                            })
-                            const vals = entries.flatMap(e => numSets(e.sets))
-                            return vals.length ? Math.max(...vals) : null
-                          }
-                          if (resultsMetricSection === 'Test') {
-                            const v = session.test?.[resultsMetricType]
-                            return v != null && v !== '' ? parseFloat(v) : null
-                          }
-                          return null
-                        }
-                        function numSets(arr) {
-                          return Array.isArray(arr) ? arr.map(v => parseFloat((v && typeof v === 'object') ? v.wattage : v)).filter(v => !isNaN(v)) : []
-                        }
-
-                        const metricReady = resultsMetricSection && resultsMetricQuestion && resultsMetricType
 
                         // Build per-athlete series + leaderboard once fully filtered
                         let athleteSeries = [], allDates = [], leaderboard = []
@@ -3997,8 +4028,12 @@ export default function AthleteProfiles() {
                             </div>
 
                             {metricReady && (athleteSeries.length === 0 ? (
-                              <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No results logged yet for {resultsMetricSection} → {resultsMetricQuestion} → {resultsMetricType}.</p>
+                              <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No results logged yet for {metricLabel}.</p>
                             ) : (() => {
+                              return (
+                              <>
+                              <p style={{ fontSize: 12, fontWeight: 600, color: colour, marginBottom: 8 }}>{metricLabel}</p>
+                              {(() => {
                               const w = 640, h = 200, pad = { t: 10, r: 10, b: 20, l: 34 }
                               const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b
                               const allVals = athleteSeries.flatMap(a => a.points.map(p => p.value))
@@ -4040,6 +4075,9 @@ export default function AthleteProfiles() {
                                     ))}
                                   </div>
                                 </>
+                              )
+                            })()}
+                              </>
                               )
                             })())}
                           </>
@@ -4095,6 +4133,7 @@ export default function AthleteProfiles() {
                                    c.key === 'weight_before' ? (r.weight_before != null ? `${r.weight_before}kg` : '—') :
                                    c.key === 'weight_after' ? (r.weight_after != null ? `${r.weight_after}kg` : '—') :
                                    c.key === 'weight_change' ? (r.weight_change != null ? `${r.weight_change > 0 ? '+' : ''}${r.weight_change}kg` : '—') :
+                                   c.key === 'metric_value' ? (r.metric_value != null ? r.metric_value : '—') :
                                    r[c.key]}
                                 </td>
                               ))}
