@@ -1791,6 +1791,10 @@ export default function AthleteProfiles() {
   const [pushPdpAthleteSearch, setPushPdpAthleteSearch] = useState('')
   const [pushingPdp, setPushingPdp] = useState(false)
   const [showDashWeightList, setShowDashWeightList] = useState(false)
+  const [weightTargetPctInComp, setWeightTargetPctInComp] = useState(0.025)
+  const [weightTargetPctOutComp, setWeightTargetPctOutComp] = useState(0.05)
+  const [showWeightTargetPopup, setShowWeightTargetPopup] = useState(false)
+  const [weightTargetCustomPct, setWeightTargetCustomPct] = useState('')
   const [dashLevelIndex, setDashLevelIndex] = useState(0)
   const [highlightedEntryId, setHighlightedEntryId] = useState(null)
   const [showRecordAsPct, setShowRecordAsPct] = useState(false)
@@ -2289,6 +2293,24 @@ export default function AthleteProfiles() {
     win.document.write(html)
     win.document.close()
     setTimeout(() => win.print(), 300)
+  }
+
+  useEffect(() => {
+    supabase.from('team_settings').select('*').in('key', ['weight_target_pct_in_comp', 'weight_target_pct_out_comp'])
+      .then(({ data }) => {
+        if (!data) return
+        const inComp = data.find(d => d.key === 'weight_target_pct_in_comp')
+        const outComp = data.find(d => d.key === 'weight_target_pct_out_comp')
+        if (inComp) setWeightTargetPctInComp(parseFloat(inComp.value))
+        if (outComp) setWeightTargetPctOutComp(parseFloat(outComp.value))
+      })
+  }, [])
+
+  async function saveWeightTargetPct(key, value) {
+    const { error } = await supabase.from('team_settings').upsert({ key, value: String(value) }, { onConflict: 'key' })
+    if (error) { alert('Error saving: ' + error.message); return }
+    if (key === 'weight_target_pct_in_comp') setWeightTargetPctInComp(value)
+    else setWeightTargetPctOutComp(value)
   }
 
   async function loadTeamPdpTemplate() {
@@ -3620,13 +3642,17 @@ export default function AthleteProfiles() {
                       )}
                     </div>
                     <div ref={dashWeightListRef} style={{ position: 'relative', padding: '8px 14px', fontSize: 13 }}>
-                      <button onClick={() => setShowDashWeightList(v => !v)} style={{
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%',
-                        background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-sans)', color: 'var(--text)',
-                      }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>Weight</span>
-                        <span style={{ fontWeight: 500 }}>{showDashWeightList ? '▲' : '▼'} View by weight</span>
-                      </button>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <button onClick={() => setShowDashWeightList(v => !v)} style={{
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center', flex: 1,
+                          background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-sans)', color: 'var(--text)',
+                        }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>Weight</span>
+                          <span style={{ fontWeight: 500 }}>{showDashWeightList ? '▲' : '▼'} View by weight</span>
+                        </button>
+                        <button onClick={() => setShowWeightTargetPopup(true)} title="Set weight target %"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, marginLeft: 8, color: 'var(--text-tertiary)' }}>⚙</button>
+                      </div>
                       {showDashWeightList && (
                         <div className="card" style={{ position: 'absolute', top: '100%', left: 14, right: 14, zIndex: 20, marginTop: 4, padding: 8, maxHeight: 280, overflowY: 'auto' }}>
                           {weightSorted.length === 0 ? (
@@ -3653,6 +3679,43 @@ export default function AthleteProfiles() {
                 )
               })()}
             </div>
+
+            {showWeightTargetPopup && (
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}
+                onClick={() => setShowWeightTargetPopup(false)}>
+                <div className="card" style={{ width: 320, padding: 20 }} onClick={e => e.stopPropagation()}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <h2 style={{ fontSize: 15, fontWeight: 600 }}>Weight target %</h2>
+                    <button onClick={() => setShowWeightTargetPopup(false)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
+                  </div>
+                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16 }}>
+                    Each athlete's target weight is their current weight plus this percentage — e.g. an 80kg athlete with a 2.5% target has a target weight of 82kg. Applied automatically based on whether they're marked "In comp".
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div>
+                      <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>In camp</label>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <input type="number" step="0.1" value={(weightTargetPctInComp * 100).toFixed(1)}
+                          onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v)) saveWeightTargetPct('weight_target_pct_in_comp', v / 100) }}
+                          style={{ width: 80 }} />
+                        <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>%</span>
+                        <button className="btn btn-sm" onClick={() => saveWeightTargetPct('weight_target_pct_in_comp', 0.025)}>Reset to default (2.5%)</button>
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Out of camp</label>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <input type="number" step="0.1" value={(weightTargetPctOutComp * 100).toFixed(1)}
+                          onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v)) saveWeightTargetPct('weight_target_pct_out_comp', v / 100) }}
+                          style={{ width: 80 }} />
+                        <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>%</span>
+                        <button className="btn btn-sm" onClick={() => saveWeightTargetPct('weight_target_pct_out_comp', 0.05)}>Reset to default (5%)</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Dashboard tabs -- Overview / Calendar / Results */}
             <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', marginBottom: 14 }}>
@@ -5213,11 +5276,26 @@ export default function AthleteProfiles() {
                           <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>D</span>
                         </div>
                       ) : `${selected.wins || 0}W ${selected.losses || 0}L ${selected.draws || 0}D` },
-                      { label: 'Weight', editable: true, render: () => isAdmin ? (
-                        <input key={`weight-${selected.id}`} type="number" step="0.1" defaultValue={selected.weight_kg || ''} placeholder="kg"
-                          onBlur={e => { const v = e.target.value ? parseFloat(e.target.value) : null; if (v !== selected.weight_kg) updateSelectedField('weight_kg', v) }}
-                          style={{ width: 70, fontSize: 12, padding: '4px 6px', textAlign: 'right', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
-                      ) : (selected.weight_kg ? `${selected.weight_kg}kg${selected.weight_category ? ` (${selected.weight_category})` : ''}` : '—') },
+                      { label: 'Weight', editable: true, render: () => {
+                        const pct = selected.in_comp ? weightTargetPctInComp : weightTargetPctOutComp
+                        const targetWeight = selected.weight_kg ? (selected.weight_kg * (1 + pct)).toFixed(1) : null
+                        return (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
+                            {isAdmin ? (
+                              <input key={`weight-${selected.id}`} type="number" step="0.1" defaultValue={selected.weight_kg || ''} placeholder="kg"
+                                onBlur={e => { const v = e.target.value ? parseFloat(e.target.value) : null; if (v !== selected.weight_kg) updateSelectedField('weight_kg', v) }}
+                                style={{ width: 70, fontSize: 12, padding: '4px 6px', textAlign: 'right', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+                            ) : (
+                              <span>{selected.weight_kg ? `${selected.weight_kg}kg${selected.weight_category ? ` (${selected.weight_category})` : ''}` : '—'}</span>
+                            )}
+                            {targetWeight && (
+                              <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }} title={`Target: current weight + ${(pct * 100).toFixed(1)}% (${selected.in_comp ? 'in comp' : 'out of comp'})`}>
+                                🎯 {targetWeight}kg
+                              </span>
+                            )}
+                          </div>
+                        )
+                      } },
                       { label: 'Comp weight', editable: true, render: () => isAdmin ? (
                         <input key={`compweight-${selected.id}`} defaultValue={apData?.weight_division || ''} placeholder="e.g. -60kg"
                           onBlur={e => { if (e.target.value !== (apData?.weight_division || '')) saveCompWeightHere(e.target.value || null) }}
