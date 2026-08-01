@@ -3386,8 +3386,8 @@ export default function AthleteProfiles() {
               const pdp = pctFromIds(pdpIds)
 
               const cards = [
-                { key: 'all_sessions', icon: '📅', label: 'All sessions', ...allSessions },
-                { key: 'f2f_sessions', icon: '💪', label: 'F2F sessions', ...f2fSessions },
+                { key: 'all_sessions', icon: '📅', label: 'Attendance', ...allSessions },
+                { key: 'f2f_sessions', icon: '💪', label: 'Results', ...f2fSessions },
                 { key: 'pdp', icon: '🎯', label: 'PDP', ...pdp },
               ]
 
@@ -3396,14 +3396,14 @@ export default function AthleteProfiles() {
                   {cards.map(c => {
                     const target = targetFor(c.key)
                     return (
-                      <div key={c.key} style={{
+                      <div key={c.key} className="card" style={{
                         display: 'flex', flexDirection: 'column', gap: 6,
                         padding: '10px 12px', fontFamily: 'var(--font-sans)',
-                        background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                        background: 'var(--bg-secondary)',
                       }}>
                         <span
-                          onClick={c.key === 'all_sessions' ? () => setDashboardTab('calendar') : c.key === 'pdp' ? () => setDashboardTab('pdp') : undefined}
-                          style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: (c.key === 'all_sessions' || c.key === 'pdp') ? 'pointer' : 'default' }}>
+                          onClick={c.key === 'all_sessions' ? () => setDashboardTab('calendar') : c.key === 'pdp' ? () => setDashboardTab('pdp') : c.key === 'f2f_sessions' ? () => setDashboardTab('results') : undefined}
+                          style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: (c.key === 'all_sessions' || c.key === 'pdp' || c.key === 'f2f_sessions') ? 'pointer' : 'default' }}>
                           <span style={{ fontSize: 16 }}>{c.icon}</span>
                           <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{c.label}</span>
                         </span>
@@ -3803,10 +3803,40 @@ export default function AthleteProfiles() {
                 const maxCount = Math.max(1, ...weeks.map(w => w.count))
 
                 const hasContent = v => Array.isArray(v) ? v.length > 0 : (v && typeof v === 'object' ? Object.keys(v).length > 0 : !!v)
-                const summarise = v => {
+                const numSetVals = sets => Array.isArray(sets) ? sets.map(v => parseFloat((v && typeof v === 'object') ? (v.wattage ?? v.distance ?? v.reps ?? v.value) : v)).filter(v => !isNaN(v)) : []
+                // For arrays of entries like [{type/category, sets: [...]}] --
+                // shows the max numeric value actually logged, per entry type,
+                // instead of just a count
+                const summariseEntries = v => {
                   if (!hasContent(v)) return '—'
-                  if (Array.isArray(v)) return `${v.length} entr${v.length === 1 ? 'y' : 'ies'}`
-                  return 'Logged'
+                  const byType = {}
+                  v.forEach(e => {
+                    const label = e.type || e.category || 'Logged'
+                    const vals = numSetVals(e.sets)
+                    if (!vals.length) { byType[label] = byType[label] ?? null; return }
+                    byType[label] = Math.max(byType[label] ?? -Infinity, ...vals)
+                  })
+                  return Object.entries(byType).map(([label, val]) => val == null ? label : `${label}: ${val}`).join(', ')
+                }
+                // Stretch flows is a simple array of strings
+                const summariseStrings = v => !hasContent(v) ? '—' : v.filter(Boolean).join(', ')
+                // Techniques/Tactical is a single {type, sets} object, not an array
+                const summariseSingleEntry = v => {
+                  if (!hasContent(v)) return '—'
+                  const vals = numSetVals(v.sets)
+                  const label = v.type || 'Logged'
+                  return vals.length ? `${label}: ${Math.max(...vals)}` : label
+                }
+                // Mentality/Wellbeing hold many different sub-questions -- list
+                // which ones have something logged, with their value where it's
+                // a simple number/string
+                const summariseQuestions = v => {
+                  if (!hasContent(v)) return '—'
+                  return Object.entries(v).filter(([, val]) => val != null && val !== '' && !(Array.isArray(val) && val.length === 0))
+                    .map(([key, val]) => {
+                      if (typeof val === 'object') return key
+                      return `${key}: ${val}`
+                    }).join(', ')
                 }
                 const summariseTest = v => {
                   if (!hasContent(v)) return '—'
@@ -3821,10 +3851,10 @@ export default function AthleteProfiles() {
                   weight_before: s.weight_before ?? null,
                   weight_after: s.weight_after ?? null,
                   weight_change: (s.weight_before != null && s.weight_after != null) ? (parseFloat(s.weight_after) - parseFloat(s.weight_before)).toFixed(1) : null,
-                  running: summarise(s.running), watt_bike: summarise(s.watt_bike), bodyweight: summarise(s.bodyweight),
-                  stretch_flows: summarise(s.stretch_flows), snc: summarise(s.snc), other_session: summarise(s.other_session),
-                  techniques: summarise(s.techniques), tactical: summarise(s.tactical),
-                  mentality_log: summarise(s.mentality_log), wellbeing: summarise(s.wellbeing), test: summariseTest(s.test),
+                  running: summariseEntries(s.running), watt_bike: summariseEntries(s.watt_bike), bodyweight: summariseEntries(s.bodyweight),
+                  stretch_flows: summariseStrings(s.stretch_flows), snc: summariseStrings(s.snc), other_session: summariseStrings(s.other_session),
+                  techniques: summariseSingleEntry(s.techniques), tactical: summariseSingleEntry(s.tactical),
+                  mentality_log: summariseQuestions(s.mentality_log), wellbeing: summariseQuestions(s.wellbeing), test: summariseTest(s.test),
                 }))
 
                 const sorted = [...rows].sort((a, b) => {
