@@ -647,7 +647,7 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
         flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
         padding: '8px 4px', background: 'none', border: 'none', borderRight: isSimplifiedModule ? 'none' : '1px solid var(--border)',
         cursor: (b.key === 'test' || subTypeOptions.length > 1) ? 'pointer' : 'default',
-        minWidth: 0,
+        minWidth: 0, touchAction: isPhysicalModule ? 'none' : undefined,
       }}>
         <span style={{ fontSize: 16 }}>{b.icon}</span>
         {b.key !== 'test' && <span style={{ fontSize: 9, fontWeight: 500, whiteSpace: 'nowrap' }}>{b.label}</span>}
