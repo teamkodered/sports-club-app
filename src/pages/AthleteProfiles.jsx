@@ -1726,8 +1726,22 @@ export default function AthleteProfiles() {
   // Athlete Dashboard (shown when no athlete is selected): team notes + events
   const [teamNotes, setTeamNotes] = useState([])
   const [dashNoteText, setDashNoteText] = useState('')
+  const [showFullscreenNoteComposer, setShowFullscreenNoteComposer] = useState(false)
+  const noteTargetingRef = useRef(null)
   const [expandedNoteTargeting, setExpandedNoteTargeting] = useState(null) // team_notes.id whose targeting panel is open
+
+  useEffect(() => {
+    if (!expandedNoteTargeting) return
+    function handleClick(e) {
+      if (noteTargetingRef.current && !noteTargetingRef.current.contains(e.target)) {
+        setExpandedNoteTargeting(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [expandedNoteTargeting])
   const [noteTargetSearch, setNoteTargetSearch] = useState('')
+  const [noteCheckedIds, setNoteCheckedIds] = useState([])
   const [savingDashNote, setSavingDashNote] = useState(false)
   const [showAddEvent, setShowAddEvent] = useState(false)
   const [todaysAllSessions, setTodaysAllSessions] = useState([])
@@ -2555,6 +2569,19 @@ export default function AthleteProfiles() {
     const updatedIds = [...new Set([...(note.sent_to_student_ids || []), student.id])]
     const { error: err2 } = await supabase.from('team_notes').update({ sent_to_student_ids: updatedIds }).eq('id', note.id)
     if (err2) return alert('Error updating note: ' + err2.message)
+    setTeamNotes(prev => prev.map(n => n.id === note.id ? { ...n, sent_to_student_ids: updatedIds } : n))
+    setNoteTargetSearch('')
+  }
+
+  async function sendNoteToMultiple(note, studentIds) {
+    if (!studentIds.length) return
+    const targets = students.filter(s => studentIds.includes(s.id))
+    for (const s of targets) {
+      await supabase.from('athlete_notes_log').insert({ student_id: s.id, note_text: note.note_text })
+    }
+    const updatedIds = [...new Set([...(note.sent_to_student_ids || []), ...studentIds])]
+    const { error } = await supabase.from('team_notes').update({ sent_to_student_ids: updatedIds }).eq('id', note.id)
+    if (error) return alert('Error updating note: ' + error.message)
     setTeamNotes(prev => prev.map(n => n.id === note.id ? { ...n, sent_to_student_ids: updatedIds } : n))
     setNoteTargetSearch('')
   }
@@ -4669,11 +4696,9 @@ export default function AthleteProfiles() {
               </div>
               <div style={{ padding: 16 }}>
                 <textarea value={dashNoteText} onChange={e => setDashNoteText(e.target.value)}
-                  placeholder="Write a note…" rows={2}
-                  style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
-                <button className="btn btn-primary btn-sm" disabled={!dashNoteText.trim() || savingDashNote} onClick={addDashNote}>
-                  {savingDashNote ? 'Saving…' : 'Save here'}
-                </button>
+                  onFocus={() => setShowFullscreenNoteComposer(true)} onClick={() => setShowFullscreenNoteComposer(true)}
+                  placeholder="Write a note…" rows={2} readOnly
+                  style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8, cursor: 'pointer' }} />
 
                 {teamNotes.length > 0 && (
                   <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -4682,6 +4707,8 @@ export default function AthleteProfiles() {
                       const sentStudents = students.filter(s => sentIds.includes(s.id))
                       const isIndividual = sentIds.length > 0
                       const targeting = expandedNoteTargeting === note.id
+                      const candidates = noteDropdownResultsFor(note)
+                      const allChecked = candidates.length > 0 && candidates.every(s => noteCheckedIds.includes(s.id))
                       return (
                         <div key={note.id} style={{ padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -4693,12 +4720,12 @@ export default function AthleteProfiles() {
                           <p style={{ fontSize: 13, margin: '0 0 8px' }}>{note.note_text}</p>
 
                           <button className="btn btn-sm" style={{ fontSize: 11 }}
-                            onClick={() => { setExpandedNoteTargeting(targeting ? null : note.id); setNoteTargetSearch('') }}>
+                            onClick={() => { setExpandedNoteTargeting(targeting ? null : note.id); setNoteTargetSearch(''); setNoteCheckedIds([]) }}>
                             {isIndividual ? `☑ Individual (${sentIds.length})` : '👥 Team'} {targeting ? '▲' : '▼'}
                           </button>
 
                           {targeting && (
-                            <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+                            <div ref={noteTargetingRef} style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
                               {sentStudents.length > 0 && (
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
                                   {sentStudents.map(s => (
@@ -4709,20 +4736,34 @@ export default function AthleteProfiles() {
                                   ))}
                                 </div>
                               )}
-                              <div style={{ position: 'relative' }}>
-                                <input value={noteTargetSearch} onChange={e => setNoteTargetSearch(e.target.value)}
-                                  placeholder="Search athletes to also send this note to…" style={{ width: '100%', fontSize: 12 }} />
-                                <div className="card" style={{ marginTop: 4, padding: 4, maxHeight: 200, overflowY: 'auto' }}>
-                                  {noteDropdownResultsFor(note).length === 0 ? (
-                                    <p style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: '6px 8px' }}>No matching athletes.</p>
-                                  ) : noteDropdownResultsFor(note).map(s => (
-                                    <button key={s.id} onClick={() => sendNoteToAthlete(note, s)}
-                                      style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, borderRadius: 6 }}>
-                                      {s.members?.first_name} {s.members?.last_name}
-                                    </button>
-                                  ))}
-                                </div>
+                              <input value={noteTargetSearch} onChange={e => setNoteTargetSearch(e.target.value)}
+                                placeholder="Search athletes to also send this note to…" style={{ width: '100%', fontSize: 12, marginBottom: 6 }} />
+                              <div className="card" style={{ padding: 4, maxHeight: 240, overflowY: 'auto' }}>
+                                {candidates.length === 0 ? (
+                                  <p style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: '6px 8px' }}>No matching athletes.</p>
+                                ) : (
+                                  <>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderBottom: '1px solid var(--border)', marginBottom: 4, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                                      <input type="checkbox" checked={allChecked} onChange={e => setNoteCheckedIds(e.target.checked ? candidates.map(s => s.id) : [])} style={{ width: 15, height: 15 }} />
+                                      Select all ({candidates.length})
+                                    </label>
+                                    {candidates.map(s => (
+                                      <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', cursor: 'pointer', fontSize: 13, borderRadius: 6 }}>
+                                        <input type="checkbox" checked={noteCheckedIds.includes(s.id)}
+                                          onChange={e => setNoteCheckedIds(prev => e.target.checked ? [...prev, s.id] : prev.filter(id => id !== s.id))}
+                                          style={{ width: 15, height: 15 }} />
+                                        {s.members?.first_name} {s.members?.last_name}
+                                      </label>
+                                    ))}
+                                  </>
+                                )}
                               </div>
+                              {noteCheckedIds.length > 0 && (
+                                <button className="btn btn-primary btn-sm" style={{ marginTop: 8, width: '100%', justifyContent: 'center' }}
+                                  onClick={() => { sendNoteToMultiple(note, noteCheckedIds); setNoteCheckedIds([]) }}>
+                                  Send to {noteCheckedIds.length} selected
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>
@@ -4732,6 +4773,22 @@ export default function AthleteProfiles() {
                 )}
               </div>
             </div>
+
+            {showFullscreenNoteComposer && (
+              <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 200, display: 'flex', flexDirection: 'column', padding: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                  <button onClick={() => setShowFullscreenNoteComposer(false)} className="btn btn-sm">← Back</button>
+                  <h2 style={{ fontSize: 15, fontWeight: 600 }}>Write a note</h2>
+                </div>
+                <textarea autoFocus value={dashNoteText} onChange={e => setDashNoteText(e.target.value)}
+                  placeholder="Write a note…"
+                  style={{ flex: 1, width: '100%', padding: 14, border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 15, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'none', marginBottom: 14 }} />
+                <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={!dashNoteText.trim() || savingDashNote}
+                  onClick={async () => { await addDashNote(); setShowFullscreenNoteComposer(false) }}>
+                  {savingDashNote ? 'Saving…' : 'Save here'}
+                </button>
+              </div>
+            )}
 
             {/* Send Reports */}
             <div className="card" style={{ padding: 0, marginBottom: 14 }}>
