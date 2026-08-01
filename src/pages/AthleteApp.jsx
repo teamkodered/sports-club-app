@@ -713,6 +713,9 @@ export default function AthleteApp() {
   const [apData, setApData]     = useState(null)
   const [assignedClasses, setAssignedClasses] = useState([])
   const [myNotesLog, setMyNotesLog] = useState([])
+  const [tptData, setTptData] = useState({ kickboxing: [], boxing: [] })
+  const [newNoteText, setNewNoteText] = useState('')
+  const [savingNote, setSavingNote] = useState(false)
   const [myChartPopup, setMyChartPopup] = useState(null)
   const [highlightedMyEntryId, setHighlightedMyEntryId] = useState(null)
   const myPressTimer = useRef(null)
@@ -957,8 +960,13 @@ export default function AthleteApp() {
           .eq('student_id', s.id)
           .then(({ data, error }) => { if (!error) setAssignedClasses(data || []) })
 
-        supabase.from('athlete_notes_log').select('*').eq('student_id', s.id)
+        supabase.from('athlete_notes_log').select('*').eq('student_id', s.id).order('logged_at', { ascending: false })
           .then(({ data, error }) => { if (!error) setMyNotesLog(data || []) })
+
+        supabase.from('tpt_kickboxing').select('*').eq('student_id', s.id).order('assessed_at', { ascending: false }).limit(2)
+          .then(({ data, error }) => { if (!error) setTptData(prev => ({ ...prev, kickboxing: data || [] })) })
+        supabase.from('tpt_boxing').select('*').eq('student_id', s.id).order('assessed_at', { ascending: false }).limit(2)
+          .then(({ data, error }) => { if (!error) setTptData(prev => ({ ...prev, boxing: data || [] })) })
 
         supabase.from('classes').select('*').eq('active', true).order('day_of_week').order('start_time')
           .then(({ data, error }) => { if (!error) setAllClasses(data || []) })
@@ -1061,6 +1069,25 @@ export default function AthleteApp() {
       if (!error && data) setSessions(prev => [data, ...prev])
     }
     if (error) alert('Error saving: ' + error.message)
+  }
+
+  async function addNote() {
+    if (!newNoteText.trim() || !student) return
+    setSavingNote(true)
+    const { data, error } = await supabase.from('athlete_notes_log')
+      .insert({ student_id: student.id, note_text: newNoteText.trim(), logged_at: new Date().toISOString() })
+      .select().single()
+    if (error) { alert('Error saving note: ' + error.message); setSavingNote(false); return }
+    setMyNotesLog(prev => [data, ...prev])
+    setNewNoteText('')
+    setSavingNote(false)
+  }
+
+  async function deleteNote(noteId) {
+    if (!confirm('Delete this note?')) return
+    const { error } = await supabase.from('athlete_notes_log').delete().eq('id', noteId)
+    if (error) { alert('Error deleting note: ' + error.message); return }
+    setMyNotesLog(prev => prev.filter(n => n.id !== noteId))
   }
 
   async function quickLogStretch() {
@@ -1329,9 +1356,11 @@ export default function AthleteApp() {
   return (
     <div style={{ maxWidth: 640, margin: '0 auto', padding: '20px 16px', minHeight: '100vh' }}>
 
-      <Link to="/dashboard" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 10, fontSize: 13, color: 'var(--text-secondary)', textDecoration: 'none' }}>
-        ← Back to main site
-      </Link>
+      {isStaff && (
+        <Link to="/dashboard" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 10, fontSize: 13, color: 'var(--text-secondary)', textDecoration: 'none' }}>
+          ← Back to main site
+        </Link>
+      )}
 
       {/* Profile header */}
       <div className="card" style={{ marginBottom: 12, borderLeft: `4px solid ${colour}` }}>
@@ -2516,6 +2545,39 @@ export default function AthleteApp() {
                }
               })()}
 
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginTop: 14, marginBottom: 8 }}>
+                {[
+                  { label: 'Media', icon: '🖼', colour: '#8B5CF6', tab: 'media' },
+                  { label: 'Notes', icon: '📝', colour: '#378ADD', tab: 'notes' },
+                ].map(l => (
+                  <button key={l.label} onClick={() => setTab(l.tab)} style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                    padding: '14px 8px', background: l.colour + '12',
+                    border: `1px solid ${l.colour}30`, borderRadius: 'var(--border-radius-lg)',
+                    cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                  }}>
+                    <span style={{ fontSize: 24 }}>{l.icon}</span>
+                    <span style={{ fontSize: 12, fontWeight: 500, color: l.colour }}>{l.label}</span>
+                  </button>
+                ))}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8 }}>
+                {[
+                  { label: 'PDP', icon: '🎯', colour: '#1D9E75', tab: 'pdp' },
+                  { label: 'TTP', icon: '📊', colour: '#E24B4A', tab: 'tpt' },
+                ].map(l => (
+                  <button key={l.label} onClick={() => setTab(l.tab)} style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                    padding: '14px 8px', background: l.colour + '12',
+                    border: `1px solid ${l.colour}30`, borderRadius: 'var(--border-radius-lg)',
+                    cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                  }}>
+                    <span style={{ fontSize: 24 }}>{l.icon}</span>
+                    <span style={{ fontSize: 12, fontWeight: 500, color: l.colour }}>{l.label}</span>
+                  </button>
+                ))}
+              </div>
+
             </>
           ) : (
             <div className="card" style={{ textAlign: 'center', padding: 32 }}>
@@ -2785,6 +2847,120 @@ export default function AthleteApp() {
                   </div>
                 )
               })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Media ── */}
+      {tab === 'media' && (
+        <div>
+          <div className="card" style={{ marginBottom: 12 }}>
+            <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Media files</h2>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>Upload your own photos, videos, and documents here.</p>
+            <div style={{ border: '2px dashed var(--border-strong)', borderRadius: 'var(--radius)', padding: '28px 20px', textAlign: 'center', color: 'var(--text-secondary)', marginBottom: 12 }}>
+              <div style={{ fontSize: 28, marginBottom: 8 }}>📁</div>
+              <p style={{ fontSize: 13, marginBottom: 8 }}>Tap to upload</p>
+              <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Photos, videos, PDFs — max 50MB per file</p>
+              <input type="file" multiple accept="image/*,video/*,.pdf" style={{ display: 'none' }} id="my-file-upload"
+                onChange={async e => {
+                  if (!student) return
+                  const files = Array.from(e.target.files)
+                  for (const file of files) {
+                    const path = `athletes/${student.id}/${Date.now()}-${file.name}`
+                    const { error } = await supabase.storage.from('athlete-media').upload(path, file)
+                    if (!error) {
+                      const { data: urlData } = supabase.storage.from('athlete-media').getPublicUrl(path)
+                      const existing = apData?.media_files || []
+                      const updated = [...existing, { name: file.name, url: urlData.publicUrl, type: file.type, uploaded_at: new Date().toISOString() }]
+                      await supabase.from('athlete_profiles').upsert({ student_id: student.id, media_files: updated }, { onConflict: 'student_id' })
+                      setApData(p => ({ ...(p || {}), media_files: updated }))
+                    }
+                  }
+                }} />
+              <label htmlFor="my-file-upload" className="btn btn-primary" style={{ display: 'inline-flex', marginTop: 10, cursor: 'pointer' }}>Choose files</label>
+            </div>
+            {apData?.media_files?.length > 0 ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 8 }}>
+                {apData.media_files.map((f, i) => (
+                  <div key={i} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden', background: 'var(--bg-secondary)' }}>
+                    {f.type?.startsWith('image') ? (
+                      <img src={f.url} alt={f.name} style={{ width: '100%', height: 80, objectFit: 'cover', display: 'block' }} />
+                    ) : (
+                      <div style={{ height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>
+                        {f.type?.includes('video') ? '🎥' : '📄'}
+                      </div>
+                    )}
+                    <div style={{ padding: '6px 8px' }}>
+                      <div style={{ fontSize: 10, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</div>
+                      <a href={f.url} target="_blank" rel="noreferrer" style={{ fontSize: 10, color: '#185fa5' }}>View</a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ fontSize: 13, color: 'var(--text-tertiary)', textAlign: 'center', padding: '16px 0' }}>No media files yet</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Notes ── */}
+      {tab === 'notes' && (
+        <div>
+          <div className="card" style={{ marginBottom: 12 }}>
+            <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>Log a note</h2>
+            <textarea value={newNoteText} onChange={e => setNewNoteText(e.target.value)}
+              placeholder="Write a note for yourself…" rows={3}
+              style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
+            <button className="btn btn-primary btn-sm" disabled={!newNoteText.trim() || savingNote} onClick={addNote}>
+              {savingNote ? 'Saving…' : '+ Log note'}
+            </button>
+          </div>
+          {myNotesLog.length === 0 ? (
+            <div className="empty-state"><h3>No notes yet</h3></div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {myNotesLog.map(note => (
+                <div key={note.id} className="card">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>
+                        {new Date(note.logged_at).toLocaleDateString('en-GB')} · {new Date(note.logged_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                      <p style={{ fontSize: 13, lineHeight: 1.5, margin: 0 }}>{note.note_text}</p>
+                    </div>
+                    <button onClick={() => deleteNote(note.id)} title="Delete note"
+                      style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 16, flexShrink: 0 }}>×</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── TTP (read-only summary — dedicated form will be integrated better later) ── */}
+      {tab === 'tpt' && (
+        <div>
+          {tptData.kickboxing.length === 0 && tptData.boxing.length === 0 ? (
+            <div className="empty-state"><h3>No TTP assessments yet</h3><p>Your coach will log these after each assessment</p></div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {tptData.kickboxing[0] && (
+                <div className="card">
+                  <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>🥋 Kickboxing — {new Date(tptData.kickboxing[0].assessed_at).toLocaleDateString('en-GB')}</h3>
+                  <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                    {tptData.kickboxing[0].weight_kg != null && `Weight: ${tptData.kickboxing[0].weight_kg}kg`}
+                  </p>
+                </div>
+              )}
+              {tptData.boxing[0] && (
+                <div className="card">
+                  <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>🥊 Boxing — {new Date(tptData.boxing[0].assessed_at).toLocaleDateString('en-GB')}</h3>
+                  <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Assessment logged</p>
+                </div>
+              )}
             </div>
           )}
         </div>
