@@ -2118,6 +2118,8 @@ export default function AthleteProfiles() {
   const [reportData, setReportData] = useState(null)
   const [f2fData, setF2fData]         = useState([])
   const [f2fFrom, setF2fFrom]         = useState('')
+  const [resultsGraphSection, setResultsGraphSection] = useState(0)
+  const resultsGraphSwipeStart = useRef(null)
   const [f2fTo, setF2fTo]             = useState('')
   const [wattChartFilter, setWattChartFilter] = useState('all')
   const [bwChartFilter, setBwChartFilter]     = useState('all')
@@ -7527,7 +7529,39 @@ export default function AthleteProfiles() {
                 </div>
 
                 {/* Charts */}
-                {weightData.length > 1 && (
+                {(() => {
+                  const GRAPH_SECTIONS = [
+                    { key: 'weight', label: '⚖️ Weight' },
+                    { key: 'watt_bike', label: '🚴 Watt bike' },
+                    { key: 'running', label: '🏃 Running' },
+                    { key: 'bleep', label: '🏃 Bleep test' },
+                    { key: 'grip', label: '✊ Grip test' },
+                    { key: 'circuit', label: '⭕ Fixed load circuit' },
+                    { key: 'bodyweight', label: '💪 Bodyweight' },
+                    { key: 'techniques', label: '🥋 Techniques' },
+                  ]
+                  function cycleGraphSection(direction) {
+                    setResultsGraphSection(s => (s + direction + GRAPH_SECTIONS.length) % GRAPH_SECTIONS.length)
+                  }
+                  return (
+                    <div
+                      onTouchStart={e => { resultsGraphSwipeStart.current = e.touches[0].clientX }}
+                      onTouchEnd={e => {
+                        if (resultsGraphSwipeStart.current == null) return
+                        const delta = e.changedTouches[0].clientX - resultsGraphSwipeStart.current
+                        if (Math.abs(delta) > 50) cycleGraphSection(delta < 0 ? 1 : -1)
+                        resultsGraphSwipeStart.current = null
+                      }}
+                      style={{ marginBottom: 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                        <button className="btn btn-sm" onClick={() => cycleGraphSection(-1)}>◀</button>
+                        <span style={{ fontSize: 13, fontWeight: 600 }}>{GRAPH_SECTIONS[resultsGraphSection].label}</span>
+                        <button className="btn btn-sm" onClick={() => cycleGraphSection(1)}>▶</button>
+                      </div>
+                    </div>
+                  )
+                })()}
+                {resultsGraphSection === 0 && (weightData.length > 1 ? (
                   <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
                     <a href={`/fit2fight?student_id=${selected?.id}`} className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, zIndex: 1 }}>+ Log</a>
                     <LineChart
@@ -7540,9 +7574,13 @@ export default function AthleteProfiles() {
                       unit="kg"
                     />
                   </div>
-                )}
+                ) : (
+                  <div className="card" style={{ marginBottom: 12, textAlign: 'center', padding: 24 }}>
+                    <p style={{ fontSize: 12, color: 'var(--text-tertiary)', margin: 0 }}>No weight data yet — log a session to see this graph fill in</p>
+                  </div>
+                ))}
 
-                <div id="f2f-chart-watt_bike">
+                <div id="f2f-chart-watt_bike" style={{ display: resultsGraphSection === 1 ? 'block' : 'none' }}>
                 {(() => {
                   const SET_COLOURS = ['#E24B4A','#378ADD','#1D9E75','#EF9F27','#8B5CF6','#EC4899','#06B6D4','#84CC16','#F97316','#A855F7','#14B8A6','#EAB308']
                   const wattTypes = [...new Set(wattData.map(s => normalizeIntervalMode(s.watt_bike?.interval_mode || s.watt_bike?.type)).filter(Boolean))]
@@ -7579,7 +7617,7 @@ export default function AthleteProfiles() {
                 })()}
                 </div>
 
-                <div id="f2f-chart-running">
+                <div id="f2f-chart-running" style={{ display: resultsGraphSection === 2 ? 'block' : 'none' }}>
                 {(() => {
                   const SET_COLOURS = ['#E24B4A','#378ADD','#1D9E75','#EF9F27','#8B5CF6','#EC4899','#06B6D4','#84CC16']
                   const runTests = [...new Set(runData.map(s => s.running?.test).filter(Boolean))]
@@ -7622,7 +7660,7 @@ export default function AthleteProfiles() {
                 </div>
 
                 {/* Bleep test chart */}
-                <div id="f2f-chart-bleep">
+                <div id="f2f-chart-bleep" style={{ display: resultsGraphSection === 3 ? 'block' : 'none' }}>
                 {(() => {
                   const bleepData = sorted.filter(s => s.test && Object.keys(s.test).some(k => k.toLowerCase().includes('bleep')))
                     .map(s => {
@@ -7644,7 +7682,7 @@ export default function AthleteProfiles() {
                 </div>
 
                 {/* Grip test chart */}
-                <div id="f2f-chart-grip">
+                <div id="f2f-chart-grip" style={{ display: resultsGraphSection === 4 ? 'block' : 'none' }}>
                 {(() => {
                   const gripData = sorted.filter(s => s.test && Object.keys(s.test).some(k => k.toLowerCase().includes('grip')))
                     .map(s => {
@@ -7675,7 +7713,7 @@ export default function AthleteProfiles() {
                 </div>
 
                 {/* Fixed load circuit chart */}
-                <div id="f2f-chart-circuit">
+                <div id="f2f-chart-circuit" style={{ display: resultsGraphSection === 5 ? 'block' : 'none' }}>
                 {(() => {
                   const circuitData = sorted.filter(s => s.test && Object.keys(s.test).some(k => k.toLowerCase().includes('fixed load circuit')))
                     .map(s => {
@@ -7697,7 +7735,7 @@ export default function AthleteProfiles() {
                 </div>
 
                 {/* Bodyweight chart */}
-                <div id="f2f-chart-bodyweight">
+                <div id="f2f-chart-bodyweight" style={{ display: resultsGraphSection === 6 ? 'block' : 'none' }}>
                 {(() => {
                   const bwData = sorted.flatMap(s => toEntries(s.bodyweight)
                     .filter(e => Array.isArray(e.sets) && e.sets.length > 0)
@@ -7731,7 +7769,7 @@ export default function AthleteProfiles() {
                 </div>
 
                 {/* Techniques chart */}
-                <div id="f2f-chart-techniques">
+                <div id="f2f-chart-techniques" style={{ display: resultsGraphSection === 7 ? 'block' : 'none' }}>
                 {(() => {
                   const techData = sorted.filter(s => Array.isArray(s.techniques?.sets) && s.techniques.sets.length > 0)
                   const techTypes = [...new Set(techData.map(s => s.techniques?.type).filter(Boolean))]
