@@ -705,6 +705,9 @@ export default function AthleteApp() {
   const [tab, setTab]           = useState('home')
   const [checkingIn, setCheckingIn]   = useState(false)
   const [checkedInMsg, setCheckedInMsg] = useState(null)
+  const [activeCheckIn, setActiveCheckIn] = useState(null) // the open attendance row (checked in, not yet checked out) if still within its session window
+  const [showWeightCheckPrompt, setShowWeightCheckPrompt] = useState(null) // 'in' | 'out' | null
+  const [weightCheckValue, setWeightCheckValue] = useState('')
   const [student, setStudent]   = useState(null)
   const [houses, setHouses] = useState([])
   const [rankList, setRankList] = useState([])
@@ -1345,23 +1348,94 @@ export default function AthleteApp() {
     setAssignedClasses(prev => prev.filter(a => a.id !== assignmentId))
   }
 
+  // Detects whether there's an existing check-in for today that's
+  // still "open" (not checked out, and within 1 hour of the relevant
+  // class's start time) -- so refreshing the page still shows the
+  // Check out button rather than losing that state.
+  useEffect(() => {
+    if (!student || !attendanceData.length) { setActiveCheckIn(null); return }
+    const todayStr = new Date().toISOString().split('T')[0]
+    const todaysOpenEntries = attendanceData.filter(a => a.session_date === todayStr && !a.checked_out_at)
+    if (!todaysOpenEntries.length) { setActiveCheckIn(null); return }
+    const mostRecent = todaysOpenEntries.sort((a, b) => new Date(b.attended_at) - new Date(a.attended_at))[0]
+
+    // Find today's assigned class closest to (at or before) the
+    // check-in time, to know when this session's 1-hour window ends
+    const jsDay = new Date().getDay()
+    const todaysClasses = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay))
+    const checkInTime = new Date(mostRecent.attended_at)
+    let expiresAt
+    if (todaysClasses.length) {
+      const closest = todaysClasses.reduce((best, a) => {
+        if (!a.classes?.start_time) return best
+        const [h, m] = a.classes.start_time.split(':').map(Number)
+        const classStart = new Date(checkInTime); classStart.setHours(h, m, 0, 0)
+        if (classStart > checkInTime) return best // hasn't started yet, not this one
+        if (!best || classStart > best.classStart) return { classStart, a }
+        return best
+      }, null)
+      expiresAt = closest ? new Date(closest.classStart.getTime() + 60 * 60 * 1000) : new Date(checkInTime.getTime() + 60 * 60 * 1000)
+    } else {
+      expiresAt = new Date(checkInTime.getTime() + 60 * 60 * 1000)
+    }
+
+    if (new Date() > expiresAt) setActiveCheckIn(null)
+    else setActiveCheckIn(mostRecent)
+  }, [student, attendanceData, assignedClasses])
+
   async function checkInNow(attendanceType) {
     if (!student) return
     setCheckingIn(true)
-    const { error } = await supabase.from('attendance').insert({
+    const { data, error } = await supabase.from('attendance').insert({
       student_id: student.id,
       present: true,
       late: false,
       attendance_type: attendanceType,
       session_date: new Date().toISOString().split('T')[0],
       attended_at: new Date().toISOString(),
-    })
+    }).select().single()
     if (error) {
       alert('Error checking in: ' + error.message)
     } else {
-      setCheckedInMsg(attendanceType === 'full_kit' ? '✓ Checked in — Full Kit!' : '✓ Checked in!')
-      setTimeout(() => setCheckedInMsg(null), 4000)
+      setAttendanceData(prev => [data, ...prev])
+      setActiveCheckIn(data)
+      setShowWeightCheckPrompt('in')
+      setWeightCheckValue('')
     }
+    setCheckingIn(false)
+  }
+
+  async function checkOutNow() {
+    setShowWeightCheckPrompt('out')
+    setWeightCheckValue('')
+  }
+
+  async function submitWeightCheck(skip = false) {
+    if (!activeCheckIn) { setShowWeightCheckPrompt(null); return }
+    setCheckingIn(true)
+    const field = showWeightCheckPrompt === 'in' ? 'weight_before' : 'weight_after'
+    const updates = { [field]: skip || !weightCheckValue.trim() ? null : parseFloat(weightCheckValue) }
+    if (showWeightCheckPrompt === 'out') updates.checked_out_at = new Date().toISOString()
+
+    const { error } = await supabase.from('attendance').update(updates).eq('id', activeCheckIn.id)
+    if (error) {
+      alert('Error saving: ' + error.message)
+    } else {
+      // Also sync students.weight_kg from the latest weigh-in, same as elsewhere in the app
+      if (updates[field] != null) {
+        await supabase.from('students').update({ weight_kg: updates[field] }).eq('id', student.id)
+      }
+      setAttendanceData(prev => prev.map(a => a.id === activeCheckIn.id ? { ...a, ...updates } : a))
+      if (showWeightCheckPrompt === 'in') {
+        setCheckedInMsg(activeCheckIn.attendance_type === 'full_kit' ? '✓ Checked in — Full Kit!' : '✓ Checked in!')
+        setTimeout(() => setCheckedInMsg(null), 3000)
+      } else {
+        setCheckedInMsg('✓ Checked out!')
+        setTimeout(() => setCheckedInMsg(null), 3000)
+        setActiveCheckIn(null)
+      }
+    }
+    setShowWeightCheckPrompt(null)
     setCheckingIn(false)
   }
 
@@ -2856,6 +2930,16 @@ export default function AthleteApp() {
               <div className="card" style={{ textAlign: 'center', padding: 12, marginBottom: 14, background: '#1D9E7515', border: '1px solid #1D9E7530', color: '#1D9E75', fontWeight: 600, fontSize: 14 }}>
                 {checkedInMsg}
               </div>
+            ) : activeCheckIn ? (
+              <div style={{ marginBottom: 14 }}>
+                <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: 12, fontSize: 14, background: '#E24B4A', borderColor: '#E24B4A' }}
+                  onClick={checkOutNow} disabled={checkingIn}>
+                  🚪 Check out
+                </button>
+                <p style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center', marginTop: 6 }}>
+                  Checked in {new Date(activeCheckIn.attended_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}{activeCheckIn.attendance_type === 'full_kit' ? ' — Full Kit' : ''}
+                </p>
+              </div>
             ) : (
               <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
                 <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', padding: 12, fontSize: 14 }}
@@ -3027,6 +3111,30 @@ export default function AthleteApp() {
           </div>
         )
       })()}
+
+      {showWeightCheckPrompt && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}>
+          <div className="card" style={{ width: 320, padding: 20 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>
+              {showWeightCheckPrompt === 'in' ? 'Weight check — check in' : 'Weight check — check out'}
+            </h2>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>
+              Enter your weight now, or skip if you'd rather not log it this time.
+            </p>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16 }}>
+              <input type="number" step="0.1" inputMode="decimal" autoFocus value={weightCheckValue} onChange={e => setWeightCheckValue(e.target.value)}
+                placeholder="Weight" style={{ flex: 1 }} />
+              <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>kg</span>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => submitWeightCheck(true)} disabled={checkingIn}>Skip</button>
+              <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => submitWeightCheck(false)} disabled={checkingIn}>
+                {checkingIn ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── PDP ── */}
       {tab === 'pdp' && (
