@@ -747,6 +747,9 @@ export default function AthleteApp() {
     d.setHours(0, 0, 0, 0)
     return d
   })
+  const [classDetailPanel, setClassDetailPanel] = useState(null) // { classInfo, dateStr } when a class in the weekly timetable is clicked
+  const [classNoteText, setClassNoteText] = useState('')
+  const [savingClassNote, setSavingClassNote] = useState(false)
   const [points, setPoints]     = useState([])
   const [sessions, setSessions] = useState([])
   const [attendanceData, setAttendanceData] = useState([])
@@ -1598,12 +1601,31 @@ export default function AthleteApp() {
                   .filter(Boolean).filter((v, i, a) => a.indexOf(v) === i)
                 const scopeLen = scopeOptions.length || 1
                 const scopeLabel = scopeOptions[((f2fStatsScope % scopeLen) + scopeLen) % scopeLen] || 'All sessions'
-                const matchesScope = att => {
+                // Possible sessions is based on this athlete's own assigned
+                // classes -- how many times each has actually occurred
+                // (by weekday) since they started attending, not other
+                // students' attendance records used as a rough proxy.
+                const relevantAssigned = assignedClasses.filter(a => {
                   if (scopeLabel === 'All sessions') return true
-                  if (scopeLabel === student.discipline) return att?.students?.discipline === student.discipline
-                  return att?.students?.class_schedule === student.class_schedule && att?.students?.class_time === student.class_time
+                  if (scopeLabel === student.discipline) return a.classes?.discipline === student.discipline
+                  return true
+                })
+                const earliestDate = attendanceData.length
+                  ? attendanceData.reduce((min, a) => a.session_date < min ? a.session_date : min, attendanceData[0].session_date)
+                  : new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+                const countWeekdayOccurrences = (dayName, fromDateStr) => {
+                  const jsDays = DAY_TO_JS_DAYS[dayName] || []
+                  if (!jsDays.length) return 0
+                  let count = 0
+                  const cursor = new Date(fromDateStr + 'T00:00:00')
+                  const today = new Date()
+                  while (cursor <= today) {
+                    if (jsDays.includes(cursor.getDay())) count++
+                    cursor.setDate(cursor.getDate() + 1)
+                  }
+                  return count
                 }
-                const possibleSessions = new Set((allAttendance || []).filter(matchesScope).map(a => a?.session_date)).size
+                const possibleSessions = relevantAssigned.reduce((sum, a) => sum + countWeekdayOccurrences(a.classes?.day_of_week, earliestDate), 0)
 
                 const modules = [
                   { key: 'running',    label: 'Running',       icon: '🏃' },
@@ -3056,7 +3078,8 @@ export default function AthleteApp() {
                           if (pct == null) return null
                           return (
                             <div key={ci} title={`${a.classes?.name} ${a.classes?.start_time?.slice(0,5)}`}
-                              style={{ position: 'absolute', left: 2, right: 2, top: `${pct}%`, background: '#378ADD22', border: '1px solid #378ADD', borderRadius: 3, padding: '1px 3px', fontSize: 8, color: '#378ADD', lineHeight: 1.3, zIndex: 1 }}>
+                              onClick={() => { setClassDetailPanel({ classInfo: a.classes, dateStr }); setClassNoteText('') }}
+                              style={{ position: 'absolute', left: 2, right: 2, top: `${pct}%`, background: '#378ADD22', border: '1px solid #378ADD', borderRadius: 3, padding: '1px 3px', fontSize: 8, color: '#378ADD', lineHeight: 1.3, zIndex: 1, cursor: 'pointer' }}>
                               {a.classes?.start_time?.slice(0,5)} {a.classes?.name}
                             </div>
                           )
@@ -3100,9 +3123,8 @@ export default function AthleteApp() {
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {assignedClasses.map(a => (
-                    <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: 13 }}>
-                      <span>{a.classes?.name} — {a.classes?.day_of_week} {a.classes?.start_time?.slice(0,5)}</span>
-                      <button onClick={() => removeClassAssignment(a.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14 }}>×</button>
+                    <div key={a.id} style={{ padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: 13 }}>
+                      {a.classes?.name} — {a.classes?.day_of_week} {a.classes?.start_time?.slice(0,5)}
                     </div>
                   ))}
                 </div>
@@ -3111,6 +3133,47 @@ export default function AthleteApp() {
           </div>
         )
       })()}
+
+      {classDetailPanel && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}
+          onClick={() => setClassDetailPanel(null)}>
+          <div className="card" style={{ width: 340, padding: 20 }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <h2 style={{ fontSize: 15, fontWeight: 600 }}>{classDetailPanel.classInfo?.name}</h2>
+              <button onClick={() => setClassDetailPanel(null)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>
+              {new Date(classDetailPanel.dateStr + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} · {classDetailPanel.classInfo?.start_time?.slice(0,5)}
+              {classDetailPanel.classInfo?.end_time ? `–${classDetailPanel.classInfo.end_time.slice(0,5)}` : ''}
+            </p>
+            {classDetailPanel.classInfo?.instructor && (
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>👤 {classDetailPanel.classInfo.instructor}</p>
+            )}
+            {classDetailPanel.classInfo?.description && (
+              <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 14, lineHeight: 1.4 }}>{classDetailPanel.classInfo.description}</p>
+            )}
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, marginTop: classDetailPanel.classInfo?.description ? 0 : 10 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Add a note about this class</label>
+              <textarea value={classNoteText} onChange={e => setClassNoteText(e.target.value)} rows={3}
+                placeholder="Write a note…"
+                style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
+              <button className="btn btn-primary btn-sm" disabled={!classNoteText.trim() || savingClassNote} onClick={async () => {
+                setSavingClassNote(true)
+                const header = `${classDetailPanel.classInfo?.name} — ${new Date(classDetailPanel.dateStr + 'T12:00:00').toLocaleDateString('en-GB')}`
+                const fullText = `${header}\n${classNoteText.trim()}`
+                const { data, error } = await supabase.from('athlete_notes_log')
+                  .insert({ student_id: student.id, note_text: fullText, logged_at: new Date().toISOString() })
+                  .select().single()
+                if (error) { alert('Error saving note: ' + error.message) } else {
+                  setMyNotesLog(prev => [data, ...prev])
+                  setClassDetailPanel(null)
+                }
+                setSavingClassNote(false)
+              }}>{savingClassNote ? 'Saving…' : 'Save note'}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showWeightCheckPrompt && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}>
@@ -3259,7 +3322,7 @@ export default function AthleteApp() {
                       <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>
                         {new Date(note.logged_at).toLocaleDateString('en-GB')} · {new Date(note.logged_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                       </div>
-                      <p style={{ fontSize: 13, lineHeight: 1.5, margin: 0 }}>{note.note_text}</p>
+                      <p style={{ fontSize: 13, lineHeight: 1.5, margin: 0, whiteSpace: 'pre-line' }}>{note.note_text}</p>
                     </div>
                     <button onClick={() => deleteNote(note.id)} title="Delete note"
                       style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 16, flexShrink: 0 }}>×</button>

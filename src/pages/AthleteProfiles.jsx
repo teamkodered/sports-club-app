@@ -5037,7 +5037,7 @@ export default function AthleteProfiles() {
                             </div>
                             <button onClick={() => deleteTeamNote(note.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14 }}>×</button>
                           </div>
-                          <p style={{ fontSize: 13, margin: '0 0 8px' }}>{note.note_text}</p>
+                          <p style={{ fontSize: 13, margin: '0 0 8px', whiteSpace: 'pre-line' }}>{note.note_text}</p>
 
                           <button className="btn btn-sm" style={{ fontSize: 11 }}
                             onClick={() => { setExpandedNoteTargeting(targeting ? null : note.id); setNoteTargetSearch(''); setNoteCheckedIds([]) }}>
@@ -8552,7 +8552,7 @@ export default function AthleteProfiles() {
                             <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>
                               {new Date(note.logged_at).toLocaleDateString('en-GB')} · {new Date(note.logged_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                             </div>
-                            <p style={{ fontSize: 13, lineHeight: 1.5, margin: 0 }}>{note.note_text}</p>
+                            <p style={{ fontSize: 13, lineHeight: 1.5, margin: 0, whiteSpace: 'pre-line' }}>{note.note_text}</p>
                           </div>
                           <button onClick={() => deleteNote(note.id)} title="Delete note"
                             style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 16, flexShrink: 0 }}>×</button>
