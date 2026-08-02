@@ -3044,7 +3044,7 @@ export default function AthleteProfiles() {
     setSavingClassAssignment(true)
     for (const day of customSessionDays) {
       const { data: newClass, error: classError } = await supabase.from('classes')
-        .insert({ name: customSessionTitle.trim(), day_of_week: day, start_time: customSessionTime, active: true, discipline: selected?.discipline || 'PKA' })
+        .insert({ name: customSessionTitle.trim(), day_of_week: day, start_time: customSessionTime, active: true, discipline: selected?.discipline || 'PKA', is_custom: true })
         .select('*').single()
       if (classError) { alert(`Error creating session for ${day}: ` + classError.message); continue }
       setAllClasses(prev => [...prev, newClass].sort((a,b) => (a.day_of_week||'').localeCompare(b.day_of_week||'') || (a.start_time||'').localeCompare(b.start_time||'')))
@@ -4028,7 +4028,7 @@ export default function AthleteProfiles() {
                       {cells.map((d, i) => {
                         if (d === null) return <div key={i} />
                         const jsDay = new Date(year, month, d).getDay()
-                        const classesThatDay = allClasses.filter(cl => (DAY_TO_JS_DAYS[cl.day_of_week] || []).includes(jsDay))
+                        const classesThatDay = allClasses.filter(cl => !cl.is_custom && (DAY_TO_JS_DAYS[cl.day_of_week] || []).includes(jsDay))
                         const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`
                         const eventsThatDay = clubEvents.filter(ev => ev.event_date === dateStr)
                         return (
@@ -4065,7 +4065,7 @@ export default function AthleteProfiles() {
                 })
                 const hourMarks = Array.from({ length: 9 }, (_, i) => 6 + i * 2)
                 const isTeamView = !weeklyPlannerAthlete
-                const classesSource = isTeamView ? allClasses.map(cl => ({ classes: cl })) : weeklyPlannerAssignedClasses
+                const classesSource = isTeamView ? allClasses.filter(cl => !cl.is_custom).map(cl => ({ classes: cl })) : weeklyPlannerAssignedClasses
                 const pdpNotesData = weeklyPlannerApData?.pdp_notes || {}
                 const allPdpEntries = isTeamView ? [] : Array.from(PDP_CHECKABLE_SECTIONS).flatMap(sectionKey =>
                   Object.entries(pdpNotesData[`__timetable_${sectionKey}`] || {}).map(([item, entry]) => ({ sectionKey, item, ...entry }))
@@ -4175,7 +4175,7 @@ export default function AthleteProfiles() {
 
             {/* Day view/edit modal */}
             {calDayModal && (() => {
-              const classesThatDay = allClasses.filter(cl => (DAY_TO_JS_DAYS[cl.day_of_week] || []).includes(new Date(calDayModal + 'T12:00:00').getDay()))
+              const classesThatDay = allClasses.filter(cl => !cl.is_custom && (DAY_TO_JS_DAYS[cl.day_of_week] || []).includes(new Date(calDayModal + 'T12:00:00').getDay()))
               const eventsThatDay = clubEvents.filter(ev => ev.event_date === calDayModal)
               return (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}

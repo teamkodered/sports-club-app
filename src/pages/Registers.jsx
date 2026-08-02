@@ -58,7 +58,7 @@ function OneOffStudent({ displayStudents, onAdd, date }) {
 }
 
 import { useEffect, useState, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { studentProfileLink } from '../lib/studentLinks.js'
@@ -109,6 +109,7 @@ export default function Registers() {
   const [attendFuture, setAttendFuture]   = useState([])
   const [contactModal, setContactModal] = useState(null)
   const [attendance, setAttendance]     = useState({})
+  const [showOnlyAttended, setShowOnlyAttended] = useState(false)
   const [pointsByStudent, setPointsByStudent] = useState({}) // student_id -> points_log rows for the selected date
   const [weightByStudent, setWeightByStudent] = useState({}) // student_id -> {weight_before, weight_after} for the selected date (KRBA)
   const [pointsPanelFor, setPointsPanelFor] = useState(null) // student currently open in the points-for-this-day panel
@@ -177,7 +178,7 @@ export default function Registers() {
     const isTueThu = dow === 'Tue' || dow === 'Thu'
 
     const { data: allClasses } = await supabase
-      .from('classes').select('*').eq('discipline', disc).eq('active', true).order('start_time')
+      .from('classes').select('*').eq('discipline', disc).eq('active', true).eq('is_custom', false).order('start_time')
 
     // Match classes for today by actual day_of_week (handles Mon/Fri, Tue/Thu groups too)
     const fullDayMap = { Sun:'Sunday',Mon:'Monday',Tue:'Tuesday',Wed:'Wednesday',Thu:'Thursday',Fri:'Friday',Sat:'Saturday' }
@@ -214,7 +215,12 @@ export default function Registers() {
         .eq('session_date', date)
       if (todayAtt?.length) {
         const attMap = {}
-        todayAtt.forEach(a => { attMap[a.student_id] = a.attendance_type === 'full_kit' ? 'full_kit' : 'attended' })
+        todayAtt.forEach(a => {
+          if (a.attendance_type === 'full_kit') attMap[a.student_id] = 'full_kit'
+          else if (a.attendance_type === 'attended') attMap[a.student_id] = 'attended'
+          // any other/stale value is treated as not attended, rather than
+          // silently defaulting to 'attended'
+        })
         setAttendance(attMap)
       }
     } catch(e) { console.error('Attendance load error:', e) }
@@ -277,6 +283,7 @@ export default function Registers() {
   const _isTueThu = _dow === 'Tue' || _dow === 'Thu'
 
   const displayStudents = (regType === 'adhoc' ? adhocPills.map(p => students.find(s => s.id === p.id)).filter(Boolean) : students)
+    .filter(s => !showOnlyAttended || (attendance[s.id] && attendance[s.id] !== 'none'))
     .filter(s => {
       if (classFilter === 'all') return true
 
@@ -381,6 +388,19 @@ export default function Registers() {
     setStudents(prev => prev.map(s => s.id === student.id ? { ...s, house_points: (s.house_points || 0) + netChange, individual_points: (s.individual_points || 0) + netChange } : s))
   }
 
+  // When attendance is marked while viewing a specific class (not
+  // "All"), also ensure the student has a real assignment to that
+  // class -- so attending a session (even without being formally
+  // assigned beforehand) makes it show up in their own "Assigned
+  // sessions" list on their profile going forward.
+  async function ensureClassAssignment(studentId) {
+    if (!classFilter || classFilter === 'all') return
+    const { data: existing } = await supabase.from('student_class_assignments')
+      .select('id').eq('student_id', studentId).eq('class_id', classFilter).maybeSingle()
+    if (existing) return
+    await supabase.from('student_class_assignments').insert({ student_id: studentId, class_id: classFilter })
+  }
+
   async function toggleAttendance(id) {
     const cur = attendance[id] || 'none'
     const next = cur === 'none' ? 'attended' : cur === 'attended' ? 'full_kit' : 'none'
@@ -405,6 +425,7 @@ export default function Registers() {
         setAttendance(prev => ({ ...prev, [id]: cur })) // revert the optimistic update
         return
       }
+      await ensureClassAssignment(id)
       const student = students.find(s => s.id === id)
       if (student) await awardAttendancePoints(student, next)
     }
@@ -448,6 +469,7 @@ export default function Registers() {
       })
 
       await awardAttendancePoints(s, type)
+      await ensureClassAssignment(s.id)
     }
 
     setAttendance(prev => ({ ...prev, ...newAtt }))
@@ -710,13 +732,14 @@ export default function Registers() {
         </div>
       )}
 
-      {/* Large headcount display for quick visual reference during a session */}
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 10 }}>
-        <span style={{ fontSize: 36, fontWeight: 700, lineHeight: 1, color: 'var(--text)' }}>
+      {/* Large headcount display for quick visual reference during a session -- click to shortlist to only attended students, click again to show everyone */}
+      <div onClick={() => setShowOnlyAttended(v => !v)} title="Click to shortlist to attended students only"
+        style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 10, cursor: 'pointer' }}>
+        <span style={{ fontSize: 36, fontWeight: 700, lineHeight: 1, color: showOnlyAttended ? '#1D9E75' : 'var(--text)' }}>
           {Object.values(attendance).filter(v => v && v !== 'none').length}
         </span>
         <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-          attending today
+          attending today{showOnlyAttended ? ' (shortlisted)' : ''}
           <span style={{ marginLeft: 6, color: 'var(--text-tertiary)' }}>
             ({Object.values(attendance).filter(v => v === 'full_kit').length} full kit)
           </span>
@@ -774,6 +797,11 @@ export default function Registers() {
             if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); if (attendHistory.length > 0) { setAttendFuture(f => [attendance, ...f]); setAttendance(attendHistory[attendHistory.length-1]); setAttendHistory(h => h.slice(0,-1)) } }
             if ((e.ctrlKey || e.metaKey) && e.key === 'y') { e.preventDefault(); if (attendFuture.length > 0) { setAttendHistory(h => [...h, attendance]); setAttendance(attendFuture[0]); setAttendFuture(f => f.slice(1)) } }
           }}>
+          {selectedClass && (
+            <div style={{ marginBottom: 8 }}>
+              <Link to={`/classes?class_id=${selectedClass.id}`} className="btn btn-sm">📋 View class</Link>
+            </div>
+          )}
           <table style={{ minWidth: isKR ? 900 : 680 }}>
             <thead>
               <tr>

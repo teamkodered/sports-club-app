@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 
@@ -6,6 +7,7 @@ const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sun
 
 export default function Classes() {
   const { isAdmin } = useAuth()
+  const [searchParams] = useSearchParams()
   const [classes, setClasses]   = useState([])
   const [teams, setTeams]       = useState([]) // dynamic from settings
   const [loading, setLoading]   = useState(true)
@@ -13,10 +15,53 @@ export default function Classes() {
   const [editing, setEditing]   = useState(null)
   const [saving, setSaving]     = useState(false)
   const [form, setForm]         = useState({ name: '', discipline: 'PKA', day_of_week: 'Monday', start_time: '', end_time: '', age_category: '', instructor: '', description: '', active: true })
+  const [viewingClass, setViewingClass] = useState(null)
+  const [classStudents, setClassStudents] = useState([])
+  const [allStudents, setAllStudents] = useState([])
+  const [addStudentSearch, setAddStudentSearch] = useState('')
+  const [highlightedClassId, setHighlightedClassId] = useState(null)
   const nameRef = useRef(null)
 
   useEffect(() => { load() }, [])
+  useEffect(() => {
+    const classId = searchParams.get('class_id')
+    if (!classId || loading) return
+    setHighlightedClassId(classId)
+    setTimeout(() => {
+      const el = document.getElementById(`class-${classId}`)
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 100)
+    setTimeout(() => setHighlightedClassId(null), 3000)
+  }, [searchParams, loading])
   useEffect(() => { if (adding) setTimeout(() => nameRef.current?.focus(), 100) }, [adding])
+
+  async function openClassStudents(cls) {
+    setViewingClass(cls)
+    setAddStudentSearch('')
+    const { data } = await supabase.from('student_class_assignments')
+      .select('id, student_id, students(id, student_ref, members(first_name, last_name))')
+      .eq('class_id', cls.id)
+    setClassStudents(data || [])
+    if (!allStudents.length) {
+      const { data: s } = await supabase.from('students').select('id, members(first_name, last_name)').order('id')
+      setAllStudents(s || [])
+    }
+  }
+
+  async function addStudentToClass(studentId) {
+    const { data, error } = await supabase.from('student_class_assignments')
+      .insert({ student_id: studentId, class_id: viewingClass.id })
+      .select('id, student_id, students(id, student_ref, members(first_name, last_name))').single()
+    if (error) { alert('Error adding student: ' + error.message); return }
+    setClassStudents(prev => [...prev, data])
+    setAddStudentSearch('')
+  }
+
+  async function removeStudentFromClass(assignmentId) {
+    const { error } = await supabase.from('student_class_assignments').delete().eq('id', assignmentId)
+    if (error) { alert('Error removing student: ' + error.message); return }
+    setClassStudents(prev => prev.filter(a => a.id !== assignmentId))
+  }
 
   async function load() {
     const [{ data: c }, { data: s }] = await Promise.all([
@@ -110,11 +155,13 @@ export default function Classes() {
             {dayClasses.map(cls => {
               const colour = cls.discipline === 'PKA' ? '#378add' : cls.discipline === 'KRBA' ? '#e24b4a' : '#1d9e75'
               return (
-                <div key={cls.id} className="card" style={{
+                <div key={cls.id} id={`class-${cls.id}`} className="card" style={{
                   display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px',
                   opacity: cls.active ? 1 : 0.5,
                   borderLeft: `3px solid ${colour}`,
                   borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0',
+                  boxShadow: highlightedClassId === cls.id ? `0 0 0 3px ${colour}` : 'none',
+                  transition: 'box-shadow 0.3s',
                 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -127,9 +174,13 @@ export default function Classes() {
                       {cls.age_category && <span>👥 {cls.age_category}</span>}
                       {cls.instructor && <span>👤 {cls.instructor}</span>}
                     </div>
+                    {cls.description && (
+                      <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4, lineHeight: 1.4 }}>{cls.description}</div>
+                    )}
                   </div>
                   {isAdmin && (
                     <div style={{ display: 'flex', gap: 6 }}>
+                      <button className="btn btn-sm" onClick={() => openClassStudents(cls)}>View</button>
                       <button className="btn btn-sm" onClick={() => startEdit(cls)}>Edit</button>
                       <button className="btn btn-sm" onClick={() => duplicateClass(cls)}>Duplicate</button>
                       <button className="btn btn-sm" onClick={() => toggleActive(cls)}>{cls.active ? 'Deactivate' : 'Activate'}</button>
@@ -196,6 +247,52 @@ export default function Classes() {
                 {saving ? 'Saving…' : editing ? 'Save changes' : 'Add class'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {viewingClass && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}
+          onClick={() => setViewingClass(null)}>
+          <div className="card" style={{ width: '95vw', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto', padding: 20 }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 600 }}>{viewingClass.name}</h2>
+              <button onClick={() => setViewingClass(null)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>
+              {viewingClass.day_of_week} · {viewingClass.start_time?.slice(0,5)}{viewingClass.end_time ? `–${viewingClass.end_time.slice(0,5)}` : ''}
+            </p>
+
+            <div style={{ position: 'relative', marginBottom: 12 }}>
+              <input value={addStudentSearch} onChange={e => setAddStudentSearch(e.target.value)}
+                placeholder="🔍 Search a student to add…" style={{ width: '100%' }} />
+              {addStudentSearch && (
+                <div className="card" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20, marginTop: 4, padding: 4, maxHeight: 220, overflowY: 'auto' }}>
+                  {allStudents.filter(s => !classStudents.some(cs => cs.student_id === s.id))
+                    .filter(s => `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.toLowerCase().includes(addStudentSearch.toLowerCase()))
+                    .slice(0, 10).map(s => (
+                    <button key={s.id} onClick={() => addStudentToClass(s.id)}
+                      style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, borderRadius: 6, color: 'var(--text)', fontFamily: 'var(--font-sans)' }}>
+                      {s.members?.first_name} {s.members?.last_name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>{classStudents.length} student{classStudents.length === 1 ? '' : 's'}</p>
+            {classStudents.length === 0 ? (
+              <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No students assigned to this class yet.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {classStudents.map(a => (
+                  <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: 13 }}>
+                    <span>{a.students?.members?.first_name} {a.students?.members?.last_name}</span>
+                    <button className="btn btn-sm" onClick={() => removeStudentFromClass(a.id)}>Remove</button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
