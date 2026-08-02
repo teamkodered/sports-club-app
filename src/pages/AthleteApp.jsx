@@ -417,7 +417,6 @@ const TEST_CATEGORIES = [
 ]
 
 const MENTALITY_QUESTIONS = [
-  { key: 'videoAnalysis',   label: 'Video analysis',   icon: '🎥' },
   { key: 'meditation',      label: 'Meditation',       icon: '🧘' },
   { key: 'visualisation',   label: 'Visualisation',    icon: '🎯' },
   { key: 'chess',           label: 'Play chess',       icon: '♟️' },
@@ -497,13 +496,13 @@ function computeModuleStats(sorted, key, subType) {
     if (key === 'running') {
       entries = sorted.flatMap(s => toEntries(s.running)
         .filter(e => !subType || e.category === subType)
-        .flatMap(e => (Array.isArray(e.sets) ? e.sets : []).filter(v => v !== '' && v != null).map(v => ({ date: s.session_date, value: v }))))
+        .flatMap(e => (Array.isArray(e.sets) ? e.sets : []).filter(v => v !== '' && v != null).map(v => ({ date: s.session_date, value: v, id: s.id }))))
       higherIsBetter = subType === 'Interval'
       allTypeEntries = entries // different categories mix time vs distance -- PB stays scoped to the selected type
     } else if (key === 'watt_bike') {
       entries = sorted.flatMap(s => toEntries(s.watt_bike)
         .filter(e => !subType || normalizeIntervalMode(e.interval_mode || e.type) === subType)
-        .map(e => ({ date: s.session_date, value: numSets(e.sets).length ? Math.max(...numSets(e.sets)) : null }))
+        .map(e => ({ date: s.session_date, value: numSets(e.sets).length ? Math.max(...numSets(e.sets)) : null, id: s.id }))
         .filter(e => e.value != null))
       unit = 'W'
       // PB spans every interval mode -- same unit/direction throughout,
@@ -515,19 +514,19 @@ function computeModuleStats(sorted, key, subType) {
     } else if (key === 'bodyweight') {
       entries = sorted.flatMap(s => toEntries(s.bodyweight)
         .filter(e => !subType || e.type === subType)
-        .map(e => ({ date: s.session_date, value: numSets(e.sets).length ? Math.max(...numSets(e.sets)) : null }))
+        .map(e => ({ date: s.session_date, value: numSets(e.sets).length ? Math.max(...numSets(e.sets)) : null, id: s.id }))
         .filter(e => e.value != null))
       unit = ' reps'
       allTypeEntries = sorted.flatMap(s => toEntries(s.bodyweight)
         .map(e => ({ date: s.session_date, value: numSets(e.sets).length ? Math.max(...numSets(e.sets)) : null }))
         .filter(e => e.value != null))
     } else if (key === 'test') {
-      entries = subType ? sorted.filter(s => s.test?.[subType] != null).map(s => ({ date: s.session_date, value: s.test[subType] })) : []
+      entries = subType ? sorted.filter(s => s.test?.[subType] != null).map(s => ({ date: s.session_date, value: s.test[subType], id: s.id })) : []
       higherIsBetter = !['200m sprint', '1600m time trial', '4800m time trial'].includes(subType)
       allTypeEntries = entries // different tests mix units entirely -- PB stays scoped to the selected test
     } else if (key === 'techniques') {
       const filtered = sorted.filter(s => !subType || s.techniques?.type === subType)
-      entries = filtered.map(s => ({ date: s.session_date, value: numSets(s.techniques?.sets).length ? Math.max(...numSets(s.techniques?.sets)) : null })).filter(e => e.value != null)
+      entries = filtered.map(s => ({ date: s.session_date, value: numSets(s.techniques?.sets).length ? Math.max(...numSets(s.techniques?.sets)) : null, id: s.id })).filter(e => e.value != null)
       allTypeEntries = entries
     }
     const mostRecent = entries[entries.length - 1] || null
@@ -560,7 +559,7 @@ function computeLastLogged(sorted, key) {
 // Defined at module scope (not inside the page component's render) so
 // React treats it as a stable component across renders, rather than
 // unmounting/remounting it every time the parent re-renders.
-function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setTab, studentId, onToggleLog, onQuickLog, large }) {
+function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setTab, setResultsGraphSection, studentId, onToggleLog, onQuickLog, large }) {
   const subTypeOptions = getSubTypeOptions(sorted, b.key)
   const currentSubType = moduleSubType[b.key] ?? subTypeOptions[0] ?? null
   const noNumericStat = ['stretch', 'eye_training', 'one_percenters', 'mentality', 'wellbeing'].includes(b.key)
@@ -659,7 +658,21 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
           dedicated card grids below instead. Next arrow sits right
           after it when this card can cycle sub-types. */}
       {!isSimplifiedModule && (
-      <button onClick={() => setTab('fit2fight')} style={{
+      <button onClick={() => {
+        const sectionIndex = { watt_bike: 1, running: 2, bodyweight: 6, techniques: 7 }[b.key]
+        if (sectionIndex != null) setResultsGraphSection(sectionIndex)
+        setTab('fit2fight')
+        const targetId = mostRecent?.id || (lastLogged && sorted.filter(s => {
+          if (b.key === 'stretch') return s.stretch_flows?.some?.(Boolean)
+          return false
+        }).slice(-1)[0]?.id)
+        if (targetId) {
+          setTimeout(() => {
+            const el = document.getElementById(`my-f2f-entry-${targetId}`)
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          }, 150)
+        }
+      }} style={{
         width: 58, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         padding: '8px 4px', background: 'none', border: 'none', cursor: 'pointer',
       }}>
@@ -703,6 +716,19 @@ const PDP_SECTIONS = [
 export default function AthleteApp() {
   const { profile, isStaff } = useAuth()
   const [tab, setTab]           = useState('home')
+
+  // Handle the redirect back from Whoop's OAuth flow
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('whoop_connected')) {
+      setTab('whoop')
+      window.history.replaceState({}, '', window.location.pathname)
+    } else if (params.get('whoop_error')) {
+      alert('There was a problem connecting Whoop: ' + params.get('whoop_error'))
+      setTab('whoop')
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [])
   const [checkingIn, setCheckingIn]   = useState(false)
   const [checkedInMsg, setCheckedInMsg] = useState(null)
   const [activeCheckIn, setActiveCheckIn] = useState(null) // the open attendance row (checked in, not yet checked out) if still within its session window
@@ -718,6 +744,8 @@ export default function AthleteApp() {
   const [assignedClasses, setAssignedClasses] = useState([])
   const [myNotesLog, setMyNotesLog] = useState([])
   const [tptData, setTptData] = useState({ kickboxing: [], boxing: [] })
+  const [whoopConnection, setWhoopConnection] = useState(null)
+  const [whoopSessions, setWhoopSessions] = useState([])
   const [newNoteText, setNewNoteText] = useState('')
   const [showFullscreenNoteComposer, setShowFullscreenNoteComposer] = useState(false)
   const [savingNote, setSavingNote] = useState(false)
@@ -1002,6 +1030,11 @@ export default function AthleteApp() {
           .then(({ data, error }) => { if (!error) setTptData(prev => ({ ...prev, kickboxing: data || [] })) })
         supabase.from('tpt_boxing').select('*').eq('student_id', s.id).order('assessed_at', { ascending: false }).limit(2)
           .then(({ data, error }) => { if (!error) setTptData(prev => ({ ...prev, boxing: data || [] })) })
+
+        supabase.from('whoop_connections').select('*').eq('student_id', s.id).maybeSingle()
+          .then(({ data }) => setWhoopConnection(data || null))
+        supabase.from('whoop_sessions').select('*').eq('student_id', s.id).order('start_time', { ascending: false }).limit(20)
+          .then(({ data, error }) => { if (!error) setWhoopSessions(data || []) })
 
         supabase.from('classes').select('*').eq('active', true).order('day_of_week').order('start_time')
           .then(({ data, error }) => { if (!error) setAllClasses(data || []) })
@@ -1681,7 +1714,7 @@ export default function AthleteApp() {
                         </div>
                         <button onClick={() => setF2fStatsScope(v => v + 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4, appearance: 'none', WebkitAppearance: 'none', fontFamily: 'var(--font-sans)' }}>▶</button>
                       </div>
-                      <a href={`/fit2fight?student_id=${student.id}`} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg)', textDecoration: 'none', color: 'inherit', display: 'block' }}>
+                      <a href={`/fit2fight?student_id=${student.id}`} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', textDecoration: 'none', color: 'inherit', display: 'block' }}>
                         <div style={{ fontSize: 22, marginBottom: 4 }}>🔥</div>
                         <div style={{ fontSize: 22, fontWeight: 700, color: '#378ADD' }}>
                           {(() => {
@@ -1692,7 +1725,7 @@ export default function AthleteApp() {
                         </div>
                         <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>F2F Results</div>
                       </a>
-                      <button onClick={() => setTab('pdp')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg)', appearance: 'none', WebkitAppearance: 'none' }}>
+                      <button onClick={() => setTab('pdp')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none' }}>
                         <div style={{ fontSize: 22, marginBottom: 4 }}>🎯</div>
                         <div style={{ fontSize: 22, fontWeight: 700, color: '#EF9F27' }}>
                           {myNotesLog.filter(n => n.note_text?.startsWith('Completed PDP task') && !/weigh/i.test(n.note_text)).length}
@@ -1718,10 +1751,10 @@ export default function AthleteApp() {
                     }}>
                     <div style={{ display: 'grid', gridTemplateColumns: activePhysicalCategory && (activePhysicalCategory === 'running' || activePhysicalCategory === 'watt_bike') ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 8 }}>
                       {(!activePhysicalCategory || activePhysicalCategory === 'running') && (
-                        <ModuleButton b={modules[0]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'running'} />
+                        <ModuleButton b={modules[0]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setResultsGraphSection={setResultsGraphSection} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'running'} />
                       )}
                       {(!activePhysicalCategory || activePhysicalCategory === 'watt_bike') && (
-                        <ModuleButton b={modules[1]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'watt_bike'} />
+                        <ModuleButton b={modules[1]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setResultsGraphSection={setResultsGraphSection} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'watt_bike'} />
                       )}
                     </div>
                     {showRunCards && (
@@ -1843,10 +1876,10 @@ export default function AthleteApp() {
 
                     <div style={{ display: 'grid', gridTemplateColumns: activePhysicalCategory && (activePhysicalCategory === 'bodyweight' || activePhysicalCategory === 'stretch') ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 8 }}>
                       {(!activePhysicalCategory || activePhysicalCategory === 'bodyweight') && (
-                        <ModuleButton b={modules[2]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'bodyweight'} />
+                        <ModuleButton b={modules[2]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setResultsGraphSection={setResultsGraphSection} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'bodyweight'} />
                       )}
                       {(!activePhysicalCategory || activePhysicalCategory === 'stretch') && (
-                        <ModuleButton b={modules[3]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'stretch'} />
+                        <ModuleButton b={modules[3]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setResultsGraphSection={setResultsGraphSection} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'stretch'} />
                       )}
                     </div>
                     {showBodyweightCards && (
@@ -2116,24 +2149,55 @@ export default function AthleteApp() {
                       maxHeight: showTacticalSection ? 8000 : 0, opacity: showTacticalSection ? 1 : 0,
                     }}>
                     <div style={{ display: 'grid', gridTemplateColumns: expandedTacticalCategory ? '1fr' : 'repeat(3, 1fr)', gap: 8, marginBottom: 8 }}>
-                      {Object.keys(TACTICAL_CATEGORIES).filter(cat => !expandedTacticalCategory || expandedTacticalCategory === cat).map(cat => {
-                        const active = expandedTacticalCategory === cat
-                        const count = todaysTactical.filter(t => t.category === cat).length
+                      {(expandedTacticalCategory ? [] : ['__videoAnalysis__']).concat(Object.keys(TACTICAL_CATEGORIES)).filter(cat => !expandedTacticalCategory || expandedTacticalCategory === cat).map(cat => {
+                        if (cat === '__videoAnalysis__') {
+                          const active = expandedTacticalCategory === cat
+                          const complete = !!todaysMentalityLog.videoAnalysis?.type
+                          return (
+                            <button key={cat} type="button" onClick={() => setExpandedTacticalCategory(active ? null : cat)} style={{
+                              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: active ? '16px 8px' : '10px 6px',
+                              borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                              border: `2px solid ${active ? '#E24B4A' : complete ? '#1D9E75' : 'var(--border)'}`,
+                              background: complete ? '#1D9E7512' : 'var(--bg-secondary)',
+                            }}>
+                              <span style={{ fontSize: active ? 20 : 16 }}>🎥</span>
+                              <span style={{ fontSize: active ? 14 : 9, fontWeight: active ? 700 : 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>Video Analysis</span>
+                            </button>
+                          )
+                        }
+                        const cat_ = cat
+                        const active = expandedTacticalCategory === cat_
+                        const count = todaysTactical.filter(t => t.category === cat_).length
                         return (
-                          <button key={cat} type="button"
-                            onClick={() => setExpandedTacticalCategory(active ? null : cat)}
+                          <button key={cat_} type="button"
+                            onClick={() => setExpandedTacticalCategory(active ? null : cat_)}
                             style={{
                               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: active ? '16px 8px' : '10px 6px',
                               borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                               border: `2px solid ${active ? '#E24B4A' : count ? '#1D9E75' : 'var(--border)'}`,
                               background: count ? '#1D9E7512' : 'var(--bg-secondary)',
                             }}>
-                            <span style={{ fontSize: active ? 14 : 9, fontWeight: active ? 700 : 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat}</span>
+                            <span style={{ fontSize: active ? 14 : 9, fontWeight: active ? 700 : 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat_}</span>
                             {count > 0 && <span style={{ fontSize: active ? 10 : 8, color: '#1D9E75' }}>{count} selected</span>}
                           </button>
                         )
                       })}
                     </div>
+                    {expandedTacticalCategory === '__videoAnalysis__' && (
+                      <div className="card" style={{ marginBottom: 8 }}>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+                          <button type="button" className="btn btn-sm" onClick={() => clearMentalityQuestion('videoAnalysis')} style={{ fontSize: 11 }}>✕ Clear</button>
+                        </div>
+                        <div className="field" style={{ marginBottom: 0 }}><label>Type</label>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                            {VIDEO_ANALYSIS_OPTIONS.map(v => (
+                              <button key={v} type="button" onClick={() => saveMentalityField('videoAnalysis', () => ({ type: v }))}
+                                className="btn btn-sm" style={{ background: todaysMentalityLog.videoAnalysis?.type === v ? '#6D28D920' : undefined, borderColor: todaysMentalityLog.videoAnalysis?.type === v ? '#6D28D9' : undefined }}>{v}</button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     {Object.entries(TACTICAL_CATEGORIES).map(([cat, items]) => {
                       if (expandedTacticalCategory !== cat) return null
                       return (
@@ -2212,16 +2276,6 @@ export default function AthleteApp() {
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                           <button type="button" className="btn btn-sm" onClick={() => clearMentalityQuestion(expandedHomeMentality)} style={{ fontSize: 11 }}>✕ Clear</button>
                         </div>
-                        {expandedHomeMentality === 'videoAnalysis' && (
-                          <div className="field" style={{ marginBottom: 0 }}><label>Type</label>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                              {VIDEO_ANALYSIS_OPTIONS.map(v => (
-                                <button key={v} type="button" onClick={() => saveMentalityField('videoAnalysis', () => ({ type: v }))}
-                                  className="btn btn-sm" style={{ background: todaysMentalityLog.videoAnalysis?.type === v ? '#6D28D920' : undefined, borderColor: todaysMentalityLog.videoAnalysis?.type === v ? '#6D28D9' : undefined }}>{v}</button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
                         {expandedHomeMentality === 'meditation' && (
                           <div className="field" style={{ marginBottom: 0 }}><label>Type</label>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -2885,7 +2939,7 @@ export default function AthleteApp() {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8 }}>
                 {[
-                  { label: 'Whoop', icon: '⌚', colour: '#1D9E75', tab: null },
+                  { label: 'Whoop', icon: '⌚', colour: '#1D9E75', tab: 'whoop' },
                   { label: 'TTP', icon: '📊', colour: '#E24B4A', tab: 'tpt' },
                 ].map(l => (
                   <button key={l.label} onClick={() => l.tab && setTab(l.tab)} style={{
@@ -3372,6 +3426,72 @@ export default function AthleteApp() {
                 </div>
               )}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Whoop ── */}
+      {tab === 'whoop' && (
+        <div>
+          {!whoopConnection ? (
+            <div className="card" style={{ textAlign: 'center', padding: 24 }}>
+              <div style={{ fontSize: 40, marginBottom: 10 }}>⌚</div>
+              <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Connect your Whoop</h3>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
+                Link your Whoop account to bring your workout summaries (strain, heart rate, calories) into your profile.
+                Data appears here shortly after each workout ends — not live during the session.
+              </p>
+              <button className="btn btn-primary" onClick={() => {
+                const clientId = import.meta.env.VITE_WHOOP_CLIENT_ID
+                const redirectUri = import.meta.env.VITE_WHOOP_REDIRECT_URI
+                const scope = 'read:workout read:profile offline'
+                const authUrl = `https://api.prod.whoop.com/oauth/oauth2/auth?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${student.id}`
+                window.location.href = authUrl
+              }}>Connect Whoop →</button>
+            </div>
+          ) : (
+            <>
+              <div className="card" style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#1D9E75' }}>✓ Whoop connected</span>
+                <button className="btn btn-sm" onClick={async () => {
+                  if (!confirm('Disconnect Whoop? Past session summaries will stay, but new ones will stop coming in.')) return
+                  await supabase.from('whoop_connections').delete().eq('student_id', student.id)
+                  setWhoopConnection(null)
+                }}>Disconnect</button>
+              </div>
+              {whoopSessions.length === 0 ? (
+                <div className="empty-state"><h3>No Whoop sessions yet</h3><p>Summaries appear here shortly after each completed workout</p></div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {whoopSessions.map(s => (
+                    <div key={s.id} className="card">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                        <h3 style={{ fontSize: 13, fontWeight: 600 }}>{s.sport_name || 'Workout'}</h3>
+                        <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{s.start_time ? new Date(s.start_time).toLocaleDateString('en-GB') : '—'}</span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, textAlign: 'center' }}>
+                        <div>
+                          <div style={{ fontSize: 16, fontWeight: 700, color: '#1D9E75' }}>{s.strain != null ? s.strain.toFixed(1) : '—'}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Strain</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 16, fontWeight: 700 }}>{s.avg_heart_rate ?? '—'}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Avg HR</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 16, fontWeight: 700 }}>{s.max_heart_rate ?? '—'}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Max HR</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 16, fontWeight: 700 }}>{s.calories != null ? Math.round(s.calories) : '—'}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Calories</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       )}

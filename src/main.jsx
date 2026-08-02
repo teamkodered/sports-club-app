@@ -36,6 +36,7 @@ import Fit2FightForm from './pages/Fit2FightForm.jsx'
 import BoxingTPTForm from './pages/BoxingTPTForm.jsx'
 import AthleteApp from './pages/AthleteApp.jsx'
 import CheckInPublic from './pages/CheckInPublic.jsx'
+import WhoopDisplayBoard from './pages/WhoopDisplayBoard.jsx'
 import Layout from './components/shared/Layout.jsx'
 
 function ProtectedRoute({ children, adminOnly = false, staffOnly = false }) {
@@ -63,6 +64,7 @@ function App() {
           <Route path="/grading"         element={<GradingExpression />} />
           <Route path="/league-public"   element={<LeaguePublic />} />
           <Route path="/checkin-public"  element={<CheckInPublic />} />
+          <Route path="/whoop-board"     element={<WhoopDisplayBoard />} />
           <Route path="/athlete-app"     element={<ProtectedRoute><AthleteApp /></ProtectedRoute>} />
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>

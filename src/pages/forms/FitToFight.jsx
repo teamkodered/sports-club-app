@@ -349,6 +349,8 @@ export default function FitToFight() {
   const [techniqueTypes, setTechniqueTypes]   = useState(DEFAULT_TECHNIQUE_TYPES)
   const [intervalModes, setIntervalModes]     = useState([...DEFAULT_INTERVAL_MODES, 'Custom'])
   const [student, setStudent] = useState({ first_name: '', last_name: '' })
+  const [whoopSessionOptions, setWhoopSessionOptions] = useState([])
+  const [selectedWhoopSessionId, setSelectedWhoopSessionId] = useState('')
   const [sessionDate, setSessionDate] = useState(() => searchParams.get('date') || new Date().toISOString().split('T')[0])
   const [weightBefore, setWeightBefore] = useState('')
   const [weightAfter, setWeightAfter]   = useState('')
@@ -426,6 +428,23 @@ export default function FitToFight() {
       })
   }, [])
   useEffect(() => { if (view === 'history') loadHistory() }, [view])
+
+  // Fetch this student's Whoop sessions whenever the selected student
+  // changes, so the "link to Whoop session" dropdown can offer them --
+  // defaulting to the most recent one.
+  useEffect(() => {
+    if (!student.id) { setWhoopSessionOptions([]); setSelectedWhoopSessionId(''); return }
+    supabase.from('whoop_sessions').select('id, sport_name, start_time, strain, avg_heart_rate')
+      .eq('student_id', student.id)
+      .order('start_time', { ascending: false })
+      .limit(20)
+      .then(({ data, error }) => {
+        if (error) return
+        setWhoopSessionOptions(data || [])
+        setSelectedWhoopSessionId(data && data.length ? data[0].id : '')
+      })
+  }, [student.id])
+
   useEffect(() => {
     if (isAdmin || !profile?.id) return
     supabase.from('students').select('id, members(first_name, last_name)')
@@ -524,6 +543,7 @@ export default function FitToFight() {
       wellbeing:      enabled.wellbeing      ? wellbeing     : null,
       trained_further: trainedFurther,
       notes,
+      whoop_session_id: selectedWhoopSessionId || null,
     }
     const { error } = await supabase.from('fit2fight_sessions').insert(payload)
     if (!error) {
@@ -639,6 +659,20 @@ export default function FitToFight() {
                 </div>
               )}
               <div className="field"><label>Session date</label><input type="date" value={sessionDate} onChange={e => setSessionDate(e.target.value)} /></div>
+              {whoopSessionOptions.length > 0 && (
+                <div className="field">
+                  <label>⌚ Link to Whoop session <span style={{ color: 'var(--text-tertiary)', fontWeight: 400 }}>(optional)</span></label>
+                  <select value={selectedWhoopSessionId} onChange={e => setSelectedWhoopSessionId(e.target.value)}>
+                    <option value="">None</option>
+                    {whoopSessionOptions.map(w => (
+                      <option key={w.id} value={w.id}>
+                        {w.start_time ? new Date(w.start_time).toLocaleDateString('en-GB') : '—'} — {w.sport_name || 'Workout'}
+                        {w.strain != null ? ` (Strain ${w.strain.toFixed(1)})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
                 {[
                   { label: 'Weight before', val: weightBefore, set: setWeightBefore, unit: 'kg' },

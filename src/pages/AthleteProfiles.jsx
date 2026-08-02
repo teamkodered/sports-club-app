@@ -421,7 +421,6 @@ const TEST_CATEGORIES = [
 ]
 
 const MENTALITY_QUESTIONS = [
-  { key: 'videoAnalysis',   label: 'Video analysis',   icon: '🎥' },
   { key: 'meditation',      label: 'Meditation',       icon: '🧘' },
   { key: 'visualisation',   label: 'Visualisation',    icon: '🎯' },
   { key: 'chess',           label: 'Play chess',       icon: '♟️' },
@@ -485,6 +484,25 @@ const DASHBOARD_SECTIONS = [
   { key: 'wellbeing', icon: '🌱', label: 'Wellbeing', subItems: WELLBEING_QUESTIONS.map(q => ({ key: q.key, label: q.label, wellbeingQ: q.key })) },
   { key: 'test', icon: '📋', label: 'Test', subItems: TEST_CATEGORIES.map(c => ({ key: c.key, label: c.label, testCategory: c })) },
 ]
+
+// Real preset options for a given section/question, so setting a
+// target can pick from the question's own actual sub-type options
+// (its real test names) rather than typing a value freely -- keeps
+// targets consistent with what's actually logged. Falls back to
+// free text (returns []) where there's no clear structured source.
+function getPresetOptionsForQuestion(sectionKey, questionKey) {
+  if (sectionKey === 'physical') {
+    if (questionKey === 'running') return Object.values(RUN_PRESET_TESTS).flat()
+    if (questionKey === 'watt_bike') return [...WATT_BIKE_PRESETS.output, ...WATT_BIKE_PRESETS.standard, ...WATT_BIKE_PRESETS.distance]
+    if (questionKey === 'bodyweight') return BODYWEIGHT_GROUPS.flatMap(g => g.exercises)
+  }
+  if (sectionKey === 'test') {
+    const cat = TEST_CATEGORIES.find(c => c.key === questionKey)
+    return cat ? cat.tests.map(t => t.name) : []
+  }
+  if (sectionKey === 'tactical') return TACTICAL_CATEGORIES[questionKey] || []
+  return []
+}
 
 // Phase 2 of targets: question-level numeric rules. Maps a
 // Wellbeing question key to how to pull a genuinely comparable
@@ -608,26 +626,26 @@ function computeModuleStats(sorted, key, subType) {
     if (key === 'running') {
       entries = sorted.flatMap(s => toEntries(s.running)
         .filter(e => !subType || e.category === subType)
-        .flatMap(e => (Array.isArray(e.sets) ? e.sets : []).filter(v => v !== '' && v != null).map(v => ({ date: s.session_date, value: v }))))
+        .flatMap(e => (Array.isArray(e.sets) ? e.sets : []).filter(v => v !== '' && v != null).map(v => ({ date: s.session_date, value: v, id: s.id }))))
       higherIsBetter = subType === 'Interval'
     } else if (key === 'watt_bike') {
       entries = sorted.flatMap(s => toEntries(s.watt_bike)
         .filter(e => !subType || normalizeIntervalMode(e.interval_mode || e.type) === subType)
-        .map(e => ({ date: s.session_date, value: numSets(e.sets).length ? Math.max(...numSets(e.sets)) : null }))
+        .map(e => ({ date: s.session_date, value: numSets(e.sets).length ? Math.max(...numSets(e.sets)) : null, id: s.id }))
         .filter(e => e.value != null))
       unit = 'W'
     } else if (key === 'bodyweight') {
       entries = sorted.flatMap(s => toEntries(s.bodyweight)
         .filter(e => !subType || e.type === subType)
-        .map(e => ({ date: s.session_date, value: numSets(e.sets).length ? Math.max(...numSets(e.sets)) : null }))
+        .map(e => ({ date: s.session_date, value: numSets(e.sets).length ? Math.max(...numSets(e.sets)) : null, id: s.id }))
         .filter(e => e.value != null))
       unit = ' reps'
     } else if (key === 'test') {
-      entries = subType ? sorted.filter(s => s.test?.[subType] != null).map(s => ({ date: s.session_date, value: s.test[subType] })) : []
+      entries = subType ? sorted.filter(s => s.test?.[subType] != null).map(s => ({ date: s.session_date, value: s.test[subType], id: s.id })) : []
       higherIsBetter = !['200m sprint', '1600m time trial', '4800m time trial'].includes(subType)
     } else if (key === 'techniques') {
       const filtered = sorted.filter(s => !subType || s.techniques?.type === subType)
-      entries = filtered.map(s => ({ date: s.session_date, value: numSets(s.techniques?.sets).length ? Math.max(...numSets(s.techniques?.sets)) : null }))
+      entries = filtered.map(s => ({ date: s.session_date, value: numSets(s.techniques?.sets).length ? Math.max(...numSets(s.techniques?.sets)) : null, id: s.id }))
         .filter(e => e.value != null)
     }
     const mostRecent = entries[entries.length - 1] || null
@@ -689,10 +707,22 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
   }
 
   function goToChart() {
-    let targetId = CHART_IDS[b.key]
-    if (b.key === 'test' && currentSubType) targetId = TEST_CHART_IDS[currentSubType]
     if (b.key === 'running' && currentSubType) setRunChartFilter('all')
     setTab('fit2fight')
+    // Scroll to the specific most-recent entry for this module, not
+    // just the top of its chart section -- falls back to the chart
+    // section itself if there's no specific entry id to target (e.g.
+    // stretch, which has no dedicated chart).
+    let entryId = mostRecent?.id
+    if (!entryId && b.key === 'stretch') {
+      entryId = sorted.filter(s => s.stretch_flows?.some?.(Boolean)).slice(-1)[0]?.id
+    }
+    if (entryId) {
+      setTimeout(() => document.getElementById(`f2f-entry-${entryId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100)
+      return
+    }
+    let targetId = CHART_IDS[b.key]
+    if (b.key === 'test' && currentSubType) targetId = TEST_CHART_IDS[currentSubType]
     if (targetId) {
       setTimeout(() => document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100)
     }
@@ -1769,6 +1799,7 @@ export default function AthleteProfiles() {
   const [showAddTarget, setShowAddTarget] = useState(false)
   const [newTargetSection, setNewTargetSection] = useState('physical')
   const [newTargetQuestion, setNewTargetQuestion] = useState('')
+  const [newTargetPreset, setNewTargetPreset] = useState('')
   const [newTargetValue, setNewTargetValue] = useState('')
   const [newTargetNotes, setNewTargetNotes] = useState('')
   const [savingTarget, setSavingTarget] = useState(false)
@@ -1796,6 +1827,8 @@ export default function AthleteProfiles() {
   const [weightTargetPctOutComp, setWeightTargetPctOutComp] = useState(0.05)
   const [weightTargetActiveMode, setWeightTargetActiveMode] = useState('in_comp') // 'in_comp' | 'out_comp' -- global toggle, overrides each athlete's own in_comp status
   const [showWeightOverridePopup, setShowWeightOverridePopup] = useState(false)
+  const [whoopConnection, setWhoopConnection] = useState(null)
+  const [whoopSessions, setWhoopSessions] = useState([])
   const [showAllWeightsGraph, setShowAllWeightsGraph] = useState(false)
   const [weightOverrideType, setWeightOverrideType] = useState('actual') // 'actual' | 'percent'
   const [weightOverrideValue, setWeightOverrideValue] = useState('')
@@ -2472,13 +2505,14 @@ export default function AthleteProfiles() {
     const { data, error } = await supabase.from('team_targets').insert({
       section_key: newTargetSection,
       question_label: newTargetQuestion.trim() || null,
+      preset_label: newTargetPreset.trim() || null,
       target_value: finalValue,
       notes: newTargetNotes.trim() || null,
       student_id: targetAthlete?.id || null,
     }).select('*').single()
     if (error) { alert('Error saving target: ' + error.message); setSavingTarget(false); return }
     setTeamTargets(prev => [...prev, data].sort((a, b) => a.section_key.localeCompare(b.section_key)))
-    setNewTargetQuestion(''); setNewTargetValue(''); setNewTargetNotes('')
+    setNewTargetQuestion(''); setNewTargetPreset(''); setNewTargetValue(''); setNewTargetNotes('')
     setTargetFreqNumber(''); setTargetFreqPeriod('day'); setTargetUseFreeText(false)
     setTargetAthlete(null); setTargetAthleteSearch('')
     setShowAddTarget(false)
@@ -2493,6 +2527,8 @@ export default function AthleteProfiles() {
     const sectionConfig = DASHBOARD_SECTIONS.find(s => s.key === newTargetSection)
     const questionOptions = sectionConfig?.subItems || []
     const isSectionLevel = !newTargetQuestion
+    const matchedSubItem = questionOptions.find(q => q.label === newTargetQuestion)
+    const presetOptions = matchedSubItem ? getPresetOptionsForQuestion(newTargetSection, matchedSubItem.key) : []
     const athleteResults = students
       .filter(s => !targetAthleteSearch || `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.toLowerCase().includes(targetAthleteSearch.toLowerCase()))
 
@@ -2505,9 +2541,19 @@ export default function AthleteProfiles() {
         {questionOptions.length > 0 && (
           <div style={{ marginBottom: 8 }}>
             <label style={{ fontSize: 11, color: 'var(--text-tertiary)', display: 'block', marginBottom: 2 }}>Question / metric</label>
-            <select value={newTargetQuestion} onChange={e => setNewTargetQuestion(e.target.value)} style={{ width: '100%' }}>
+            <select value={newTargetQuestion} onChange={e => { setNewTargetQuestion(e.target.value); setNewTargetPreset('') }} style={{ width: '100%' }}>
               <option value="">— Whole section (no specific question) —</option>
               {questionOptions.map(q => <option key={q.key} value={q.label}>{q.label}</option>)}
+            </select>
+          </div>
+        )}
+
+        {presetOptions.length > 0 && (
+          <div style={{ marginBottom: 8 }}>
+            <label style={{ fontSize: 11, color: 'var(--text-tertiary)', display: 'block', marginBottom: 2 }}>Specific test/exercise (optional)</label>
+            <select value={newTargetPreset} onChange={e => setNewTargetPreset(e.target.value)} style={{ width: '100%' }}>
+              <option value="">— Any / general —</option>
+              {presetOptions.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
           </div>
         )}
@@ -3229,6 +3275,10 @@ export default function AthleteProfiles() {
     if (selectingIdRef.current !== s.id) return // a newer selection has since started; don't apply this stale response
     setApData(data || null)
     setAlterEgoWorkbook(data?.alter_ego_workbook || {})
+    supabase.from('whoop_connections').select('*').eq('student_id', s.id).maybeSingle()
+      .then(({ data: wc }) => { if (selectingIdRef.current === s.id) setWhoopConnection(wc || null) })
+    supabase.from('whoop_sessions').select('*').eq('student_id', s.id).order('start_time', { ascending: false }).limit(20)
+      .then(({ data: ws, error }) => { if (!error && selectingIdRef.current === s.id) setWhoopSessions(ws || []) })
     if (data) {
       setEditForm({
         age_division_kickboxing: data.age_division_kickboxing || '',
@@ -3590,7 +3640,7 @@ export default function AthleteProfiles() {
                 const loggedIds = new Set(idList.filter(id => teamIds.has(id)))
                 return { count: loggedIds.size, pct: Math.round((loggedIds.size / teamCount) * 100) }
               }
-              const targetFor = key => teamTargets.find(t => t.section_key === key && !t.question_label && !t.student_id)
+              const targetsFor = key => teamTargets.filter(t => t.section_key === key && !t.question_label && !t.student_id)
 
               const attendedIds = todaysAllAttendance.map(a => a.student_id)
               const allSessions = pctFromIds(attendedIds)
@@ -3616,7 +3666,7 @@ export default function AthleteProfiles() {
               return (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 14 }}>
                   {cards.map(c => {
-                    const target = targetFor(c.key)
+                    const targets = targetsFor(c.key)
                     return (
                       <div key={c.key} style={{
                         display: 'flex', flexDirection: 'column', gap: 6,
@@ -3631,10 +3681,15 @@ export default function AthleteProfiles() {
                         </span>
                         <span style={{ fontSize: 18, fontWeight: 700, color: colour }}>{c.pct}%</span>
                         <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{c.count}/{teamCount}</span>
-                        {target && <span style={{ fontSize: 10, color: '#EF9F27' }}>🎯 {target.target_value}</span>}
+                        {targets.map(t => (
+                          <span key={t.id} style={{ fontSize: 10, color: '#EF9F27', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            🎯 {t.preset_label ? `${t.preset_label}: ` : ''}{t.target_value}
+                            <button onClick={() => deleteTeamTarget(t.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 11, padding: 0 }}>✕</button>
+                          </span>
+                        ))}
                         <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => {
                           setNewTargetSection(c.key); setNewTargetQuestion(''); setShowAddTarget(true)
-                        }}>{target ? 'Edit target' : '+ Target'}</button>
+                        }}>{targets.length ? '+ Add another target' : '+ Target'}</button>
                         <button className="btn btn-sm btn-primary" style={{ fontSize: 10 }} onClick={() => {
                           if (c.key === 'all_sessions') navigate('/registers')
                           else if (c.key === 'pdp') setDashboardTab('pdp')
@@ -4733,6 +4788,8 @@ export default function AthleteProfiles() {
               }
               const targetFor = (sectionKey, questionLabel = null) =>
                 teamTargets.find(t => t.section_key === sectionKey && (t.question_label || null) === questionLabel && !t.student_id)
+              const targetsFor = (sectionKey, questionLabel = null) =>
+                teamTargets.filter(t => t.section_key === sectionKey && (t.question_label || null) === questionLabel && !t.student_id)
               // Section-level target frequency (e.g. "3x per week" or "3
               // items" -> 3): the athlete needs to complete at least this
               // many distinct items in the section, regardless of which
@@ -4860,19 +4917,22 @@ export default function AthleteProfiles() {
                           const subKey = `${section.key}::${sub.key}`
                           if (expandedDashSubItem !== subKey) return null
                           const target = targetFor(section.key, sub.label)
+                          const targets = targetsFor(section.key, sub.label)
                           const stat = pctForSubItem(sub, target)
                           return (
                             <div key={subKey} style={{ marginTop: 10, padding: 10, background: 'var(--bg-secondary)', borderRadius: 'var(--radius)' }}>
                               <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>{sub.label}</p>
-                              {target ? (
+                              {targets.length > 0 ? (
                                 <div style={{ marginBottom: 8 }}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ fontSize: 12, color: '#EF9F27' }}>🎯 Current target: {target.target_value}</span>
-                                    <button onClick={() => deleteTeamTarget(target.id)} className="btn btn-sm" style={{ fontSize: 10 }}>Remove</button>
-                                  </div>
+                                  {targets.map(t => (
+                                    <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                      <span style={{ fontSize: 12, color: '#EF9F27' }}>🎯 {t.preset_label ? `${t.preset_label}: ` : ''}{t.target_value}</span>
+                                      <button onClick={() => deleteTeamTarget(t.id)} className="btn btn-sm" style={{ fontSize: 10 }}>Remove</button>
+                                    </div>
+                                  ))}
                                   <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>
                                     {stat.numeric
-                                      ? `Checking actual logged value (${stat.avg != null ? `team avg ${stat.avg.toFixed(1)} ${stat.unit}` : 'no data yet'}) against this target — ${stat.count}/${teamCount} athletes hit it today.`
+                                      ? `Checking actual logged value (${stat.avg != null ? `team avg ${stat.avg.toFixed(1)} ${stat.unit}` : 'no data yet'}) against the first target — ${stat.count}/${teamCount} athletes hit it today.`
                                       : `This question doesn't have a numeric value tracked yet, so this target still checks simple completion (logged or not) rather than an exact number.`}
                                   </p>
                                 </div>
@@ -4881,7 +4941,7 @@ export default function AthleteProfiles() {
                               )}
                               <button className="btn btn-sm" onClick={() => {
                                 setNewTargetSection(section.key); setNewTargetQuestion(sub.label); setShowAddTarget(true)
-                              }}>{target ? 'Change target' : '+ Set target'}</button>
+                              }}>{targets.length ? '+ Add another target' : '+ Set target'}</button>
                               {showAddTarget && newTargetSection === section.key && newTargetQuestion === sub.label && renderInlineTargetForm()}
                             </div>
                           )
@@ -4903,7 +4963,7 @@ export default function AthleteProfiles() {
                 const loggedIds = new Set(idList.filter(id => teamIds.has(id)))
                 return { count: loggedIds.size, pct: Math.round((loggedIds.size / teamCount) * 100) }
               }
-              const targetFor = key => teamTargets.find(t => t.section_key === key && !t.question_label && !t.student_id)
+              const targetsFor = key => teamTargets.filter(t => t.section_key === key && !t.question_label && !t.student_id)
 
               const attendedIds = todaysAllAttendance.map(a => a.student_id)
               const checkIn = pctFromIds(attendedIds)
@@ -4929,7 +4989,7 @@ export default function AthleteProfiles() {
               return (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginBottom: 14 }}>
                   {cards.map(c => {
-                    const target = targetFor(c.key)
+                    const targets = targetsFor(c.key)
                     return (
                       <div key={c.key} style={{
                         display: 'flex', flexDirection: 'column', gap: 6,
@@ -4945,11 +5005,16 @@ export default function AthleteProfiles() {
                             <span style={{ fontSize: 15, fontWeight: 700, color: colour }}>{c.pct}%</span>
                             <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{c.count}/{teamCount}</span>
                           </span>
-                          {target && <span style={{ fontSize: 10, color: '#EF9F27' }}>🎯 {target.target_value}</span>}
                           <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => {
                             setNewTargetSection(c.key); setNewTargetQuestion(''); setShowAddTarget(true)
-                          }}>{target ? 'Edit' : '+ Target'}</button>
+                          }}>{targets.length ? '+ Add' : '+ Target'}</button>
                         </span>
+                        {targets.map(t => (
+                          <span key={t.id} style={{ fontSize: 10, color: '#EF9F27', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            🎯 {t.preset_label ? `${t.preset_label}: ` : ''}{t.target_value}
+                            <button onClick={() => deleteTeamTarget(t.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 11, padding: 0 }}>✕</button>
+                          </span>
+                        ))}
                         {showAddTarget && newTargetSection === c.key && newTargetQuestion === '' && renderInlineTargetForm()}
                       </div>
                     )
@@ -5712,13 +5777,13 @@ export default function AthleteProfiles() {
 
             {/* Tabs */}
             <div className="hide-scrollbar hscroll-area" style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 14, overflowX: 'auto' }}>
-              {['home', 'sessions', 'fit2fight', 'pdp', 'tpt', 'media', 'notes', 'report'].map(t => (
+              {['home', 'sessions', 'fit2fight', 'pdp', 'tpt', 'whoop', 'media', 'notes', 'report'].map(t => (
                 <button key={t} onClick={() => setTab(t)} style={{
                   padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
                   borderBottom: `2px solid ${tab === t ? 'var(--text)' : 'transparent'}`,
                   color: tab === t ? 'var(--text)' : 'var(--text-secondary)',
                   fontWeight: tab === t ? 500 : 400, textTransform: 'capitalize', whiteSpace: 'nowrap', flexShrink: 0,
-                }}>{t === 'tpt' ? 'TTP' : t === 'sessions' ? 'Attendance' : t === 'fit2fight' ? 'Results' : t}</button>
+                }}>{t === 'tpt' ? 'TTP' : t === 'whoop' ? 'Whoop' : t === 'sessions' ? 'Attendance' : t === 'fit2fight' ? 'Results' : t}</button>
               ))}
             </div>
 
@@ -5798,7 +5863,7 @@ export default function AthleteProfiles() {
                       </div>
                       <button onClick={() => setF2fStatsScope(v => v + 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4 }}>▶</button>
                     </div>
-                    <button onClick={() => setTab('fit2fight')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg)', appearance: 'none', WebkitAppearance: 'none' }} title="View Fit II Fight results">
+                    <button onClick={() => setTab('fit2fight')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none' }} title="View Fit II Fight results">
                       <div style={{ fontSize: 22, marginBottom: 4 }}>🔥</div>
                       <div style={{ fontSize: 22, fontWeight: 700, color: '#378ADD' }}>
                         {(() => {
@@ -5809,7 +5874,7 @@ export default function AthleteProfiles() {
                       </div>
                       <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>F2F Results</div>
                     </button>
-                    <button onClick={() => setTab('pdp')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg)', appearance: 'none', WebkitAppearance: 'none' }} title="View PDP">
+                    <button onClick={() => setTab('pdp')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none' }} title="View PDP">
                       <div style={{ fontSize: 22, marginBottom: 4 }}>🎯</div>
                       <div style={{ fontSize: 22, fontWeight: 700, color: '#EF9F27' }}>
                         {notesLog.filter(n => n.note_text?.startsWith('Completed PDP task') && !/weigh/i.test(n.note_text)).length}
@@ -6292,24 +6357,55 @@ export default function AthleteProfiles() {
                     maxHeight: showTacticalSection ? 8000 : 0, opacity: showTacticalSection ? 1 : 0,
                   }}>
                   <div style={{ display: 'grid', gridTemplateColumns: expandedTacticalCategory ? '1fr' : 'repeat(3, 1fr)', gap: 8, marginBottom: 8 }}>
-                    {Object.keys(TACTICAL_CATEGORIES).filter(cat => !expandedTacticalCategory || expandedTacticalCategory === cat).map(cat => {
-                      const active = expandedTacticalCategory === cat
-                      const count = todaysTactical.filter(t => t.category === cat).length
+                    {(expandedTacticalCategory ? [] : ['__videoAnalysis__']).concat(Object.keys(TACTICAL_CATEGORIES)).filter(cat => !expandedTacticalCategory || expandedTacticalCategory === cat).map(cat => {
+                      if (cat === '__videoAnalysis__') {
+                        const active = expandedTacticalCategory === cat
+                        const complete = !!todaysMentalityLog.videoAnalysis?.type
+                        return (
+                          <button key={cat} type="button" onClick={() => setExpandedTacticalCategory(active ? null : cat)} style={{
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: active ? '16px 8px' : '10px 6px',
+                            borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                            border: `2px solid ${active ? '#E24B4A' : complete ? '#1D9E75' : 'var(--border)'}`,
+                            background: complete ? '#1D9E7512' : 'var(--bg-secondary)',
+                          }}>
+                            <span style={{ fontSize: active ? 20 : 16 }}>🎥</span>
+                            <span style={{ fontSize: active ? 14 : 9, fontWeight: active ? 700 : 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>Video Analysis</span>
+                          </button>
+                        )
+                      }
+                      const cat_ = cat
+                      const active = expandedTacticalCategory === cat_
+                      const count = todaysTactical.filter(t => t.category === cat_).length
                       return (
-                        <button key={cat} type="button"
-                          onClick={() => setExpandedTacticalCategory(active ? null : cat)}
+                        <button key={cat_} type="button"
+                          onClick={() => setExpandedTacticalCategory(active ? null : cat_)}
                           style={{
                             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: active ? '16px 8px' : '10px 6px',
                             borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                             border: `2px solid ${active ? '#E24B4A' : count ? '#1D9E75' : 'var(--border)'}`,
                             background: count ? '#1D9E7512' : 'var(--bg-secondary)',
                           }}>
-                          <span style={{ fontSize: active ? 14 : 9, fontWeight: active ? 700 : 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat}</span>
+                          <span style={{ fontSize: active ? 14 : 9, fontWeight: active ? 700 : 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat_}</span>
                           {count > 0 && <span style={{ fontSize: active ? 10 : 8, color: '#1D9E75' }}>{count} selected</span>}
                         </button>
                       )
                     })}
                   </div>
+                  {expandedTacticalCategory === '__videoAnalysis__' && (
+                    <div className="card" style={{ marginBottom: 8 }}>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+                        <button type="button" className="btn btn-sm" onClick={() => clearMentalityQuestion('videoAnalysis')} style={{ fontSize: 11 }}>✕ Clear</button>
+                      </div>
+                      <div className="field" style={{ marginBottom: 0 }}><label>Type</label>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {VIDEO_ANALYSIS_OPTIONS.map(v => (
+                            <button key={v} type="button" onClick={() => saveMentalityField('videoAnalysis', () => ({ type: v }))}
+                              className="btn btn-sm" style={{ background: todaysMentalityLog.videoAnalysis?.type === v ? '#6D28D920' : undefined, borderColor: todaysMentalityLog.videoAnalysis?.type === v ? '#6D28D9' : undefined }}>{v}</button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   {Object.entries(TACTICAL_CATEGORIES).map(([cat, items]) => {
                     if (expandedTacticalCategory !== cat) return null
                     return (
@@ -6388,16 +6484,6 @@ export default function AthleteProfiles() {
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                         <button type="button" className="btn btn-sm" onClick={() => clearMentalityQuestion(expandedHomeMentality)} style={{ fontSize: 11 }}>✕ Clear</button>
                       </div>
-                      {expandedHomeMentality === 'videoAnalysis' && (
-                        <div className="field" style={{ marginBottom: 0 }}><label>Type</label>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                            {VIDEO_ANALYSIS_OPTIONS.map(v => (
-                              <button key={v} type="button" onClick={() => saveMentalityField('videoAnalysis', () => ({ type: v }))}
-                                className="btn btn-sm" style={{ background: todaysMentalityLog.videoAnalysis?.type === v ? '#6D28D920' : undefined, borderColor: todaysMentalityLog.videoAnalysis?.type === v ? '#6D28D9' : undefined }}>{v}</button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
                       {expandedHomeMentality === 'meditation' && (
                         <div className="field" style={{ marginBottom: 0 }}><label>Type</label>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -8453,6 +8539,54 @@ export default function AthleteProfiles() {
                 </div>
               )
             })()}
+
+
+            {/* ── Whoop tab ── */}
+            {tab === 'whoop' && (
+              <div>
+                {!whoopConnection ? (
+                  <div className="empty-state"><h3>Whoop not connected</h3><p>{selected?.members?.first_name} hasn't connected their Whoop account yet — this can only be done from their own athlete app.</p></div>
+                ) : (
+                  <>
+                    <div className="card" style={{ marginBottom: 12 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: '#1D9E75' }}>✓ Whoop connected</span>
+                    </div>
+                    {whoopSessions.length === 0 ? (
+                      <div className="empty-state"><h3>No Whoop sessions yet</h3><p>Summaries appear here shortly after each completed workout</p></div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {whoopSessions.map(s => (
+                          <div key={s.id} className="card">
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                              <h3 style={{ fontSize: 13, fontWeight: 600 }}>{s.sport_name || 'Workout'}</h3>
+                              <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{s.start_time ? new Date(s.start_time).toLocaleDateString('en-GB') : '—'}</span>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, textAlign: 'center' }}>
+                              <div>
+                                <div style={{ fontSize: 16, fontWeight: 700, color: '#1D9E75' }}>{s.strain != null ? s.strain.toFixed(1) : '—'}</div>
+                                <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Strain</div>
+                              </div>
+                              <div>
+                                <div style={{ fontSize: 16, fontWeight: 700 }}>{s.avg_heart_rate ?? '—'}</div>
+                                <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Avg HR</div>
+                              </div>
+                              <div>
+                                <div style={{ fontSize: 16, fontWeight: 700 }}>{s.max_heart_rate ?? '—'}</div>
+                                <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Max HR</div>
+                              </div>
+                              <div>
+                                <div style={{ fontSize: 16, fontWeight: 700 }}>{s.calories != null ? Math.round(s.calories) : '—'}</div>
+                                <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Calories</div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
 
 
             {/* ── Media tab ── */}
