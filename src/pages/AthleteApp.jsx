@@ -1784,6 +1784,7 @@ export default function AthleteApp() {
                     </div>
                     )}
 
+                    {!activePhysicalCategory && (
                     <div style={{
                       display: 'flex', alignItems: 'stretch', width: '100%', marginBottom: 8,
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
@@ -1806,6 +1807,7 @@ export default function AthleteApp() {
                         </span>
                       </button>
                     </div>
+                    )}
                     {showSncCards && (
                       <div className="card" style={{ marginBottom: 8 }}>
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>

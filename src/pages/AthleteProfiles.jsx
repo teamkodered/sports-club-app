@@ -1794,7 +1794,8 @@ export default function AthleteProfiles() {
   const [weightTargetPctInComp, setWeightTargetPctInComp] = useState(0.025)
   const [weightTargetPctOutComp, setWeightTargetPctOutComp] = useState(0.05)
   const [showWeightTargetPopup, setShowWeightTargetPopup] = useState(false)
-  const [weightTargetCustomPct, setWeightTargetCustomPct] = useState('')
+  const [weightTargetInCompDraft, setWeightTargetInCompDraft] = useState(null)
+  const [weightTargetOutCompDraft, setWeightTargetOutCompDraft] = useState(null)
   const [dashLevelIndex, setDashLevelIndex] = useState(0)
   const [highlightedEntryId, setHighlightedEntryId] = useState(null)
   const [showRecordAsPct, setShowRecordAsPct] = useState(false)
@@ -2570,6 +2571,7 @@ export default function AthleteProfiles() {
     const sentIds = new Set(note.sent_to_student_ids || [])
     return students
       .filter(s => !sentIds.has(s.id))
+      .filter(s => s.members?.status === 'active')
       .filter(s => {
         if (!noteTargetSearch) return true
         const name = `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.toLowerCase()
@@ -3689,27 +3691,37 @@ export default function AthleteProfiles() {
                     <button onClick={() => setShowWeightTargetPopup(false)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
                   </div>
                   <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16 }}>
-                    Each athlete's target weight is their current weight plus this percentage — e.g. an 80kg athlete with a 2.5% target has a target weight of 82kg. Applied automatically based on whether they're marked "In comp".
+                    Each athlete's target weight is their current weight plus this fraction — e.g. 0.025 means +2.5%, so an 80kg athlete has a target weight of 82kg. Applied automatically based on whether they're marked "In comp".
                   </p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     <div>
                       <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>In camp</label>
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <input type="number" step="0.1" value={(weightTargetPctInComp * 100).toFixed(1)}
-                          onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v)) saveWeightTargetPct('weight_target_pct_in_comp', v / 100) }}
+                        <input type="text" inputMode="decimal"
+                          value={weightTargetInCompDraft ?? String(weightTargetPctInComp)}
+                          onChange={e => setWeightTargetInCompDraft(e.target.value)}
+                          onBlur={() => {
+                            const v = parseFloat(weightTargetInCompDraft)
+                            if (!isNaN(v)) saveWeightTargetPct('weight_target_pct_in_comp', v)
+                            setWeightTargetInCompDraft(null)
+                          }}
                           style={{ width: 80 }} />
-                        <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>%</span>
-                        <button className="btn btn-sm" onClick={() => saveWeightTargetPct('weight_target_pct_in_comp', 0.025)}>Reset to default (2.5%)</button>
+                        <button className="btn btn-sm" onClick={() => { saveWeightTargetPct('weight_target_pct_in_comp', 0.025); setWeightTargetInCompDraft(null) }}>Reset to default (0.025)</button>
                       </div>
                     </div>
                     <div>
                       <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Out of camp</label>
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <input type="number" step="0.1" value={(weightTargetPctOutComp * 100).toFixed(1)}
-                          onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v)) saveWeightTargetPct('weight_target_pct_out_comp', v / 100) }}
+                        <input type="text" inputMode="decimal"
+                          value={weightTargetOutCompDraft ?? String(weightTargetPctOutComp)}
+                          onChange={e => setWeightTargetOutCompDraft(e.target.value)}
+                          onBlur={() => {
+                            const v = parseFloat(weightTargetOutCompDraft)
+                            if (!isNaN(v)) saveWeightTargetPct('weight_target_pct_out_comp', v)
+                            setWeightTargetOutCompDraft(null)
+                          }}
                           style={{ width: 80 }} />
-                        <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>%</span>
-                        <button className="btn btn-sm" onClick={() => saveWeightTargetPct('weight_target_pct_out_comp', 0.05)}>Reset to default (5%)</button>
+                        <button className="btn btn-sm" onClick={() => { saveWeightTargetPct('weight_target_pct_out_comp', 0.05); setWeightTargetOutCompDraft(null) }}>Reset to default (0.05)</button>
                       </div>
                     </div>
                   </div>
@@ -5278,7 +5290,13 @@ export default function AthleteProfiles() {
                       ) : `${selected.wins || 0}W ${selected.losses || 0}L ${selected.draws || 0}D` },
                       { label: 'Weight', editable: true, render: () => {
                         const pct = selected.in_comp ? weightTargetPctInComp : weightTargetPctOutComp
-                        const targetWeight = selected.weight_kg ? (selected.weight_kg * (1 + pct)).toFixed(1) : null
+                        // Prefer Comp weight as the base for the target -- it's a free
+                        // text field (e.g. "-52kg", "-37kg kickboxing, 35kg boxing"), so
+                        // pull out the first number found; fall back to current weight
+                        // if Comp weight isn't set or has no parseable number.
+                        const compWeightMatch = apData?.weight_division?.match(/[\d.]+/)
+                        const baseWeight = compWeightMatch ? parseFloat(compWeightMatch[0]) : selected.weight_kg
+                        const targetWeight = baseWeight ? (baseWeight * (1 + pct)).toFixed(1) : null
                         return (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
                             {isAdmin ? (
@@ -5289,7 +5307,7 @@ export default function AthleteProfiles() {
                               <span>{selected.weight_kg ? `${selected.weight_kg}kg${selected.weight_category ? ` (${selected.weight_category})` : ''}` : '—'}</span>
                             )}
                             {targetWeight && (
-                              <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }} title={`Target: current weight + ${(pct * 100).toFixed(1)}% (${selected.in_comp ? 'in comp' : 'out of comp'})`}>
+                              <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }} title={`Target: ${compWeightMatch ? 'comp weight' : 'current weight'} (${baseWeight}kg) + ${pct} (${selected.in_comp ? 'in comp' : 'out of comp'})`}>
                                 🎯 {targetWeight}kg
                               </span>
                             )}
@@ -5747,6 +5765,7 @@ export default function AthleteProfiles() {
                   </div>
                   )}
 
+                  {!activePhysicalCategory && (
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
                     <div style={{
                       display: 'flex', alignItems: 'stretch', width: '100%',
@@ -5793,6 +5812,7 @@ export default function AthleteProfiles() {
                       </button>
                     </div>
                   </div>
+                  )}
                   {showOtherSessionCards && (
                     <div className="card" style={{ marginBottom: 8 }}>
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
