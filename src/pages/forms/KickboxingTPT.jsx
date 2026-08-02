@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase.js'
 import { useAuth } from '../../hooks/useAuth.jsx'
 import FormLogo from '../../components/shared/FormLogo.jsx'
@@ -167,6 +168,7 @@ function StatBar({ label, value, max, colour }) {
 
 export default function KickboxingTPT() {
   const { profile, isAdmin } = useAuth()
+  const [searchParams] = useSearchParams()
   const [mode, setMode] = useState('form')
   const [activeSection, setActiveSection] = useState('measurements')
   const [form, setForm] = useState(emptyForm())
@@ -182,6 +184,15 @@ export default function KickboxingTPT() {
 
   useEffect(() => { if (isAdmin) loadStudents() }, [isAdmin])
   useEffect(() => { if (mode === 'history') loadHistory() }, [mode])
+
+  useEffect(() => {
+    const studentId = searchParams.get('student_id')
+    if (!studentId) return
+    supabase.from('students').select('id, members(first_name, last_name, houses(name))').eq('id', studentId).maybeSingle()
+      .then(({ data }) => {
+        if (data) setStudent({ id: data.id, first_name: data.members?.first_name || '', last_name: data.members?.last_name || '', house: data.members?.houses?.name || '' })
+      })
+  }, [searchParams])
 
   async function loadStudents() {
     const { data } = await supabase

@@ -8354,7 +8354,8 @@ export default function AthleteProfiles() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                     <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Technical Tactical Physical (TTP)</h3>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <a href={`/boxing-tpt-form?student_id=${selected?.id}`} className="btn btn-sm" style={{ fontSize: 11 }}>+ Boxing TTP</a>
+                      <a href={`/boxing-tpt?student_id=${selected?.id}`} className="btn btn-sm" style={{ fontSize: 11 }}>+ Boxing TTP</a>
+                      <a href={`/kickboxing-tpt?student_id=${selected?.id}`} className="btn btn-sm" style={{ fontSize: 11 }}>+ Kickboxing TTP</a>
                     </div>
                   </div>
                   {!b && !kb ? (

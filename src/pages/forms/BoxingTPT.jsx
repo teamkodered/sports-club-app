@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase.js'
 import { useAuth } from '../../hooks/useAuth.jsx'
 import FormLogo from '../../components/shared/FormLogo.jsx'
@@ -160,6 +161,7 @@ function GroupAvg({ group, scores }) {
 
 export default function BoxingTPT() {
   const { profile, isAdmin } = useAuth()
+  const [searchParams] = useSearchParams()
   const [mode, setMode] = useState('form') // 'form' | 'history'
   const [scores, setScores] = useState(emptyScores)
   const [student, setStudent] = useState({ first_name: '', last_name: '' })
@@ -176,6 +178,15 @@ export default function BoxingTPT() {
     if (mode === 'history') loadHistory()
     if (isAdmin) loadStudents()
   }, [mode])
+
+  useEffect(() => {
+    const studentId = searchParams.get('student_id')
+    if (!studentId) return
+    supabase.from('students').select('id, members(first_name, last_name)').eq('id', studentId).maybeSingle()
+      .then(({ data }) => {
+        if (data) setStudent({ id: data.id, first_name: data.members?.first_name || '', last_name: data.members?.last_name || '' })
+      })
+  }, [searchParams])
 
   async function loadStudents() {
     const { data } = await supabase

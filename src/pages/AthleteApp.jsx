@@ -716,11 +716,18 @@ export default function AthleteApp() {
   const [myNotesLog, setMyNotesLog] = useState([])
   const [tptData, setTptData] = useState({ kickboxing: [], boxing: [] })
   const [newNoteText, setNewNoteText] = useState('')
+  const [showFullscreenNoteComposer, setShowFullscreenNoteComposer] = useState(false)
   const [savingNote, setSavingNote] = useState(false)
   const [myChartPopup, setMyChartPopup] = useState(null)
   const [highlightedMyEntryId, setHighlightedMyEntryId] = useState(null)
   const myPressTimer = useRef(null)
   const myHeldRef = useRef(false)
+  const [wattChartFilter, setWattChartFilter] = useState('all')
+  const [runChartFilter, setRunChartFilter] = useState('all')
+  const [bwChartFilter, setBwChartFilter] = useState('all')
+  const [techChartFilter, setTechChartFilter] = useState('all')
+  const [resultsGraphSection, setResultsGraphSection] = useState(0)
+  const resultsGraphSwipeStart = useRef(null)
   const [allClasses, setAllClasses] = useState([])
   const [showAddClass, setShowAddClass] = useState(false)
   const [addClassSelection, setAddClassSelection] = useState('')
@@ -1473,7 +1480,7 @@ export default function AthleteApp() {
             student.discipline === 'KRBA' ? (student.krba_level || '—') : student.is_kr ? (student.competition_team || '—') : (student.pka_belt || '—')],
           ['Record', `${student.wins || 0}W ${student.losses || 0}L ${student.draws || 0}D`],
           ['Weight', student.weight_kg ? `${student.weight_kg}kg${student.weight_category ? ` (${student.weight_category})` : ''}` : '—', targetWeight],
-          ['Comp weight', apData?.weight_division || '—'],
+          ['Comp weight', apData?.weight_division ? `${apData.weight_division}${/kg/i.test(apData.weight_division) ? '' : 'kg'}` : '—'],
           ['Groups', [student.is_kr && 'KR', student.is_pts && 'PTs', student.is_leader && 'Leader', student.is_coach && 'Coach'].filter(Boolean).join(', ') || 'None'],
         ].map(([label, val, target], i, arr) => {
           const isWeightRow = label === 'Weight'
@@ -2782,14 +2789,15 @@ export default function AthleteApp() {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8 }}>
                 {[
-                  { label: 'PDP', icon: '🎯', colour: '#1D9E75', tab: 'pdp' },
+                  { label: 'Whoop', icon: '⌚', colour: '#1D9E75', tab: null },
                   { label: 'TTP', icon: '📊', colour: '#E24B4A', tab: 'tpt' },
                 ].map(l => (
-                  <button key={l.label} onClick={() => setTab(l.tab)} style={{
+                  <button key={l.label} onClick={() => l.tab && setTab(l.tab)} style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
                     padding: '14px 8px', background: l.colour + '12',
                     border: `1px solid ${l.colour}30`, borderRadius: 'var(--border-radius-lg)',
-                    cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                    cursor: l.tab ? 'pointer' : 'default', fontFamily: 'var(--font-sans)',
+                    opacity: l.tab ? 1 : 0.6,
                   }}>
                     <span style={{ fontSize: 24 }}>{l.icon}</span>
                     <span style={{ fontSize: 12, fontWeight: 500, color: l.colour }}>{l.label}</span>
@@ -3128,11 +3136,9 @@ export default function AthleteApp() {
           <div className="card" style={{ marginBottom: 12 }}>
             <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>Log a note</h2>
             <textarea value={newNoteText} onChange={e => setNewNoteText(e.target.value)}
-              placeholder="Write a note for yourself…" rows={3}
-              style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
-            <button className="btn btn-primary btn-sm" disabled={!newNoteText.trim() || savingNote} onClick={addNote}>
-              {savingNote ? 'Saving…' : '+ Log note'}
-            </button>
+              onFocus={() => setShowFullscreenNoteComposer(true)} onClick={() => setShowFullscreenNoteComposer(true)}
+              placeholder="Write a note for yourself…" rows={3} readOnly
+              style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8, cursor: 'pointer' }} />
           </div>
           {myNotesLog.length === 0 ? (
             <div className="empty-state"><h3>No notes yet</h3></div>
@@ -3154,6 +3160,22 @@ export default function AthleteApp() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {showFullscreenNoteComposer && (
+        <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 200, display: 'flex', flexDirection: 'column', padding: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <button onClick={() => setShowFullscreenNoteComposer(false)} className="btn btn-sm">← Back</button>
+            <h2 style={{ fontSize: 15, fontWeight: 600 }}>Write a note</h2>
+          </div>
+          <textarea autoFocus value={newNoteText} onChange={e => setNewNoteText(e.target.value)}
+            placeholder="Write a note for yourself…"
+            style={{ flex: 1, width: '100%', padding: 14, border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 15, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'none', marginBottom: 14 }} />
+          <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={!newNoteText.trim() || savingNote}
+            onClick={async () => { await addNote(); setShowFullscreenNoteComposer(false) }}>
+            {savingNote ? 'Saving…' : '+ Log note'}
+          </button>
         </div>
       )}
 
@@ -3275,62 +3297,369 @@ export default function AthleteApp() {
           ) : (
             <>
               {(() => {
-                const weightRows = [...sessions].reverse().filter(s => s.weight_before != null || s.weight_after != null)
-                if (weightRows.length < 2) return null
-                const w = 560, h = 160, pad = { t: 10, r: 10, b: 20, l: 30 }
-                const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b
-                const allVals = weightRows.flatMap(s => [s.weight_before, s.weight_after].filter(v => v != null).map(parseFloat))
-                const minV = Math.min(...allVals) - 1, maxV = Math.max(...allVals) + 1
-                const x = i => pad.l + (weightRows.length > 1 ? (i / (weightRows.length - 1)) * iw : iw / 2)
-                const y = v => pad.t + ih - ((v - minV) / (maxV - minV || 1)) * ih
-                const linePts = key => weightRows.map((s, i) => s[key] != null ? [x(i), y(parseFloat(s[key]))] : null).filter(Boolean)
-                const beforePts = linePts('weight_before'), afterPts = linePts('weight_after')
-                return (
-                  <div className="card" style={{ marginBottom: 14 }}>
-                    <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>⚖️ Weight over time</p>
-                    <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', height: 'auto' }}>
-                      {beforePts.length >= 2 && <polyline points={beforePts.map(p => p.join(',')).join(' ')} fill="none" stroke="#378ADD" strokeWidth="2" strokeLinejoin="round" />}
-                      {afterPts.length >= 2 && <polyline points={afterPts.map(p => p.join(',')).join(' ')} fill="none" stroke="#1D9E75" strokeWidth="2" strokeLinejoin="round" />}
-                      {weightRows.map((s, i) => ['weight_before', 'weight_after'].map(key => s[key] == null ? null : (
-                        <circle key={`${i}-${key}`} cx={x(i)} cy={y(parseFloat(s[key]))} r="4"
-                          fill={key === 'weight_before' ? '#378ADD' : '#1D9E75'} stroke="var(--bg)" strokeWidth="1.5"
-                          style={{ cursor: 'pointer', touchAction: 'none' }}
-                          onMouseEnter={() => setMyChartPopup({ x: x(i), y: y(parseFloat(s[key])), label: new Date(s.session_date).toLocaleDateString('en-GB'), value: `${s[key]}kg` })}
-                          onMouseLeave={() => setMyChartPopup(null)}
-                          onPointerDown={() => {
-                            // Reversed vs the coach view: press shows the result, hold jumps to the entry
-                            myHeldRef.current = false
-                            setMyChartPopup({ x: x(i), y: y(parseFloat(s[key])), label: new Date(s.session_date).toLocaleDateString('en-GB'), value: `${s[key]}kg` })
-                            myPressTimer.current = setTimeout(() => {
-                              myHeldRef.current = true
-                              const el = document.getElementById(`my-f2f-entry-${s.id}`)
-                              if (el) {
-                                el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                                setHighlightedMyEntryId(s.id)
-                                setTimeout(() => setHighlightedMyEntryId(cur => cur === s.id ? null : cur), 2000)
-                              }
-                            }, 400)
-                          }}
-                          onPointerUp={() => {
-                            clearTimeout(myPressTimer.current)
-                            if (!myHeldRef.current) setMyChartPopup(null)
-                          }}
-                          onPointerLeave={() => clearTimeout(myPressTimer.current)}
-                        />
-                      )))}
-                      {myChartPopup && (
-                        <g>
-                          <rect x={myChartPopup.x - 45} y={myChartPopup.y - 38} width="90" height="30" rx="6" fill="var(--text)" opacity="0.9" />
-                          <text x={myChartPopup.x} y={myChartPopup.y - 24} textAnchor="middle" fontSize="9" fill="var(--bg)">{myChartPopup.label}</text>
-                          <text x={myChartPopup.x} y={myChartPopup.y - 12} textAnchor="middle" fontSize="11" fontWeight="700" fill="var(--bg)">{myChartPopup.value}</text>
-                        </g>
-                      )}
-                    </svg>
-                    <div style={{ display: 'flex', gap: 14, marginTop: 6, fontSize: 11, color: 'var(--text-secondary)' }}>
-                      <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#378ADD', borderRadius: '50%', marginRight: 4 }} />Before</span>
-                      <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#1D9E75', borderRadius: '50%', marginRight: 4 }} />After</span>
+                const sorted = [...sessions].sort((a,b) => new Date(a.session_date) - new Date(b.session_date))
+                const weightData = sorted.filter(s => s.weight_before || s.weight_after)
+                const wattData = sorted.flatMap(s => toEntries(s.watt_bike)
+                  .filter(e => Array.isArray(e.sets) && e.sets.length > 0)
+                  .map(e => ({ id: s.id, session_date: s.session_date, watt_bike: e })))
+                const runData = sorted.flatMap(s => toEntries(s.running)
+                  .filter(e => Array.isArray(e.sets) && e.sets.length > 0)
+                  .map(e => ({ id: s.id, session_date: s.session_date, running: e })))
+
+                function LineChart({ data, lines, height=160, title, unit='' }) {
+                  const [hidden, setHidden] = useState({})
+                  const [chartPopup, setChartPopup] = useState(null)
+                  const pressTimer = useRef(null)
+                  const heldRef = useRef(false)
+                  if (!data.length) return (
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>{title}</div>
+                      <div style={{
+                        height, borderRadius: 'var(--radius)', border: '1px dashed var(--border-strong)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)',
+                      }}>
+                        <p style={{ fontSize: 12, color: 'var(--text-tertiary)', margin: 0 }}>No data yet — log a session to see this graph fill in</p>
+                      </div>
                     </div>
-                  </div>
+                  )
+                  const visibleLines = lines.filter(l => !hidden[l.key])
+                  const allVals = visibleLines.flatMap(l => data.map(d => d[l.key]).filter(v => v != null))
+                  if (!allVals.length && visibleLines.length) return (
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>{title}</div>
+                      <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+                        {lines.map(l => <button key={l.key} onClick={() => setHidden(h => ({...h, [l.key]: !h[l.key]}))}
+                          style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 12px', borderRadius:20, border:`2px solid ${l.colour}`,
+                            background: hidden[l.key] ? 'transparent' : l.colour+'25', cursor:'pointer', fontFamily:'var(--font-sans)',
+                            opacity: hidden[l.key] ? 0.4 : 1 }}>
+                          <div style={{ width:16, height:3, background: hidden[l.key] ? '#ccc' : l.colour, borderRadius:2 }}/>
+                          <span style={{ fontSize:13, fontWeight:600, color: hidden[l.key] ? 'var(--text-tertiary)' : l.colour }}>{l.label}</span>
+                        </button>)}
+                      </div>
+                    </div>
+                  )
+                  const minV = allVals.length ? Math.min(...allVals) * 0.95 : 0
+                  const maxV = allVals.length ? Math.max(...allVals) * 1.05 : 100
+                  const w = 500, h = height, pad = { t:20, r:20, b:30, l:45 }
+                  const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b
+                  const x = i => pad.l + (i / (data.length - 1 || 1)) * iw
+                  const y = v => pad.t + ih - ((v - minV) / (maxV - minV || 1)) * ih
+                  return (
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>{title}</div>
+                      <div className="hscroll-area" style={{ overflowX: 'auto' }}>
+                        <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', minWidth: 280, height: 'auto' }}>
+                          {[0,0.25,0.5,0.75,1].map((t,i) => {
+                            const yv = pad.t + ih * (1-t)
+                            const val = (minV + (maxV-minV)*t).toFixed(1)
+                            return <g key={i}>
+                              <line x1={pad.l} x2={pad.l+iw} y1={yv} y2={yv} stroke="var(--border)" strokeWidth="0.5"/>
+                              <text x={pad.l-4} y={yv+4} textAnchor="end" fontSize="9" fill="var(--text-tertiary)">{val}{unit}</text>
+                            </g>
+                          })}
+                          {data.map((d,i) => (i % Math.max(1, Math.floor(data.length/5)) === 0) && (
+                            <text key={i} x={x(i)} y={h-6} textAnchor="middle" fontSize="8" fill="var(--text-tertiary)">
+                              {new Date(d.session_date).toLocaleDateString('en-GB',{day:'2-digit',month:'short'})}
+                            </text>
+                          ))}
+                          {lines.map(line => {
+                            if (hidden[line.key]) return null
+                            const pts = data.map((d,i) => d[line.key] != null ? `${x(i)},${y(d[line.key])}` : null).filter(Boolean)
+                            if (pts.length < 1) return null
+                            return <g key={line.key}>
+                              {pts.length >= 2 && <polyline points={pts.join(' ')} fill="none" stroke={line.colour} strokeWidth="2" strokeLinejoin="round"/>}
+                              {data.map((d,i) => d[line.key] != null && (
+                                <g key={i}>
+                                  <circle cx={x(i)} cy={y(d[line.key])} r="4" fill={line.colour} stroke="var(--bg)" strokeWidth="1.5" style={{ cursor: 'pointer', touchAction: 'none' }}
+                                    onMouseEnter={() => setChartPopup({ x: x(i), y: y(d[line.key]), label: new Date(d.session_date).toLocaleDateString('en-GB'), value: `${d[line.key]}${unit}` })}
+                                    onMouseLeave={() => setChartPopup(null)}
+                                    onPointerDown={() => {
+                                      heldRef.current = false
+                                      pressTimer.current = setTimeout(() => {
+                                        heldRef.current = true
+                                        setChartPopup({ x: x(i), y: y(d[line.key]), label: new Date(d.session_date).toLocaleDateString('en-GB'), value: `${d[line.key]}${unit}` })
+                                      }, 400)
+                                    }}
+                                    onPointerUp={() => {
+                                      clearTimeout(pressTimer.current)
+                                      if (heldRef.current) { setChartPopup(null); return }
+                                      if (d.id == null) return
+                                      const el = document.getElementById(`my-f2f-entry-${d.id}`)
+                                      if (!el) return
+                                      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                                      setHighlightedMyEntryId(d.id)
+                                      setTimeout(() => setHighlightedMyEntryId(cur => cur === d.id ? null : cur), 2000)
+                                    }}
+                                    onPointerLeave={() => clearTimeout(pressTimer.current)}
+                                  />
+                                </g>
+                              ))}
+                            </g>
+                          })}
+                          {chartPopup && (
+                            <g>
+                              <rect x={chartPopup.x - 45} y={chartPopup.y - 38} width="90" height="30" rx="6" fill="var(--text)" opacity="0.9" />
+                              <text x={chartPopup.x} y={chartPopup.y - 24} textAnchor="middle" fontSize="9" fill="var(--bg)">{chartPopup.label}</text>
+                              <text x={chartPopup.x} y={chartPopup.y - 12} textAnchor="middle" fontSize="11" fontWeight="700" fill="var(--bg)">{chartPopup.value}</text>
+                            </g>
+                          )}
+                        </svg>
+                      </div>
+                      <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginTop:10 }}>
+                        {lines.map(l => (
+                          <button key={l.key} onClick={() => setHidden(h => ({...h, [l.key]: !h[l.key]}))}
+                            style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 14px', borderRadius:20,
+                              border:`2px solid ${l.colour}`, background: hidden[l.key] ? 'transparent' : l.colour+'20',
+                              cursor:'pointer', fontFamily:'var(--font-sans)', opacity: hidden[l.key] ? 0.45 : 1,
+                              transition:'opacity 0.15s' }}>
+                            <div style={{ width:18, height:3, background: hidden[l.key] ? '#999' : l.colour, borderRadius:2 }}/>
+                            <span style={{ fontSize:13, fontWeight:700, color: hidden[l.key] ? 'var(--text-tertiary)' : l.colour }}>{l.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                }
+
+                const GRAPH_SECTIONS = [
+                  { key: 'weight', label: '⚖️ Weight' },
+                  { key: 'watt_bike', label: '🚴 Watt bike' },
+                  { key: 'running', label: '🏃 Running' },
+                  { key: 'bleep', label: '🏃 Bleep test' },
+                  { key: 'grip', label: '✊ Grip test' },
+                  { key: 'circuit', label: '⭕ Fixed load circuit' },
+                  { key: 'bodyweight', label: '💪 Bodyweight' },
+                  { key: 'techniques', label: '🥋 Techniques' },
+                ]
+                function cycleGraphSection(direction) {
+                  setResultsGraphSection(s => (s + direction + GRAPH_SECTIONS.length) % GRAPH_SECTIONS.length)
+                }
+
+                return (
+                  <>
+                    <div
+                      onTouchStart={e => { resultsGraphSwipeStart.current = e.touches[0].clientX }}
+                      onTouchEnd={e => {
+                        if (resultsGraphSwipeStart.current == null) return
+                        const delta = e.changedTouches[0].clientX - resultsGraphSwipeStart.current
+                        if (Math.abs(delta) > 50) cycleGraphSection(delta < 0 ? 1 : -1)
+                        resultsGraphSwipeStart.current = null
+                      }}
+                      style={{ marginBottom: 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                        <button className="btn btn-sm" onClick={() => cycleGraphSection(-1)}>◀</button>
+                        <span style={{ fontSize: 13, fontWeight: 600 }}>{GRAPH_SECTIONS[resultsGraphSection].label}</span>
+                        <button className="btn btn-sm" onClick={() => cycleGraphSection(1)}>▶</button>
+                      </div>
+                    </div>
+
+                    {resultsGraphSection === 0 && (weightData.length > 1 ? (
+                      <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
+                        <Link to={`/fit2fight?student_id=${student.id}`} className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, zIndex: 1 }}>+ Log</Link>
+                        <LineChart
+                          data={weightData.map(s => ({ id: s.id, session_date: s.session_date, before: s.weight_before, after: s.weight_after }))}
+                          lines={[
+                            { key: 'before', label: 'Before', colour: '#378ADD' },
+                            { key: 'after',  label: 'After',  colour: '#1D9E75' },
+                          ]}
+                          title="⚖️ Weight over time"
+                          unit="kg"
+                        />
+                      </div>
+                    ) : (
+                      <div className="card" style={{ marginBottom: 12, textAlign: 'center', padding: 24 }}>
+                        <p style={{ fontSize: 12, color: 'var(--text-tertiary)', margin: 0 }}>No weight data yet — log a session to see this graph fill in</p>
+                      </div>
+                    ))}
+
+                    <div style={{ display: resultsGraphSection === 1 ? 'block' : 'none' }}>
+                    {(() => {
+                      const SET_COLOURS = ['#E24B4A','#378ADD','#1D9E75','#EF9F27','#8B5CF6','#EC4899','#06B6D4','#84CC16','#F97316','#A855F7','#14B8A6','#EAB308']
+                      const wattTypes = [...new Set(wattData.map(s => normalizeIntervalMode(s.watt_bike?.interval_mode || s.watt_bike?.type)).filter(Boolean))]
+                      const filteredWatt = wattChartFilter === 'all' ? wattData : wattData.filter(s => normalizeIntervalMode(s.watt_bike?.interval_mode || s.watt_bike?.type) === wattChartFilter)
+                      const maxSets = Math.max(1, ...filteredWatt.map(s => s.watt_bike?.sets?.length || 0))
+                      const setLines = Array.from({length: maxSets}, (_,i) => ({
+                        key: `set${i}`, label: `Set ${i+1}`, colour: SET_COLOURS[i % SET_COLOURS.length]
+                      }))
+                      const chartData = filteredWatt.map(s => {
+                        const obj = { id: s.id, session_date: s.session_date }
+                        ;(s.watt_bike?.sets || []).forEach((v,i) => { obj[`set${i}`] = (v && typeof v === 'object') ? v.wattage : v })
+                        return obj
+                      })
+                      return (
+                        <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
+                          <Link to={`/fit2fight?student_id=${student.id}&module=watt_bike`} className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, zIndex: 1 }}>+ Log</Link>
+                          {wattTypes.length > 1 && (
+                            <div className="field" style={{ marginBottom: 10, maxWidth: 220 }}>
+                              <label style={{ fontSize: 11 }}>Show</label>
+                              <select value={wattChartFilter} onChange={e => setWattChartFilter(e.target.value)} style={{ fontSize: 12, padding: '5px 8px' }}>
+                                <option value="all">All types</option>
+                                {wattTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                              </select>
+                            </div>
+                          )}
+                          {chartData.length > 1
+                            ? <LineChart data={chartData} lines={setLines} title="🚴 Watt bike — each set over time" unit="W" />
+                            : <LineChart data={[]} lines={setLines} title="🚴 Watt bike — each set over time" unit="W" />}
+                        </div>
+                      )
+                    })()}
+                    </div>
+
+                    <div style={{ display: resultsGraphSection === 2 ? 'block' : 'none' }}>
+                    {(() => {
+                      const SET_COLOURS = ['#E24B4A','#378ADD','#1D9E75','#EF9F27','#8B5CF6','#EC4899','#06B6D4','#84CC16']
+                      const runTests = [...new Set(runData.map(s => s.running?.test).filter(Boolean))]
+                      const filteredRun = runChartFilter === 'all' ? runData : runData.filter(s => s.running?.test === runChartFilter)
+                      const isDistanceTest = filteredRun.some(s => (s.running?.category) === 'Distance over time')
+                      const maxSets = Math.max(1, ...filteredRun.map(s => s.running?.sets?.length || 0))
+                      const setLines = Array.from({length: maxSets}, (_,i) => ({
+                        key: `set${i}`, label: `Attempt ${i+1}`, colour: SET_COLOURS[i % SET_COLOURS.length]
+                      }))
+                      const toChartValue = v => {
+                        if (v == null || v === '') return null
+                        if (typeof v === 'string' && v.includes(':')) {
+                          const [mm, ss] = v.split(':').map(Number)
+                          return (mm || 0) * 60 + (ss || 0)
+                        }
+                        return v
+                      }
+                      const chartData = filteredRun.map(s => {
+                        const obj = { id: s.id, session_date: s.session_date }
+                        ;(s.running?.sets || []).forEach((v,i) => { obj[`set${i}`] = toChartValue(v) })
+                        return obj
+                      })
+                      return (
+                        <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
+                          <Link to={`/fit2fight?student_id=${student.id}&module=running`} className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, zIndex: 1 }}>+ Log</Link>
+                          {runTests.length > 1 && (
+                            <div className="field" style={{ marginBottom: 10, maxWidth: 220 }}>
+                              <label style={{ fontSize: 11 }}>Show</label>
+                              <select value={runChartFilter} onChange={e => setRunChartFilter(e.target.value)} style={{ fontSize: 12, padding: '5px 8px' }}>
+                                <option value="all">All tests</option>
+                                {runTests.map(t => <option key={t} value={t}>{t}</option>)}
+                              </select>
+                            </div>
+                          )}
+                          <LineChart data={chartData.length > 1 ? chartData : []} lines={setLines} title="🏃 Running — each attempt over time" unit={isDistanceTest ? 'km' : 'sec'} />
+                        </div>
+                      )
+                    })()}
+                    </div>
+
+                    <div style={{ display: resultsGraphSection === 3 ? 'block' : 'none' }}>
+                    {(() => {
+                      const bleepData = sorted.filter(s => s.test && Object.keys(s.test).some(k => k.toLowerCase().includes('bleep')))
+                        .map(s => {
+                          const entry = Object.entries(s.test).find(([k]) => k.toLowerCase().includes('bleep'))
+                          return { id: s.id, session_date: s.session_date, level: entry ? parseFloat(entry[1]) : null }
+                        }).filter(s => s.level != null)
+                      return (
+                        <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
+                          <Link to={`/fit2fight?student_id=${student.id}&module=test`} className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, zIndex: 1 }}>+ Log</Link>
+                          <LineChart data={bleepData} lines={[{ key: 'level', label: 'Bleep test', colour: '#1D9E75' }]} title="🏃 Bleep test over time" unit="" />
+                        </div>
+                      )
+                    })()}
+                    </div>
+
+                    <div style={{ display: resultsGraphSection === 4 ? 'block' : 'none' }}>
+                    {(() => {
+                      const gripData = sorted.filter(s => s.test && Object.keys(s.test).some(k => k.toLowerCase().includes('grip')))
+                        .map(s => {
+                          const left = Object.entries(s.test).find(([k]) => k.toLowerCase().includes('left') && k.toLowerCase().includes('grip'))
+                          const right = Object.entries(s.test).find(([k]) => k.toLowerCase().includes('right') && k.toLowerCase().includes('grip'))
+                          return { id: s.id, session_date: s.session_date, left: left ? parseFloat(left[1]) : null, right: right ? parseFloat(right[1]) : null }
+                        }).filter(s => s.left != null || s.right != null)
+                      return (
+                        <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
+                          <Link to={`/fit2fight?student_id=${student.id}&module=test`} className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, zIndex: 1 }}>+ Log</Link>
+                          <LineChart data={gripData} lines={[{ key: 'left', label: 'Grip left', colour: '#378ADD' }, { key: 'right', label: 'Grip right', colour: '#E24B4A' }]} title="✊ Grip test over time" unit="kg" />
+                        </div>
+                      )
+                    })()}
+                    </div>
+
+                    <div style={{ display: resultsGraphSection === 5 ? 'block' : 'none' }}>
+                    {(() => {
+                      const circuitData = sorted.filter(s => s.test && Object.keys(s.test).some(k => k.toLowerCase().includes('fixed load circuit')))
+                        .map(s => {
+                          const entry = Object.entries(s.test).find(([k]) => k.toLowerCase().includes('fixed load circuit'))
+                          return { id: s.id, session_date: s.session_date, value: entry ? parseFloat(entry[1]) : null }
+                        }).filter(s => s.value != null)
+                      return (
+                        <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
+                          <Link to={`/fit2fight?student_id=${student.id}&module=test`} className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, zIndex: 1 }}>+ Log</Link>
+                          <LineChart data={circuitData} lines={[{ key: 'value', label: 'Fixed load circuit', colour: '#854F0B' }]} title="⭕ Fixed load circuit over time" unit="" />
+                        </div>
+                      )
+                    })()}
+                    </div>
+
+                    <div style={{ display: resultsGraphSection === 6 ? 'block' : 'none' }}>
+                    {(() => {
+                      const bwData = sorted.flatMap(s => toEntries(s.bodyweight)
+                        .filter(e => Array.isArray(e.sets) && e.sets.length > 0)
+                        .map(e => ({ id: s.id, session_date: s.session_date, bodyweight: e })))
+                      const bwTypes = [...new Set(bwData.map(s => s.bodyweight?.type).filter(Boolean))]
+                      const filteredBw = bwChartFilter === 'all' ? bwData : bwData.filter(s => s.bodyweight?.type === bwChartFilter)
+                      const maxSets = Math.max(1, ...filteredBw.map(s => s.bodyweight?.sets?.length || 0))
+                      const SET_COLOURS = ['#1D9E75','#378ADD','#E24B4A','#EF9F27','#8B5CF6','#EC4899']
+                      const setLines = Array.from({length: maxSets}, (_,i) => ({ key: `set${i}`, label: `Set ${i+1}`, colour: SET_COLOURS[i % SET_COLOURS.length] }))
+                      const chartData = filteredBw.map(s => {
+                        const obj = { id: s.id, session_date: s.session_date }
+                        ;(s.bodyweight?.sets || []).forEach((v,i) => { obj[`set${i}`] = parseFloat(v) })
+                        return obj
+                      })
+                      return (
+                        <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
+                          <Link to={`/fit2fight?student_id=${student.id}&module=bodyweight`} className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, zIndex: 1 }}>+ Log</Link>
+                          {bwTypes.length > 1 && (
+                            <div className="field" style={{ marginBottom: 10, maxWidth: 220 }}>
+                              <label style={{ fontSize: 11 }}>Show</label>
+                              <select value={bwChartFilter} onChange={e => setBwChartFilter(e.target.value)} style={{ fontSize: 12, padding: '5px 8px' }}>
+                                <option value="all">All exercises</option>
+                                {bwTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                              </select>
+                            </div>
+                          )}
+                          <LineChart data={chartData} lines={setLines} title="💪 Bodyweight — reps over time" unit=" reps" />
+                        </div>
+                      )
+                    })()}
+                    </div>
+
+                    <div style={{ display: resultsGraphSection === 7 ? 'block' : 'none' }}>
+                    {(() => {
+                      const techData = sorted.filter(s => Array.isArray(s.techniques?.sets) && s.techniques.sets.length > 0)
+                      const techTypes = [...new Set(techData.map(s => s.techniques?.type).filter(Boolean))]
+                      const filteredTech = techChartFilter === 'all' ? techData : techData.filter(s => s.techniques?.type === techChartFilter)
+                      const maxSets = Math.max(1, ...filteredTech.map(s => s.techniques?.sets?.length || 0))
+                      const SET_COLOURS = ['#E24B4A','#378ADD','#1D9E75','#EF9F27','#8B5CF6','#EC4899']
+                      const setLines = Array.from({length: maxSets}, (_,i) => ({ key: `set${i}`, label: `Set ${i+1}`, colour: SET_COLOURS[i % SET_COLOURS.length] }))
+                      const chartData = filteredTech.map(s => {
+                        const obj = { id: s.id, session_date: s.session_date }
+                        ;(s.techniques?.sets || []).forEach((v,i) => { obj[`set${i}`] = parseFloat(v) })
+                        return obj
+                      })
+                      return (
+                        <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
+                          <Link to={`/fit2fight?student_id=${student.id}&module=techniques`} className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, zIndex: 1 }}>+ Log</Link>
+                          {techTypes.length > 1 && (
+                            <div className="field" style={{ marginBottom: 10, maxWidth: 220 }}>
+                              <label style={{ fontSize: 11 }}>Show</label>
+                              <select value={techChartFilter} onChange={e => setTechChartFilter(e.target.value)} style={{ fontSize: 12, padding: '5px 8px' }}>
+                                <option value="all">All techniques</option>
+                                {techTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                              </select>
+                            </div>
+                          )}
+                          <LineChart data={chartData} lines={setLines} title="🥋 Techniques — reps over time" unit=" reps" />
+                        </div>
+                      )
+                    })()}
+                    </div>
+                  </>
                 )
               })()}
               <div className="card" style={{ padding: 0 }}>
