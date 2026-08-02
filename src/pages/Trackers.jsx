@@ -88,6 +88,7 @@ export default function Trackers() {
   const [loading, setLoading]       = useState(true)
   const [search, setSearch]         = useState('')
   const [houseFilter, setHouseFilter] = useState('')
+  const [colFilters, setColFilters] = useState({})
   const [sortKey, setSortKey]       = useState('total_sessions')
   const [sortDir, setSortDir]       = useState('desc')
 
@@ -233,9 +234,21 @@ export default function Trackers() {
     }
   })
 
+  const COL_KEYS = ['student_ref', 'name', 'age', 'house', 'grade', 'class_schedule', 'class_time', 'trained_for_months', 'total_sessions', 'house_points', 'individual_points', 'class_champ', 'weight_change', 'media']
   const filtered = stats
     .filter(s => !houseFilter || s.house === houseFilter)
     .filter(s => !search || s.name.toLowerCase().includes(search.toLowerCase()) || s.student_ref?.toLowerCase().includes(search.toLowerCase()))
+    .filter(s => COL_KEYS.every(k => {
+      const f = colFilters[k]
+      if (!f) return true
+      return String(s[k] ?? '').toLowerCase().includes(f.toLowerCase())
+    }))
+    .filter(s => {
+      const f = colFilters.groups
+      if (!f) return true
+      const groupsStr = [s.is_kr && 'KR', s.is_pts && 'PTs', s.is_leader && 'L'].filter(Boolean).join(' ')
+      return groupsStr.toLowerCase().includes(f.toLowerCase())
+    })
     .sort((a, b) => {
       const aVal = a[sortKey] ?? (typeof a[sortKey] === 'number' ? 0 : '')
       const bVal = b[sortKey] ?? (typeof b[sortKey] === 'number' ? 0 : '')
@@ -527,6 +540,14 @@ export default function Trackers() {
                   <SortTh col="weight_change" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} style={{ textAlign: 'center' }}>Wt Δ</SortTh>
                   <th>Groups</th>
                   <SortTh col="media" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>Media</SortTh>
+                </tr>
+                <tr>
+                  {['student_ref', 'name', 'age', 'house', 'grade', 'class_schedule', 'class_time', 'trained_for_months', 'total_sessions', 'house_points', 'individual_points', 'class_champ', 'weight_change', 'groups', 'media'].map(k => (
+                    <th key={k} style={{ padding: '4px 4px' }}>
+                      <input value={colFilters[k] || ''} onChange={e => setColFilters(f => ({ ...f, [k]: e.target.value }))}
+                        placeholder="Filter…" style={{ width: '100%', fontSize: 11, padding: '4px 6px' }} />
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
