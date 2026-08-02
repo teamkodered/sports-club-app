@@ -5902,11 +5902,14 @@ export default function AthleteProfiles() {
                     overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
                     maxHeight: showTechniqueSection ? 8000 : 0, opacity: showTechniqueSection ? 1 : 0,
                   }}>
-                  {TECHNIQUE_STYLES.map(({ style, categories }) => (
+                  {TECHNIQUE_STYLES.map(({ style, categories }) => {
+                    const hasActiveInThisStyle = Object.keys(categories).some(cat => expandedTechniqueCategory === `${style}::${cat}`)
+                    if (expandedTechniqueCategory && !hasActiveInThisStyle) return null
+                    return (
                     <div key={style} style={{ marginBottom: 14 }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>{style} Techniques</div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 8 }}>
-                        {Object.keys(categories).map(cat => {
+                      <div style={{ display: 'grid', gridTemplateColumns: expandedTechniqueCategory ? '1fr' : 'repeat(3, 1fr)', gap: 8, marginBottom: 8 }}>
+                        {Object.keys(categories).filter(cat => !expandedTechniqueCategory || expandedTechniqueCategory === `${style}::${cat}`).map(cat => {
                           const catKey = `${style}::${cat}`
                           const active = expandedTechniqueCategory === catKey
                           const count = todaysTechniques.filter(t => t.style === style && t.category === cat).length
@@ -5914,13 +5917,13 @@ export default function AthleteProfiles() {
                             <button key={cat} type="button"
                               onClick={() => setExpandedTechniqueCategory(active ? null : catKey)}
                               style={{
-                                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
+                                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: active ? '16px 8px' : '10px 6px',
                                 borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                                 border: `2px solid ${active ? '#E24B4A' : count ? '#1D9E75' : 'var(--border)'}`,
                                 background: count ? '#1D9E7512' : 'var(--bg-secondary)',
                               }}>
-                              <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat}</span>
-                              {count > 0 && <span style={{ fontSize: 8, color: '#1D9E75' }}>{count} selected</span>}
+                              <span style={{ fontSize: active ? 14 : 9, fontWeight: active ? 700 : 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat}</span>
+                              {count > 0 && <span style={{ fontSize: active ? 10 : 8, color: '#1D9E75' }}>{count} selected</span>}
                             </button>
                           )
                         })}
@@ -5963,7 +5966,8 @@ export default function AthleteProfiles() {
                         )
                       })}
                     </div>
-                  ))}
+                    )
+                  })}
                   {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8 }}>Saving…</p>}
                   </div>
                   </div>
@@ -5983,21 +5987,21 @@ export default function AthleteProfiles() {
                     overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
                     maxHeight: showTacticalSection ? 8000 : 0, opacity: showTacticalSection ? 1 : 0,
                   }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 8 }}>
-                    {Object.keys(TACTICAL_CATEGORIES).map(cat => {
+                  <div style={{ display: 'grid', gridTemplateColumns: expandedTacticalCategory ? '1fr' : 'repeat(3, 1fr)', gap: 8, marginBottom: 8 }}>
+                    {Object.keys(TACTICAL_CATEGORIES).filter(cat => !expandedTacticalCategory || expandedTacticalCategory === cat).map(cat => {
                       const active = expandedTacticalCategory === cat
                       const count = todaysTactical.filter(t => t.category === cat).length
                       return (
                         <button key={cat} type="button"
                           onClick={() => setExpandedTacticalCategory(active ? null : cat)}
                           style={{
-                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: active ? '16px 8px' : '10px 6px',
                             borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                             border: `2px solid ${active ? '#E24B4A' : count ? '#1D9E75' : 'var(--border)'}`,
                             background: count ? '#1D9E7512' : 'var(--bg-secondary)',
                           }}>
-                          <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat}</span>
-                          {count > 0 && <span style={{ fontSize: 8, color: '#1D9E75' }}>{count} selected</span>}
+                          <span style={{ fontSize: active ? 14 : 9, fontWeight: active ? 700 : 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat}</span>
+                          {count > 0 && <span style={{ fontSize: active ? 10 : 8, color: '#1D9E75' }}>{count} selected</span>}
                         </button>
                       )
                     })}
@@ -6057,19 +6061,19 @@ export default function AthleteProfiles() {
                     overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
                     maxHeight: showMentalitySection ? 4000 : 0, opacity: showMentalitySection ? 1 : 0,
                   }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeMentality ? 10 : 8 }}>
-                    {MENTALITY_QUESTIONS.map(q => {
+                  <div style={{ display: 'grid', gridTemplateColumns: expandedHomeMentality ? '1fr' : 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeMentality ? 10 : 8 }}>
+                    {MENTALITY_QUESTIONS.filter(q => !expandedHomeMentality || expandedHomeMentality === q.key).map(q => {
                       const complete = isMentalityQComplete(q.key, todaysMentalityLog)
                       const active = expandedHomeMentality === q.key
                       return (
                         <button key={q.key} type="button" onClick={() => setExpandedHomeMentality(active ? null : q.key)} style={{
-                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: active ? '16px 8px' : '10px 6px',
                           borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                           border: `2px solid ${active ? colour : complete ? '#6D28D9' : 'var(--border)'}`,
                           background: complete ? '#6D28D912' : 'var(--bg-secondary)',
                         }}>
-                          <span style={{ fontSize: 16 }}>{q.icon}</span>
-                          <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{q.label}</span>
+                          <span style={{ fontSize: active ? 26 : 16 }}>{q.icon}</span>
+                          <span style={{ fontSize: active ? 14 : 9, fontWeight: active ? 700 : 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{q.label}</span>
                         </button>
                       )
                     })}
@@ -6223,19 +6227,19 @@ export default function AthleteProfiles() {
                     overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
                     maxHeight: showWellbeingSection ? 6000 : 0, opacity: showWellbeingSection ? 1 : 0,
                   }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeWb ? 10 : 8 }}>
-                    {WELLBEING_QUESTIONS.map(q => {
+                  <div style={{ display: 'grid', gridTemplateColumns: expandedHomeWb ? '1fr' : 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeWb ? 10 : 8 }}>
+                    {WELLBEING_QUESTIONS.filter(q => !expandedHomeWb || expandedHomeWb === q.key).map(q => {
                       const complete = isWellbeingQComplete(q.key, todaysWellbeing)
                       const active = expandedHomeWb === q.key
                       return (
                         <button key={q.key} type="button" onClick={() => setExpandedHomeWb(active ? null : q.key)} style={{
-                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: active ? '16px 8px' : '10px 6px',
                           borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                           border: `2px solid ${active ? colour : complete ? '#0E9F6E' : 'var(--border)'}`,
                           background: complete ? '#0E9F6E12' : 'var(--bg-secondary)',
                         }}>
-                          <span style={{ fontSize: 16 }}>{q.icon}</span>
-                          <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{q.label}</span>
+                          <span style={{ fontSize: active ? 26 : 16 }}>{q.icon}</span>
+                          <span style={{ fontSize: active ? 14 : 9, fontWeight: active ? 700 : 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{q.label}</span>
                         </button>
                       )
                     })}
@@ -6454,19 +6458,19 @@ export default function AthleteProfiles() {
                     overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
                     maxHeight: showTestSection ? 4000 : 0, opacity: showTestSection ? 1 : 0,
                   }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeTestCategory ? 10 : 8 }}>
-                    {TEST_CATEGORIES.map(cat => {
+                  <div style={{ display: 'grid', gridTemplateColumns: expandedHomeTestCategory ? '1fr' : 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeTestCategory ? 10 : 8 }}>
+                    {TEST_CATEGORIES.filter(cat => !expandedHomeTestCategory || expandedHomeTestCategory === cat.key).map(cat => {
                       const complete = cat.tests.some(t => todaysTest[t.name] != null && todaysTest[t.name] !== '')
                       const active = expandedHomeTestCategory === cat.key
                       return (
                         <button key={cat.key} type="button" onClick={() => setExpandedHomeTestCategory(active ? null : cat.key)} style={{
-                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: active ? '16px 8px' : '10px 6px',
                           borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                           border: `2px solid ${active ? colour : complete ? '#8B5CF6' : 'var(--border)'}`,
                           background: complete ? '#8B5CF612' : 'var(--bg-secondary)',
                         }}>
-                          <span style={{ fontSize: 16 }}>{cat.icon}</span>
-                          <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat.label}</span>
+                          <span style={{ fontSize: active ? 26 : 16 }}>{cat.icon}</span>
+                          <span style={{ fontSize: active ? 14 : 9, fontWeight: active ? 700 : 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat.label}</span>
                         </button>
                       )
                     })}
