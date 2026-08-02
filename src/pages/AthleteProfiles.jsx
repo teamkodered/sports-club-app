@@ -1795,6 +1795,9 @@ export default function AthleteProfiles() {
   const [weightTargetPctInComp, setWeightTargetPctInComp] = useState(0.025)
   const [weightTargetPctOutComp, setWeightTargetPctOutComp] = useState(0.05)
   const [weightTargetActiveMode, setWeightTargetActiveMode] = useState('in_comp') // 'in_comp' | 'out_comp' -- global toggle, overrides each athlete's own in_comp status
+  const [showWeightOverridePopup, setShowWeightOverridePopup] = useState(false)
+  const [weightOverrideType, setWeightOverrideType] = useState('actual') // 'actual' | 'percent'
+  const [weightOverrideValue, setWeightOverrideValue] = useState('')
   const [showWeightTargetPopup, setShowWeightTargetPopup] = useState(false)
   const [showGroupLogger, setShowGroupLogger] = useState(false)
   const [groupLoggerSection, setGroupLoggerSection] = useState('')
@@ -2334,6 +2337,14 @@ export default function AthleteProfiles() {
     const { error } = await supabase.from('team_settings').upsert({ key: 'weight_target_active_mode', value: mode }, { onConflict: 'key' })
     if (error) { alert('Error saving: ' + error.message); return }
     setWeightTargetActiveMode(mode)
+  }
+
+  async function saveWeightTargetOverride(override) {
+    if (!selected) return
+    const { error } = await supabase.from('athlete_profiles')
+      .upsert({ student_id: selected.id, weight_target_override: override }, { onConflict: 'student_id' })
+    if (error) { alert('Error saving: ' + error.message); return }
+    setApData(p => ({ ...(p || {}), weight_target_override: override }))
   }
 
   async function loadTeamPdpTemplate() {
@@ -5467,9 +5478,18 @@ export default function AthleteProfiles() {
                         // if Comp weight isn't set or has no parseable number.
                         const compWeightMatch = apData?.weight_division?.match(/[\d.]+/)
                         const baseWeight = compWeightMatch ? parseFloat(compWeightMatch[0]) : selected.weight_kg
-                        const targetWeight = baseWeight ? (baseWeight * (1 + pct)).toFixed(1) : null
+                        const override = apData?.weight_target_override
+                        let targetWeight = baseWeight ? (baseWeight * (1 + pct)).toFixed(1) : null
+                        let targetTitle = `Target: ${compWeightMatch ? 'comp weight' : 'current weight'} (${baseWeight}kg) + ${pct} (${weightTargetActiveMode === 'in_comp' ? 'in camp' : 'out of camp'})`
+                        if (override?.type === 'actual' && override.value) {
+                          targetWeight = parseFloat(override.value).toFixed(1)
+                          targetTitle = `Target: set directly for this athlete (overrides team target)`
+                        } else if (override?.type === 'percent' && override.value && baseWeight) {
+                          targetWeight = (baseWeight * (1 + parseFloat(override.value))).toFixed(1)
+                          targetTitle = `Target: ${compWeightMatch ? 'comp weight' : 'current weight'} (${baseWeight}kg) + ${override.value} (custom % for this athlete, overrides team target)`
+                        }
                         return (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                             {isAdmin ? (
                               <input key={`weight-${selected.id}`} type="number" step="0.1" defaultValue={selected.weight_kg || ''} placeholder="kg"
                                 onBlur={e => { const v = e.target.value ? parseFloat(e.target.value) : null; if (v !== selected.weight_kg) updateSelectedField('weight_kg', v) }}
@@ -5478,9 +5498,16 @@ export default function AthleteProfiles() {
                               <span>{selected.weight_kg ? `${selected.weight_kg}kg${selected.weight_category ? ` (${selected.weight_category})` : ''}` : '—'}</span>
                             )}
                             {targetWeight && (
-                              <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }} title={`Target: ${compWeightMatch ? 'comp weight' : 'current weight'} (${baseWeight}kg) + ${pct} (${weightTargetActiveMode === 'in_comp' ? 'in camp' : 'out of camp'})`}>
-                                🎯 {targetWeight}kg
+                              <span style={{ fontSize: 11, color: override ? colour : 'var(--text-tertiary)', fontWeight: override ? 600 : 400 }} title={targetTitle}>
+                                🎯 {targetWeight}kg{override && ' *'}
                               </span>
+                            )}
+                            {isAdmin && (
+                              <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => {
+                                setWeightOverrideType(override?.type || 'actual')
+                                setWeightOverrideValue(override?.value != null ? String(override.value) : '')
+                                setShowWeightOverridePopup(true)
+                              }}>{override ? 'Edit target' : '+ Target'}</button>
                             )}
                           </div>
                         )
@@ -5574,6 +5601,41 @@ export default function AthleteProfiles() {
                           ))}
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {showWeightOverridePopup && (
+                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}
+                      onClick={() => setShowWeightOverridePopup(false)}>
+                      <div className="card" style={{ width: 320, padding: 20 }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                          <h2 style={{ fontSize: 15, fontWeight: 600 }}>Weight target for {selected.members?.first_name}</h2>
+                          <button onClick={() => setShowWeightOverridePopup(false)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
+                        </div>
+                        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16 }}>
+                          Setting a target here overrides the team-wide target for this athlete only.
+                        </p>
+                        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                          <button className="btn btn-sm" style={{ flex: 1, background: weightOverrideType === 'actual' ? colour + '20' : undefined, borderColor: weightOverrideType === 'actual' ? colour : undefined }}
+                            onClick={() => setWeightOverrideType('actual')}>Actual weight</button>
+                          <button className="btn btn-sm" style={{ flex: 1, background: weightOverrideType === 'percent' ? colour + '20' : undefined, borderColor: weightOverrideType === 'percent' ? colour : undefined }}
+                            onClick={() => setWeightOverrideType('percent')}>% of comp weight</button>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16 }}>
+                          <input type="text" inputMode="decimal" value={weightOverrideValue} onChange={e => setWeightOverrideValue(e.target.value)}
+                            placeholder={weightOverrideType === 'actual' ? 'e.g. 58' : 'e.g. 0.03'} style={{ flex: 1 }} />
+                          <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{weightOverrideType === 'actual' ? 'kg' : '(fraction)'}</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button className="btn btn-primary btn-sm" style={{ flex: 1 }} disabled={!weightOverrideValue.trim()}
+                            onClick={() => { saveWeightTargetOverride({ type: weightOverrideType, value: parseFloat(weightOverrideValue) }); setShowWeightOverridePopup(false) }}>
+                            Save
+                          </button>
+                          {apData?.weight_target_override && (
+                            <button className="btn btn-sm" onClick={() => { saveWeightTargetOverride(null); setShowWeightOverridePopup(false) }}>Clear override</button>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   )}
 
