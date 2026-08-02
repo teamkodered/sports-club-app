@@ -1871,7 +1871,7 @@ export default function AthleteProfiles() {
   const [allClasses, setAllClasses] = useState([])
   const [addingClassId, setAddingClassId] = useState('')
   const [customSessionTitle, setCustomSessionTitle] = useState('')
-  const [customSessionDay, setCustomSessionDay] = useState('')
+  const [customSessionDays, setCustomSessionDays] = useState([])
   const [customSessionTime, setCustomSessionTime] = useState('')
   const [savingClassAssignment, setSavingClassAssignment] = useState(false)
   const [copiedSession, setCopiedSession] = useState(null) // { title, day, time } -- persists across athletes since this component doesn't unmount when switching
@@ -2988,21 +2988,23 @@ export default function AthleteProfiles() {
   }
 
   async function addCustomSessionAssignment() {
-    if (!customSessionTitle.trim() || !customSessionDay || !customSessionTime) return
+    if (!customSessionTitle.trim() || !customSessionDays.length || !customSessionTime) return
     setSavingClassAssignment(true)
-    const { data: newClass, error: classError } = await supabase.from('classes')
-      .insert({ name: customSessionTitle.trim(), day_of_week: customSessionDay, start_time: customSessionTime, active: true, discipline: selected?.discipline || 'PKA' })
-      .select('*').single()
-    if (classError) { alert('Error creating session: ' + classError.message); setSavingClassAssignment(false); return }
-    setAllClasses(prev => [...prev, newClass].sort((a,b) => (a.day_of_week||'').localeCompare(b.day_of_week||'') || (a.start_time||'').localeCompare(b.start_time||'')))
+    for (const day of customSessionDays) {
+      const { data: newClass, error: classError } = await supabase.from('classes')
+        .insert({ name: customSessionTitle.trim(), day_of_week: day, start_time: customSessionTime, active: true, discipline: selected?.discipline || 'PKA' })
+        .select('*').single()
+      if (classError) { alert(`Error creating session for ${day}: ` + classError.message); continue }
+      setAllClasses(prev => [...prev, newClass].sort((a,b) => (a.day_of_week||'').localeCompare(b.day_of_week||'') || (a.start_time||'').localeCompare(b.start_time||'')))
 
-    const { data, error } = await supabase.from('student_class_assignments')
-      .insert({ student_id: selected.id, class_id: newClass.id })
-      .select('id, class_id, classes(*)').single()
-    if (error) { alert('Error assigning session: ' + error.message); setSavingClassAssignment(false); return }
-    setAssignedClasses(prev => [...prev, data])
+      const { data, error } = await supabase.from('student_class_assignments')
+        .insert({ student_id: selected.id, class_id: newClass.id })
+        .select('id, class_id, classes(*)').single()
+      if (error) { alert(`Error assigning session for ${day}: ` + error.message); continue }
+      setAssignedClasses(prev => [...prev, data])
+    }
     setAddingClassId('')
-    setCustomSessionTitle(''); setCustomSessionDay(''); setCustomSessionTime('')
+    setCustomSessionTitle(''); setCustomSessionDays([]); setCustomSessionTime('')
     setSavingClassAssignment(false)
   }
 
@@ -7096,15 +7098,29 @@ export default function AthleteProfiles() {
                           )}
                         </div>
                         {addingClassId === '__other__' && (
-                          <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-                            <input value={customSessionTitle} onChange={e => setCustomSessionTitle(e.target.value)} placeholder="Title" style={{ flex: 2, minWidth: 120 }} />
-                            <select value={customSessionDay} onChange={e => setCustomSessionDay(e.target.value)} style={{ flex: 1, minWidth: 100 }}>
-                              <option value="">Day…</option>
-                              {['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map(d => <option key={d} value={d}>{d}</option>)}
-                            </select>
-                            <input type="time" value={customSessionTime} onChange={e => setCustomSessionTime(e.target.value)} style={{ flex: 1, minWidth: 90 }} />
-                            <button className="btn btn-sm btn-primary" disabled={!customSessionTitle.trim() || !customSessionDay || !customSessionTime || savingClassAssignment} onClick={addCustomSessionAssignment}>
-                              {savingClassAssignment ? 'Adding…' : 'Add'}
+                          <div style={{ marginTop: 8 }}>
+                            <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                              <input value={customSessionTitle} onChange={e => setCustomSessionTitle(e.target.value)} placeholder="Title" style={{ flex: 2, minWidth: 120 }} />
+                              <input type="time" value={customSessionTime} onChange={e => setCustomSessionTime(e.target.value)} style={{ flex: 1, minWidth: 90 }} />
+                            </div>
+                            <div className="card" style={{ padding: 8, marginBottom: 8 }}>
+                              <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 6px', borderBottom: '1px solid var(--border)', marginBottom: 4, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                                <input type="checkbox" checked={customSessionDays.length === 7}
+                                  onChange={e => setCustomSessionDays(e.target.checked ? ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'] : [])}
+                                  style={{ width: 15, height: 15 }} />
+                                Select all days
+                              </label>
+                              {['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map(d => (
+                                <label key={d} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 6px', cursor: 'pointer', fontSize: 13 }}>
+                                  <input type="checkbox" checked={customSessionDays.includes(d)}
+                                    onChange={e => setCustomSessionDays(prev => e.target.checked ? [...prev, d] : prev.filter(x => x !== d))}
+                                    style={{ width: 15, height: 15 }} />
+                                  {d}
+                                </label>
+                              ))}
+                            </div>
+                            <button className="btn btn-sm btn-primary" disabled={!customSessionTitle.trim() || !customSessionDays.length || !customSessionTime || savingClassAssignment} onClick={addCustomSessionAssignment}>
+                              {savingClassAssignment ? 'Adding…' : `Add${customSessionDays.length > 1 ? ` (${customSessionDays.length} days)` : ''}`}
                             </button>
                           </div>
                         )}
