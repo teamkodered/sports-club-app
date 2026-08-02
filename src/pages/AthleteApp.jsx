@@ -754,6 +754,9 @@ export default function AthleteApp() {
   const [journalDraft, setJournalDraft] = useState('')
   const [expandedHomeMentality, setExpandedHomeMentality] = useState(null)
   const [showAlterEgoModal, setShowAlterEgoModal] = useState(false)
+  const [weightTargetPctInComp, setWeightTargetPctInComp] = useState(0.025)
+  const [weightTargetPctOutComp, setWeightTargetPctOutComp] = useState(0.05)
+  const [weightTargetActiveMode, setWeightTargetActiveMode] = useState('in_comp')
   const [alterEgoWorkbook, setAlterEgoWorkbook] = useState({})
   const [newReflectionText, setNewReflectionText] = useState({ helped: '', fellShort: '', adjust: '', didItShowUp: null })
   const [savingAlterEgo, setSavingAlterEgo] = useState(false)
@@ -802,6 +805,19 @@ export default function AthleteApp() {
   const [expandedHomeBodyweight, setExpandedHomeBodyweight] = useState(null)
   const [expandedHomeStretch, setExpandedHomeStretch] = useState(null)
   const [stretchInfoOpen, setStretchInfoOpen] = useState({})
+
+  useEffect(() => {
+    supabase.from('team_settings').select('*').in('key', ['weight_target_pct_in_comp', 'weight_target_pct_out_comp', 'weight_target_active_mode'])
+      .then(({ data }) => {
+        if (!data) return
+        const inComp = data.find(d => d.key === 'weight_target_pct_in_comp')
+        const outComp = data.find(d => d.key === 'weight_target_pct_out_comp')
+        const mode = data.find(d => d.key === 'weight_target_active_mode')
+        if (inComp) setWeightTargetPctInComp(parseFloat(inComp.value))
+        if (outComp) setWeightTargetPctOutComp(parseFloat(outComp.value))
+        if (mode) setWeightTargetActiveMode(mode.value)
+      })
+  }, [])
 
   // Clicking outside the Physical section collapses the whole thing;
   // clicking outside an open detail panel (but still inside Physical)
@@ -1376,7 +1392,7 @@ export default function AthleteApp() {
 
   const TABS = [
     ['home',      '🏠 Home'],
-    ['sessions',  '📅 Attendance'],
+    ['sessions',  '📅 Schedule'],
     ['fit2fight', '💪 Results'],
     ['pdp',       '🎯 My PDP'],
     ['reports',   '📄 Reports'],
@@ -1395,7 +1411,7 @@ export default function AthleteApp() {
       )}
 
       {/* Profile header */}
-      <div className="card" style={{ marginBottom: 12, borderLeft: `4px solid ${colour}` }}>
+      <div className="card" style={{ marginBottom: 12, borderLeft: `4px solid ${colour}`, cursor: 'pointer' }} onClick={() => setTab('home')}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <div style={{ width: 64, height: 64, borderRadius: '50%', background: colour + '22', color: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 700, flexShrink: 0 }}>
             {initials}
@@ -1405,7 +1421,7 @@ export default function AthleteApp() {
               <>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   {positionInHouse > 0 && (
-                    <button onClick={() => setShowOverallPos(v => !v)}
+                    <button onClick={e => { e.stopPropagation(); setShowOverallPos(v => !v) }}
                       title={showOverallPos ? 'Showing overall position — tap for position in house' : 'Showing position in house — tap for overall position'}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 15, fontWeight: 700, color: colour }}>
                       #{showOverallPos ? overallPosition : positionInHouse}
@@ -1414,14 +1430,14 @@ export default function AthleteApp() {
                   <div style={{ fontSize: 20, fontWeight: 700 }}>{m?.first_name} {m?.last_name}</div>
                 </div>
                 <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 3 }}>
-                  {student.student_ref} · {student.discipline}{age ? ` · Age ${age}` : ''}{student.pka_belt || student.krba_level ? ` · ${student.pka_belt || student.krba_level}` : ''}
+                  {student.discipline}{age ? ` · Age ${age}` : ''}{student.pka_belt || student.krba_level ? ` · ${student.pka_belt || student.krba_level}` : ''}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, fontSize: 13 }}>
                   {houseRank > 0 && <span style={{ color: 'var(--text-tertiary)', fontWeight: 600 }}>#{houseRank}</span>}
                   <span style={{ color: colour, fontWeight: 600 }}>{houseName || '—'}</span>
                   {houseTotalPoints != null && <span style={{ color: 'var(--text-tertiary)' }}>({houseTotalPoints} pts)</span>}
                   {student.house_points != null && (
-                    <button onClick={() => setShowContribution(v => !v)}
+                    <button onClick={e => { e.stopPropagation(); setShowContribution(v => !v) }}
                       title={showContribution ? 'Showing % contribution to house — tap to show points' : 'Showing house points — tap to show % contribution'}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginLeft: 6, fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textDecoration: 'underline dotted' }}>
                       {showContribution ? `${contributionPct ?? 0}% of house` : `${student.house_points} house pts`}
@@ -1439,7 +1455,15 @@ export default function AthleteApp() {
         </div>
       </div>
 
-      {student && (
+      {student && (() => {
+        const pct = weightTargetActiveMode === 'in_comp' ? weightTargetPctInComp : weightTargetPctOutComp
+        const compWeightMatch = apData?.weight_division?.match(/[\d.]+/)
+        const baseWeight = compWeightMatch ? parseFloat(compWeightMatch[0]) : student.weight_kg
+        const override = apData?.weight_target_override
+        let targetWeight = baseWeight ? (baseWeight * (1 + pct)).toFixed(1) : null
+        if (override?.type === 'actual' && override.value) targetWeight = parseFloat(override.value).toFixed(1)
+        else if (override?.type === 'percent' && override.value && baseWeight) targetWeight = (baseWeight * (1 + parseFloat(override.value))).toFixed(1)
+        return (
       <div className="card" style={{ padding: 0, marginBottom: 14 }}>
         <div style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)' }}>Profile</div>
         {[
@@ -1448,17 +1472,21 @@ export default function AthleteApp() {
           [student.discipline === 'KRBA' ? 'Level' : student.is_kr ? 'Experience' : 'Grade',
             student.discipline === 'KRBA' ? (student.krba_level || '—') : student.is_kr ? (student.competition_team || '—') : (student.pka_belt || '—')],
           ['Record', `${student.wins || 0}W ${student.losses || 0}L ${student.draws || 0}D`],
-          ['Weight', student.weight_kg ? `${student.weight_kg}kg${student.weight_category ? ` (${student.weight_category})` : ''}` : '—'],
+          ['Weight', student.weight_kg ? `${student.weight_kg}kg${student.weight_category ? ` (${student.weight_category})` : ''}` : '—', targetWeight],
           ['Comp weight', apData?.weight_division || '—'],
           ['Groups', [student.is_kr && 'KR', student.is_pts && 'PTs', student.is_leader && 'Leader', student.is_coach && 'Coach'].filter(Boolean).join(', ') || 'None'],
-        ].map(([label, val], i, arr) => (
+        ].map(([label, val, target], i, arr) => (
           <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 14px', borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13 }}>
             <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
-            <span style={{ fontWeight: 500, textAlign: 'right' }}>{val}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontWeight: 500, textAlign: 'right' }}>{val}</span>
+              {target && <span style={{ fontSize: 11, color: override ? colour : 'var(--text-tertiary)', fontWeight: override ? 600 : 400 }} title={override ? 'Target set by your coach for you specifically' : `Target: current weight + ${pct}`}>🎯 {target}kg{override && ' *'}</span>}
+            </span>
           </div>
         ))}
       </div>
-      )}
+        )
+      })()}
 
       {/* Tabs */}
       <div className="hide-scrollbar" style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 14, overflowX: 'auto' }}>
@@ -1545,7 +1573,7 @@ export default function AthleteApp() {
                         </div>
                         <button onClick={() => setF2fStatsScope(v => v + 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4, appearance: 'none', WebkitAppearance: 'none', fontFamily: 'var(--font-sans)' }}>▶</button>
                       </div>
-                      <button onClick={() => setTab('fit2fight')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg)', appearance: 'none', WebkitAppearance: 'none' }}>
+                      <a href={`/fit2fight?student_id=${student.id}`} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg)', textDecoration: 'none', color: 'inherit', display: 'block' }}>
                         <div style={{ fontSize: 22, marginBottom: 4 }}>🔥</div>
                         <div style={{ fontSize: 22, fontWeight: 700, color: '#378ADD' }}>
                           {(() => {
@@ -1555,7 +1583,7 @@ export default function AthleteApp() {
                           })()}
                         </div>
                         <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>F2F Results</div>
-                      </button>
+                      </a>
                       <button onClick={() => setTab('pdp')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg)', appearance: 'none', WebkitAppearance: 'none' }}>
                         <div style={{ fontSize: 22, marginBottom: 4 }}>🎯</div>
                         <div style={{ fontSize: 22, fontWeight: 700, color: '#EF9F27' }}>
@@ -2679,24 +2707,8 @@ export default function AthleteApp() {
 
 
 
-                    {apData && (apData.age_division_kickboxing || apData.age_division_boxing || apData.weight_division || apData.top_achievements || (Array.isArray(apData.recent_results) && apData.recent_results.length > 0)) && (
+                    {apData && (apData.top_achievements || (Array.isArray(apData.recent_results) && apData.recent_results.length > 0)) && (
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-                        {(apData.age_division_kickboxing || apData.age_division_boxing || apData.weight_division || apData.kode_red_debut) && (
-                          <div className="card">
-                            <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: colour }}>Competition divisions</h3>
-                            {[
-                              ['Kickboxing', apData.age_division_kickboxing],
-                              ['Boxing', apData.age_division_boxing],
-                              ['Weight division', apData.weight_division],
-                              ['Kode Red debut', apData.kode_red_debut],
-                            ].map(([l, v]) => v && (
-                              <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
-                                <span style={{ color: 'var(--text-secondary)' }}>{l}</span>
-                                <span style={{ fontWeight: 500 }}>{v}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
                         {apData.top_achievements && (
                           <div className="card" style={{ gridColumn: '1/-1' }}>
                             <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: colour }}>🏆 Top achievements</h3>
@@ -2728,22 +2740,6 @@ export default function AthleteApp() {
                             </tr>
                           ))}
                         </tbody></table>
-                      </div>
-                    )}
-                    {checkedInMsg ? (
-                      <div className="card" style={{ textAlign: 'center', padding: 12, background: '#1D9E7515', border: '1px solid #1D9E7530', color: '#1D9E75', fontWeight: 600, fontSize: 14 }}>
-                        {checkedInMsg}
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', padding: 12, fontSize: 14 }}
-                          onClick={() => checkInNow('attended')} disabled={checkingIn}>
-                          ✅ Check in
-                        </button>
-                        <button className="btn" style={{ flex: 1, justifyContent: 'center', padding: 12, fontSize: 14 }}
-                          onClick={() => checkInNow('full_kit')} disabled={checkingIn}>
-                          ✅ Full Kit
-                        </button>
                       </div>
                     )}
                   </>
@@ -2843,6 +2839,22 @@ export default function AthleteApp() {
 
         return (
           <div>
+            {checkedInMsg ? (
+              <div className="card" style={{ textAlign: 'center', padding: 12, marginBottom: 14, background: '#1D9E7515', border: '1px solid #1D9E7530', color: '#1D9E75', fontWeight: 600, fontSize: 14 }}>
+                {checkedInMsg}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+                <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', padding: 12, fontSize: 14 }}
+                  onClick={() => checkInNow('attended')} disabled={checkingIn}>
+                  ✅ Check in
+                </button>
+                <button className="btn" style={{ flex: 1, justifyContent: 'center', padding: 12, fontSize: 14 }}
+                  onClick={() => checkInNow('full_kit')} disabled={checkingIn}>
+                  ✅ Full Kit
+                </button>
+              </div>
+            )}
             <div className="card" style={{ marginBottom: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8 }}>
                 <button className="btn btn-sm" onClick={() => setSessionsCalMonth(m => m.month === 0 ? { year: m.year - 1, month: 11 } : { year: m.year, month: m.month - 1 })}>←</button>
@@ -2985,25 +2997,7 @@ export default function AthleteApp() {
 
             {/* Assigned sessions -- taken from the actual class register (classes table), same data used by Registers/Students pages */}
             <div className="card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <h3 style={{ fontSize: 13, fontWeight: 600 }}>Assigned sessions</h3>
-                <button className="btn btn-sm" onClick={() => { setShowAddClass(v => !v); setAddClassSelection('') }}>
-                  {showAddClass ? 'Cancel' : '+ Add class'}
-                </button>
-              </div>
-              {showAddClass && (
-                <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-                  <select value={addClassSelection} onChange={e => setAddClassSelection(e.target.value)} style={{ flex: 1, minWidth: 160 }}>
-                    <option value="">— Select a class —</option>
-                    {allClasses.filter(cl => !assignedClasses.some(a => a.class_id === cl.id)).map(cl => (
-                      <option key={cl.id} value={cl.id}>{cl.name} ({cl.day_of_week} {cl.start_time?.slice(0,5)})</option>
-                    ))}
-                  </select>
-                  <button className="btn btn-sm btn-primary" disabled={!addClassSelection || savingClassAdd} onClick={addClassAssignment}>
-                    {savingClassAdd ? '…' : 'Add'}
-                  </button>
-                </div>
-              )}
+              <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Assigned sessions</h3>
               {assignedClasses.length === 0 ? (
                 <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No classes assigned yet.</p>
               ) : (
