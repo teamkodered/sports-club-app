@@ -427,6 +427,7 @@ const MENTALITY_QUESTIONS = [
   { key: 'coldWater',       label: 'Cold water / Ice bath', icon: '🧊' },
   { key: 'activeRecovery',  label: 'Active recovery day', icon: '🚶' },
   { key: 'gratitude',       label: 'Self gratitude',   icon: '🙏' },
+  { key: 'alterEgo',        label: 'Alter Ego',        icon: '🎭' },
 ]
 const VIDEO_ANALYSIS_OPTIONS = ['Self in competition', 'Self in training', 'Elite athlete in competition', 'Elite athlete in training']
 const MEDITATION_TYPE_OPTIONS = ['Guided meditation', 'Breathing meditation', 'Body scan meditation', 'Mindfulness meditation', 'Silent meditation', 'Other']
@@ -752,6 +753,10 @@ export default function AthleteApp() {
   const [productivityCustomAdd, setProductivityCustomAdd] = useState('')
   const [journalDraft, setJournalDraft] = useState('')
   const [expandedHomeMentality, setExpandedHomeMentality] = useState(null)
+  const [showAlterEgoModal, setShowAlterEgoModal] = useState(false)
+  const [alterEgoWorkbook, setAlterEgoWorkbook] = useState({})
+  const [newReflectionText, setNewReflectionText] = useState({ helped: '', fellShort: '', adjust: '', didItShowUp: null })
+  const [savingAlterEgo, setSavingAlterEgo] = useState(false)
   const [todaysMentalityLog, setTodaysMentalityLog] = useState({})
   const [savingMentalityLog, setSavingMentalityLog] = useState(false)
   const [chessCustomAdd, setChessCustomAdd] = useState('')
@@ -948,6 +953,7 @@ export default function AthleteApp() {
           supabase.from('attendance').select('*').eq('student_id', s.id).order('session_date', { ascending: false }),
         ])
         setApData(ap?.[0] || null)
+        setAlterEgoWorkbook(ap?.[0]?.alter_ego_workbook || {})
         setPoints(pts || [])
         setSessions(sess || [])
         setAttendanceData(myAtt || [])
@@ -1160,6 +1166,32 @@ export default function AthleteApp() {
   // for the granular Mentality question breakdown (stored in the
   // separate mentality_log column so it doesn't clash with the simple
   // multi-select 'mentality' field used by the log form).
+  async function saveAlterEgoWorkbook(updates) {
+    if (!student) return
+    setSavingAlterEgo(true)
+    const next = { ...alterEgoWorkbook, ...updates }
+    setAlterEgoWorkbook(next)
+    const { error } = await supabase.from('athlete_profiles')
+      .upsert({ student_id: student.id, alter_ego_workbook: next }, { onConflict: 'student_id' })
+    if (error) alert('Error saving: ' + error.message)
+    setApData(p => ({ ...(p || {}), alter_ego_workbook: next }))
+    setSavingAlterEgo(false)
+  }
+
+  async function addAlterEgoReflection() {
+    if (!student) return
+    setSavingAlterEgo(true)
+    const entry = { date: new Date().toISOString(), ...newReflectionText }
+    const next = { ...alterEgoWorkbook, reflections: [entry, ...(alterEgoWorkbook.reflections || [])] }
+    setAlterEgoWorkbook(next)
+    const { error } = await supabase.from('athlete_profiles')
+      .upsert({ student_id: student.id, alter_ego_workbook: next }, { onConflict: 'student_id' })
+    if (error) alert('Error saving: ' + error.message)
+    setApData(p => ({ ...(p || {}), alter_ego_workbook: next }))
+    setNewReflectionText({ helped: '', fellShort: '', adjust: '', didItShowUp: null })
+    setSavingAlterEgo(false)
+  }
+
   async function saveMentalityField(field, updater) {
     if (!student) return
     setSavingMentalityLog(true)
@@ -2023,10 +2055,10 @@ export default function AthleteApp() {
                     }}>
                     <div style={{ display: 'grid', gridTemplateColumns: expandedHomeMentality ? '1fr' : 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeMentality ? 10 : 8 }}>
                       {MENTALITY_QUESTIONS.filter(q => !expandedHomeMentality || expandedHomeMentality === q.key).map(q => {
-                        const complete = isMentalityQComplete(q.key, todaysMentalityLog)
+                        const complete = q.key === 'alterEgo' ? !!(alterEgoWorkbook.topTraits?.some(Boolean) || alterEgoWorkbook.nameOption1) : isMentalityQComplete(q.key, todaysMentalityLog)
                         const active = expandedHomeMentality === q.key
                         return (
-                          <button key={q.key} type="button" onClick={() => setExpandedHomeMentality(active ? null : q.key)} style={{
+                          <button key={q.key} type="button" onClick={() => q.key === 'alterEgo' ? setShowAlterEgoModal(true) : setExpandedHomeMentality(active ? null : q.key)} style={{
                             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: active ? '16px 8px' : '10px 6px',
                             borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                             border: `2px solid ${active ? colour : complete ? '#6D28D9' : 'var(--border)'}`,
@@ -2171,6 +2203,178 @@ export default function AthleteApp() {
                     )}
                     </div>
                     </div>
+
+                    {showAlterEgoModal && (() => {
+                      const MORE_OF_OPTIONS = ['Fearlessness', 'Patience', 'Aggression', 'Composure', 'Confidence', 'Focus']
+                      const LESS_OF_OPTIONS = ['Self-doubt', 'Hesitation', 'Overthinking', 'Anger', 'Anxiety']
+                      const RITUAL_OPTIONS = ['Mantra', 'Breathing ritual', 'Walkout music', 'Visualization']
+                      const wb = alterEgoWorkbook
+                      const toggleInList = (field, val) => {
+                        const cur = wb[field] || []
+                        saveAlterEgoWorkbook({ [field]: cur.includes(val) ? cur.filter(v => v !== val) : [...cur, val] })
+                      }
+                      return (
+                        <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 200, display: 'flex', flexDirection: 'column' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 16, borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+                            <button onClick={() => setShowAlterEgoModal(false)} className="btn btn-sm">← Back</button>
+                            <h2 style={{ fontSize: 16, fontWeight: 600 }}>🎭 The Alter Ego Workbook</h2>
+                          </div>
+                          <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+
+                            <div className="card" style={{ marginBottom: 14 }}>
+                              <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Part 1: Understanding the Alter Ego</h3>
+                              <p style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--text-secondary)' }}>
+                                An alter ego is a performance identity — a persona you step into when it's time to fight.
+                                It helps you channel confidence, aggression, and focus while protecting your everyday self.
+                              </p>
+                            </div>
+
+                            <div className="card" style={{ marginBottom: 14 }}>
+                              <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>Part 2: Why Use an Alter Ego?</h3>
+                              <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Mental Benefits:</p>
+                              <ul style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--text-secondary)', paddingLeft: 20, marginBottom: 10 }}>
+                                <li>Builds confidence and fearlessness</li>
+                                <li>Shields your personal self from stress</li>
+                                <li>Keeps focus sharp</li>
+                              </ul>
+                              <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Physical Benefits:</p>
+                              <ul style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--text-secondary)', paddingLeft: 20 }}>
+                                <li>Unlocks aggression in a controlled way</li>
+                                <li>Brings consistency to fight performances</li>
+                                <li>Fuels resilience</li>
+                              </ul>
+                            </div>
+
+                            <div className="card" style={{ marginBottom: 14 }}>
+                              <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>Part 3: Famous Examples of Alter Egos</h3>
+                              <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Boxing Alter Egos:</p>
+                              <ul style={{ fontSize: 12, lineHeight: 1.7, color: 'var(--text-secondary)', paddingLeft: 20, marginBottom: 10 }}>
+                                <li><b>Muhammad Ali</b> – "The Greatest": Charismatic, poetic, unbeatable persona.</li>
+                                <li><b>Mike Tyson</b> – "Iron Mike": Ferocious, intimidating, destructive force.</li>
+                                <li><b>Prince Naseem Hamed</b>: Flamboyant, flashy, mind-game master.</li>
+                                <li><b>Deontay Wilder</b> – "The Bronze Bomber": Warrior spirit for knockout power.</li>
+                                <li><b>Floyd Mayweather Jr.</b> – "Pretty Boy / Money": Slick "Pretty Boy" to cold, businesslike "Money."</li>
+                                <li><b>Gervonta Davis</b> – "Tank": Explosive power and fearless mindset.</li>
+                                <li><b>Terence Crawford</b> – "Bud / Switch-Hitter": Calm outside, ruthless technician inside.</li>
+                              </ul>
+                              <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Other Sports Alter Egos:</p>
+                              <ul style={{ fontSize: 12, lineHeight: 1.7, color: 'var(--text-secondary)', paddingLeft: 20 }}>
+                                <li><b>Kobe Bryant</b> – "Black Mamba" (Basketball): Killer instinct and Mamba Mentality.</li>
+                                <li><b>Michael Jordan</b> – "Black Jesus / His Airness" (Basketball): Mythical, untouchable presence.</li>
+                                <li><b>Serena Williams</b> – "Arena" (Tennis): Warrior mindset for mental and physical dominance.</li>
+                              </ul>
+                            </div>
+
+                            <div className="card" style={{ marginBottom: 14 }}>
+                              <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>Part 4: Creating Your Own Alter Ego</h3>
+
+                              <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Step 1: Define Your Core Traits</p>
+                              <p style={{ fontSize: 12, marginBottom: 6 }}>👉 What do I need MORE of in the ring?</p>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                                {MORE_OF_OPTIONS.map(o => (
+                                  <button key={o} className="btn btn-sm" onClick={() => toggleInList('moreOf', o)}
+                                    style={{ background: (wb.moreOf || []).includes(o) ? colour + '20' : undefined, borderColor: (wb.moreOf || []).includes(o) ? colour : undefined }}>{o}</button>
+                                ))}
+                              </div>
+                              <input defaultValue={wb.moreOfOther || ''} placeholder="Other…" onBlur={e => saveAlterEgoWorkbook({ moreOfOther: e.target.value })} style={{ marginBottom: 12 }} />
+
+                              <p style={{ fontSize: 12, marginBottom: 6 }}>👉 What do I need LESS of in the ring?</p>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                                {LESS_OF_OPTIONS.map(o => (
+                                  <button key={o} className="btn btn-sm" onClick={() => toggleInList('lessOf', o)}
+                                    style={{ background: (wb.lessOf || []).includes(o) ? colour + '20' : undefined, borderColor: (wb.lessOf || []).includes(o) ? colour : undefined }}>{o}</button>
+                                ))}
+                              </div>
+                              <input defaultValue={wb.lessOfOther || ''} placeholder="Other…" onBlur={e => saveAlterEgoWorkbook({ lessOfOther: e.target.value })} style={{ marginBottom: 12 }} />
+
+                              <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>My Top 3 Traits for My Alter Ego:</p>
+                              {[0,1,2].map(i => (
+                                <input key={i} defaultValue={wb.topTraits?.[i] || ''} placeholder={`Trait ${i+1}`}
+                                  onBlur={e => { const arr = [...(wb.topTraits || [])]; arr[i] = e.target.value; saveAlterEgoWorkbook({ topTraits: arr }) }}
+                                  style={{ marginBottom: 6 }} />
+                              ))}
+
+                              <hr style={{ margin: '14px 0', border: 'none', borderTop: '1px solid var(--border)' }} />
+
+                              <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Step 2: Build the Identity</p>
+                              <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Possible Alter Ego Names:</p>
+                              <input defaultValue={wb.nameOption1 || ''} placeholder="Option 1" onBlur={e => saveAlterEgoWorkbook({ nameOption1: e.target.value })} style={{ marginBottom: 6 }} />
+                              <input defaultValue={wb.nameOption2 || ''} placeholder="Option 2" onBlur={e => saveAlterEgoWorkbook({ nameOption2: e.target.value })} style={{ marginBottom: 12 }} />
+
+                              <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Look / Visuals:</p>
+                              <input defaultValue={wb.colours || ''} placeholder="Colors" onBlur={e => saveAlterEgoWorkbook({ colours: e.target.value })} style={{ marginBottom: 6 }} />
+                              <input defaultValue={wb.fightAttire || ''} placeholder="Fight attire" onBlur={e => saveAlterEgoWorkbook({ fightAttire: e.target.value })} style={{ marginBottom: 6 }} />
+                              <input defaultValue={wb.symbols || ''} placeholder="Symbols/Logos" onBlur={e => saveAlterEgoWorkbook({ symbols: e.target.value })} style={{ marginBottom: 12 }} />
+
+                              <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Voice & Behavior:</p>
+                              <input defaultValue={wb.voiceStyle || ''} placeholder="How does my alter ego talk?" onBlur={e => saveAlterEgoWorkbook({ voiceStyle: e.target.value })} style={{ marginBottom: 6 }} />
+                              <input defaultValue={wb.bodyLanguage || ''} placeholder="How does my alter ego stare/walk/stand?" onBlur={e => saveAlterEgoWorkbook({ bodyLanguage: e.target.value })} style={{ marginBottom: 12 }} />
+
+                              <hr style={{ margin: '14px 0', border: 'none', borderTop: '1px solid var(--border)' }} />
+
+                              <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Step 3: Practice the Switch</p>
+                              <p style={{ fontSize: 12, marginBottom: 6 }}>Choose Your Activation Ritual (check one or more):</p>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+                                {RITUAL_OPTIONS.map(o => (
+                                  <label key={o} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                                    <input type="checkbox" checked={(wb.rituals || []).includes(o)} onChange={() => toggleInList('rituals', o)} style={{ width: 16, height: 16 }} />
+                                    {o}
+                                  </label>
+                                ))}
+                              </div>
+                              <input defaultValue={wb.ritualOther || ''} placeholder="Other…" onBlur={e => saveAlterEgoWorkbook({ ritualOther: e.target.value })} style={{ marginBottom: 8 }} />
+                              <input defaultValue={wb.myRitual || ''} placeholder="My Ritual Will Be…" onBlur={e => saveAlterEgoWorkbook({ myRitual: e.target.value })} style={{ marginBottom: 12 }} />
+
+                              <hr style={{ margin: '14px 0', border: 'none', borderTop: '1px solid var(--border)' }} />
+
+                              <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Step 4: Balance the Persona</p>
+                              <p style={{ fontSize: 12, marginBottom: 6 }}>"In the ring I am ____, outside I am ____."</p>
+                              <input defaultValue={wb.ringSelf || ''} placeholder="In the ring I am…" onBlur={e => saveAlterEgoWorkbook({ ringSelf: e.target.value })} style={{ marginBottom: 6 }} />
+                              <input defaultValue={wb.outsideSelf || ''} placeholder="Outside I am…" onBlur={e => saveAlterEgoWorkbook({ outsideSelf: e.target.value })} />
+                            </div>
+
+                            <div className="card">
+                              <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Part 5: Reflection & Growth</h3>
+                              <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>After each fight/sparring, fill this in:</p>
+
+                              <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Did my alter ego show up?</p>
+                              <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                                <button className="btn btn-sm" onClick={() => setNewReflectionText(p => ({ ...p, didItShowUp: true }))}
+                                  style={{ background: newReflectionText.didItShowUp === true ? '#1D9E7520' : undefined, borderColor: newReflectionText.didItShowUp === true ? '#1D9E75' : undefined }}>Yes</button>
+                                <button className="btn btn-sm" onClick={() => setNewReflectionText(p => ({ ...p, didItShowUp: false }))}
+                                  style={{ background: newReflectionText.didItShowUp === false ? '#E24B4A20' : undefined, borderColor: newReflectionText.didItShowUp === false ? '#E24B4A' : undefined }}>No</button>
+                              </div>
+                              <input value={newReflectionText.helped} onChange={e => setNewReflectionText(p => ({ ...p, helped: e.target.value }))}
+                                placeholder="What did it help me with?" style={{ marginBottom: 6 }} />
+                              <input value={newReflectionText.fellShort} onChange={e => setNewReflectionText(p => ({ ...p, fellShort: e.target.value }))}
+                                placeholder="Where did it fall short?" style={{ marginBottom: 6 }} />
+                              <input value={newReflectionText.adjust} onChange={e => setNewReflectionText(p => ({ ...p, adjust: e.target.value }))}
+                                placeholder="What will I adjust next time?" style={{ marginBottom: 10 }} />
+                              <button className="btn btn-primary btn-sm" disabled={savingAlterEgo || newReflectionText.didItShowUp == null} onClick={addAlterEgoReflection}>
+                                {savingAlterEgo ? 'Saving…' : 'Save reflection'}
+                              </button>
+
+                              {wb.reflections?.length > 0 && (
+                                <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                  <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>Past reflections</p>
+                                  {wb.reflections.map((r, i) => (
+                                    <div key={i} style={{ padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                                      <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>
+                                        {new Date(r.date).toLocaleDateString('en-GB')} — Showed up: <b style={{ color: r.didItShowUp ? '#1D9E75' : '#E24B4A' }}>{r.didItShowUp ? 'Yes' : 'No'}</b>
+                                      </div>
+                                      {r.helped && <p style={{ fontSize: 12, margin: '2px 0' }}><b>Helped:</b> {r.helped}</p>}
+                                      {r.fellShort && <p style={{ fontSize: 12, margin: '2px 0' }}><b>Fell short:</b> {r.fellShort}</p>}
+                                      {r.adjust && <p style={{ fontSize: 12, margin: '2px 0' }}><b>Adjust:</b> {r.adjust}</p>}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                          </div>
+                        </div>
+                      )
+                    })()}
 
                     <div ref={wellbeingSectionRef}>
                     <button type="button" onClick={() => { setShowWellbeingSection(v => { if (v) setExpandedHomeWb(null); return !v }) }} style={{
