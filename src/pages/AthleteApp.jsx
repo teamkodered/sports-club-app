@@ -1475,15 +1475,20 @@ export default function AthleteApp() {
           ['Weight', student.weight_kg ? `${student.weight_kg}kg${student.weight_category ? ` (${student.weight_category})` : ''}` : '—', targetWeight],
           ['Comp weight', apData?.weight_division || '—'],
           ['Groups', [student.is_kr && 'KR', student.is_pts && 'PTs', student.is_leader && 'Leader', student.is_coach && 'Coach'].filter(Boolean).join(', ') || 'None'],
-        ].map(([label, val, target], i, arr) => (
-          <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 14px', borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13 }}>
+        ].map(([label, val, target], i, arr) => {
+          const isWeightRow = label === 'Weight'
+          const isOverTarget = isWeightRow && target && student.weight_kg != null && parseFloat(student.weight_kg) > parseFloat(target)
+          return (
+          <div key={label} onClick={isWeightRow ? () => { setTab('fit2fight'); setResultsGraphSection(0) } : undefined}
+            style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 14px', borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13, cursor: isWeightRow ? 'pointer' : 'default' }}>
             <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontWeight: 500, textAlign: 'right' }}>{val}</span>
-              {target && <span style={{ fontSize: 11, color: override ? colour : 'var(--text-tertiary)', fontWeight: override ? 600 : 400 }} title={override ? 'Target set by your coach for you specifically' : `Target: current weight + ${pct}`}>🎯 {target}kg{override && ' *'}</span>}
+              <span style={{ fontWeight: isWeightRow && target ? 700 : 500, textAlign: 'right', color: isWeightRow && target ? (isOverTarget ? '#E24B4A' : '#1D9E75') : 'inherit' }}>{val}</span>
+              {target && <span style={{ fontSize: 11, color: override ? colour : 'var(--text-tertiary)', fontWeight: override ? 600 : 400 }} title={override ? 'Target set by your coach for you specifically' : `Target: current weight + ${pct}`}>{target}kg{override && ' *'}</span>}
             </span>
           </div>
-        ))}
+          )
+        })}
       </div>
         )
       })()}

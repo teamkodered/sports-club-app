@@ -1796,6 +1796,7 @@ export default function AthleteProfiles() {
   const [weightTargetPctOutComp, setWeightTargetPctOutComp] = useState(0.05)
   const [weightTargetActiveMode, setWeightTargetActiveMode] = useState('in_comp') // 'in_comp' | 'out_comp' -- global toggle, overrides each athlete's own in_comp status
   const [showWeightOverridePopup, setShowWeightOverridePopup] = useState(false)
+  const [showAllWeightsGraph, setShowAllWeightsGraph] = useState(false)
   const [weightOverrideType, setWeightOverrideType] = useState('actual') // 'actual' | 'percent'
   const [weightOverrideValue, setWeightOverrideValue] = useState('')
   const [showWeightTargetPopup, setShowWeightTargetPopup] = useState(false)
@@ -3712,11 +3713,14 @@ export default function AthleteProfiles() {
                     </div>
                     <div ref={dashWeightListRef} style={{ position: 'relative', padding: '8px 14px', fontSize: 13 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <button onClick={() => setShowAllWeightsGraph(true)} title="View graph of everyone's weight over time"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)', textDecoration: 'underline dotted' }}>
+                          Weight
+                        </button>
                         <button onClick={() => setShowDashWeightList(v => !v)} style={{
-                          display: 'flex', justifyContent: 'space-between', alignItems: 'center', flex: 1,
+                          display: 'flex', justifyContent: 'flex-end', alignItems: 'center', flex: 1,
                           background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-sans)', color: 'var(--text)',
                         }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>Weight</span>
                           <span style={{ fontWeight: 500 }}>{showDashWeightList ? '▲' : '▼'} View by weight</span>
                         </button>
                         <button onClick={() => setShowWeightTargetPopup(true)} title="Set weight target %"
@@ -3748,6 +3752,67 @@ export default function AthleteProfiles() {
                 )
               })()}
             </div>
+
+            {showAllWeightsGraph && (() => {
+              const activeStudentIds = new Set(students.filter(s => s.members?.status === 'active').map(s => s.id))
+              const byAthlete = {}
+              allTeamSessions.forEach(s => {
+                if (!activeStudentIds.has(s.student_id)) return
+                const val = s.weight_after ?? s.weight_before
+                if (val == null) return
+                if (!byAthlete[s.student_id]) {
+                  const st = students.find(x => x.id === s.student_id)
+                  byAthlete[s.student_id] = { name: `${st?.members?.first_name || ''} ${st?.members?.last_name || ''}`.trim(), points: [] }
+                }
+                byAthlete[s.student_id].points.push({ date: s.session_date, value: parseFloat(val) })
+              })
+              const athleteSeries = Object.values(byAthlete).map(a => ({ ...a, points: a.points.sort((x,y) => x.date.localeCompare(y.date)) })).filter(a => a.points.length)
+              const allDates = [...new Set(athleteSeries.flatMap(a => a.points.map(p => p.date)))].sort()
+              const w = 640, h = 260, pad = { t: 10, r: 10, b: 20, l: 34 }
+              const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b
+              const allVals = athleteSeries.flatMap(a => a.points.map(p => p.value))
+              const minV = allVals.length ? Math.min(...allVals) : 0, maxV = allVals.length ? Math.max(...allVals) : 1
+              const range = (maxV - minV) || 1
+              const x = i => pad.l + (allDates.length > 1 ? (i / (allDates.length - 1)) * iw : iw / 2)
+              const y = v => pad.t + ih - ((v - minV) / range) * ih
+
+              return (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}
+                  onClick={() => setShowAllWeightsGraph(false)}>
+                  <div className="card" style={{ width: '95vw', maxWidth: 700, maxHeight: '85vh', overflowY: 'auto', padding: 20 }} onClick={e => e.stopPropagation()}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                      <h2 style={{ fontSize: 16, fontWeight: 600 }}>⚖️ Weight over time — everyone</h2>
+                      <button onClick={() => setShowAllWeightsGraph(false)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
+                    </div>
+                    {athleteSeries.length === 0 ? (
+                      <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No weight data logged yet.</p>
+                    ) : (
+                      <>
+                        <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', height: 'auto', marginBottom: 14 }}>
+                          {athleteSeries.map((a, ai) => {
+                            const pts = allDates.map((d, i) => {
+                              const p = a.points.find(pt => pt.date === d)
+                              return p ? [x(i), y(p.value)] : null
+                            }).filter(Boolean)
+                            if (pts.length < 2) return null
+                            const lineColour = `hsl(${(ai * 47) % 360}, 65%, 45%)`
+                            return <polyline key={a.name} points={pts.map(p => p.join(',')).join(' ')} fill="none" stroke={lineColour} strokeWidth="1.5" opacity="0.85" />
+                          })}
+                        </svg>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}>
+                          {athleteSeries.map((a, ai) => (
+                            <span key={a.name} style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: `hsl(${(ai * 47) % 360}, 65%, 45%)` }} />
+                              {a.name}
+                            </span>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
 
             {showWeightTargetPopup && (
               <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}
@@ -5488,18 +5553,24 @@ export default function AthleteProfiles() {
                           targetWeight = (baseWeight * (1 + parseFloat(override.value))).toFixed(1)
                           targetTitle = `Target: ${compWeightMatch ? 'comp weight' : 'current weight'} (${baseWeight}kg) + ${override.value} (custom % for this athlete, overrides team target)`
                         }
+                        const isOverTarget = targetWeight && selected.weight_kg != null && parseFloat(selected.weight_kg) > parseFloat(targetWeight)
                         return (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                             {isAdmin ? (
                               <input key={`weight-${selected.id}`} type="number" step="0.1" defaultValue={selected.weight_kg || ''} placeholder="kg"
                                 onBlur={e => { const v = e.target.value ? parseFloat(e.target.value) : null; if (v !== selected.weight_kg) updateSelectedField('weight_kg', v) }}
-                                style={{ width: 70, fontSize: 12, padding: '4px 6px', textAlign: 'right', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+                                style={{ width: 70, fontSize: 12, padding: '4px 6px', textAlign: 'right', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: targetWeight ? (isOverTarget ? '#E24B4A' : '#1D9E75') : 'var(--text)', fontWeight: targetWeight ? 700 : 400 }} />
                             ) : (
-                              <span>{selected.weight_kg ? `${selected.weight_kg}kg${selected.weight_category ? ` (${selected.weight_category})` : ''}` : '—'}</span>
+                              <span onClick={() => { setTab('fit2fight'); setResultsGraphSection(0) }}
+                                style={{ cursor: 'pointer', color: targetWeight ? (isOverTarget ? '#E24B4A' : '#1D9E75') : 'inherit', fontWeight: targetWeight ? 700 : 400 }}
+                                title="Tap to view weight graph and entry list">
+                                {selected.weight_kg ? `${selected.weight_kg}kg${selected.weight_category ? ` (${selected.weight_category})` : ''}` : '—'}
+                              </span>
                             )}
                             {targetWeight && (
-                              <span style={{ fontSize: 11, color: override ? colour : 'var(--text-tertiary)', fontWeight: override ? 600 : 400 }} title={targetTitle}>
-                                🎯 {targetWeight}kg{override && ' *'}
+                              <span onClick={() => { setTab('fit2fight'); setResultsGraphSection(0) }}
+                                style={{ fontSize: 11, color: override ? colour : 'var(--text-tertiary)', fontWeight: override ? 600 : 400, cursor: 'pointer' }} title={targetTitle}>
+                                {targetWeight}kg{override && ' *'}
                               </span>
                             )}
                             {isAdmin && (
