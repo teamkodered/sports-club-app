@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase.js'
 import { generateStudentId } from '../../lib/studentId.js'
 import FormLogo from '../../components/shared/FormLogo.jsx'
+import { useFormDraft } from '../../hooks/useFormDraft.js'
 
 const STEPS = ['Child details', 'Guardian', 'Emergency contact', 'Goals & Medical', 'Waiver', 'Done']
 
@@ -40,6 +41,9 @@ export default function JoinPKAChild() {
     // Sponsor
     sponsor_name: '',
   })
+
+  const draft = useFormDraft('pka_child', form, setForm, step, setStep)
+  const [copiedLink, setCopiedLink] = useState(false)
 
   function set(field) {
     return e => setForm(f => ({ ...f, [field]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }))
@@ -87,6 +91,7 @@ export default function JoinPKAChild() {
       })
       if (mfErr) console.error('Error saving membership_forms entry:', mfErr)
 
+      await draft.clearOnSubmit()
       setSubmitted(true)
       // After 2 seconds redirect to login
       setTimeout(() => navigate('/login'), 3000)
@@ -110,6 +115,22 @@ export default function JoinPKAChild() {
     </div>
   )
 
+  if (draft.hasPendingResume) return (
+    <div style={{ minHeight: '100vh', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div className="card" style={{ maxWidth: 420, textAlign: 'center', padding: 32 }}>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>👋</div>
+        <h1 style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>Welcome back!</h1>
+        <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 20 }}>
+          Looks like you started this form before. Would you like to continue where you left off, or start fresh?
+        </p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={draft.discard}>Start fresh</button>
+          <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={draft.resume}>Continue</button>
+        </div>
+      </div>
+    </div>
+  )
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-tertiary)', padding: '24px 16px' }}>
       <div style={{ maxWidth: 520, margin: '0 auto' }}>
@@ -117,6 +138,11 @@ export default function JoinPKAChild() {
           <FormLogo formKey="pka_child" defaultSrc="/images/pka-logo.png" />
           <h1 style={{ fontSize: 20, fontWeight: 600 }}>PKA Child Membership</h1>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>For members under 16</p>
+          <button className="btn btn-sm" style={{ marginTop: 10 }} onClick={() => {
+            navigator.clipboard.writeText(draft.resumeLink)
+            setCopiedLink(true)
+            setTimeout(() => setCopiedLink(false), 2000)
+          }}>{copiedLink ? '✓ Link copied!' : '🔗 Copy link to finish later'}</button>
         </div>
 
         {/* Progress */}

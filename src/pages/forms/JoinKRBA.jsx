@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../../lib/supabase.js'
 import FormLogo from '../../components/shared/FormLogo.jsx'
 import { generateStudentId } from '../../lib/studentId.js'
+import { useFormDraft } from '../../hooks/useFormDraft.js'
 
 const STEPS = ['Your details', 'Medical & Emergency', 'Waiver', 'Done']
 
@@ -17,6 +18,9 @@ export default function JoinKRBA() {
     emergency_contact: '', previous_club: '', media_permission: '',
     waiver_agreed: false, signed_name: '', signed_date: '',
   })
+
+  const draft = useFormDraft('krba', form, setForm, step, setStep)
+  const [copiedLink, setCopiedLink] = useState(false)
 
   function set(field) { return e => setForm(f => ({ ...f, [field]: e.target.type === 'checkbox' ? e.target.checked : e.target.value })) }
 
@@ -56,6 +60,7 @@ export default function JoinKRBA() {
         submitted_at: new Date().toISOString(),
       })
       if (mfErr) console.error('Error saving membership_forms entry:', mfErr)
+      await draft.clearOnSubmit()
       setSubmitted(true)
     } catch (err) { alert('Error: ' + err.message) }
     setSubmitting(false)
@@ -73,6 +78,22 @@ export default function JoinKRBA() {
     </div>
   )
 
+  if (draft.hasPendingResume) return (
+    <div style={{ minHeight: '100vh', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div className="card" style={{ maxWidth: 420, textAlign: 'center', padding: 32 }}>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>👋</div>
+        <h1 style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>Welcome back!</h1>
+        <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 20 }}>
+          Looks like you started this form before. Would you like to continue where you left off, or start fresh?
+        </p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={draft.discard}>Start fresh</button>
+          <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={draft.resume}>Continue</button>
+        </div>
+      </div>
+    </div>
+  )
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-tertiary)', padding: '24px 16px' }}>
       <div style={{ maxWidth: 520, margin: '0 auto' }}>
@@ -80,6 +101,11 @@ export default function JoinKRBA() {
           <FormLogo formKey="krba" fallbackEmoji="🥊" />
           <h1 style={{ fontSize: 20, fontWeight: 600 }}>KRBA Membership</h1>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Kode Red Boxing Academy</p>
+          <button className="btn btn-sm" style={{ marginTop: 10 }} onClick={() => {
+            navigator.clipboard.writeText(draft.resumeLink)
+            setCopiedLink(true)
+            setTimeout(() => setCopiedLink(false), 2000)
+          }}>{copiedLink ? '✓ Link copied!' : '🔗 Copy link to finish later'}</button>
         </div>
         <div style={{ marginBottom: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
