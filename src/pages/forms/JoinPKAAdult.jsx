@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase.js'
 import { generateStudentId } from '../../lib/studentId.js'
 import FormLogo from '../../components/shared/FormLogo.jsx'
 import { useFormDraft } from '../../hooks/useFormDraft.js'
+import { useReturningPerson } from '../../hooks/useReturningPerson.js'
 
 const STEPS = ['Your details', 'Contact', 'Goals & Fitness', 'Medical', 'Waiver', 'Done']
 const GOALS = [
@@ -39,6 +40,7 @@ export default function JoinPKAAdult() {
 
   const draft = useFormDraft('pka_adult', form, setForm, step, setStep)
   const [copiedLink, setCopiedLink] = useState(false)
+  const returning = useReturningPerson()
 
   function set(field) { return e => setForm(f => ({ ...f, [field]: e.target.type === 'checkbox' ? e.target.checked : e.target.value })) }
   function toggleGoal(g) { setForm(f => ({ ...f, goals: f.goals.includes(g) ? f.goals.filter(x => x !== g) : [...f.goals, g] })) }
@@ -153,7 +155,32 @@ export default function JoinPKAAdult() {
               <div className="field"><label>Work phone</label><input type="tel" value={form.work_phone} onChange={set('work_phone')} /></div>
             </div>
             <div className="field"><label>Mobile phone <span className="required">*</span></label><input type="tel" value={form.mobile_phone} onChange={set('mobile_phone')} /></div>
-            <div className="field"><label>Email <span className="required">*</span></label><input type="email" value={form.email} onChange={set('email')} /></div>
+            <div className="field"><label>Email <span className="required">*</span></label>
+              <input type="email" value={form.email} onChange={e => { set('email')(e); returning.checkEmail(e.target.value) }} />
+            </div>
+            {returning.match && (
+              <div className="card" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-strong)', marginBottom: 14, padding: 12 }}>
+                <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Welcome back!</p>
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10 }}>
+                  We can fill in your contact details from before. Use those?
+                </p>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn btn-sm" onClick={returning.dismiss}>No, enter fresh</button>
+                  <button className="btn btn-sm btn-primary" onClick={() => {
+                    const m = returning.match
+                    setForm(f => ({
+                      ...f,
+                      address: m.address_line1 || f.address,
+                      mobile_phone: m.phone || f.mobile_phone,
+                      other_contact: m.emergencyContact?.emergency_contact_name
+                        ? `${m.emergencyContact.emergency_contact_name}${m.emergencyContact.emergency_contact_phone ? ` — ${m.emergencyContact.emergency_contact_phone}` : ''}`
+                        : f.other_contact,
+                    }))
+                    returning.dismiss()
+                  }}>Yes, use those</button>
+                </div>
+              </div>
+            )}
             <div className="field"><label>Other / emergency contact</label><input value={form.other_contact} onChange={set('other_contact')} /></div>
             <div className="field"><label>Media permissions <span className="required">*</span></label>
               <select value={form.media_permission} onChange={set('media_permission')}>

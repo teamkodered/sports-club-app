@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase.js'
 import FormLogo from '../../components/shared/FormLogo.jsx'
 import { generateStudentId } from '../../lib/studentId.js'
 import { useFormDraft } from '../../hooks/useFormDraft.js'
+import { useReturningPerson } from '../../hooks/useReturningPerson.js'
 
 const STEPS = ['Your details', 'Medical & Emergency', 'Waiver', 'Done']
 
@@ -21,6 +22,7 @@ export default function JoinKRBA() {
 
   const draft = useFormDraft('krba', form, setForm, step, setStep)
   const [copiedLink, setCopiedLink] = useState(false)
+  const returning = useReturningPerson()
 
   function set(field) { return e => setForm(f => ({ ...f, [field]: e.target.type === 'checkbox' ? e.target.checked : e.target.value })) }
 
@@ -126,7 +128,32 @@ export default function JoinKRBA() {
               <div className="field"><label>Home phone</label><input type="tel" value={form.home_phone} onChange={set('home_phone')} /></div>
               <div className="field"><label>Mobile phone <span className="required">*</span></label><input type="tel" value={form.mobile_phone} onChange={set('mobile_phone')} /></div>
             </div>
-            <div className="field"><label>Email</label><input type="email" value={form.email} onChange={set('email')} /></div>
+            <div className="field"><label>Email</label>
+              <input type="email" value={form.email} onChange={e => { set('email')(e); returning.checkEmail(e.target.value) }} />
+            </div>
+            {returning.match && (
+              <div className="card" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-strong)', marginBottom: 14, padding: 12 }}>
+                <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Welcome back!</p>
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10 }}>
+                  We can fill in your contact details from before. Use those?
+                </p>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn btn-sm" onClick={returning.dismiss}>No, enter fresh</button>
+                  <button className="btn btn-sm btn-primary" onClick={() => {
+                    const m = returning.match
+                    setForm(f => ({
+                      ...f,
+                      address: m.address_line1 || f.address,
+                      mobile_phone: m.phone || f.mobile_phone,
+                      emergency_contact: m.emergencyContact?.emergency_contact_name
+                        ? `${m.emergencyContact.emergency_contact_name}${m.emergencyContact.emergency_contact_phone ? ` — ${m.emergencyContact.emergency_contact_phone}` : ''}`
+                        : f.emergency_contact,
+                    }))
+                    returning.dismiss()
+                  }}>Yes, use those</button>
+                </div>
+              </div>
+            )}
             <div className="field"><label>Previous club details</label><input value={form.previous_club} onChange={set('previous_club')} /></div>
             <div className="field"><label>Media permissions <span className="required">*</span></label>
               <select value={form.media_permission} onChange={set('media_permission')}>
