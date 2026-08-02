@@ -1794,6 +1794,12 @@ export default function AthleteProfiles() {
   const [weightTargetPctInComp, setWeightTargetPctInComp] = useState(0.025)
   const [weightTargetPctOutComp, setWeightTargetPctOutComp] = useState(0.05)
   const [showWeightTargetPopup, setShowWeightTargetPopup] = useState(false)
+  const [showGroupLogger, setShowGroupLogger] = useState(false)
+  const [groupLoggerSection, setGroupLoggerSection] = useState('')
+  const [groupLoggerQuestion, setGroupLoggerQuestion] = useState('')
+  const [groupLoggerType, setGroupLoggerType] = useState('')
+  const [groupLoggerDate, setGroupLoggerDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [groupLoggerSaving, setGroupLoggerSaving] = useState({}) // { [studentId-setIdx]: true } while saving that cell
   const [weightTargetInCompDraft, setWeightTargetInCompDraft] = useState(null)
   const [weightTargetOutCompDraft, setWeightTargetOutCompDraft] = useState(null)
   const [dashLevelIndex, setDashLevelIndex] = useState(0)
@@ -3572,6 +3578,11 @@ export default function AthleteProfiles() {
                         <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => {
                           setNewTargetSection(c.key); setNewTargetQuestion(''); setShowAddTarget(true)
                         }}>{target ? 'Edit target' : '+ Target'}</button>
+                        <button className="btn btn-sm btn-primary" style={{ fontSize: 10 }} onClick={() => {
+                          if (c.key === 'all_sessions') navigate('/registers')
+                          else if (c.key === 'pdp') setDashboardTab('pdp')
+                          else if (c.key === 'f2f_sessions') setShowGroupLogger(true)
+                        }}>+ Log</button>
                         {showAddTarget && newTargetSection === c.key && newTargetQuestion === '' && renderInlineTargetForm()}
                       </div>
                     )
@@ -3728,6 +3739,113 @@ export default function AthleteProfiles() {
                 </div>
               </div>
             )}
+
+            {showGroupLogger && (() => {
+              const questionOptionsMap = {
+                'Running': RUN_CATEGORY_CARDS.map(c => c.key),
+                'Watt Bike': [...WATT_BIKE_PRESETS.output, ...WATT_BIKE_PRESETS.standard, ...WATT_BIKE_PRESETS.distance],
+                'Bodyweight': BODYWEIGHT_GROUPS.map(g => g.label),
+              }
+              const questionOptions = groupLoggerSection === 'Physical' ? ['Running', 'Watt Bike', 'Bodyweight']
+                : groupLoggerSection === 'Test' ? TEST_CATEGORIES.map(c => c.label) : []
+              const typeOptions = !groupLoggerQuestion ? []
+                : groupLoggerSection === 'Physical' ? (questionOptionsMap[groupLoggerQuestion] || [])
+                : (TEST_CATEGORIES.find(c => c.label === groupLoggerQuestion)?.tests.map(t => t.name) || [])
+              const ready = groupLoggerSection && groupLoggerQuestion && groupLoggerType
+
+              async function saveCell(student, setIdx, value) {
+                const key = `${student.id}-${setIdx}`
+                setGroupLoggerSaving(p => ({ ...p, [key]: true }))
+                const { data: existing } = await supabase.from('fit2fight_sessions').select('*').eq('student_id', student.id).eq('session_date', groupLoggerDate).maybeSingle()
+
+                if (groupLoggerSection === 'Test') {
+                  const testData = { ...(existing?.test || {}), [groupLoggerType]: value }
+                  if (existing) await supabase.from('fit2fight_sessions').update({ test: testData }).eq('id', existing.id)
+                  else await supabase.from('fit2fight_sessions').insert({ student_id: student.id, session_date: groupLoggerDate, test: testData })
+                } else {
+                  const fieldKey = groupLoggerQuestion === 'Running' ? 'running' : groupLoggerQuestion === 'Watt Bike' ? 'watt_bike' : 'bodyweight'
+                  const existingArr = existing?.[fieldKey] || []
+                  const typeField = fieldKey === 'running' ? 'category' : fieldKey === 'watt_bike' ? 'interval_mode' : 'type'
+                  let entry = existingArr.find(e => e[typeField] === groupLoggerType)
+                  let newArr
+                  if (entry) {
+                    const sets = [...(entry.sets || [])]
+                    sets[setIdx] = value
+                    newArr = existingArr.map(e => e === entry ? { ...e, sets } : e)
+                  } else {
+                    const sets = []
+                    sets[setIdx] = value
+                    newArr = [...existingArr, { [typeField]: groupLoggerType, sets }]
+                  }
+                  if (existing) await supabase.from('fit2fight_sessions').update({ [fieldKey]: newArr }).eq('id', existing.id)
+                  else await supabase.from('fit2fight_sessions').insert({ student_id: student.id, session_date: groupLoggerDate, [fieldKey]: newArr })
+                }
+                setGroupLoggerSaving(p => { const n = { ...p }; delete n[key]; return n })
+              }
+
+              return (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}
+                  onClick={() => setShowGroupLogger(false)}>
+                  <div className="card" style={{ width: '95vw', maxWidth: 700, maxHeight: '85vh', overflowY: 'auto', padding: 20 }} onClick={e => e.stopPropagation()}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                      <h2 style={{ fontSize: 16, fontWeight: 600 }}>Group training session logger</h2>
+                      <button onClick={() => setShowGroupLogger(false)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+                      <input type="date" value={groupLoggerDate} onChange={e => setGroupLoggerDate(e.target.value)} style={{ flex: '0 0 140px' }} />
+                      <select value={groupLoggerSection} onChange={e => { setGroupLoggerSection(e.target.value); setGroupLoggerQuestion(''); setGroupLoggerType('') }} style={{ flex: 1, minWidth: 110 }}>
+                        <option value="">Section…</option>
+                        <option value="Physical">Physical</option>
+                        <option value="Test">Test</option>
+                      </select>
+                      <select value={groupLoggerQuestion} onChange={e => { setGroupLoggerQuestion(e.target.value); setGroupLoggerType('') }} disabled={!groupLoggerSection} style={{ flex: 1, minWidth: 110 }}>
+                        <option value="">Question…</option>
+                        {questionOptions.map(q => <option key={q} value={q}>{q}</option>)}
+                      </select>
+                      <select value={groupLoggerType} onChange={e => setGroupLoggerType(e.target.value)} disabled={!groupLoggerQuestion} style={{ flex: 1, minWidth: 110 }}>
+                        <option value="">Type…</option>
+                        {typeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+
+                    {ready && (
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                          <thead>
+                            <tr>
+                              <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>Athlete</th>
+                              {[0,1,2,3,4].map(i => (
+                                <th key={i} style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>Set {i+1}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {students.filter(s => s.members?.status === 'active').map(s => (
+                              <tr key={s.id}>
+                                <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>
+                                  {s.members?.first_name} {s.members?.last_name}
+                                </td>
+                                {[0,1,2,3,4].map(i => (
+                                  <td key={i} style={{ padding: '4px', borderBottom: '1px solid var(--border)' }}>
+                                    <input type="text" inputMode="decimal" defaultValue=""
+                                      onBlur={e => { if (e.target.value.trim() !== '') saveCell(s, i, e.target.value.trim()) }}
+                                      placeholder={groupLoggerSaving[`${s.id}-${i}`] ? '…' : '—'}
+                                      style={{ width: 55, textAlign: 'center', fontSize: 12, padding: '4px 2px' }} />
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>
+                          Tap a field, enter a result, and tap away to save — saves directly to that athlete's own results.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* Dashboard tabs -- Overview / Calendar / Results */}
             <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', marginBottom: 14 }}>
