@@ -1794,6 +1794,7 @@ export default function AthleteProfiles() {
   const [showDashWeightList, setShowDashWeightList] = useState(false)
   const [weightTargetPctInComp, setWeightTargetPctInComp] = useState(0.025)
   const [weightTargetPctOutComp, setWeightTargetPctOutComp] = useState(0.05)
+  const [weightTargetActiveMode, setWeightTargetActiveMode] = useState('in_comp') // 'in_comp' | 'out_comp' -- global toggle, overrides each athlete's own in_comp status
   const [showWeightTargetPopup, setShowWeightTargetPopup] = useState(false)
   const [showGroupLogger, setShowGroupLogger] = useState(false)
   const [groupLoggerSection, setGroupLoggerSection] = useState('')
@@ -2310,13 +2311,15 @@ export default function AthleteProfiles() {
   }
 
   useEffect(() => {
-    supabase.from('team_settings').select('*').in('key', ['weight_target_pct_in_comp', 'weight_target_pct_out_comp'])
+    supabase.from('team_settings').select('*').in('key', ['weight_target_pct_in_comp', 'weight_target_pct_out_comp', 'weight_target_active_mode'])
       .then(({ data }) => {
         if (!data) return
         const inComp = data.find(d => d.key === 'weight_target_pct_in_comp')
         const outComp = data.find(d => d.key === 'weight_target_pct_out_comp')
+        const mode = data.find(d => d.key === 'weight_target_active_mode')
         if (inComp) setWeightTargetPctInComp(parseFloat(inComp.value))
         if (outComp) setWeightTargetPctOutComp(parseFloat(outComp.value))
+        if (mode) setWeightTargetActiveMode(mode.value)
       })
   }, [])
 
@@ -2325,6 +2328,12 @@ export default function AthleteProfiles() {
     if (error) { alert('Error saving: ' + error.message); return }
     if (key === 'weight_target_pct_in_comp') setWeightTargetPctInComp(value)
     else setWeightTargetPctOutComp(value)
+  }
+
+  async function saveWeightTargetActiveMode(mode) {
+    const { error } = await supabase.from('team_settings').upsert({ key: 'weight_target_active_mode', value: mode }, { onConflict: 'key' })
+    if (error) { alert('Error saving: ' + error.message); return }
+    setWeightTargetActiveMode(mode)
   }
 
   async function loadTeamPdpTemplate() {
@@ -3738,7 +3747,7 @@ export default function AthleteProfiles() {
                     <button onClick={() => setShowWeightTargetPopup(false)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
                   </div>
                   <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16 }}>
-                    Each athlete's target weight is their current weight plus this fraction — e.g. 0.025 means +2.5%, so an 80kg athlete has a target weight of 82kg. Applied automatically based on whether they're marked "In comp".
+                    Each athlete's target weight is their current weight plus this fraction — e.g. 0.025 means +2.5%, so an 80kg athlete has a target weight of 82kg. Use the checkbox to choose which one applies to everyone — this replaces each athlete's individual "In comp" status for this calculation.
                   </p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     <div>
@@ -3754,6 +3763,10 @@ export default function AthleteProfiles() {
                           }}
                           style={{ width: 80 }} />
                         <button className="btn btn-sm" onClick={() => { saveWeightTargetPct('weight_target_pct_in_comp', 0.025); setWeightTargetInCompDraft(null) }}>Reset to default (0.025)</button>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer', marginLeft: 4 }}>
+                          <input type="checkbox" checked={weightTargetActiveMode === 'in_comp'} onChange={() => saveWeightTargetActiveMode('in_comp')} style={{ width: 15, height: 15 }} />
+                          Use this
+                        </label>
                       </div>
                     </div>
                     <div>
@@ -3769,6 +3782,10 @@ export default function AthleteProfiles() {
                           }}
                           style={{ width: 80 }} />
                         <button className="btn btn-sm" onClick={() => { saveWeightTargetPct('weight_target_pct_out_comp', 0.05); setWeightTargetOutCompDraft(null) }}>Reset to default (0.05)</button>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer', marginLeft: 4 }}>
+                          <input type="checkbox" checked={weightTargetActiveMode === 'out_comp'} onChange={() => saveWeightTargetActiveMode('out_comp')} style={{ width: 15, height: 15 }} />
+                          Use this
+                        </label>
                       </div>
                     </div>
                   </div>
@@ -5443,7 +5460,7 @@ export default function AthleteProfiles() {
                         </div>
                       ) : `${selected.wins || 0}W ${selected.losses || 0}L ${selected.draws || 0}D` },
                       { label: 'Weight', editable: true, render: () => {
-                        const pct = selected.in_comp ? weightTargetPctInComp : weightTargetPctOutComp
+                        const pct = weightTargetActiveMode === 'in_comp' ? weightTargetPctInComp : weightTargetPctOutComp
                         // Prefer Comp weight as the base for the target -- it's a free
                         // text field (e.g. "-52kg", "-37kg kickboxing, 35kg boxing"), so
                         // pull out the first number found; fall back to current weight
@@ -5461,7 +5478,7 @@ export default function AthleteProfiles() {
                               <span>{selected.weight_kg ? `${selected.weight_kg}kg${selected.weight_category ? ` (${selected.weight_category})` : ''}` : '—'}</span>
                             )}
                             {targetWeight && (
-                              <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }} title={`Target: ${compWeightMatch ? 'comp weight' : 'current weight'} (${baseWeight}kg) + ${pct} (${selected.in_comp ? 'in comp' : 'out of comp'})`}>
+                              <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }} title={`Target: ${compWeightMatch ? 'comp weight' : 'current weight'} (${baseWeight}kg) + ${pct} (${weightTargetActiveMode === 'in_comp' ? 'in camp' : 'out of camp'})`}>
                                 🎯 {targetWeight}kg
                               </span>
                             )}
