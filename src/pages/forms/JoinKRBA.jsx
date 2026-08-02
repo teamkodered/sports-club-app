@@ -47,14 +47,15 @@ export default function JoinKRBA() {
         medication: form.medication || null,
       })
 
-      await supabase.from('membership_forms').insert({
-        student_id: member.id, form_type: 'krba',
+      const { error: mfErr } = await supabase.from('membership_forms').insert({
+        member_id: member.id, form_type: 'krba',
         additional_needs: form.additional_needs,
         previous_club: form.previous_club,
         emergency_contact_name: form.emergency_contact,
         waiver_agreed: form.waiver_agreed,
         submitted_at: new Date().toISOString(),
       })
+      if (mfErr) console.error('Error saving membership_forms entry:', mfErr)
       setSubmitted(true)
     } catch (err) { alert('Error: ' + err.message) }
     setSubmitting(false)
@@ -104,7 +105,7 @@ export default function JoinKRBA() {
             <div className="field"><label>Media permissions <span className="required">*</span></label>
               <select value={form.media_permission} onChange={set('media_permission')}>
                 <option value="">Select…</option>
-                <option value="Yes">Yes — I agree to photos/videos</option>
+                <option value="Yes">Yes — photos/videos of me may be used for promotional material (e.g. social media, website, marketing)</option>
                 <option value="No">No — I do not consent</option>
               </select>
             </div>

@@ -77,14 +77,15 @@ export default function JoinPKAChild() {
         school: form.school,
       })
 
-      await supabase.from('membership_forms').insert({
-        student_id: member.id, form_type: 'pka_child',
+      const { error: mfErr } = await supabase.from('membership_forms').insert({
+        member_id: member.id, form_type: 'pka_child',
         sponsor_name: form.sponsor_name, school: form.school, year: form.year,
         other_activities: form.other_activities, hear_about: form.hear_about,
         promo_code: form.promo_code, goals: form.goals, goal_notes: form.goal_notes,
         emergency_contact_name: form.emergency_name, emergency_contact_phone: form.emergency_phone,
         waiver_agreed: form.waiver_agreed, submitted_at: new Date().toISOString(),
       })
+      if (mfErr) console.error('Error saving membership_forms entry:', mfErr)
 
       setSubmitted(true)
       // After 2 seconds redirect to login
@@ -156,7 +157,7 @@ export default function JoinPKAChild() {
             <div className="field"><label>Media permissions <span className="required">*</span></label>
               <select value={form.media_permission} onChange={set('media_permission')}>
                 <option value="">Select…</option>
-                <option value="Yes">Yes — I agree to photos/videos being taken</option>
+                <option value="Yes">Yes — photos/videos of my child may be used for promotional material (e.g. social media, website, marketing)</option>
                 <option value="No">No — I do not consent to media</option>
               </select>
             </div>

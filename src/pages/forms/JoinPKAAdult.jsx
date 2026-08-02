@@ -13,6 +13,15 @@ const GOALS = [
 const FITNESS_LEVELS = ['Poor', 'Below Average', 'Average', 'Good', 'Excellent']
 const HEAR_OPTIONS = ['Search Engine (Google etc)', 'Word of Mouth', 'Social Media', 'Walked Past', 'Leaflet/Poster', 'Other']
 
+// Today, for preventing future dates of birth
+const TODAY_STR = new Date().toISOString().split('T')[0]
+// 18 years ago today, for enforcing the signature confirms the
+// person is actually 18 or over -- any DOB later than this means
+// they're under 18
+const EIGHTEEN_YEARS_AGO_STR = (() => {
+  const d = new Date(); d.setFullYear(d.getFullYear() - 18); return d.toISOString().split('T')[0]
+})()
+
 export default function JoinPKAAdult() {
   const [step, setStep] = useState(0)
   const [submitting, setSubmitting] = useState(false)
@@ -33,6 +42,10 @@ export default function JoinPKAAdult() {
   async function submit() {
     setSubmitting(true)
     try {
+      if (form.dob > TODAY_STR) throw new Error('Date of birth cannot be in the future.')
+      const sigDob = form.signature_dob || form.dob
+      if (sigDob > EIGHTEEN_YEARS_AGO_STR) throw new Error('You must be 18 or over to submit this form.')
+
       const { data: existing } = await supabase.from('members').select('id').ilike('email', form.email).maybeSingle()
       if (existing) throw new Error('An account with this email already exists. Please contact us if you need help accessing it, rather than submitting a new form.')
 
@@ -55,13 +68,14 @@ export default function JoinPKAAdult() {
         medical_conditions: form.medical_concerns || null,
       })
 
-      await supabase.from('membership_forms').insert({
-        student_id: member.id, form_type: 'pka_adult',
+      const { error: mfErr } = await supabase.from('membership_forms').insert({
+        member_id: member.id, form_type: 'pka_adult',
         hear_about: form.hear_about, promo_code: form.promo_code,
         goals: form.goals, goal_notes: form.goal_notes,
         fitness_level: form.fitness_level, other_activities: form.other_activities,
         waiver_agreed: form.waiver_agreed, submitted_at: new Date().toISOString(),
       })
+      if (mfErr) console.error('Error saving membership_forms entry:', mfErr)
       setSubmitted(true)
     } catch (err) { alert('Error: ' + err.message) }
     setSubmitting(false)
@@ -104,7 +118,7 @@ export default function JoinPKAAdult() {
               <div className="field"><label>First name <span className="required">*</span></label><input value={form.first_name} onChange={set('first_name')} /></div>
               <div className="field"><label>Surname <span className="required">*</span></label><input value={form.last_name} onChange={set('last_name')} /></div>
             </div>
-            <div className="field"><label>Date of birth <span className="required">*</span></label><input type="date" value={form.dob} onChange={set('dob')} /></div>
+            <div className="field"><label>Date of birth <span className="required">*</span></label><input type="date" max={TODAY_STR} value={form.dob} onChange={set('dob')} /></div>
             <div className="field"><label>Address <span className="required">*</span></label><input value={form.address} onChange={set('address')} /></div>
           </>}
           {step === 1 && <>
@@ -118,7 +132,7 @@ export default function JoinPKAAdult() {
             <div className="field"><label>Media permissions <span className="required">*</span></label>
               <select value={form.media_permission} onChange={set('media_permission')}>
                 <option value="">Select…</option>
-                <option value="Yes">Yes — I agree to photos/videos</option>
+                <option value="Yes">Yes — photos/videos of me may be used for promotional material (e.g. social media, website, marketing)</option>
                 <option value="No">No — I do not consent</option>
               </select>
             </div>
@@ -169,7 +183,7 @@ export default function JoinPKAAdult() {
               <div className="field"><label>Surname</label><input value={form.last_name} readOnly style={{ opacity: 0.7 }} /></div>
             </div>
             <div className="field-row">
-              <div className="field"><label>Date of birth</label><input type="date" value={form.signature_dob || form.dob} onChange={set('signature_dob')} /></div>
+              <div className="field"><label>Date of birth</label><input type="date" max={EIGHTEEN_YEARS_AGO_STR} value={form.signature_dob || form.dob} onChange={set('signature_dob')} /></div>
               <div className="field"><label>Postcode</label><input value={form.signature_postcode} onChange={set('signature_postcode')} /></div>
             </div>
             <div className="field"><label>Phone number</label><input type="tel" value={form.signature_phone || form.mobile_phone} onChange={set('signature_phone')} /></div>

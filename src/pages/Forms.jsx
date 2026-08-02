@@ -191,6 +191,7 @@ export default function Forms() {
   const [responses, setResponses] = useState([])
   const [responsesLoading, setResponsesLoading] = useState(false)
   const [viewResponse, setViewResponse] = useState(null)
+  const [colFilters, setColFilters] = useState({ date: '', name: '', email: '', status: '' })
 
   useEffect(() => {
     if (selectedForm) loadResponses(selectedForm)
@@ -322,9 +323,36 @@ export default function Forms() {
                       <th style={{ textAlign: 'center' }}>Status</th>
                       <th></th>
                     </tr>
+                    <tr>
+                      <th style={{ padding: '4px 4px' }}>
+                        <input value={colFilters.date} onChange={e => setColFilters(f => ({ ...f, date: e.target.value }))}
+                          placeholder="Filter…" style={{ width: '100%', fontSize: 11, padding: '4px 6px' }} />
+                      </th>
+                      <th style={{ padding: '4px 4px' }}>
+                        <input value={colFilters.name} onChange={e => setColFilters(f => ({ ...f, name: e.target.value }))}
+                          placeholder="Filter…" style={{ width: '100%', fontSize: 11, padding: '4px 6px' }} />
+                      </th>
+                      <th style={{ padding: '4px 4px' }}>
+                        <input value={colFilters.email} onChange={e => setColFilters(f => ({ ...f, email: e.target.value }))}
+                          placeholder="Filter…" style={{ width: '100%', fontSize: 11, padding: '4px 6px' }} />
+                      </th>
+                      <th style={{ padding: '4px 4px' }}>
+                        <input value={colFilters.status} onChange={e => setColFilters(f => ({ ...f, status: e.target.value }))}
+                          placeholder="Filter…" style={{ width: '100%', fontSize: 11, padding: '4px 6px' }} />
+                      </th>
+                      <th></th>
+                    </tr>
                   </thead>
                   <tbody>
-                    {responses.map((r, i) => (
+                    {responses.filter(r => {
+                      const dateStr = r.submitted_at ? new Date(r.submitted_at).toLocaleDateString('en-GB') : ''
+                      const nameStr = `${r.first_name || ''} ${r.last_name || ''}`
+                      if (colFilters.date && !dateStr.toLowerCase().includes(colFilters.date.toLowerCase())) return false
+                      if (colFilters.name && !nameStr.toLowerCase().includes(colFilters.name.toLowerCase())) return false
+                      if (colFilters.email && !(r.email || '').toLowerCase().includes(colFilters.email.toLowerCase())) return false
+                      if (colFilters.status && !(r.status || 'pending').toLowerCase().includes(colFilters.status.toLowerCase())) return false
+                      return true
+                    }).map((r, i) => (
                       <tr key={i} style={{ cursor: 'pointer' }} onClick={() => setViewResponse(r)}>
                         <td style={{ fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                           {r.submitted_at ? new Date(r.submitted_at).toLocaleDateString('en-GB') : '—'}
