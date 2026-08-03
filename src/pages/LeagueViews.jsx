@@ -73,14 +73,19 @@ export default function LeagueViews() {
 
   useEffect(() => { loadAll() }, [dateFrom, dateTo, classFilter])
 
-  // Load saved "show top" selections so the public league display can
-  // mirror whatever is currently set here, without its own control
+  // Load saved "show top" selections and date range so the public
+  // league display can mirror whatever is currently set here,
+  // without its own control -- this also fixes the two pages showing
+  // different totals when someone had adjusted the date range here
+  // without the public page knowing about it.
   useEffect(() => {
-    supabase.from('settings').select('key,value').in('key', ['league_topn_individual', 'league_topn_house'])
+    supabase.from('settings').select('key,value').in('key', ['league_topn_individual', 'league_topn_house', 'league_date_from', 'league_date_to'])
       .then(({ data }) => {
         const map = Object.fromEntries((data || []).map(r => [r.key, r.value]))
         if (map.league_topn_individual) setTopN(map.league_topn_individual)
         if (map.league_topn_house) setHouseTopN(map.league_topn_house)
+        if (map.league_date_from) setDateFrom(map.league_date_from)
+        if (map.league_date_to) setDateTo(map.league_date_to)
       })
   }, [])
 
@@ -94,6 +99,13 @@ export default function LeagueViews() {
     setHouseTopN(n)
     const { error } = await supabase.from('settings').upsert({ key: 'league_topn_house', value: n }, { onConflict: 'key' })
     if (error) alert('Error saving "show top" setting: ' + error.message)
+  }
+
+  async function updateDateRange(from, to) {
+    setDateFrom(from)
+    setDateTo(to)
+    await supabase.from('settings').upsert({ key: 'league_date_from', value: from }, { onConflict: 'key' })
+    await supabase.from('settings').upsert({ key: 'league_date_to', value: to }, { onConflict: 'key' })
   }
 
   async function loadAll() {
@@ -362,12 +374,12 @@ export default function LeagueViews() {
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', padding: '6px 10px' }}>
           <span style={{ fontSize: 11, color: 'var(--text-secondary)', flexShrink: 0 }}>From</span>
-          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+          <input type="date" value={dateFrom} onChange={e => updateDateRange(e.target.value, dateTo)}
             style={{ border: 'none', background: 'transparent', fontSize: 13, color: 'var(--text)', outline: 'none' }} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', padding: '6px 10px' }}>
           <span style={{ fontSize: 11, color: 'var(--text-secondary)', flexShrink: 0 }}>To</span>
-          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+          <input type="date" value={dateTo} onChange={e => updateDateRange(dateFrom, e.target.value)}
             style={{ border: 'none', background: 'transparent', fontSize: 13, color: 'var(--text)', outline: 'none' }} />
         </div>
         <select value={classFilter} onChange={e => setClassFilter(e.target.value)}
@@ -383,8 +395,7 @@ export default function LeagueViews() {
         ].map(r => (
           <button key={r.label} className="btn btn-sm" onClick={() => {
             const from = new Date(); from.setDate(from.getDate() - r.days)
-            setDateFrom(from.toISOString().split('T')[0])
-            setDateTo(new Date().toISOString().split('T')[0])
+            updateDateRange(from.toISOString().split('T')[0], new Date().toISOString().split('T')[0])
           }}>{r.label}</button>
         ))}
       </div>

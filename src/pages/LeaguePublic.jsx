@@ -22,18 +22,31 @@ export default function LeaguePublic() {
   const [topN, setTopN]         = useState(50)
   const [houseTopN, setHouseTopN] = useState(8)
   const [showMedals, setShowMedals] = useState(true)
-  const [dateFrom] = useState(() => { const d = new Date(); d.setMonth(d.getMonth()-3); return d.toISOString().split('T')[0] })
-  const [dateTo]   = useState(new Date().toISOString().split('T')[0])
+  const [dateFrom, setDateFrom] = useState(() => { const d = new Date(); d.setMonth(d.getMonth()-3); return d.toISOString().split('T')[0] })
+  const [dateTo, setDateTo]     = useState(new Date().toISOString().split('T')[0])
 
   useEffect(() => {
     async function load() {
       try {
-      const [{ data: h }, { data: pts }, { data: settings }, { data: studentsData }] = await Promise.all([
+      // Fetch settings first so the date range (and any other
+      // mirrored settings) are resolved BEFORE querying points_log --
+      // otherwise this would query using the hardcoded default dates
+      // and only apply the real range too late to matter, which is
+      // exactly what caused this page to show different totals than
+      // the internal League page.
+      const { data: settings } = await supabase.from('settings').select('key,value')
+        .in('key', ['club_name','club_emoji','league_topn_individual','league_topn_house','league_date_from','league_date_to'])
+      const sm = Object.fromEntries((settings || []).map(r => [r.key, r.value]))
+      const resolvedFrom = sm.league_date_from || dateFrom
+      const resolvedTo = sm.league_date_to || dateTo
+      if (sm.league_date_from) setDateFrom(sm.league_date_from)
+      if (sm.league_date_to) setDateTo(sm.league_date_to)
+
+      const [{ data: h }, { data: pts }, { data: studentsData }] = await Promise.all([
         supabase.from('houses').select('*'),
         supabase.from('points_log')
           .select('points_awarded, point_scope, student_id')
-          .gte('awarded_at', dateFrom).lte('awarded_at', dateTo + 'T23:59:59'),
-        supabase.from('settings').select('key,value').in('key', ['club_name','club_emoji','league_topn_individual','league_topn_house']),
+          .gte('awarded_at', resolvedFrom).lte('awarded_at', resolvedTo + 'T23:59:59'),
         supabase.from('students').select('id, house_name, member_id, members(first_name, last_name, houses(name))'),
       ])
 
@@ -74,13 +87,10 @@ export default function LeaguePublic() {
       })).sort((a, b) => b.points - a.points)
       setHouses(housesWithSessionPoints)
 
-      if (settings) {
-        const sm = Object.fromEntries(settings.map(r => [r.key, r.value]))
-        if (sm.club_name)  setClubName(sm.club_name)
-        if (sm.club_emoji) setClubEmoji(sm.club_emoji)
-        if (sm.league_topn_individual) setTopN(sm.league_topn_individual)
-        if (sm.league_topn_house) setHouseTopN(sm.league_topn_house)
-      }
+      if (sm.club_name)  setClubName(sm.club_name)
+      if (sm.club_emoji) setClubEmoji(sm.club_emoji)
+      if (sm.league_topn_individual) setTopN(sm.league_topn_individual)
+      if (sm.league_topn_house) setHouseTopN(sm.league_topn_house)
       setLoading(false)
     } catch(e) {
       console.error('LeaguePublic load error:', e)
@@ -107,7 +117,7 @@ export default function LeaguePublic() {
           <h1 style={{ fontSize: 22, fontWeight: 700 }}>{clubName}</h1>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>League standings</p>
           <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
-            Last 3 months · Updated live
+            {new Date(dateFrom).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – {new Date(dateTo).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} · Updated live
           </p>
         </div>
 
