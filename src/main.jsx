@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './hooks/useAuth.jsx'
 import { supabase } from './lib/supabase.js'
+import ErrorBoundary from './components/shared/ErrorBoundary.jsx'
 import './styles/global.css'
 
 import Login from './pages/Login.jsx'
@@ -64,6 +65,7 @@ function ProtectedRoute({ children, adminOnly = false, staffOnly = false }) {
 
 function App() {
   return (
+    <ErrorBoundary>
     <AuthProvider>
       <BrowserRouter>
         <Routes>
@@ -104,6 +106,7 @@ function App() {
         </Routes>
       </BrowserRouter>
     </AuthProvider>
+    </ErrorBoundary>
   )
 }
 
