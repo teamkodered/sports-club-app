@@ -1834,6 +1834,13 @@ export default function AthleteProfiles() {
   const [weightOverrideValue, setWeightOverrideValue] = useState('')
   const [showWeightTargetPopup, setShowWeightTargetPopup] = useState(false)
   const [showGroupLogger, setShowGroupLogger] = useState(false)
+  const todayStr0 = new Date().toISOString().split('T')[0]
+  const [cardDateSettings, setCardDateSettings] = useState({
+    all_sessions: { from: todayStr0, to: todayStr0, scope: 'both' },
+    f2f_sessions: { from: todayStr0, to: todayStr0, scope: 'both' },
+    pdp:          { from: todayStr0, to: todayStr0, scope: 'both' },
+  })
+  const [showSetDatePopup, setShowSetDatePopup] = useState(null) // card key, or null
   const [groupLoggerSection, setGroupLoggerSection] = useState('')
   const [groupLoggerQuestion, setGroupLoggerQuestion] = useState('')
   const [groupLoggerType, setGroupLoggerType] = useState('')
@@ -2348,6 +2355,36 @@ export default function AthleteProfiles() {
   }
 
   useEffect(() => {
+    const cardKeys = ['all_sessions', 'f2f_sessions', 'pdp']
+    const settingKeys = cardKeys.flatMap(k => [`card_date_${k}_from`, `card_date_${k}_to`, `card_date_${k}_scope`])
+    supabase.from('team_settings').select('*').in('key', settingKeys)
+      .then(({ data }) => {
+        if (!data) return
+        const map = Object.fromEntries(data.map(d => [d.key, d.value]))
+        setCardDateSettings(prev => {
+          const next = { ...prev }
+          for (const k of cardKeys) {
+            next[k] = {
+              from: map[`card_date_${k}_from`] || prev[k].from,
+              to: map[`card_date_${k}_to`] || prev[k].to,
+              scope: map[`card_date_${k}_scope`] || prev[k].scope,
+            }
+          }
+          return next
+        })
+      })
+  }, [])
+
+  async function saveCardDateSettings(cardKey, { from, to, scope }) {
+    setCardDateSettings(prev => ({ ...prev, [cardKey]: { from, to, scope } }))
+    await Promise.all([
+      supabase.from('team_settings').upsert({ key: `card_date_${cardKey}_from`, value: from }, { onConflict: 'key' }),
+      supabase.from('team_settings').upsert({ key: `card_date_${cardKey}_to`, value: to }, { onConflict: 'key' }),
+      supabase.from('team_settings').upsert({ key: `card_date_${cardKey}_scope`, value: scope }, { onConflict: 'key' }),
+    ])
+  }
+
+  useEffect(() => {
     supabase.from('team_settings').select('*').in('key', ['weight_target_pct_in_comp', 'weight_target_pct_out_comp', 'weight_target_active_mode'])
       .then(({ data }) => {
         if (!data) return
@@ -2416,10 +2453,13 @@ export default function AthleteProfiles() {
   }, [])
 
   useEffect(() => {
+    const { from, to, scope } = cardDateSettings.f2f_sessions
+    const useRange = scope === 'coach' || scope === 'both'
     const todayStr = new Date().toISOString().split('T')[0]
-    supabase.from('fit2fight_sessions').select('*').eq('session_date', todayStr)
+    const q = supabase.from('fit2fight_sessions').select('*')
+    ;(useRange ? q.gte('session_date', from).lte('session_date', to) : q.eq('session_date', todayStr))
       .then(({ data }) => setTodaysAllSessions(data || []))
-  }, [])
+  }, [cardDateSettings.f2f_sessions.from, cardDateSettings.f2f_sessions.to, cardDateSettings.f2f_sessions.scope])
 
   useEffect(() => {
     supabase.from('fit2fight_sessions').select('*, students(student_ref, is_kr, is_pts, discipline, members(first_name, last_name))')
@@ -2433,11 +2473,14 @@ export default function AthleteProfiles() {
   }, [])
 
   useEffect(() => {
+    const { from, to, scope } = cardDateSettings.all_sessions
+    const useRange = scope === 'coach' || scope === 'both'
     const todayStr = new Date().toISOString().split('T')[0]
-    supabase.from('attendance').select('student_id, session_date, attendance_type').eq('session_date', todayStr)
+    const q = supabase.from('attendance').select('student_id, session_date, attendance_type')
       .neq('attendance_type', 'absent').neq('attendance_type', 'excused')
+    ;(useRange ? q.gte('session_date', from).lte('session_date', to) : q.eq('session_date', todayStr))
       .then(({ data }) => setTodaysAllAttendance(data || []))
-  }, [])
+  }, [cardDateSettings.all_sessions.from, cardDateSettings.all_sessions.to, cardDateSettings.all_sessions.scope])
 
   useEffect(() => {
     const todayStr = new Date().toISOString().split('T')[0]
@@ -3650,10 +3693,13 @@ export default function AthleteProfiles() {
               ).map(s => s.student_id)
               const f2fSessions = pctFromIds(f2fIds)
 
+              const pdpUseRange = cardDateSettings.pdp.scope === 'coach' || cardDateSettings.pdp.scope === 'both'
+              const pdpFrom = pdpUseRange ? cardDateSettings.pdp.from : todayStr
+              const pdpTo = pdpUseRange ? cardDateSettings.pdp.to : todayStr
               const pdpIds = allAthleteProfiles.filter(ap => {
                 const pdp = ap.pdp_notes || {}
                 return Array.from(PDP_CHECKABLE_SECTIONS).some(k =>
-                  Object.values(pdp[`__timetable_${k}`] || {}).some(e => e.date === todayStr))
+                  Object.values(pdp[`__timetable_${k}`] || {}).some(e => e.date >= pdpFrom && e.date <= pdpTo))
               }).map(ap => ap.student_id)
               const pdp = pctFromIds(pdpIds)
 
@@ -3681,6 +3727,11 @@ export default function AthleteProfiles() {
                         </span>
                         <span style={{ fontSize: 18, fontWeight: 700, color: colour }}>{c.pct}%</span>
                         <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{c.count}/{teamCount}</span>
+                        {cardDateSettings[c.key].from !== todayStr0 || cardDateSettings[c.key].to !== todayStr0 ? (
+                          <span style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>
+                            {new Date(cardDateSettings[c.key].from).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – {new Date(cardDateSettings[c.key].to).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                          </span>
+                        ) : null}
                         {targets.map(t => (
                           <span key={t.id} style={{ fontSize: 10, color: '#EF9F27', display: 'flex', alignItems: 'center', gap: 4 }}>
                             🎯 {t.preset_label ? `${t.preset_label}: ` : ''}{t.target_value}
@@ -3690,6 +3741,7 @@ export default function AthleteProfiles() {
                         <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => {
                           setNewTargetSection(c.key); setNewTargetQuestion(''); setShowAddTarget(true)
                         }}>{targets.length ? '+ Add another target' : '+ Target'}</button>
+                        <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => setShowSetDatePopup(c.key)}>📅 Set date</button>
                         <button className="btn btn-sm btn-primary" style={{ fontSize: 10 }} onClick={() => {
                           if (c.key === 'all_sessions') navigate('/registers')
                           else if (c.key === 'pdp') setDashboardTab('pdp')
@@ -3864,6 +3916,52 @@ export default function AthleteProfiles() {
                         </div>
                       </>
                     )}
+                  </div>
+                </div>
+              )
+            })()}
+
+            {showSetDatePopup && (() => {
+              const cardLabels = { all_sessions: 'Attendance', f2f_sessions: 'Results', pdp: 'PDP' }
+              const current = cardDateSettings[showSetDatePopup]
+              return (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}
+                  onClick={() => setShowSetDatePopup(null)}>
+                  <div className="card" style={{ width: 340, padding: 20 }} onClick={e => e.stopPropagation()}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <h2 style={{ fontSize: 15, fontWeight: 600 }}>Set date — {cardLabels[showSetDatePopup]}</h2>
+                      <button onClick={() => setShowSetDatePopup(null)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
+                    </div>
+                    <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16 }}>
+                      Choose who this date range applies to, and what range to use for this card's numbers.
+                    </p>
+                    <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Applies to</label>
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                      {[['coach', 'Coach'], ['athletes', 'Athletes'], ['both', 'Both']].map(([val, label]) => (
+                        <button key={val} className="btn btn-sm" style={{ flex: 1, background: current.scope === val ? colour + '20' : undefined, borderColor: current.scope === val ? colour : undefined }}
+                          onClick={() => saveCardDateSettings(showSetDatePopup, { ...current, scope: val })}>{label}</button>
+                      ))}
+                    </div>
+                    <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Date range</label>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16 }}>
+                      <input type="date" value={current.from} onChange={e => saveCardDateSettings(showSetDatePopup, { ...current, from: e.target.value })} style={{ flex: 1 }} />
+                      <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>to</span>
+                      <input type="date" value={current.to} onChange={e => saveCardDateSettings(showSetDatePopup, { ...current, to: e.target.value })} style={{ flex: 1 }} />
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                      {[['Today', 0], ['This week', 7], ['This month', 30], ['This term', 90]].map(([label, days]) => (
+                        <button key={label} className="btn btn-sm" onClick={() => {
+                          const to = new Date().toISOString().split('T')[0]
+                          const from = days === 0 ? to : (() => { const d = new Date(); d.setDate(d.getDate() - days); return d.toISOString().split('T')[0] })()
+                          saveCardDateSettings(showSetDatePopup, { ...current, from, to })
+                        }}>{label}</button>
+                      ))}
+                    </div>
+                    <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                      {current.scope === 'coach' && "Only affects this dashboard's card — individual athlete profiles are unaffected."}
+                      {current.scope === 'athletes' && "Affects individual athlete profiles' own stats display, not this dashboard card."}
+                      {current.scope === 'both' && "Affects this dashboard card and individual athlete profiles' own stats display."}
+                    </p>
                   </div>
                 </div>
               )
@@ -5803,7 +5901,14 @@ export default function AthleteProfiles() {
                 if (scopeLabel === selected.discipline) return att?.students?.discipline === selected.discipline
                 return att?.students?.class_schedule === selected.class_schedule && att?.students?.class_time === selected.class_time
               }
-              const possibleSessions = new Set((allAttendance || []).filter(matchesScope).map(a => a?.session_date)).size
+              const attSettings = cardDateSettings.all_sessions
+              const useAthleteRange = attSettings.scope === 'athletes' || attSettings.scope === 'both'
+              const scopedAttendanceData = useAthleteRange
+                ? attendanceData.filter(a => a.session_date >= attSettings.from && a.session_date <= attSettings.to)
+                : attendanceData
+              const possibleSessions = new Set((allAttendance || []).filter(matchesScope)
+                .filter(a => !useAthleteRange || (a.session_date >= attSettings.from && a.session_date <= attSettings.to))
+                .map(a => a?.session_date)).size
 
               // Distinct sub-types this athlete actually has logged for a module,
               // used to drive the hold-to-cycle options on each card
@@ -5856,8 +5961,8 @@ export default function AthleteProfiles() {
                         <div onClick={() => setAttendanceDisplayPct(v => !v)} title="Click to toggle percentage/numbers"
                           style={{ fontSize: 19, fontWeight: 700, color: colour, cursor: 'pointer' }}>
                           {attendanceDisplayPct
-                            ? `${possibleSessions ? Math.round((attendanceData.length / possibleSessions) * 100) : 0}%`
-                            : `${attendanceData.length}/${possibleSessions || attendanceData.length}`}
+                            ? `${possibleSessions ? Math.round((scopedAttendanceData.length / possibleSessions) * 100) : 0}%`
+                            : `${scopedAttendanceData.length}/${possibleSessions || scopedAttendanceData.length}`}
                         </div>
                         <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>{scopeLabel}</div>
                       </div>
