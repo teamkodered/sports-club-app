@@ -2,6 +2,15 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { supabase } from '../lib/supabase.js'
 
+function SortTh({ children, col, sortKey, sortDir, onSort, style = {} }) {
+  const active = sortKey === col
+  return (
+    <th onClick={() => onSort(col)} style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', ...style }}>
+      {children}<span style={{ marginLeft: 4, fontSize: 9, opacity: active ? 1 : 0.4 }}>{active ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}</span>
+    </th>
+  )
+}
+
 const BASE_URL = 'https://klasschamp.netlify.app'
 
 const FORMS = [
@@ -192,6 +201,12 @@ export default function Forms() {
   const [responsesLoading, setResponsesLoading] = useState(false)
   const [viewResponse, setViewResponse] = useState(null)
   const [colFilters, setColFilters] = useState({ date: '', name: '', email: '', status: '' })
+  const [sortKey, setSortKey] = useState('date')
+  const [sortDir, setSortDir] = useState('desc')
+  function toggleSort(col) {
+    if (sortKey === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(col); setSortDir('asc') }
+  }
 
   useEffect(() => {
     if (selectedForm) loadResponses(selectedForm)
@@ -317,10 +332,10 @@ export default function Forms() {
                 <table>
                   <thead>
                     <tr>
-                      <th>Date</th>
-                      <th>Name</th>
-                      <th>Email</th>
-                      <th style={{ textAlign: 'center' }}>Status</th>
+                      <SortTh col="date" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>Date</SortTh>
+                      <SortTh col="name" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>Name</SortTh>
+                      <SortTh col="email" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>Email</SortTh>
+                      <SortTh col="status" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} style={{ textAlign: 'center' }}>Status</SortTh>
                       <th></th>
                     </tr>
                     <tr>
@@ -352,6 +367,15 @@ export default function Forms() {
                       if (colFilters.email && !(r.email || '').toLowerCase().includes(colFilters.email.toLowerCase())) return false
                       if (colFilters.status && !(r.status || 'pending').toLowerCase().includes(colFilters.status.toLowerCase())) return false
                       return true
+                    }).sort((a, b) => {
+                      let aVal, bVal
+                      if (sortKey === 'date') { aVal = a.submitted_at || ''; bVal = b.submitted_at || '' }
+                      else if (sortKey === 'name') { aVal = `${a.first_name || ''} ${a.last_name || ''}`.toLowerCase(); bVal = `${b.first_name || ''} ${b.last_name || ''}`.toLowerCase() }
+                      else if (sortKey === 'email') { aVal = (a.email || '').toLowerCase(); bVal = (b.email || '').toLowerCase() }
+                      else if (sortKey === 'status') { aVal = (a.status || 'pending').toLowerCase(); bVal = (b.status || 'pending').toLowerCase() }
+                      if (aVal < bVal) return sortDir === 'asc' ? -1 : 1
+                      if (aVal > bVal) return sortDir === 'asc' ? 1 : -1
+                      return 0
                     }).map((r, i) => (
                       <tr key={i} style={{ cursor: 'pointer' }} onClick={() => setViewResponse(r)}>
                         <td style={{ fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
