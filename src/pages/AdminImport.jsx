@@ -1,5 +1,39 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase.js'
+import * as XLSX from 'xlsx'
+
+// Mirrors PDP_SECTIONS in AthleteProfiles.jsx -- combines category +
+// column type into one unambiguous human-readable label per section,
+// since several sections share a bare label (e.g. "Notes" appears
+// under Psychology, Technical, Tactical, Physical, and Skill).
+const PDP_EXPORT_SECTIONS = [
+  { key: 'winning_ways',          label: 'Winning ways' },
+  { key: 'what_to_do',            label: 'What to do (general)' },
+  { key: 'psychology_notes',      label: 'Psychology - Notes' },
+  { key: 'psychology_maintain',   label: 'Psychology - Maintain' },
+  { key: 'psychology_work_on',    label: 'Psychology - Work on' },
+  { key: 'psychology_what_to_do', label: 'Psychology - To do' },
+  { key: 'tech_notes',            label: 'Technical - Notes' },
+  { key: 'tech_maintain',         label: 'Technical - Maintain' },
+  { key: 'tech_work_on',          label: 'Technical - Work on' },
+  { key: 'tech_what_to_do',       label: 'Technical - To do' },
+  { key: 'tact_notes',            label: 'Tactical - Notes' },
+  { key: 'tact_maintain',         label: 'Tactical - Maintain' },
+  { key: 'tact_work_on',          label: 'Tactical - Work on' },
+  { key: 'tact_what_to_do',       label: 'Tactical - To do' },
+  { key: 'physical_notes',        label: 'Physical - Notes' },
+  { key: 'physical_maintain',     label: 'Physical - Maintain' },
+  { key: 'physical_work_on',      label: 'Physical - Work on' },
+  { key: 'physical_what_to_do',   label: 'Physical - To do' },
+  { key: 'skill_notes',           label: 'Skill - Notes' },
+  { key: 'skill_maintain',        label: 'Skill - Maintain' },
+  { key: 'skill_work_on',         label: 'Skill - Work on' },
+  { key: 'skill_what_to_do',      label: 'Skill - To do' },
+  { key: 'athlete_notes',         label: 'Your notes' },
+  { key: 'notes',                 label: 'Coach notes' },
+]
+const PDP_SECTION_BY_LABEL = Object.fromEntries(PDP_EXPORT_SECTIONS.map(s => [s.label.toLowerCase(), s.key]))
+const PDP_SECTION_BY_KEY = Object.fromEntries(PDP_EXPORT_SECTIONS.map(s => [s.key, s.label]))
 
 export default function AdminImport() {
   const [file, setFile] = useState(null)
@@ -8,6 +42,12 @@ export default function AdminImport() {
   const [importing, setImporting] = useState(false)
   const [result, setResult] = useState(null)
   const [sheetUrl, setSheetUrl] = useState('')
+
+  const [exportingPdp, setExportingPdp] = useState(false)
+  const [pdpFile, setPdpFile] = useState(null)
+  const [pdpPreview, setPdpPreview] = useState([])
+  const [pdpImporting, setPdpImporting] = useState(false)
+  const [pdpResult, setPdpResult] = useState(null)
 
   function parseCSV(text) {
     const lines = text.trim().split('\n')
@@ -56,6 +96,126 @@ export default function AdminImport() {
     }
   }
 
+  async function exportPdpData() {
+    setExportingPdp(true)
+    try {
+      const { data: profiles, error } = await supabase
+        .from('athlete_profiles')
+        .select('student_id, pdp_notes, students(student_ref, members(first_name, last_name))')
+      if (error) throw error
+
+      const rows = []
+      for (const p of (profiles || [])) {
+        const pdp = p.pdp_notes || {}
+        const studentRef = p.students?.student_ref || ''
+        const firstName = p.students?.members?.first_name || ''
+        const lastName = p.students?.members?.last_name || ''
+        for (const section of PDP_EXPORT_SECTIONS) {
+          const items = pdp[section.key]
+          if (!Array.isArray(items) || items.length === 0) continue
+          const highlighted = new Set(pdp[`__highlights_${section.key}`] || [])
+          const completed = new Set(pdp[`__completed_${section.key}`] || [])
+          for (const item of items) {
+            rows.push({
+              student_ref: studentRef,
+              first_name: firstName,
+              last_name: lastName,
+              section: section.label,
+              item,
+              highlighted: highlighted.has(item) ? 'yes' : '',
+              completed: completed.has(item) ? 'yes' : '',
+            })
+          }
+        }
+      }
+
+      if (rows.length === 0) { alert('No PDP data found to export.'); setExportingPdp(false); return }
+
+      const wb = XLSX.utils.book_new()
+      const ws = XLSX.utils.json_to_sheet(rows)
+      XLSX.utils.book_append_sheet(wb, ws, 'PDP Data')
+      XLSX.writeFile(wb, `PDP_export_${new Date().toISOString().split('T')[0]}.xlsx`)
+    } catch (e) {
+      alert('Error exporting PDP data: ' + e.message)
+    }
+    setExportingPdp(false)
+  }
+
+  function handlePdpFile(e) {
+    const f = e.target.files[0]
+    if (!f) return
+    setPdpFile(f)
+    setPdpResult(null)
+    const reader = new FileReader()
+    reader.onload = ev => {
+      const wb = XLSX.read(ev.target.result, { type: 'binary' })
+      const ws = wb.Sheets[wb.SheetNames[0]]
+      const rows = XLSX.utils.sheet_to_json(ws)
+      setPdpPreview(rows)
+    }
+    reader.readAsBinaryString(f)
+  }
+
+  async function runPdpImport() {
+    setPdpImporting(true)
+    setPdpResult(null)
+    try {
+      const { data: studentsData, error: sErr } = await supabase.from('students').select('id, student_ref')
+      if (sErr) throw sErr
+      const studentByRef = Object.fromEntries((studentsData || []).map(s => [s.student_ref, s.id]))
+
+      const { data: existingProfiles, error: pErr } = await supabase.from('athlete_profiles').select('student_id, pdp_notes')
+      if (pErr) throw pErr
+      const pdpByStudentId = Object.fromEntries((existingProfiles || []).map(p => [p.student_id, p.pdp_notes || {}]))
+
+      // Group rows by student_ref + section, rebuilding each section's
+      // item list (and highlight/completed flags) from scratch --
+      // this replaces that section's contents with exactly what's in
+      // the file, rather than appending to whatever's already there.
+      const touchedStudentIds = new Set()
+      const rowsByStudent = {}
+      let unmatchedRefs = new Set()
+      for (const row of pdpPreview) {
+        const ref = row.student_ref || row['Student Ref'] || row.studentRef
+        const studentId = studentByRef[ref]
+        if (!studentId) { if (ref) unmatchedRefs.add(ref); continue }
+        const sectionKey = PDP_SECTION_BY_LABEL[String(row.section || row.Section || '').toLowerCase().trim()]
+        if (!sectionKey) continue
+        touchedStudentIds.add(studentId)
+        if (!rowsByStudent[studentId]) rowsByStudent[studentId] = {}
+        if (!rowsByStudent[studentId][sectionKey]) rowsByStudent[studentId][sectionKey] = []
+        const item = row.item || row.Item
+        if (!item) continue
+        rowsByStudent[studentId][sectionKey].push({
+          item,
+          highlighted: String(row.highlighted || row.Highlighted || '').toLowerCase() === 'yes',
+          completed: String(row.completed || row.Completed || '').toLowerCase() === 'yes',
+        })
+      }
+
+      let success = 0, failed = 0, errors = []
+      for (const studentId of touchedStudentIds) {
+        const current = pdpByStudentId[studentId] || {}
+        const updated = { ...current }
+        for (const [sectionKey, entries] of Object.entries(rowsByStudent[studentId])) {
+          updated[sectionKey] = entries.map(e => e.item)
+          const hl = entries.filter(e => e.highlighted).map(e => e.item)
+          const done = entries.filter(e => e.completed).map(e => e.item)
+          if (hl.length) updated[`__highlights_${sectionKey}`] = hl
+          if (done.length) updated[`__completed_${sectionKey}`] = done
+        }
+        const { error } = await supabase.from('athlete_profiles').upsert({ student_id: studentId, pdp_notes: updated }, { onConflict: 'student_id' })
+        if (error) { failed++; errors.push(`Student ${studentId}: ${error.message}`) }
+        else success++
+      }
+      if (unmatchedRefs.size) errors.push(`Unmatched student_ref values (skipped): ${[...unmatchedRefs].join(', ')}`)
+      setPdpResult({ success, failed, errors, total: touchedStudentIds.size })
+    } catch (e) {
+      setPdpResult({ success: 0, failed: 0, errors: [e.message], total: 0 })
+    }
+    setPdpImporting(false)
+  }
+
   async function runImport() {
     setImporting(true)
     setResult(null)
@@ -100,6 +260,48 @@ export default function AdminImport() {
       <div className="page-header">
         <h1>Import data</h1>
         <p>Import members from Google Sheets or a CSV file</p>
+      </div>
+
+      <div className="card" style={{ marginBottom: 14 }}>
+        <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>PDP data — export & import</h2>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 14 }}>
+          Export every athlete's current PDP notes to Excel, or re-import a file in that same format —
+          the app recognises each row by student reference + section, so a re-uploaded file lands back
+          in the right place. Re-importing replaces a section's contents with exactly what's in the
+          file for any student/section combination present in it.
+        </p>
+        <button className="btn btn-primary" style={{ marginBottom: 16 }} onClick={exportPdpData} disabled={exportingPdp}>
+          {exportingPdp ? 'Exporting…' : '⬇️ Export all PDP data'}
+        </button>
+
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+          <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Re-import a PDP file</p>
+          <input type="file" accept=".xlsx,.xls" onChange={handlePdpFile}
+            style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 10 }} />
+          {pdpPreview.length > 0 && (
+            <>
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10 }}>
+                {pdpPreview.length} rows detected. Columns expected: student_ref, first_name, last_name, section, item, highlighted, completed.
+              </p>
+              <button className="btn btn-primary" style={{ justifyContent: 'center', minWidth: 160 }} onClick={runPdpImport} disabled={pdpImporting}>
+                {pdpImporting ? 'Importing…' : 'Run PDP import'}
+              </button>
+            </>
+          )}
+          {pdpResult && (
+            <div style={{ marginTop: 14, borderLeft: `3px solid ${pdpResult.failed === 0 ? 'var(--success)' : '#e24b4a'}`, borderRadius: '0 var(--radius-lg) var(--radius-lg) 0', padding: '10px 14px', background: 'var(--bg-secondary)' }}>
+              <div style={{ display: 'flex', gap: 16, marginBottom: pdpResult.errors.length ? 10 : 0 }}>
+                <div><span style={{ fontSize: 18, fontWeight: 700, color: 'var(--success)' }}>{pdpResult.success}</span><div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>athletes updated</div></div>
+                {pdpResult.failed > 0 && <div><span style={{ fontSize: 18, fontWeight: 700, color: '#a32d2d' }}>{pdpResult.failed}</span><div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>failed</div></div>}
+              </div>
+              {pdpResult.errors.length > 0 && (
+                <div style={{ fontSize: 12, color: '#a32d2d' }}>
+                  {pdpResult.errors.map((e, i) => <div key={i}>{e}</div>)}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="card" style={{ marginBottom: 14 }}>
