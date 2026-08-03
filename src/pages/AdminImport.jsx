@@ -49,6 +49,9 @@ export default function AdminImport() {
   const [pdpImporting, setPdpImporting] = useState(false)
   const [pdpResult, setPdpResult] = useState(null)
 
+  const [syncingClasses, setSyncingClasses] = useState(false)
+  const [syncResult, setSyncResult] = useState(null)
+
   function parseCSV(text) {
     const lines = text.trim().split('\n')
     const hdrs = lines[0].split(',').map(h => h.trim().replace(/"/g, ''))
@@ -94,6 +97,77 @@ export default function AdminImport() {
     } catch {
       alert('Could not fetch sheet. Make sure it is publicly viewable (Share → Anyone with the link → Viewer).')
     }
+  }
+
+  // Bulk-populates student_class_assignments from each student's
+  // class_schedule/class_time/class_time_2 fields -- this is the
+  // SAME matching logic Registers.jsx has always used to work out
+  // "who's in this class", which turned out to be the real, working
+  // source of truth (student_class_assignments itself was mostly
+  // empty). This is a one-time sync to catch it up, not a
+  // replacement for that matching -- Registers keeps working exactly
+  // as it did.
+  async function syncClassAssignments() {
+    setSyncingClasses(true)
+    setSyncResult(null)
+    try {
+      const shortToFull = { Sun: 'Sunday', Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday' }
+      const fullToShort = { Sunday: 'Sun', Monday: 'Mon', Tuesday: 'Tue', Wednesday: 'Wed', Thursday: 'Thu', Friday: 'Fri', Saturday: 'Sat' }
+
+      const [{ data: students, error: sErr }, { data: classes, error: cErr }, { data: existing, error: eErr }] = await Promise.all([
+        supabase.from('students').select('id, class_schedule, class_time, class_time_2, members(status)'),
+        supabase.from('classes').select('id, name, day_of_week, start_time').eq('active', true),
+        supabase.from('student_class_assignments').select('student_id, class_id'),
+      ])
+      if (sErr) throw sErr
+      if (cErr) throw cErr
+      if (eErr) throw eErr
+
+      const existingKeys = new Set((existing || []).map(a => `${a.student_id}::${a.class_id}`))
+      const toInsert = []
+
+      for (const s of (students || [])) {
+        if (s.members?.status !== 'active') continue
+        const fullSchedule = (s.class_schedule || '').trim()
+        if (!fullSchedule) continue
+
+        for (const c of (classes || [])) {
+          const classStart = c.start_time?.slice(0, 5)
+          const shortDay = fullToShort[c.day_of_week] || c.day_of_week
+          const fullDay2 = shortToFull[c.day_of_week] || c.day_of_week
+          const className = (c.name || '').trim()
+
+          const timeMatch = s.class_time === classStart || s.class_time_2 === classStart
+          const schedMatch = fullSchedule === c.day_of_week
+            || fullSchedule === className
+            || fullSchedule === shortDay
+            || fullSchedule === fullDay2
+            || fullSchedule.split('/').map(p => p.trim()).some(p => p === c.day_of_week || p === shortDay || p === fullDay2)
+
+          if (timeMatch && schedMatch) {
+            const key = `${s.id}::${c.id}`
+            if (!existingKeys.has(key)) {
+              existingKeys.add(key) // avoid inserting the same pair twice if matched by more than one rule
+              toInsert.push({ student_id: s.id, class_id: c.id })
+            }
+          }
+        }
+      }
+
+      if (toInsert.length === 0) {
+        setSyncResult({ inserted: 0, message: 'No new matches found -- everything that could be matched already has an assignment.' })
+        setSyncingClasses(false)
+        return
+      }
+
+      const { error: insertError } = await supabase.from('student_class_assignments').insert(toInsert)
+      if (insertError) throw insertError
+
+      setSyncResult({ inserted: toInsert.length })
+    } catch (e) {
+      setSyncResult({ inserted: 0, error: e.message })
+    }
+    setSyncingClasses(false)
   }
 
   async function exportPdpData() {
@@ -260,6 +334,31 @@ export default function AdminImport() {
       <div className="page-header">
         <h1>Import data</h1>
         <p>Import members from Google Sheets or a CSV file</p>
+      </div>
+
+      <div className="card" style={{ marginBottom: 14 }}>
+        <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Sync class assignments from timetable</h2>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 14 }}>
+          Registers has always worked out who's in each class using each student's own Class/Time fields
+          (set on their record) — but this data was never copied into a proper class assignment record,
+          which is what Attendance %, the weekly timetable, and calendar displays rely on. This fills in
+          that gap using the exact same matching Registers already uses, so nothing about how Registers
+          itself works changes. Safe to run more than once — it only adds assignments that don't already exist.
+        </p>
+        <button className="btn btn-primary" onClick={syncClassAssignments} disabled={syncingClasses}>
+          {syncingClasses ? 'Syncing…' : '🔄 Sync class assignments'}
+        </button>
+        {syncResult && (
+          <div style={{ marginTop: 14, borderLeft: `3px solid ${syncResult.error ? '#e24b4a' : 'var(--success)'}`, borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0', padding: '10px 14px', background: 'var(--bg-secondary)' }}>
+            {syncResult.error ? (
+              <p style={{ fontSize: 13, color: '#a32d2d' }}>Error: {syncResult.error}</p>
+            ) : syncResult.message ? (
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{syncResult.message}</p>
+            ) : (
+              <p style={{ fontSize: 13 }}><span style={{ fontSize: 18, fontWeight: 700, color: 'var(--success)' }}>{syncResult.inserted}</span> new class assignment{syncResult.inserted === 1 ? '' : 's'} created</p>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="card" style={{ marginBottom: 14 }}>

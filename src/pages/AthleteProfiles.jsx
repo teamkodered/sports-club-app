@@ -2377,11 +2377,13 @@ export default function AthleteProfiles() {
 
   async function saveCardDateSettings(cardKey, { from, to, scope }) {
     setCardDateSettings(prev => ({ ...prev, [cardKey]: { from, to, scope } }))
-    await Promise.all([
+    const results = await Promise.all([
       supabase.from('team_settings').upsert({ key: `card_date_${cardKey}_from`, value: from }, { onConflict: 'key' }),
       supabase.from('team_settings').upsert({ key: `card_date_${cardKey}_to`, value: to }, { onConflict: 'key' }),
       supabase.from('team_settings').upsert({ key: `card_date_${cardKey}_scope`, value: scope }, { onConflict: 'key' }),
     ])
+    const firstError = results.find(r => r.error)?.error
+    if (firstError) alert('Error saving date setting: ' + firstError.message)
   }
 
   useEffect(() => {
