@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './hooks/useAuth.jsx'
+import { supabase } from './lib/supabase.js'
 import './styles/global.css'
 
 import Login from './pages/Login.jsx'
@@ -40,9 +41,22 @@ import WhoopDisplayBoard from './pages/WhoopDisplayBoard.jsx'
 import Layout from './components/shared/Layout.jsx'
 
 function ProtectedRoute({ children, adminOnly = false, staffOnly = false }) {
-  const { session, isAdmin, isStaff, loading } = useAuth()
+  const { session, profile, profileError, isAdmin, isStaff, loading } = useAuth()
   if (loading) return <div className="loading">Loading…</div>
   if (!session) return <Navigate to="/login" replace />
+  if (!profile) return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center' }}>
+      <div>
+        <h2 style={{ marginBottom: 8 }}>We couldn't find your profile</h2>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: 16, maxWidth: 420 }}>
+          You're signed in, but no member record is linked to this account yet.
+          {profileError === 'no_member_record' ? ' This can happen if your account was created before your membership record, or the two haven\'t been linked up.' : ` (${profileError || 'unknown error'})`}
+          {' '}Please contact your coach or club admin so they can link your account.
+        </p>
+        <button className="btn btn-primary" onClick={() => { supabase.auth.signOut(); window.location.href = '/login' }}>Sign out</button>
+      </div>
+    </div>
+  )
   if (adminOnly && !isAdmin) return <Navigate to="/dashboard" replace />
   if (staffOnly && !isStaff) return <Navigate to="/athlete-app" replace />
   return children

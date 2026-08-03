@@ -24,23 +24,36 @@ export function AuthProvider({ children }) {
     return () => subscription.unsubscribe()
   }, [])
 
+  const [profileError, setProfileError] = useState(null)
+
   async function fetchProfile(userId) {
-    const { data } = await supabase
+    setProfileError(null)
+    const { data, error } = await supabase
       .from('members')
       .select('*, houses(id, name, colour)')
       .eq('auth_id', userId)
-      .single()
-    if (data) {
-      // Also fetch student record to check if KR/KRBA athlete
-      const { data: studentRows } = await supabase
-        .from('students')
-        .select('id, discipline, is_kr, is_pts, is_leader, student_ref, pka_belt, krba_level')
-        .eq('member_id', data.id)
-        .limit(1)
-      setProfile({ ...data, student: studentRows?.[0] || null })
-    } else {
-      setProfile(data)
+      .maybeSingle()
+    if (error) {
+      console.error('Error fetching member profile:', error)
+      setProfileError(error.message)
+      setProfile(null)
+      setLoading(false)
+      return
     }
+    if (!data) {
+      console.error('No members row found for auth_id', userId)
+      setProfileError('no_member_record')
+      setProfile(null)
+      setLoading(false)
+      return
+    }
+    // Also fetch student record to check if KR/KRBA athlete
+    const { data: studentRows } = await supabase
+      .from('students')
+      .select('id, discipline, is_kr, is_pts, is_leader, student_ref, pka_belt, krba_level')
+      .eq('member_id', data.id)
+      .limit(1)
+    setProfile({ ...data, student: studentRows?.[0] || null })
     setLoading(false)
   }
 
@@ -52,7 +65,7 @@ export function AuthProvider({ children }) {
   const isAthlete = !!(profile?.student?.is_kr || profile?.student?.discipline === 'KRBA' || profile?.student?.is_pts)
 
   return (
-    <AuthContext.Provider value={{ session, profile, role, isAdmin, isCoach, isLeader, isStaff, isAthlete, loading, refreshProfile: () => fetchProfile(session?.user?.id) }}>
+    <AuthContext.Provider value={{ session, profile, role, isAdmin, isCoach, isLeader, isStaff, isAthlete, loading, profileError, refreshProfile: () => fetchProfile(session?.user?.id) }}>
       {children}
     </AuthContext.Provider>
   )
