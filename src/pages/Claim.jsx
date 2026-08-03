@@ -19,6 +19,7 @@ export default function Claim() {
   const [linking, setLinking] = useState(false)
   const [linkError, setLinkError] = useState('')
   const [linked, setLinked] = useState(false)
+  const [wrongAccount, setWrongAccount] = useState(false)
 
   const [showCreateLogin, setShowCreateLogin] = useState(false)
   const [email, setEmail] = useState('')
@@ -59,6 +60,12 @@ export default function Claim() {
       if (data.success) {
         setLinked(true)
         setTimeout(() => { window.location.href = '/athlete-app' }, 1200)
+      } else if (data.error && data.error.includes('already linked to a different login')) {
+        // This almost always means someone else's login session is
+        // still active on this device (e.g. a shared family phone) --
+        // not a genuine data problem. Offer to sign that session out
+        // directly, rather than a dead-end "ask an admin" message.
+        setWrongAccount(true)
       } else {
         setLinkError(data.error || 'Something went wrong linking your profile.')
       }
@@ -114,6 +121,20 @@ export default function Claim() {
             <div style={{ textAlign: 'center', padding: '12px 0' }}>
               <p style={{ fontSize: 14, marginBottom: 14 }}>We couldn't find a profile for this link. It may have expired, or the reference may be incorrect.</p>
               <Link to="/athlete-app" className="btn btn-primary" style={{ justifyContent: 'center', width: '100%' }}>Find your profile instead</Link>
+            </div>
+          ) : wrongAccount ? (
+            <div style={{ textAlign: 'center', padding: '12px 0' }}>
+              <div style={{ fontSize: 40, marginBottom: 8 }}>👤</div>
+              <p style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>This looks like someone else's device</p>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
+                {m?.first_name}'s profile is already linked to their own login — but this browser is currently
+                signed in as a different person (common on a shared family phone). Sign out here first,
+                then come back to this exact link to sign in as {m?.first_name}.
+              </p>
+              <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}
+                onClick={async () => { await supabase.auth.signOut(); window.location.reload() }}>
+                Sign out and try again
+              </button>
             </div>
           ) : linked ? (
             <div style={{ textAlign: 'center', padding: '12px 0' }}>
