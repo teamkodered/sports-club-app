@@ -93,6 +93,7 @@ export default function Registers() {
   const [date, setDate]                 = useState(new Date().toISOString().split('T')[0])
   const [classFilter, setClassFilter]   = useState('all')
   const [students, setStudents]         = useState([])
+  const [explicitAssignments, setExplicitAssignments] = useState([])
   const [todayClasses, setTodayClasses] = useState([])
   const [derbyMooreClasses, setDerbyMooreClasses] = useState([])
   const [moorwaysClasses, setMoorwaysClasses] = useState([])
@@ -205,7 +206,24 @@ export default function Registers() {
     setSelectedStudents([])
 
     const { data, error } = await query
-    setStudents((data || []).filter(s => s.members?.status !== 'stopped' && s.members?.status !== 'not_started'))
+    const filteredStudents = (data || []).filter(s => s.members?.status !== 'stopped' && s.members?.status !== 'not_started')
+    setStudents(filteredStudents)
+
+    // Also fetch explicit class assignments (student_class_assignments)
+    // for these students -- this is a second, independent source of
+    // "who's in this class" alongside each student's own
+    // class_schedule/class_time fields, since the two can diverge
+    // (e.g. someone assigned via the Attendance/PDP system whose own
+    // class_time field hasn't been updated to match a newly added class).
+    if (filteredStudents.length) {
+      const { data: assignments } = await supabase
+        .from('student_class_assignments')
+        .select('student_id, class_id')
+        .in('student_id', filteredStudents.map(s => s.id))
+      setExplicitAssignments(assignments || [])
+    } else {
+      setExplicitAssignments([])
+    }
 
     // Load today's check-ins from attendance table
     try {
@@ -286,6 +304,12 @@ export default function Registers() {
     .filter(s => !showOnlyAttended || (attendance[s.id] && attendance[s.id] !== 'none'))
     .filter(s => {
       if (classFilter === 'all') return true
+
+      // Explicit assignment (student_class_assignments) is a second,
+      // independent way to match -- covers anyone assigned via the
+      // sync tool/Attendance system whose own class_time field
+      // doesn't happen to match this specific class.
+      if (explicitAssignments.some(a => a.student_id === s.id && a.class_id === classFilter)) return true
 
       if (!selectedClass) return true
       const classStart = selectedClass.start_time?.slice(0, 5)
@@ -736,12 +760,12 @@ export default function Registers() {
       <div onClick={() => setShowOnlyAttended(v => !v)} title="Click to shortlist to attended students only"
         style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 10, cursor: 'pointer' }}>
         <span style={{ fontSize: 36, fontWeight: 700, lineHeight: 1, color: showOnlyAttended ? '#1D9E75' : 'var(--text)' }}>
-          {Object.values(attendance).filter(v => v && v !== 'none').length}
+          {displayStudents.filter(s => attendance[s.id] && attendance[s.id] !== 'none').length}
         </span>
         <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
           attending today{showOnlyAttended ? ' (shortlisted)' : ''}
           <span style={{ marginLeft: 6, color: 'var(--text-tertiary)' }}>
-            ({Object.values(attendance).filter(v => v === 'full_kit').length} full kit)
+            ({displayStudents.filter(s => attendance[s.id] === 'full_kit').length} full kit)
           </span>
         </span>
       </div>
