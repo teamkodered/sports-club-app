@@ -387,6 +387,9 @@ const TEST_CATEGORIES = [
   { key: 'bleep', label: 'Bleep test', icon: '🏃', tests: [
     { name: 'Bleep test', unit: 'level' },
   ]},
+  { key: 'vo2max', label: 'VO2 Max', icon: '🫁', tests: [
+    { name: 'VO2 Max', unit: 'ml/kg/min' },
+  ]},
   { key: 'stretches', label: 'Stretches', icon: '🤸', tests: [
     { name: 'Hamstring Stretch (range)', unit: 'cm' },
     { name: 'Box Splits Stretch (range)', unit: 'cm' },
@@ -2954,6 +2957,25 @@ export default function AthleteProfiles() {
     const { error } = await supabase.from('athlete_profiles').upsert({ student_id: selected.id, weight_division: value }, { onConflict: 'student_id' })
     if (error) { alert('Error saving comp weight: ' + error.message); return }
     setApData(prev => ({ ...(prev || {}), weight_division: value }))
+  }
+
+  // Save VO2 Max directly from the Profile card, without opening the
+  // full Fit2Fight log form -- updates today's session if one already
+  // exists for this athlete, otherwise creates one.
+  async function saveVo2MaxHere(value) {
+    const todaysDate = new Date().toISOString().split('T')[0]
+    const existing = f2fData.find(s => s.session_date === todaysDate)
+    const newTest = { ...(existing?.test || {}), 'VO2 Max': value }
+    if (existing) {
+      const { error } = await supabase.from('fit2fight_sessions').update({ test: newTest }).eq('id', existing.id)
+      if (error) { alert('Error saving VO2 Max: ' + error.message); return }
+      setF2fData(prev => prev.map(s => s.id === existing.id ? { ...s, test: newTest } : s))
+    } else {
+      const { data, error } = await supabase.from('fit2fight_sessions')
+        .insert({ student_id: selected.id, session_date: todaysDate, test: newTest }).select().single()
+      if (error) { alert('Error saving VO2 Max: ' + error.message); return }
+      setF2fData(prev => [...prev, data])
+    }
   }
 
   // Save a single wellbeing question's data directly from the Home page,
@@ -5753,6 +5775,19 @@ export default function AthleteProfiles() {
                           onBlur={e => { if (e.target.value !== (apData?.weight_division || '')) saveCompWeightHere(e.target.value || null) }}
                           style={{ width: 90, fontSize: 12, padding: '4px 6px', textAlign: 'right', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
                       ) : (apData?.weight_division || '—') },
+                      { label: 'VO2 Max', editable: true, render: () => {
+                        const sorted = [...f2fData].sort((a, b) => new Date(b.session_date) - new Date(a.session_date))
+                        const latest = sorted.find(s => s.test?.['VO2 Max'] != null)
+                        const latestValue = latest?.test?.['VO2 Max']
+                        return isAdmin ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
+                            <input key={`vo2max-${selected.id}`} type="number" step="0.1" defaultValue={latestValue ?? ''} placeholder="ml/kg/min"
+                              onBlur={e => { const v = e.target.value ? parseFloat(e.target.value) : null; if (v != null && v !== latestValue) saveVo2MaxHere(v) }}
+                              style={{ width: 80, fontSize: 12, padding: '4px 6px', textAlign: 'right', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+                            {latest && <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{new Date(latest.session_date).toLocaleDateString('en-GB')}</span>}
+                          </div>
+                        ) : (latestValue != null ? `${latestValue} ml/kg/min` : '—')
+                      } },
                       { label: 'Groups', editable: true, render: () => isAdmin ? (
                         <div style={{ display: 'flex', gap: 3 }}>
                           {[

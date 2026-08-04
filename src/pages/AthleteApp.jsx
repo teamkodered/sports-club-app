@@ -383,6 +383,9 @@ const TEST_CATEGORIES = [
   { key: 'bleep', label: 'Bleep test', icon: '🏃', tests: [
     { name: 'Bleep test', unit: 'level' },
   ]},
+  { key: 'vo2max', label: 'VO2 Max', icon: '🫁', tests: [
+    { name: 'VO2 Max', unit: 'ml/kg/min' },
+  ]},
   { key: 'stretches', label: 'Stretches', icon: '🤸', tests: [
     { name: 'Hamstring Stretch (range)', unit: 'cm' },
     { name: 'Box Splits Stretch (range)', unit: 'cm' },
@@ -1591,6 +1594,10 @@ export default function AthleteApp() {
           ['Record', `${student.wins || 0}W ${student.losses || 0}L ${student.draws || 0}D`],
           ['Weight', student.weight_kg ? `${student.weight_kg}kg${student.weight_category ? ` (${student.weight_category})` : ''}` : '—', targetWeight],
           ['Comp weight', apData?.weight_division ? `${apData.weight_division}${/kg/i.test(apData.weight_division) ? '' : 'kg'}` : '—'],
+          ['VO2 Max', (() => {
+            const latest = [...sessions].sort((a, b) => new Date(b.session_date) - new Date(a.session_date)).find(s => s.test?.['VO2 Max'] != null)
+            return latest ? `${latest.test['VO2 Max']} ml/kg/min` : '—'
+          })()],
           ['Groups', [student.is_kr && 'KR', student.is_pts && 'PTs', student.is_leader && 'Leader', student.is_coach && 'Coach'].filter(Boolean).join(', ') || 'None'],
         ].map(([label, val, target], i, arr) => {
           const isWeightRow = label === 'Weight'
