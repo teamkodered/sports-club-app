@@ -7472,7 +7472,7 @@ export default function AthleteProfiles() {
                               const explicitlyAbsent = explicitlyAbsentDays.has(dateStr)
                               const explicitlyExcused = explicitlyExcusedDays.has(dateStr)
                               const wasTrainingDay = allTrainingDays.has(dateStr)
-                              const showAsRed = explicitlyAbsent || (wasTrainingDay && !attended && !explicitlyExcused)
+                              const showAsRed = explicitlyAbsent || (wasTrainingDay && !attended && !explicitlyExcused && dateStr < todayStr)
                               const bg = attended ? '#1D9E75' : showAsRed ? '#E24B4A' : 'transparent'
                               const fg = attended || showAsRed ? '#fff' : 'var(--text-secondary)'
                               const jsDay = new Date(year, month, d).getDay()
@@ -7484,7 +7484,7 @@ export default function AthleteProfiles() {
                               const eventsToday = clubEvents.filter(e => e.event_date === dateStr)
                               return (
                                 <button key={i} type="button" onClick={() => cycleAttendanceDay(dateStr)}
-                                  title={(attended ? 'Attended — click to mark absent' : explicitlyAbsent ? 'Marked absent — click to clear' : explicitlyExcused ? 'Cleared — click to mark attended' : wasTrainingDay ? 'Missed (a session happened this day) — click to mark attended' : 'Click to mark attended')
+                                  title={(attended ? 'Attended — click to mark absent' : explicitlyAbsent ? 'Marked absent — click to clear' : explicitlyExcused ? 'Cleared — click to mark attended' : (wasTrainingDay && dateStr < todayStr) ? 'Missed (a session happened this day) — click to mark attended' : wasTrainingDay ? 'Upcoming session — not yet happened' : 'Click to mark attended')
                                     + (classesToday.length ? `\nClass: ${classesToday.map(a => `${a.classes?.name} ${a.classes?.start_time?.slice(0,5)}`).join(', ')}` : '')
                                     + (pdpItemsToday.length ? `\nPDP: ${pdpItemsToday.map(e => `${e.item}${e.time ? ` ${e.time}` : ''}`).join(', ')}` : '')
                                     + (eventsToday.length ? `\nEvent: ${eventsToday.map(e => `${e.title}${e.event_time ? ` ${e.event_time.slice(0,5)}` : ''}`).join(', ')}` : '')}

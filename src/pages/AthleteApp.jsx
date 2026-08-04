@@ -3078,7 +3078,7 @@ export default function AthleteApp() {
                   const attended = attendedDays.has(dateStr)
                   const explicitlyAbsent = explicitlyAbsentDays.has(dateStr)
                   const wasTrainingDay = allTrainingDays.has(dateStr)
-                  const showAsRed = explicitlyAbsent || (wasTrainingDay && !attended)
+                  const showAsRed = explicitlyAbsent || (wasTrainingDay && !attended && dateStr < todayStr)
                   const bg = attended ? '#1D9E75' : showAsRed ? '#E24B4A' : 'transparent'
                   const fg = attended || showAsRed ? '#fff' : 'var(--text-secondary)'
                   const jsDay = new Date(year, month, d).getDay()
@@ -3087,7 +3087,7 @@ export default function AthleteApp() {
                   const eventsToday = clubEvents.filter(e => e.event_date === dateStr)
                   return (
                     <div key={i}
-                      title={(attended ? 'Attended' : showAsRed ? 'Missed' : '')
+                      title={(attended ? 'Attended' : showAsRed ? 'Missed' : (wasTrainingDay && dateStr === todayStr) ? 'Upcoming session — not yet happened' : '')
                         + (classesToday.length ? `\nClass: ${classesToday.map(a => `${a.classes?.name} ${a.classes?.start_time?.slice(0,5)}`).join(', ')}` : '')
                         + (pdpItemsToday.length ? `\nPDP: ${pdpItemsToday.map(e => `${e.item}${e.time ? ` ${e.time}` : ''}`).join(', ')}` : '')
                         + (eventsToday.length ? `\nEvent: ${eventsToday.map(e => `${e.title}${e.event_time ? ` ${e.event_time.slice(0,5)}` : ''}`).join(', ')}` : '')}
