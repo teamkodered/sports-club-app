@@ -138,8 +138,15 @@ export default function AdminImport() {
           const className = (c.name || '').trim()
 
           const timeMatch = s.class_time === classStart || s.class_time_2 === classStart
+          // Deliberately does NOT match on class name alone -- that
+          // branch is safe in Registers.jsx because it only ever
+          // evaluates one specific day at a time, but is unsafe here
+          // since this loops over every class across every day: if a
+          // student's class_schedule is a venue name (e.g. "KR
+          // Centre") rather than an actual day, and multiple classes
+          // share that name across different days, name-only matching
+          // would incorrectly match all of them.
           const schedMatch = fullSchedule === c.day_of_week
-            || fullSchedule === className
             || fullSchedule === shortDay
             || fullSchedule === fullDay2
             || fullSchedule.split('/').map(p => p.trim()).some(p => p === c.day_of_week || p === shortDay || p === fullDay2)
