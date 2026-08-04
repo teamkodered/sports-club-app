@@ -501,6 +501,20 @@ function isMentalityQComplete(key, m) {
 // thing as the newer full-text options (e.g. "15 seconds on 90 seconds
 // off - Output (wattage)"). Normalizing here means these don't show up
 // as separate, duplicate sub-types.
+// A date is "on holiday" (excluded from attendance %) if either:
+// - any club-wide holiday (class_id null) covers it, or
+// - EVERY one of the classes that would have run that weekday for
+//   this athlete is individually covered by a per-class holiday for
+//   that same date
+function isDateOnHoliday(dateStr, holidays, classIdsForThatWeekday) {
+  const clubWide = holidays.some(h => !h.class_id && h.start_date <= dateStr && h.end_date >= dateStr)
+  if (clubWide) return true
+  if (!classIdsForThatWeekday || classIdsForThatWeekday.length === 0) return false
+  return classIdsForThatWeekday.every(cid =>
+    holidays.some(h => h.class_id === cid && h.start_date <= dateStr && h.end_date >= dateStr)
+  )
+}
+
 function normalizeIntervalMode(raw) {
   if (!raw) return raw
   let s = String(raw).trim()
@@ -788,6 +802,7 @@ export default function AthleteApp() {
   const [showOverallPos, setShowOverallPos] = useState(false)
   const [apData, setApData]     = useState(null)
   const [assignedClasses, setAssignedClasses] = useState([])
+  const [holidays, setHolidays] = useState([])
   const [myNotesLog, setMyNotesLog] = useState([])
   const [tptData, setTptData] = useState({ kickboxing: [], boxing: [] })
   const [whoopConnection, setWhoopConnection] = useState(null)
@@ -1068,6 +1083,8 @@ export default function AthleteApp() {
         supabase.from('student_class_assignments').select('id, class_id, classes(*)')
           .eq('student_id', s.id)
           .then(({ data, error }) => { if (!error) setAssignedClasses(data || []) })
+
+        supabase.from('holidays').select('*').then(({ data }) => setHolidays(data || []))
 
         supabase.from('athlete_notes_log').select('*').eq('student_id', s.id).order('logged_at', { ascending: false })
           .then(({ data, error }) => { if (!error) setMyNotesLog(data || []) })
@@ -3054,6 +3071,11 @@ export default function AthleteApp() {
             .filter(d => assignedWeekdays.has(new Date(year, month, d).getDay()))
             .map(d => `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`)
             .filter(dateStr => dateStr <= todayStr)
+            .filter(dateStr => {
+              const jsDay = new Date(dateStr + 'T12:00:00').getDay()
+              const classIdsThatDay = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay)).map(a => a.classes?.id)
+              return !isDateOnHoliday(dateStr, holidays, classIdsThatDay)
+            })
         )
         const pdpNotesData = apData?.pdp_notes || {}
         const allPdpEntries = PDP_TIMETABLE_SECTION_KEYS.flatMap(sectionKey =>

@@ -22,6 +22,11 @@ export default function Classes() {
   const [highlightedClassId, setHighlightedClassId] = useState(null)
   const nameRef = useRef(null)
 
+  const [holidays, setHolidays] = useState([])
+  const [showAddHoliday, setShowAddHoliday] = useState(false)
+  const [holidayForm, setHolidayForm] = useState({ name: '', start_date: '', end_date: '', class_id: '' })
+  const [savingHoliday, setSavingHoliday] = useState(false)
+
   useEffect(() => { load() }, [])
   useEffect(() => {
     const classId = searchParams.get('class_id')
@@ -64,18 +69,46 @@ export default function Classes() {
   }
 
   async function load() {
-    const [{ data: c }, { data: s }] = await Promise.all([
+    const [{ data: c }, { data: s }, { data: h }] = await Promise.all([
       supabase.from('classes').select('*').order('day_of_week').order('start_time'),
       supabase.from('settings').select('value').eq('key', 'club_teams').single(),
+      supabase.from('holidays').select('*, classes(name)').order('start_date', { ascending: false }),
     ])
     setClasses(c || [])
     // Default teams/disciplines if not set
     setTeams(s?.value || ['PKA', 'KRBA', 'Kode Red', 'Leaders', 'PTs'])
+    setHolidays(h || [])
     setLoading(false)
   }
 
   function set(field) {
     return e => setForm(f => ({ ...f, [field]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }))
+  }
+
+  async function saveHoliday() {
+    if (!holidayForm.name || !holidayForm.start_date || !holidayForm.end_date) {
+      alert('Please fill in a name and both dates.')
+      return
+    }
+    setSavingHoliday(true)
+    const { data, error } = await supabase.from('holidays').insert({
+      name: holidayForm.name,
+      start_date: holidayForm.start_date,
+      end_date: holidayForm.end_date,
+      class_id: holidayForm.class_id || null,
+    }).select('*, classes(name)').single()
+    setSavingHoliday(false)
+    if (error) { alert('Error saving holiday: ' + error.message); return }
+    setHolidays(prev => [data, ...prev])
+    setHolidayForm({ name: '', start_date: '', end_date: '', class_id: '' })
+    setShowAddHoliday(false)
+  }
+
+  async function deleteHoliday(id) {
+    if (!confirm('Remove this holiday period?')) return
+    const { error } = await supabase.from('holidays').delete().eq('id', id)
+    if (error) { alert('Error removing holiday: ' + error.message); return }
+    setHolidays(prev => prev.filter(h => h.id !== id))
   }
 
   function handleKeyDown(e) {
@@ -147,6 +180,62 @@ export default function Classes() {
           <button className="btn btn-primary" onClick={() => { setEditing(null); setAdding(true) }}>+ Add class</button>
         )}
       </div>
+
+      {isAdmin && (
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: holidays.length || showAddHoliday ? 12 : 0 }}>
+            <div>
+              <h2 style={{ fontSize: 15, fontWeight: 600 }}>🏖️ Holiday mode</h2>
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Closed periods are excluded from attendance % — no one's marked as having missed a session that never ran.</p>
+            </div>
+            <button className="btn btn-sm" onClick={() => setShowAddHoliday(v => !v)}>{showAddHoliday ? 'Cancel' : '+ Add holiday'}</button>
+          </div>
+
+          {showAddHoliday && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12, padding: 12, background: 'var(--bg-secondary)', borderRadius: 'var(--radius)' }}>
+              <div className="field" style={{ marginBottom: 0 }}><label>Name</label>
+                <input value={holidayForm.name} onChange={e => setHolidayForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Christmas break" />
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <div className="field" style={{ marginBottom: 0, flex: 1 }}><label>From</label>
+                  <input type="date" value={holidayForm.start_date} onChange={e => setHolidayForm(f => ({ ...f, start_date: e.target.value }))} />
+                </div>
+                <div className="field" style={{ marginBottom: 0, flex: 1 }}><label>To</label>
+                  <input type="date" value={holidayForm.end_date} onChange={e => setHolidayForm(f => ({ ...f, end_date: e.target.value }))} />
+                </div>
+              </div>
+              <div className="field" style={{ marginBottom: 0 }}><label>Applies to</label>
+                <select value={holidayForm.class_id} onChange={e => setHolidayForm(f => ({ ...f, class_id: e.target.value }))}>
+                  <option value="">All classes (club-wide closure)</option>
+                  {classes.filter(c => c.active).map(c => <option key={c.id} value={c.id}>{c.name} — {c.day_of_week} {c.start_time?.slice(0,5)}</option>)}
+                </select>
+              </div>
+              <button className="btn btn-primary" onClick={saveHoliday} disabled={savingHoliday} style={{ alignSelf: 'flex-start' }}>
+                {savingHoliday ? 'Saving…' : 'Save holiday'}
+              </button>
+            </div>
+          )}
+
+          {holidays.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {holidays.map(h => (
+                <div key={h.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)' }}>
+                  <div>
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>{h.name}</span>
+                    <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginLeft: 8 }}>
+                      {new Date(h.start_date).toLocaleDateString('en-GB')} – {new Date(h.end_date).toLocaleDateString('en-GB')}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-tertiary)', marginLeft: 8 }}>
+                      {h.class_id ? h.classes?.name || 'Specific class' : 'Club-wide'}
+                    </span>
+                  </div>
+                  <button className="btn btn-sm" onClick={() => deleteHoliday(h.id)}>Remove</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {Object.entries(grouped).map(([day, dayClasses]) => (
         <div key={day} style={{ marginBottom: 20 }}>

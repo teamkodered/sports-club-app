@@ -376,6 +376,20 @@ const BODYWEIGHT_GROUPS = [
   { key: 'isometrics', label: 'Isometrics', icon: '🧘', exercises: ['Flat plank', 'Side Plank - Right side up', 'Side Plank - Left side up', 'Bridge', 'Wall sit', 'Half push'], metric: 'time', durations: ['1 min', '2 min', '3 min', '5 min'] },
   { key: 'abs', label: 'Abs circuit', icon: '🔥', exercises: ['Crunches', 'Full sit-ups', 'Side crunch', 'Dorsal raises'], metric: 'reps', durations: ['1 min', '2 min', '3 min', '5 min'] },
 ]
+// A date is "on holiday" (excluded from attendance %) if either:
+// - any club-wide holiday (class_id null) covers it, or
+// - EVERY one of the classes that would have run that weekday for
+//   this athlete is individually covered by a per-class holiday for
+//   that same date
+function isDateOnHoliday(dateStr, holidays, classIdsForThatWeekday) {
+  const clubWide = holidays.some(h => !h.class_id && h.start_date <= dateStr && h.end_date >= dateStr)
+  if (clubWide) return true
+  if (!classIdsForThatWeekday || classIdsForThatWeekday.length === 0) return false
+  return classIdsForThatWeekday.every(cid =>
+    holidays.some(h => h.class_id === cid && h.start_date <= dateStr && h.end_date >= dateStr)
+  )
+}
+
 function bodyweightMatchesGroup(e, grpKey) {
   if (!e) return false
   if (e.category) return e.category === grpKey
@@ -2181,6 +2195,7 @@ export default function AthleteProfiles() {
   const [belts, setBelts] = useState({ junior: [], senior: [], krba: [] })
   const [selected, setSelected]     = useState(null)
   const [apData, setApData]         = useState(null)
+  const [holidays, setHolidays]     = useState([])
   const [loading, setLoading]       = useState(true)
   const [searchParams, setSearchParams] = useSearchParams()
   const [saving, setSaving]         = useState(false)
@@ -2422,6 +2437,10 @@ export default function AthleteProfiles() {
     const firstError = results.find(r => r.error)?.error
     if (firstError) alert('Error saving date setting: ' + firstError.message)
   }
+
+  useEffect(() => {
+    supabase.from('holidays').select('*').then(({ data }) => setHolidays(data || []))
+  }, [])
 
   useEffect(() => {
     supabase.from('team_settings').select('*').in('key', ['weight_target_pct_in_comp', 'weight_target_pct_out_comp', 'weight_target_active_mode'])
@@ -5977,9 +5996,11 @@ export default function AthleteProfiles() {
               const scopedAttendanceData = useAthleteRange
                 ? attendanceData.filter(a => a.session_date >= attSettings.from && a.session_date <= attSettings.to)
                 : attendanceData
+              const isClubWideHoliday = dateStr => holidays.some(h => !h.class_id && h.start_date <= dateStr && h.end_date >= dateStr)
               const possibleSessions = new Set((allAttendance || []).filter(matchesScope)
                 .filter(a => !useAthleteRange || (a.session_date >= attSettings.from && a.session_date <= attSettings.to))
-                .map(a => a?.session_date)).size
+                .map(a => a?.session_date)
+                .filter(d => d && !isClubWideHoliday(d))).size
 
               // Distinct sub-types this athlete actually has logged for a module,
               // used to drive the hold-to-cycle options on each card
@@ -7457,6 +7478,11 @@ export default function AthleteProfiles() {
                           .filter(d => assignedWeekdays.has(new Date(year, month, d).getDay()))
                           .map(d => `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`)
                           .filter(dateStr => dateStr <= todayStr)
+                          .filter(dateStr => {
+                            const jsDay = new Date(dateStr + 'T12:00:00').getDay()
+                            const classIdsThatDay = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay)).map(a => a.classes?.id)
+                            return !isDateOnHoliday(dateStr, holidays, classIdsThatDay)
+                          })
                       )
                       const attendedDays = new Set(
                         attendanceData

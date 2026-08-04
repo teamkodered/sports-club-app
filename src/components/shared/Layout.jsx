@@ -85,6 +85,7 @@ export default function Layout() {
     { to: '/trackers',       icon: '📈', label: 'Trackers',           roles: ['admin','captain'] },
     { to: '/forms',          icon: '📝', label: 'Forms',              roles: ['admin','captain'] },
     { to: '/classes',        icon: '🗓️', label: 'Classes',           roles: ['admin','captain'] },
+    { to: '/calendar',       icon: '📆', label: 'Calendar',          roles: ['admin','captain'] },
     { to: '/students',       icon: '🎽', label: 'Students',           roles: ['admin','captain'] },
     { to: '/fixtures',       icon: '📅', label: 'Fixtures',           roles: ['admin','captain'] },
     { to: '/athlete-app',    icon: '🎽', label: 'My app' },
