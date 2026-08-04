@@ -74,7 +74,7 @@ export default function JoinPKAChild() {
       }).select().single()
       if (mErr) throw mErr
 
-      await supabase.from('students').insert({
+      const { error: sErr } = await supabase.from('students').insert({
         member_id: member.id, student_ref: ref, discipline: 'PKA',
         age_category: ageCategory,
         guardian_name: form.guardian_name, guardian_phone: form.mobile_phone,
@@ -82,6 +82,7 @@ export default function JoinPKAChild() {
         medical_conditions: form.medical_concerns || null,
         school: form.school,
       })
+      if (sErr) throw sErr
 
       const { error: mfErr } = await supabase.from('membership_forms').insert({
         member_id: member.id, form_type: 'pka_child',

@@ -68,11 +68,12 @@ export default function JoinPKAAdult() {
       }).select().single()
       if (mErr) throw mErr
 
-      await supabase.from('students').insert({
+      const { error: sErr } = await supabase.from('students').insert({
         member_id: member.id, student_ref: ref, discipline: 'PKA', age_category: ageCategory,
         media_restriction: form.media_permission === 'Yes' ? 'Yes' : 'No',
         medical_conditions: form.medical_concerns || null,
       })
+      if (sErr) throw sErr
 
       const { error: mfErr } = await supabase.from('membership_forms').insert({
         member_id: member.id, form_type: 'pka_adult',
