@@ -403,7 +403,7 @@ export default function Registers() {
       individual_points: (student.individual_points || 0) + netChange,
     }).eq('id', student.id)
 
-    const houseName = student.members?.houses?.name
+    const houseName = student.house_name || student.members?.houses?.name
     if (houseName) {
       const { data: house } = await supabase.from('houses').select('points').eq('name', houseName).single()
       if (house) await supabase.from('houses').update({ points: (house.points || 0) + netChange }).eq('name', houseName)
@@ -573,7 +573,7 @@ export default function Registers() {
         setSaving(false)
         return
       }
-      const houseName = s.members?.houses?.name
+      const houseName = s.house_name || s.members?.houses?.name
       if (houseName && total > 0) {
         const { data: house } = await supabase.from('houses').select('points').eq('name', houseName).single()
         if (house) await supabase.from('houses').update({ points: (house.points || 0) + total }).eq('name', houseName)
@@ -868,7 +868,7 @@ export default function Registers() {
                 <tr><td colSpan={12} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>No students found</td></tr>
               ) : displayStudents.map((s, idx) => {
                 const m = s.members
-                const houseName = m?.houses?.name
+                const houseName = s.house_name || m?.houses?.name
                 const colour = HOUSE_COLOURS[houseName] || '#888'
                 const age = calcAge(m?.date_of_birth)
                 const isSelected = selectedStudents.includes(s.id)
@@ -1023,7 +1023,7 @@ export default function Registers() {
               ['Phone', contactModal.members?.phone || '—'],
               ['Email', contactModal.members?.email || '—'],
               ['DOB', contactModal.members?.date_of_birth || '—'],
-              ['House', contactModal.members?.houses?.name || '—'],
+              ['House', contactModal.house_name || contactModal.members?.houses?.name || '—'],
               ['Grade', contactModal.pka_belt || contactModal.krba_level || '—'],
               ['Class', `${contactModal.class_schedule || '—'} ${contactModal.class_time || ''}`],
               ['Groups', [contactModal.is_kr&&'KR', contactModal.is_pts&&'PTs', contactModal.is_leader&&'Leader'].filter(Boolean).join(', ') || 'None'],

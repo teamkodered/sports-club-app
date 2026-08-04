@@ -33,17 +33,33 @@ const NUTRITION_MACRO_PRESETS = [
 ]
 
 function SetInput({ sets, onChange, placeholder = 'e.g. 12.3', inputType = 'text' }) {
+  // Local state seeded once from props, never re-synced on every
+  // change -- each keystroke triggers an async save, and reading from
+  // the `sets` prop again on a fast second edit (before the previous
+  // save round-trips) would use a stale snapshot missing what was
+  // just typed, silently losing it.
+  const [localSets, setLocalSets] = useState(sets)
+
   function update(i, val) {
-    const next = [...sets]
+    const next = [...localSets]
     next[i] = val
+    setLocalSets(next)
     onChange(next)
   }
-  function add() { onChange([...sets, '']) }
-  function remove(i) { onChange(sets.filter((_, idx) => idx !== i)) }
+  function add() {
+    const next = [...localSets, '']
+    setLocalSets(next)
+    onChange(next)
+  }
+  function remove(i) {
+    const next = localSets.filter((_, idx) => idx !== i)
+    setLocalSets(next)
+    onChange(next)
+  }
   return (
     <div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
-        {sets.map((s, i) => (
+        {localSets.map((s, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
             <span style={{ fontSize: 10, color: 'var(--text-tertiary)', width: 14 }}>{i + 1}</span>
             <input type={inputType} inputMode={inputType === 'number' ? 'decimal' : undefined} value={s} onChange={e => update(i, e.target.value)} placeholder={placeholder}
@@ -60,17 +76,29 @@ function SetInput({ sets, onChange, placeholder = 'e.g. 12.3', inputType = 'text
 // Two fields per set -- e.g. Watt Bike's Wattage + Distance, each with
 // its own appropriately-formatted input
 function DualSetInput({ sets, onChange, fields }) {
+  // Same local-state fix as SetInput above.
+  const [localSets, setLocalSets] = useState(sets)
+
   function update(i, field, val) {
-    const next = [...sets]
+    const next = [...localSets]
     next[i] = { ...next[i], [field]: val }
+    setLocalSets(next)
     onChange(next)
   }
-  function add() { onChange([...sets, Object.fromEntries(fields.map(f => [f.key, '']))]) }
-  function remove(i) { onChange(sets.filter((_, idx) => idx !== i)) }
+  function add() {
+    const next = [...localSets, Object.fromEntries(fields.map(f => [f.key, '']))]
+    setLocalSets(next)
+    onChange(next)
+  }
+  function remove(i) {
+    const next = localSets.filter((_, idx) => idx !== i)
+    setLocalSets(next)
+    onChange(next)
+  }
   return (
     <div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 6 }}>
-        {sets.map((s, i) => (
+        {localSets.map((s, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: 10, color: 'var(--text-tertiary)', width: 14 }}>{i + 1}</span>
             {fields.map(f => (
@@ -6101,7 +6129,7 @@ export default function AthleteProfiles() {
                           )}
                         </div>
                         <div className="field" style={{ marginBottom: 0 }}><label>{cat?.resultLabel || 'Results (time)'}</label>
-                          <SetInput sets={entry.sets || []} onChange={sets => upsert({ ...entry, sets })}
+                          <SetInput key={cat?.key} sets={entry.sets || []} onChange={sets => upsert({ ...entry, sets })}
                             inputType="number" placeholder={cat?.resultLabel ? 'e.g. 2.4' : 'e.g. 12.3'} />
                         </div>
                         {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>Saving…</p>}
@@ -6157,6 +6185,7 @@ export default function AthleteProfiles() {
                         </div>
                         <div className="field" style={{ marginBottom: 0 }}><label>Results — Wattage &amp; Distance</label>
                           <DualSetInput
+                            key={grp.key}
                             sets={(entry.sets || []).map(s => (s && typeof s === 'object') ? s : { wattage: s, distance: '' })}
                             onChange={sets => upsert({ ...entry, sets })}
                             fields={[
@@ -6237,7 +6266,7 @@ export default function AthleteProfiles() {
                                       ))}
                                     </div>
                                   )}
-                                  <SetInput sets={entry.sets || []} onChange={sets => upsertExercise(ex, cur => ({ ...cur, sets }))}
+                                  <SetInput key={ex} sets={entry.sets || []} onChange={sets => upsertExercise(ex, cur => ({ ...cur, sets }))}
                                     inputType={grp.metric === 'reps' ? 'number' : 'text'}
                                     placeholder={grp.metric === 'reps' ? 'e.g. 20' : 'e.g. 1:30'} />
                                 </div>
@@ -6346,7 +6375,7 @@ export default function AthleteProfiles() {
                           <input defaultValue={entry.description || ''}
                             onBlur={e => { const next = [...todaysOtherSession]; next[i] = { ...next[i], description: e.target.value }; savePhysicalField('other_session', next, setTodaysOtherSession) }}
                             placeholder="Notes about this session" style={{ marginBottom: 6 }} />
-                          <SetInput sets={entry.sets || []}
+                          <SetInput key={i} sets={entry.sets || []}
                             onChange={sets => { const next = [...todaysOtherSession]; next[i] = { ...next[i], sets }; savePhysicalField('other_session', next, setTodaysOtherSession) }}
                             placeholder="e.g. result, score, or notes" />
                         </div>
@@ -6381,7 +6410,7 @@ export default function AthleteProfiles() {
                           <input defaultValue={entry.description || ''}
                             onBlur={e => { const next = [...todaysSnc]; next[i] = { ...next[i], description: e.target.value }; savePhysicalField('snc', next, setTodaysSnc) }}
                             placeholder="What does this routine consist of?" style={{ marginBottom: 6 }} />
-                          <SetInput sets={entry.sets || []}
+                          <SetInput key={i} sets={entry.sets || []}
                             onChange={sets => { const next = [...todaysSnc]; next[i] = { ...next[i], sets }; savePhysicalField('snc', next, setTodaysSnc) }}
                             placeholder="e.g. done, or a time/score" />
                         </div>
