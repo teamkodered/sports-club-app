@@ -408,6 +408,12 @@ const TEST_CATEGORIES = [
     { name: 'Left Pinch Test - 5kg/10kg (time)', unit: 'sec' },
     { name: 'Right Pinch Test - 5kg/10kg (time)', unit: 'sec' },
   ]},
+  { key: 'maxlifts', label: 'Max Lifts', icon: '🏋️', tests: [
+    { name: 'Bench Press', unit: 'kg' },
+    { name: 'Shoulder Press', unit: 'kg' },
+    { name: 'Deadlift', unit: 'kg' },
+    { name: 'Squat', unit: 'kg' },
+  ]},
   { key: 'wattbike', label: 'Watt Bike', icon: '🚴', tests: [
     { name: 'Watt bike 10 second (output)', unit: 'W' },
     { name: 'Watt bike 30 sec (distance)', unit: 'km' },
@@ -6970,6 +6976,7 @@ export default function AthleteProfiles() {
                       )}
                       {expandedHomeWb === 'nutrition' && (
                         <>
+                          <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>🍽️ Foods</p>
                           <div className="field">
                             <label>Which target did you follow today?</label>
                             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -6998,6 +7005,21 @@ export default function AthleteProfiles() {
                                 <button key={v} type="button" onClick={() => saveWellbeingField('nutrition', cur => ({ ...cur, quality: v }))}
                                   className="btn btn-sm" style={{ background: todaysWellbeing.nutrition?.quality === v ? '#0E9F6E20' : undefined, borderColor: todaysWellbeing.nutrition?.quality === v ? '#0E9F6E' : undefined }}>{v}</button>
                               ))}
+                            </div>
+                          </div>
+
+                          <hr style={{ margin: '16px 0', border: 'none', borderTop: '1px solid var(--border)' }} />
+
+                          <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>☕ Coffee</p>
+                          <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysWellbeing.nutrition?.coffee || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>cup{(todaysWellbeing.nutrition?.coffee || 0) === 1 ? '' : 's'} today</span></div>
+                          <div className="field" style={{ marginBottom: 0 }}>
+                            <label>Add throughout the day</label>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                              <button type="button" className="btn btn-sm" onClick={() => saveWellbeingField('nutrition', cur => ({ ...cur, coffee: (cur.coffee || 0) + 1 }))}>+1 cup</button>
+                              <button type="button" className="btn btn-sm" onClick={() => saveWellbeingField('nutrition', cur => ({ ...cur, coffee: (cur.coffee || 0) + 2 }))}>+2 cups</button>
+                              {todaysWellbeing.nutrition?.coffee > 0 && (
+                                <button type="button" className="btn btn-sm" onClick={() => saveWellbeingField('nutrition', cur => ({ ...cur, coffee: 0 }))}>Reset today's total</button>
+                              )}
                             </div>
                           </div>
                         </>
