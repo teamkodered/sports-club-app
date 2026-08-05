@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase.js'
 
 const DAY_TO_JS_DAYS = {
   Monday: [1], Tuesday: [2], Wednesday: [3], Thursday: [4], Friday: [5], Saturday: [6], Sunday: [0],
   'Mon/Fri': [1, 5], 'Tue/Thu': [2, 4],
 }
+
+function toDateStr(d) { return d.toISOString().split('T')[0] }
 
 // Unified calendar -- shows classes/sessions, holiday closures, and
 // fixtures (inter-house competitions) all together on one monthly
@@ -18,6 +20,14 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(true)
   const [month, setMonth] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() } })
   const [selectedDate, setSelectedDate] = useState(null)
+
+  // Set Holidays mode
+  const [settingHolidays, setSettingHolidays] = useState(false)
+  const [holidaySelected, setHolidaySelected] = useState(new Set()) // date strings, shown in orange
+  const [holidayName, setHolidayName] = useState('')
+  const [holidayClassId, setHolidayClassId] = useState('')
+  const [savingHoliday, setSavingHoliday] = useState(false)
+  const dragStateRef = useRef({ dragging: false, mode: 'add' }) // mode: whether this drag is adding or removing
 
   useEffect(() => { load() }, [])
 
@@ -57,15 +67,142 @@ export default function CalendarPage() {
   const selectedPerClassHolidays = selectedDate ? holidays.filter(h => h.class_id && h.start_date <= selectedDate && h.end_date >= selectedDate) : []
   const selectedFixtures = selectedDate ? fixturesForDate(selectedDate) : []
 
+  // Derived From/To for the holiday selection, shown in editable inputs
+  const sortedSelected = [...holidaySelected].sort()
+  const holidayFrom = sortedSelected[0] || ''
+  const holidayTo = sortedSelected[sortedSelected.length - 1] || ''
+
+  function toggleHolidayDate(dateStr, forceMode) {
+    setHolidaySelected(prev => {
+      const next = new Set(prev)
+      const mode = forceMode || (next.has(dateStr) ? 'remove' : 'add')
+      if (mode === 'add') next.add(dateStr)
+      else next.delete(dateStr)
+      return next
+    })
+  }
+
+  function handleMouseDown(dateStr) {
+    if (!settingHolidays) return
+    const mode = holidaySelected.has(dateStr) ? 'remove' : 'add'
+    dragStateRef.current = { dragging: true, mode }
+    toggleHolidayDate(dateStr, mode)
+  }
+  function handleMouseEnter(dateStr) {
+    if (!settingHolidays || !dragStateRef.current.dragging) return
+    toggleHolidayDate(dateStr, dragStateRef.current.mode)
+  }
+  useEffect(() => {
+    if (!settingHolidays) return
+    const stopDrag = () => { dragStateRef.current.dragging = false }
+    window.addEventListener('mouseup', stopDrag)
+    window.addEventListener('touchend', stopDrag)
+    return () => { window.removeEventListener('mouseup', stopDrag); window.removeEventListener('touchend', stopDrag) }
+  }, [settingHolidays])
+
+  // Editing From/To directly replaces the selection with that
+  // contiguous range
+  function setRangeFromInputs(from, to) {
+    if (!from || !to) return
+    const next = new Set()
+    const start = new Date(from + 'T12:00:00')
+    const end = new Date(to + 'T12:00:00')
+    if (end < start) return
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) next.add(toDateStr(d))
+    setHolidaySelected(next)
+  }
+
+  function startSettingHolidays() {
+    setSettingHolidays(true)
+    setHolidaySelected(new Set())
+    setHolidayName('')
+    setHolidayClassId('')
+    setSelectedDate(null)
+  }
+  function cancelSettingHolidays() {
+    setSettingHolidays(false)
+    setHolidaySelected(new Set())
+  }
+
+  async function saveHolidaySelection() {
+    if (!holidayName.trim()) { alert('Please give this holiday a name.'); return }
+    if (holidaySelected.size === 0) { alert('Select at least one day on the calendar, or set a From/To range.'); return }
+    setSavingHoliday(true)
+
+    // Group the selected (possibly non-contiguous) dates into
+    // contiguous blocks, so e.g. selecting two separate weeks creates
+    // two holiday rows rather than one row spanning the gap between them.
+    const sorted = [...holidaySelected].sort()
+    const blocks = []
+    let blockStart = sorted[0]
+    let prev = sorted[0]
+    for (let i = 1; i <= sorted.length; i++) {
+      const cur = sorted[i]
+      const prevDate = new Date(prev + 'T12:00:00')
+      const nextDay = toDateStr(new Date(prevDate.setDate(prevDate.getDate() + 1)))
+      if (cur !== nextDay) {
+        blocks.push({ start_date: blockStart, end_date: prev })
+        blockStart = cur
+      }
+      prev = cur
+    }
+
+    const rows = blocks.map(b => ({ name: holidayName.trim(), start_date: b.start_date, end_date: b.end_date, class_id: holidayClassId || null }))
+    const { data, error } = await supabase.from('holidays').insert(rows).select('*, classes(name)')
+    setSavingHoliday(false)
+    if (error) { alert('Error saving holiday: ' + error.message); return }
+    setHolidays(prev => [...(data || []), ...prev])
+    cancelSettingHolidays()
+  }
+
+  async function deleteHoliday(id) {
+    if (!confirm('Remove this holiday period?')) return
+    const { error } = await supabase.from('holidays').delete().eq('id', id)
+    if (error) { alert('Error removing holiday: ' + error.message); return }
+    setHolidays(prev => prev.filter(h => h.id !== id))
+  }
+
   return (
     <div>
-      <div className="page-header">
-        <h1>Calendar</h1>
-        <p>Sessions, holiday closures, and fixtures all in one place</p>
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 10 }}>
+        <div>
+          <h1>Calendar</h1>
+          <p>Sessions, holiday closures, and fixtures all in one place</p>
+        </div>
+        {!settingHolidays ? (
+          <button className="btn btn-primary" onClick={startSettingHolidays}>🏖️ Set holidays</button>
+        ) : (
+          <button className="btn" onClick={cancelSettingHolidays}>Cancel</button>
+        )}
       </div>
 
+      {settingHolidays && (
+        <div className="card" style={{ marginBottom: 16, borderLeft: '3px solid #EF9F27' }}>
+          <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>🏖️ Setting a holiday</p>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
+            Click a day, or click and drag across several days on the calendar below to select them — selected days show in orange.
+            You can also just type a From/To range directly instead.
+          </p>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+            <input value={holidayName} onChange={e => setHolidayName(e.target.value)} placeholder="Holiday name, e.g. Christmas break" style={{ flex: '1 1 200px' }} />
+            <select value={holidayClassId} onChange={e => setHolidayClassId(e.target.value)} style={{ flex: '1 1 180px' }}>
+              <option value="">All classes (club-wide closure)</option>
+              {classes.map(c => <option key={c.id} value={c.id}>{c.name} — {c.day_of_week} {c.start_time?.slice(0,5)}</option>)}
+            </select>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+            <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>From</label>
+            <input type="date" value={holidayFrom} onChange={e => setRangeFromInputs(e.target.value, holidayTo || e.target.value)} style={{ flex: '0 0 160px' }} />
+            <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>To</label>
+            <input type="date" value={holidayTo} onChange={e => setRangeFromInputs(holidayFrom || e.target.value, e.target.value)} style={{ flex: '0 0 160px' }} />
+            <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{holidaySelected.size} day{holidaySelected.size === 1 ? '' : 's'} selected</span>
+          </div>
+          <button className="btn btn-primary" onClick={saveHolidaySelection} disabled={savingHoliday}>{savingHoliday ? 'Saving…' : '✓ Save holiday'}</button>
+        </div>
+      )}
+
       {loading ? <p>Loading…</p> : (
-        <div style={{ display: 'grid', gridTemplateColumns: selectedDate ? '1fr 320px' : '1fr', gap: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: (selectedDate && !settingHolidays) ? '1fr 320px' : '1fr', gap: 20 }}>
           <div className="card">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <button className="btn btn-sm" onClick={() => setMonth(({ year, month }) => month === 0 ? { year: year - 1, month: 11 } : { year, month: month - 1 })}>←</button>
@@ -77,7 +214,7 @@ export default function CalendarPage() {
                 <div key={d} style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 600 }}>{d}</div>
               ))}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4, userSelect: settingHolidays ? 'none' : 'auto' }}>
               {cells.map((d, i) => {
                 if (d === null) return <div key={i} />
                 const dateStr = `${year}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`
@@ -88,17 +225,22 @@ export default function CalendarPage() {
                 const dayFixtures = fixturesForDate(dateStr)
                 const isToday = dateStr === new Date().toISOString().split('T')[0]
                 const isSelected = dateStr === selectedDate
+                const isHolidaySelected = holidaySelected.has(dateStr)
                 return (
-                  <button key={i} onClick={() => setSelectedDate(isSelected ? null : dateStr)} style={{
-                    aspectRatio: '0.85', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start',
-                    padding: '6px 2px', borderRadius: 6, cursor: 'pointer', fontFamily: 'var(--font-sans)', gap: 2,
-                    border: isSelected ? '2px solid var(--text)' : isToday ? '2px solid #378ADD' : '1px solid var(--border)',
-                    background: clubWideHoliday ? '#E24B4A12' : 'var(--bg-secondary)',
-                  }}>
+                  <button key={i}
+                    onMouseDown={() => settingHolidays ? handleMouseDown(dateStr) : null}
+                    onMouseEnter={() => settingHolidays ? handleMouseEnter(dateStr) : null}
+                    onClick={() => { if (!settingHolidays) setSelectedDate(isSelected ? null : dateStr) }}
+                    style={{
+                      aspectRatio: '0.85', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start',
+                      padding: '6px 2px', borderRadius: 6, cursor: 'pointer', fontFamily: 'var(--font-sans)', gap: 2,
+                      border: isHolidaySelected ? '2px solid #EF9F27' : isSelected ? '2px solid var(--text)' : isToday ? '2px solid #378ADD' : '1px solid var(--border)',
+                      background: isHolidaySelected ? '#EF9F2725' : clubWideHoliday ? '#E24B4A12' : 'var(--bg-secondary)',
+                    }}>
                     <span style={{ fontSize: 11, fontWeight: isToday ? 700 : 500 }}>{d}</span>
-                    {clubWideHoliday && <span style={{ fontSize: 8 }}>🏖️</span>}
-                    {!clubWideHoliday && runningClasses.length > 0 && <span style={{ fontSize: 8, color: '#378ADD' }}>●{runningClasses.length > 1 ? runningClasses.length : ''}</span>}
-                    {dayFixtures.length > 0 && <span style={{ fontSize: 8, color: '#EF9F27' }}>🏆</span>}
+                    {!settingHolidays && clubWideHoliday && <span style={{ fontSize: 8 }}>🏖️</span>}
+                    {!settingHolidays && !clubWideHoliday && runningClasses.length > 0 && <span style={{ fontSize: 8, color: '#378ADD' }}>●{runningClasses.length > 1 ? runningClasses.length : ''}</span>}
+                    {!settingHolidays && dayFixtures.length > 0 && <span style={{ fontSize: 8, color: '#EF9F27' }}>🏆</span>}
                   </button>
                 )
               })}
@@ -110,7 +252,7 @@ export default function CalendarPage() {
             </div>
           </div>
 
-          {selectedDate && (
+          {selectedDate && !settingHolidays && (
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                 <h3 style={{ fontSize: 14, fontWeight: 600 }}>{new Date(selectedDate).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</h3>
@@ -119,7 +261,10 @@ export default function CalendarPage() {
 
               {selectedHoliday && (
                 <div style={{ padding: '8px 10px', background: '#E24B4A15', borderRadius: 'var(--radius)', marginBottom: 10 }}>
-                  <span style={{ fontSize: 12, fontWeight: 600 }}>🏖️ {selectedHoliday.name}</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 12, fontWeight: 600 }}>🏖️ {selectedHoliday.name}</span>
+                    <button className="btn btn-sm" onClick={() => deleteHoliday(selectedHoliday.id)}>Remove</button>
+                  </div>
                   <p style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Club-wide closure — no sessions running</p>
                 </div>
               )}
@@ -135,8 +280,11 @@ export default function CalendarPage() {
                         const closedForThis = selectedPerClassHolidays.find(h => h.class_id === c.id)
                         return (
                           <div key={c.id} style={{ padding: '6px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', opacity: closedForThis ? 0.5 : 1 }}>
-                            <span style={{ fontSize: 12, fontWeight: 600 }}>{c.name}</span>
-                            <span style={{ fontSize: 11, color: 'var(--text-tertiary)', marginLeft: 6 }}>{c.start_time?.slice(0,5)}{c.end_time ? `–${c.end_time.slice(0,5)}` : ''}</span>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontSize: 12, fontWeight: 600 }}>{c.name}</span>
+                              {closedForThis && <button className="btn btn-sm" onClick={() => deleteHoliday(closedForThis.id)}>Remove closure</button>}
+                            </div>
+                            <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{c.start_time?.slice(0,5)}{c.end_time ? `–${c.end_time.slice(0,5)}` : ''}</span>
                             {closedForThis && <div style={{ fontSize: 10, color: '#E24B4A' }}>Closed: {closedForThis.name}</div>}
                           </div>
                         )
