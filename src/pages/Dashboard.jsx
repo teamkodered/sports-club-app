@@ -13,6 +13,7 @@ const MEDALS = ['🥇','🥈','🥉','🎖️']
 export default function Dashboard() {
   const { profile, isAdmin } = useAuth()
   const [stats, setStats]         = useState({})
+  const [memberBreakdownIndex, setMemberBreakdownIndex] = useState(0)
   const [standings, setStandings] = useState([])
   const [topStudents, setTopStudents] = useState([])
   const [recentPts, setRecentPts] = useState([])
@@ -39,6 +40,7 @@ export default function Dashboard() {
         { data: checkIns },
         { count: todayCount },
         { count: athleteCount },
+        { data: breakdownRows },
       ] = await Promise.all([
         supabase.from('members').select('id', { count: 'exact', head: true }).eq('status', 'active').not('joined_date', 'is', null),
         supabase.from('students').select('id, members!inner(status)', { count: 'exact', head: true }).neq('members.status', 'stopped').neq('members.status', 'not_started'),
@@ -48,9 +50,21 @@ export default function Dashboard() {
         supabase.from('attendance').select('id', { count: 'exact', head: true }).gte('attended_at', monthAgo),
         supabase.from('attendance').select('id', { count: 'exact', head: true }).eq('session_date', today),
         supabase.from('students').select('id', { count: 'exact', head: true }).eq('in_comp', true).or('is_kr.eq.true,discipline.eq.KRBA'),
+        supabase.from('students').select('discipline, class_schedule, is_kr, members!inner(status)').eq('members.status', 'active'),
       ])
 
-      setStats({ memberCount: memberCount || 0, studentCount: studentCount || 0, checkIns: checkIns?.count || 0, todayCount: todayCount || 0, athleteCount: athleteCount || 0 })
+      const rows = breakdownRows || []
+      const memberBreakdown = {
+        all: rows.length,
+        pka: rows.filter(r => r.discipline === 'PKA').length,
+        krCentrePka: rows.filter(r => r.discipline === 'PKA' && (r.class_schedule || '').toLowerCase().includes('kr centre')).length,
+        derbyMoore: rows.filter(r => (r.class_schedule || '').toLowerCase().includes('derby moore')).length,
+        moorways: rows.filter(r => (r.class_schedule || '').toLowerCase().includes('moorway')).length,
+        kr: rows.filter(r => r.is_kr).length,
+        krba: rows.filter(r => r.discipline === 'KRBA').length,
+      }
+
+      setStats({ memberCount: memberCount || 0, studentCount: studentCount || 0, checkIns: checkIns?.count || 0, todayCount: todayCount || 0, athleteCount: athleteCount || 0, memberBreakdown })
       setStandings(houses || [])
       setTopStudents(topPts || [])
       setRecentPts(recentPoints || [])
@@ -156,18 +170,40 @@ export default function Dashboard() {
 
       {/* Stats row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 18 }}>
-        {[
-          { label: 'Active members', value: stats.memberCount, icon: '👥', colour: '#378ADD', to: '/students' },
-          { label: 'Register',       value: stats.todayCount, icon: '📋', colour: '#1D9E75', to: '/registers' },
-          { label: 'Athletes',       value: stats.athleteCount, icon: '🏅', colour: '#EF9F27', to: '/athletes' },
-          { label: 'Houses',         value: standings.length,   icon: '🛡️', colour: '#E24B4A', to: '/league' },
-        ].map(s => (
-          <Link key={s.label} to={s.to} className="card" style={{ textAlign: 'center', borderTop: `3px solid ${s.colour}`, textDecoration: 'none', color: 'inherit', display: 'block' }}>
-            <div style={{ fontSize: 26, marginBottom: 4 }}>{s.icon}</div>
-            <div style={{ fontSize: 26, fontWeight: 700, color: s.colour }}>{s.value}</div>
-            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{s.label}</div>
-          </Link>
-        ))}
+        {(() => {
+          const MEMBER_BREAKDOWN_STEPS = [
+            { key: 'all', label: 'Active members' },
+            { key: 'pka', label: 'PKA' },
+            { key: 'krCentrePka', label: 'KR Centre PKA' },
+            { key: 'derbyMoore', label: 'Derby Moore' },
+            { key: 'moorways', label: 'Moorways' },
+            { key: 'kr', label: 'KR' },
+            { key: 'krba', label: 'KRBA' },
+          ]
+          const step = MEMBER_BREAKDOWN_STEPS[memberBreakdownIndex % MEMBER_BREAKDOWN_STEPS.length]
+          const breakdownValue = stats.memberBreakdown ? stats.memberBreakdown[step.key] : stats.memberCount
+
+          return [
+            { label: step.label, value: breakdownValue, icon: '👥', colour: '#378ADD', to: '/students', isMemberCard: true },
+            { label: 'Register',       value: stats.todayCount, icon: '📋', colour: '#1D9E75', to: '/registers' },
+            { label: 'Athletes',       value: stats.athleteCount, icon: '🏅', colour: '#EF9F27', to: '/athletes' },
+            { label: 'Houses',         value: standings.length,   icon: '🛡️', colour: '#E24B4A', to: '/league' },
+          ].map(s => (
+            <Link key={s.label === step.label ? 'members' : s.label} to={s.to} className="card" style={{ textAlign: 'center', borderTop: `3px solid ${s.colour}`, textDecoration: 'none', color: 'inherit', display: 'block' }}>
+              {s.isMemberCard ? (
+                <div style={{ fontSize: 26, marginBottom: 4 }}
+                  onClick={e => { e.preventDefault(); e.stopPropagation(); setMemberBreakdownIndex(i => i + 1) }}
+                  title="Tap to cycle: All / PKA / KR Centre PKA / Derby Moore / Moorways / KR / KRBA">
+                  {s.icon}
+                </div>
+              ) : (
+                <div style={{ fontSize: 26, marginBottom: 4 }}>{s.icon}</div>
+              )}
+              <div style={{ fontSize: 26, fontWeight: 700, color: s.colour }}>{s.value}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{s.label}</div>
+            </Link>
+          ))
+        })()}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
