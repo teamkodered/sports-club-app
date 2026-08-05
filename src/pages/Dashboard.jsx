@@ -57,7 +57,7 @@ export default function Dashboard() {
       const memberBreakdown = {
         all: rows.length,
         pka: rows.filter(r => r.discipline === 'PKA').length,
-        krCentrePka: rows.filter(r => r.discipline === 'PKA' && (r.class_schedule || '').toLowerCase().includes('kr centre')).length,
+        krCentrePka: rows.filter(r => r.discipline === 'PKA' && !(r.class_schedule || '').toLowerCase().includes('derby moore') && !(r.class_schedule || '').toLowerCase().includes('moorway')).length,
         derbyMoore: rows.filter(r => (r.class_schedule || '').toLowerCase().includes('derby moore')).length,
         moorways: rows.filter(r => (r.class_schedule || '').toLowerCase().includes('moorway')).length,
         kr: rows.filter(r => r.is_kr).length,
