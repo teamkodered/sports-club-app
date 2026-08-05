@@ -277,6 +277,7 @@ export default function LeagueViews() {
       .from('members')
       .select('*, students(*, members(first_name, last_name, houses(name)))')
       .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%`)
+      .neq('status', 'stopped').neq('status', 'not_started')
       .limit(10)
 
     const studentIds = [...(data || []).map(s => s.id)]

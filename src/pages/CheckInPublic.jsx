@@ -32,6 +32,8 @@ export default function CheckInPublic() {
         .from('members')
         .select('id, first_name, last_name, houses(name)')
         .or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%`)
+        .neq('status', 'stopped')
+        .neq('status', 'not_started')
         .limit(8)
       if (!memberData?.length) { setResults([]); return }
       const memberIds = memberData.map(m => m.id)

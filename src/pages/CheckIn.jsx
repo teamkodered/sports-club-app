@@ -35,6 +35,7 @@ export default function CheckIn() {
       .from('members')
       .select('id, first_name, last_name, date_of_birth, houses(name)')
       .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%`)
+      .neq('status', 'stopped').neq('status', 'not_started')
       .limit(10)
     if (!memberData?.length) { setResults([]); return }
     const { data: studentData } = await supabase

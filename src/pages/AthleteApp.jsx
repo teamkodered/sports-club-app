@@ -4124,7 +4124,8 @@ function AthleteSearch() {
     const t = setTimeout(async () => {
       const { data: memberData } = await supabasePublic
         .from('members').select('id, first_name, last_name, date_of_birth')
-        .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%`).limit(8)
+        .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%`)
+        .neq('status', 'stopped').neq('status', 'not_started').limit(8)
       if (!memberData?.length) { setResults([]); return }
       const { data: athletes } = await supabasePublic
         .from('students').select('id, student_ref, pka_belt, krba_level, discipline, house_name, member_id')
