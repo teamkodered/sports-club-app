@@ -1713,19 +1713,22 @@ export default function AthleteApp() {
                 const earliestDate = attendanceData.length
                   ? attendanceData.reduce((min, a) => a.session_date < min ? a.session_date : min, attendanceData[0].session_date)
                   : new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-                const countWeekdayOccurrences = (dayName, fromDateStr) => {
+                const countWeekdayOccurrences = (dayName, fromDateStr, classId) => {
                   const jsDays = DAY_TO_JS_DAYS[dayName] || []
                   if (!jsDays.length) return 0
                   let count = 0
                   const cursor = new Date(fromDateStr + 'T00:00:00')
                   const today = new Date()
                   while (cursor <= today) {
-                    if (jsDays.includes(cursor.getDay())) count++
+                    if (jsDays.includes(cursor.getDay())) {
+                      const dateStr = cursor.toISOString().split('T')[0]
+                      if (!isDateOnHoliday(dateStr, holidays, classId ? [classId] : [])) count++
+                    }
                     cursor.setDate(cursor.getDate() + 1)
                   }
                   return count
                 }
-                const possibleSessions = relevantAssigned.reduce((sum, a) => sum + countWeekdayOccurrences(a.classes?.day_of_week, earliestDate), 0)
+                const possibleSessions = relevantAssigned.reduce((sum, a) => sum + countWeekdayOccurrences(a.classes?.day_of_week, earliestDate, a.classes?.id), 0)
 
                 const modules = [
                   { key: 'running',    label: 'Running',       icon: '🏃' },

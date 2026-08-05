@@ -5981,26 +5981,34 @@ export default function AthleteProfiles() {
               const totalPts = sessionPoints.reduce((s, p) => s + (p.points_awarded || 0), 0)
               const sorted = [...f2fData].sort((a,b) => new Date(a.session_date) - new Date(b.session_date))
 
-              const scopeOptions = ['All sessions', selected.discipline, [selected.class_schedule, selected.class_time].filter(Boolean).join(' ')]
-                .filter(Boolean)
-                .filter((v, i, a) => a.indexOf(v) === i)
-              const scopeLen = scopeOptions.length || 1
-              const scopeLabel = scopeOptions[((f2fStatsScope % scopeLen) + scopeLen) % scopeLen] || 'All sessions'
-              const matchesScope = att => {
-                if (scopeLabel === 'All sessions') return true
-                if (scopeLabel === selected.discipline) return att?.students?.discipline === selected.discipline
-                return att?.students?.class_schedule === selected.class_schedule && att?.students?.class_time === selected.class_time
-              }
               const attSettings = cardDateSettings.all_sessions
               const useAthleteRange = attSettings.scope === 'athletes' || attSettings.scope === 'both'
-              const scopedAttendanceData = useAthleteRange
-                ? attendanceData.filter(a => a.session_date >= attSettings.from && a.session_date <= attSettings.to)
-                : attendanceData
-              const isClubWideHoliday = dateStr => holidays.some(h => !h.class_id && h.start_date <= dateStr && h.end_date >= dateStr)
-              const possibleSessions = new Set((allAttendance || []).filter(matchesScope)
-                .filter(a => !useAthleteRange || (a.session_date >= attSettings.from && a.session_date <= attSettings.to))
-                .map(a => a?.session_date)
-                .filter(d => d && !isClubWideHoliday(d))).size
+              const todayStr0 = new Date().toISOString().split('T')[0]
+              const rangeFrom = useAthleteRange ? attSettings.from : todayStr0
+              const rangeTo = useAthleteRange ? attSettings.to : todayStr0
+
+              // Accurate "possible sessions" -- based on this athlete's
+              // actual assigned classes (same source of truth the
+              // calendar uses), not a loose club-wide proxy. Excludes
+              // holiday-closed dates.
+              const assignedWeekdaysForStats = new Set(assignedClasses.flatMap(a => DAY_TO_JS_DAYS[a.classes?.day_of_week] || []))
+              const classIdsByWeekday = {}
+              for (const a of assignedClasses) {
+                for (const wd of (DAY_TO_JS_DAYS[a.classes?.day_of_week] || [])) {
+                  (classIdsByWeekday[wd] ||= []).push(a.classes?.id)
+                }
+              }
+              const possibleDates = []
+              for (let d = new Date(rangeFrom + 'T12:00:00'); d <= new Date(rangeTo + 'T12:00:00'); d.setDate(d.getDate() + 1)) {
+                const jsDay = d.getDay()
+                if (!assignedWeekdaysForStats.has(jsDay)) continue
+                const dateStr = d.toISOString().split('T')[0]
+                if (dateStr > todayStr0) continue
+                if (isDateOnHoliday(dateStr, holidays, classIdsByWeekday[jsDay])) continue
+                possibleDates.push(dateStr)
+              }
+              const possibleSessions = possibleDates.length
+              const scopedAttendanceData = attendanceData.filter(a => possibleDates.includes(a.session_date))
 
               // Distinct sub-types this athlete actually has logged for a module,
               // used to drive the hold-to-cycle options on each card
@@ -6045,20 +6053,16 @@ export default function AthleteProfiles() {
               return (
                 <div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 8 }}>
-                    <div className="card" style={{ textAlign: 'center', padding: '10px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, background: 'var(--bg-secondary)' }}>
-                      <button onClick={() => setF2fStatsScope(v => v - 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4, appearance: 'none', WebkitAppearance: 'none', fontFamily: 'var(--font-sans)' }}>◀</button>
-                      <div style={{ flex: 1 }}>
-                        <button onClick={() => setTab('sessions')} title="View Sessions tab"
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, marginBottom: 2, padding: 0, fontFamily: 'var(--font-sans)', appearance: 'none', WebkitAppearance: 'none' }}>✅</button>
-                        <div onClick={() => setAttendanceDisplayPct(v => !v)} title="Click to toggle percentage/numbers"
-                          style={{ fontSize: 19, fontWeight: 700, color: colour, cursor: 'pointer' }}>
-                          {attendanceDisplayPct
-                            ? `${possibleSessions ? Math.round((scopedAttendanceData.length / possibleSessions) * 100) : 0}%`
-                            : `${scopedAttendanceData.length}/${possibleSessions || scopedAttendanceData.length}`}
-                        </div>
-                        <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>{scopeLabel}</div>
+                    <div className="card" style={{ textAlign: 'center', padding: '10px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, background: 'var(--bg-secondary)' }}>
+                      <button onClick={() => setTab('sessions')} title="View Sessions tab"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, marginBottom: 2, padding: 0, fontFamily: 'var(--font-sans)', appearance: 'none', WebkitAppearance: 'none' }}>✅</button>
+                      <div onClick={() => setAttendanceDisplayPct(v => !v)} title="Click to toggle percentage/numbers"
+                        style={{ fontSize: 19, fontWeight: 700, color: colour, cursor: 'pointer' }}>
+                        {attendanceDisplayPct
+                          ? `${possibleSessions ? Math.round((scopedAttendanceData.length / possibleSessions) * 100) : 0}%`
+                          : `${scopedAttendanceData.length}/${possibleSessions || scopedAttendanceData.length}`}
                       </div>
-                      <button onClick={() => setF2fStatsScope(v => v + 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4 }}>▶</button>
+                      <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>Assigned sessions</div>
                     </div>
                     <button onClick={() => setTab('fit2fight')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none' }} title="View Fit II Fight results">
                       <div style={{ fontSize: 22, marginBottom: 4 }}>🔥</div>
