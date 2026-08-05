@@ -1895,6 +1895,7 @@ export default function AthleteProfiles() {
   const [groupLoggerSection, setGroupLoggerSection] = useState('')
   const [groupLoggerQuestion, setGroupLoggerQuestion] = useState('')
   const [groupLoggerType, setGroupLoggerType] = useState('')
+  const [groupLoggerSubType, setGroupLoggerSubType] = useState('')
   const [groupLoggerSearch, setGroupLoggerSearch] = useState('')
   const [groupLoggerSaveConfirm, setGroupLoggerSaveConfirm] = useState('')
   const groupLoggerInputRefs = useRef({})
@@ -3785,7 +3786,7 @@ export default function AthleteProfiles() {
 
               const cards = [
                 { key: 'all_sessions', icon: '📅', label: 'Attendance', ...allSessions },
-                { key: 'f2f_sessions', icon: '💪', label: 'Results', ...f2fSessions },
+                { key: 'f2f_sessions', icon: '💪', label: 'Fit II Fight', ...f2fSessions },
                 { key: 'pdp', icon: '🎯', label: 'PDP', ...pdp },
               ]
 
@@ -4002,7 +4003,7 @@ export default function AthleteProfiles() {
             })()}
 
             {showSetDatePopup && (() => {
-              const cardLabels = { all_sessions: 'Attendance', f2f_sessions: 'Results', pdp: 'PDP' }
+              const cardLabels = { all_sessions: 'Attendance', f2f_sessions: 'Fit II Fight', pdp: 'PDP' }
               const current = cardDateSettings[showSetDatePopup]
               return (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}
@@ -4108,12 +4109,15 @@ export default function AthleteProfiles() {
                 'Watt Bike': [...WATT_BIKE_PRESETS.output, ...WATT_BIKE_PRESETS.standard, ...WATT_BIKE_PRESETS.distance],
                 'Bodyweight': BODYWEIGHT_GROUPS.map(g => g.label),
               }
+              const FIXED_LOAD_COLORS = ['Red', 'Yellow', 'Green', 'Blue', 'Black']
               const questionOptions = groupLoggerSection === 'Physical' ? ['Running', 'Watt Bike', 'Bodyweight']
                 : groupLoggerSection === 'Test' ? TEST_CATEGORIES.map(c => c.label) : []
               const typeOptions = !groupLoggerQuestion ? []
                 : groupLoggerSection === 'Physical' ? (questionOptionsMap[groupLoggerQuestion] || [])
                 : (TEST_CATEGORIES.find(c => c.label === groupLoggerQuestion)?.tests.map(t => t.name) || [])
-              const ready = groupLoggerSection && groupLoggerQuestion && groupLoggerType
+              const needsSubType = groupLoggerSection === 'Test' && groupLoggerType === 'Fixed load circuit'
+              const testKey = needsSubType ? `Fixed load circuit (${groupLoggerSubType})` : groupLoggerType
+              const ready = groupLoggerSection && groupLoggerQuestion && groupLoggerType && (!needsSubType || groupLoggerSubType)
 
               async function saveCell(student, setIdx, value) {
                 const key = `${student.id}-${setIdx}`
@@ -4121,7 +4125,7 @@ export default function AthleteProfiles() {
                 const { data: existing } = await supabase.from('fit2fight_sessions').select('*').eq('student_id', student.id).eq('session_date', groupLoggerDate).maybeSingle()
 
                 if (groupLoggerSection === 'Test') {
-                  const testData = { ...(existing?.test || {}), [groupLoggerType]: value }
+                  const testData = { ...(existing?.test || {}), [testKey]: value }
                   if (existing) await supabase.from('fit2fight_sessions').update({ test: testData }).eq('id', existing.id)
                   else await supabase.from('fit2fight_sessions').insert({ student_id: student.id, session_date: groupLoggerDate, test: testData })
                 } else {
@@ -4150,6 +4154,7 @@ export default function AthleteProfiles() {
                   .filter(s => s.members?.status === 'active')
                   .filter(s => s.is_kr || s.discipline === 'KRBA')
                   .filter(s => !groupLoggerSearch || `${s.members?.first_name} ${s.members?.last_name}`.toLowerCase().includes(groupLoggerSearch.toLowerCase()))
+                  .sort((a, b) => `${a.members?.first_name} ${a.members?.last_name}`.localeCompare(`${b.members?.first_name} ${b.members?.last_name}`))
                 let count = 0
                 for (const s of visibleStudents) {
                   for (let i = 0; i < 5; i++) {
@@ -4185,10 +4190,16 @@ export default function AthleteProfiles() {
                         <option value="">Question…</option>
                         {questionOptions.map(q => <option key={q} value={q}>{q}</option>)}
                       </select>
-                      <select value={groupLoggerType} onChange={e => setGroupLoggerType(e.target.value)} disabled={!groupLoggerQuestion} style={{ flex: 1, minWidth: 110 }}>
+                      <select value={groupLoggerType} onChange={e => { setGroupLoggerType(e.target.value); setGroupLoggerSubType('') }} disabled={!groupLoggerQuestion} style={{ flex: 1, minWidth: 110 }}>
                         <option value="">Type…</option>
                         {typeOptions.map(t => <option key={t} value={t}>{t}</option>)}
                       </select>
+                      {needsSubType && (
+                        <select value={groupLoggerSubType} onChange={e => setGroupLoggerSubType(e.target.value)} style={{ flex: 1, minWidth: 110 }}>
+                          <option value="">Colour…</option>
+                          {FIXED_LOAD_COLORS.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      )}
                       <input type="text" value={groupLoggerSearch} onChange={e => setGroupLoggerSearch(e.target.value)}
                         placeholder="🔍 Search by name…" style={{ flex: '1 1 160px' }} />
                     </div>
@@ -4209,6 +4220,7 @@ export default function AthleteProfiles() {
                               .filter(s => s.members?.status === 'active')
                               .filter(s => s.is_kr || s.discipline === 'KRBA')
                               .filter(s => !groupLoggerSearch || `${s.members?.first_name} ${s.members?.last_name}`.toLowerCase().includes(groupLoggerSearch.toLowerCase()))
+                              .sort((a, b) => `${a.members?.first_name} ${a.members?.last_name}`.localeCompare(`${b.members?.first_name} ${b.members?.last_name}`))
                               .map(s => (
                               <tr key={s.id}>
                                 <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>
@@ -6004,7 +6016,7 @@ export default function AthleteProfiles() {
                   borderBottom: `2px solid ${tab === t ? 'var(--text)' : 'transparent'}`,
                   color: tab === t ? 'var(--text)' : 'var(--text-secondary)',
                   fontWeight: tab === t ? 500 : 400, textTransform: 'capitalize', whiteSpace: 'nowrap', flexShrink: 0,
-                }}>{t === 'tpt' ? 'TTP' : t === 'whoop' ? 'Whoop' : t === 'sessions' ? 'Attendance' : t === 'fit2fight' ? 'Results' : t}</button>
+                }}>{t === 'tpt' ? 'TTP' : t === 'whoop' ? 'Whoop' : t === 'sessions' ? 'Attendance' : t === 'fit2fight' ? 'Fit II Fight' : t}</button>
               ))}
             </div>
 
