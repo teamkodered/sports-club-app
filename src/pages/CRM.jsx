@@ -49,16 +49,16 @@ export default function CRM() {
     if (!file) return
     const reader = new FileReader()
     reader.onload = ev => {
-      const wb = XLSX.read(ev.target.result, { type: 'binary' })
+      const wb = XLSX.read(ev.target.result, { type: 'array' })
       const ws = wb.Sheets[wb.SheetNames[0]]
-      const rows = XLSX.utils.sheet_to_json(ws)
+      const rows = XLSX.utils.sheet_to_json(ws, { raw: false, defval: '' })
       const { nameKey, amountKey } = detectColumns(rows)
       const parsed = rows
         .map(r => ({ name: (r[nameKey] || '').toString().trim(), amount: amountKey ? r[amountKey] : null, raw: r }))
         .filter(p => p.name)
       setPayments(parsed)
     }
-    reader.readAsBinaryString(file)
+    reader.readAsArrayBuffer(file)
   }
 
   function studentFullName(s) {
