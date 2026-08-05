@@ -1896,6 +1896,8 @@ export default function AthleteProfiles() {
   const [groupLoggerQuestion, setGroupLoggerQuestion] = useState('')
   const [groupLoggerType, setGroupLoggerType] = useState('')
   const [groupLoggerSearch, setGroupLoggerSearch] = useState('')
+  const [groupLoggerSaveConfirm, setGroupLoggerSaveConfirm] = useState('')
+  const groupLoggerInputRefs = useRef({})
   const [groupLoggerDate, setGroupLoggerDate] = useState(() => new Date().toISOString().split('T')[0])
   const [groupLoggerSaving, setGroupLoggerSaving] = useState({}) // { [studentId-setIdx]: true } while saving that cell
   const [weightTargetInCompDraft, setWeightTargetInCompDraft] = useState(null)
@@ -4143,13 +4145,34 @@ export default function AthleteProfiles() {
                 setGroupLoggerSaving(p => { const n = { ...p }; delete n[key]; return n })
               }
 
+              async function saveAllVisible() {
+                const visibleStudents = students
+                  .filter(s => s.members?.status === 'active')
+                  .filter(s => s.is_kr || s.discipline === 'KRBA')
+                  .filter(s => !groupLoggerSearch || `${s.members?.first_name} ${s.members?.last_name}`.toLowerCase().includes(groupLoggerSearch.toLowerCase()))
+                let count = 0
+                for (const s of visibleStudents) {
+                  for (let i = 0; i < 5; i++) {
+                    const el = groupLoggerInputRefs.current[`${s.id}-${i}`]
+                    const val = el?.value?.trim()
+                    if (val) { await saveCell(s, i, val); count++ }
+                  }
+                }
+                setGroupLoggerSaveConfirm(count > 0 ? `✓ Saved ${count} result${count === 1 ? '' : 's'}` : 'Nothing to save')
+                setTimeout(() => setGroupLoggerSaveConfirm(''), 2500)
+              }
+
               return (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}
                   onClick={() => setShowGroupLogger(false)}>
                   <div className="card" style={{ width: '95vw', maxWidth: 700, maxHeight: '85vh', overflowY: 'auto', padding: 20 }} onClick={e => e.stopPropagation()}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                       <h2 style={{ fontSize: 16, fontWeight: 600 }}>Group training session logger</h2>
-                      <button onClick={() => setShowGroupLogger(false)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        {groupLoggerSaveConfirm && <span style={{ fontSize: 12, color: 'var(--success)', fontWeight: 600 }}>{groupLoggerSaveConfirm}</span>}
+                        {ready && <button className="btn btn-sm btn-primary" onClick={saveAllVisible}>💾 Save</button>}
+                        <button onClick={() => setShowGroupLogger(false)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
+                      </div>
                     </div>
                     <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
                       <input type="date" value={groupLoggerDate} onChange={e => setGroupLoggerDate(e.target.value)} style={{ flex: '0 0 140px' }} />
@@ -4193,7 +4216,10 @@ export default function AthleteProfiles() {
                                 </td>
                                 {[0,1,2,3,4].map(i => (
                                   <td key={i} style={{ padding: '4px', borderBottom: '1px solid var(--border)' }}>
-                                    <input type="text" inputMode="decimal" defaultValue=""
+                                    <input type="text" inputMode="decimal"
+                                      key={`${s.id}-${i}-${groupLoggerQuestion}-${groupLoggerType}-${groupLoggerDate}`}
+                                      ref={el => { if (el) groupLoggerInputRefs.current[`${s.id}-${i}`] = el }}
+                                      defaultValue=""
                                       onBlur={e => { if (e.target.value.trim() !== '') saveCell(s, i, e.target.value.trim()) }}
                                       placeholder={groupLoggerSaving[`${s.id}-${i}`] ? '…' : '—'}
                                       style={{ width: 55, textAlign: 'center', fontSize: 12, padding: '4px 2px' }} />
