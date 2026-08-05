@@ -4110,10 +4110,19 @@ export default function AthleteProfiles() {
                 'Bodyweight': BODYWEIGHT_GROUPS.map(g => g.label),
               }
               const FIXED_LOAD_COLORS = ['Red', 'Yellow', 'Green', 'Blue', 'Black']
+              // Group Logger-only Test question -- deliberately NOT
+              // added to TEST_CATEGORIES, so it never appears as a
+              // loggable question on the individual athlete profile's
+              // own Test tab. The result still saves into the same
+              // fit2fight_sessions.test field as any other test, so
+              // it genuinely reaches the athlete's record.
+              const GROUP_LOGGER_ONLY_QUESTIONS = ['Breath hold']
               const questionOptions = groupLoggerSection === 'Physical' ? ['Running', 'Watt Bike', 'Bodyweight']
-                : groupLoggerSection === 'Test' ? TEST_CATEGORIES.map(c => c.label) : []
+                : groupLoggerSection === 'Test' ? [...TEST_CATEGORIES.map(c => c.label), ...GROUP_LOGGER_ONLY_QUESTIONS] : []
+              const isGroupLoggerOnlyQuestion = GROUP_LOGGER_ONLY_QUESTIONS.includes(groupLoggerQuestion)
               const typeOptions = !groupLoggerQuestion ? []
                 : groupLoggerSection === 'Physical' ? (questionOptionsMap[groupLoggerQuestion] || [])
+                : isGroupLoggerOnlyQuestion ? [groupLoggerQuestion]
                 : (TEST_CATEGORIES.find(c => c.label === groupLoggerQuestion)?.tests.map(t => t.name) || [])
               const needsSubType = groupLoggerSection === 'Test' && groupLoggerType === 'Fixed load circuit'
               const testKey = needsSubType ? `Fixed load circuit (${groupLoggerSubType})` : groupLoggerType
@@ -4186,7 +4195,7 @@ export default function AthleteProfiles() {
                         <option value="Physical">Physical</option>
                         <option value="Test">Test</option>
                       </select>
-                      <select value={groupLoggerQuestion} onChange={e => { setGroupLoggerQuestion(e.target.value); setGroupLoggerType('') }} disabled={!groupLoggerSection} style={{ flex: 1, minWidth: 110 }}>
+                      <select value={groupLoggerQuestion} onChange={e => { setGroupLoggerQuestion(e.target.value); setGroupLoggerType(GROUP_LOGGER_ONLY_QUESTIONS.includes(e.target.value) ? e.target.value : ''); setGroupLoggerSubType('') }} disabled={!groupLoggerSection} style={{ flex: 1, minWidth: 110 }}>
                         <option value="">Question…</option>
                         {questionOptions.map(q => <option key={q} value={q}>{q}</option>)}
                       </select>
