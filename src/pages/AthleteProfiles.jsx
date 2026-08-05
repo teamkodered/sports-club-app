@@ -1895,6 +1895,7 @@ export default function AthleteProfiles() {
   const [groupLoggerSection, setGroupLoggerSection] = useState('')
   const [groupLoggerQuestion, setGroupLoggerQuestion] = useState('')
   const [groupLoggerType, setGroupLoggerType] = useState('')
+  const [groupLoggerSearch, setGroupLoggerSearch] = useState('')
   const [groupLoggerDate, setGroupLoggerDate] = useState(() => new Date().toISOString().split('T')[0])
   const [groupLoggerSaving, setGroupLoggerSaving] = useState({}) // { [studentId-setIdx]: true } while saving that cell
   const [weightTargetInCompDraft, setWeightTargetInCompDraft] = useState(null)
@@ -4165,6 +4166,8 @@ export default function AthleteProfiles() {
                         <option value="">Type…</option>
                         {typeOptions.map(t => <option key={t} value={t}>{t}</option>)}
                       </select>
+                      <input type="text" value={groupLoggerSearch} onChange={e => setGroupLoggerSearch(e.target.value)}
+                        placeholder="🔍 Search by name…" style={{ flex: '1 1 160px' }} />
                     </div>
 
                     {ready && (
@@ -4179,7 +4182,11 @@ export default function AthleteProfiles() {
                             </tr>
                           </thead>
                           <tbody>
-                            {students.filter(s => s.members?.status === 'active').map(s => (
+                            {students
+                              .filter(s => s.members?.status === 'active')
+                              .filter(s => s.is_kr || s.discipline === 'KRBA')
+                              .filter(s => !groupLoggerSearch || `${s.members?.first_name} ${s.members?.last_name}`.toLowerCase().includes(groupLoggerSearch.toLowerCase()))
+                              .map(s => (
                               <tr key={s.id}>
                                 <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>
                                   {s.members?.first_name} {s.members?.last_name}
