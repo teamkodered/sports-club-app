@@ -26,16 +26,14 @@ export default function CRM() {
   const [students, setStudents] = useState([])
   const [payerLinks, setPayerLinks] = useState([])
   const [payments, setPayments] = useState([]) // parsed from the uploaded file: [{ name, amount, raw }]
-  const [loaded, setLoaded] = useState(false)
   const [loading, setLoading] = useState(false)
   const [draggedPayment, setDraggedPayment] = useState(null)
   const [dragOverStudentId, setDragOverStudentId] = useState(null)
   const [selectedPaymentIdx, setSelectedPaymentIdx] = useState(null) // click-to-select alternative to drag & drop
 
-  useEffect(() => { ensureLoaded() }, [])
+  useEffect(() => { loadData() }, [])
 
-  async function ensureLoaded() {
-    if (loaded) return
+  async function loadData() {
     setLoading(true)
     const [{ data: s }, { data: pl }] = await Promise.all([
       supabase.from('students').select('id, student_ref, members(first_name, last_name, status)'),
@@ -43,7 +41,6 @@ export default function CRM() {
     ])
     setStudents((s || []).filter(x => x.members?.status === 'active'))
     setPayerLinks(pl || [])
-    setLoaded(true)
     setLoading(false)
   }
 
@@ -95,10 +92,24 @@ export default function CRM() {
     const n = normalizeName(payment.name)
     if (linksByPayerName[n]?.length) return linksByPayerName[n]
     if (studentByNormalizedName[n]) return [studentByNormalizedName[n]]
-    // loose contains-match as a fallback (e.g. "J Smith" vs "John Smith")
+    // Word-based fallback match, order-independent -- handles bank
+    // exports that reorder names or insert middle initials, e.g.
+    // "Rolling A K Leo" vs a student named "Leo Rolling": a simple
+    // substring-contains check fails here since the words aren't
+    // consecutive in the same order, but checking that every word of
+    // the student's name appears somewhere in the payment name (and
+    // vice versa) catches this correctly.
+    const paymentWords = new Set(n.split(' ').filter(Boolean))
     const found = students.find(s => {
-      const sn = normalizeName(studentFullName(s))
-      return sn && (n.includes(sn) || sn.includes(n))
+      const studentWords = normalizeName(studentFullName(s)).split(' ').filter(Boolean)
+      if (studentWords.length < 2) return false
+      const allStudentWordsInPayment = studentWords.every(w => paymentWords.has(w))
+      // Guard against a single common word (e.g. payment name just
+      // "Leo") matching any student who happens to share that one
+      // word -- only match this direction if the payment name itself
+      // has at least 2 words too.
+      const allPaymentWordsInStudent = paymentWords.size >= 2 && [...paymentWords].every(w => studentWords.includes(w))
+      return allStudentWordsInPayment || allPaymentWordsInStudent
     })
     return found ? [found.id] : []
   }
