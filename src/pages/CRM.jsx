@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase.js'
 import * as XLSX from 'xlsx'
 
@@ -30,6 +30,8 @@ export default function CRM() {
   const [loading, setLoading] = useState(false)
   const [draggedPayment, setDraggedPayment] = useState(null)
   const [dragOverStudentId, setDragOverStudentId] = useState(null)
+
+  useEffect(() => { ensureLoaded() }, [])
 
   async function ensureLoaded() {
     if (loaded) return
