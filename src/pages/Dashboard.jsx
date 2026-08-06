@@ -50,16 +50,16 @@ export default function Dashboard() {
         supabase.from('attendance').select('id', { count: 'exact', head: true }).gte('attended_at', monthAgo),
         supabase.from('attendance').select('id', { count: 'exact', head: true }).eq('session_date', today),
         supabase.from('students').select('id', { count: 'exact', head: true }).eq('in_comp', true).or('is_kr.eq.true,discipline.eq.KRBA'),
-        supabase.from('students').select('discipline, class_schedule, is_kr, members!inner(status)').eq('members.status', 'active'),
+        supabase.from('students').select('discipline, class_schedule, is_kr, members(status)'),
       ])
 
-      const rows = breakdownRows || []
+      const rows = (breakdownRows || []).filter(r => r.members?.status === 'active')
       const memberBreakdown = {
         all: rows.length,
         pka: rows.filter(r => r.discipline === 'PKA').length,
-        krCentrePka: rows.filter(r => r.discipline === 'PKA' && !(r.class_schedule || '').toLowerCase().includes('derby moore') && !(r.class_schedule || '').toLowerCase().includes('moorway')).length,
-        derbyMoore: rows.filter(r => (r.class_schedule || '').toLowerCase().includes('derby moore')).length,
-        moorways: rows.filter(r => (r.class_schedule || '').toLowerCase().includes('moorway')).length,
+        krCentrePka: rows.filter(r => r.discipline === 'PKA' && r.class_schedule && r.class_schedule !== 'Moorways' && r.class_schedule !== 'Derby Moore').length,
+        derbyMoore: rows.filter(r => r.class_schedule === 'Derby Moore').length,
+        moorways: rows.filter(r => r.class_schedule === 'Moorways').length,
         kr: rows.filter(r => r.is_kr).length,
         krba: rows.filter(r => r.discipline === 'KRBA').length,
       }
