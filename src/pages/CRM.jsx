@@ -59,6 +59,17 @@ export default function CRM() {
       setPayments(parsed)
     }
     reader.readAsArrayBuffer(file)
+    // Without this, selecting a file with the same filename as last
+    // time (e.g. re-exporting/re-uploading from the same source)
+    // wouldn't fire this input's change event at all -- the browser
+    // only fires it when the input's value actually changes, and
+    // re-picking the same filename doesn't count as a change. This
+    // was very likely why re-uploads seemed to show stale results.
+    e.target.value = ''
+  }
+
+  function clearPayments() {
+    setPayments([])
   }
 
   function studentFullName(s) {
@@ -126,7 +137,12 @@ export default function CRM() {
               link them manually once; that link is remembered for every future upload.
             </p>
             <input type="file" accept=".xlsx,.xls" onChange={handleFile} />
-            {payments.length > 0 && <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8 }}>{payments.length} payments loaded · {matchedStudentIds.size} matched · {unmatchedPayments.length} unmatched</p>}
+            {payments.length > 0 && (
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
+                {payments.length} payments loaded · {matchedStudentIds.size} matched · {unmatchedPayments.length} unmatched
+                <button className="btn btn-sm" onClick={clearPayments}>✕ Clear</button>
+              </p>
+            )}
           </div>
 
           {loading ? <p>Loading…</p> : payments.length > 0 && (
