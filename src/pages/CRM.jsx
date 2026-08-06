@@ -102,7 +102,9 @@ export default function CRM() {
     if (sid) matchedStudentIds.add(sid)
     else unmatchedPayments.push(p)
   }
-  const unpaidStudents = students.filter(s => !matchedStudentIds.has(s.id))
+  const sortByName = (a, b) => studentFullName(a).localeCompare(studentFullName(b))
+  const unpaidStudents = students.filter(s => !matchedStudentIds.has(s.id)).sort(sortByName)
+  const paidStudents = students.filter(s => matchedStudentIds.has(s.id)).sort(sortByName)
 
   async function linkPayment(payment, studentId) {
     const { error } = await supabase.from('payer_links').upsert(
@@ -148,10 +150,10 @@ export default function CRM() {
           </div>
 
           {loading ? <p>Loading…</p> : payments.length > 0 && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20 }}>
               <div className="card">
                 <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>💳 Unmatched payments ({unmatchedPayments.length})</h3>
-                <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 10 }}>Drag onto a student on the right to link them</p>
+                <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 10 }}>Drag onto a student to link them</p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {unmatchedPayments.length === 0 ? (
                     <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Everything matched 🎉</p>
@@ -181,6 +183,21 @@ export default function CRM() {
                         background: dragOverStudentId === s.id ? '#1D9E7520' : 'var(--bg-secondary)',
                         border: dragOverStudentId === s.id ? '2px solid #1D9E75' : '1px solid transparent',
                       }}>
+                      <span style={{ fontSize: 13, fontWeight: 600 }}>{studentFullName(s)}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)', marginLeft: 8 }}>{s.student_ref}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="card">
+                <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>✅ Paid students ({paidStudents.length})</h3>
+                <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 10 }}>Matched against this upload</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {paidStudents.length === 0 ? (
+                    <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No matches yet</p>
+                  ) : paidStudents.map(s => (
+                    <div key={s.id} style={{ padding: '8px 10px', borderRadius: 'var(--radius)', background: '#1D9E7512' }}>
                       <span style={{ fontSize: 13, fontWeight: 600 }}>{studentFullName(s)}</span>
                       <span style={{ fontSize: 11, color: 'var(--text-tertiary)', marginLeft: 8 }}>{s.student_ref}</span>
                     </div>
