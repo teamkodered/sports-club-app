@@ -30,6 +30,7 @@ export default function CRM() {
   const [loading, setLoading] = useState(false)
   const [draggedPayment, setDraggedPayment] = useState(null)
   const [dragOverStudentId, setDragOverStudentId] = useState(null)
+  const [selectedPaymentIdx, setSelectedPaymentIdx] = useState(null) // click-to-select alternative to drag & drop
 
   useEffect(() => { ensureLoaded() }, [])
 
@@ -72,36 +73,46 @@ export default function CRM() {
 
   function clearPayments() {
     setPayments([])
+    setSelectedPaymentIdx(null)
   }
 
   function studentFullName(s) {
     return `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.trim()
   }
 
-  // Matching: payer_links (remembered) first, then a direct
-  // normalized name match against a student's own name.
-  const linkedByPayerName = Object.fromEntries(payerLinks.map(l => [normalizeName(l.payer_name), l.student_id]))
+  // Matching: payer_links (remembered) first -- a payer name can now
+  // link to MULTIPLE students (e.g. one payment covering two
+  // children) -- then a direct/loose normalized name match against a
+  // student's own name as a fallback.
+  const linksByPayerName = {}
+  for (const l of payerLinks) {
+    const n = normalizeName(l.payer_name)
+    ;(linksByPayerName[n] ||= []).push(l.student_id)
+  }
   const studentByNormalizedName = Object.fromEntries(students.map(s => [normalizeName(studentFullName(s)), s.id]))
 
-  function matchStudentIdForPayment(payment) {
+  function matchStudentIdsForPayment(payment) {
     const n = normalizeName(payment.name)
-    if (linkedByPayerName[n]) return linkedByPayerName[n]
-    if (studentByNormalizedName[n]) return studentByNormalizedName[n]
+    if (linksByPayerName[n]?.length) return linksByPayerName[n]
+    if (studentByNormalizedName[n]) return [studentByNormalizedName[n]]
     // loose contains-match as a fallback (e.g. "J Smith" vs "John Smith")
     const found = students.find(s => {
       const sn = normalizeName(studentFullName(s))
       return sn && (n.includes(sn) || sn.includes(n))
     })
-    return found?.id || null
+    return found ? [found.id] : []
   }
 
-  const matchedStudentIds = new Set()
+  // Map of studentId -> the payment(s) that matched them, so the
+  // Paid students card can show what payment they're linked to
+  const paymentsByStudentId = {}
   const unmatchedPayments = []
   for (const p of payments) {
-    const sid = matchStudentIdForPayment(p)
-    if (sid) matchedStudentIds.add(sid)
+    const sids = matchStudentIdsForPayment(p)
+    if (sids.length) sids.forEach(sid => (paymentsByStudentId[sid] ||= []).push(p))
     else unmatchedPayments.push(p)
   }
+  const matchedStudentIds = new Set(Object.keys(paymentsByStudentId))
   const sortByName = (a, b) => studentFullName(a).localeCompare(studentFullName(b))
   const unpaidStudents = students.filter(s => !matchedStudentIds.has(s.id)).sort(sortByName)
   const paidStudents = students.filter(s => matchedStudentIds.has(s.id)).sort(sortByName)
@@ -109,10 +120,20 @@ export default function CRM() {
   async function linkPayment(payment, studentId) {
     const { error } = await supabase.from('payer_links').upsert(
       { payer_name: payment.name, student_id: studentId },
-      { onConflict: 'payer_name' }
+      { onConflict: 'payer_name,student_id' }
     )
     if (error) { alert('Error saving link: ' + error.message); return }
-    setPayerLinks(prev => [...prev.filter(l => normalizeName(l.payer_name) !== normalizeName(payment.name)), { payer_name: payment.name, student_id: studentId }])
+    setPayerLinks(prev => {
+      const exists = prev.some(l => normalizeName(l.payer_name) === normalizeName(payment.name) && l.student_id === studentId)
+      return exists ? prev : [...prev, { payer_name: payment.name, student_id: studentId }]
+    })
+    setSelectedPaymentIdx(null)
+  }
+
+  async function unlinkPayment(payerName, studentId) {
+    const { error } = await supabase.from('payer_links').delete().eq('payer_name', payerName).eq('student_id', studentId)
+    if (error) { alert('Error removing link: ' + error.message); return }
+    setPayerLinks(prev => prev.filter(l => !(l.payer_name === payerName && l.student_id === studentId)))
   }
 
   return (
@@ -153,15 +174,24 @@ export default function CRM() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20 }}>
               <div className="card">
                 <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>💳 Unmatched payments ({unmatchedPayments.length})</h3>
-                <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 10 }}>Drag onto a student to link them</p>
+                <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 10 }}>
+                  Drag onto a student, or click one here then click a student, to link them
+                </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {unmatchedPayments.length === 0 ? (
                     <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Everything matched 🎉</p>
                   ) : unmatchedPayments.map((p, i) => (
-                    <div key={i} draggable onDragStart={() => setDraggedPayment(p)} onDragEnd={() => setDraggedPayment(null)}
-                      style={{ padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', cursor: 'grab', border: '1px dashed var(--border-strong)' }}>
+                    <div key={i} draggable
+                      onDragStart={() => setDraggedPayment(p)} onDragEnd={() => setDraggedPayment(null)}
+                      onClick={() => setSelectedPaymentIdx(selectedPaymentIdx === i ? null : i)}
+                      style={{
+                        padding: '8px 10px', borderRadius: 'var(--radius)', cursor: 'pointer',
+                        background: selectedPaymentIdx === i ? '#378ADD20' : 'var(--bg-secondary)',
+                        border: selectedPaymentIdx === i ? '2px solid #378ADD' : '1px dashed var(--border-strong)',
+                      }}>
                       <span style={{ fontSize: 13, fontWeight: 600 }}>{p.name}</span>
                       {p.amount != null && <span style={{ fontSize: 12, color: 'var(--text-tertiary)', marginLeft: 8 }}>{p.amount}</span>}
+                      {selectedPaymentIdx === i && <div style={{ fontSize: 10, color: '#378ADD', marginTop: 2 }}>Selected — click a student on the right →</div>}
                     </div>
                   ))}
                 </div>
@@ -169,7 +199,9 @@ export default function CRM() {
 
               <div className="card">
                 <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>🚫 Students not paid ({unpaidStudents.length})</h3>
-                <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 10 }}>Drop an unmatched payment here to link</p>
+                <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 10 }}>
+                  {selectedPaymentIdx != null ? 'Click a student to link the selected payment' : 'Drop an unmatched payment here to link'}
+                </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {unpaidStudents.length === 0 ? (
                     <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Everyone's paid 🎉</p>
@@ -178,8 +210,9 @@ export default function CRM() {
                       onDragOver={e => { e.preventDefault(); setDragOverStudentId(s.id) }}
                       onDragLeave={() => setDragOverStudentId(null)}
                       onDrop={e => { e.preventDefault(); if (draggedPayment) linkPayment(draggedPayment, s.id); setDragOverStudentId(null) }}
+                      onClick={() => { if (selectedPaymentIdx != null) linkPayment(unmatchedPayments[selectedPaymentIdx], s.id) }}
                       style={{
-                        padding: '8px 10px', borderRadius: 'var(--radius)',
+                        padding: '8px 10px', borderRadius: 'var(--radius)', cursor: selectedPaymentIdx != null ? 'pointer' : 'default',
                         background: dragOverStudentId === s.id ? '#1D9E7520' : 'var(--bg-secondary)',
                         border: dragOverStudentId === s.id ? '2px solid #1D9E75' : '1px solid transparent',
                       }}>
@@ -196,12 +229,32 @@ export default function CRM() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {paidStudents.length === 0 ? (
                     <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No matches yet</p>
-                  ) : paidStudents.map(s => (
-                    <div key={s.id} style={{ padding: '8px 10px', borderRadius: 'var(--radius)', background: '#1D9E7512' }}>
-                      <span style={{ fontSize: 13, fontWeight: 600 }}>{studentFullName(s)}</span>
-                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)', marginLeft: 8 }}>{s.student_ref}</span>
-                    </div>
-                  ))}
+                  ) : paidStudents.map(s => {
+                    const matchedPayments = paymentsByStudentId[s.id] || []
+                    // Only manually-created payer_links can be unlinked --
+                    // a direct name match has nothing stored to remove,
+                    // it would just re-match immediately anyway.
+                    const isManualLink = payment => payerLinks.some(l => normalizeName(l.payer_name) === normalizeName(payment.name) && l.student_id === s.id)
+                    return (
+                      <div key={s.id} style={{ padding: '8px 10px', borderRadius: 'var(--radius)', background: '#1D9E7512' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: 13, fontWeight: 600 }}>{studentFullName(s)}</span>
+                          <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{s.student_ref}</span>
+                        </div>
+                        {matchedPayments.map((p, i) => (
+                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, paddingTop: 4, borderTop: i === 0 ? '1px solid #1D9E7530' : 'none' }}>
+                            <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                              💳 {p.name}{p.amount != null ? ` — ${p.amount}` : ''}
+                            </span>
+                            {isManualLink(p) && (
+                              <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }}
+                                onClick={() => unlinkPayment(p.name, s.id)}>Unlink</button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             </div>
