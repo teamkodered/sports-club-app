@@ -197,14 +197,20 @@ export default function CRM() {
   }
 
   // Map of studentId -> the payment(s) that matched them, so the
-  // Paid students card can show what payment they're linked to
+  // Paid students card can show what payment they're linked to.
+  // Each entry keeps the payment's index in the master `payments`
+  // array (not a filtered-list index) so a payment can be selected
+  // for linking whether it's showing up as unmatched OR already
+  // matched to someone else -- this is what makes it possible to
+  // link ONE payment to MULTIPLE students (e.g. a parent paying for
+  // several siblings in one standing order).
   const paymentsByStudentId = {}
   const unmatchedPayments = []
-  for (const p of payments) {
+  payments.forEach((p, idx) => {
     const sids = matchStudentIdsForPayment(p)
-    if (sids.length) sids.forEach(sid => (paymentsByStudentId[sid] ||= []).push(p))
-    else unmatchedPayments.push(p)
-  }
+    if (sids.length) sids.forEach(sid => (paymentsByStudentId[sid] ||= []).push({ payment: p, idx }))
+    else unmatchedPayments.push({ payment: p, idx })
+  })
   const matchedStudentIds = new Set(Object.keys(paymentsByStudentId))
   const sortByName = (a, b) => studentFullName(a).localeCompare(studentFullName(b))
   const unpaidStudents = venueFilteredStudents.filter(s => !matchedStudentIds.has(s.id)).sort(sortByName)
@@ -271,8 +277,10 @@ export default function CRM() {
             <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Upload payment list</h2>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>
               Upload an Excel export of standing order/payment names. It's cross-checked against active students —
-              a match means paid. Names that don't match a student (e.g. a parent's name) show up below so you can
-              link them manually once; that link is remembered for every future upload.
+              a match means paid. Names that don't match a student (e.g. a parent's name, or a typo in the bank
+              export) show up below so you can link them manually once; that link is remembered for every future
+              upload. One payment can also be linked to more than one student — use "+ Link another student" on
+              a paid student's card for payments that cover several siblings.
             </p>
             <input type="file" accept=".xlsx,.xls" onChange={handleFile} />
             {payments.length > 0 && (
@@ -293,18 +301,18 @@ export default function CRM() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {unmatchedPayments.length === 0 ? (
                     <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Everything matched 🎉</p>
-                  ) : unmatchedPayments.map((p, i) => (
-                    <div key={i} draggable
+                  ) : unmatchedPayments.map(({ payment: p, idx }) => (
+                    <div key={idx} draggable
                       onDragStart={() => setDraggedPayment(p)} onDragEnd={() => setDraggedPayment(null)}
-                      onClick={() => setSelectedPaymentIdx(selectedPaymentIdx === i ? null : i)}
+                      onClick={() => setSelectedPaymentIdx(selectedPaymentIdx === idx ? null : idx)}
                       style={{
                         padding: '8px 10px', borderRadius: 'var(--radius)', cursor: 'pointer',
-                        background: selectedPaymentIdx === i ? '#378ADD20' : 'var(--bg-secondary)',
-                        border: selectedPaymentIdx === i ? '2px solid #378ADD' : '1px dashed var(--border-strong)',
+                        background: selectedPaymentIdx === idx ? '#378ADD20' : 'var(--bg-secondary)',
+                        border: selectedPaymentIdx === idx ? '2px solid #378ADD' : '1px dashed var(--border-strong)',
                       }}>
                       <span style={{ fontSize: 13, fontWeight: 600 }}>{p.name}</span>
                       {p.amount != null && <span style={{ fontSize: 12, color: 'var(--text-tertiary)', marginLeft: 8 }}>{p.amount}</span>}
-                      {selectedPaymentIdx === i && <div style={{ fontSize: 10, color: '#378ADD', marginTop: 2 }}>Selected — click a student on the right →</div>}
+                      {selectedPaymentIdx === idx && <div style={{ fontSize: 10, color: '#378ADD', marginTop: 2 }}>Selected — click a student on the right →</div>}
                     </div>
                   ))}
                 </div>
@@ -323,7 +331,7 @@ export default function CRM() {
                       onDragOver={e => { e.preventDefault(); setDragOverStudentId(s.id) }}
                       onDragLeave={() => setDragOverStudentId(null)}
                       onDrop={e => { e.preventDefault(); if (draggedPayment) linkPayment(draggedPayment, s.id); setDragOverStudentId(null) }}
-                      onClick={() => { if (selectedPaymentIdx != null) linkPayment(unmatchedPayments[selectedPaymentIdx], s.id) }}
+                      onClick={() => { if (selectedPaymentIdx != null) linkPayment(payments[selectedPaymentIdx], s.id) }}
                       style={{
                         padding: '8px 10px', borderRadius: 'var(--radius)', cursor: selectedPaymentIdx != null ? 'pointer' : 'default',
                         background: dragOverStudentId === s.id ? '#1D9E7520' : 'var(--bg-secondary)',
@@ -354,15 +362,25 @@ export default function CRM() {
                           <span style={{ fontSize: 13, fontWeight: 600 }}>{studentFullName(s)}</span>
                           <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{s.student_ref}</span>
                         </div>
-                        {matchedPayments.map((p, i) => (
-                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, paddingTop: 4, borderTop: i === 0 ? '1px solid #1D9E7530' : 'none' }}>
-                            <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-                              💳 {p.name}{p.amount != null ? ` — ${p.amount}` : ''}
-                            </span>
-                            {isManualLink(p) && (
-                              <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }}
-                                onClick={() => unlinkPayment(p.name, s.id)}>Unlink</button>
-                            )}
+                        {matchedPayments.map(({ payment: p, idx }) => (
+                          <div key={idx} style={{ marginTop: 4, paddingTop: 4, borderTop: idx === matchedPayments[0].idx ? '1px solid #1D9E7530' : 'none' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                                💳 {p.name}{p.amount != null ? ` — ${p.amount}` : ''}
+                              </span>
+                              {isManualLink(p) && (
+                                <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }}
+                                  onClick={() => unlinkPayment(p.name, s.id)}>Unlink</button>
+                              )}
+                            </div>
+                            {/* Lets one payment be linked to MORE than one student --
+                                e.g. a single standing order covering several siblings.
+                                Selecting here re-uses the same click-a-student flow as
+                                unmatched payments, just seeded with this payment's index. */}
+                            <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px', marginTop: 2 }}
+                              onClick={() => setSelectedPaymentIdx(selectedPaymentIdx === idx ? null : idx)}>
+                              {selectedPaymentIdx === idx ? 'Selected — click another student →' : '+ Link another student to this payment'}
+                            </button>
                           </div>
                         ))}
                       </div>
