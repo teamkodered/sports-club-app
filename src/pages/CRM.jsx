@@ -124,7 +124,23 @@ export default function CRM() {
       const allPaymentWordsInStudent = paymentWords.size >= 2 && [...paymentWords].every(w => studentWords.includes(w))
       return allStudentWordsInPayment || allPaymentWordsInStudent
     })
-    return found ? [found.id] : []
+    if (found) return [found.id]
+
+    // Single-word payment name (e.g. a bank narrative that only shows a
+    // first or last name, like "Mohan" or "Hinds") -- match it if it
+    // uniquely identifies exactly one active student by first name or
+    // last name alone. If more than one student shares that name, leave
+    // it unmatched rather than risk linking the wrong person -- that
+    // case should go through the manual link flow instead.
+    if (paymentWords.size === 1) {
+      const word = [...paymentWords][0]
+      const candidates = students.filter(s =>
+        normalizeName(s.members?.first_name) === word || normalizeName(s.members?.last_name) === word
+      )
+      if (candidates.length === 1) return [candidates[0].id]
+    }
+
+    return []
   }
 
   // Map of studentId -> the payment(s) that matched them, so the
