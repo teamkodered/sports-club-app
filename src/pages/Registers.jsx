@@ -404,9 +404,9 @@ export default function Registers() {
     }).eq('id', student.id)
 
     const houseName = student.house_name || student.members?.houses?.name
-    if (houseName) {
-      const { data: house } = await supabase.from('houses').select('points').eq('name', houseName).single()
-      if (house) await supabase.from('houses').update({ points: (house.points || 0) + netChange }).eq('name', houseName)
+    if (houseName && netChange !== 0) {
+      const { error: houseErr } = await supabase.rpc('adjust_house_points', { p_house_name: houseName, p_delta: netChange })
+      if (houseErr) alert(`Attendance points saved for ${student.members?.first_name}, but the house total failed to update: ${houseErr.message}`)
     }
 
     setStudents(prev => prev.map(s => s.id === student.id ? { ...s, house_points: (s.house_points || 0) + netChange, individual_points: (s.individual_points || 0) + netChange } : s))
@@ -514,6 +514,17 @@ export default function Registers() {
       const { error: updErr } = await supabase.from('students').update(updates).eq('id', s.id)
       if (updErr) { alert('Points entry saved, but updating the total failed: ' + updErr.message) }
       else setStudents(prev => prev.map(x => x.id === s.id ? { ...x, ...updates } : x))
+
+      // Same adjustment needs to land on the house total too -- this
+      // used to be skipped here entirely, which is a big part of why
+      // house totals drifted away from what students actually held.
+      if (entry.point_scope === 'house' || entry.point_scope === 'both') {
+        const houseName = s.house_name || s.members?.houses?.name
+        if (houseName) {
+          const { error: houseErr } = await supabase.rpc('adjust_house_points', { p_house_name: houseName, p_delta: diff })
+          if (houseErr) alert('Points entry saved, but the house total failed to update: ' + houseErr.message)
+        }
+      }
     }
 
     setPointsByStudent(prev => ({
@@ -535,6 +546,14 @@ export default function Registers() {
       const { error: updErr } = await supabase.from('students').update(updates).eq('id', s.id)
       if (updErr) { alert('Entry deleted, but updating the total failed: ' + updErr.message) }
       else setStudents(prev => prev.map(x => x.id === s.id ? { ...x, ...updates } : x))
+
+      if (entry.point_scope === 'house' || entry.point_scope === 'both') {
+        const houseName = s.house_name || s.members?.houses?.name
+        if (houseName) {
+          const { error: houseErr } = await supabase.rpc('adjust_house_points', { p_house_name: houseName, p_delta: -entry.points_awarded })
+          if (houseErr) alert('Entry deleted, but the house total failed to update: ' + houseErr.message)
+        }
+      }
     }
 
     setPointsByStudent(prev => ({
@@ -575,8 +594,8 @@ export default function Registers() {
       }
       const houseName = s.house_name || s.members?.houses?.name
       if (houseName && total > 0) {
-        const { data: house } = await supabase.from('houses').select('points').eq('name', houseName).single()
-        if (house) await supabase.from('houses').update({ points: (house.points || 0) + total }).eq('name', houseName)
+        const { error: houseErr } = await supabase.rpc('adjust_house_points', { p_house_name: houseName, p_delta: total })
+        if (houseErr) alert(`Points saved for ${s.members?.first_name}, but the house total failed to update: ${houseErr.message}`)
       }
     }
     setStudents(prev => prev.map(s =>

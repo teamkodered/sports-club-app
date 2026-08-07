@@ -47,7 +47,7 @@ export default function Dashboard() {
         supabase.from('students').select('id, members!inner(status)', { count: 'exact', head: true }).neq('members.status', 'stopped').neq('members.status', 'not_started'),
         supabase.from('houses').select('*').order('points', { ascending: false }),
         supabase.from('students').select('id, house_points, individual_points, class_champion_count, house_name, member_id, is_kr, is_pts, discipline, members(first_name, last_name, houses(name))').order('house_points', { ascending: false }).limit(5),
-        supabase.from('points_log').select('*, student_id, students(member_id, is_kr, is_pts, discipline, members(first_name, last_name))').order('awarded_at', { ascending: false }).limit(8),
+        supabase.from('points_log').select('*, student_id, students(member_id, house_name, is_kr, is_pts, discipline, members(first_name, last_name, houses(name)))').order('awarded_at', { ascending: false }).limit(8),
         supabase.from('attendance').select('id', { count: 'exact', head: true }).gte('attended_at', monthAgo),
         supabase.from('attendance').select('id', { count: 'exact', head: true }).eq('session_date', today),
         supabase.from('students').select('id', { count: 'exact', head: true }).eq('in_comp', true).or('is_kr.eq.true,discipline.eq.KRBA'),
@@ -125,8 +125,8 @@ export default function Dashboard() {
       }).eq('id', s.id)
       const houseName = s.members?.houses?.name || s.house_name
       if (houseName) {
-        const { data: house } = await supabase.from('houses').select('points').eq('name', houseName).single()
-        if (house) await supabase.from('houses').update({ points: (house.points || 0) + pt.points }).eq('name', houseName)
+        const { error: houseErr } = await supabase.rpc('adjust_house_points', { p_house_name: houseName, p_delta: pt.points })
+        if (houseErr) alert(`Points saved for ${s.members?.first_name}, but the house total failed to update: ${houseErr.message}`)
       }
     }
     setApLastAwarded({ label: pt.label, points: pt.points, count: apSelected.length, names: apSelected.map(s => s.members?.first_name).join(', ') })
@@ -155,6 +155,17 @@ export default function Dashboard() {
           house_points: (current?.house_points || 0) + diff,
           individual_points: (current?.individual_points || 0) + diff,
         }).eq('id', p.student_id)
+        // point_scope on this log entry decides whether the house total
+        // needs the same adjustment -- this used to be skipped entirely,
+        // which is one of the two reasons house totals drifted from
+        // what students actually held.
+        if (p.point_scope === 'house' || p.point_scope === 'both') {
+          const houseName = p.students?.members?.houses?.name || p.students?.house_name
+          if (houseName) {
+            const { error: houseErr } = await supabase.rpc('adjust_house_points', { p_house_name: houseName, p_delta: diff })
+            if (houseErr) alert('Points total saved, but the house total failed to update: ' + houseErr.message)
+          }
+        }
       }
     }
     setRecentPts(prev => prev.map(x => x.id === p.id ? { ...x, ...payload } : x))

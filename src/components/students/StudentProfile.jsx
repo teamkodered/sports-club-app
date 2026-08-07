@@ -136,8 +136,8 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
     }
 
     if (houseName) {
-      const { data: house } = await supabase.from('houses').select('points').eq('name', houseName).single()
-      if (house) await supabase.from('houses').update({ points: (house.points || 0) + pts }).eq('name', houseName)
+      const { error: houseErr } = await supabase.rpc('adjust_house_points', { p_house_name: houseName, p_delta: pts })
+      if (houseErr) alert('Points were logged, but the house total failed to update: ' + houseErr.message)
     }
 
     setLocalStudent(s => ({ ...s, ...updates }))

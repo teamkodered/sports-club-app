@@ -103,7 +103,7 @@ export default function CheckIn() {
 
     // Award attendance points
     const pts = attendMode === 'full_kit' ? 2 : 1
-    const { data: s } = await supabase.from('students').select('house_points, individual_points, members(houses(name))').eq('id', checking.id).single()
+    const { data: s } = await supabase.from('students').select('house_points, individual_points, house_name, members(houses(name))').eq('id', checking.id).single()
     if (s) {
       await supabase.from('students').update({
         house_points: (s.house_points || 0) + pts,
@@ -113,6 +113,13 @@ export default function CheckIn() {
         student_id: checking.id, point_type: attendMode === 'full_kit' ? 'Full Kit' : 'Attendance',
         points_awarded: pts, point_scope: 'both', awarded_at: now,
       })
+      // This self-check-in flow never updated the house total at all
+      // previously -- only the student's own points.
+      const houseName = s.members?.houses?.name || s.house_name
+      if (houseName) {
+        const { error: houseErr } = await supabase.rpc('adjust_house_points', { p_house_name: houseName, p_delta: pts })
+        if (houseErr) console.error('House total failed to update:', houseErr.message)
+      }
     }
 
     setConfirmed({ student: checking, mode: attendMode, weight: weight || null })

@@ -306,15 +306,52 @@ export default function LeagueViews() {
 
   async function saveEditPoint() {
     setSaving(true)
-    await supabase.from('points_log').update({ points_awarded: parseInt(editVal) }).eq('id', editingPoint.id)
+    const newPoints = parseInt(editVal)
+    const diff = newPoints - editingPoint.points_awarded
+    const { error } = await supabase.from('points_log').update({ points_awarded: newPoints }).eq('id', editingPoint.id)
+    if (error) { alert('Error saving: ' + error.message); setSaving(false); return }
+
+    // This used to stop at the points_log row -- the student's own
+    // running total and the house total were never adjusted to match,
+    // which is one of the reasons house totals drift from reality
+    // every time a coach corrects a point value from this page.
+    if (diff !== 0 && editingPoint.student_id) {
+      const { data: current } = await supabase.from('students').select('house_points, individual_points').eq('id', editingPoint.student_id).single()
+      if (current) {
+        const updates = {}
+        if (editingPoint.point_scope === 'house' || editingPoint.point_scope === 'both') updates.house_points = (current.house_points || 0) + diff
+        if (editingPoint.point_scope === 'individual' || editingPoint.point_scope === 'both') updates.individual_points = (current.individual_points || 0) + diff
+        await supabase.from('students').update(updates).eq('id', editingPoint.student_id)
+      }
+      if (editingPoint.point_scope === 'house' || editingPoint.point_scope === 'both') {
+        const houseName = editingPoint.students?.members?.houses?.name
+        if (houseName) await supabase.rpc('adjust_house_points', { p_house_name: houseName, p_delta: diff })
+      }
+    }
+
     setEditingPoint(null)
     await loadAll()
     setSaving(false)
   }
 
-  async function deletePoint(id) {
+  async function deletePoint(id, entry) {
     if (!confirm('Delete this points entry?')) return
-    await supabase.from('points_log').delete().eq('id', id)
+    const { error } = await supabase.from('points_log').delete().eq('id', id)
+    if (error) { alert('Error deleting: ' + error.message); return }
+
+    if (entry?.student_id) {
+      const { data: current } = await supabase.from('students').select('house_points, individual_points').eq('id', entry.student_id).single()
+      if (current) {
+        const updates = {}
+        if (entry.point_scope === 'house' || entry.point_scope === 'both') updates.house_points = Math.max(0, (current.house_points || 0) - entry.points_awarded)
+        if (entry.point_scope === 'individual' || entry.point_scope === 'both') updates.individual_points = Math.max(0, (current.individual_points || 0) - entry.points_awarded)
+        await supabase.from('students').update(updates).eq('id', entry.student_id)
+      }
+      if (entry.point_scope === 'house' || entry.point_scope === 'both') {
+        const houseName = entry.students?.members?.houses?.name
+        if (houseName) await supabase.rpc('adjust_house_points', { p_house_name: houseName, p_delta: -entry.points_awarded })
+      }
+    }
     await loadAll()
   }
 
@@ -673,7 +710,7 @@ export default function LeagueViews() {
                         {isAdmin && (
                           <td style={{ display: 'flex', gap: 4 }}>
                             <button className="btn btn-sm" onClick={() => { setEditingPoint(r); setEditVal(String(r.points_awarded)) }}>Edit</button>
-                            <button className="btn btn-sm btn-danger" onClick={() => deletePoint(r.id)}>Del</button>
+                            <button className="btn btn-sm btn-danger" onClick={() => deletePoint(r.id, r)}>Del</button>
                           </td>
                         )}
                       </tr>
@@ -754,7 +791,7 @@ export default function LeagueViews() {
                           <td>
                             <div style={{ display: 'flex', gap: 4 }}>
                               <button className="btn btn-sm" onClick={() => { setEditingPoint(r); setEditVal(String(r.points_awarded)) }}>Edit</button>
-                              <button className="btn btn-sm btn-danger" onClick={() => deletePoint(r.id)}>Del</button>
+                              <button className="btn btn-sm btn-danger" onClick={() => deletePoint(r.id, r)}>Del</button>
                             </div>
                           </td>
                         )}

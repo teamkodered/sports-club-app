@@ -96,6 +96,20 @@ export default function CRM() {
     setSelectedPaymentIdx(null)
   }
 
+  // Removes a single transaction from the list -- for bank-export noise
+  // (Netflix, Uber Eats, DVLA, Capquest, etc.) or anything else that was
+  // never a student payment. Only affects this uploaded file's display;
+  // it doesn't touch any stored data, so re-uploading the same export
+  // later brings it back (nothing to "undo" otherwise, and no risk of
+  // accidentally suppressing a real payment for good).
+  function removePayment(idx) {
+    setPayments(prev => prev.filter((_, i) => i !== idx))
+    // Any payment after this one shifts down by one index once the
+    // array is filtered, so a stale selectedPaymentIdx could end up
+    // pointing at the wrong transaction -- always clear it here.
+    setSelectedPaymentIdx(null)
+  }
+
   function studentFullName(s) {
     return `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.trim()
   }
@@ -340,10 +354,20 @@ export default function CRM() {
                         padding: '8px 10px', borderRadius: 'var(--radius)', cursor: 'pointer',
                         background: selectedPaymentIdx === idx ? '#378ADD20' : 'var(--bg-secondary)',
                         border: selectedPaymentIdx === idx ? '2px solid #378ADD' : '1px dashed var(--border-strong)',
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8,
                       }}>
-                      <span style={{ fontSize: 13, fontWeight: 600 }}>{p.name}</span>
-                      {p.amount != null && <span style={{ fontSize: 12, color: 'var(--text-tertiary)', marginLeft: 8 }}>{p.amount}</span>}
-                      {selectedPaymentIdx === idx && <div style={{ fontSize: 10, color: '#378ADD', marginTop: 2 }}>Selected — click a student on the right →</div>}
+                      <div>
+                        <span style={{ fontSize: 13, fontWeight: 600 }}>{p.name}</span>
+                        {p.amount != null && <span style={{ fontSize: 12, color: 'var(--text-tertiary)', marginLeft: 8 }}>{p.amount}</span>}
+                        {selectedPaymentIdx === idx && <div style={{ fontSize: 10, color: '#378ADD', marginTop: 2 }}>Selected — click a student on the right →</div>}
+                      </div>
+                      <button
+                        title="Not a student payment / not needed here"
+                        onClick={e => { e.stopPropagation(); removePayment(idx) }}
+                        style={{
+                          border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-tertiary)',
+                          fontSize: 14, lineHeight: 1, padding: '2px 4px', flexShrink: 0,
+                        }}>✕</button>
                     </div>
                   ))}
                 </div>
