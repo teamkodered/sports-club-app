@@ -14,6 +14,7 @@ export default function Dashboard() {
   const { profile, isAdmin } = useAuth()
   const [stats, setStats]         = useState({})
   const [memberBreakdownIndex, setMemberBreakdownIndex] = useState(0)
+  const [athleteBreakdownIndex, setAthleteBreakdownIndex] = useState(0)
   const [standings, setStandings] = useState([])
   const [topStudents, setTopStudents] = useState([])
   const [recentPts, setRecentPts] = useState([])
@@ -50,7 +51,7 @@ export default function Dashboard() {
         supabase.from('attendance').select('id', { count: 'exact', head: true }).gte('attended_at', monthAgo),
         supabase.from('attendance').select('id', { count: 'exact', head: true }).eq('session_date', today),
         supabase.from('students').select('id', { count: 'exact', head: true }).eq('in_comp', true).or('is_kr.eq.true,discipline.eq.KRBA'),
-        supabase.from('students').select('discipline, class_schedule, is_kr, members(status)'),
+        supabase.from('students').select('discipline, class_schedule, is_kr, in_comp, members(status)'),
       ])
 
       const rows = (breakdownRows || []).filter(r => r.members?.status === 'active')
@@ -63,8 +64,14 @@ export default function Dashboard() {
         kr: rows.filter(r => r.is_kr).length,
         krba: rows.filter(r => r.discipline === 'KRBA').length,
       }
+      const athleteRows = rows.filter(r => r.in_comp)
+      const athleteBreakdown = {
+        all: athleteRows.filter(r => r.is_kr || r.discipline === 'KRBA').length,
+        kr: athleteRows.filter(r => r.is_kr).length,
+        krba: athleteRows.filter(r => r.discipline === 'KRBA').length,
+      }
 
-      setStats({ memberCount: memberCount || 0, studentCount: studentCount || 0, checkIns: checkIns?.count || 0, todayCount: todayCount || 0, athleteCount: athleteCount || 0, memberBreakdown })
+      setStats({ memberCount: memberCount || 0, studentCount: studentCount || 0, checkIns: checkIns?.count || 0, todayCount: todayCount || 0, athleteCount: athleteCount || 0, memberBreakdown, athleteBreakdown })
       setStandings(houses || [])
       setTopStudents(topPts || [])
       setRecentPts(recentPoints || [])
@@ -183,17 +190,31 @@ export default function Dashboard() {
           const step = MEMBER_BREAKDOWN_STEPS[memberBreakdownIndex % MEMBER_BREAKDOWN_STEPS.length]
           const breakdownValue = stats.memberBreakdown ? stats.memberBreakdown[step.key] : stats.memberCount
 
+          const ATHLETE_BREAKDOWN_STEPS = [
+            { key: 'all', label: 'Athletes' },
+            { key: 'kr', label: 'KR Athletes' },
+            { key: 'krba', label: 'KRBA Athletes' },
+          ]
+          const athleteStep = ATHLETE_BREAKDOWN_STEPS[athleteBreakdownIndex % ATHLETE_BREAKDOWN_STEPS.length]
+          const athleteBreakdownValue = stats.athleteBreakdown ? stats.athleteBreakdown[athleteStep.key] : stats.athleteCount
+
           return [
             { label: step.label, value: breakdownValue, icon: '👥', colour: '#378ADD', to: '/students', isMemberCard: true },
             { label: 'Register',       value: stats.todayCount, icon: '📋', colour: '#1D9E75', to: '/registers' },
-            { label: 'Athletes',       value: stats.athleteCount, icon: '🏅', colour: '#EF9F27', to: '/athletes' },
+            { label: athleteStep.label, value: athleteBreakdownValue, icon: '🏅', colour: '#EF9F27', to: '/athletes', isAthleteCard: true },
             { label: 'Houses',         value: standings.length,   icon: '🛡️', colour: '#E24B4A', to: '/league' },
           ].map(s => (
-            <Link key={s.label === step.label ? 'members' : s.label} to={s.to} className="card" style={{ textAlign: 'center', borderTop: `3px solid ${s.colour}`, textDecoration: 'none', color: 'inherit', display: 'block' }}>
+            <Link key={s.label === step.label ? 'members' : (s.isAthleteCard ? 'athletes' : s.label)} to={s.to} className="card" style={{ textAlign: 'center', borderTop: `3px solid ${s.colour}`, textDecoration: 'none', color: 'inherit', display: 'block' }}>
               {s.isMemberCard ? (
                 <div style={{ fontSize: 26, marginBottom: 4 }}
                   onClick={e => { e.preventDefault(); e.stopPropagation(); setMemberBreakdownIndex(i => i + 1) }}
                   title="Tap to cycle: All / PKA / KR Centre PKA / Derby Moore / Moorways / KR / KRBA">
+                  {s.icon}
+                </div>
+              ) : s.isAthleteCard ? (
+                <div style={{ fontSize: 26, marginBottom: 4 }}
+                  onClick={e => { e.preventDefault(); e.stopPropagation(); setAthleteBreakdownIndex(i => i + 1) }}
+                  title="Tap the medal to cycle: Total Athletes / KR Athletes / KRBA Athletes">
                   {s.icon}
                 </div>
               ) : (
