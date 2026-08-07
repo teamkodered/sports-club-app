@@ -789,10 +789,8 @@ export default function Registers() {
         </span>
       </div>
 
-      {/* Quick attendance + search + select row */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search students…"
-          style={{ flex: 1, minWidth: 160, padding: '7px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+      {/* Quick attendance + select row (moved above search, per Aug 2026 request) */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <button className="btn btn-sm" style={{ background: selectedStudents.length ? '#e6f1fb' : 'var(--bg-tertiary)', color: selectedStudents.length ? '#185fa5' : 'var(--text-tertiary)', border: `1px solid ${selectedStudents.length ? '#185fa540' : 'var(--border)'}`, cursor: selectedStudents.length ? 'pointer' : 'not-allowed' }}
           onClick={() => markAttendance('attended')} disabled={!selectedStudents.length || saving}>
           ✓ Attended{selectedStudents.length ? ` (${selectedStudents.length})` : ''}
@@ -810,6 +808,13 @@ export default function Registers() {
           <button className="btn btn-sm" onClick={() => setSelectedStudents(displayStudents.map(s => s.id))}>☐ Select all</button>
         )}
       </div>
+
+      {/* Search row */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search students…"
+          style={{ flex: 1, minWidth: 160, padding: '7px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+      </div>
+
 
       {/* Table */}
       {loading ? <div className="loading">Loading…</div> : (
