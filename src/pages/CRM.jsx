@@ -128,9 +128,11 @@ export default function CRM() {
   // person - those go through the manual link flow, which is
   // remembered for every future upload.
   const linksByPayerName = {}
+  const excludedByPayerName = {} // payer name -> Set of student_ids explicitly rejected as wrong for that payment
   for (const l of payerLinks) {
     const n = normalizeName(l.payer_name)
-    ;(linksByPayerName[n] ||= []).push(l.student_id)
+    if (l.excluded) (excludedByPayerName[n] ||= new Set()).add(l.student_id)
+    else (linksByPayerName[n] ||= []).push(l.student_id)
   }
   const studentByNormalizedName = Object.fromEntries(students.map(s => [normalizeName(studentFullName(s)), s.id]))
   const firstNameCounts = {}
@@ -160,17 +162,24 @@ export default function CRM() {
   function matchStudentIdsForPayment(payment) {
     const n = normalizeName(payment.name)
     if (linksByPayerName[n]?.length) return linksByPayerName[n]
-    if (studentByNormalizedName[n]) return [studentByNormalizedName[n]]
+
+    const excluded = excludedByPayerName[n]
+    const dropExcluded = list => excluded ? list.filter(s => !excluded.has(s.id)) : list
+
+    if (studentByNormalizedName[n]) {
+      const sid = studentByNormalizedName[n]
+      return excluded?.has(sid) ? [] : [sid]
+    }
 
     const paymentWords = wordsOf(payment.name)
     const paymentWordSet = new Set(paymentWords)
 
-    const nameCandidates = students.filter(s => {
+    const nameCandidates = dropExcluded(students.filter(s => {
       const fw = wordsOf(s.members?.first_name)
       const lw = wordsOf(s.members?.last_name)
       if (!fw.length || !lw.length) return false
       return fw.every(w => namePartPresent(w, paymentWordSet)) && lw.every(w => namePartPresent(w, paymentWordSet))
-    })
+    }))
     if (nameCandidates.length === 1) return [nameCandidates[0].id]
 
     if (!nameCandidates.length) {
@@ -180,7 +189,8 @@ export default function CRM() {
           surnameCandidates.push(...students.filter(s => normalizeName(s.members?.last_name) === w))
         }
       }
-      if (surnameCandidates.length === 1) return [surnameCandidates[0].id]
+      const filtered = dropExcluded(surnameCandidates)
+      if (filtered.length === 1) return [filtered[0].id]
     }
 
     if (!nameCandidates.length) {
@@ -190,7 +200,8 @@ export default function CRM() {
           firstNameCandidates.push(...students.filter(s => normalizeName(s.members?.first_name) === w))
         }
       }
-      if (firstNameCandidates.length === 1) return [firstNameCandidates[0].id]
+      const filtered = dropExcluded(firstNameCandidates)
+      if (filtered.length === 1) return [filtered[0].id]
     }
 
     return []
@@ -217,14 +228,17 @@ export default function CRM() {
   const paidStudents = venueFilteredStudents.filter(s => matchedStudentIds.has(s.id)).sort(sortByName)
 
   async function linkPayment(payment, studentId) {
+    // excluded: false explicitly clears any earlier "this isn't right"
+    // rejection stored against this exact payment+student pairing, so
+    // re-linking after a mistaken exclusion works correctly.
     const { error } = await supabase.from('payer_links').upsert(
-      { payer_name: payment.name, student_id: studentId },
+      { payer_name: payment.name, student_id: studentId, excluded: false },
       { onConflict: 'payer_name,student_id' }
     )
     if (error) { alert('Error saving link: ' + error.message); return }
     setPayerLinks(prev => {
-      const exists = prev.some(l => normalizeName(l.payer_name) === normalizeName(payment.name) && l.student_id === studentId)
-      return exists ? prev : [...prev, { payer_name: payment.name, student_id: studentId }]
+      const others = prev.filter(l => !(l.payer_name === payment.name && l.student_id === studentId))
+      return [...others, { payer_name: payment.name, student_id: studentId, excluded: false }]
     })
     setSelectedPaymentIdx(null)
   }
@@ -233,6 +247,23 @@ export default function CRM() {
     const { error } = await supabase.from('payer_links').delete().eq('payer_name', payerName).eq('student_id', studentId)
     if (error) { alert('Error removing link: ' + error.message); return }
     setPayerLinks(prev => prev.filter(l => !(l.payer_name === payerName && l.student_id === studentId)))
+  }
+
+  // For an AUTOMATIC match (not a manually-created link) there's nothing
+  // to delete -- the pairing was never stored anywhere, it's recomputed
+  // fresh from the matching rules every render. So "this is wrong" has to
+  // be recorded as an explicit rejection instead, which the matcher then
+  // knows to skip for that exact payment name going forward.
+  async function rejectAutoMatch(payment, studentId) {
+    const { error } = await supabase.from('payer_links').upsert(
+      { payer_name: payment.name, student_id: studentId, excluded: true },
+      { onConflict: 'payer_name,student_id' }
+    )
+    if (error) { alert('Error saving rejection: ' + error.message); return }
+    setPayerLinks(prev => {
+      const others = prev.filter(l => !(l.payer_name === payment.name && l.student_id === studentId))
+      return [...others, { payer_name: payment.name, student_id: studentId, excluded: true }]
+    })
   }
 
   return (
@@ -368,9 +399,13 @@ export default function CRM() {
                               <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
                                 💳 {p.name}{p.amount != null ? ` — ${p.amount}` : ''}
                               </span>
-                              {isManualLink(p) && (
+                              {isManualLink(p) ? (
                                 <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }}
                                   onClick={() => unlinkPayment(p.name, s.id)}>Unlink</button>
+                              ) : (
+                                <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }}
+                                  title="This was matched automatically. Use this if it's the wrong student — it won't be suggested for this payment again."
+                                  onClick={() => rejectAutoMatch(p, s.id)}>Wrong student ✕</button>
                               )}
                             </div>
                             {/* Lets one payment be linked to MORE than one student --
