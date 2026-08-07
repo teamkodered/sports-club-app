@@ -30,19 +30,32 @@ export default function CRM() {
   const [draggedPayment, setDraggedPayment] = useState(null)
   const [dragOverStudentId, setDragOverStudentId] = useState(null)
   const [selectedPaymentIdx, setSelectedPaymentIdx] = useState(null) // click-to-select alternative to drag & drop
+  const [venueFilter, setVenueFilter] = useState('all') // all | krcentre_pka | derbymoore | moorways | krba
 
   useEffect(() => { loadData() }, [])
 
   async function loadData() {
     setLoading(true)
     const [{ data: s }, { data: pl }] = await Promise.all([
-      supabase.from('students').select('id, student_ref, members(first_name, last_name, status)'),
+      supabase.from('students').select('id, student_ref, discipline, class_schedule, members(first_name, last_name, status)'),
       supabase.from('payer_links').select('*'),
     ])
     setStudents((s || []).filter(x => x.members?.status === 'active'))
     setPayerLinks(pl || [])
     setLoading(false)
   }
+
+  // Same venue/discipline logic used on the Students page and Dashboard -
+  // KR Centre PKA students are identified by having a day-pattern class_schedule
+  // value (or being blank) rather than one of the two satellite venue names.
+  const venueFilteredStudents = students.filter(s => {
+    if (venueFilter === 'all') return true
+    if (venueFilter === 'krcentre_pka') return s.discipline === 'PKA' && s.class_schedule !== 'Moorways' && s.class_schedule !== 'Derby Moore'
+    if (venueFilter === 'derbymoore') return s.class_schedule === 'Derby Moore'
+    if (venueFilter === 'moorways') return s.class_schedule === 'Moorways'
+    if (venueFilter === 'krba') return s.discipline === 'KRBA'
+    return true
+  })
 
   function handleFile(e) {
     const file = e.target.files[0]
@@ -125,8 +138,8 @@ export default function CRM() {
   }
   const matchedStudentIds = new Set(Object.keys(paymentsByStudentId))
   const sortByName = (a, b) => studentFullName(a).localeCompare(studentFullName(b))
-  const unpaidStudents = students.filter(s => !matchedStudentIds.has(s.id)).sort(sortByName)
-  const paidStudents = students.filter(s => matchedStudentIds.has(s.id)).sort(sortByName)
+  const unpaidStudents = venueFilteredStudents.filter(s => !matchedStudentIds.has(s.id)).sort(sortByName)
+  const paidStudents = venueFilteredStudents.filter(s => matchedStudentIds.has(s.id)).sort(sortByName)
 
   async function linkPayment(payment, studentId) {
     const { error } = await supabase.from('payer_links').upsert(
@@ -165,6 +178,26 @@ export default function CRM() {
 
       {tab === 'standing_orders' && (
         <div>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+            {[
+              { key: 'all', label: 'All' },
+              { key: 'krcentre_pka', label: 'KR Centre PKA' },
+              { key: 'derbymoore', label: 'Derby Moore' },
+              { key: 'moorways', label: 'Moorways' },
+              { key: 'krba', label: 'KRBA' },
+            ].map(f => (
+              <button key={f.key} className="btn btn-sm"
+                onClick={() => setVenueFilter(f.key)}
+                style={{
+                  fontWeight: venueFilter === f.key ? 600 : 400,
+                  background: venueFilter === f.key ? 'var(--text)' : undefined,
+                  color: venueFilter === f.key ? 'var(--bg)' : undefined,
+                }}>
+                {f.label}
+              </button>
+            ))}
+          </div>
+
           <div className="card" style={{ marginBottom: 16 }}>
             <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Upload payment list</h2>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>
