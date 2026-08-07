@@ -18,7 +18,17 @@ function detectColumns(rows) {
 }
 
 function normalizeName(s) {
-  return (s || '').toString().trim().toLowerCase().replace(/[^a-z\s]/g, '').replace(/\s+/g, ' ')
+  // Turn anything that isn't a letter into a SPACE (not delete it) so
+  // hyphenated names like "Ellis-Jay" split into separate words instead
+  // of getting squashed into "ellisjay" -- a bank export writing it as
+  // "Ellis Jay" would otherwise never be able to match.
+  return (s || '').toString().trim().toLowerCase().replace(/[^a-z\s]/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
+const TITLE_WORDS = new Set(['mr', 'mrs', 'miss', 'ms', 'mx', 'dr'])
+
+function wordsOf(s) {
+  return normalizeName(s).split(' ').filter(w => w && !TITLE_WORDS.has(w))
 }
 
 export default function CRM() {
@@ -92,52 +102,95 @@ export default function CRM() {
 
   // Matching: payer_links (remembered) first -- a payer name can now
   // link to MULTIPLE students (e.g. one payment covering two
-  // children) -- then a direct/loose normalized name match against a
-  // student's own name as a fallback.
+  // children) -- then a name-based match against the roster as a
+  // fallback, checked in decreasing order of confidence:
+  //
+  //  1. Exact full-name match.
+  //  2. "Name parts present" - every word of the student's first name
+  //     AND every word of their last name shows up somewhere in the
+  //     payment text (exact word match, or as a substring inside a
+  //     longer glued-together word e.g. "Piorkowskifp" contains
+  //     "piorkowski", "Jaxonbrowning" contains both "jaxon" and
+  //     "browning"). This is order-independent and handles bank
+  //     formats like "Surname Initial ChildFirstName Fp", reordered
+  //     names, middle initials, and concatenated/truncated suffixes.
+  //  3. Unique surname fallback - if a whole word in the payment
+  //     matches exactly one active student's surname (no one else
+  //     shares it), that's enough on its own - covers payments that
+  //     give a surname and only an initial, never a spelled-out first
+  //     name (e.g. "Mazur M Fp L").
+  //  4. Unique first-name fallback - same idea for first names, with a
+  //     slightly higher length threshold since first names repeat more
+  //     often across a large roster.
+  //
+  // In every case, if more than one active student could plausibly
+  // match, it's left unmatched rather than risk linking the wrong
+  // person - those go through the manual link flow, which is
+  // remembered for every future upload.
   const linksByPayerName = {}
   for (const l of payerLinks) {
     const n = normalizeName(l.payer_name)
     ;(linksByPayerName[n] ||= []).push(l.student_id)
   }
   const studentByNormalizedName = Object.fromEntries(students.map(s => [normalizeName(studentFullName(s)), s.id]))
+  const firstNameCounts = {}
+  const lastNameCounts = {}
+  for (const s of students) {
+    const fn = normalizeName(s.members?.first_name)
+    const ln = normalizeName(s.members?.last_name)
+    if (fn) firstNameCounts[fn] = (firstNameCounts[fn] || 0) + 1
+    if (ln) lastNameCounts[ln] = (lastNameCounts[ln] || 0) + 1
+  }
+
+  // A name part (a single word from a first or last name) counts as
+  // "present" in a payment if it appears as a whole word, or as a
+  // substring inside a longer word that's clearly a glued-together
+  // concatenation (only for name parts of 4+ letters, to avoid short
+  // words spuriously matching inside unrelated text).
+  function namePartPresent(part, paymentWordSet) {
+    if (paymentWordSet.has(part)) return true
+    if (part.length >= 4) {
+      for (const w of paymentWordSet) {
+        if (w.length > part.length && w.includes(part)) return true
+      }
+    }
+    return false
+  }
 
   function matchStudentIdsForPayment(payment) {
     const n = normalizeName(payment.name)
     if (linksByPayerName[n]?.length) return linksByPayerName[n]
     if (studentByNormalizedName[n]) return [studentByNormalizedName[n]]
-    // Word-based fallback match, order-independent -- handles bank
-    // exports that reorder names or insert middle initials, e.g.
-    // "Rolling A K Leo" vs a student named "Leo Rolling": a simple
-    // substring-contains check fails here since the words aren't
-    // consecutive in the same order, but checking that every word of
-    // the student's name appears somewhere in the payment name (and
-    // vice versa) catches this correctly.
-    const paymentWords = new Set(n.split(' ').filter(Boolean))
-    const found = students.find(s => {
-      const studentWords = normalizeName(studentFullName(s)).split(' ').filter(Boolean)
-      if (studentWords.length < 2) return false
-      const allStudentWordsInPayment = studentWords.every(w => paymentWords.has(w))
-      // Guard against a single common word (e.g. payment name just
-      // "Leo") matching any student who happens to share that one
-      // word -- only match this direction if the payment name itself
-      // has at least 2 words too.
-      const allPaymentWordsInStudent = paymentWords.size >= 2 && [...paymentWords].every(w => studentWords.includes(w))
-      return allStudentWordsInPayment || allPaymentWordsInStudent
-    })
-    if (found) return [found.id]
 
-    // Single-word payment name (e.g. a bank narrative that only shows a
-    // first or last name, like "Mohan" or "Hinds") -- match it if it
-    // uniquely identifies exactly one active student by first name or
-    // last name alone. If more than one student shares that name, leave
-    // it unmatched rather than risk linking the wrong person -- that
-    // case should go through the manual link flow instead.
-    if (paymentWords.size === 1) {
-      const word = [...paymentWords][0]
-      const candidates = students.filter(s =>
-        normalizeName(s.members?.first_name) === word || normalizeName(s.members?.last_name) === word
-      )
-      if (candidates.length === 1) return [candidates[0].id]
+    const paymentWords = wordsOf(payment.name)
+    const paymentWordSet = new Set(paymentWords)
+
+    const nameCandidates = students.filter(s => {
+      const fw = wordsOf(s.members?.first_name)
+      const lw = wordsOf(s.members?.last_name)
+      if (!fw.length || !lw.length) return false
+      return fw.every(w => namePartPresent(w, paymentWordSet)) && lw.every(w => namePartPresent(w, paymentWordSet))
+    })
+    if (nameCandidates.length === 1) return [nameCandidates[0].id]
+
+    if (!nameCandidates.length) {
+      const surnameCandidates = []
+      for (const w of paymentWordSet) {
+        if (w.length >= 3 && lastNameCounts[w] === 1) {
+          surnameCandidates.push(...students.filter(s => normalizeName(s.members?.last_name) === w))
+        }
+      }
+      if (surnameCandidates.length === 1) return [surnameCandidates[0].id]
+    }
+
+    if (!nameCandidates.length) {
+      const firstNameCandidates = []
+      for (const w of paymentWordSet) {
+        if (w.length >= 4 && firstNameCounts[w] === 1) {
+          firstNameCandidates.push(...students.filter(s => normalizeName(s.members?.first_name) === w))
+        }
+      }
+      if (firstNameCandidates.length === 1) return [firstNameCandidates[0].id]
     }
 
     return []
