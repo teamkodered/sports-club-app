@@ -107,7 +107,7 @@ export default function Trackers() {
     setWeightDivisions(Object.fromEntries((ap || []).map(r => [r.student_id, r.weight_division])))
     const { data: att } = await supabase
       .from('attendance')
-      .select('student_id, attended_at, attendance_type')
+      .select('student_id, session_date, attended_at, attendance_type, class_id')
       .order('attended_at', { ascending: false })
     setAttendance(att || [])
     setLoading(false)
@@ -716,6 +716,16 @@ export default function Trackers() {
                 .map(a => a.session_date || a.attended_at?.split('T')[0])
                 .filter(d => d && new Date(d).getFullYear() === year && new Date(d).getMonth() === month)
             )
+            // Distinct classes that ran each day (proxy: any class_id seen
+            // in anyone's attendance that day), used to tell a day with
+            // one class from a day with two, so this student's own
+            // attendance can be shown as partial vs full accordingly.
+            const distinctClassesByDate = {}
+            attendance.forEach(a => {
+              const d = a.session_date || a.attended_at?.split('T')[0]
+              if (!d || new Date(d).getFullYear() !== year || new Date(d).getMonth() !== month) return
+              ;(distinctClassesByDate[d] ||= new Set()).add(a.class_id || 'none')
+            })
             // This student's attended days this month
             const attendedDays = new Set(
               attendance
@@ -723,6 +733,13 @@ export default function Trackers() {
                 .map(a => a.session_date || a.attended_at?.split('T')[0])
                 .filter(d => d && new Date(d).getFullYear() === year && new Date(d).getMonth() === month)
             )
+            // This student's attended CLASSES per day, for the same reason
+            const attendedClassIdsByDate = {}
+            attendance.filter(a => a.student_id === calendarFor.id).forEach(a => {
+              const d = a.session_date || a.attended_at?.split('T')[0]
+              if (!d || new Date(d).getFullYear() !== year || new Date(d).getMonth() !== month) return
+              ;(attendedClassIdsByDate[d] ||= new Set()).add(a.class_id || 'none')
+            })
 
             const cells = []
             for (let i = 0; i < startWeekday; i++) cells.push(null)
@@ -752,7 +769,13 @@ export default function Trackers() {
                       const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`
                       const attended = attendedDays.has(dateStr)
                       const wasTrainingDay = allTrainingDays.has(dateStr)
-                      const bg = attended ? '#1D9E75' : wasTrainingDay ? '#E24B4A' : 'transparent'
+                      // Light green = attended some but not all of the
+                      // classes that ran that day; dark green = attended
+                      // everything.
+                      const attendedCountToday = (attendedClassIdsByDate[dateStr] || new Set()).size
+                      const possibleCountToday = Math.max((distinctClassesByDate[dateStr] || new Set()).size, 1)
+                      const isPartialAttendance = attended && attendedCountToday > 0 && attendedCountToday < possibleCountToday
+                      const bg = attended ? (isPartialAttendance ? '#8ED1B0' : '#1D9E75') : wasTrainingDay ? '#E24B4A' : 'transparent'
                       const fg = attended || wasTrainingDay ? '#fff' : 'var(--text-secondary)'
                       return (
                         <div key={i} title={attended ? 'Attended' : wasTrainingDay ? 'Missed' : ''} style={{

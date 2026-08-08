@@ -7564,6 +7564,17 @@ export default function AthleteProfiles() {
                           .map(a => a.session_date)
                           .filter(d => d && new Date(d).getFullYear() === year && new Date(d).getMonth() === month)
                       )
+                      // Which specific classes were attended on each day,
+                      // so a day with 2 possible classes but only 1
+                      // attended can be shown as partial (light green)
+                      // rather than the same full green as attending both.
+                      const attendedClassIdsByDate = {}
+                      attendanceData.forEach(a => {
+                        if (!a.session_date) return
+                        const d = new Date(a.session_date)
+                        if (d.getFullYear() !== year || d.getMonth() !== month) return
+                        ;(attendedClassIdsByDate[a.session_date] ||= new Set()).add(a.class_id || 'none')
+                      })
                       const explicitlyAbsentDays = new Set(
                         (allAttendance || [])
                           .filter(a => a?.student_id === selected.id && a?.attendance_type === 'absent')
@@ -7603,10 +7614,16 @@ export default function AthleteProfiles() {
                               const explicitlyExcused = explicitlyExcusedDays.has(dateStr)
                               const wasTrainingDay = allTrainingDays.has(dateStr)
                               const showAsRed = explicitlyAbsent || (wasTrainingDay && !attended && !explicitlyExcused && dateStr < todayStr)
-                              const bg = attended ? '#1D9E75' : showAsRed ? '#E24B4A' : 'transparent'
-                              const fg = attended || showAsRed ? '#fff' : 'var(--text-secondary)'
                               const jsDay = new Date(year, month, d).getDay()
                               const classesToday = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay))
+                              // Light green = attended some but not all of
+                              // the classes possible that day; dark green =
+                              // attended everything possible that day.
+                              const attendedCountToday = (attendedClassIdsByDate[dateStr] || new Set()).size
+                              const possibleCountToday = Math.max(classesToday.length, 1)
+                              const isPartialAttendance = attended && attendedCountToday > 0 && attendedCountToday < possibleCountToday
+                              const bg = attended ? (isPartialAttendance ? '#8ED1B0' : '#1D9E75') : showAsRed ? '#E24B4A' : 'transparent'
+                              const fg = attended || showAsRed ? '#fff' : 'var(--text-secondary)'
                               const pdpNotesData = apData?.pdp_notes || {}
                               const pdpItemsToday = Array.from(PDP_CHECKABLE_SECTIONS).flatMap(sectionKey =>
                                 Object.entries(pdpNotesData[`__timetable_${sectionKey}`] || {}).map(([item, entry]) => ({ sectionKey, item, ...entry }))

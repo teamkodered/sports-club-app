@@ -3086,6 +3086,16 @@ export default function AthleteApp() {
 
         const myAttendance = attendanceData.filter(a => a.attendance_type !== 'absent' && a.attendance_type !== 'excused')
         const attendedDays = new Set(myAttendance.map(a => a.session_date).filter(d => d && new Date(d).getFullYear() === year && new Date(d).getMonth() === month))
+        // Which specific classes were attended each day, so a day with 2
+        // possible classes but only 1 attended shows as partial (light
+        // green) instead of the same full green as attending both.
+        const attendedClassIdsByDate = {}
+        myAttendance.forEach(a => {
+          if (!a.session_date) return
+          const d = new Date(a.session_date)
+          if (d.getFullYear() !== year || d.getMonth() !== month) return
+          ;(attendedClassIdsByDate[a.session_date] ||= new Set()).add(a.class_id || 'none')
+        })
         const explicitlyAbsentDays = new Set(
           attendanceData.filter(a => a.attendance_type === 'absent').map(a => a.session_date).filter(d => d && new Date(d).getFullYear() === year && new Date(d).getMonth() === month)
         )
@@ -3164,10 +3174,16 @@ export default function AthleteApp() {
                   const explicitlyAbsent = explicitlyAbsentDays.has(dateStr)
                   const wasTrainingDay = allTrainingDays.has(dateStr)
                   const showAsRed = explicitlyAbsent || (wasTrainingDay && !attended && dateStr < todayStr)
-                  const bg = attended ? '#1D9E75' : showAsRed ? '#E24B4A' : 'transparent'
-                  const fg = attended || showAsRed ? '#fff' : 'var(--text-secondary)'
                   const jsDay = new Date(year, month, d).getDay()
                   const classesToday = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay))
+                  // Light green = attended some but not all of the
+                  // classes possible that day; dark green = attended
+                  // everything possible that day.
+                  const attendedCountToday = (attendedClassIdsByDate[dateStr] || new Set()).size
+                  const possibleCountToday = Math.max(classesToday.length, 1)
+                  const isPartialAttendance = attended && attendedCountToday > 0 && attendedCountToday < possibleCountToday
+                  const bg = attended ? (isPartialAttendance ? '#8ED1B0' : '#1D9E75') : showAsRed ? '#E24B4A' : 'transparent'
+                  const fg = attended || showAsRed ? '#fff' : 'var(--text-secondary)'
                   const pdpItemsToday = allPdpEntries.filter(e => e.date === dateStr)
                   const eventsToday = clubEvents.filter(e => e.event_date === dateStr)
                   return (
