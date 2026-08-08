@@ -1685,7 +1685,17 @@ export default function AthleteApp() {
         else if (override?.type === 'percent' && override.value && baseWeight) targetWeight = (baseWeight * (1 + parseFloat(override.value))).toFixed(1)
         return (
       <div className="card" style={{ padding: 0, marginBottom: 14 }}>
-        <div style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)' }}>Profile</div>
+        <div onClick={() => setMyProfileExpanded(v => !v)}
+          style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
+          <span>Profile</span>
+          <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{myProfileExpanded ? '▲' : '▼'}</span>
+        </div>
+        <div style={{
+          maxHeight: myProfileExpanded ? 600 : 0,
+          opacity: myProfileExpanded ? 1 : 0,
+          overflow: 'hidden',
+          transition: 'max-height 0.3s ease, opacity 0.25s ease',
+        }}>
         {[
           ['Club', student.discipline || '—'],
           ...(student.is_kr ? [['Discipline', student.discipline_codes || '—']] : []),
@@ -1703,7 +1713,7 @@ export default function AthleteApp() {
           const isWeightRow = label === 'Weight'
           const isOverTarget = isWeightRow && target && student.weight_kg != null && parseFloat(student.weight_kg) > parseFloat(target)
           return (
-          <div key={label} onClick={isWeightRow ? () => { setTab('fit2fight'); setResultsGraphSection(0) } : undefined}
+          <div key={label} onClick={isWeightRow ? e => { e.stopPropagation(); setTab('fit2fight'); setResultsGraphSection(0) } : undefined}
             style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 14px', borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13, cursor: isWeightRow ? 'pointer' : 'default' }}>
             <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1713,6 +1723,7 @@ export default function AthleteApp() {
           </div>
           )
         })}
+        </div>
       </div>
         )
       })()}
@@ -1734,38 +1745,6 @@ export default function AthleteApp() {
         <div>
           {student ? (
             <>
-              {/* Read-only Profile card -- collapsed to just the title
-                  bar by default, click anywhere on it to slide the
-                  details into view, click again (or the arrow) to hide. */}
-              <div className="card" style={{ padding: 0, marginBottom: 14 }}>
-                <div onClick={() => setMyProfileExpanded(v => !v)}
-                  style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
-                  <span>Profile</span>
-                  <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{myProfileExpanded ? '▲' : '▼'}</span>
-                </div>
-                <div style={{
-                  maxHeight: myProfileExpanded ? 600 : 0,
-                  opacity: myProfileExpanded ? 1 : 0,
-                  overflow: 'hidden',
-                  transition: 'max-height 0.3s ease, opacity 0.25s ease',
-                }}>
-                  {[
-                    { label: 'Club', value: student.discipline || '—' },
-                    ...(student.is_kr ? [{ label: 'Discipline', value: student.discipline_codes || '—' }] : []),
-                    { label: student.discipline === 'KRBA' ? 'Level' : student.is_kr ? 'Experience' : 'Grade',
-                      value: student.discipline === 'KRBA' ? (student.krba_level || '—') : student.is_kr ? (student.competition_team || '—') : (student.pka_belt || '—') },
-                    { label: 'Record', value: `${student.wins || 0}W ${student.losses || 0}L ${student.draws || 0}D` },
-                    ...(student.weight_kg ? [{ label: 'Weight', value: `${student.weight_kg} kg` }] : []),
-                    ...(student.is_kr || student.discipline === 'KRBA' ? [{ label: 'Competition status', value: student.in_comp ? 'In comp' : 'Out of comp' }] : []),
-                    { label: 'Groups', value: [student.is_kr && 'KR', student.is_pts && 'PTs', student.is_leader && 'Leader', student.is_coach && 'Coach'].filter(Boolean).join(', ') || 'None' },
-                  ].map(({ label, value }, i, arr) => (
-                    <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 14px', borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13 }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
-                      <span style={{ fontWeight: 500 }}>{value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
 
               {(() => {
                try {
