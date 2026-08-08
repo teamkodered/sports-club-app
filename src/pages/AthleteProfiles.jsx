@@ -1892,6 +1892,10 @@ export default function AthleteProfiles() {
     pdp:          { from: todayStr0, to: todayStr0, scope: 'both' },
   })
   const [showSetDatePopup, setShowSetDatePopup] = useState(null) // card key, or null
+  // Whether each summary card's Target/Set date/Log controls are
+  // expanded -- collapsed by default, toggled by clicking the
+  // percentage/count/date-range area of that card.
+  const [expandedSummaryCards, setExpandedSummaryCards] = useState({})
   const [groupLoggerSection, setGroupLoggerSection] = useState('')
   const [groupLoggerQuestion, setGroupLoggerQuestion] = useState('')
   const [groupLoggerType, setGroupLoggerType] = useState('')
@@ -3806,28 +3810,44 @@ export default function AthleteProfiles() {
                           <span style={{ fontSize: 16 }}>{c.icon}</span>
                           <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{c.label}</span>
                         </span>
-                        <span style={{ fontSize: 18, fontWeight: 700, color: colour }}>{c.pct}%</span>
-                        <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{c.count}/{teamCount}</span>
-                        {cardDateSettings[c.key].from !== todayStr0 || cardDateSettings[c.key].to !== todayStr0 ? (
-                          <span style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>
-                            {new Date(cardDateSettings[c.key].from).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – {new Date(cardDateSettings[c.key].to).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                          </span>
-                        ) : null}
-                        {targets.map(t => (
-                          <span key={t.id} style={{ fontSize: 10, color: '#EF9F27', display: 'flex', alignItems: 'center', gap: 4 }}>
-                            🎯 {t.preset_label ? `${t.preset_label}: ` : ''}{t.target_value}
-                            <button onClick={() => deleteTeamTarget(t.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 11, padding: 0 }}>✕</button>
-                          </span>
-                        ))}
-                        <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => {
-                          setNewTargetSection(c.key); setNewTargetQuestion(''); setShowAddTarget(true)
-                        }}>{targets.length ? '+ Add another target' : '+ Target'}</button>
-                        <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => setShowSetDatePopup(c.key)}>📅 Set date</button>
-                        <button className="btn btn-sm btn-primary" style={{ fontSize: 10 }} onClick={() => {
-                          if (c.key === 'all_sessions') navigate('/registers')
-                          else if (c.key === 'pdp') setDashboardTab('pdp')
-                          else if (c.key === 'f2f_sessions') setShowGroupLogger(true)
-                        }}>+ Log</button>
+                        {/* Click the pct/count/date-range area to reveal
+                            the Target/Set date/Log controls below -- kept
+                            separate from the icon+label click above, which
+                            still navigates to that tab as before. */}
+                        <div
+                          onClick={() => setExpandedSummaryCards(prev => ({ ...prev, [c.key]: !prev[c.key] }))}
+                          style={{ display: 'flex', flexDirection: 'column', cursor: 'pointer' }}>
+                          <span style={{ fontSize: 18, fontWeight: 700, color: colour }}>{c.pct}%</span>
+                          <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{c.count}/{teamCount}</span>
+                          {cardDateSettings[c.key].from !== todayStr0 || cardDateSettings[c.key].to !== todayStr0 ? (
+                            <span style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>
+                              {new Date(cardDateSettings[c.key].from).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – {new Date(cardDateSettings[c.key].to).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                            </span>
+                          ) : null}
+                        </div>
+                        <div style={{
+                          display: 'flex', flexDirection: 'column', gap: 6,
+                          maxHeight: expandedSummaryCards[c.key] ? 300 : 0,
+                          opacity: expandedSummaryCards[c.key] ? 1 : 0,
+                          overflow: 'hidden',
+                          transition: 'max-height 0.25s ease, opacity 0.2s ease',
+                        }}>
+                          {targets.map(t => (
+                            <span key={t.id} style={{ fontSize: 10, color: '#EF9F27', display: 'flex', alignItems: 'center', gap: 4 }}>
+                              🎯 {t.preset_label ? `${t.preset_label}: ` : ''}{t.target_value}
+                              <button onClick={() => deleteTeamTarget(t.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 11, padding: 0 }}>✕</button>
+                            </span>
+                          ))}
+                          <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => {
+                            setNewTargetSection(c.key); setNewTargetQuestion(''); setShowAddTarget(true)
+                          }}>{targets.length ? '+ Add another target' : '+ Target'}</button>
+                          <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => setShowSetDatePopup(c.key)}>📅 Set date</button>
+                          <button className="btn btn-sm btn-primary" style={{ fontSize: 10 }} onClick={() => {
+                            if (c.key === 'all_sessions') navigate('/registers')
+                            else if (c.key === 'pdp') setDashboardTab('pdp')
+                            else if (c.key === 'f2f_sessions') setShowGroupLogger(true)
+                          }}>+ Log</button>
+                        </div>
                         {showAddTarget && newTargetSection === c.key && newTargetQuestion === '' && renderInlineTargetForm()}
                       </div>
                     )
