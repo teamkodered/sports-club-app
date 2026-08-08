@@ -1729,6 +1729,28 @@ export default function AthleteApp() {
                   return count
                 }
                 const possibleSessions = relevantAssigned.reduce((sum, a) => sum + countWeekdayOccurrences(a.classes?.day_of_week, earliestDate, a.classes?.id), 0)
+                // Distinct (date, class) slots attended, matched against
+                // this scope's assigned classes -- not distinct days.
+                // A Monday with 2 of the athlete's classes is 2 possible
+                // sessions, so attending only one should show 1/2, and
+                // attending both should show 2/2 -- neither of which
+                // "distinct days attended" alone could ever represent,
+                // since that maxes out at 1 regardless of how many
+                // classes happened that day.
+                const relevantClassIds = new Set(relevantAssigned.map(a => a.classes?.id).filter(Boolean))
+                const claimedByDate = {}
+                let attendedDayCount = 0
+                for (const a of attendanceData) {
+                  if (a.class_id && relevantClassIds.has(a.class_id)) {
+                    const key = `${a.session_date}::${a.class_id}`
+                    if (!claimedByDate[key]) { claimedByDate[key] = true; attendedDayCount++ }
+                  } else if (!a.class_id) {
+                    // Legacy row from before class_id existed -- credit it
+                    // to that date at most once, best-effort for old data.
+                    const key = `${a.session_date}::none`
+                    if (!claimedByDate[key]) { claimedByDate[key] = true; attendedDayCount++ }
+                  }
+                }
 
                 const modules = [
                   { key: 'running',    label: 'Running',       icon: '🏃' },
@@ -1777,8 +1799,8 @@ export default function AthleteApp() {
                           <div onClick={() => setAttendanceDisplayPct(v => !v)} title="Tap to toggle percentage/numbers"
                             style={{ fontSize: 19, fontWeight: 700, color: colour, cursor: 'pointer' }}>
                             {attendanceDisplayPct
-                              ? `${possibleSessions ? Math.round((attendanceData.length / possibleSessions) * 100) : 0}%`
-                              : `${attendanceData.length}/${possibleSessions || attendanceData.length}`}
+                              ? `${possibleSessions ? Math.round((attendedDayCount / possibleSessions) * 100) : 0}%`
+                              : `${attendedDayCount}/${possibleSessions || attendedDayCount}`}
                           </div>
                           <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>{scopeLabel}</div>
                         </div>

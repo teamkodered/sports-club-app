@@ -12,7 +12,8 @@ export default function CheckIn() {
   const [checking, setChecking]     = useState(null) // student being checked in
   const [mode, setMode]             = useState('attended') // attended | weight
   const [weight, setWeight]         = useState('')
-  const [todaysSession, setTodaysSession] = useState(null) // today's fit2fight_sessions row, if any
+  const [todaysSession, setTodaysSession] = useState(null) // today's OPEN (not yet weighed out) fit2fight_sessions row, if any
+  const [todaysLog, setTodaysLog]     = useState([]) // every attendance/session entry already logged today for this student
   const [saving, setSaving]         = useState(false)
   const [confirmed, setConfirmed]   = useState(null)
   const [date]                      = useState(new Date().toISOString().split('T')[0])
@@ -50,18 +51,36 @@ export default function CheckIn() {
   }
 
   function selectStudent(s) {
-    // If already checked in, cycle through modes
-    // If already confirmed this session, move to next mode
+    // Every field here resets fresh per selection -- this is what makes
+    // checking in for a second (or third) class on the same day work
+    // cleanly: nothing carries over from an earlier class today except
+    // the informational "already logged today" list below.
     setChecking(s)
     setMode('attended')
     setWeight('')
     setSearch('')
     setResults([])
     setTodaysSession(null)
-    supabase.from('fit2fight_sessions').select('id, weight_before, weight_after')
+    setTodaysLog([])
+    // Pull every attendance/weight entry already logged today for this
+    // student, purely for visibility -- lets staff see at a glance that
+    // e.g. "Attended 4:58pm" already happened before logging a second,
+    // separate class, rather than wondering if they're duplicating.
+    supabase.from('attendance').select('attendance_type, attended_at')
       .eq('student_id', s.id).eq('session_date', date)
-      .order('created_at', { ascending: false }).limit(1)
-      .then(({ data }) => setTodaysSession(data?.[0] || null))
+      .order('attended_at', { ascending: true })
+      .then(({ data }) => setTodaysLog(data || []))
+    // For weigh-out, target the most recent session that hasn't been
+    // weighed out yet (not just "the latest session overall") -- this
+    // is what lets weigh-in/weigh-out cycle correctly across more than
+    // one class in a day instead of always landing on the same row.
+    supabase.from('fit2fight_sessions').select('id, weight_before, weight_after, created_at')
+      .eq('student_id', s.id).eq('session_date', date)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        const open = (data || []).find(row => row.weight_before != null && row.weight_after == null)
+        setTodaysSession(open || data?.[0] || null)
+      })
   }
 
   async function checkIn(attendMode) {
@@ -127,6 +146,8 @@ export default function CheckIn() {
     setSaving(false)
     setTimeout(() => { setConfirmed(null); inputRef.current?.focus() }, 2500)
   }
+
+  const ATTENDANCE_TYPE_LABEL = { attended: '✓ Attended', full_kit: '✓ Full Kit' }
 
   return (
     <div style={{ maxWidth: 520, margin: '0 auto' }}>
@@ -225,6 +246,22 @@ export default function CheckIn() {
               <h2 style={{ fontSize: 17, fontWeight: 600 }}>{checking.members?.first_name} {checking.members?.last_name}</h2>
               <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{checking.student_ref} · {checking.members?.houses?.name}</p>
             </div>
+
+            {/* Shows what's already been logged today so staff can see at
+                a glance whether this is a first check-in or an additional
+                one for a second class -- nothing here blocks logging
+                another entry, it's purely informational. */}
+            {todaysLog.length > 0 && (
+              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', marginBottom: 14, fontSize: 12 }}>
+                <div style={{ fontWeight: 600, marginBottom: 4, color: 'var(--text-secondary)' }}>Already logged today:</div>
+                {todaysLog.map((a, i) => (
+                  <div key={i} style={{ color: 'var(--text-tertiary)' }}>
+                    {ATTENDANCE_TYPE_LABEL[a.attendance_type] || a.attendance_type}
+                    {a.attended_at ? ` — ${new Date(a.attended_at).toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit' })}` : ''}
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Mode tabs */}
             <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 16 }}>

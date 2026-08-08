@@ -3375,7 +3375,7 @@ export default function AthleteProfiles() {
       .order('assessed_at', { ascending: false }).limit(2)
       .then(({ data }) => { if (selectingIdRef.current === s.id) setTptData(prev => ({ ...prev, boxing: data || [] })) })
     // Load attendance history + coach points for the Sessions tab
-    supabase.from('attendance').select('id, session_date, attendance_type, attended_at, note')
+    supabase.from('attendance').select('id, session_date, attendance_type, attended_at, note, class_id')
       .eq('student_id', s.id).neq('attendance_type', 'absent').neq('attendance_type', 'excused')
       .order('session_date', { ascending: false })
       .then(({ data, error }) => { if (!error && selectingIdRef.current === s.id) setAttendanceData(data || []) })
@@ -6041,28 +6041,45 @@ export default function AthleteProfiles() {
               const rangeFrom = useAthleteRange ? attSettings.from : todayStr0
               const rangeTo = useAthleteRange ? attSettings.to : todayStr0
 
-              // Accurate "possible sessions" -- based on this athlete's
-              // actual assigned classes (same source of truth the
-              // calendar uses), not a loose club-wide proxy. Excludes
-              // holiday-closed dates.
-              const assignedWeekdaysForStats = new Set(assignedClasses.flatMap(a => DAY_TO_JS_DAYS[a.classes?.day_of_week] || []))
-              const classIdsByWeekday = {}
+              // "Possible sessions" counted per assigned CLASS occurrence,
+              // not per weekday -- a Monday with two of the athlete's
+              // classes on it is 2 possible sessions, not 1. Matches how
+              // attendance is now tracked per class (via class_id) rather
+              // than just per day, so attending only one of two classes
+              // on the same day correctly shows as 1/2, not 1/1.
+              const possibleSessionKeys = new Set() // "date::class_id"
               for (const a of assignedClasses) {
-                for (const wd of (DAY_TO_JS_DAYS[a.classes?.day_of_week] || [])) {
-                  (classIdsByWeekday[wd] ||= []).push(a.classes?.id)
+                const classId = a.classes?.id
+                const jsDays = DAY_TO_JS_DAYS[a.classes?.day_of_week] || []
+                if (!jsDays.length) continue
+                for (let d = new Date(rangeFrom + 'T12:00:00'); d <= new Date(rangeTo + 'T12:00:00'); d.setDate(d.getDate() + 1)) {
+                  if (!jsDays.includes(d.getDay())) continue
+                  const dateStr = d.toISOString().split('T')[0]
+                  if (dateStr > todayStr0) continue
+                  if (isDateOnHoliday(dateStr, holidays, classId ? [classId] : [])) continue
+                  possibleSessionKeys.add(`${dateStr}::${classId || 'none'}`)
                 }
               }
-              const possibleDates = []
-              for (let d = new Date(rangeFrom + 'T12:00:00'); d <= new Date(rangeTo + 'T12:00:00'); d.setDate(d.getDate() + 1)) {
-                const jsDay = d.getDay()
-                if (!assignedWeekdaysForStats.has(jsDay)) continue
-                const dateStr = d.toISOString().split('T')[0]
-                if (dateStr > todayStr0) continue
-                if (isDateOnHoliday(dateStr, holidays, classIdsByWeekday[jsDay])) continue
-                possibleDates.push(dateStr)
+              const possibleSessions = possibleSessionKeys.size
+              const possibleDatesSet = new Set([...possibleSessionKeys].map(k => k.split('::')[0]))
+              const scopedAttendanceData = attendanceData.filter(a => possibleDatesSet.has(a.session_date))
+
+              // Match each attendance row to a specific possible slot.
+              // Rows logged with a class_id (everything going forward)
+              // match precisely; older rows logged before class_id
+              // existed fall back to claiming any of that date's
+              // still-unclaimed slots, best-effort for historical data.
+              const attendedSessionKeys = new Set()
+              for (const a of scopedAttendanceData) {
+                const exactKey = a.class_id ? `${a.session_date}::${a.class_id}` : null
+                if (exactKey && possibleSessionKeys.has(exactKey)) {
+                  attendedSessionKeys.add(exactKey)
+                } else {
+                  const fallbackKey = [...possibleSessionKeys].find(k => k.startsWith(a.session_date + '::') && !attendedSessionKeys.has(k))
+                  if (fallbackKey) attendedSessionKeys.add(fallbackKey)
+                }
               }
-              const possibleSessions = possibleDates.length
-              const scopedAttendanceData = attendanceData.filter(a => possibleDates.includes(a.session_date))
+              const scopedAttendedDayCount = attendedSessionKeys.size
 
               // Distinct sub-types this athlete actually has logged for a module,
               // used to drive the hold-to-cycle options on each card
@@ -6113,8 +6130,8 @@ export default function AthleteProfiles() {
                       <div onClick={() => setAttendanceDisplayPct(v => !v)} title="Click to toggle percentage/numbers"
                         style={{ fontSize: 19, fontWeight: 700, color: colour, cursor: 'pointer' }}>
                         {attendanceDisplayPct
-                          ? `${possibleSessions ? Math.round((scopedAttendanceData.length / possibleSessions) * 100) : 0}%`
-                          : `${scopedAttendanceData.length}/${possibleSessions || scopedAttendanceData.length}`}
+                          ? `${possibleSessions ? Math.round((scopedAttendedDayCount / possibleSessions) * 100) : 0}%`
+                          : `${scopedAttendedDayCount}/${possibleSessions || scopedAttendedDayCount}`}
                       </div>
                       <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>Assigned sessions</div>
                     </div>
