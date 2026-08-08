@@ -1855,25 +1855,21 @@ export default function AthleteApp() {
                 return (
                   <>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 8 }}>
-                      <div className="card" style={{ textAlign: 'center', padding: '10px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, background: 'var(--bg-secondary)' }}>
-                        <button onClick={() => setF2fStatsScope(v => v - 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4, appearance: 'none', WebkitAppearance: 'none', fontFamily: 'var(--font-sans)' }}>◀</button>
-                        <div style={{ flex: 1 }}>
-                          <button onClick={() => setTab('sessions')} title="View Sessions tab"
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, marginBottom: 2, padding: 0, fontFamily: 'var(--font-sans)', appearance: 'none', WebkitAppearance: 'none' }}>✅</button>
-                          <div onClick={() => setAttendanceDisplayPct(v => !v)} title="Tap to toggle percentage/numbers"
-                            style={{ fontSize: 19, fontWeight: 700, color: colour, cursor: 'pointer' }}>
-                            {attendanceDisplayPct
-                              ? `${possibleSessions ? Math.round((attendedDayCount / possibleSessions) * 100) : 0}%`
-                              : `${attendedDayCount}/${possibleSessions || attendedDayCount}`}
-                          </div>
-                          <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>{scopeLabel}</div>
-                          {coachAttendanceDateSettings && (
-                            <div style={{ fontSize: 8, color: 'var(--text-tertiary)' }}>
-                              {new Date(coachAttendanceDateSettings.from).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – {new Date(coachAttendanceDateSettings.to).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                            </div>
-                          )}
+                      <div className="card" style={{ textAlign: 'center', padding: '10px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, background: 'var(--bg-secondary)' }}>
+                        <button onClick={() => setTab('sessions')} title="View Sessions tab"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, marginBottom: 2, padding: 0, fontFamily: 'var(--font-sans)', appearance: 'none', WebkitAppearance: 'none' }}>✅</button>
+                        <div onClick={() => setAttendanceDisplayPct(v => !v)} title="Tap to toggle percentage/numbers"
+                          style={{ fontSize: 19, fontWeight: 700, color: colour, cursor: 'pointer' }}>
+                          {attendanceDisplayPct
+                            ? `${possibleSessions ? Math.round((attendedDayCount / possibleSessions) * 100) : 0}%`
+                            : `${attendedDayCount}/${possibleSessions || attendedDayCount}`}
                         </div>
-                        <button onClick={() => setF2fStatsScope(v => v + 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4, appearance: 'none', WebkitAppearance: 'none', fontFamily: 'var(--font-sans)' }}>▶</button>
+                        <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>Assigned sessions</div>
+                        {coachAttendanceDateSettings && (
+                          <div style={{ fontSize: 8, color: 'var(--text-tertiary)' }}>
+                            {new Date(coachAttendanceDateSettings.from).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – {new Date(coachAttendanceDateSettings.to).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                          </div>
+                        )}
                       </div>
                       <a href={`/fit2fight?student_id=${student.id}`} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', textDecoration: 'none', color: 'inherit', display: 'block' }}>
                         <div style={{ fontSize: 22, marginBottom: 4 }}>🔥</div>
