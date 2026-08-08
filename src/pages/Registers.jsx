@@ -341,11 +341,27 @@ export default function Registers() {
       switch(sortKey) {
         case 'first_name':   aVal = am?.first_name || ''; bVal = bm?.first_name || ''; break
         case 'last_name':    aVal = am?.last_name || '';  bVal = bm?.last_name || '';  break
-        case 'first_name':   aVal = am?.first_name || ''; bVal = bm?.first_name || ''; break
         case 'age':          aVal = am?.date_of_birth || ''; bVal = bm?.date_of_birth || ''; break
         case 'house':        aVal = am?.houses?.name || ''; bVal = bm?.houses?.name || ''; break
         case 'grade':        aVal = a.pka_belt || ''; bVal = b.pka_belt || ''; break
         case 'house_points': aVal = a.house_points || 0; bVal = b.house_points || 0; return sortDir === 'asc' ? aVal - bVal : bVal - aVal
+        case 'competition_team':  aVal = a.competition_team || ''; bVal = b.competition_team || ''; break
+        case 'discipline_codes':  aVal = a.discipline_codes || ''; bVal = b.discipline_codes || ''; break
+        case 'weight_kg':    aVal = a.weight_kg || 0; bVal = b.weight_kg || 0; return sortDir === 'asc' ? aVal - bVal : bVal - aVal
+        case 'age_category_kr':   aVal = a.age_category_kr || a.age_category || ''; bVal = b.age_category_kr || b.age_category || ''; break
+        case 'in_comp':      aVal = a.in_comp ? 1 : 0; bVal = b.in_comp ? 1 : 0; return sortDir === 'asc' ? aVal - bVal : bVal - aVal
+        // "Record" sorts by wins -- the clearest single number to rank by
+        // out of wins/losses/draws
+        case 'wins':         aVal = a.wins || 0; bVal = b.wins || 0; return sortDir === 'asc' ? aVal - bVal : bVal - aVal
+        case 'groups': {
+          const g = x => [x.is_kr && 'KR', x.is_pts && 'PTs', x.is_leader && 'Leader', x.is_coach && 'Coach'].filter(Boolean).join(',')
+          aVal = g(a); bVal = g(b); break
+        }
+        case 'attendance': {
+          const rank = id => { const v = attendance[id]; return v === 'full_kit' ? 2 : v === 'attended' ? 1 : 0 }
+          aVal = rank(a.id); bVal = rank(b.id); return sortDir === 'asc' ? aVal - bVal : bVal - aVal
+        }
+        case 'media_restriction': aVal = a.media_restriction || ''; bVal = b.media_restriction || ''; break
         default:             aVal = ''; bVal = ''
       }
       return sortDir === 'asc' ? String(aVal).localeCompare(String(bVal)) : String(bVal).localeCompare(String(aVal))
@@ -875,29 +891,38 @@ export default function Registers() {
                 {visibleCols.includes('house')       && <SortTh col="house" label="House" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
                 {visibleCols.includes('grade')       && <SortTh col="grade" label="Grade" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
                 {visibleCols.includes('class_time')  && <th>Class time</th>}
-                {isKR && <><th>Experience</th><th>Discipline</th><th>Weight</th><th>Age cat.</th></>}
+                {isKR && <>
+                  <SortTh col="competition_team" label="Experience" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                  <SortTh col="discipline_codes" label="Discipline" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                  <SortTh col="weight_kg" label="Weight" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                  <SortTh col="age_category_kr" label="Age cat." sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                </>}
                 {(regType === 'kr' || regType === 'krba') && (() => {
                   const inCount = displayStudents.filter(s => s.in_comp).length
                   const outCount = displayStudents.length - inCount
                   return (
-                    <th style={{ textAlign: 'center' }}>
-                      <div>In comp</div>
-                      <div style={{ fontSize: 9, fontWeight: 400, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>{inCount} in · {outCount} out</div>
-                    </th>
+                    <SortTh col="in_comp" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} style={{ textAlign: 'center' }}
+                      label={<>
+                        <div>In comp</div>
+                        <div style={{ fontSize: 9, fontWeight: 400, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>{inCount} in · {outCount} out</div>
+                      </>} />
                   )
                 })()}
-                {(regType === 'kr' || regType === 'krba') && <th style={{ textAlign: 'center' }}>Record</th>}
-                {visibleCols.includes('groups')      && <th>Groups</th>}
-                {visibleCols.includes('attendance')  && <th style={{ textAlign: 'center' }}>
-                  <div>Attend.</div>
-                  <div style={{ fontSize: 9, fontWeight: 400, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>
-                    ✓{Object.keys(attendance).filter(id => attendance[id] && attendance[id] !== 'none').length}/{displayStudents.length}
-                    {' '}kit:{Object.values(attendance).filter(v => v === 'full_kit').length}
-                  </div>
-                </th>}
+                {(regType === 'kr' || regType === 'krba') && <SortTh col="wins" label="Record" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} style={{ textAlign: 'center' }} />}
+                {visibleCols.includes('groups')      && <SortTh col="groups" label="Groups" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
+                {visibleCols.includes('attendance')  && (
+                  <SortTh col="attendance" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} style={{ textAlign: 'center' }}
+                    label={<>
+                      <div>Attend.</div>
+                      <div style={{ fontSize: 9, fontWeight: 400, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>
+                        ✓{Object.keys(attendance).filter(id => attendance[id] && attendance[id] !== 'none').length}/{displayStudents.length}
+                        {' '}kit:{Object.values(attendance).filter(v => v === 'full_kit').length}
+                      </div>
+                    </>} />
+                )}
                 {regType === 'krba' && <th style={{ textAlign: 'center' }}>Weight (in → out)</th>}
                 {visibleCols.includes('champ')       && <th style={{ textAlign: 'center' }}>🏆</th>}
-                {visibleCols.includes('media')       && <th style={{ textAlign: 'center' }}>Media</th>}
+                {visibleCols.includes('media')       && <SortTh col="media_restriction" label="Media" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} style={{ textAlign: 'center' }} />}
                 {visibleCols.includes('points')      && <SortTh col="house_points" label="Pts" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} style={{ textAlign: 'center' }} />}
                 {isAdmin && <th></th>}
               </tr>
