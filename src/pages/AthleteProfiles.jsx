@@ -2302,10 +2302,10 @@ export default function AthleteProfiles() {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [showNameDropdown])
 
-  // Athlete header card starts collapsed to just the name -- expanding
-  // shows the avatar, discipline/house/points details, and action
-  // buttons. Closes again on a second press of the arrow, or on
-  // clicking anywhere outside the card.
+  // The "Profile" card (Club, Level/Grade, Record, Weight, etc.) starts
+  // collapsed to just its title bar -- expanding shows the field list.
+  // Closes again on a second press, or on clicking anywhere outside
+  // the card.
   const [profileInfoExpanded, setProfileInfoExpanded] = useState(false)
   const profileHeaderRef = useRef(null)
   useEffect(() => {
@@ -5832,101 +5832,83 @@ export default function AthleteProfiles() {
             </div>
 
             {/* Athlete header */}
-            <div ref={profileHeaderRef} className="card swipe-zone" style={{ marginBottom: 12, borderLeft: `3px solid ${colour}`, borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0' }}>
-              {/* Always-visible title bar -- press the arrow to slide the
-                  rest of the profile info into view, press again (or
-                  click outside the card) to hide it. */}
-              <div onClick={() => setProfileInfoExpanded(v => !v)} title={profileInfoExpanded ? 'Hide profile info' : 'Show profile info'}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                {positionInHouse > 0 && (
-                  <button onClick={e => { e.stopPropagation(); setShowOverallPos(v => !v) }}
-                    title={showOverallPos ? 'Showing overall position — click for position in house' : 'Showing position in house — click for overall position'}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 13, fontWeight: 700, color: colour }}>
-                    #{showOverallPos ? overallPosition : positionInHouse}
-                  </button>
-                )}
-                <div ref={nameDropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
-                  <button onClick={e => { e.stopPropagation(); setShowNameDropdown(v => !v) }} title="Click to switch athlete"
-                    style={{ fontSize: 21, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-sans)', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    {m?.first_name} {m?.last_name} <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{showNameDropdown ? '▲' : '▼'}</span>
-                  </button>
-                  {showNameDropdown && (
-                    <div className="card" onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: '100%', left: 0, zIndex: 20, width: '100%', minWidth: 220, marginTop: 4, padding: 8, maxHeight: 320, overflowY: 'auto' }}>
-                      <input value={nameDropdownSearch} onChange={e => setNameDropdownSearch(e.target.value)}
-                        placeholder="Search athletes…" autoFocus style={{ width: '100%', fontSize: 13, marginBottom: 6 }} />
-                      {athletes
-                        .filter(s => !nameDropdownSearch || `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.toLowerCase().includes(nameDropdownSearch.toLowerCase()))
-                        .map(s => (
-                          <button key={s.id} onClick={() => { selectStudent(s); setShowNameDropdown(false); setNameDropdownSearch('') }}
-                            style={{
-                              display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', borderRadius: 6, fontSize: 13,
-                              background: s.id === selected.id ? colour + '15' : 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', fontFamily: 'var(--font-sans)',
-                            }}>
-                            {s.members?.first_name} {s.members?.last_name}
-                          </button>
-                        ))}
-                    </div>
-                  )}
+            <div className="card swipe-zone" style={{ marginBottom: 12, borderLeft: `3px solid ${colour}`, borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div style={{ width: 64, height: 64, borderRadius: '50%', background: colour + '22', color: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 700, flexShrink: 0 }}>
+                  {initials}
                 </div>
-                <span style={{ marginLeft: 'auto', fontSize: 14, color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center' }}>
-                  {profileInfoExpanded ? '▲' : '▼'}
-                </span>
-              </div>
-
-              <div style={{
-                maxHeight: profileInfoExpanded ? 600 : 0,
-                opacity: profileInfoExpanded ? 1 : 0,
-                overflow: 'hidden',
-                transition: 'max-height 0.3s ease, opacity 0.25s ease',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 14 }}>
-                  <div style={{ width: 64, height: 64, borderRadius: '50%', background: colour + '22', color: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 700, flexShrink: 0 }}>
-                    {initials}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
-                      {selected.discipline}{age ? ` · Age ${age}` : ''}
-                      {selected.pka_belt || selected.krba_level ? ` · ${selected.pka_belt || selected.krba_level}` : ''}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-                      <div style={{
-                        display: 'flex', alignItems: 'center', gap: 6, background: colour + '15',
-                        border: `1px solid ${colour}35`, borderRadius: 20, padding: '4px 12px',
-                      }}>
-                        {houseRank > 0 && (
-                          <span style={{ background: colour, color: '#fff', borderRadius: '50%', width: 18, height: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
-                            {houseRank}
-                          </span>
-                        )}
-                        <span style={{ color: colour, fontWeight: 700, fontSize: 13 }}>{houseName || '—'}</span>
-                        {houseTotalPoints != null && <span style={{ color: colour, fontSize: 12, opacity: 0.75 }}>{houseTotalPoints} pts</span>}
-                      </div>
-                      {selected.house_points != null && (
-                        <button onClick={() => setShowContribution(v => !v)}
-                          title={showContribution ? 'Showing % contribution to house — click to show points' : 'Showing house points — click to show % contribution'}
-                          style={{
-                            background: 'var(--bg-secondary)', border: '1px solid var(--border-strong)', borderRadius: 20,
-                            padding: '4px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)',
-                          }}>
-                          {showContribution ? `${contributionPct ?? 0}% of house` : `⭐ ${selected.house_points} pts`}
-                        </button>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {positionInHouse > 0 && (
+                      <button onClick={() => setShowOverallPos(v => !v)}
+                        title={showOverallPos ? 'Showing overall position — click for position in house' : 'Showing position in house — click for overall position'}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 13, fontWeight: 700, color: colour }}>
+                        #{showOverallPos ? overallPosition : positionInHouse}
+                      </button>
+                    )}
+                    <div ref={nameDropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
+                      <button onClick={() => setShowNameDropdown(v => !v)} title="Click to switch athlete"
+                        style={{ fontSize: 21, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-sans)', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {m?.first_name} {m?.last_name} <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{showNameDropdown ? '▲' : '▼'}</span>
+                      </button>
+                      {showNameDropdown && (
+                        <div className="card" style={{ position: 'absolute', top: '100%', left: 0, zIndex: 20, width: '100%', minWidth: 220, marginTop: 4, padding: 8, maxHeight: 320, overflowY: 'auto' }}>
+                          <input value={nameDropdownSearch} onChange={e => setNameDropdownSearch(e.target.value)}
+                            placeholder="Search athletes…" autoFocus style={{ width: '100%', fontSize: 13, marginBottom: 6 }} />
+                          {athletes
+                            .filter(s => !nameDropdownSearch || `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.toLowerCase().includes(nameDropdownSearch.toLowerCase()))
+                            .map(s => (
+                              <button key={s.id} onClick={() => { selectStudent(s); setShowNameDropdown(false); setNameDropdownSearch('') }}
+                                style={{
+                                  display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', borderRadius: 6, fontSize: 13,
+                                  background: s.id === selected.id ? colour + '15' : 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', fontFamily: 'var(--font-sans)',
+                                }}>
+                                {s.members?.first_name} {s.members?.last_name}
+                              </button>
+                            ))}
+                        </div>
                       )}
                     </div>
                   </div>
+                  <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 3 }}>
+                    {selected.discipline}{age ? ` · Age ${age}` : ''}
+                    {selected.pka_belt || selected.krba_level ? ` · ${selected.pka_belt || selected.krba_level}` : ''}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 6, background: colour + '15',
+                      border: `1px solid ${colour}35`, borderRadius: 20, padding: '4px 12px',
+                    }}>
+                      {houseRank > 0 && (
+                        <span style={{ background: colour, color: '#fff', borderRadius: '50%', width: 18, height: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
+                          {houseRank}
+                        </span>
+                      )}
+                      <span style={{ color: colour, fontWeight: 700, fontSize: 13 }}>{houseName || '—'}</span>
+                      {houseTotalPoints != null && <span style={{ color: colour, fontSize: 12, opacity: 0.75 }}>{houseTotalPoints} pts</span>}
+                    </div>
+                    {selected.house_points != null && (
+                      <button onClick={() => setShowContribution(v => !v)}
+                        title={showContribution ? 'Showing % contribution to house — click to show points' : 'Showing house points — click to show % contribution'}
+                        style={{
+                          background: 'var(--bg-secondary)', border: '1px solid var(--border-strong)', borderRadius: 20,
+                          padding: '4px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)',
+                        }}>
+                        {showContribution ? `${contributionPct ?? 0}% of house` : `⭐ ${selected.house_points} pts`}
+                      </button>
+                    )}
+                  </div>
                 </div>
+              </div>
 
-                {/* Actions row -- moved below the name/house details so it fits better on mobile */}
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-                  {isAdmin && m?.status !== 'stopped' && (
-                    <button className="btn btn-sm" onClick={() => setShowInviteMenu(true)}>📨 Invite</button>
-                  )}
-                  {isAdmin && !editing && (
-                    <button className="btn btn-sm" onClick={() => setEditing(true)}>Edit profile</button>
-                  )}
-                  {isAdmin && (
-                    <button className="btn btn-sm" onClick={() => setTab('membership')} style={{ marginLeft: 'auto' }}>Membership</button>
-                  )}
-                </div>
+              {/* Actions row -- moved below the name/house details so it fits better on mobile */}
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                {isAdmin && m?.status !== 'stopped' && (
+                  <button className="btn btn-sm" onClick={() => setShowInviteMenu(true)}>📨 Invite</button>
+                )}
+                {isAdmin && (
+                  <button className="btn btn-sm" onClick={() => setTab('membership')} style={{ marginLeft: 'auto' }}>Membership</button>
+                )}
               </div>
             </div>
 
@@ -5987,11 +5969,26 @@ export default function AthleteProfiles() {
 
                   <div style={{ height: 4 }} />
 
-                  <div className="card" style={{ padding: 0, marginBottom: 14 }}>
-                    <div style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Profile</span>
-                      {isAdmin && <span style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 400 }}>Tap a field to edit</span>}
+                  <div ref={profileHeaderRef} className="card" style={{ padding: 0, marginBottom: 14 }}>
+                    <div onClick={() => setProfileInfoExpanded(v => !v)}
+                      style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        Profile
+                        {isAdmin && !editing && (
+                          <button onClick={e => { e.stopPropagation(); setEditing(true) }} className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }}>Edit profile</button>
+                        )}
+                      </span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {isAdmin && profileInfoExpanded && <span style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 400 }}>Tap a field to edit</span>}
+                        <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{profileInfoExpanded ? '▲' : '▼'}</span>
+                      </span>
                     </div>
+                    <div style={{
+                      maxHeight: profileInfoExpanded ? 2000 : 0,
+                      opacity: profileInfoExpanded ? 1 : 0,
+                      overflow: 'hidden',
+                      transition: 'max-height 0.3s ease, opacity 0.25s ease',
+                    }}>
                     {[
                       { label: 'Club', editable: true, render: () => isAdmin ? (
                         <select value={selected.discipline || ''} onChange={e => updateSelectedField('discipline', e.target.value)}
@@ -6144,6 +6141,7 @@ export default function AthleteProfiles() {
                         <span style={{ fontWeight: 500, textAlign: 'right' }}>{render()}</span>
                       </div>
                     ))}
+                    </div>
                   </div>
 
                   {apData && (
