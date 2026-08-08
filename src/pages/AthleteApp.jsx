@@ -1527,6 +1527,23 @@ export default function AthleteApp() {
     setWeightCheckValue('')
   }
 
+  // Backs out of whatever the weight-check prompt was for. For a check-in,
+  // that means actually undoing it -- the attendance row was already
+  // created the moment "Check in"/"Full Kit" was pressed, so cancelling
+  // here deletes it rather than leaving a stray record behind. For a
+  // check-out, nothing has been written yet at this point, so cancelling
+  // just closes the prompt and leaves the athlete still checked in.
+  async function cancelCheckInPrompt() {
+    if (showWeightCheckPrompt === 'in' && activeCheckIn) {
+      const { error } = await supabase.from('attendance').delete().eq('id', activeCheckIn.id)
+      if (error) { alert('Error cancelling check-in: ' + error.message); return }
+      setAttendanceData(prev => prev.filter(a => a.id !== activeCheckIn.id))
+      setActiveCheckIn(null)
+    }
+    setShowWeightCheckPrompt(null)
+    setWeightCheckValue('')
+  }
+
   async function submitWeightCheck(skip = false) {
     if (!activeCheckIn) { setShowWeightCheckPrompt(null); return }
     setCheckingIn(true)
@@ -3409,6 +3426,9 @@ export default function AthleteApp() {
               <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>kg</span>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn" style={{ flex: 1, justifyContent: 'center', color: 'var(--text-tertiary)' }} onClick={cancelCheckInPrompt} disabled={checkingIn}>
+                Cancel
+              </button>
               <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => submitWeightCheck(true)} disabled={checkingIn}>Skip</button>
               <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => submitWeightCheck(false)} disabled={checkingIn}>
                 {checkingIn ? 'Saving…' : 'Save'}
