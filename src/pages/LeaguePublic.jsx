@@ -77,7 +77,16 @@ export default function LeaguePublic() {
           houseTotals[info.house] = (houseTotals[info.house] || 0) + (r.points_awarded || 0)
         }
       }
-      const ranked = Object.values(map).sort((a, b) => b.total - a.total).slice(0, 50)
+      // Keep the FULL ranked list here -- do not slice to a top-N yet.
+      // Slicing here (as this used to do) would cut the pool down to
+      // (say) the club-wide top 50 BEFORE splitting by house, so any
+      // student who ranks well within their own house but outside the
+      // overall club-wide top 50 would vanish from their house's list
+      // entirely -- which is exactly why houses were showing fewer
+      // than their configured top-N. Each tab applies its own slice
+      // (topN for the Individual tab, houseTopN per house below) from
+      // this same full list, independently.
+      const ranked = Object.values(map).sort((a, b) => b.total - a.total)
       setIndividual(ranked)
 
       // House standings use session points (date-filtered) to match internal League page
