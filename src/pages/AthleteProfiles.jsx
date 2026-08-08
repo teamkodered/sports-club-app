@@ -1896,6 +1896,9 @@ export default function AthleteProfiles() {
   // expanded -- collapsed by default, toggled by clicking the
   // percentage/count/date-range area of that card.
   const [expandedSummaryCards, setExpandedSummaryCards] = useState({})
+  // Which per-question "Log result" athlete-picker dropdown is open, by
+  // subKey (`${section.key}::${sub.key}`), or null if none.
+  const [logResultDropdownFor, setLogResultDropdownFor] = useState(null)
   const [groupLoggerSection, setGroupLoggerSection] = useState('')
   const [groupLoggerQuestion, setGroupLoggerQuestion] = useState('')
   const [groupLoggerType, setGroupLoggerType] = useState('')
@@ -1905,6 +1908,14 @@ export default function AthleteProfiles() {
   const groupLoggerInputRefs = useRef({})
   const [groupLoggerDate, setGroupLoggerDate] = useState(() => new Date().toISOString().split('T')[0])
   const [groupLoggerSaving, setGroupLoggerSaving] = useState({}) // { [studentId-setIdx]: true } while saving that cell
+  // When set, the group logger only shows these athletes (from a
+  // per-question multi-select) instead of the whole team -- lets the
+  // per-question "Log result" flow open straight into a table scoped
+  // to just the athletes picked for that question.
+  const [groupLoggerRestrictIds, setGroupLoggerRestrictIds] = useState(null)
+  // Per-question multi-select state for the "Log result" picker below
+  // each question card: { [sectionKey::subKey]: Set of student ids }
+  const [questionLogSelection, setQuestionLogSelection] = useState({})
   const [weightTargetInCompDraft, setWeightTargetInCompDraft] = useState(null)
   const [weightTargetOutCompDraft, setWeightTargetOutCompDraft] = useState(null)
   const [dashLevelIndex, setDashLevelIndex] = useState(0)
@@ -3845,7 +3856,7 @@ export default function AthleteProfiles() {
                           <button className="btn btn-sm btn-primary" style={{ fontSize: 10 }} onClick={() => {
                             if (c.key === 'all_sessions') navigate('/registers')
                             else if (c.key === 'pdp') setDashboardTab('pdp')
-                            else if (c.key === 'f2f_sessions') setShowGroupLogger(true)
+                            else if (c.key === 'f2f_sessions') { setGroupLoggerRestrictIds(null); setShowGroupLogger(true) }
                           }}>+ Log</button>
                         </div>
                         {showAddTarget && newTargetSection === c.key && newTargetQuestion === '' && renderInlineTargetForm()}
@@ -4182,6 +4193,7 @@ export default function AthleteProfiles() {
                 const visibleStudents = students
                   .filter(s => s.members?.status === 'active')
                   .filter(s => s.is_kr || s.discipline === 'KRBA')
+                  .filter(s => !groupLoggerRestrictIds || groupLoggerRestrictIds.includes(s.id))
                   .filter(s => !groupLoggerSearch || `${s.members?.first_name} ${s.members?.last_name}`.toLowerCase().includes(groupLoggerSearch.toLowerCase()))
                   .sort((a, b) => `${a.members?.first_name} ${a.members?.last_name}`.localeCompare(`${b.members?.first_name} ${b.members?.last_name}`))
                 let count = 0
@@ -4205,9 +4217,15 @@ export default function AthleteProfiles() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         {groupLoggerSaveConfirm && <span style={{ fontSize: 12, color: 'var(--success)', fontWeight: 600 }}>{groupLoggerSaveConfirm}</span>}
                         {ready && <button className="btn btn-sm btn-primary" onClick={saveAllVisible}>💾 Save</button>}
-                        <button onClick={() => setShowGroupLogger(false)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
+                        <button onClick={() => { setShowGroupLogger(false); setGroupLoggerRestrictIds(null) }} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
                       </div>
                     </div>
+                    {groupLoggerRestrictIds && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, padding: '6px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)' }}>
+                        <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Showing {groupLoggerRestrictIds.length} selected athlete{groupLoggerRestrictIds.length === 1 ? '' : 's'}</span>
+                        <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => setGroupLoggerRestrictIds(null)}>Show whole team instead</button>
+                      </div>
+                    )}
                     <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
                       <input type="date" value={groupLoggerDate} onChange={e => setGroupLoggerDate(e.target.value)} style={{ flex: '0 0 140px' }} />
                       <select value={groupLoggerSection} onChange={e => { setGroupLoggerSection(e.target.value); setGroupLoggerQuestion(''); setGroupLoggerType('') }} style={{ flex: 1, minWidth: 110 }}>
@@ -4248,6 +4266,7 @@ export default function AthleteProfiles() {
                             {students
                               .filter(s => s.members?.status === 'active')
                               .filter(s => s.is_kr || s.discipline === 'KRBA')
+                              .filter(s => !groupLoggerRestrictIds || groupLoggerRestrictIds.includes(s.id))
                               .filter(s => !groupLoggerSearch || `${s.members?.first_name} ${s.members?.last_name}`.toLowerCase().includes(groupLoggerSearch.toLowerCase()))
                               .sort((a, b) => `${a.members?.first_name} ${a.members?.last_name}`.localeCompare(`${b.members?.first_name} ${b.members?.last_name}`))
                               .map(s => (
@@ -5192,6 +5211,82 @@ export default function AthleteProfiles() {
                                 setNewTargetSection(section.key); setNewTargetQuestion(sub.label); setShowAddTarget(true)
                               }}>{targets.length ? '+ Add another target' : '+ Set target'}</button>
                               {showAddTarget && newTargetSection === section.key && newTargetQuestion === sub.label && renderInlineTargetForm()}
+
+                              {/* Log result for this question, for one or
+                                  more athletes at once. For Physical
+                                  (Running/Watt Bike/Bodyweight) and Test
+                                  questions, selecting athletes here opens
+                                  the same bulk Group training session
+                                  logger used elsewhere, pre-scoped to this
+                                  exact question and restricted to just the
+                                  athletes ticked below. Other question
+                                  types (Wellbeing, Mentality, Technique,
+                                  Tactical, and the Physical sub-items not
+                                  covered by that logger) don't have a bulk
+                                  save path yet, so picking an athlete for
+                                  those still opens their own profile to
+                                  log it individually, same as before. */}
+                              {(() => {
+                                const bulkQuestion = section.key === 'test' ? sub.label
+                                  : (section.key === 'physical' && ['Running','Watt Bike','Bodyweight'].includes(sub.label)) ? sub.label
+                                  : null
+                                const bulkSection = section.key === 'test' ? 'Test' : section.key === 'physical' ? 'Physical' : null
+                                const selected = questionLogSelection[subKey] || new Set()
+                                const toggleOne = id => setQuestionLogSelection(prev => {
+                                  const next = new Set(prev[subKey] || [])
+                                  next.has(id) ? next.delete(id) : next.add(id)
+                                  return { ...prev, [subKey]: next }
+                                })
+                                return (
+                                  <div style={{ marginTop: 8 }}>
+                                    <button className="btn btn-sm" onClick={() => setLogResultDropdownFor(prev => prev === subKey ? null : subKey)}>
+                                      📝 Log result
+                                    </button>
+                                    {logResultDropdownFor === subKey && (
+                                      <div style={{ marginTop: 6 }}>
+                                        {!bulkQuestion && (
+                                          <p style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 4 }}>
+                                            Bulk logging isn't available for this question yet — pick an athlete to log it on their own profile instead.
+                                          </p>
+                                        )}
+                                        <div style={{ maxHeight: 180, overflowY: 'auto', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', background: 'var(--bg-secondary)' }}>
+                                          {teamAthletes.length === 0 ? (
+                                            <p style={{ fontSize: 11, color: 'var(--text-tertiary)', padding: 8 }}>No athletes in this group.</p>
+                                          ) : [...teamAthletes].sort((a, b) => (a.members?.first_name || '').localeCompare(b.members?.first_name || '')).map(ath => (
+                                            bulkQuestion ? (
+                                              <label key={ath.id} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '6px 10px', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 12, color: 'var(--text)' }}>
+                                                <input type="checkbox" checked={selected.has(ath.id)} onChange={() => toggleOne(ath.id)} />
+                                                {ath.members?.first_name} {ath.members?.last_name}
+                                              </label>
+                                            ) : (
+                                              <button key={ath.id} type="button"
+                                                onClick={() => { setLogResultDropdownFor(null); selectStudent(ath) }}
+                                                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 10px', background: 'none', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 12, color: 'var(--text)', fontFamily: 'var(--font-sans)' }}>
+                                                {ath.members?.first_name} {ath.members?.last_name}
+                                              </button>
+                                            )
+                                          ))}
+                                        </div>
+                                        {bulkQuestion && (
+                                          <button className="btn btn-sm btn-primary" style={{ marginTop: 6 }} disabled={selected.size === 0}
+                                            onClick={() => {
+                                              setGroupLoggerRestrictIds([...selected])
+                                              setGroupLoggerSection(bulkSection)
+                                              setGroupLoggerQuestion(bulkQuestion)
+                                              setGroupLoggerType('')
+                                              setGroupLoggerSubType('')
+                                              setShowGroupLogger(true)
+                                              setLogResultDropdownFor(null)
+                                              setQuestionLogSelection(prev => ({ ...prev, [subKey]: new Set() }))
+                                            }}>
+                                            Log for {selected.size || 0} selected athlete{selected.size === 1 ? '' : 's'}
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              })()}
                             </div>
                           )
                         })}
