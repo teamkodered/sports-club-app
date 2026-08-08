@@ -6256,6 +6256,21 @@ export default function AthleteProfiles() {
               const rangeFrom = useAthleteRange ? attSettings.from : todayStr0
               const rangeTo = useAthleteRange ? attSettings.to : todayStr0
 
+              // Scope cycling (All sessions / this discipline / this
+              // specific class) -- mirrors the ◀▶ control on the
+              // athlete's own view exactly, using the same f2fStatsScope
+              // state so both sides stay in sync in behaviour (not
+              // shared state, just the same mechanic).
+              const scopeOptions = ['All sessions', selected.discipline, [selected.class_schedule, selected.class_time].filter(Boolean).join(' ')]
+                .filter(Boolean).filter((v, i, a) => a.indexOf(v) === i)
+              const scopeLen = scopeOptions.length || 1
+              const scopeLabel = scopeOptions[((f2fStatsScope % scopeLen) + scopeLen) % scopeLen] || 'All sessions'
+              const relevantAssigned = assignedClasses.filter(a => {
+                if (scopeLabel === 'All sessions') return true
+                if (scopeLabel === selected.discipline) return a.classes?.discipline === selected.discipline
+                return true
+              })
+
               // "Possible sessions" counted per assigned CLASS occurrence,
               // not per weekday -- a Monday with two of the athlete's
               // classes on it is 2 possible sessions, not 1. Matches how
@@ -6263,7 +6278,7 @@ export default function AthleteProfiles() {
               // than just per day, so attending only one of two classes
               // on the same day correctly shows as 1/2, not 1/1.
               const possibleSessionKeys = new Set() // "date::class_id"
-              for (const a of assignedClasses) {
+              for (const a of relevantAssigned) {
                 const classId = a.classes?.id
                 const jsDays = DAY_TO_JS_DAYS[a.classes?.day_of_week] || []
                 if (!jsDays.length) continue
@@ -6277,7 +6292,10 @@ export default function AthleteProfiles() {
               }
               const possibleSessions = possibleSessionKeys.size
               const possibleDatesSet = new Set([...possibleSessionKeys].map(k => k.split('::')[0]))
-              const scopedAttendanceData = attendanceData.filter(a => possibleDatesSet.has(a.session_date))
+              const relevantClassIds = new Set(relevantAssigned.map(a => a.classes?.id).filter(Boolean))
+              const scopedAttendanceData = attendanceData.filter(a =>
+                possibleDatesSet.has(a.session_date) && (!a.class_id || relevantClassIds.has(a.class_id))
+              )
 
               // Match each attendance row to a specific possible slot.
               // Rows logged with a class_id (everything going forward)
@@ -6339,16 +6357,20 @@ export default function AthleteProfiles() {
               return (
                 <div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 8 }}>
-                    <div className="card" style={{ textAlign: 'center', padding: '10px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, background: 'var(--bg-secondary)' }}>
-                      <button onClick={() => setTab('sessions')} title="View Sessions tab"
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, marginBottom: 2, padding: 0, fontFamily: 'var(--font-sans)', appearance: 'none', WebkitAppearance: 'none' }}>✅</button>
-                      <div onClick={() => setAttendanceDisplayPct(v => !v)} title="Click to toggle percentage/numbers"
-                        style={{ fontSize: 19, fontWeight: 700, color: colour, cursor: 'pointer' }}>
-                        {attendanceDisplayPct
-                          ? `${possibleSessions ? Math.round((scopedAttendedDayCount / possibleSessions) * 100) : 0}%`
-                          : `${scopedAttendedDayCount}/${possibleSessions || scopedAttendedDayCount}`}
+                    <div className="card" style={{ textAlign: 'center', padding: '10px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, background: 'var(--bg-secondary)' }}>
+                      <button onClick={() => setF2fStatsScope(v => v - 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4, appearance: 'none', WebkitAppearance: 'none', fontFamily: 'var(--font-sans)' }}>◀</button>
+                      <div style={{ flex: 1 }}>
+                        <button onClick={() => setTab('sessions')} title="View Sessions tab"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, marginBottom: 2, padding: 0, fontFamily: 'var(--font-sans)', appearance: 'none', WebkitAppearance: 'none' }}>✅</button>
+                        <div onClick={() => setAttendanceDisplayPct(v => !v)} title="Click to toggle percentage/numbers"
+                          style={{ fontSize: 19, fontWeight: 700, color: colour, cursor: 'pointer' }}>
+                          {attendanceDisplayPct
+                            ? `${possibleSessions ? Math.round((scopedAttendedDayCount / possibleSessions) * 100) : 0}%`
+                            : `${scopedAttendedDayCount}/${possibleSessions || scopedAttendedDayCount}`}
+                        </div>
+                        <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>{scopeLabel}</div>
                       </div>
-                      <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>Assigned sessions</div>
+                      <button onClick={() => setF2fStatsScope(v => v + 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4, appearance: 'none', WebkitAppearance: 'none', fontFamily: 'var(--font-sans)' }}>▶</button>
                     </div>
                     <button onClick={() => setTab('fit2fight')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none' }} title="View Fit II Fight results">
                       <div style={{ fontSize: 22, marginBottom: 4 }}>🔥</div>
