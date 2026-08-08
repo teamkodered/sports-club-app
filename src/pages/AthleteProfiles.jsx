@@ -1811,6 +1811,8 @@ export default function AthleteProfiles() {
   const [showFullscreenNoteComposer, setShowFullscreenNoteComposer] = useState(false)
   const noteTargetingRef = useRef(null)
   const [expandedNoteTargeting, setExpandedNoteTargeting] = useState(null) // team_notes.id whose targeting panel is open
+  const [editingTeamNoteId, setEditingTeamNoteId] = useState(null) // team_notes.id currently being edited, or null
+  const [editingTeamNoteText, setEditingTeamNoteText] = useState('')
 
   useEffect(() => {
     if (!expandedNoteTargeting) return
@@ -1834,6 +1836,9 @@ export default function AthleteProfiles() {
   })
   const [resultsSortKey, setResultsSortKey] = useState('date')
   const [resultsMetricSection, setResultsMetricSection] = useState('Physical') // 'Physical' | 'Test'
+  // Briefly highlights a results-table row after jumping to it from a
+  // leaderboard entry, so it's obvious which row is the "source" result.
+  const [highlightedResultId, setHighlightedResultId] = useState(null)
   const [resultsMetricQuestion, setResultsMetricQuestion] = useState('Weight') // e.g. 'Watt bike'
   const [resultsMetricType, setResultsMetricType] = useState('') // sub-type, e.g. interval mode
   const [resultsSortDir, setResultsSortDir] = useState('desc')
@@ -1916,6 +1921,7 @@ export default function AthleteProfiles() {
   // Per-question multi-select state for the "Log result" picker below
   // each question card: { [sectionKey::subKey]: Set of student ids }
   const [questionLogSelection, setQuestionLogSelection] = useState({})
+  const [questionLogSearch, setQuestionLogSearch] = useState({}) // { [sectionKey::subKey]: search text }
   const [weightTargetInCompDraft, setWeightTargetInCompDraft] = useState(null)
   const [weightTargetOutCompDraft, setWeightTargetOutCompDraft] = useState(null)
   const [dashLevelIndex, setDashLevelIndex] = useState(0)
@@ -1983,6 +1989,8 @@ export default function AthleteProfiles() {
   const [savingEvent, setSavingEvent] = useState(false)
   const [notesLog, setNotesLog] = useState([])
   const [newNoteText, setNewNoteText] = useState('')
+  const [editingNoteId, setEditingNoteId] = useState(null) // athlete_notes_log.id being edited, or null
+  const [editingNoteText, setEditingNoteText] = useState('')
   const [savingNote, setSavingNote] = useState(false)
   const [allClasses, setAllClasses] = useState([])
   const [addingClassId, setAddingClassId] = useState('')
@@ -2826,6 +2834,14 @@ export default function AthleteProfiles() {
     setTeamNotes(prev => prev.filter(n => n.id !== id))
   }
 
+  async function updateTeamNote(id, newText) {
+    if (!newText.trim()) return
+    const { error } = await supabase.from('team_notes').update({ note_text: newText.trim() }).eq('id', id)
+    if (error) { alert('Error saving note: ' + error.message); return }
+    setTeamNotes(prev => prev.map(n => n.id === id ? { ...n, note_text: newText.trim() } : n))
+    setEditingTeamNoteId(null)
+  }
+
   async function addEvent() {
     if (!newEventTitle.trim() || !newEventDate) return
     if (showAddEventTarget === 'individual' && !addEventAthlete) return
@@ -3276,6 +3292,14 @@ export default function AthleteProfiles() {
     const { error } = await supabase.from('athlete_notes_log').delete().eq('id', noteId)
     if (error) return alert('Error deleting note: ' + error.message)
     setNotesLog(prev => prev.filter(n => n.id !== noteId))
+  }
+
+  async function updateNote(noteId, newText) {
+    if (!newText.trim()) return
+    const { error } = await supabase.from('athlete_notes_log').update({ note_text: newText.trim() }).eq('id', noteId)
+    if (error) { alert('Error saving note: ' + error.message); return }
+    setNotesLog(prev => prev.map(n => n.id === noteId ? { ...n, note_text: newText.trim() } : n))
+    setEditingNoteId(null)
   }
 
   async function sendNoteToPdpCategory(note, categoryLabel) {
@@ -4797,9 +4821,14 @@ export default function AthleteProfiles() {
                           })
                           athleteSeries = Object.values(byAthlete).map(a => ({ ...a, points: a.points.sort((x,y) => x.date.localeCompare(y.date)) }))
                           allDates = [...new Set(athleteSeries.flatMap(a => a.points.map(p => p.date)))].sort()
-                          leaderboard = athleteSeries.map(a => ({
+                          // student_id + latestDate carried through so clicking a
+                          // leaderboard row can find and scroll to its actual
+                          // source row in the results table below.
+                          leaderboard = Object.entries(byAthlete).map(([studentId, a]) => ({
+                            student_id: studentId,
                             name: a.name,
                             latest: a.points[a.points.length - 1]?.value ?? null,
+                            latestDate: a.points[a.points.length - 1]?.date ?? null,
                             best: Math.max(...a.points.map(p => p.value)),
                           })).sort((x, y) => y.best - x.best)
                         }
@@ -4878,12 +4907,28 @@ export default function AthleteProfiles() {
                                   <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Leaderboard</p>
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                                     {leaderboard.map((row, i) => (
-                                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: i === 0 ? colour + '12' : 'var(--bg-secondary)', borderRadius: 6, fontSize: 13 }}>
+                                      <div key={i}
+                                        onClick={() => {
+                                          // Jump to this athlete's actual source
+                                          // row in the results table below --
+                                          // prefer an exact date match for
+                                          // their latest value, falling back
+                                          // to their most recent row at all.
+                                          const rowsForAthlete = sorted.filter(r => r.student_id === row.student_id)
+                                          const match = rowsForAthlete.find(r => r.date === row.latestDate) || rowsForAthlete[0]
+                                          if (!match) return
+                                          const el = document.getElementById(`result-row-${match.id}`)
+                                          el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                                          setHighlightedResultId(match.id)
+                                          setTimeout(() => setHighlightedResultId(id => id === match.id ? null : id), 2000)
+                                        }}
+                                        style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: i === 0 ? colour + '12' : 'var(--bg-secondary)', borderRadius: 6, fontSize: 13, cursor: 'pointer' }}>
                                         <span>{i + 1}. {row.name}</span>
                                         <span style={{ fontWeight: 600 }}>Best: {row.best} · Latest: {row.latest}</span>
                                       </div>
                                     ))}
                                   </div>
+                                  <p style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 6 }}>Tap a leaderboard row to jump to its source result below</p>
                                 </>
                               )
                             })()}
@@ -4936,8 +4981,8 @@ export default function AthleteProfiles() {
                         </thead>
                         <tbody>
                           {sorted.map(r => (
-                            <tr key={r.id} onClick={() => { const s = students.find(st => st.id === r.student_id); if (s) selectStudent(s) }}
-                              style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
+                            <tr key={r.id} id={`result-row-${r.id}`} onClick={() => { const s = students.find(st => st.id === r.student_id); if (s) selectStudent(s) }}
+                              style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer', background: highlightedResultId === r.id ? '#EF9F2730' : undefined, transition: 'background 0.4s ease' }}>
                               {visibleColumns.map(c => (
                                 <td key={c.key} style={{ padding: '6px 8px', whiteSpace: 'nowrap' }}>
                                   {c.key === 'date' ? new Date(r.date).toLocaleDateString('en-GB') :
@@ -5237,6 +5282,10 @@ export default function AthleteProfiles() {
                                   next.has(id) ? next.delete(id) : next.add(id)
                                   return { ...prev, [subKey]: next }
                                 })
+                                const search = (questionLogSearch[subKey] || '').toLowerCase()
+                                const filteredAthletes = [...teamAthletes]
+                                  .filter(ath => !search || `${ath.members?.first_name} ${ath.members?.last_name}`.toLowerCase().includes(search))
+                                  .sort((a, b) => (a.members?.first_name || '').localeCompare(b.members?.first_name || ''))
                                 return (
                                   <div style={{ marginTop: 8 }}>
                                     <button className="btn btn-sm" onClick={() => setLogResultDropdownFor(prev => prev === subKey ? null : subKey)}>
@@ -5249,10 +5298,14 @@ export default function AthleteProfiles() {
                                             Bulk logging isn't available for this question yet — pick an athlete to log it on their own profile instead.
                                           </p>
                                         )}
+                                        <input value={questionLogSearch[subKey] || ''} onChange={e => setQuestionLogSearch(prev => ({ ...prev, [subKey]: e.target.value }))}
+                                          placeholder="🔍 Type a name to filter…" style={{ width: '100%', fontSize: 12, marginBottom: 4, padding: '5px 8px' }} />
                                         <div style={{ maxHeight: 180, overflowY: 'auto', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', background: 'var(--bg-secondary)' }}>
                                           {teamAthletes.length === 0 ? (
                                             <p style={{ fontSize: 11, color: 'var(--text-tertiary)', padding: 8 }}>No athletes in this group.</p>
-                                          ) : [...teamAthletes].sort((a, b) => (a.members?.first_name || '').localeCompare(b.members?.first_name || '')).map(ath => (
+                                          ) : filteredAthletes.length === 0 ? (
+                                            <p style={{ fontSize: 11, color: 'var(--text-tertiary)', padding: 8 }}>No athletes match "{questionLogSearch[subKey]}".</p>
+                                          ) : filteredAthletes.map(ath => (
                                             bulkQuestion ? (
                                               <label key={ath.id} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '6px 10px', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 12, color: 'var(--text)' }}>
                                                 <input type="checkbox" checked={selected.has(ath.id)} onChange={() => toggleOne(ath.id)} />
@@ -5444,9 +5497,26 @@ export default function AthleteProfiles() {
                             <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>
                               {new Date(note.created_at).toLocaleDateString('en-GB')} · {new Date(note.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                             </div>
-                            <button onClick={() => deleteTeamNote(note.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14 }}>×</button>
+                            <div style={{ display: 'flex', gap: 10 }}>
+                              {editingTeamNoteId !== note.id && (
+                                <button onClick={() => { setEditingTeamNoteId(note.id); setEditingTeamNoteText(note.note_text) }}
+                                  style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 12 }}>✎ Edit</button>
+                              )}
+                              <button onClick={() => deleteTeamNote(note.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14 }}>×</button>
+                            </div>
                           </div>
-                          <p style={{ fontSize: 13, margin: '0 0 8px', whiteSpace: 'pre-line' }}>{note.note_text}</p>
+                          {editingTeamNoteId === note.id ? (
+                            <div style={{ marginBottom: 8 }}>
+                              <textarea value={editingTeamNoteText} onChange={e => setEditingTeamNoteText(e.target.value)} rows={2} autoFocus
+                                style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 6 }} />
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                <button className="btn btn-sm btn-primary" onClick={() => updateTeamNote(note.id, editingTeamNoteText)}>Save</button>
+                                <button className="btn btn-sm" onClick={() => setEditingTeamNoteId(null)}>Cancel</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <p style={{ fontSize: 13, margin: '0 0 8px', whiteSpace: 'pre-line' }}>{note.note_text}</p>
+                          )}
 
                           <button className="btn btn-sm" style={{ fontSize: 11 }}
                             onClick={() => { setExpandedNoteTargeting(targeting ? null : note.id); setNoteTargetSearch(''); setNoteCheckedIds([]) }}>
@@ -9108,14 +9178,31 @@ export default function AthleteProfiles() {
                     {notesLog.map(note => (
                       <div key={note.id} className="card">
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                          <div>
+                          <div style={{ flex: 1 }}>
                             <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>
                               {new Date(note.logged_at).toLocaleDateString('en-GB')} · {new Date(note.logged_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                             </div>
-                            <p style={{ fontSize: 13, lineHeight: 1.5, margin: 0, whiteSpace: 'pre-line' }}>{note.note_text}</p>
+                            {editingNoteId === note.id ? (
+                              <div>
+                                <textarea value={editingNoteText} onChange={e => setEditingNoteText(e.target.value)} rows={2} autoFocus
+                                  style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 6 }} />
+                                <div style={{ display: 'flex', gap: 6 }}>
+                                  <button className="btn btn-sm btn-primary" onClick={() => updateNote(note.id, editingNoteText)}>Save</button>
+                                  <button className="btn btn-sm" onClick={() => setEditingNoteId(null)}>Cancel</button>
+                                </div>
+                              </div>
+                            ) : (
+                              <p style={{ fontSize: 13, lineHeight: 1.5, margin: 0, whiteSpace: 'pre-line' }}>{note.note_text}</p>
+                            )}
                           </div>
-                          <button onClick={() => deleteNote(note.id)} title="Delete note"
-                            style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 16, flexShrink: 0 }}>×</button>
+                          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                            {editingNoteId !== note.id && (
+                              <button onClick={() => { setEditingNoteId(note.id); setEditingNoteText(note.note_text) }} title="Edit note"
+                                style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 13 }}>✎</button>
+                            )}
+                            <button onClick={() => deleteNote(note.id)} title="Delete note"
+                              style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 16 }}>×</button>
+                          </div>
                         </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
                           <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Send to:</span>
