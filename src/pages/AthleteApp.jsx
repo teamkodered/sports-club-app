@@ -1731,10 +1731,16 @@ export default function AthleteApp() {
                 const earliestDate = coachAttendanceDateSettings?.from || (attendanceData.length
                   ? attendanceData.reduce((min, a) => a.session_date < min ? a.session_date : min, attendanceData[0].session_date)
                   : new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
-                // If the coach has set an explicit end date for this
-                // card (scope Athletes/Both), the "possible sessions"
-                // count stops there instead of running to today.
-                const rangeEndDate = coachAttendanceDateSettings?.to ? new Date(coachAttendanceDateSettings.to + 'T00:00:00') : new Date()
+                // "Possible sessions" only ever counts sessions that have
+                // actually happened -- if the coach's date filter's end
+                // date is in the future (e.g. an end-of-term date not yet
+                // reached), the count still stops at today rather than
+                // treating not-yet-happened classes as "possible but
+                // missed". The filter's end date only pulls the end of
+                // the window *earlier* than today, never later.
+                const today = new Date()
+                const configuredTo = coachAttendanceDateSettings?.to ? new Date(coachAttendanceDateSettings.to + 'T00:00:00') : null
+                const rangeEndDate = configuredTo && configuredTo < today ? configuredTo : today
                 const countWeekdayOccurrences = (dayName, fromDateStr, classId) => {
                   const jsDays = DAY_TO_JS_DAYS[dayName] || []
                   if (!jsDays.length) return 0
