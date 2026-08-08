@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth.jsx'
 import { supabase } from '../../lib/supabase.js'
 
@@ -9,6 +9,12 @@ const SIDEBAR_ICON = 52
 export default function Layout() {
   const { profile, isAdmin, isCoach, isLeader, isStaff, role, isAthlete } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  // The Session logger (fit2fight) has its own "← Back" button and is
+  // meant to be used as a focused, standalone screen -- the mobile
+  // hamburger (which opens the full site's sidebar/menu) doesn't belong
+  // there and was competing with that Back button in the same corner.
+  const hideMobileMenuButton = location.pathname.startsWith('/fit2fight')
   const [mobileOpen, setMobileOpen]   = useState(false)
   const [collapsed, setCollapsed]     = useState(false)
   const [profileMenu, setProfileMenu] = useState(false)
@@ -290,14 +296,16 @@ export default function Layout() {
       </main>
 
       {/* Mobile hamburger */}
-      <button onClick={() => setMobileOpen(v => !v)} className="app-menu-btn" style={{
-        position: 'fixed', top: 12, left: 12,
-        background: 'var(--text)', color: 'var(--bg)',
-        border: 'none', borderRadius: 8,
-        width: 40, height: 40, fontSize: 18,
-        zIndex: 28, cursor: 'pointer',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>☰</button>
+      {!hideMobileMenuButton && (
+        <button onClick={() => setMobileOpen(v => !v)} className="app-menu-btn" style={{
+          position: 'fixed', top: 12, left: 12,
+          background: 'var(--text)', color: 'var(--bg)',
+          border: 'none', borderRadius: 8,
+          width: 40, height: 40, fontSize: 18,
+          zIndex: 28, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>☰</button>
+      )}
 
     </div>
   )

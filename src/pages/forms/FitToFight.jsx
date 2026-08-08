@@ -356,6 +356,7 @@ export default function FitToFight() {
   const [weightAfter, setWeightAfter]   = useState('')
   const [height, setHeight]             = useState('')
   const [reach, setReach]               = useState('')
+  const [showWeightLogger, setShowWeightLogger] = useState(false)
 
   // Enabled modules
   const [enabled, setEnabled] = useState({})
@@ -673,26 +674,53 @@ export default function FitToFight() {
                   </select>
                 </div>
               )}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
-                {[
-                  { label: 'Weight before', val: weightBefore, set: setWeightBefore, unit: 'kg' },
-                  { label: 'Weight after',  val: weightAfter,  set: setWeightAfter,  unit: 'kg' },
-                  { label: 'Height',        val: height,       set: setHeight,       unit: 'cm' },
-                  { label: 'Reach',         val: reach,        set: setReach,        unit: 'cm' },
-                ].map(f => (
-                  <div key={f.label} className="field" style={{ marginBottom: 0 }}>
-                    <label style={{ fontSize: 11 }}>{f.label} <span style={{ color: 'var(--text-tertiary)', fontWeight: 400 }}>({f.unit})</span></label>
-                    <input type="number" step="0.1" value={f.val} onChange={e => f.set(e.target.value)} placeholder="—"
-                      style={{ textAlign: 'right' }} />
+              <div className="field" style={{ marginBottom: 0 }}>
+                <label>Weight</label>
+                {weightBefore || weightAfter ? (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', background: 'var(--bg-secondary)' }}>
+                    <span style={{ fontSize: 13 }}>
+                      {weightBefore || '—'}kg → {weightAfter || '—'}kg
+                      {weightBefore && weightAfter && (
+                        <span style={{ marginLeft: 8, color: parseFloat(weightAfter) < parseFloat(weightBefore) ? '#1d9e75' : 'var(--text-secondary)', fontWeight: 600 }}>
+                          ({(parseFloat(weightAfter) - parseFloat(weightBefore)).toFixed(2)}kg)
+                        </span>
+                      )}
+                    </span>
+                    <button type="button" className="btn btn-sm" onClick={() => setShowWeightLogger(true)}>Edit</button>
                   </div>
-                ))}
+                ) : (
+                  <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setShowWeightLogger(true)}>
+                    ⚖️ Log weight
+                  </button>
+                )}
               </div>
-              {weightBefore && weightAfter && (
-                <div style={{ marginTop: 8, fontSize: 12, color: parseFloat(weightAfter) < parseFloat(weightBefore) ? '#1d9e75' : 'var(--text-secondary)' }}>
-                  Weight change: {(parseFloat(weightAfter) - parseFloat(weightBefore)).toFixed(2)} kg
-                </div>
-              )}
             </div>
+
+            {/* Weight logger popup -- one button press instead of two
+                always-visible inline fields */}
+            {showWeightLogger && (
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
+                onClick={() => setShowWeightLogger(false)}>
+                <div className="card" style={{ width: '100%', maxWidth: 360 }} onClick={e => e.stopPropagation()}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                    <h3 style={{ fontSize: 15, fontWeight: 600 }}>⚖️ Log weight</h3>
+                    <button onClick={() => setShowWeightLogger(false)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
+                  </div>
+                  <div className="field-row">
+                    <div className="field"><label>Weight before (kg)</label>
+                      <input type="number" step="0.1" value={weightBefore} onChange={e => setWeightBefore(e.target.value)} placeholder="—" autoFocus /></div>
+                    <div className="field"><label>Weight after (kg)</label>
+                      <input type="number" step="0.1" value={weightAfter} onChange={e => setWeightAfter(e.target.value)} placeholder="—" /></div>
+                  </div>
+                  {weightBefore && weightAfter && (
+                    <div style={{ marginBottom: 10, fontSize: 12, color: parseFloat(weightAfter) < parseFloat(weightBefore) ? '#1d9e75' : 'var(--text-secondary)' }}>
+                      Weight change: {(parseFloat(weightAfter) - parseFloat(weightBefore)).toFixed(2)} kg
+                    </div>
+                  )}
+                  <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setShowWeightLogger(false)}>Done</button>
+                </div>
+              </div>
+            )}
 
             {/* Module toggles */}
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>
@@ -804,6 +832,10 @@ export default function FitToFight() {
 
             {/* Test */}
             <ModuleCard mod={MODULES[4]} enabled={!!enabled.test} onToggle={() => toggle('test')}>
+              <div className="field-row">
+                <div className="field"><label>Height (cm)</label><input type="number" step="0.1" value={height} onChange={e => setHeight(e.target.value)} placeholder="—" /></div>
+                <div className="field"><label>Reach (cm)</label><input type="number" step="0.1" value={reach} onChange={e => setReach(e.target.value)} placeholder="—" /></div>
+              </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedTestCategory ? 10 : 0 }}>
                 {TEST_CATEGORIES.map(cat => {
                   const complete = cat.tests.some(t => test[t.name] != null && test[t.name] !== '')

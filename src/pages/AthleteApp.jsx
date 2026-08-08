@@ -803,6 +803,11 @@ export default function AthleteApp() {
   const [apData, setApData]     = useState(null)
   const [assignedClasses, setAssignedClasses] = useState([])
   const [holidays, setHolidays] = useState([])
+  // Date range the coach configured for the Attendance card on the
+  // Coaches Dashboard, only when they set its scope to "Athletes" or
+  // "Both" -- otherwise this athlete's own attendance % keeps using its
+  // own default (since they joined, up to today).
+  const [coachAttendanceDateSettings, setCoachAttendanceDateSettings] = useState(null)
   const [myNotesLog, setMyNotesLog] = useState([])
   const [tptData, setTptData] = useState({ kickboxing: [], boxing: [] })
   const [whoopConnection, setWhoopConnection] = useState(null)
@@ -918,6 +923,19 @@ export default function AthleteApp() {
         if (inComp) setWeightTargetPctInComp(parseFloat(inComp.value))
         if (outComp) setWeightTargetPctOutComp(parseFloat(outComp.value))
         if (mode) setWeightTargetActiveMode(mode.value)
+      })
+  }, [])
+
+  useEffect(() => {
+    supabase.from('team_settings').select('*').in('key', ['card_date_all_sessions_from', 'card_date_all_sessions_to', 'card_date_all_sessions_scope'])
+      .then(({ data }) => {
+        if (!data?.length) return
+        const from = data.find(d => d.key === 'card_date_all_sessions_from')?.value
+        const to = data.find(d => d.key === 'card_date_all_sessions_to')?.value
+        const scope = data.find(d => d.key === 'card_date_all_sessions_scope')?.value
+        if (from && to && (scope === 'athletes' || scope === 'both')) {
+          setCoachAttendanceDateSettings({ from, to })
+        }
       })
   }, [])
 
@@ -1710,16 +1728,19 @@ export default function AthleteApp() {
                   if (scopeLabel === student.discipline) return a.classes?.discipline === student.discipline
                   return true
                 })
-                const earliestDate = attendanceData.length
+                const earliestDate = coachAttendanceDateSettings?.from || (attendanceData.length
                   ? attendanceData.reduce((min, a) => a.session_date < min ? a.session_date : min, attendanceData[0].session_date)
-                  : new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+                  : new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
+                // If the coach has set an explicit end date for this
+                // card (scope Athletes/Both), the "possible sessions"
+                // count stops there instead of running to today.
+                const rangeEndDate = coachAttendanceDateSettings?.to ? new Date(coachAttendanceDateSettings.to + 'T00:00:00') : new Date()
                 const countWeekdayOccurrences = (dayName, fromDateStr, classId) => {
                   const jsDays = DAY_TO_JS_DAYS[dayName] || []
                   if (!jsDays.length) return 0
                   let count = 0
                   const cursor = new Date(fromDateStr + 'T00:00:00')
-                  const today = new Date()
-                  while (cursor <= today) {
+                  while (cursor <= rangeEndDate) {
                     if (jsDays.includes(cursor.getDay())) {
                       const dateStr = cursor.toISOString().split('T')[0]
                       if (!isDateOnHoliday(dateStr, holidays, classId ? [classId] : [])) count++
@@ -1741,6 +1762,9 @@ export default function AthleteApp() {
                 const claimedByDate = {}
                 let attendedDayCount = 0
                 for (const a of attendanceData) {
+                  // When the coach has set a specific date range for this
+                  // card, only count attendance actually within it.
+                  if (coachAttendanceDateSettings && (a.session_date < earliestDate || a.session_date > coachAttendanceDateSettings.to)) continue
                   if (a.class_id && relevantClassIds.has(a.class_id)) {
                     const key = `${a.session_date}::${a.class_id}`
                     if (!claimedByDate[key]) { claimedByDate[key] = true; attendedDayCount++ }
@@ -1803,6 +1827,11 @@ export default function AthleteApp() {
                               : `${attendedDayCount}/${possibleSessions || attendedDayCount}`}
                           </div>
                           <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>{scopeLabel}</div>
+                          {coachAttendanceDateSettings && (
+                            <div style={{ fontSize: 8, color: 'var(--text-tertiary)' }}>
+                              {new Date(coachAttendanceDateSettings.from).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – {new Date(coachAttendanceDateSettings.to).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                            </div>
+                          )}
                         </div>
                         <button onClick={() => setF2fStatsScope(v => v + 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4, appearance: 'none', WebkitAppearance: 'none', fontFamily: 'var(--font-sans)' }}>▶</button>
                       </div>
