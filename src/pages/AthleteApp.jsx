@@ -4264,10 +4264,26 @@ export default function AthleteApp() {
                                   </div>
                                 )}
                               </div>
-                              {s.running && <p style={{ fontSize: 12, margin: '4px 0' }}>🏃 Running logged</p>}
-                              {s.watt_bike && <p style={{ fontSize: 12, margin: '4px 0' }}>🚴 Watt bike logged</p>}
-                              {s.bodyweight && <p style={{ fontSize: 12, margin: '4px 0' }}>💪 Bodyweight logged</p>}
-                              {s.techniques && <p style={{ fontSize: 12, margin: '4px 0' }}>🥋 Techniques logged</p>}
+                              {s.running && toEntries(s.running).map((e, ei) => (
+                                <p key={ei} style={{ fontSize: 12, margin: '4px 0' }}>
+                                  🏃 {e.category || e.test || 'Running'}{(e.sets?.length) ? `: ${e.sets.map(v => (v && typeof v === 'object') ? v.wattage : v).join(', ')}` : ' logged'}
+                                </p>
+                              ))}
+                              {s.watt_bike && toEntries(s.watt_bike).map((e, ei) => (
+                                <p key={ei} style={{ fontSize: 12, margin: '4px 0' }}>
+                                  🚴 {normalizeIntervalMode(e.interval_mode || e.type) || 'Watt bike'}{(e.sets?.length) ? `: ${e.sets.map(v => (v && typeof v === 'object') ? v.wattage : v).join(', ')}W` : ' logged'}
+                                </p>
+                              ))}
+                              {s.bodyweight && toEntries(s.bodyweight).map((e, ei) => (
+                                <p key={ei} style={{ fontSize: 12, margin: '4px 0' }}>
+                                  💪 {e.type || 'Bodyweight'}{(e.sets?.length) ? `: ${e.sets.map(v => (v && typeof v === 'object') ? v.wattage : v).join(', ')}` : ' logged'}
+                                </p>
+                              ))}
+                              {s.techniques && (
+                                <p style={{ fontSize: 12, margin: '4px 0' }}>
+                                  🥋 {s.techniques.type || 'Techniques'}{(s.techniques.sets?.length) ? `: ${s.techniques.sets.join(', ')} reps` : ' logged'}
+                                </p>
+                              )}
                               {s.test && Object.entries(s.test).map(([k, v]) => (
                                 <p key={k} style={{ fontSize: 12, margin: '4px 0' }}>📊 {k}: <strong>{v}</strong></p>
                               ))}

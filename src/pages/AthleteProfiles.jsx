@@ -8872,6 +8872,38 @@ export default function AthleteProfiles() {
                         s.test && { label: '📊 Test', data: s.test },
                       ].filter(Boolean)
                       const isWeightOnly = exercises.length === 0 && !s.notes && (s.weight_before || s.weight_after)
+                      // Renders actual set-by-set numbers for a metric,
+                      // not just a "logged" badge -- handles both a
+                      // single entry and multiple entries in one session
+                      // (e.g. two different watt bike interval modes
+                      // logged together) via toEntries.
+                      function renderSetDetail(raw, opts) {
+                        return toEntries(raw).map((e, ei) => {
+                          const label = opts.getLabel(e) || opts.fallbackLabel
+                          const sets = e.sets
+                          return (
+                            <div key={ei} style={{ marginTop: 6 }}>
+                              <div style={{ fontSize: 11, fontWeight: 600, color: opts.colour, marginBottom: 4 }}>
+                                {opts.icon} {label}
+                                {e.max_wattage ? ` · Max: ${e.max_wattage}W` : ''}
+                                {e.avg_wattage ? ` · Avg: ${e.avg_wattage}W` : ''}
+                                {e.total_distance ? ` · ${e.total_distance}km` : ''}
+                              </div>
+                              {Array.isArray(sets) && sets.length > 0 && (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                                  {sets.map((v, i) => (
+                                    <span key={i} style={{ background: opts.colour + '20', color: opts.colour, borderRadius: 12, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>
+                                      {i + 1}: {v && typeof v === 'object'
+                                        ? `${v.wattage ?? v.value ?? '—'}${opts.unit}${v.distance ? ` · ${v.distance}km` : ''}`
+                                        : `${v}${opts.unit}`}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })
+                      }
                       return (
                         <div key={i} id={`f2f-entry-${s.id}`} className="card" style={{
                           borderLeft: '3px solid #378ADD',
@@ -8915,39 +8947,17 @@ export default function AthleteProfiles() {
                             Height: {s.height_cm}cm · Reach: {s.reach_cm || '—'}cm
                           </div>}
                           {exercises.length > 0 && (
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
-                              {exercises.map((ex, j) => (
-                                <span key={j} style={{ background: 'var(--bg-secondary)', borderRadius: 20, padding: '3px 10px', fontSize: 11 }}>
-                                  {ex.label}
-                                </span>
-                              ))}
-                            </div>
+                            <>
+                              {s.running && renderSetDetail(s.running, { icon: '🏃', colour: '#1D9E75', unit: '', fallbackLabel: 'Running', getLabel: e => e.category || e.test })}
+                              {s.watt_bike && renderSetDetail(s.watt_bike, { icon: '🚴', colour: '#378ADD', unit: 'W', fallbackLabel: 'Watt bike', getLabel: e => normalizeIntervalMode(e.interval_mode || e.type) || e.type })}
+                              {s.bodyweight && renderSetDetail(s.bodyweight, { icon: '💪', colour: '#EF9F27', unit: '', fallbackLabel: 'Bodyweight', getLabel: e => e.type })}
+                              {s.techniques && renderSetDetail(s.techniques, { icon: '🥋', colour: '#E24B4A', unit: ' reps', fallbackLabel: 'Techniques', getLabel: e => e.type })}
+                            </>
                           )}
-                          {s.notes && <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>📝 {s.notes}</div>}
-                          {s.heart_rate?.avg_bpm && <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                          {s.notes && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 6 }}>📝 {s.notes}</div>}
+                          {s.heart_rate?.avg_bpm && <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>
                             ❤️ Avg: {s.heart_rate.avg_bpm} BPM{s.heart_rate.peak_bpm ? ` · Peak: ${s.heart_rate.peak_bpm} BPM` : ''}
                           </div>}
-                          {s.watt_bike && (
-                            <div style={{ marginTop: 6 }}>
-                              <div style={{ fontSize: 11, fontWeight: 600, color: '#378ADD', marginBottom: 4 }}>
-                                🚴 {s.watt_bike.type || 'Watt bike'}
-                                {s.watt_bike.max_wattage ? ` · Max: ${s.watt_bike.max_wattage}W` : ''}
-                                {s.watt_bike.avg_wattage ? ` · Avg: ${s.watt_bike.avg_wattage}W` : ''}
-                                {s.watt_bike.total_distance ? ` · ${s.watt_bike.total_distance}km` : ''}
-                              </div>
-                              {Array.isArray(s.watt_bike.sets) && s.watt_bike.sets.length > 0 && (
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                                  {s.watt_bike.sets.map((v, i) => (
-                                    <span key={i} style={{ background: '#378ADD20', color: '#378ADD', borderRadius: 12, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>
-                                      {i+1}: {v && typeof v === 'object'
-                                        ? `${v.wattage ?? '—'}W${v.distance ? ` · ${v.distance}km` : ''}`
-                                        : `${v}${typeof v === 'number' && v > 10 ? 'W' : ''}`}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          )}
                           {s.test && Object.entries(s.test).map(([k, v]) => (
                             <div key={k} style={{ fontSize: 11, color: '#1d9e75', fontWeight: 600, marginTop: 4 }}>
                               📊 {k}: {v}
