@@ -14,7 +14,13 @@ export default function Classes() {
   const [adding, setAdding]     = useState(false)
   const [editing, setEditing]   = useState(null)
   const [saving, setSaving]     = useState(false)
-  const [form, setForm]         = useState({ name: '', discipline: 'PKA', day_of_week: 'Monday', start_time: '', end_time: '', age_category: '', instructor: '', description: '', active: true })
+  const [form, setForm]         = useState({ name: '', discipline: 'PKA', day_of_week: 'Monday', start_time: '', end_time: '', age_category: '', instructor: '', description: '', active: true, is_custom: false })
+  // Toggles the page between the normal club-wide classes list and
+  // "Other sessions" -- individual athletes' own one-off sessions
+  // (already flagged is_custom, same field the app already uses
+  // elsewhere -- Calendar, Registers, etc. -- to exclude these from
+  // club-wide views). Pressing the page title switches between them.
+  const [viewMode, setViewMode] = useState('club') // 'club' | 'individual'
   const [viewingClass, setViewingClass] = useState(null)
   const [classStudents, setClassStudents] = useState([])
   const [allStudents, setAllStudents] = useState([])
@@ -133,7 +139,7 @@ export default function Classes() {
     await load()
     setAdding(false)
     setEditing(null)
-    setForm({ name: '', discipline: 'PKA', day_of_week: 'Monday', start_time: '', end_time: '', age_category: '', instructor: '', description: '', active: true })
+    setForm({ name: '', discipline: 'PKA', day_of_week: 'Monday', start_time: '', end_time: '', age_category: '', instructor: '', description: '', active: true, is_custom: false })
     setSaving(false)
   }
 
@@ -156,11 +162,12 @@ export default function Classes() {
 
   function startEdit(cls) {
     setEditing(cls)
-    setForm({ name: cls.name, discipline: cls.discipline, day_of_week: cls.day_of_week, start_time: cls.start_time || '', end_time: cls.end_time || '', age_category: cls.age_category || '', instructor: cls.instructor || '', description: cls.description || '', active: cls.active })
+    setForm({ name: cls.name, discipline: cls.discipline, day_of_week: cls.day_of_week, start_time: cls.start_time || '', end_time: cls.end_time || '', age_category: cls.age_category || '', instructor: cls.instructor || '', description: cls.description || '', active: cls.active, is_custom: !!cls.is_custom })
     setAdding(true)
   }
 
-  const grouped = classes.reduce((acc, cls) => {
+  const visibleClasses = classes.filter(c => viewMode === 'individual' ? c.is_custom : !c.is_custom)
+  const grouped = visibleClasses.reduce((acc, cls) => {
     const day = cls.day_of_week || 'Other'
     if (!acc[day]) acc[day] = []
     acc[day].push(cls)
@@ -173,11 +180,20 @@ export default function Classes() {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div className="page-header" style={{ marginBottom: 0 }}>
-          <h1>Classes</h1>
-          <p>{classes.filter(c => c.active).length} active · {classes.filter(c => !c.active).length} inactive</p>
+          <h1 onClick={() => setViewMode(v => v === 'club' ? 'individual' : 'club')}
+            title={viewMode === 'club' ? 'Click to view individual athletes\' own sessions' : 'Click to view club-wide classes'}
+            style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+            {viewMode === 'club' ? 'Classes' : 'Other sessions'}
+            <span style={{ fontSize: 13, color: 'var(--text-tertiary)', fontWeight: 400 }}>⇄</span>
+          </h1>
+          <p>{visibleClasses.filter(c => c.active).length} active · {visibleClasses.filter(c => !c.active).length} inactive
+            {viewMode === 'club' && classes.some(c => c.is_custom) && (
+              <span style={{ marginLeft: 6 }}>· <span onClick={() => setViewMode('individual')} style={{ cursor: 'pointer', textDecoration: 'underline' }}>{classes.filter(c => c.is_custom).length} individual session{classes.filter(c => c.is_custom).length === 1 ? '' : 's'} hidden</span></span>
+            )}
+          </p>
         </div>
         {isAdmin && (
-          <button className="btn btn-primary" onClick={() => { setEditing(null); setAdding(true) }}>+ Add class</button>
+          <button className="btn btn-primary" onClick={() => { setEditing(null); setForm(f => ({ ...f, is_custom: viewMode === 'individual' })); setAdding(true) }}>+ Add class</button>
         )}
       </div>
 
@@ -283,8 +299,11 @@ export default function Classes() {
         </div>
       ))}
 
-      {classes.length === 0 && (
-        <div className="empty-state"><h3>No classes yet</h3><p>Add your first class to get started</p></div>
+      {visibleClasses.length === 0 && (
+        <div className="empty-state">
+          <h3>{viewMode === 'individual' ? 'No individual sessions' : 'No classes yet'}</h3>
+          <p>{viewMode === 'individual' ? 'Sessions marked as an individual athlete\'s own (like personal running or boxing slots) will show up here instead of the main list.' : 'Add your first class to get started'}</p>
+        </div>
       )}
 
       {/* Add/Edit modal */}
@@ -325,9 +344,13 @@ export default function Classes() {
                   style={{ width: '100%', padding: '7px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, resize: 'vertical', background: 'var(--bg-secondary)', color: 'var(--text)' }} />
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
               <input type="checkbox" id="active" checked={form.active} onChange={set('active')} style={{ width: 15, height: 15 }} />
               <label htmlFor="active" style={{ fontSize: 13, cursor: 'pointer' }}>Active class</label>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+              <input type="checkbox" id="is_custom" checked={form.is_custom} onChange={set('is_custom')} style={{ width: 15, height: 15 }} />
+              <label htmlFor="is_custom" style={{ fontSize: 13, cursor: 'pointer' }}>Individual athlete's own session (not a club-wide class) — shows under "Other sessions" instead of the main list</label>
             </div>
             <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 12 }}>Press Enter to save · Esc to cancel</p>
             <div style={{ display: 'flex', gap: 8 }}>
