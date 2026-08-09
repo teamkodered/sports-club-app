@@ -7874,7 +7874,7 @@ export default function AthleteProfiles() {
                               const wasTrainingDay = allTrainingDays.has(dateStr)
                               const showAsRed = explicitlyAbsent || (wasTrainingDay && !attended && !explicitlyExcused && dateStr < todayStr)
                               const jsDay = new Date(year, month, d).getDay()
-                              const classesToday = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay))
+                              const classesToday = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay) && !isDateOnHoliday(dateStr, holidays, a.classes?.id ? [a.classes.id] : []))
                               // Light green = attended some but not all of
                               // the classes possible that day; dark green =
                               // attended everything possible that day.
