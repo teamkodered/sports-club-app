@@ -3227,13 +3227,28 @@ export default function AthleteProfiles() {
   // Cycles a calendar day's attendance state: none -> attended (green) ->
   // absent (red) -> none (deselect). Writes directly to the attendance
   // table so it's immediately reflected in the admin Registers/reports.
+  // Re-fetches this athlete's attendance from the server fresh, used
+  // after any change to the calendar so the UI can never drift from
+  // the true state -- carefully patching local state after every
+  // change proved fragile (patches to allAttendance/attendanceData
+  // could fall a click behind what actually happened), so this just
+  // re-reads the two arrays outright instead.
+  async function refetchAttendanceFor(studentId) {
+    const [{ data: att }, { data: allAtt }] = await Promise.all([
+      supabase.from('attendance').select('id, session_date, attendance_type, attended_at, note, class_id')
+        .eq('student_id', studentId).neq('attendance_type', 'absent').neq('attendance_type', 'excused')
+        .order('session_date', { ascending: false }),
+      supabase.from('attendance').select('id, student_id, session_date, attendance_type, students(discipline, class_schedule, class_time)')
+        .eq('student_id', studentId),
+    ])
+    setAttendanceData(att || [])
+    setAllAttendance(prev => [...prev.filter(a => a?.student_id !== studentId), ...(allAtt || [])])
+  }
+
   async function cycleAttendanceDay(dateStr) {
     // Reads the current state fresh from the server rather than
-    // inferring it from two separately-tracked local arrays
-    // (attendanceData + allAttendance) -- those can drift out of sync
-    // with each other or with a stale render closure, which is what
-    // was causing "clear" to sometimes silently do the wrong thing
-    // after the day had already been marked absent.
+    // inferring it from local state, which can go stale between
+    // clicks or renders.
     const { data: existingRows, error: fetchErr } = await supabase.from('attendance')
       .select('id, attendance_type').eq('student_id', selected.id).eq('session_date', dateStr)
       .order('id', { ascending: false })
@@ -3249,8 +3264,6 @@ export default function AthleteProfiles() {
       const { error } = await supabase.from('attendance')
         .update({ present: false, attendance_type: 'absent' }).eq('id', existing.id)
       if (error) return alert('Error updating attendance: ' + error.message)
-      setAttendanceData(prev => prev.filter(a => a.id !== existing.id))
-      setAllAttendance(prev => prev.map(a => a?.id === existing.id ? { ...a, present: false, attendance_type: 'absent' } : a))
     } else if (existing?.attendance_type === 'absent') {
       // Currently red -> clear to blank. We keep the row (marked
       // "excused") instead of deleting it, otherwise a date that
@@ -3259,25 +3272,20 @@ export default function AthleteProfiles() {
       const { error } = await supabase.from('attendance')
         .update({ attendance_type: 'excused' }).eq('id', existing.id)
       if (error) return alert('Error clearing attendance: ' + error.message)
-      setAllAttendance(prev => prev.map(a => a?.id === existing.id ? { ...a, attendance_type: 'excused' } : a))
     } else if (existing?.attendance_type === 'excused') {
       // Currently blank (explicitly cleared) -> mark attended (green)
       const { error } = await supabase.from('attendance')
         .update({ present: true, attendance_type: 'attended' }).eq('id', existing.id)
       if (error) return alert('Error saving attendance: ' + error.message)
-      const updatedRecord = { ...existing, present: true, attendance_type: 'attended' }
-      setAttendanceData(prev => [...prev, updatedRecord])
-      setAllAttendance(prev => prev.map(a => a?.id === existing.id ? updatedRecord : a))
     } else {
       // Currently blank (no record at all) -> mark attended (green)
-      const { data, error } = await supabase.from('attendance').insert({
+      const { error } = await supabase.from('attendance').insert({
         student_id: selected.id, present: true, attendance_type: 'attended',
         session_date: dateStr, attended_at: new Date(dateStr + 'T12:00:00').toISOString(),
-      }).select().single()
+      })
       if (error) return alert('Error saving attendance: ' + error.message)
-      setAttendanceData(prev => [...prev, data])
-      setAllAttendance(prev => [...prev, data])
     }
+    await refetchAttendanceFor(selected.id)
   }
 
   async function addClassAssignment() {
