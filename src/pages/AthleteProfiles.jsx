@@ -914,8 +914,6 @@ const PDP_SECTIONS = [
   { key: 'skill_maintain',        label: 'Maintain',          colour: PDP_COLUMN_COLOURS.maintain,   coachOnly: true },
   { key: 'skill_work_on',         label: 'Work on',           colour: PDP_COLUMN_COLOURS.work_on,    coachOnly: true },
   { key: 'skill_what_to_do',      label: 'To do',             colour: PDP_COLUMN_COLOURS.what_to_do, coachOnly: true },
-  { key: 'athlete_notes',         label: '📝 Your notes',                colour: '#185FA5', coachOnly: false },
-  { key: 'notes',                 label: '📝 Coach notes',               colour: '#666666', coachOnly: true  },
 ]
 
 // Groups of 4 sections (Notes / Maintain / To work on / Check) shown
@@ -1127,6 +1125,73 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
 
   // Sections visible to athlete: non-coachOnly + any shared coach items
   const athleteSections = PDP_SECTIONS.filter(s => !s.coachOnly)
+
+  // Opponents card -- replaces the old free-text "Coach notes"/"Your
+  // notes" cards. restrictToShared=true previews exactly what the
+  // athlete sees (their own notes + coach notes explicitly shared);
+  // the coach's own view always sees everything, with a share toggle
+  // on each of their own notes.
+  function renderOpponentsCard(restrictToShared) {
+    const opponentNames = [...new Set(opponentNotes.map(n => n.opponent_name))].sort()
+    const visibleNotesFor = name => opponentNotes
+      .filter(n => n.opponent_name === name)
+      .filter(n => !restrictToShared || n.author_role === 'athlete' || n.is_shared)
+    return (
+      <div className="card" style={{ borderLeft: '3px solid #E24B4A', borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0', marginBottom: 10 }}>
+        <h3 style={{ fontSize: 13, fontWeight: 600, color: '#E24B4A', marginBottom: 10 }}>🥊 Opponents</h3>
+        {opponentNames.length === 0 && <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 10 }}>No opponent notes yet.</p>}
+        {opponentNames.map(name => {
+          const notes = visibleNotesFor(name)
+          if (restrictToShared && !notes.length) return null
+          const isOpen = expandedOpponent === name
+          return (
+            <div key={name} style={{ marginBottom: 8, border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+              <button onClick={() => setExpandedOpponent(isOpen ? null : name)}
+                style={{ width: '100%', textAlign: 'left', padding: '8px 12px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontFamily: 'var(--font-sans)' }}>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>{name}</span>
+                <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{notes.length} note{notes.length === 1 ? '' : 's'} {isOpen ? '▲' : '▼'}</span>
+              </button>
+              {isOpen && (
+                <div style={{ padding: '0 12px 10px' }}>
+                  {notes.map(n => (
+                    <div key={n.id} style={{ padding: '6px 0', borderTop: '1px solid var(--border)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                        <span style={{ fontSize: 10, fontWeight: 600, color: n.author_role === 'coach' ? '#666' : '#185FA5' }}>
+                          {n.author_role === 'coach' ? '🧑‍🏫 Coach' : '🥋 Athlete'} · {new Date(n.created_at).toLocaleDateString('en-GB')}
+                        </span>
+                        {isAdmin && !restrictToShared && (
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            {n.author_role === 'coach' && (
+                              <button onClick={() => toggleOpponentNoteShared(n)} style={{ fontSize: 10, background: 'none', border: 'none', color: n.is_shared ? '#1D9E75' : 'var(--text-tertiary)', cursor: 'pointer' }}>
+                                {n.is_shared ? '✓ Shared' : 'Share'}
+                              </button>
+                            )}
+                            <button onClick={() => deleteOpponentNote(n.id)} style={{ fontSize: 10, background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer' }}>✕</button>
+                          </div>
+                        )}
+                      </div>
+                      <p style={{ fontSize: 12, margin: 0, whiteSpace: 'pre-line' }}>{n.note_text}</p>
+                    </div>
+                  ))}
+                  {!restrictToShared && (
+                    <OpponentQuickNoteForm opponentName={name} onSave={(text, sharedFlag) => addOpponentNote(name, text, 'coach', sharedFlag)} showShareToggle />
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })}
+        {!restrictToShared && (
+          <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+            <p style={{ fontSize: 11, fontWeight: 600, marginBottom: 6 }}>+ New opponent</p>
+            <input value={newOpponentName} onChange={e => setNewOpponentName(e.target.value)} placeholder="Opponent name"
+              style={{ width: '100%', fontSize: 12, marginBottom: 6 }} />
+            <OpponentQuickNoteForm opponentName={newOpponentName} onSave={(text, sharedFlag) => { addOpponentNote(newOpponentName, text, 'coach', sharedFlag); setNewOpponentName('') }} showShareToggle disabled={!newOpponentName.trim()} />
+          </div>
+        )}
+      </div>
+    )
+  }
 
   function startEdit(section) {
     setEditSection(section.key)
@@ -1635,10 +1700,7 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
         <div>
           {/* Shared coach notes visible to athlete */}
           {PDP_SECTIONS.filter(s => !s.coachOnly && !(pdp.__hidden_sections || []).includes(s.key)).map(section => {
-            // Show athlete_notes always, shared coach sections if sent
-            const items = section.key === 'athlete_notes'
-              ? (pdp.athlete_notes || [])
-              : (shared[section.key] || [])
+            const items = shared[section.key] || []
             if (!items.length) return null
             const sentAt = shared[`${section.key}_sent_at`]
             return (
@@ -1657,9 +1719,11 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
               </div>
             )
           })}
-          {Object.keys(shared).filter(k => !k.endsWith('_sent_at')).every(k => !(shared[k]?.length)) && !(pdp.athlete_notes?.length) && (
+          {Object.keys(shared).filter(k => !k.endsWith('_sent_at')).every(k => !(shared[k]?.length)) && (
             <div className="empty-state"><h3>No notes yet</h3><p>Your coach hasn't shared any PDP notes yet</p></div>
           )}
+
+          {renderOpponentsCard(true)}
 
           {/* ── Weekly Timetable ── */}
           {(() => {
@@ -1786,6 +1850,7 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
             })
             return rendered
           })()}
+          {renderOpponentsCard(false)}
         </div>
       )}
 
@@ -1811,6 +1876,28 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// Module-scoped (not redefined on every render) so its internal text
+// state doesn't get wiped out whenever the parent component re-renders.
+function OpponentQuickNoteForm({ onSave, showShareToggle, disabled }) {
+  const [text, setText] = useState('')
+  const [sharedFlag, setSharedFlag] = useState(false)
+  return (
+    <div style={{ marginTop: 8 }}>
+      <textarea value={text} onChange={e => setText(e.target.value)} rows={2} placeholder="Add a note…"
+        style={{ width: '100%', fontSize: 12, padding: '6px 8px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 6 }} />
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {showShareToggle ? (
+          <label style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
+            <input type="checkbox" checked={sharedFlag} onChange={e => setSharedFlag(e.target.checked)} /> Share with athlete
+          </label>
+        ) : <span />}
+        <button className="btn btn-sm btn-primary" disabled={disabled || !text.trim()}
+          onClick={() => { onSave(text, sharedFlag); setText(''); setSharedFlag(false) }}>Add note</button>
+      </div>
     </div>
   )
 }
@@ -2244,6 +2331,11 @@ export default function AthleteProfiles() {
   const [belts, setBelts] = useState({ junior: [], senior: [], krba: [] })
   const [selected, setSelected]     = useState(null)
   const [apData, setApData]         = useState(null)
+  const [opponentNotes, setOpponentNotes] = useState([])
+  const [newOpponentName, setNewOpponentName] = useState('')
+  const [newOpponentNoteText, setNewOpponentNoteText] = useState('')
+  const [newOpponentNoteShared, setNewOpponentNoteShared] = useState(false)
+  const [expandedOpponent, setExpandedOpponent] = useState(null)
   const [holidays, setHolidays]     = useState([])
   const [loading, setLoading]       = useState(true)
   const [searchParams, setSearchParams] = useSearchParams()
@@ -3347,6 +3439,29 @@ export default function AthleteProfiles() {
     setSavingNote(false)
   }
 
+  async function addOpponentNote(opponentName, noteText, authorRole, shared = false) {
+    if (!opponentName.trim() || !noteText.trim()) return
+    const { data, error } = await supabase.from('opponent_notes').insert({
+      student_id: selected.id, opponent_name: opponentName.trim(), note_text: noteText.trim(),
+      author_role: authorRole, author_member_id: profile?.id || null, is_shared: authorRole === 'athlete' ? true : shared,
+    }).select().single()
+    if (error) { alert('Error saving note: ' + error.message); return }
+    setOpponentNotes(prev => [...prev, data])
+  }
+
+  async function toggleOpponentNoteShared(note) {
+    const { error } = await supabase.from('opponent_notes').update({ is_shared: !note.is_shared }).eq('id', note.id)
+    if (error) { alert('Error updating: ' + error.message); return }
+    setOpponentNotes(prev => prev.map(n => n.id === note.id ? { ...n, is_shared: !n.is_shared } : n))
+  }
+
+  async function deleteOpponentNote(noteId) {
+    if (!confirm('Delete this note?')) return
+    const { error } = await supabase.from('opponent_notes').delete().eq('id', noteId)
+    if (error) { alert('Error deleting: ' + error.message); return }
+    setOpponentNotes(prev => prev.filter(n => n.id !== noteId))
+  }
+
   async function deleteNote(noteId) {
     if (!confirm('Delete this note?')) return
     const { error } = await supabase.from('athlete_notes_log').delete().eq('id', noteId)
@@ -3486,6 +3601,8 @@ export default function AthleteProfiles() {
       .eq('student_id', s.id)
       .order('logged_at', { ascending: false })
       .then(({ data, error }) => { if (!error && selectingIdRef.current === s.id) setNotesLog(data || []) })
+    supabase.from('opponent_notes').select('*').eq('student_id', s.id).order('created_at', { ascending: true })
+      .then(({ data, error }) => { if (!error && selectingIdRef.current === s.id) setOpponentNotes(data || []) })
     supabase.from('points_log').select('id, point_type, points_awarded, point_scope, note, awarded_at')
       .eq('student_id', s.id)
       .order('awarded_at', { ascending: false })

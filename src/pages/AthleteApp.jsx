@@ -770,8 +770,29 @@ const PDP_SECTIONS = [
   { key: 'tact_work_on',        label: '🎯 Tactical — work on',    colour: '#E24B4A' },
   { key: 'physical_maintain',   label: '💪 Physical — maintain',   colour: '#1D9E75' },
   { key: 'physical_work_on',    label: '💪 Physical — work on',    colour: '#059669' },
-  { key: 'athlete_notes',       label: '📝 My notes',              colour: '#185FA5' },
 ]
+
+// Module-scoped (not redefined on every render) so its internal text
+// state doesn't get wiped out whenever the parent component re-renders.
+function OpponentQuickNoteForm({ onSave, showShareToggle, disabled }) {
+  const [text, setText] = useState('')
+  const [sharedFlag, setSharedFlag] = useState(false)
+  return (
+    <div style={{ marginTop: 8 }}>
+      <textarea value={text} onChange={e => setText(e.target.value)} rows={2} placeholder="Add a note…"
+        style={{ width: '100%', fontSize: 12, padding: '6px 8px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 6 }} />
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {showShareToggle ? (
+          <label style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
+            <input type="checkbox" checked={sharedFlag} onChange={e => setSharedFlag(e.target.checked)} /> Share with athlete
+          </label>
+        ) : <span />}
+        <button className="btn btn-sm btn-primary" disabled={disabled || !text.trim()}
+          onClick={() => { onSave(text, sharedFlag); setText(''); setSharedFlag(false) }}>Add note</button>
+      </div>
+    </div>
+  )
+}
 
 export default function AthleteApp() {
   const { profile, isStaff } = useAuth()
@@ -799,6 +820,8 @@ export default function AthleteApp() {
   // attendance calendar, a Fit II Fight completed-actions-per-day
   // count, and a PDP completed-actions-per-day count.
   const [sessionsCalendarView, setSessionsCalendarView] = useState('sessions') // 'sessions' | 'f2f' | 'pdp'
+  const [opponentNotes, setOpponentNotes] = useState([])
+  const [newOpponentName, setNewOpponentName] = useState('')
   const [student, setStudent]   = useState(null)
   const [houses, setHouses] = useState([])
   const [rankList, setRankList] = useState([])
@@ -1132,6 +1155,9 @@ export default function AthleteApp() {
 
         supabase.from('holidays').select('*').then(({ data }) => setHolidays(data || []))
 
+        supabase.from('opponent_notes').select('*').eq('student_id', s.id).order('created_at', { ascending: true })
+          .then(({ data, error }) => { if (!error) setOpponentNotes(data || []) })
+
         supabase.from('athlete_notes_log').select('*').eq('student_id', s.id).order('logged_at', { ascending: false })
           .then(({ data, error }) => { if (!error) setMyNotesLog(data || []) })
 
@@ -1195,6 +1221,16 @@ export default function AthleteApp() {
     setApData(a => ({ ...(a || {}), pdp_notes: updated }))
     setEditNote(false)
     setSaving(false)
+  }
+
+  async function addOwnOpponentNote(opponentName, noteText) {
+    if (!student || !opponentName.trim() || !noteText.trim()) return
+    const { data, error } = await supabase.from('opponent_notes').insert({
+      student_id: student.id, opponent_name: opponentName.trim(), note_text: noteText.trim(),
+      author_role: 'athlete', author_member_id: profile?.id || null, is_shared: true,
+    }).select().single()
+    if (error) { alert('Error saving note: ' + error.message); return }
+    setOpponentNotes(prev => [...prev, data])
   }
 
   useEffect(() => {
@@ -3593,7 +3629,7 @@ export default function AthleteApp() {
         <div>
           {!student ? <p style={{ color: 'var(--text-secondary)' }}>No student record linked.</p> : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {!PDP_SECTIONS.some(section => section.key !== 'athlete_notes' && (shared[section.key] || []).length > 0) && (
+              {!PDP_SECTIONS.some(section => (shared[section.key] || []).length > 0) && (
                 <div className="card" style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '20px 16px' }}>
                   <div style={{ fontSize: 24, marginBottom: 6 }}>🎯</div>
                   <p style={{ fontSize: 13, fontWeight: 500, marginBottom: 2 }}>No PDP added yet</p>
@@ -3601,37 +3637,54 @@ export default function AthleteApp() {
                 </div>
               )}
               {PDP_SECTIONS.map(section => {
-                const items = section.key === 'athlete_notes' ? (pdp.athlete_notes || []) : (shared[section.key] || [])
-                if (section.key !== 'athlete_notes' && !items.length) return null
+                const items = shared[section.key] || []
+                if (!items.length) return null
                 return (
                   <div key={section.key} className="card" style={{ borderLeft: `3px solid ${section.colour}` }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                       <h3 style={{ fontSize: 13, fontWeight: 600, color: section.colour, margin: 0 }}>{section.label}</h3>
-                      {section.key === 'athlete_notes' && (
-                        <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => { setEditNote(true); setNoteText(items[0] || '') }}>
-                          {items.length ? 'Edit' : '+ Add'}
-                        </button>
-                      )}
                     </div>
-                    {editNote && section.key === 'athlete_notes' ? (
-                      <div>
-                        <textarea rows={4} value={noteText} onChange={e => setNoteText(e.target.value)}
-                          style={{ width: '100%', padding: '8px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, resize: 'vertical', background: 'var(--bg-secondary)', color: 'var(--text)' }} />
-                        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                          <button className="btn btn-sm" onClick={() => setEditNote(false)}>Cancel</button>
-                          <button className="btn btn-primary btn-sm" onClick={() => saveNote(noteText)} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                        {items.length > 0 ? items.map((item, i) => (
-                          <span key={i} style={{ background: section.colour + '15', color: section.colour, borderRadius: 20, padding: '4px 10px', fontSize: 12 }}>{item}</span>
-                        )) : <span style={{ fontSize: 12, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>No notes yet</span>}
-                      </div>
-                    )}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {items.map((item, i) => (
+                        <span key={i} style={{ background: section.colour + '15', color: section.colour, borderRadius: 20, padding: '4px 10px', fontSize: 12 }}>{item}</span>
+                      ))}
+                    </div>
                   </div>
                 )
               })}
+
+              {/* Opponents -- shared coach notes + the athlete's own,
+                  read-only for shared coach notes, can add their own. */}
+              <div className="card" style={{ borderLeft: '3px solid #E24B4A', borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0' }}>
+                <h3 style={{ fontSize: 13, fontWeight: 600, color: '#E24B4A', marginBottom: 10 }}>🥊 Opponents</h3>
+                {(() => {
+                  const opponentNames = [...new Set(opponentNotes.map(n => n.opponent_name))].sort()
+                  if (!opponentNames.length) return <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 10 }}>No opponent notes yet.</p>
+                  return opponentNames.map(name => {
+                    const notes = opponentNotes.filter(n => n.opponent_name === name && (n.author_role === 'athlete' || n.is_shared))
+                    if (!notes.length) return null
+                    return (
+                      <div key={name} style={{ marginBottom: 10 }}>
+                        <p style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>{name}</p>
+                        {notes.map(n => (
+                          <div key={n.id} style={{ padding: '5px 0', borderTop: '1px solid var(--border)' }}>
+                            <span style={{ fontSize: 10, fontWeight: 600, color: n.author_role === 'coach' ? '#666' : '#185FA5' }}>
+                              {n.author_role === 'coach' ? '🧑‍🏫 Coach' : '🥋 You'} · {new Date(n.created_at).toLocaleDateString('en-GB')}
+                            </span>
+                            <p style={{ fontSize: 12, margin: '2px 0 0', whiteSpace: 'pre-line' }}>{n.note_text}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  })
+                })()}
+                <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+                  <p style={{ fontSize: 11, fontWeight: 600, marginBottom: 6 }}>+ Add a note</p>
+                  <input value={newOpponentName} onChange={e => setNewOpponentName(e.target.value)} placeholder="Opponent name"
+                    style={{ width: '100%', fontSize: 12, marginBottom: 6 }} />
+                  <OpponentQuickNoteForm onSave={text => { addOwnOpponentNote(newOpponentName, text); setNewOpponentName('') }} disabled={!newOpponentName.trim()} />
+                </div>
+              </div>
             </div>
           )}
         </div>
