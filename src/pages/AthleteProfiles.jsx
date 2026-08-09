@@ -3228,16 +3228,29 @@ export default function AthleteProfiles() {
   // absent (red) -> none (deselect). Writes directly to the attendance
   // table so it's immediately reflected in the admin Registers/reports.
   async function cycleAttendanceDay(dateStr) {
-    const existing = allAttendance.find(a => a?.student_id === selected.id && a?.session_date === dateStr)
-    const attendedRecord = attendanceData.find(a => a.session_date === dateStr)
+    // Reads the current state fresh from the server rather than
+    // inferring it from two separately-tracked local arrays
+    // (attendanceData + allAttendance) -- those can drift out of sync
+    // with each other or with a stale render closure, which is what
+    // was causing "clear" to sometimes silently do the wrong thing
+    // after the day had already been marked absent.
+    const { data: existingRows, error: fetchErr } = await supabase.from('attendance')
+      .select('id, attendance_type').eq('student_id', selected.id).eq('session_date', dateStr)
+      .order('id', { ascending: false })
+    if (fetchErr) return alert('Error checking attendance: ' + fetchErr.message)
+    // A student can now have more than one row for the same date (e.g.
+    // a double-session day) -- this click-to-cycle control operates at
+    // the whole-day level, so it just acts on the most recent one
+    // rather than erroring on multiple rows.
+    const existing = existingRows?.[0] || null
 
-    if (attendedRecord) {
+    if (existing?.attendance_type && existing.attendance_type !== 'absent' && existing.attendance_type !== 'excused') {
       // Currently green -> turn red (explicit absent)
       const { error } = await supabase.from('attendance')
-        .update({ present: false, attendance_type: 'absent' }).eq('id', attendedRecord.id)
+        .update({ present: false, attendance_type: 'absent' }).eq('id', existing.id)
       if (error) return alert('Error updating attendance: ' + error.message)
-      setAttendanceData(prev => prev.filter(a => a.id !== attendedRecord.id))
-      setAllAttendance(prev => prev.map(a => a?.id === attendedRecord.id ? { ...a, present: false, attendance_type: 'absent' } : a))
+      setAttendanceData(prev => prev.filter(a => a.id !== existing.id))
+      setAllAttendance(prev => prev.map(a => a?.id === existing.id ? { ...a, present: false, attendance_type: 'absent' } : a))
     } else if (existing?.attendance_type === 'absent') {
       // Currently red -> clear to blank. We keep the row (marked
       // "excused") instead of deleting it, otherwise a date that
