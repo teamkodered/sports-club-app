@@ -1587,9 +1587,16 @@ export default function AthleteApp() {
     const updates = { [field]: skip || !weightCheckValue.trim() ? null : parseFloat(weightCheckValue) }
     if (showWeightCheckPrompt === 'out') updates.checked_out_at = new Date().toISOString()
 
-    const { error } = await supabase.from('attendance').update(updates).eq('id', activeCheckIn.id)
+    // .select() so a silently-blocked update (e.g. an RLS policy not
+    // matching, or the row no longer existing) can be told apart from
+    // a genuine success -- both look identical otherwise, since
+    // neither raises an error, and the checkout would otherwise just
+    // quietly revert once the UI re-syncs with the real, unchanged row.
+    const { data, error } = await supabase.from('attendance').update(updates).eq('id', activeCheckIn.id).select()
     if (error) {
       alert('Error saving: ' + error.message)
+    } else if (!data?.length) {
+      alert("Couldn't save this — it may be too old to update yourself. Ask a coach if this keeps happening.")
     } else {
       // Also sync students.weight_kg from the latest weigh-in, same as elsewhere in the app
       if (updates[field] != null) {
