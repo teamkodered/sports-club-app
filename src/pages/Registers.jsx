@@ -86,6 +86,18 @@ function SortTh({ col, label, sortKey, sortDir, onSort, style = {} }) {
   )
 }
 
+// Confirmed double-session pairs -- same cohort, split across two
+// back-to-back slots (usually for capacity). When a student is marked
+// present for the FIRST class in a pair, and they're already assigned
+// to the SECOND one too, attendance is automatically covered for both
+// -- so a coach only has to check them in once. Always undoable from
+// the banner that appears after marking attendance.
+const DOUBLE_SESSION_PAIRS = [
+  { first: 'f15115b7-44fe-4581-92b4-0245afff6123', second: '7f86f077-fa72-45e7-87ec-fcdf9787e1a1', secondLabel: 'KR 10:00' },
+  { first: '50866030-a2ea-41c9-8c99-13342f38194d', second: 'b71979d9-7b81-4c8c-a037-da33d371f384', secondLabel: 'KRBA Register 13:00' },
+  { first: 'cb4623b1-0113-450f-ae44-1f990d73d17a', second: 'c2e674e8-8360-4817-aef9-e5bf1b62f4f9', secondLabel: 'KRBA Register 19:00' },
+]
+
 export default function Registers() {
   const { isAdmin, isCoach, isLeader, isStaff } = useAuth()
   const navigate = useNavigate()
@@ -110,6 +122,10 @@ export default function Registers() {
   const [attendFuture, setAttendFuture]   = useState([])
   const [contactModal, setContactModal] = useState(null)
   const [attendance, setAttendance]     = useState({})
+  // Entries auto-added by the double-session cascade, shown as an
+  // undoable banner so a coach can remove any that shouldn't have been
+  // covered (e.g. a student only staying for one of the two sessions).
+  const [cascadedEntries, setCascadedEntries] = useState([])
   const [showOnlyAttended, setShowOnlyAttended] = useState(false)
   const [pointsByStudent, setPointsByStudent] = useState({}) // student_id -> points_log rows for the selected date
   const [weightByStudent, setWeightByStudent] = useState({}) // student_id -> {weight_before, weight_after} for the selected date (KRBA)
@@ -153,6 +169,9 @@ export default function Registers() {
 
   useEffect(() => { loadPointTypes() }, [])
   useEffect(() => { loadStudents() }, [regType, date])
+  // Clear the double-session undo banner when switching date/class --
+  // those entries only make sense in the context they were created in.
+  useEffect(() => { setCascadedEntries([]) }, [date, classFilter])
 
   async function loadPointTypes() {
     const { data } = await supabase.from('settings').select('value').eq('key', 'point_types').single()
@@ -392,17 +411,21 @@ export default function Registers() {
     setAdhocPills(prev => prev.filter(p => p.id !== id))
   }
 
-  async function awardAttendancePoints(student, type) {
-    // Reverse any attendance points already awarded to this student
-    // for this session first, so cycling the pill through
-    // attended -> full_kit reflects only the final state's points,
-    // rather than stacking both awards.
-    const { data: previousEntries } = await supabase.from('points_log')
+  async function awardAttendancePoints(student, type, classId) {    // Reverse any attendance points already awarded to this student for
+    // THIS SPECIFIC CLASS today, so cycling attended -> full_kit reflects
+    // only the final state's points rather than stacking both awards.
+    // Scoped by class_id (not just date) so a student attending two
+    // different classes on the same day -- e.g. via the double-session
+    // auto-cascade -- gets points for both, instead of the second
+    // class's award wiping out the first's.
+    let reverseQuery = supabase.from('points_log')
       .select('id, points_awarded, point_type')
       .eq('student_id', student.id)
       .in('point_type', ['Attendance', 'Full Kit'])
       .gte('awarded_at', date + 'T00:00:00')
       .lt('awarded_at', date + 'T23:59:59')
+    reverseQuery = classId ? reverseQuery.eq('class_id', classId) : reverseQuery.is('class_id', null)
+    const { data: previousEntries } = await reverseQuery
     let reversedPts = 0
     if (previousEntries?.length) {
       reversedPts = previousEntries.reduce((sum, e) => sum + (e.points_awarded || 0), 0)
@@ -418,6 +441,7 @@ export default function Registers() {
       student_id: student.id, point_type: pointLabel,
       points_awarded: pts, point_scope: 'both',
       awarded_at: new Date(date).toISOString(),
+      class_id: classId || null,
     })
     await supabase.from('students').update({
       house_points: (student.house_points || 0) + netChange,
@@ -431,6 +455,64 @@ export default function Registers() {
     }
 
     setStudents(prev => prev.map(s => s.id === student.id ? { ...s, house_points: (s.house_points || 0) + netChange, individual_points: (s.individual_points || 0) + netChange } : s))
+    return netChange
+  }
+
+  // If the class currently being marked is the FIRST half of a known
+  // double-session pair, and this student is already assigned to the
+  // SECOND half too, automatically mark them present there as well --
+  // covers the common case of staying for both without checking in
+  // twice. Only cascades forward (first -> second), never assumes
+  // backward. Skips silently if already marked, or not assigned to the
+  // second class. Returns the cascaded entry (for the undo banner) or
+  // null if nothing was added.
+  async function cascadeDoubleSession(student, type) {
+    const pair = DOUBLE_SESSION_PAIRS.find(p => p.first === classFilter)
+    if (!pair) return null
+
+    const { data: assignment } = await supabase.from('student_class_assignments')
+      .select('id').eq('student_id', student.id).eq('class_id', pair.second).maybeSingle()
+    if (!assignment) return null
+
+    const { data: existing } = await supabase.from('attendance')
+      .select('id').eq('student_id', student.id).eq('class_id', pair.second).eq('session_date', date).maybeSingle()
+    if (existing) return null
+
+    const { error } = await supabase.from('attendance').insert({
+      student_id: student.id, present: true, attendance_type: type,
+      session_date: date, attended_at: new Date(date + 'T12:00:00').toISOString(),
+      class_id: pair.second,
+    })
+    if (error) return null
+
+    const pointsAwarded = await awardAttendancePoints(student, type, pair.second)
+    return { studentId: student.id, studentName: `${student.members?.first_name} ${student.members?.last_name}`, classId: pair.second, classLabel: pair.secondLabel, pointsAwarded: pointsAwarded || 0 }
+  }
+
+  async function undoCascadedEntry(entry) {
+    await supabase.from('attendance').delete().eq('student_id', entry.studentId).eq('class_id', entry.classId).eq('session_date', date)
+    await supabase.from('points_log').delete().eq('student_id', entry.studentId).eq('class_id', entry.classId)
+      .in('point_type', ['Attendance', 'Full Kit'])
+      .gte('awarded_at', date + 'T00:00:00').lt('awarded_at', date + 'T23:59:59')
+
+    // The points_log row was just a record -- it doesn't touch the
+    // actual running totals on its own, so those need reversing
+    // explicitly by the same amount that was awarded.
+    if (entry.pointsAwarded) {
+      const s = students.find(x => x.id === entry.studentId)
+      if (s) {
+        await supabase.from('students').update({
+          house_points: (s.house_points || 0) - entry.pointsAwarded,
+          individual_points: (s.individual_points || 0) - entry.pointsAwarded,
+        }).eq('id', entry.studentId)
+        setStudents(prev => prev.map(x => x.id === entry.studentId
+          ? { ...x, house_points: (x.house_points || 0) - entry.pointsAwarded, individual_points: (x.individual_points || 0) - entry.pointsAwarded }
+          : x))
+        const houseName = s.house_name || s.members?.houses?.name
+        if (houseName) await supabase.rpc('adjust_house_points', { p_house_name: houseName, p_delta: -entry.pointsAwarded })
+      }
+    }
+    setCascadedEntries(prev => prev.filter(e => !(e.studentId === entry.studentId && e.classId === entry.classId)))
   }
 
   // When attendance is marked while viewing a specific class (not
@@ -476,7 +558,13 @@ export default function Registers() {
       }
       await ensureClassAssignment(id)
       const student = students.find(s => s.id === id)
-      if (student) await awardAttendancePoints(student, next)
+      if (student) {
+        await awardAttendancePoints(student, next, scopedToClass ? classFilter : null)
+        if (scopedToClass) {
+          const cascaded = await cascadeDoubleSession(student, next)
+          if (cascaded) setCascadedEntries(prev => [...prev, cascaded])
+        }
+      }
     }
   }
 
@@ -523,8 +611,12 @@ export default function Registers() {
         class_id: scopedToClass ? classFilter : null,
       })
 
-      await awardAttendancePoints(s, type)
+      await awardAttendancePoints(s, type, scopedToClass ? classFilter : null)
       await ensureClassAssignment(s.id)
+      if (scopedToClass) {
+        const cascaded = await cascadeDoubleSession(s, type)
+        if (cascaded) setCascadedEntries(prev => [...prev, cascaded])
+      }
     }
 
     setAttendance(prev => ({ ...prev, ...newAtt }))
@@ -845,6 +937,25 @@ export default function Registers() {
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search students…"
           style={{ flex: 1, minWidth: 160, padding: '7px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
       </div>
+
+      {/* Double-session cascade undo banner -- appears when marking
+          attendance for the first half of a known double-session pair
+          also auto-covered the second half for one or more students. */}
+      {cascadedEntries.length > 0 && (
+        <div className="card" style={{ marginBottom: 10, padding: '10px 14px', background: '#1D9E7512', border: '1px solid #1D9E7540' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, color: '#1D9E75' }}>
+            Also marked present for the following session{cascadedEntries.length === 1 ? '' : 's'} (double session — undo any who are only staying for one):
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {cascadedEntries.map((entry, i) => (
+              <div key={`${entry.studentId}-${entry.classId}-${i}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
+                <span>{entry.studentName} — {entry.classLabel}</span>
+                <button className="btn btn-sm" onClick={() => undoCascadedEntry(entry)}>Undo</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
 
       {/* Table */}
