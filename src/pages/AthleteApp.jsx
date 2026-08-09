@@ -1477,7 +1477,11 @@ export default function AthleteApp() {
   useEffect(() => {
     if (!student || !attendanceData.length) { setActiveCheckIn(null); return }
     const todayStr = new Date().toISOString().split('T')[0]
-    const todaysOpenEntries = attendanceData.filter(a => a.session_date === todayStr && !a.checked_out_at)
+    // Only rows from the athlete's OWN self-check-in count here -- a
+    // coach marking them present via Registers (including the
+    // double-session cascade) never expects a check-out step, and
+    // shouldn't make this app think one's needed.
+    const todaysOpenEntries = attendanceData.filter(a => a.session_date === todayStr && !a.checked_out_at && a.self_checked_in)
     if (!todaysOpenEntries.length) { setActiveCheckIn(null); return }
     const mostRecent = todaysOpenEntries.sort((a, b) => new Date(b.attended_at) - new Date(a.attended_at))[0]
 
@@ -1515,6 +1519,7 @@ export default function AthleteApp() {
       attendance_type: attendanceType,
       session_date: new Date().toISOString().split('T')[0],
       attended_at: new Date().toISOString(),
+      self_checked_in: true,
     }).select().single()
     if (error) {
       alert('Error checking in: ' + error.message)
