@@ -1806,23 +1806,43 @@ export default function AthleteApp() {
                 // "distinct days attended" alone could ever represent,
                 // since that maxes out at 1 regardless of how many
                 // classes happened that day.
-                const relevantClassIds = new Set(relevantAssigned.map(a => a.classes?.id).filter(Boolean))
-                const claimedByDate = {}
-                let attendedDayCount = 0
-                for (const a of attendanceData) {
-                  // When the coach has set a specific date range for this
-                  // card, only count attendance actually within it.
-                  if (coachAttendanceDateSettings && (a.session_date < earliestDate || a.session_date > coachAttendanceDateSettings.to)) continue
-                  if (a.class_id && relevantClassIds.has(a.class_id)) {
-                    const key = `${a.session_date}::${a.class_id}`
-                    if (!claimedByDate[key]) { claimedByDate[key] = true; attendedDayCount++ }
-                  } else if (!a.class_id) {
-                    // Legacy row from before class_id existed -- credit it
-                    // to that date at most once, best-effort for old data.
-                    const key = `${a.session_date}::none`
-                    if (!claimedByDate[key]) { claimedByDate[key] = true; attendedDayCount++ }
+                //
+                // Attendance rows are only ever matched against a real
+                // possible slot -- a legacy row with no class_id can
+                // only claim a date that's genuinely one of the
+                // calculated possible sessions, never counted just for
+                // existing. This mirrors the coach's equivalent
+                // calculation exactly; the two must never diverge.
+                const possibleSessionKeysForAttendance = new Set()
+                for (const a of relevantAssigned) {
+                  const classId = a.classes?.id
+                  const jsDays = DAY_TO_JS_DAYS[a.classes?.day_of_week] || []
+                  if (!jsDays.length || !classId) continue
+                  const cursor = new Date(earliestDate + 'T00:00:00')
+                  while (cursor <= rangeEndDate) {
+                    if (jsDays.includes(cursor.getDay())) {
+                      const dateStr = cursor.toISOString().split('T')[0]
+                      if (!isDateOnHoliday(dateStr, holidays, [classId])) possibleSessionKeysForAttendance.add(`${dateStr}::${classId}`)
+                    }
+                    cursor.setDate(cursor.getDate() + 1)
                   }
                 }
+                const relevantClassIds = new Set(relevantAssigned.map(a => a.classes?.id).filter(Boolean))
+                const scopedAttendance = attendanceData.filter(a => {
+                  if (a.session_date < earliestDate || a.session_date > rangeEndDate.toISOString().split('T')[0]) return false
+                  return !a.class_id || relevantClassIds.has(a.class_id)
+                })
+                const attendedSessionKeys = new Set()
+                for (const a of scopedAttendance) {
+                  const exactKey = a.class_id ? `${a.session_date}::${a.class_id}` : null
+                  if (exactKey && possibleSessionKeysForAttendance.has(exactKey)) {
+                    attendedSessionKeys.add(exactKey)
+                  } else {
+                    const fallbackKey = [...possibleSessionKeysForAttendance].find(k => k.startsWith(a.session_date + '::') && !attendedSessionKeys.has(k))
+                    if (fallbackKey) attendedSessionKeys.add(fallbackKey)
+                  }
+                }
+                const attendedDayCount = attendedSessionKeys.size
 
                 const modules = [
                   { key: 'running',    label: 'Running',       icon: '🏃' },
