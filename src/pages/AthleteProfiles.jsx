@@ -6400,7 +6400,12 @@ export default function AthleteProfiles() {
                         {(() => {
                           const hasContent = v => Array.isArray(v) ? v.length > 0 : (v && typeof v === 'object' ? Object.keys(v).length > 0 : !!v)
                           const activityFields = ['running', 'watt_bike', 'bodyweight', 'stretch_flows', 'snc', 'other_session', 'techniques', 'tactical', 'mentality_log', 'wellbeing', 'test']
-                          return f2fData.filter(s => activityFields.some(f => hasContent(s[f]))).length
+                          // Follows this card's configured date range --
+                          // the actual Results tab below is unaffected
+                          // and keeps its own independent date filter.
+                          const f2fSettings = cardDateSettings.f2f_sessions
+                          const dateScoped = f2fData.filter(s => s.session_date >= f2fSettings.from && s.session_date <= f2fSettings.to)
+                          return dateScoped.filter(s => activityFields.some(f => hasContent(s[f]))).length
                         })()}
                       </div>
                       <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>F2F Results</div>

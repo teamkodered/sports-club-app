@@ -808,6 +808,11 @@ export default function AthleteApp() {
   // "Both" -- otherwise this athlete's own attendance % keeps using its
   // own default (since they joined, up to today).
   const [coachAttendanceDateSettings, setCoachAttendanceDateSettings] = useState(null)
+  // Same idea as the attendance date sync, but for the F2F Results
+  // card's count specifically -- only ever affects that card's number,
+  // never the actual Results page's own graphs/list, which keeps its
+  // own independent date filter untouched.
+  const [coachF2fDateSettings, setCoachF2fDateSettings] = useState(null)
   // Read-only Profile card (Club/Level/Record/Weight/groups) -- starts
   // collapsed to just its title bar, same show/hide behaviour as the
   // equivalent card on the Coaches Dashboard. No editing here -- this
@@ -940,6 +945,19 @@ export default function AthleteApp() {
         const scope = data.find(d => d.key === 'card_date_all_sessions_scope')?.value
         if (from && to && (scope === 'athletes' || scope === 'both')) {
           setCoachAttendanceDateSettings({ from, to })
+        }
+      })
+  }, [])
+
+  useEffect(() => {
+    supabase.from('team_settings').select('*').in('key', ['card_date_f2f_sessions_from', 'card_date_f2f_sessions_to', 'card_date_f2f_sessions_scope'])
+      .then(({ data }) => {
+        if (!data?.length) return
+        const from = data.find(d => d.key === 'card_date_f2f_sessions_from')?.value
+        const to = data.find(d => d.key === 'card_date_f2f_sessions_to')?.value
+        const scope = data.find(d => d.key === 'card_date_f2f_sessions_scope')?.value
+        if (from && to && (scope === 'athletes' || scope === 'both')) {
+          setCoachF2fDateSettings({ from, to })
         }
       })
   }, [])
@@ -1904,17 +1922,30 @@ export default function AthleteApp() {
                           </div>
                         )}
                       </div>
-                      <a href={`/fit2fight?student_id=${student.id}`} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', textDecoration: 'none', color: 'inherit', display: 'block' }}>
+                      <button onClick={() => setTab('fit2fight')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none' }}>
                         <div style={{ fontSize: 22, marginBottom: 4 }}>🔥</div>
                         <div style={{ fontSize: 22, fontWeight: 700, color: '#378ADD' }}>
                           {(() => {
                             const hasContent = v => Array.isArray(v) ? v.length > 0 : (v && typeof v === 'object' ? Object.keys(v).length > 0 : !!v)
                             const activityFields = ['running', 'watt_bike', 'bodyweight', 'stretch_flows', 'snc', 'other_session', 'techniques', 'tactical', 'mentality_log', 'wellbeing', 'test']
-                            return sessions.filter(s => activityFields.some(f => hasContent(s[f]))).length
+                            // This count follows the coach's configured
+                            // date range for this card (when set to
+                            // include athletes) -- but the actual Results
+                            // page below is completely unaffected by it
+                            // and keeps its own independent date filter.
+                            const dateScoped = coachF2fDateSettings
+                              ? sessions.filter(s => s.session_date >= coachF2fDateSettings.from && s.session_date <= coachF2fDateSettings.to)
+                              : sessions
+                            return dateScoped.filter(s => activityFields.some(f => hasContent(s[f]))).length
                           })()}
                         </div>
                         <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>F2F Results</div>
-                      </a>
+                        {coachF2fDateSettings && (
+                          <div style={{ fontSize: 8, color: 'var(--text-tertiary)' }}>
+                            {new Date(coachF2fDateSettings.from).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – {new Date(coachF2fDateSettings.to).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                          </div>
+                        )}
+                      </button>
                       <button onClick={() => setTab('pdp')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none' }}>
                         <div style={{ fontSize: 22, marginBottom: 4 }}>🎯</div>
                         <div style={{ fontSize: 22, fontWeight: 700, color: '#EF9F27' }}>
