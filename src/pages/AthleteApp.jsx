@@ -1540,8 +1540,16 @@ export default function AthleteApp() {
   // just closes the prompt and leaves the athlete still checked in.
   async function cancelCheckInPrompt() {
     if (showWeightCheckPrompt === 'in' && activeCheckIn) {
-      const { error } = await supabase.from('attendance').delete().eq('id', activeCheckIn.id)
+      // .select() so we can tell a genuine delete apart from a delete
+      // that silently matched zero rows (e.g. an RLS policy blocking it,
+      // or the row having already been removed) -- both look identical
+      // otherwise, since neither raises an error.
+      const { data, error } = await supabase.from('attendance').delete().eq('id', activeCheckIn.id).select()
       if (error) { alert('Error cancelling check-in: ' + error.message); return }
+      if (!data?.length) {
+        alert("Couldn't cancel this check-in — it may be too old to cancel yourself. Ask a coach to remove it if needed.")
+        return
+      }
       setAttendanceData(prev => prev.filter(a => a.id !== activeCheckIn.id))
       setActiveCheckIn(null)
     }
