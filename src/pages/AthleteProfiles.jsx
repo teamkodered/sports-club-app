@@ -939,6 +939,10 @@ const PDP_MAINTAIN_SECTIONS = new Set(PDP_CATEGORY_GROUPS.map(g => g.keys.find(k
 
 function PDPTab({ apData, setApData, student, isAdmin }) {
   const [pdpView, setPdpView]       = useState('coach') // 'coach' | 'athlete' | 'split'
+  // How many of each category's 4 columns (Notes/Maintain/Work on/To do)
+  // show at once before needing to scroll -- 1, 2, or 3. Doesn't apply
+  // to Winning ways, which always spans full width regardless.
+  const [pdpColumnsVisible, setPdpColumnsVisible] = useState(1)
   const [editSection, setEditSection] = useState(null)
   const editingCardRef = useRef(null)
   const [editItems, setEditItems]   = useState([])
@@ -1693,6 +1697,24 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
               <p>Add notes using the sections below</p>
             </div>
           )}
+          {/* Columns-per-view toggle -- controls how many of each
+              category's 4 columns (Notes/Maintain/Work on/To do) are
+              visible before needing to scroll sideways. Winning ways is
+              unaffected -- it always spans full width. */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+            <div style={{ display: 'inline-flex', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+              {[1, 2, 3].map(n => (
+                <button key={n} onClick={() => setPdpColumnsVisible(n)}
+                  title={`Show ${n} column${n === 1 ? '' : 's'} at a time`}
+                  style={{
+                    padding: '5px 12px', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                    background: pdpColumnsVisible === n ? 'var(--text)' : 'var(--bg-secondary)',
+                    color: pdpColumnsVisible === n ? 'var(--bg)' : 'var(--text-secondary)',
+                    borderLeft: n > 1 ? '1px solid var(--border-strong)' : 'none',
+                  }}>{n}</button>
+              ))}
+            </div>
+          </div>
           {/* Weekly Timetable -- shows PDP "Check" items sent here from any category */}
           {(() => {
             const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday']
@@ -1742,7 +1764,7 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
                       {group.keys.map(key => {
                         const sec = allSections.find(s => s.key === key)
                         return sec ? (
-                          <div key={key} style={{ flex: '0 0 calc(33.333% - 7px)', minWidth: 0, scrollSnapAlign: 'start' }}>
+                          <div key={key} style={{ flex: `0 0 calc((100% - ${10 * (pdpColumnsVisible - 1)}px) / ${pdpColumnsVisible})`, minWidth: 0, scrollSnapAlign: 'start' }}>
                             {renderPDPSectionCard(sec)}
                           </div>
                         ) : null
