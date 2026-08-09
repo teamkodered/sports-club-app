@@ -4235,50 +4235,51 @@ export default function AthleteApp() {
                       )
                     })()}
                     </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                      <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                        {resultsListFiltered.length} {GRAPH_SECTION_LABELS[resultsGraphSection]} result{resultsListFiltered.length === 1 ? '' : 's'}
+                      </span>
+                    </div>
+                    {resultsListFiltered.length === 0 ? (
+                      <div className="empty-state"><p>No {GRAPH_SECTION_LABELS[resultsGraphSection]} results yet</p></div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        {resultsListFiltered.map((s, i) => {
+                          const change = s.weight_before && s.weight_after
+                            ? (parseFloat(s.weight_after) - parseFloat(s.weight_before)).toFixed(1) : null
+                          return (
+                            <div key={i} id={`my-f2f-entry-${s.id}`} className="card" style={{
+                              borderLeft: '3px solid #378ADD',
+                              outline: highlightedMyEntryId === s.id ? '2px solid #EF9F27' : 'none',
+                              transition: 'outline 0.3s',
+                            }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                <span style={{ fontWeight: 600, fontSize: 13 }}>{new Date(s.session_date).toLocaleDateString('en-GB')}</span>
+                                {(s.weight_before || s.weight_after) && (
+                                  <div style={{ display: 'flex', gap: 10, fontSize: 12 }}>
+                                    {s.weight_before && <span>⚖️ Before: <strong>{s.weight_before}kg</strong></span>}
+                                    {s.weight_after && <span>After: <strong>{s.weight_after}kg</strong></span>}
+                                    {change && <span style={{ fontWeight: 700, color: change < 0 ? '#1d9e75' : '#a32d2d' }}>{change > 0 ? '+' : ''}{change}kg</span>}
+                                  </div>
+                                )}
+                              </div>
+                              {s.running && <p style={{ fontSize: 12, margin: '4px 0' }}>🏃 Running logged</p>}
+                              {s.watt_bike && <p style={{ fontSize: 12, margin: '4px 0' }}>🚴 Watt bike logged</p>}
+                              {s.bodyweight && <p style={{ fontSize: 12, margin: '4px 0' }}>💪 Bodyweight logged</p>}
+                              {s.techniques && <p style={{ fontSize: 12, margin: '4px 0' }}>🥋 Techniques logged</p>}
+                              {s.test && Object.entries(s.test).map(([k, v]) => (
+                                <p key={k} style={{ fontSize: 12, margin: '4px 0' }}>📊 {k}: <strong>{v}</strong></p>
+                              ))}
+                              {s.notes && <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '6px 0 0', fontStyle: 'italic' }}>{s.notes}</p>}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
                   </>
                 )
               })()}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                  {resultsListFiltered.length} {GRAPH_SECTION_LABELS[resultsGraphSection]} result{resultsListFiltered.length === 1 ? '' : 's'}
-                </span>
-              </div>
-              {resultsListFiltered.length === 0 ? (
-                <div className="empty-state"><p>No {GRAPH_SECTION_LABELS[resultsGraphSection]} results yet</p></div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {resultsListFiltered.map((s, i) => {
-                    const change = s.weight_before && s.weight_after
-                      ? (parseFloat(s.weight_after) - parseFloat(s.weight_before)).toFixed(1) : null
-                    return (
-                      <div key={i} id={`my-f2f-entry-${s.id}`} className="card" style={{
-                        borderLeft: '3px solid #378ADD',
-                        outline: highlightedMyEntryId === s.id ? '2px solid #EF9F27' : 'none',
-                        transition: 'outline 0.3s',
-                      }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                          <span style={{ fontWeight: 600, fontSize: 13 }}>{new Date(s.session_date).toLocaleDateString('en-GB')}</span>
-                          {(s.weight_before || s.weight_after) && (
-                            <div style={{ display: 'flex', gap: 10, fontSize: 12 }}>
-                              {s.weight_before && <span>⚖️ Before: <strong>{s.weight_before}kg</strong></span>}
-                              {s.weight_after && <span>After: <strong>{s.weight_after}kg</strong></span>}
-                              {change && <span style={{ fontWeight: 700, color: change < 0 ? '#1d9e75' : '#a32d2d' }}>{change > 0 ? '+' : ''}{change}kg</span>}
-                            </div>
-                          )}
-                        </div>
-                        {s.running && <p style={{ fontSize: 12, margin: '4px 0' }}>🏃 Running logged</p>}
-                        {s.watt_bike && <p style={{ fontSize: 12, margin: '4px 0' }}>🚴 Watt bike logged</p>}
-                        {s.bodyweight && <p style={{ fontSize: 12, margin: '4px 0' }}>💪 Bodyweight logged</p>}
-                        {s.techniques && <p style={{ fontSize: 12, margin: '4px 0' }}>🥋 Techniques logged</p>}
-                        {s.test && Object.entries(s.test).map(([k, v]) => (
-                          <p key={k} style={{ fontSize: 12, margin: '4px 0' }}>📊 {k}: <strong>{v}</strong></p>
-                        ))}
-                        {s.notes && <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '6px 0 0', fontStyle: 'italic' }}>{s.notes}</p>}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
             </>
           )}
         </div>
