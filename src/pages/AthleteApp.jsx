@@ -794,6 +794,11 @@ export default function AthleteApp() {
   const [activeCheckIn, setActiveCheckIn] = useState(null) // the open attendance row (checked in, not yet checked out) if still within its session window
   const [showWeightCheckPrompt, setShowWeightCheckPrompt] = useState(null) // 'in' | 'out' | null
   const [weightCheckValue, setWeightCheckValue] = useState('')
+  const [fullKitChecked, setFullKitChecked] = useState(false)
+  // Cycles the Sessions calendar between three views: the normal
+  // attendance calendar, a Fit II Fight completed-actions-per-day
+  // count, and a PDP completed-actions-per-day count.
+  const [sessionsCalendarView, setSessionsCalendarView] = useState('sessions') // 'sessions' | 'f2f' | 'pdp'
   const [student, setStudent]   = useState(null)
   const [houses, setHouses] = useState([])
   const [rankList, setRankList] = useState([])
@@ -1578,6 +1583,7 @@ export default function AthleteApp() {
     }
     setShowWeightCheckPrompt(null)
     setWeightCheckValue('')
+    setFullKitChecked(false)
   }
 
   async function submitWeightCheck(skip = false) {
@@ -1586,6 +1592,9 @@ export default function AthleteApp() {
     const field = showWeightCheckPrompt === 'in' ? 'weight_before' : 'weight_after'
     const updates = { [field]: skip || !weightCheckValue.trim() ? null : parseFloat(weightCheckValue) }
     if (showWeightCheckPrompt === 'out') updates.checked_out_at = new Date().toISOString()
+    // Full kit is decided here via the checkbox rather than a separate
+    // button pressed before checking in -- only applies at check-in.
+    if (showWeightCheckPrompt === 'in') updates.attendance_type = fullKitChecked ? 'full_kit' : 'attended'
 
     // .select() so a silently-blocked update (e.g. an RLS policy not
     // matching, or the row no longer existing) can be told apart from
@@ -1604,7 +1613,7 @@ export default function AthleteApp() {
       }
       setAttendanceData(prev => prev.map(a => a.id === activeCheckIn.id ? { ...a, ...updates } : a))
       if (showWeightCheckPrompt === 'in') {
-        setCheckedInMsg(activeCheckIn.attendance_type === 'full_kit' ? '✓ Checked in — Full Kit!' : '✓ Checked in!')
+        setCheckedInMsg(updates.attendance_type === 'full_kit' ? '✓ Checked in — Full Kit!' : '✓ Checked in!')
         setTimeout(() => setCheckedInMsg(null), 3000)
       } else {
         setCheckedInMsg('✓ Checked out!')
@@ -1614,6 +1623,7 @@ export default function AthleteApp() {
     }
     setShowWeightCheckPrompt(null)
     setCheckingIn(false)
+    setFullKitChecked(false)
   }
 
   if (loading) return <div className="loading">Loading…</div>
@@ -3248,6 +3258,35 @@ export default function AthleteApp() {
               return !isDateOnHoliday(dateStr, holidays, classIdsThatDay)
             })
         )
+        // F2F actions completed per day -- counts each populated metric
+        // field across every session logged that day (running, watt
+        // bike, bodyweight, techniques, weight, and each individual
+        // test entry), not just "was a session logged".
+        const f2fActionsByDate = {}
+        sessions.forEach(s => {
+          if (!s.session_date) return
+          const d = new Date(s.session_date)
+          if (d.getFullYear() !== year || d.getMonth() !== month) return
+          let count = 0
+          if (s.weight_before || s.weight_after) count++
+          if (s.running) count += toEntries(s.running).length
+          if (s.watt_bike) count += toEntries(s.watt_bike).length
+          if (s.bodyweight) count += toEntries(s.bodyweight).length
+          if (s.techniques) count += toEntries(s.techniques).length
+          if (s.test) count += Object.keys(s.test).length
+          f2fActionsByDate[s.session_date] = (f2fActionsByDate[s.session_date] || 0) + count
+        })
+        // PDP actions completed per day -- counts every PDP timetable
+        // item logged against that date.
+        const pdpActionsByDate = {}
+        PDP_TIMETABLE_SECTION_KEYS.forEach(sectionKey => {
+          Object.values((apData?.pdp_notes || {})[`__timetable_${sectionKey}`] || {}).forEach(entry => {
+            if (!entry?.date) return
+            const d = new Date(entry.date)
+            if (d.getFullYear() !== year || d.getMonth() !== month) return
+            pdpActionsByDate[entry.date] = (pdpActionsByDate[entry.date] || 0) + 1
+          })
+        })
         const pdpNotesData = apData?.pdp_notes || {}
         const allPdpEntries = PDP_TIMETABLE_SECTION_KEYS.flatMap(sectionKey =>
           Object.entries(pdpNotesData[`__timetable_${sectionKey}`] || {}).map(([item, entry]) => ({ sectionKey, item, ...entry }))
@@ -3277,14 +3316,10 @@ export default function AthleteApp() {
                 </p>
               </div>
             ) : (
-              <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-                <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', padding: 12, fontSize: 14 }}
+              <div style={{ marginBottom: 14 }}>
+                <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: 12, fontSize: 14 }}
                   onClick={() => checkInNow('attended')} disabled={checkingIn}>
                   ✅ Check in
-                </button>
-                <button className="btn" style={{ flex: 1, justifyContent: 'center', padding: 12, fontSize: 14 }}
-                  onClick={() => checkInNow('full_kit')} disabled={checkingIn}>
-                  ✅ Full Kit
                 </button>
               </div>
             )}
@@ -3297,6 +3332,11 @@ export default function AthleteApp() {
                   style={{ fontSize: 11, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
                 <button className="btn btn-sm" onClick={() => setSessionsCalMonth(m => m.month === 11 ? { year: m.year + 1, month: 0 } : { year: m.year, month: m.month + 1 })}>→</button>
               </div>
+              <button className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 10 }}
+                onClick={() => setSessionsCalendarView(v => v === 'sessions' ? 'f2f' : v === 'f2f' ? 'pdp' : 'sessions')}>
+                {sessionsCalendarView === 'sessions' ? '📅 Sessions' : sessionsCalendarView === 'f2f' ? '🔥 Fit II Fight' : '🎯 PDP'}
+                <span style={{ marginLeft: 6, fontSize: 10, opacity: 0.6 }}>tap to switch</span>
+              </button>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 6 }}>
                 {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d => (
                   <div key={d} style={{ textAlign: 'center', fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 600 }}>{d}</div>
@@ -3306,6 +3346,26 @@ export default function AthleteApp() {
                 {cells.map((d, i) => {
                   if (d === null) return <div key={i} />
                   const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`
+
+                  // F2F / PDP views show a completed-actions count per
+                  // day instead of the attendance colouring below.
+                  if (sessionsCalendarView !== 'sessions') {
+                    const count = sessionsCalendarView === 'f2f' ? (f2fActionsByDate[dateStr] || 0) : (pdpActionsByDate[dateStr] || 0)
+                    const vc = sessionsCalendarView === 'f2f' ? '#378ADD' : '#8B5CF6'
+                    return (
+                      <div key={i} title={`${count} action${count === 1 ? '' : 's'} completed`}
+                        style={{
+                          aspectRatio: '0.85', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                          borderRadius: 6, fontFamily: 'var(--font-sans)',
+                          background: count > 0 ? vc + '18' : 'transparent',
+                          border: `1px solid ${count > 0 ? vc + '55' : 'var(--border)'}`,
+                        }}>
+                        <span style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>{d}</span>
+                        <span style={{ fontWeight: 700, fontSize: 14, color: count > 0 ? vc : 'var(--text-tertiary)' }}>{count}</span>
+                      </div>
+                    )
+                  }
+
                   const attended = attendedDays.has(dateStr)
                   const explicitlyAbsent = explicitlyAbsentDays.has(dateStr)
                   const wasTrainingDay = allTrainingDays.has(dateStr)
@@ -3504,11 +3564,17 @@ export default function AthleteApp() {
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>
               Enter your weight now, or skip if you'd rather not log it this time.
             </p>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: showWeightCheckPrompt === 'in' ? 10 : 16 }}>
               <input type="number" step="0.1" inputMode="decimal" autoFocus value={weightCheckValue} onChange={e => setWeightCheckValue(e.target.value)}
                 placeholder="Weight" style={{ flex: 1 }} />
               <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>kg</span>
             </div>
+            {showWeightCheckPrompt === 'in' && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, cursor: 'pointer', fontSize: 13 }}>
+                <input type="checkbox" checked={fullKitChecked} onChange={e => setFullKitChecked(e.target.checked)} />
+                Full kit?
+              </label>
+            )}
             <div style={{ display: 'flex', gap: 8 }}>
               <button className="btn" style={{ flex: 1, justifyContent: 'center', color: 'var(--text-tertiary)' }} onClick={cancelCheckInPrompt} disabled={checkingIn}>
                 Cancel
