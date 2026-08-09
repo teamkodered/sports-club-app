@@ -8392,6 +8392,32 @@ export default function AthleteProfiles() {
                 if (f2fTo && s.session_date > f2fTo) return false
                 return true
               })
+              // Which specific metric each graph section corresponds to,
+              // used below to filter the results list underneath so it
+              // always matches whichever graph is currently displayed --
+              // same order as GRAPH_SECTIONS further down.
+              const GRAPH_SECTION_KEYS = ['weight', 'watt_bike', 'running', 'bleep', 'grip', 'circuit', 'bodyweight', 'techniques']
+              const GRAPH_SECTION_LABELS = ['Weight', 'Watt bike', 'Running', 'Bleep test', 'Grip test', 'Fixed load circuit', 'Bodyweight', 'Techniques']
+              function sessionMatchesGraphSection(s, key) {
+                switch (key) {
+                  case 'weight':     return !!(s.weight_before || s.weight_after)
+                  case 'watt_bike':  return !!s.watt_bike
+                  case 'running':    return !!s.running
+                  case 'bleep':      return !!(s.test && Object.keys(s.test).some(k => k.toLowerCase().includes('bleep')))
+                  case 'grip':       return !!(s.test && Object.keys(s.test).some(k => k.toLowerCase().includes('grip')))
+                  case 'circuit':    return !!(s.test && Object.keys(s.test).some(k => k.toLowerCase().includes('fixed load circuit')))
+                  case 'bodyweight': return !!s.bodyweight
+                  case 'techniques': return Array.isArray(s.techniques?.sets) && s.techniques.sets.length > 0
+                  default:           return true
+                }
+              }
+              // The results list below always shows only entries matching
+              // whichever graph is currently on screen -- nothing is ever
+              // silently dropped, it's filtered by genuine presence of
+              // that specific metric's data in each session, so a session
+              // holding several metrics still shows up under every one
+              // of them, not just the first.
+              const resultsListFiltered = filtered.filter(s => sessionMatchesGraphSection(s, GRAPH_SECTION_KEYS[resultsGraphSection]))
               // Build chart data from sessions
               const sorted = [...filtered].sort((a,b) => new Date(a.session_date) - new Date(b.session_date))
               const weightData = sorted.filter(s => s.weight_before || s.weight_after)
@@ -8528,7 +8554,7 @@ export default function AthleteProfiles() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
                   <h3 style={{ fontSize: 14, fontWeight: 600 }}>Fit II Fight Sessions</h3>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{filtered.length} of {f2fData.length} sessions</span>
+                    <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{resultsListFiltered.length} {GRAPH_SECTION_LABELS[resultsGraphSection]} result{resultsListFiltered.length === 1 ? '' : 's'} <span style={{ color: 'var(--text-tertiary)' }}>({filtered.length} sessions total in range)</span></span>
                     {isAdmin && (
                       <button className="btn btn-sm btn-primary" style={{ fontSize: 11 }}
                         onClick={() => { setSessionForm({ session_date: new Date().toISOString().split('T')[0] }); setEditingSession({}) }}>
@@ -8826,11 +8852,11 @@ export default function AthleteProfiles() {
                 })()}
                 </div>
 
-                {filtered.length === 0 ? (
-                  <div className="empty-state"><p>{f2fData.length === 0 ? 'No Fit II Fight sessions logged yet.' : 'No sessions in this date range.'}</p></div>
+                {resultsListFiltered.length === 0 ? (
+                  <div className="empty-state"><p>{f2fData.length === 0 ? 'No Fit II Fight sessions logged yet.' : `No ${GRAPH_SECTION_LABELS[resultsGraphSection]} results in this date range.`}</p></div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {filtered.map((s, i) => {
+                    {resultsListFiltered.map((s, i) => {
                       const change = s.weight_before && s.weight_after
                         ? (parseFloat(s.weight_after) - parseFloat(s.weight_before)).toFixed(1) : null
                       const exercises = [
