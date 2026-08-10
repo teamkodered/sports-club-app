@@ -3749,6 +3749,21 @@ export default function AthleteProfiles() {
     setF2fData(prev => prev.filter(s => s.id !== session.id))
   }
 
+  // Removes ONE named test result (e.g. just "Bleep Test") from a
+  // session's test object, leaving weight/height/every other result in
+  // that same session untouched -- the whole-session Delete button
+  // above only removes the entire entry, which isn't what you want
+  // when just one specific test result needs correcting.
+  async function deleteTestEntry(session, key) {
+    if (!confirm(`Remove "${key}" from this session? Nothing else logged in it will be affected.`)) return
+    const newTest = { ...(session.test || {}) }
+    delete newTest[key]
+    const remaining = Object.keys(newTest).length > 0 ? newTest : null
+    const { error } = await supabase.from('fit2fight_sessions').update({ test: remaining }).eq('id', session.id)
+    if (error) { alert('Error removing: ' + error.message); return }
+    setF2fData(prev => prev.map(s => s.id === session.id ? { ...s, test: remaining } : s))
+  }
+
   async function saveSessionNote() {
     if (!openSession) return
     setSavingSessionNote(true)
@@ -8610,10 +8625,11 @@ export default function AthleteProfiles() {
               // used below to filter the results list underneath so it
               // always matches whichever graph is currently displayed --
               // same order as GRAPH_SECTIONS further down.
-              const GRAPH_SECTION_KEYS = ['weight', 'watt_bike', 'running', 'bleep', 'grip', 'circuit', 'bodyweight', 'techniques', 'other']
-              const GRAPH_SECTION_LABELS = ['Weight', 'Watt bike', 'Running', 'Bleep test', 'Grip test', 'Fixed load circuit', 'Bodyweight', 'Techniques', 'Other']
+              const GRAPH_SECTION_KEYS = ['all', 'weight', 'watt_bike', 'running', 'bleep', 'grip', 'circuit', 'bodyweight', 'techniques', 'other']
+              const GRAPH_SECTION_LABELS = ['All entries', 'Weight', 'Watt bike', 'Running', 'Bleep test', 'Grip test', 'Fixed load circuit', 'Bodyweight', 'Techniques', 'Other']
               function sessionMatchesGraphSection(s, key) {
                 switch (key) {
+                  case 'all':        return true
                   case 'weight':     return !!(s.weight_before || s.weight_after)
                   case 'watt_bike':  return !!s.watt_bike
                   case 'running':    return !!s.running
@@ -8809,6 +8825,7 @@ export default function AthleteProfiles() {
                 {/* Charts */}
                 {(() => {
                   const GRAPH_SECTIONS = [
+                    { key: 'all', label: '📋 All entries' },
                     { key: 'weight', label: '⚖️ Weight' },
                     { key: 'watt_bike', label: '🚴 Watt bike' },
                     { key: 'running', label: '🏃 Running' },
@@ -8840,7 +8857,14 @@ export default function AthleteProfiles() {
                     </div>
                   )
                 })()}
-                {resultsGraphSection === 0 && (weightData.length > 1 ? (
+                {resultsGraphSection === 0 && (
+                  <div className="card" style={{ marginBottom: 12 }}>
+                    <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
+                      📋 Every entry logged in this date range, regardless of category — useful when you're not sure which category something was filed under. Use the ◀▶ arrows to jump to a specific category instead.
+                    </p>
+                  </div>
+                )}
+                {resultsGraphSection === 1 && (weightData.length > 1 ? (
                   <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
                     <a href={`/fit2fight?student_id=${selected?.id}`} className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, zIndex: 1 }}>+ Log</a>
                     <LineChart
@@ -8859,7 +8883,7 @@ export default function AthleteProfiles() {
                   </div>
                 ))}
 
-                <div id="f2f-chart-watt_bike" style={{ display: resultsGraphSection === 1 ? 'block' : 'none' }}>
+                <div id="f2f-chart-watt_bike" style={{ display: resultsGraphSection === 2 ? 'block' : 'none' }}>
                 {(() => {
                   const SET_COLOURS = ['#E24B4A','#378ADD','#1D9E75','#EF9F27','#8B5CF6','#EC4899','#06B6D4','#84CC16','#F97316','#A855F7','#14B8A6','#EAB308']
                   const wattTypes = [...new Set(wattData.map(s => normalizeIntervalMode(s.watt_bike?.interval_mode || s.watt_bike?.type)).filter(Boolean))]
@@ -8896,7 +8920,7 @@ export default function AthleteProfiles() {
                 })()}
                 </div>
 
-                <div id="f2f-chart-running" style={{ display: resultsGraphSection === 2 ? 'block' : 'none' }}>
+                <div id="f2f-chart-running" style={{ display: resultsGraphSection === 3 ? 'block' : 'none' }}>
                 {(() => {
                   const SET_COLOURS = ['#E24B4A','#378ADD','#1D9E75','#EF9F27','#8B5CF6','#EC4899','#06B6D4','#84CC16']
                   const runTests = [...new Set(runData.map(s => s.running?.test).filter(Boolean))]
@@ -8939,7 +8963,7 @@ export default function AthleteProfiles() {
                 </div>
 
                 {/* Bleep test chart */}
-                <div id="f2f-chart-bleep" style={{ display: resultsGraphSection === 3 ? 'block' : 'none' }}>
+                <div id="f2f-chart-bleep" style={{ display: resultsGraphSection === 4 ? 'block' : 'none' }}>
                 {(() => {
                   const bleepData = sorted.filter(s => s.test && Object.keys(s.test).some(k => k.toLowerCase().includes('bleep')))
                     .map(s => {
@@ -8961,7 +8985,7 @@ export default function AthleteProfiles() {
                 </div>
 
                 {/* Grip test chart */}
-                <div id="f2f-chart-grip" style={{ display: resultsGraphSection === 4 ? 'block' : 'none' }}>
+                <div id="f2f-chart-grip" style={{ display: resultsGraphSection === 5 ? 'block' : 'none' }}>
                 {(() => {
                   const gripData = sorted.filter(s => s.test && Object.keys(s.test).some(k => k.toLowerCase().includes('grip')))
                     .map(s => {
@@ -8992,7 +9016,7 @@ export default function AthleteProfiles() {
                 </div>
 
                 {/* Fixed load circuit chart */}
-                <div id="f2f-chart-circuit" style={{ display: resultsGraphSection === 5 ? 'block' : 'none' }}>
+                <div id="f2f-chart-circuit" style={{ display: resultsGraphSection === 6 ? 'block' : 'none' }}>
                 {(() => {
                   const circuitData = sorted.filter(s => s.test && Object.keys(s.test).some(k => k.toLowerCase().includes('fixed load circuit')))
                     .map(s => {
@@ -9014,7 +9038,7 @@ export default function AthleteProfiles() {
                 </div>
 
                 {/* Bodyweight chart */}
-                <div id="f2f-chart-bodyweight" style={{ display: resultsGraphSection === 6 ? 'block' : 'none' }}>
+                <div id="f2f-chart-bodyweight" style={{ display: resultsGraphSection === 7 ? 'block' : 'none' }}>
                 {(() => {
                   const bwData = sorted.flatMap(s => toEntries(s.bodyweight)
                     .filter(e => Array.isArray(e.sets) && e.sets.length > 0)
@@ -9048,7 +9072,7 @@ export default function AthleteProfiles() {
                 </div>
 
                 {/* Techniques chart */}
-                <div id="f2f-chart-techniques" style={{ display: resultsGraphSection === 7 ? 'block' : 'none' }}>
+                <div id="f2f-chart-techniques" style={{ display: resultsGraphSection === 8 ? 'block' : 'none' }}>
                 {(() => {
                   const techData = sorted.filter(s => Array.isArray(s.techniques?.sets) && s.techniques.sets.length > 0)
                   const techTypes = [...new Set(techData.map(s => s.techniques?.type).filter(Boolean))]
@@ -9084,7 +9108,7 @@ export default function AthleteProfiles() {
                     test names, so it just relies on the results list
                     below (already filtered to this section) rather than
                     a line chart. */}
-                <div id="f2f-chart-other" style={{ display: resultsGraphSection === 8 ? 'block' : 'none' }}>
+                <div id="f2f-chart-other" style={{ display: resultsGraphSection === 9 ? 'block' : 'none' }}>
                   <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
                     <a href={`/fit2fight?student_id=${selected?.id}`} className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, fontSize: 11 }}>+ Log</a>
                     <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
@@ -9200,8 +9224,12 @@ export default function AthleteProfiles() {
                             ❤️ Avg: {s.heart_rate.avg_bpm} BPM{s.heart_rate.peak_bpm ? ` · Peak: ${s.heart_rate.peak_bpm} BPM` : ''}
                           </div>}
                           {s.test && Object.entries(s.test).map(([k, v]) => (
-                            <div key={k} style={{ fontSize: 11, color: '#1d9e75', fontWeight: 600, marginTop: 4 }}>
-                              📊 {k}: {v}
+                            <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: '#1d9e75', fontWeight: 600, marginTop: 4 }}>
+                              <span>📊 {k}: {v}</span>
+                              {isAdmin && (
+                                <button onClick={() => deleteTestEntry(s, k)} title={`Remove just "${k}"`}
+                                  style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 12, padding: '0 4px' }}>✕</button>
+                              )}
                             </div>
                           ))}
                         </div>

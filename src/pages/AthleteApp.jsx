@@ -4183,10 +4183,11 @@ export default function AthleteApp() {
                 // to, so the results list below always matches whichever
                 // graph is currently displayed -- same order as the
                 // GRAPH_SECTIONS list further down.
-                const GRAPH_SECTION_KEYS = ['weight', 'watt_bike', 'running', 'bleep', 'grip', 'circuit', 'bodyweight', 'techniques', 'other']
-                const GRAPH_SECTION_LABELS = ['Weight', 'Watt bike', 'Running', 'Bleep test', 'Grip test', 'Fixed load circuit', 'Bodyweight', 'Techniques', 'Other']
+                const GRAPH_SECTION_KEYS = ['all', 'weight', 'watt_bike', 'running', 'bleep', 'grip', 'circuit', 'bodyweight', 'techniques', 'other']
+                const GRAPH_SECTION_LABELS = ['All entries', 'Weight', 'Watt bike', 'Running', 'Bleep test', 'Grip test', 'Fixed load circuit', 'Bodyweight', 'Techniques', 'Other']
                 function sessionMatchesGraphSection(s, key) {
                   switch (key) {
+                    case 'all':        return true
                     case 'weight':     return !!(s.weight_before || s.weight_after)
                     case 'watt_bike':  return !!s.watt_bike
                     case 'running':    return !!s.running
@@ -4337,6 +4338,7 @@ export default function AthleteApp() {
                 }
 
                 const GRAPH_SECTIONS = [
+                  { key: 'all', label: '📋 All entries' },
                   { key: 'weight', label: '⚖️ Weight' },
                   { key: 'watt_bike', label: '🚴 Watt bike' },
                   { key: 'running', label: '🏃 Running' },
@@ -4369,7 +4371,14 @@ export default function AthleteApp() {
                       </div>
                     </div>
 
-                    {resultsGraphSection === 0 && (weightData.length > 1 ? (
+                    {resultsGraphSection === 0 && (
+                      <div className="card" style={{ marginBottom: 12 }}>
+                        <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
+                          📋 Every entry you've logged, regardless of category — use the ◀▶ arrows to jump to a specific category instead.
+                        </p>
+                      </div>
+                    )}
+                    {resultsGraphSection === 1 && (weightData.length > 1 ? (
                       <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
                         <Link to={`/fit2fight?student_id=${student.id}`} className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, zIndex: 1 }}>+ Log</Link>
                         <LineChart
@@ -4388,7 +4397,7 @@ export default function AthleteApp() {
                       </div>
                     ))}
 
-                    <div style={{ display: resultsGraphSection === 1 ? 'block' : 'none' }}>
+                    <div style={{ display: resultsGraphSection === 2 ? 'block' : 'none' }}>
                     {(() => {
                       const SET_COLOURS = ['#E24B4A','#378ADD','#1D9E75','#EF9F27','#8B5CF6','#EC4899','#06B6D4','#84CC16','#F97316','#A855F7','#14B8A6','#EAB308']
                       const wattTypes = [...new Set(wattData.map(s => normalizeIntervalMode(s.watt_bike?.interval_mode || s.watt_bike?.type)).filter(Boolean))]
@@ -4422,7 +4431,7 @@ export default function AthleteApp() {
                     })()}
                     </div>
 
-                    <div style={{ display: resultsGraphSection === 2 ? 'block' : 'none' }}>
+                    <div style={{ display: resultsGraphSection === 3 ? 'block' : 'none' }}>
                     {(() => {
                       const SET_COLOURS = ['#E24B4A','#378ADD','#1D9E75','#EF9F27','#8B5CF6','#EC4899','#06B6D4','#84CC16']
                       const runTests = [...new Set(runData.map(s => s.running?.test).filter(Boolean))]
@@ -4463,7 +4472,7 @@ export default function AthleteApp() {
                     })()}
                     </div>
 
-                    <div style={{ display: resultsGraphSection === 3 ? 'block' : 'none' }}>
+                    <div style={{ display: resultsGraphSection === 4 ? 'block' : 'none' }}>
                     {(() => {
                       const bleepData = sorted.filter(s => s.test && Object.keys(s.test).some(k => k.toLowerCase().includes('bleep')))
                         .map(s => {
@@ -4479,7 +4488,7 @@ export default function AthleteApp() {
                     })()}
                     </div>
 
-                    <div style={{ display: resultsGraphSection === 4 ? 'block' : 'none' }}>
+                    <div style={{ display: resultsGraphSection === 5 ? 'block' : 'none' }}>
                     {(() => {
                       const gripData = sorted.filter(s => s.test && Object.keys(s.test).some(k => k.toLowerCase().includes('grip')))
                         .map(s => {
@@ -4496,7 +4505,7 @@ export default function AthleteApp() {
                     })()}
                     </div>
 
-                    <div style={{ display: resultsGraphSection === 5 ? 'block' : 'none' }}>
+                    <div style={{ display: resultsGraphSection === 6 ? 'block' : 'none' }}>
                     {(() => {
                       const circuitData = sorted.filter(s => s.test && Object.keys(s.test).some(k => k.toLowerCase().includes('fixed load circuit')))
                         .map(s => {
@@ -4512,7 +4521,7 @@ export default function AthleteApp() {
                     })()}
                     </div>
 
-                    <div style={{ display: resultsGraphSection === 6 ? 'block' : 'none' }}>
+                    <div style={{ display: resultsGraphSection === 7 ? 'block' : 'none' }}>
                     {(() => {
                       const bwData = sorted.flatMap(s => toEntries(s.bodyweight)
                         .filter(e => Array.isArray(e.sets) && e.sets.length > 0)
@@ -4545,7 +4554,7 @@ export default function AthleteApp() {
                     })()}
                     </div>
 
-                    <div style={{ display: resultsGraphSection === 7 ? 'block' : 'none' }}>
+                    <div style={{ display: resultsGraphSection === 8 ? 'block' : 'none' }}>
                     {(() => {
                       const techData = sorted.filter(s => Array.isArray(s.techniques?.sets) && s.techniques.sets.length > 0)
                       const techTypes = [...new Set(techData.map(s => s.techniques?.type).filter(Boolean))]
@@ -4576,7 +4585,7 @@ export default function AthleteApp() {
                     })()}
                     </div>
 
-                    <div style={{ display: resultsGraphSection === 8 ? 'block' : 'none' }}>
+                    <div style={{ display: resultsGraphSection === 9 ? 'block' : 'none' }}>
                       <div className="card" style={{ marginBottom: 12 }}>
                         <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
                           📦 Anything logged that doesn't fit the named categories — Stretch flows, SnC, Other session, or a custom test name. See the list below.
