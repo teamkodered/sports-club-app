@@ -803,6 +803,17 @@ function OpponentQuickNoteForm({ onSave, showShareToggle, disabled }) {
 // stored terms_version won't match.
 const TERMS_VERSION = 'v1-2026-08-10'
 
+// Mirrors isWellbeingQComplete/isMentalityQComplete exactly -- checking
+// a question's OWN values, not just "does the parent object exist",
+// since clearing a question resets its values to empty/0 rather than
+// deleting the object itself. A shallow "!!s.wellbeing" style check
+// would stay true forever once anything's ever been touched, even
+// after every question is cleared back to blank. (Both functions
+// already exist above -- this just documents why SECTION_FIELD_CHECK
+// below uses them instead of a shallow existence check.)
+const WELLBEING_KEYS_FOR_CHECK = ['sleep', 'nutrition', 'hydration', 'outdoors', 'talk', 'screenFree', 'journal', 'creative', 'productivity']
+const MENTALITY_KEYS_FOR_CHECK = ['videoAnalysis', 'meditation', 'visualisation', 'chess', 'reading', 'gaming', 'eyeTracking', 'coldWater', 'activeRecovery', 'gratitude']
+
 export default function AthleteApp() {
   const { profile, isStaff } = useAuth()
   const [tab, setTab]           = useState('home')
@@ -1606,12 +1617,12 @@ export default function AthleteApp() {
   // against. "Completed" counts distinct days within the current
   // period that have any activity logged in that section.
   const SECTION_FIELD_CHECK = {
-    physical:  s => !!(s.running || s.watt_bike || s.bodyweight || s.stretch_flows || s.snc || s.other_session),
-    technique: s => !!s.techniques,
-    tactical:  s => !!s.tactical,
-    mentality: s => !!s.mentality_log,
-    wellbeing: s => !!s.wellbeing,
-    test:      s => !!s.test,
+    physical:  s => toEntries(s.running).length > 0 || toEntries(s.watt_bike).length > 0 || toEntries(s.bodyweight).length > 0 || !!s.stretch_flows || !!s.snc || !!s.other_session,
+    technique: s => Array.isArray(s.techniques) ? s.techniques.length > 0 : !!s.techniques,
+    tactical:  s => Array.isArray(s.tactical) ? s.tactical.length > 0 : !!s.tactical,
+    mentality: s => MENTALITY_KEYS_FOR_CHECK.some(k => isMentalityQComplete(k, s.mentality_log)),
+    wellbeing: s => WELLBEING_KEYS_FOR_CHECK.some(k => isWellbeingQComplete(k, s.wellbeing)),
+    test:      s => !!(s.test && Object.values(s.test).some(v => v !== '' && v != null)),
   }
   function getSectionProgress(sectionKey) {
     const own = sectionTargets.find(t => t.section_key === sectionKey && t.student_id === student?.id)
@@ -4172,8 +4183,8 @@ export default function AthleteApp() {
                 // to, so the results list below always matches whichever
                 // graph is currently displayed -- same order as the
                 // GRAPH_SECTIONS list further down.
-                const GRAPH_SECTION_KEYS = ['weight', 'watt_bike', 'running', 'bleep', 'grip', 'circuit', 'bodyweight', 'techniques']
-                const GRAPH_SECTION_LABELS = ['Weight', 'Watt bike', 'Running', 'Bleep test', 'Grip test', 'Fixed load circuit', 'Bodyweight', 'Techniques']
+                const GRAPH_SECTION_KEYS = ['weight', 'watt_bike', 'running', 'bleep', 'grip', 'circuit', 'bodyweight', 'techniques', 'other']
+                const GRAPH_SECTION_LABELS = ['Weight', 'Watt bike', 'Running', 'Bleep test', 'Grip test', 'Fixed load circuit', 'Bodyweight', 'Techniques', 'Other']
                 function sessionMatchesGraphSection(s, key) {
                   switch (key) {
                     case 'weight':     return !!(s.weight_before || s.weight_after)
@@ -4184,6 +4195,17 @@ export default function AthleteApp() {
                     case 'circuit':    return !!(s.test && Object.keys(s.test).some(k => k.toLowerCase().includes('fixed load circuit')))
                     case 'bodyweight': return !!s.bodyweight
                     case 'techniques': return Array.isArray(s.techniques?.sets) && s.techniques.sets.length > 0
+                    // Anything logged that doesn't fit the named
+                    // categories above -- Stretch flows, SnC, Other
+                    // session, or a custom test name.
+                    case 'other': {
+                      const hasOtherPhysical = !!(s.stretch_flows || s.snc || s.other_session)
+                      const hasOtherTest = !!(s.test && Object.keys(s.test).some(k => {
+                        const kl = k.toLowerCase()
+                        return !kl.includes('bleep') && !kl.includes('grip') && !kl.includes('fixed load circuit')
+                      }))
+                      return hasOtherPhysical || hasOtherTest
+                    }
                     default:           return true
                   }
                 }
@@ -4323,6 +4345,7 @@ export default function AthleteApp() {
                   { key: 'circuit', label: '⭕ Fixed load circuit' },
                   { key: 'bodyweight', label: '💪 Bodyweight' },
                   { key: 'techniques', label: '🥋 Techniques' },
+                  { key: 'other', label: '📦 Other' },
                 ]
                 function cycleGraphSection(direction) {
                   setResultsGraphSection(s => (s + direction + GRAPH_SECTIONS.length) % GRAPH_SECTIONS.length)
@@ -4553,6 +4576,14 @@ export default function AthleteApp() {
                     })()}
                     </div>
 
+                    <div style={{ display: resultsGraphSection === 8 ? 'block' : 'none' }}>
+                      <div className="card" style={{ marginBottom: 12 }}>
+                        <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
+                          📦 Anything logged that doesn't fit the named categories — Stretch flows, SnC, Other session, or a custom test name. See the list below.
+                        </p>
+                      </div>
+                    </div>
+
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                       <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
                         {resultsListFiltered.length} {GRAPH_SECTION_LABELS[resultsGraphSection]} result{resultsListFiltered.length === 1 ? '' : 's'}
@@ -4601,6 +4632,19 @@ export default function AthleteApp() {
                                   🥋 {s.techniques.type || 'Techniques'}{(s.techniques.sets?.length) ? `: ${s.techniques.sets.join(', ')} reps` : ' logged'}
                                 </p>
                               )}
+                              {Array.isArray(s.stretch_flows) && s.stretch_flows.some(Boolean) && (
+                                <p style={{ fontSize: 12, margin: '4px 0' }}>🧘 Stretch flows: {s.stretch_flows.filter(Boolean).join(', ')}</p>
+                              )}
+                              {s.snc && toEntries(s.snc).map((e, ei) => (
+                                <p key={ei} style={{ fontSize: 12, margin: '4px 0' }}>
+                                  🏋️ {e.routine || 'SnC'}{(e.sets?.length) ? `: ${e.sets.join(', ')}` : ' logged'}
+                                </p>
+                              ))}
+                              {s.other_session && toEntries(s.other_session).map((e, ei) => (
+                                <p key={ei} style={{ fontSize: 12, margin: '4px 0' }}>
+                                  📦 {e.type || 'Other session'}{(e.sets?.length) ? `: ${e.sets.join(', ')}` : ' logged'}
+                                </p>
+                              ))}
                               {s.test && Object.entries(s.test).map(([k, v]) => (
                                 <p key={k} style={{ fontSize: 12, margin: '4px 0' }}>📊 {k}: <strong>{v}</strong></p>
                               ))}

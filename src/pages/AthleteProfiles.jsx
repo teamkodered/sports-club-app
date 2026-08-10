@@ -8610,8 +8610,8 @@ export default function AthleteProfiles() {
               // used below to filter the results list underneath so it
               // always matches whichever graph is currently displayed --
               // same order as GRAPH_SECTIONS further down.
-              const GRAPH_SECTION_KEYS = ['weight', 'watt_bike', 'running', 'bleep', 'grip', 'circuit', 'bodyweight', 'techniques']
-              const GRAPH_SECTION_LABELS = ['Weight', 'Watt bike', 'Running', 'Bleep test', 'Grip test', 'Fixed load circuit', 'Bodyweight', 'Techniques']
+              const GRAPH_SECTION_KEYS = ['weight', 'watt_bike', 'running', 'bleep', 'grip', 'circuit', 'bodyweight', 'techniques', 'other']
+              const GRAPH_SECTION_LABELS = ['Weight', 'Watt bike', 'Running', 'Bleep test', 'Grip test', 'Fixed load circuit', 'Bodyweight', 'Techniques', 'Other']
               function sessionMatchesGraphSection(s, key) {
                 switch (key) {
                   case 'weight':     return !!(s.weight_before || s.weight_after)
@@ -8622,6 +8622,18 @@ export default function AthleteProfiles() {
                   case 'circuit':    return !!(s.test && Object.keys(s.test).some(k => k.toLowerCase().includes('fixed load circuit')))
                   case 'bodyweight': return !!s.bodyweight
                   case 'techniques': return Array.isArray(s.techniques?.sets) && s.techniques.sets.length > 0
+                  // Anything logged that doesn't fit the named categories
+                  // above -- Stretch flows, SnC, Other session, and any
+                  // test result whose name isn't Bleep/Grip/Fixed load
+                  // circuit (e.g. a one-off custom test a coach added).
+                  case 'other': {
+                    const hasOtherPhysical = !!(s.stretch_flows || s.snc || s.other_session)
+                    const hasOtherTest = !!(s.test && Object.keys(s.test).some(k => {
+                      const kl = k.toLowerCase()
+                      return !kl.includes('bleep') && !kl.includes('grip') && !kl.includes('fixed load circuit')
+                    }))
+                    return hasOtherPhysical || hasOtherTest
+                  }
                   default:           return true
                 }
               }
@@ -8805,6 +8817,7 @@ export default function AthleteProfiles() {
                     { key: 'circuit', label: '⭕ Fixed load circuit' },
                     { key: 'bodyweight', label: '💪 Bodyweight' },
                     { key: 'techniques', label: '🥋 Techniques' },
+                    { key: 'other', label: '📦 Other' },
                   ]
                   function cycleGraphSection(direction) {
                     setResultsGraphSection(s => (s + direction + GRAPH_SECTIONS.length) % GRAPH_SECTIONS.length)
@@ -9066,6 +9079,20 @@ export default function AthleteProfiles() {
                 })()}
                 </div>
 
+                {/* "Other" has no single numeric metric to graph -- it's a
+                    mix of Stretch flows/SnC/Other session and any custom
+                    test names, so it just relies on the results list
+                    below (already filtered to this section) rather than
+                    a line chart. */}
+                <div id="f2f-chart-other" style={{ display: resultsGraphSection === 8 ? 'block' : 'none' }}>
+                  <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
+                    <a href={`/fit2fight?student_id=${selected?.id}`} className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, fontSize: 11 }}>+ Log</a>
+                    <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
+                      📦 Anything logged that doesn't fit the named categories — Stretch flows, SnC, Other session, or a custom test name. See the list below.
+                    </p>
+                  </div>
+                </div>
+
                 {resultsListFiltered.length === 0 ? (
                   <div className="empty-state"><p>{f2fData.length === 0 ? 'No Fit II Fight sessions logged yet.' : `No ${GRAPH_SECTION_LABELS[resultsGraphSection]} results in this date range.`}</p></div>
                 ) : (
@@ -9161,6 +9188,11 @@ export default function AthleteProfiles() {
                               {s.watt_bike && renderSetDetail(s.watt_bike, { icon: '🚴', colour: '#378ADD', unit: 'W', fallbackLabel: 'Watt bike', getLabel: e => normalizeIntervalMode(e.interval_mode || e.type) || e.type })}
                               {s.bodyweight && renderSetDetail(s.bodyweight, { icon: '💪', colour: '#EF9F27', unit: '', fallbackLabel: 'Bodyweight', getLabel: e => e.type })}
                               {s.techniques && renderSetDetail(s.techniques, { icon: '🥋', colour: '#E24B4A', unit: ' reps', fallbackLabel: 'Techniques', getLabel: e => e.type })}
+                              {Array.isArray(s.stretch_flows) && s.stretch_flows.some(Boolean) && (
+                                <p style={{ fontSize: 12, margin: '4px 0' }}>🧘 Stretch flows: {s.stretch_flows.filter(Boolean).join(', ')}</p>
+                              )}
+                              {s.snc && renderSetDetail(s.snc, { icon: '🏋️', colour: '#059669', unit: '', fallbackLabel: 'SnC', getLabel: e => e.routine })}
+                              {s.other_session && renderSetDetail(s.other_session, { icon: '📦', colour: '#666', unit: '', fallbackLabel: 'Other session', getLabel: e => e.type })}
                             </>
                           )}
                           {s.notes && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 6 }}>📝 {s.notes}</div>}
