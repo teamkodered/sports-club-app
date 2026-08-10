@@ -381,9 +381,13 @@ const BODYWEIGHT_GROUPS = [
 // - EVERY one of the classes that would have run that weekday for
 //   this athlete is individually covered by a per-class holiday for
 //   that same date
-function isDateOnHoliday(dateStr, holidays, classIdsForThatWeekday) {
-  const clubWide = holidays.some(h => !h.class_id && h.start_date <= dateStr && h.end_date >= dateStr)
+function isDateOnHoliday(dateStr, holidays, classIdsForThatWeekday, studentId) {
+  // A row with only student_id set (no class_id) is an individual
+  // override, not club-wide -- must be excluded from the "no class_id
+  // at all" club-wide check, or it would incorrectly apply to everyone.
+  const clubWide = holidays.some(h => !h.class_id && !h.student_id && h.start_date <= dateStr && h.end_date >= dateStr)
   if (clubWide) return true
+  if (studentId && holidays.some(h => h.student_id === studentId && h.start_date <= dateStr && h.end_date >= dateStr)) return true
   if (!classIdsForThatWeekday || classIdsForThatWeekday.length === 0) return false
   return classIdsForThatWeekday.every(cid =>
     holidays.some(h => h.class_id === cid && h.start_date <= dateStr && h.end_date >= dateStr)
@@ -2337,6 +2341,9 @@ export default function AthleteProfiles() {
   const [newOpponentNoteShared, setNewOpponentNoteShared] = useState(false)
   const [expandedOpponent, setExpandedOpponent] = useState(null)
   const [holidays, setHolidays]     = useState([])
+  const [showAddAthleteHoliday, setShowAddAthleteHoliday] = useState(false)
+  const [athleteHolidayForm, setAthleteHolidayForm] = useState({ name: '', start_date: '', end_date: '' })
+  const [savingAthleteHoliday, setSavingAthleteHoliday] = useState(false)
   const [loading, setLoading]       = useState(true)
   const [searchParams, setSearchParams] = useSearchParams()
   const [saving, setSaving]         = useState(false)
@@ -3332,6 +3339,32 @@ export default function AthleteProfiles() {
     ])
     setAttendanceData(att || [])
     setAllAttendance(prev => [...prev.filter(a => a?.student_id !== studentId), ...(allAtt || [])])
+  }
+
+  async function saveAthleteHoliday() {
+    if (!athleteHolidayForm.name || !athleteHolidayForm.start_date || !athleteHolidayForm.end_date) {
+      alert('Please fill in a name and both dates.')
+      return
+    }
+    setSavingAthleteHoliday(true)
+    const { data, error } = await supabase.from('holidays').insert({
+      name: athleteHolidayForm.name,
+      start_date: athleteHolidayForm.start_date,
+      end_date: athleteHolidayForm.end_date,
+      student_id: selected.id,
+    }).select().single()
+    setSavingAthleteHoliday(false)
+    if (error) { alert('Error saving holiday: ' + error.message); return }
+    setHolidays(prev => [data, ...prev])
+    setAthleteHolidayForm({ name: '', start_date: '', end_date: '' })
+    setShowAddAthleteHoliday(false)
+  }
+
+  async function deleteAthleteHoliday(id) {
+    if (!confirm('Remove this holiday period?')) return
+    const { error } = await supabase.from('holidays').delete().eq('id', id)
+    if (error) { alert('Error removing holiday: ' + error.message); return }
+    setHolidays(prev => prev.filter(h => h.id !== id))
   }
 
   async function cycleAttendanceDay(dateStr) {
@@ -4755,7 +4788,14 @@ export default function AthleteProfiles() {
               <div>
             {/* F2F Results -- team-wide graph at top, full sortable/customisable table at bottom */}
             <div className="card" style={{ marginBottom: 14 }}>
-              <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>📊 F2F Results</h2>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>📊 F2F Results</h2>
+                <button className="btn btn-sm" onClick={() => {
+                  const url = `${window.location.origin}/results-public`
+                  navigator.clipboard?.writeText(url)
+                  alert(`Shareable results leaderboard link copied:\n${url}\n\nAnyone with this link can view it — no login needed. Weight is never shown; only performance results (Watt bike, Running, Bleep, Grip, Circuit, Bodyweight, Techniques).`)
+                }}>🔗 Share leaderboard</button>
+              </div>
               {(() => {
                 const teamIds = new Set(students.filter(s => s.is_kr || s.is_pts || s.discipline === 'KRBA').map(s => s.id))
                 const teamSessions = allTeamSessions.filter(s => teamIds.has(s.student_id))
@@ -6443,7 +6483,7 @@ export default function AthleteProfiles() {
                   if (!jsDays.includes(d.getDay())) continue
                   const dateStr = d.toISOString().split('T')[0]
                   if (dateStr > todayStr0) continue
-                  if (isDateOnHoliday(dateStr, holidays, classId ? [classId] : [])) continue
+                  if (isDateOnHoliday(dateStr, holidays, classId ? [classId] : [], selected.id)) continue
                   possibleSessionKeys.add(`${dateStr}::${classId || 'none'}`)
                 }
               }
@@ -7955,7 +7995,7 @@ export default function AthleteProfiles() {
                           .filter(dateStr => {
                             const jsDay = new Date(dateStr + 'T12:00:00').getDay()
                             const classIdsThatDay = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay)).map(a => a.classes?.id)
-                            return !isDateOnHoliday(dateStr, holidays, classIdsThatDay)
+                            return !isDateOnHoliday(dateStr, holidays, classIdsThatDay, selected.id)
                           })
                       )
                       const attendedDays = new Set(
@@ -7999,6 +8039,40 @@ export default function AthleteProfiles() {
                               style={{ fontSize: 11, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
                             <button className="btn btn-sm" onClick={() => setSessionsCalMonth(m => m.month === 11 ? { year: m.year + 1, month: 0 } : { year: m.year, month: m.month + 1 })}>→</button>
                           </div>
+                          {isAdmin && (
+                            <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                                  🏖️ {selected.members?.first_name}'s individual holidays
+                                </span>
+                                <button className="btn btn-sm" onClick={() => setShowAddAthleteHoliday(v => !v)}>+ Add holiday</button>
+                              </div>
+                              {holidays.filter(h => h.student_id === selected.id).length > 0 && (
+                                <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                  {holidays.filter(h => h.student_id === selected.id).map(h => (
+                                    <div key={h.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, background: 'var(--bg-secondary)', borderRadius: 6, padding: '4px 8px' }}>
+                                      <span>{h.name} — {new Date(h.start_date).toLocaleDateString('en-GB')} to {new Date(h.end_date).toLocaleDateString('en-GB')}</span>
+                                      <button onClick={() => deleteAthleteHoliday(h.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 12 }}>✕</button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              {showAddAthleteHoliday && (
+                                <div style={{ marginTop: 8, padding: 10, background: 'var(--bg-secondary)', borderRadius: 'var(--radius)' }}>
+                                  <input value={athleteHolidayForm.name} onChange={e => setAthleteHolidayForm(f => ({ ...f, name: e.target.value }))}
+                                    placeholder="e.g. Injury, Family holiday" style={{ width: '100%', fontSize: 12, marginBottom: 6 }} />
+                                  <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                                    <input type="date" value={athleteHolidayForm.start_date} onChange={e => setAthleteHolidayForm(f => ({ ...f, start_date: e.target.value }))} style={{ flex: 1, fontSize: 12 }} />
+                                    <input type="date" value={athleteHolidayForm.end_date} onChange={e => setAthleteHolidayForm(f => ({ ...f, end_date: e.target.value }))} style={{ flex: 1, fontSize: 12 }} />
+                                  </div>
+                                  <div style={{ display: 'flex', gap: 6 }}>
+                                    <button className="btn btn-sm btn-primary" disabled={savingAthleteHoliday} onClick={saveAthleteHoliday}>{savingAthleteHoliday ? 'Saving…' : 'Save'}</button>
+                                    <button className="btn btn-sm" onClick={() => setShowAddAthleteHoliday(false)}>Cancel</button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4, marginBottom: 8 }}>
                             {['Mo','Tu','We','Th','Fr','Sa','Su'].map(d => (
                               <div key={d} style={{ textAlign: 'center', fontSize: 10, color: 'var(--text-tertiary)' }}>{d}</div>
@@ -8014,7 +8088,7 @@ export default function AthleteProfiles() {
                               const wasTrainingDay = allTrainingDays.has(dateStr)
                               const showAsRed = explicitlyAbsent || (wasTrainingDay && !attended && !explicitlyExcused && dateStr < todayStr)
                               const jsDay = new Date(year, month, d).getDay()
-                              const classesToday = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay) && !isDateOnHoliday(dateStr, holidays, a.classes?.id ? [a.classes.id] : []))
+                              const classesToday = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay) && !isDateOnHoliday(dateStr, holidays, a.classes?.id ? [a.classes.id] : [], selected.id))
                               // Light green = attended some but not all of
                               // the classes possible that day; dark green =
                               // attended everything possible that day.

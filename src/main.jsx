@@ -27,6 +27,7 @@ import CalendarPage from './pages/CalendarPage.jsx'
 import CRM from './pages/CRM.jsx'
 import LeagueViews from './pages/LeagueViews.jsx'
 import LeaguePublic from './pages/LeaguePublic.jsx'
+import ResultsPublic from './pages/ResultsPublic.jsx'
 import Profile from './pages/Profile.jsx'
 import AdminImport from './pages/AdminImport.jsx'
 import StudentDatabase from './pages/StudentDatabase.jsx'
@@ -81,6 +82,7 @@ function App() {
           <Route path="/join-krba"       element={<JoinKRBA />} />
           <Route path="/grading"         element={<GradingExpression />} />
           <Route path="/league-public"   element={<LeaguePublic />} />
+          <Route path="/results-public"  element={<ResultsPublic />} />
           <Route path="/checkin-public"  element={<CheckInPublic />} />
           <Route path="/whoop-board"     element={<WhoopDisplayBoard />} />
           <Route path="/athlete-app"     element={<ProtectedRoute><AthleteApp /></ProtectedRoute>} />
