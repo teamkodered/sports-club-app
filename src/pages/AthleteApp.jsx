@@ -506,9 +506,13 @@ function isMentalityQComplete(key, m) {
 // - EVERY one of the classes that would have run that weekday for
 //   this athlete is individually covered by a per-class holiday for
 //   that same date
-function isDateOnHoliday(dateStr, holidays, classIdsForThatWeekday) {
-  const clubWide = holidays.some(h => !h.class_id && h.start_date <= dateStr && h.end_date >= dateStr)
+function isDateOnHoliday(dateStr, holidays, classIdsForThatWeekday, studentId) {
+  // A row with only student_id set (no class_id) is an individual
+  // override, not club-wide -- must be excluded from the "no class_id
+  // at all" club-wide check, or it would incorrectly apply to everyone.
+  const clubWide = holidays.some(h => !h.class_id && !h.student_id && h.start_date <= dateStr && h.end_date >= dateStr)
   if (clubWide) return true
+  if (studentId && holidays.some(h => h.student_id === studentId && h.start_date <= dateStr && h.end_date >= dateStr)) return true
   if (!classIdsForThatWeekday || classIdsForThatWeekday.length === 0) return false
   return classIdsForThatWeekday.every(cid =>
     holidays.some(h => h.class_id === cid && h.start_date <= dateStr && h.end_date >= dateStr)
@@ -794,9 +798,29 @@ function OpponentQuickNoteForm({ onSave, showShareToggle, disabled }) {
   )
 }
 
+// Bump this whenever the agreement text changes -- anyone who accepted
+// an earlier version gets re-prompted automatically, since their
+// stored terms_version won't match.
+const TERMS_VERSION = 'v1-2026-08-10'
+
 export default function AthleteApp() {
   const { profile, isStaff } = useAuth()
   const [tab, setTab]           = useState('home')
+  const [termsChecked, setTermsChecked] = useState(false) // the checkbox inside the modal
+  const [acceptingTerms, setAcceptingTerms] = useState(false)
+  const [termsDismissedLocally, setTermsDismissedLocally] = useState(false) // avoids waiting on a full profile refetch after accepting
+  const needsTermsAgreement = !!profile && profile.terms_version !== TERMS_VERSION && !termsDismissedLocally
+
+  async function acceptTerms() {
+    if (!profile) return
+    setAcceptingTerms(true)
+    const { error } = await supabase.from('members')
+      .update({ terms_accepted_at: new Date().toISOString(), terms_version: TERMS_VERSION })
+      .eq('id', profile.id)
+    setAcceptingTerms(false)
+    if (error) { alert('Error saving — please try again: ' + error.message); return }
+    setTermsDismissedLocally(true)
+  }
 
   // Handle the redirect back from Whoop's OAuth flow
   useEffect(() => {
@@ -1765,6 +1789,98 @@ export default function AthleteApp() {
   return (
     <div style={{ maxWidth: 640, margin: '0 auto', padding: '20px 16px', minHeight: '100vh' }}>
 
+      {needsTermsAgreement && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div className="card" style={{ width: '100%', maxWidth: 520, maxHeight: '85vh', display: 'flex', flexDirection: 'column', padding: 0 }}>
+            <div style={{ padding: '18px 20px 10px', borderBottom: '1px solid var(--border)' }}>
+              <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>User Agreement, Confidentiality & Health Disclaimer</h2>
+              <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>Please read before continuing — this only appears once.</p>
+            </div>
+            <div style={{ padding: '14px 20px', overflowY: 'auto', flex: 1, fontSize: 12.5, lineHeight: 1.6, color: 'var(--text)' }}>
+              <p>Welcome to KR Centre. By creating an account, signing in, accessing, or using this App, you acknowledge that you have read, understood, and agree to be legally bound by this Agreement. If you do not agree, you must not access or use the App.</p>
+
+              <h3 style={{ fontSize: 13, marginTop: 16 }}>1. Acceptance of Terms</h3>
+              <p>By selecting "I Agree", creating an account, signing in, or continuing to use the App, you accept and agree to comply with this Agreement and any future updates.</p>
+
+              <h3 style={{ fontSize: 13, marginTop: 16 }}>2. Purpose</h3>
+              <p>This App is provided for authorised users to access training resources, information, services, and other features offered by KR Centre. The App may include beta or pre-release features which are still under development.</p>
+
+              <h3 style={{ fontSize: 13, marginTop: 16 }}>3. Beta Software</h3>
+              <p>Some features may be experimental or unfinished. You acknowledge that features may change or be removed, the App may contain bugs or errors, downtime may occur, and your feedback may be used to improve future versions.</p>
+
+              <h3 style={{ fontSize: 13, marginTop: 16 }}>4. Confidentiality & Non-Disclosure</h3>
+              <p>This App contains confidential and proprietary information belonging exclusively to KR Centre. You agree that you will:</p>
+              <ul style={{ paddingLeft: 18, margin: '6px 0' }}>
+                <li>Keep all non-public information relating to the App confidential.</li>
+                <li>Not disclose, publish, discuss, distribute or communicate confidential information to anyone without prior written permission.</li>
+                <li>Not share screenshots, photographs, videos, screen recordings or demonstrations unless authorised.</li>
+                <li>Not share login details or allow another person to access your account.</li>
+                <li>Not copy, reproduce, modify or imitate any part of the App.</li>
+                <li>Not reverse engineer, decompile or attempt to discover the source code, software architecture, databases, security systems or algorithms.</li>
+                <li>Not use confidential information for commercial or competitive purposes.</li>
+                <li>Take reasonable steps to protect confidential information.</li>
+              </ul>
+              <p>Confidential information includes but is not limited to: source code, software, user interface, user experience, graphics, logos, branding, business strategies, databases, documentation, future developments, unreleased features, training systems, and any information not publicly available.</p>
+              <p>These confidentiality obligations continue even after your account is closed or access ends, until the information becomes lawfully public or written permission is provided by KR Centre.</p>
+
+              <h3 style={{ fontSize: 13, marginTop: 16 }}>5. Intellectual Property</h3>
+              <p>All software, content, databases, graphics, logos, trademarks, branding, videos, images, documents, training material, coaching methods, text and other intellectual property remain the exclusive property of KR Centre. Nothing within this Agreement transfers ownership or grants permission to copy, reproduce, distribute, sell, licence or commercially exploit any part of the App.</p>
+
+              <h3 style={{ fontSize: 13, marginTop: 16 }}>6. Acceptable Use</h3>
+              <p>You agree that you will not: break any laws; harass or abuse other users; upload malicious software; attempt to hack the App; circumvent security measures; use bots or automated software; scrape or extract data; copy the database; create competing products using information from the App; share accounts; impersonate another user; sell access to your account; or attempt to bypass subscriptions or payments.</p>
+
+              <h3 style={{ fontSize: 13, marginTop: 16 }}>7. Feedback</h3>
+              <p>Suggestions, comments, bug reports and recommendations submitted through the App may be used by KR Centre without payment or restriction.</p>
+
+              <h3 style={{ fontSize: 13, marginTop: 16 }}>8. Account Responsibility</h3>
+              <p>You are responsible for maintaining the security of your account, keeping your password confidential, ensuring information on your account remains accurate, and reporting unauthorised access immediately.</p>
+
+              <h3 style={{ fontSize: 13, marginTop: 16 }}>9. Privacy & Data Protection</h3>
+              <p>We take reasonable measures to protect your personal information. Certain personal information may be collected to operate the App and will only be used in accordance with our Privacy Policy. You are responsible for ensuring any information you provide is accurate. We will take reasonable steps to protect stored information, but no electronic system can be guaranteed completely secure. Where applicable, personal data will be handled in accordance with UK GDPR and the Data Protection Act 2018.</p>
+
+              <h3 style={{ fontSize: 13, marginTop: 16 }}>10. Physical Activity, Health & Coaching Disclaimer</h3>
+              <p>This App may contain training programmes, fitness guidance, exercise demonstrations, boxing, kickboxing, combat sports instruction, nutrition advice and other physical activity content. By using this App you acknowledge that:</p>
+              <ul style={{ paddingLeft: 18, margin: '6px 0' }}>
+                <li>You participate in all physical activity entirely at your own risk.</li>
+                <li>You are responsible for ensuring you are medically fit before beginning any exercise programme.</li>
+                <li>If you have any injury, illness or medical condition you should seek advice from a qualified healthcare professional before participating.</li>
+                <li>You should always discuss new training methods, techniques or programmes with your qualified coach, instructor or trainer before attempting them.</li>
+                <li>Training should only be performed within your own ability and experience and, where appropriate, under qualified supervision.</li>
+                <li>Stop exercising immediately if you experience pain, dizziness, fainting, chest pain, breathing difficulties or any unusual symptoms and seek appropriate medical advice.</li>
+              </ul>
+              <p>Neither KR Centre, its owners, coaches, instructors, contributors, employees nor affiliates accept responsibility for injuries, illness, loss or damage arising from the use of the App except where liability cannot legally be excluded. All information provided is intended for educational purposes only and does not replace professional medical advice or qualified coaching.</p>
+
+              <h3 style={{ fontSize: 13, marginTop: 16 }}>11. Suspension & Termination</h3>
+              <p>We may suspend or permanently terminate your account immediately if you breach this Agreement, misuse the App, share confidential information, attempt to copy the App, engage in unlawful activity, or interfere with the operation or security of the App.</p>
+
+              <h3 style={{ fontSize: 13, marginTop: 16 }}>12. Disclaimer</h3>
+              <p>The App is provided "as is" and "as available." We do not guarantee uninterrupted access, error-free operation or that all information will always be accurate or complete.</p>
+
+              <h3 style={{ fontSize: 13, marginTop: 16 }}>13. Limitation of Liability</h3>
+              <p>To the fullest extent permitted by law, KR Centre, its owners, employees, coaches, contributors and affiliates shall not be liable for any indirect, incidental, consequential or special damages arising from the use of the App.</p>
+
+              <h3 style={{ fontSize: 13, marginTop: 16 }}>14. Changes to this Agreement</h3>
+              <p>We reserve the right to update these Terms at any time. Continued use of the App after changes have been published constitutes acceptance of the updated Agreement.</p>
+
+              <h3 style={{ fontSize: 13, marginTop: 16 }}>15. Governing Law</h3>
+              <p>These Terms shall be governed by the laws of England and Wales. Any disputes shall be subject to the exclusive jurisdiction of the courts of England and Wales.</p>
+
+              <h3 style={{ fontSize: 13, marginTop: 16 }}>16. Acceptance</h3>
+              <p>By selecting "I Agree" you confirm that you have read and understood this Agreement, agree to comply with its Terms, understand your confidentiality and non-disclosure obligations, acknowledge that all intellectual property belongs to KR Centre, accept responsibility for your own health and physical activity, understand that training advice should be used alongside guidance from your qualified coach or trainer, and understand that unauthorised copying, disclosure, reverse engineering or misuse of the App may result in immediate termination of your account and may lead to legal action where appropriate.</p>
+            </div>
+            <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)' }}>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12.5, cursor: 'pointer', marginBottom: 12 }}>
+                <input type="checkbox" checked={termsChecked} onChange={e => setTermsChecked(e.target.checked)} style={{ marginTop: 2 }} />
+                I have read, understood and agree to the User Agreement, Confidentiality, Non-Disclosure & Health Disclaimer.
+              </label>
+              <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={!termsChecked || acceptingTerms} onClick={acceptTerms}>
+                {acceptingTerms ? 'Saving…' : 'I Agree — Continue'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isStaff && (
         <Link to="/dashboard" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 10, fontSize: 13, color: 'var(--text-secondary)', textDecoration: 'none' }}>
           ← Back to main site
@@ -1924,7 +2040,7 @@ export default function AthleteApp() {
                   while (cursor <= rangeEndDate) {
                     if (jsDays.includes(cursor.getDay())) {
                       const dateStr = cursor.toISOString().split('T')[0]
-                      if (!isDateOnHoliday(dateStr, holidays, classId ? [classId] : [])) count++
+                      if (!isDateOnHoliday(dateStr, holidays, classId ? [classId] : [], student.id)) count++
                     }
                     cursor.setDate(cursor.getDate() + 1)
                   }
@@ -1955,7 +2071,7 @@ export default function AthleteApp() {
                   while (cursor <= rangeEndDate) {
                     if (jsDays.includes(cursor.getDay())) {
                       const dateStr = cursor.toISOString().split('T')[0]
-                      if (!isDateOnHoliday(dateStr, holidays, [classId])) possibleSessionKeysForAttendance.add(`${dateStr}::${classId}`)
+                      if (!isDateOnHoliday(dateStr, holidays, [classId], student.id)) possibleSessionKeysForAttendance.add(`${dateStr}::${classId}`)
                     }
                     cursor.setDate(cursor.getDate() + 1)
                   }
@@ -3366,7 +3482,7 @@ export default function AthleteApp() {
             .filter(dateStr => {
               const jsDay = new Date(dateStr + 'T12:00:00').getDay()
               const classIdsThatDay = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay)).map(a => a.classes?.id)
-              return !isDateOnHoliday(dateStr, holidays, classIdsThatDay)
+              return !isDateOnHoliday(dateStr, holidays, classIdsThatDay, student.id)
             })
         )
         // F2F actions completed per day -- counts each populated metric
@@ -3482,7 +3598,7 @@ export default function AthleteApp() {
                   const wasTrainingDay = allTrainingDays.has(dateStr)
                   const showAsRed = explicitlyAbsent || (wasTrainingDay && !attended && dateStr < todayStr)
                   const jsDay = new Date(year, month, d).getDay()
-                  const classesToday = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay) && !isDateOnHoliday(dateStr, holidays, a.classes?.id ? [a.classes.id] : []))
+                  const classesToday = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay) && !isDateOnHoliday(dateStr, holidays, a.classes?.id ? [a.classes.id] : [], student.id))
                   // Light green = attended some but not all of the
                   // classes possible that day; dark green = attended
                   // everything possible that day.
