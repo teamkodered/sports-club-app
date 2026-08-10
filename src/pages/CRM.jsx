@@ -41,13 +41,18 @@ export default function CRM() {
   const [dragOverStudentId, setDragOverStudentId] = useState(null)
   const [selectedPaymentIdx, setSelectedPaymentIdx] = useState(null) // click-to-select alternative to drag & drop
   const [venueFilter, setVenueFilter] = useState('all') // all | krcentre_pka | derbymoore | moorways | krba
+  const [missedTraining, setMissedTraining] = useState([]) // computed list, loaded on first visit to that tab
+  const [missedTrainingLoaded, setMissedTrainingLoaded] = useState(false)
+  const [missedTrainingLoading, setMissedTrainingLoading] = useState(false)
+  const [selectedMissed, setSelectedMissed] = useState(new Set())
+  const [autoSendMissedTraining, setAutoSendMissedTraining] = useState(false)
 
   useEffect(() => { loadData() }, [])
 
   async function loadData() {
     setLoading(true)
     const [{ data: s }, { data: pl }] = await Promise.all([
-      supabase.from('students').select('id, student_ref, discipline, class_schedule, members(first_name, last_name, status)'),
+      supabase.from('students').select('id, student_ref, discipline, class_schedule, members(first_name, last_name, status, email, phone)'),
       supabase.from('payer_links').select('*'),
     ])
     setStudents((s || []).filter(x => x.members?.status === 'active'))
@@ -55,7 +60,45 @@ export default function CRM() {
     setLoading(false)
   }
 
-  // Same venue/discipline logic used on the Students page and Dashboard -
+  // "Missed training" = an active student with at least one assigned
+  // class, whose most recent attendance record (of any class) is 28+
+  // days ago -- or who has never attended at all despite being active
+  // for 28+ days. Loaded on first visit to the tab, not on every page
+  // load, since it's a heavier set of queries than the standing orders
+  // check.
+  async function loadMissedTraining() {
+    setMissedTrainingLoading(true)
+    const [{ data: assignments }, { data: attendance }] = await Promise.all([
+      supabase.from('student_class_assignments').select('student_id'),
+      supabase.from('attendance').select('student_id, session_date').order('session_date', { ascending: false }),
+    ])
+    const assignedStudentIds = new Set((assignments || []).map(a => a.student_id))
+    const lastAttendedByStudent = {}
+    ;(attendance || []).forEach(a => {
+      if (!lastAttendedByStudent[a.student_id]) lastAttendedByStudent[a.student_id] = a.session_date
+    })
+    const cutoff = new Date()
+    cutoff.setDate(cutoff.getDate() - 28)
+    const cutoffStr = cutoff.toISOString().split('T')[0]
+
+    const results = students
+      .filter(s => assignedStudentIds.has(s.id))
+      .map(s => {
+        const lastDate = lastAttendedByStudent[s.id] || null
+        if (lastDate && lastDate >= cutoffStr) return null // trained recently, not missing
+        const weeksMissed = lastDate
+          ? Math.floor((Date.now() - new Date(lastDate).getTime()) / (7 * 24 * 60 * 60 * 1000))
+          : null // never attended at all
+        return { student: s, lastDate, weeksMissed }
+      })
+      .filter(Boolean)
+      .sort((a, b) => (b.weeksMissed ?? 999) - (a.weeksMissed ?? 999))
+
+    setMissedTraining(results)
+    setMissedTrainingLoaded(true)
+    setMissedTrainingLoading(false)
+  }
+
   // KR Centre PKA students are identified by having a day-pattern class_schedule
   // value (or being blank) rather than one of the two satellite venue names.
   const venueFilteredStudents = students.filter(s => {
@@ -288,12 +331,18 @@ export default function CRM() {
       </div>
 
       <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', marginBottom: 20 }}>
-        <button onClick={() => { setTab('standing_orders'); ensureLoaded() }} style={{
+        <button onClick={() => setTab('standing_orders')} style={{
           padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
           borderBottom: `2px solid ${tab === 'standing_orders' ? 'var(--text)' : 'transparent'}`,
           color: tab === 'standing_orders' ? 'var(--text)' : 'var(--text-secondary)',
           fontWeight: tab === 'standing_orders' ? 500 : 400,
         }}>Standing orders</button>
+        <button onClick={() => { setTab('missed_training'); if (!missedTrainingLoaded) loadMissedTraining() }} style={{
+          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
+          borderBottom: `2px solid ${tab === 'missed_training' ? 'var(--text)' : 'transparent'}`,
+          color: tab === 'missed_training' ? 'var(--text)' : 'var(--text-secondary)',
+          fontWeight: tab === 'missed_training' ? 500 : 400,
+        }}>Missed training{missedTraining.length > 0 ? ` (${missedTraining.length})` : ''}</button>
       </div>
 
       {tab === 'standing_orders' && (
@@ -448,6 +497,94 @@ export default function CRM() {
                 </div>
               </div>
             </div>
+          )}
+        </div>
+      )}
+
+      {tab === 'missed_training' && (
+        <div>
+          <div className="card" style={{ marginBottom: 16 }}>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 10 }}>
+              Active students with an assigned class who haven't attended anything in 4+ weeks (28 days) — or have never attended at all.
+            </p>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, opacity: 0.6 }}>
+              <input type="checkbox" checked={autoSendMissedTraining} disabled onChange={() => {}} />
+              Auto-send a reminder automatically
+              <span style={{ fontStyle: 'italic' }}>— needs an email/SMS service connected first (not set up yet); manual send below works now</span>
+            </label>
+          </div>
+
+          {missedTrainingLoading ? (
+            <div className="loading">Loading…</div>
+          ) : missedTraining.length === 0 ? (
+            <div className="empty-state"><h3>Nobody's missing training</h3><p>Every assigned, active student has trained within the last 4 weeks.</p></div>
+          ) : (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+                <button className="btn btn-sm" onClick={() => setSelectedMissed(
+                  selectedMissed.size === missedTraining.length ? new Set() : new Set(missedTraining.map(r => r.student.id))
+                )}>
+                  {selectedMissed.size === missedTraining.length ? 'Deselect all' : 'Select all'}
+                </button>
+                {selectedMissed.size > 0 && (() => {
+                  const selectedRows = missedTraining.filter(r => selectedMissed.has(r.student.id))
+                  const emails = selectedRows.map(r => r.student.members?.email).filter(e => e && !e.includes('@kr-centre.placeholder'))
+                  const subject = encodeURIComponent("We've missed you at training!")
+                  const body = encodeURIComponent("Hi,\n\nWe noticed it's been a few weeks since your last session — we'd love to see you back on the mats/in the ring soon!\n\nLet us know if there's anything stopping you from training, we're happy to help.\n\nSee you soon,\nKR Centre")
+                  return (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <span style={{ fontSize: 12, color: 'var(--text-tertiary)', alignSelf: 'center' }}>{selectedMissed.size} selected</span>
+                      <a className="btn btn-sm btn-primary" href={emails.length ? `mailto:?bcc=${emails.join(',')}&subject=${subject}&body=${body}` : undefined}
+                        onClick={e => { if (!emails.length) { e.preventDefault(); alert('None of the selected students have a real email on file.') } }}>
+                        ✉️ Email selected ({emails.length})
+                      </a>
+                    </div>
+                  )
+                })()}
+              </div>
+              <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+                <table>
+                  <thead><tr>
+                    <th style={{ width: 30 }}></th>
+                    <th>Student</th>
+                    <th>Last attended</th>
+                    <th>Weeks missed</th>
+                    <th>Contact</th>
+                  </tr></thead>
+                  <tbody>
+                    {missedTraining.map(r => {
+                      const m = r.student.members
+                      const email = m?.email && !m.email.includes('@kr-centre.placeholder') ? m.email : null
+                      const phone = m?.phone
+                      const smsBody = encodeURIComponent(`Hi ${m?.first_name}, we've missed you at training — it's been a few weeks since your last session. Hope to see you back soon! - KR Centre`)
+                      return (
+                        <tr key={r.student.id}>
+                          <td><input type="checkbox" checked={selectedMissed.has(r.student.id)}
+                            onChange={() => setSelectedMissed(prev => {
+                              const next = new Set(prev)
+                              next.has(r.student.id) ? next.delete(r.student.id) : next.add(r.student.id)
+                              return next
+                            })} /></td>
+                          <td style={{ fontSize: 13 }}>{m?.first_name} {m?.last_name}</td>
+                          <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{r.lastDate ? new Date(r.lastDate).toLocaleDateString('en-GB') : 'Never'}</td>
+                          <td style={{ fontSize: 13, fontWeight: 600, color: '#E24B4A' }}>{r.weeksMissed ?? '—'}</td>
+                          <td>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <a className="btn btn-sm" style={{ fontSize: 11 }} href={email ? `mailto:${email}?subject=We've%20missed%20you!&body=${smsBody}` : undefined}
+                                onClick={e => { if (!email) e.preventDefault() }}
+                                title={email || 'No real email on file'}>✉️</a>
+                              <a className="btn btn-sm" style={{ fontSize: 11 }} href={phone ? `sms:${phone.replace(/\s/g,'')}?body=${smsBody}` : undefined}
+                                onClick={e => { if (!phone) e.preventDefault() }}
+                                title={phone || 'No phone on file'}>📱</a>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       )}
