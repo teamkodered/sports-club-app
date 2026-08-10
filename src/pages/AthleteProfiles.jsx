@@ -2755,8 +2755,7 @@ export default function AthleteProfiles() {
   }, [])
 
   async function addTeamTarget() {
-    const isSectionLevel = !newTargetQuestion
-    const finalValue = (isSectionLevel && !targetUseFreeText)
+    const finalValue = !targetUseFreeText
       ? (targetFreqNumber ? `${targetFreqNumber} per ${targetFreqPeriod === 'day' ? '1 day' : targetFreqPeriod === 'week' ? '1 week' : '1 month'}` : '')
       : newTargetValue.trim()
     if (!finalValue) return
@@ -2851,7 +2850,7 @@ export default function AthleteProfiles() {
           </div>
         </div>
 
-        {isSectionLevel && !targetUseFreeText ? (
+        {!targetUseFreeText ? (
           <div style={{ marginBottom: 8 }}>
             <label style={{ fontSize: 11, color: 'var(--text-tertiary)', display: 'block', marginBottom: 2 }}>
               Target (complete this many items, per timescale)
@@ -2875,11 +2874,9 @@ export default function AthleteProfiles() {
             <label style={{ fontSize: 11, color: 'var(--text-tertiary)', display: 'block', marginBottom: 2 }}>Target</label>
             <input value={newTargetValue} onChange={e => setNewTargetValue(e.target.value)}
               placeholder="e.g. 8 hours, 3 litres, Level 10" style={{ width: '100%' }} />
-            {isSectionLevel && (
-              <button onClick={() => setTargetUseFreeText(false)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 11, padding: 0, marginTop: 6, textDecoration: 'underline' }}>
-                Use number + timescale instead
-              </button>
-            )}
+            <button onClick={() => setTargetUseFreeText(false)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 11, padding: 0, marginTop: 6, textDecoration: 'underline' }}>
+              Use number + timescale instead
+            </button>
           </div>
         )}
 
