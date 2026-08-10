@@ -1127,6 +1127,47 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
 
   const shared = apData?.pdp_shared || {} // items shared to athlete view
 
+  // Section header progress badge ("1/3") for the coach's view of an
+  // individual athlete -- same logic as the athlete's own app, using
+  // this athlete's f2fData and any target set specifically for them
+  // (falling back to a team-wide target if there's no athlete-specific one).
+  const SECTION_FIELD_CHECK_COACH = {
+    physical:  s => toEntries(s.running).length > 0 || toEntries(s.watt_bike).length > 0 || toEntries(s.bodyweight).length > 0 || !!s.stretch_flows || !!s.snc || !!s.other_session,
+    technique: s => Array.isArray(s.techniques) ? s.techniques.length > 0 : !!s.techniques,
+    tactical:  s => Array.isArray(s.tactical) ? s.tactical.length > 0 : !!s.tactical,
+    mentality: s => MENTALITY_QUESTIONS.some(q => isMentalityQComplete(q.key, s.mentality_log)),
+    wellbeing: s => WELLBEING_QUESTIONS.some(q => isWellbeingQComplete(q.key, s.wellbeing)),
+    test:      s => !!(s.test && Object.values(s.test).some(v => v !== '' && v != null)),
+  }
+  function getCoachSectionProgress(sectionKey) {
+    const own = teamTargets.find(t => t.section_key === sectionKey && !t.question_label && t.student_id === selected?.id)
+    const target = own || teamTargets.find(t => t.section_key === sectionKey && !t.question_label && !t.student_id)
+    if (!target) return null
+    const m = /^(\d+)\s*per\s*1?\s*(day|week|month)/i.exec(target.target_value || '')
+    if (!m) return null
+    const targetNum = parseInt(m[1])
+    const period = m[2].toLowerCase()
+    const now = new Date()
+    let periodStart
+    if (period === 'day') periodStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    else if (period === 'week') { const day = (now.getDay() + 6) % 7; periodStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day) }
+    else periodStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    const periodStartStr = periodStart.toISOString().split('T')[0]
+    const check = SECTION_FIELD_CHECK_COACH[sectionKey]
+    const daysWithActivity = new Set(f2fData.filter(s => s.session_date >= periodStartStr && check(s)).map(s => s.session_date))
+    return { done: daysWithActivity.size, target: targetNum }
+  }
+  function CoachSectionProgressBadge({ sectionKey }) {
+    const progress = getCoachSectionProgress(sectionKey)
+    if (!progress) return <span style={{ width: 28 }} />
+    const hit = progress.done >= progress.target
+    return (
+      <span style={{ fontSize: 11, fontWeight: 700, color: hit ? '#1D9E75' : 'var(--text-tertiary)', minWidth: 28, textAlign: 'left' }}>
+        {progress.done}/{progress.target}
+      </span>
+    )
+  }
+
   // Sections visible to athlete: non-coachOnly + any shared coach items
   const athleteSections = PDP_SECTIONS.filter(s => !s.coachOnly)
 
@@ -3339,6 +3380,55 @@ export default function AthleteProfiles() {
     ])
     setAttendanceData(att || [])
     setAllAttendance(prev => [...prev.filter(a => a?.student_id !== studentId), ...(allAtt || [])])
+  }
+
+  // Multi-session day marking -- when a date has more than one of this
+  // athlete's assigned classes, the simple click-to-cycle can only ever
+  // create one generic (day-level) attendance record, which can never
+  // reach "fully attended" (dark green) for that day. This opens a
+  // small picker instead, letting each of that day's classes be marked
+  // attended/not individually.
+  const [multiSessionDay, setMultiSessionDay] = useState(null) // { dateStr, classes: [...] } or null
+  const [multiSessionSelected, setMultiSessionSelected] = useState(new Set()) // class_ids currently checked
+  const [savingMultiSessionDay, setSavingMultiSessionDay] = useState(false)
+
+  async function openMultiSessionDay(dateStr, classes) {
+    const classIds = classes.map(a => a.classes?.id).filter(Boolean)
+    const { data: existing } = await supabase.from('attendance')
+      .select('class_id').eq('student_id', selected.id).eq('session_date', dateStr)
+      .in('class_id', classIds).neq('attendance_type', 'absent').neq('attendance_type', 'excused')
+    setMultiSessionSelected(new Set((existing || []).map(a => a.class_id)))
+    setMultiSessionDay({ dateStr, classes })
+  }
+
+  async function saveMultiSessionDay() {
+    if (!multiSessionDay) return
+    setSavingMultiSessionDay(true)
+    const { dateStr, classes } = multiSessionDay
+    for (const a of classes) {
+      const classId = a.classes?.id
+      if (!classId) continue
+      const shouldBeAttended = multiSessionSelected.has(classId)
+      const { data: existingRows } = await supabase.from('attendance')
+        .select('id, attendance_type').eq('student_id', selected.id).eq('session_date', dateStr).eq('class_id', classId)
+      const existing = existingRows?.[0] || null
+      if (shouldBeAttended && !existing) {
+        await supabase.from('attendance').insert({
+          student_id: selected.id, present: true, attendance_type: 'attended',
+          session_date: dateStr, attended_at: new Date(dateStr + 'T12:00:00').toISOString(), class_id: classId,
+        })
+      } else if (shouldBeAttended && existing && (existing.attendance_type === 'absent' || existing.attendance_type === 'excused')) {
+        await supabase.from('attendance').update({ present: true, attendance_type: 'attended' }).eq('id', existing.id)
+      } else if (!shouldBeAttended && existing && existing.attendance_type !== 'absent' && existing.attendance_type !== 'excused') {
+        // Clears rather than deletes, consistent with the single-session
+        // toggle -- keeps the row as "excused" so it doesn't immediately
+        // reappear as a missed/red session.
+        await supabase.from('attendance').update({ attendance_type: 'excused' }).eq('id', existing.id)
+      }
+    }
+    await refetchAttendanceFor(selected.id)
+    setSavingMultiSessionDay(false)
+    setMultiSessionDay(null)
   }
 
   async function saveAthleteHoliday() {
@@ -6358,22 +6448,6 @@ export default function AthleteProfiles() {
 
                   {apData && (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-                      {(apData.age_division_kickboxing || apData.age_division_boxing || apData.weight_division || apData.kode_red_debut) && (
-                        <div className="card">
-                          <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: colour }}>Competition divisions</h3>
-                          {[
-                            ['Kickboxing', apData.age_division_kickboxing],
-                            ['Boxing', apData.age_division_boxing],
-                            ['Weight division', apData.weight_division],
-                            ['Kode Red debut', apData.kode_red_debut],
-                          ].map(([l, v]) => v && (
-                            <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
-                              <span style={{ color: 'var(--text-secondary)' }}>{l}</span>
-                              <span style={{ fontWeight: 500 }}>{v}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
                       {(apData.favourite_technique || apData.training_music || apData.social_media || apData.sponsor_links) && (
                         <div className="card">
                           <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: colour }}>Athlete info</h3>
@@ -6629,13 +6703,16 @@ export default function AthleteProfiles() {
 
                   <div ref={physicalSectionRef}>
                   <button type="button" onClick={togglePhysicalSection} style={{
-                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
                     textAlign: 'center', padding: '10px 8px', marginBottom: 8, cursor: 'pointer', fontFamily: 'var(--font-sans)',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
-                    <span style={{ fontSize: 18 }}>💪</span>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Physical</span>
-                    <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{showPhysicalSection ? '▲' : '▼'}</span>
+                    <CoachSectionProgressBadge sectionKey="physical" />
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, justifyContent: 'center' }}>
+                      <span style={{ fontSize: 18 }}>💪</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Physical</span>
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-tertiary)', minWidth: 28, textAlign: 'right' }}>{showPhysicalSection ? '▲' : '▼'}</span>
                   </button>
 
                   <div style={{
@@ -7003,13 +7080,16 @@ export default function AthleteProfiles() {
 
                   <div ref={techniqueSectionRef}>
                   <button type="button" onClick={() => { setShowTechniqueSection(v => { if (v) setExpandedTechniqueCategory(null); return !v }) }} style={{
-                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
                     textAlign: 'center', padding: '10px 8px', marginBottom: 8, cursor: 'pointer', fontFamily: 'var(--font-sans)',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
-                    <span style={{ fontSize: 18 }}>🥊</span>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Technique</span>
-                    <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{showTechniqueSection ? '▲' : '▼'}</span>
+                    <CoachSectionProgressBadge sectionKey="technique" />
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, justifyContent: 'center' }}>
+                      <span style={{ fontSize: 18 }}>🥊</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Technique</span>
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-tertiary)', minWidth: 28, textAlign: 'right' }}>{showTechniqueSection ? '▲' : '▼'}</span>
                   </button>
 
                   <div style={{
@@ -7088,13 +7168,16 @@ export default function AthleteProfiles() {
 
                   <div ref={tacticalSectionRef}>
                   <button type="button" onClick={() => { setShowTacticalSection(v => { if (v) setExpandedTacticalCategory(null); return !v }) }} style={{
-                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
                     textAlign: 'center', padding: '10px 8px', marginBottom: 8, cursor: 'pointer', fontFamily: 'var(--font-sans)',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
-                    <span style={{ fontSize: 18 }}>🧩</span>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Tactical</span>
-                    <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{showTacticalSection ? '▲' : '▼'}</span>
+                    <CoachSectionProgressBadge sectionKey="tactical" />
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, justifyContent: 'center' }}>
+                      <span style={{ fontSize: 18 }}>🧩</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Tactical</span>
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-tertiary)', minWidth: 28, textAlign: 'right' }}>{showTacticalSection ? '▲' : '▼'}</span>
                   </button>
 
                   <div style={{
@@ -7193,13 +7276,16 @@ export default function AthleteProfiles() {
 
                   <div ref={mentalitySectionRef}>
                   <button type="button" onClick={() => { setShowMentalitySection(v => { if (v) setExpandedHomeMentality(null); return !v }) }} style={{
-                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
                     textAlign: 'center', padding: '10px 8px', marginBottom: 8, cursor: 'pointer', fontFamily: 'var(--font-sans)',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
-                    <span style={{ fontSize: 18 }}>🧠</span>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Mentality</span>
-                    <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{showMentalitySection ? '▲' : '▼'}</span>
+                    <CoachSectionProgressBadge sectionKey="mentality" />
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, justifyContent: 'center' }}>
+                      <span style={{ fontSize: 18 }}>🧠</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Mentality</span>
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-tertiary)', minWidth: 28, textAlign: 'right' }}>{showMentalitySection ? '▲' : '▼'}</span>
                   </button>
 
                   <div style={{
@@ -7521,13 +7607,16 @@ export default function AthleteProfiles() {
 
                   <div ref={wellbeingSectionRef}>
                   <button type="button" onClick={() => { setShowWellbeingSection(v => { if (v) setExpandedHomeWb(null); return !v }) }} style={{
-                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
                     textAlign: 'center', padding: '10px 8px', marginBottom: 8, cursor: 'pointer', fontFamily: 'var(--font-sans)',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
-                    <span style={{ fontSize: 18 }}>🌱</span>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Wellbeing</span>
-                    <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{showWellbeingSection ? '▲' : '▼'}</span>
+                    <CoachSectionProgressBadge sectionKey="wellbeing" />
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, justifyContent: 'center' }}>
+                      <span style={{ fontSize: 18 }}>🌱</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Wellbeing</span>
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-tertiary)', minWidth: 28, textAlign: 'right' }}>{showWellbeingSection ? '▲' : '▼'}</span>
                   </button>
 
                   <div style={{
@@ -7768,13 +7857,16 @@ export default function AthleteProfiles() {
                   </div>
                   <div ref={testSectionRef}>
                   <button type="button" onClick={() => { setShowTestSection(v => { if (v) setExpandedHomeTestCategory(null); return !v }) }} style={{
-                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
                     textAlign: 'center', padding: '10px 8px', marginBottom: 8, cursor: 'pointer', fontFamily: 'var(--font-sans)',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
-                    <span style={{ fontSize: 18 }}>📋</span>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Test</span>
-                    <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{showTestSection ? '▲' : '▼'}</span>
+                    <CoachSectionProgressBadge sectionKey="test" />
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, justifyContent: 'center' }}>
+                      <span style={{ fontSize: 18 }}>📋</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Test</span>
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-tertiary)', minWidth: 28, textAlign: 'right' }}>{showTestSection ? '▲' : '▼'}</span>
                   </button>
 
                   <div style={{
@@ -8136,7 +8228,7 @@ export default function AthleteProfiles() {
                               ).filter(e => e.date === dateStr)
                               const eventsToday = clubEvents.filter(e => e.event_date === dateStr)
                               return (
-                                <button key={i} type="button" onClick={() => cycleAttendanceDay(dateStr)}
+                                <button key={i} type="button" onClick={() => classesToday.length > 1 ? openMultiSessionDay(dateStr, classesToday) : cycleAttendanceDay(dateStr)}
                                   title={(attended ? 'Attended — click to mark absent' : explicitlyAbsent ? 'Marked absent — click to clear' : explicitlyExcused ? 'Cleared — click to mark attended' : (wasTrainingDay && dateStr < todayStr) ? 'Missed (a session happened this day) — click to mark attended' : wasTrainingDay ? 'Upcoming session — not yet happened' : 'Click to mark attended')
                                     + (classesToday.length ? `\nClass: ${classesToday.map(a => `${a.classes?.name} ${a.classes?.start_time?.slice(0,5)}`).join(', ')}` : '')
                                     + (pdpItemsToday.length ? `\nPDP: ${pdpItemsToday.map(e => `${e.item}${e.time ? ` ${e.time}` : ''}`).join(', ')}` : '')
@@ -8168,6 +8260,41 @@ export default function AthleteProfiles() {
                               )
                             })}
                           </div>
+                          {multiSessionDay && (
+                            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
+                              onClick={() => setMultiSessionDay(null)}>
+                              <div className="card" style={{ width: '100%', maxWidth: 360 }} onClick={e => e.stopPropagation()}>
+                                <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>
+                                  {new Date(multiSessionDay.dateStr + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })}
+                                </h3>
+                                <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 12 }}>
+                                  {multiSessionDay.classes.length} classes this day — tick which ones {selected.members?.first_name} attended.
+                                </p>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+                                  {multiSessionDay.classes.map((a, i) => {
+                                    const classId = a.classes?.id
+                                    return (
+                                      <label key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
+                                        <input type="checkbox" checked={multiSessionSelected.has(classId)}
+                                          onChange={() => setMultiSessionSelected(prev => {
+                                            const next = new Set(prev)
+                                            next.has(classId) ? next.delete(classId) : next.add(classId)
+                                            return next
+                                          })} />
+                                        {a.classes?.name} — {a.classes?.start_time?.slice(0, 5)}
+                                      </label>
+                                    )
+                                  })}
+                                </div>
+                                <div style={{ display: 'flex', gap: 8 }}>
+                                  <button className="btn btn-primary" disabled={savingMultiSessionDay} onClick={saveMultiSessionDay}>
+                                    {savingMultiSessionDay ? 'Saving…' : 'Save'}
+                                  </button>
+                                  <button className="btn" onClick={() => setMultiSessionDay(null)}>Cancel</button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                           {(() => {
                             const pdpNotesData2 = apData?.pdp_notes || {}
                             const allEntries = Array.from(PDP_CHECKABLE_SECTIONS).flatMap(sectionKey =>
@@ -8661,12 +8788,14 @@ export default function AthleteProfiles() {
                   // test result whose name isn't Bleep/Grip/Fixed load
                   // circuit (e.g. a one-off custom test a coach added).
                   case 'other': {
-                    const hasOtherPhysical = !!(s.stretch_flows || s.snc || s.other_session)
+                    const hasOtherPhysical = !!(s.stretch_flows || s.snc || s.other_session || (Array.isArray(s.tactical) && s.tactical.length > 0))
                     const hasOtherTest = !!(s.test && Object.keys(s.test).some(k => {
                       const kl = k.toLowerCase()
                       return !kl.includes('bleep') && !kl.includes('grip') && !kl.includes('fixed load circuit')
                     }))
-                    return hasOtherPhysical || hasOtherTest
+                    const hasWellbeingOrMentality = WELLBEING_QUESTIONS.some(q => isWellbeingQComplete(q.key, s.wellbeing))
+                      || MENTALITY_QUESTIONS.some(q => isMentalityQComplete(q.key, s.mentality_log))
+                    return hasOtherPhysical || hasOtherTest || hasWellbeingOrMentality
                   }
                   default:           return true
                 }
@@ -9234,6 +9363,24 @@ export default function AthleteProfiles() {
                                 <p style={{ fontSize: 12, margin: '4px 0' }}>🧘 Stretch flows: {s.stretch_flows.filter(Boolean).join(', ')}</p>
                               )}
                               {s.snc && renderSetDetail(s.snc, { icon: '🏋️', colour: '#059669', unit: '', fallbackLabel: 'SnC', getLabel: e => e.routine })}
+                              {s.tactical && Array.isArray(s.tactical) && s.tactical.length > 0 && (
+                                <p style={{ fontSize: 12, margin: '4px 0' }}>🧩 Tactical: {s.tactical.map(t => t.category).filter(Boolean).join(', ') || `${s.tactical.length} logged`}</p>
+                              )}
+                              {WELLBEING_QUESTIONS.filter(q => isWellbeingQComplete(q.key, s.wellbeing)).map(q => {
+                                const w = s.wellbeing[q.key]
+                                const detail = q.key === 'sleep' ? [w.hours && `${w.hours}h`, w.efficiency && `${w.efficiency}% efficiency`].filter(Boolean).join(', ')
+                                  : q.key === 'nutrition' ? (w.targetPreset || w.quality)
+                                  : q.key === 'hydration' ? `${w.total}L`
+                                  : q.key === 'outdoors' ? `${w.totalMinutes} min`
+                                  : q.key === 'screenFree' ? (w.hours ? `${w.hours}h` : w.custom)
+                                  : (w.count > 0 ? `x${w.count}` : '')
+                                return <p key={q.key} style={{ fontSize: 12, margin: '4px 0' }}>{q.icon} {q.label}{detail ? `: ${detail}` : ''}</p>
+                              })}
+                              {MENTALITY_QUESTIONS.filter(q => isMentalityQComplete(q.key, s.mentality_log)).map(q => {
+                                const m = s.mentality_log[q.key]
+                                const detail = m?.type || (m?.count > 0 ? `x${m.count}` : '')
+                                return <p key={q.key} style={{ fontSize: 12, margin: '4px 0' }}>{q.icon} {q.label}{detail ? `: ${detail}` : ''}</p>
+                              })}
                               {s.other_session && renderSetDetail(s.other_session, { icon: '📦', colour: '#666', unit: '', fallbackLabel: 'Other session', getLabel: e => e.type })}
                             </>
                           )}
