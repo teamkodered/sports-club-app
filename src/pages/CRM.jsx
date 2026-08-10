@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase.js'
+import { useAuth } from '../hooks/useAuth.jsx'
 import * as XLSX from 'xlsx'
 
 // Loosely finds the "name" and "amount" columns in an uploaded
@@ -32,6 +33,7 @@ function wordsOf(s) {
 }
 
 export default function CRM() {
+  const { isAdmin } = useAuth()
   const [tab, setTab] = useState('standing_orders')
   const [students, setStudents] = useState([])
   const [payerLinks, setPayerLinks] = useState([])
@@ -50,6 +52,62 @@ export default function CRM() {
   const [birthdaysLoaded, setBirthdaysLoaded] = useState(false)
   const [selectedBirthdays, setSelectedBirthdays] = useState(new Set())
   const [autoSendBirthdays, setAutoSendBirthdays] = useState(false)
+  const [courses, setCourses] = useState([])
+  const [coursesLoaded, setCoursesLoaded] = useState(false)
+  const [editingCourse, setEditingCourse] = useState(null) // {} for new, or the course object
+  const [courseForm, setCourseForm] = useState({ title: '', description: '', poster_url: '', start_date: '', end_date: '', location: '', price: '' })
+  const [savingCourse, setSavingCourse] = useState(false)
+  const [uploadingPoster, setUploadingPoster] = useState(false)
+  const [expandedCourseId, setExpandedCourseId] = useState(null)
+
+  async function loadCourses() {
+    const { data } = await supabase.from('courses').select('*').order('start_date', { ascending: true })
+    setCourses(data || [])
+    setCoursesLoaded(true)
+  }
+
+  function startEditCourse(course) {
+    setEditingCourse(course || {})
+    setCourseForm(course
+      ? { title: course.title, description: course.description || '', poster_url: course.poster_url || '', start_date: course.start_date, end_date: course.end_date || '', location: course.location || '', price: course.price || '' }
+      : { title: '', description: '', poster_url: '', start_date: '', end_date: '', location: '', price: '' })
+  }
+
+  async function uploadCoursePoster(file) {
+    setUploadingPoster(true)
+    const path = `courses/${Date.now()}-${file.name}`
+    const { error } = await supabase.storage.from('athlete-media').upload(path, file)
+    if (!error) {
+      const { data: urlData } = supabase.storage.from('athlete-media').getPublicUrl(path)
+      setCourseForm(f => ({ ...f, poster_url: urlData.publicUrl }))
+    } else {
+      alert('Error uploading poster: ' + error.message)
+    }
+    setUploadingPoster(false)
+  }
+
+  async function saveCourse() {
+    if (!courseForm.title || !courseForm.start_date) { alert('Please fill in at least a title and start date.'); return }
+    setSavingCourse(true)
+    const payload = { ...courseForm, end_date: courseForm.end_date || null }
+    let error
+    if (editingCourse?.id) {
+      ;({ error } = await supabase.from('courses').update(payload).eq('id', editingCourse.id))
+    } else {
+      ;({ error } = await supabase.from('courses').insert(payload))
+    }
+    setSavingCourse(false)
+    if (error) { alert('Error saving course: ' + error.message); return }
+    setEditingCourse(null)
+    await loadCourses()
+  }
+
+  async function deleteCourse(id) {
+    if (!confirm('Delete this course?')) return
+    const { error } = await supabase.from('courses').delete().eq('id', id)
+    if (error) { alert('Error deleting course: ' + error.message); return }
+    setCourses(prev => prev.filter(c => c.id !== id))
+  }
 
   useEffect(() => { loadData() }, [])
 
@@ -378,6 +436,12 @@ export default function CRM() {
           color: tab === 'birthdays' ? 'var(--text)' : 'var(--text-secondary)',
           fontWeight: tab === 'birthdays' ? 500 : 400,
         }}>Birthdays{birthdays.length > 0 ? ` (${birthdays.length})` : ''}</button>
+        <button onClick={() => { setTab('courses'); if (!coursesLoaded) loadCourses() }} style={{
+          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
+          borderBottom: `2px solid ${tab === 'courses' ? 'var(--text)' : 'transparent'}`,
+          color: tab === 'courses' ? 'var(--text)' : 'var(--text-secondary)',
+          fontWeight: tab === 'courses' ? 500 : 400,
+        }}>Courses{courses.length > 0 ? ` (${courses.length})` : ''}</button>
       </div>
 
       {tab === 'standing_orders' && (
@@ -709,6 +773,109 @@ export default function CRM() {
                 </table>
               </div>
             </>
+          )}
+        </div>
+      )}
+
+      {tab === 'courses' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+              Courses, gradings, and seminars — also shown on the club calendar.
+            </p>
+            {isAdmin && <button className="btn btn-primary btn-sm" onClick={() => startEditCourse(null)}>+ Add course</button>}
+          </div>
+
+          {courses.length === 0 ? (
+            <div className="empty-state"><h3>No courses yet</h3><p>Add your first course to get started</p></div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {courses.map(c => {
+                const isOpen = expandedCourseId === c.id
+                const isPast = c.start_date < new Date().toISOString().split('T')[0]
+                return (
+                  <div key={c.id} className="card" style={{ padding: 0, opacity: isPast ? 0.6 : 1 }}>
+                    <button onClick={() => setExpandedCourseId(isOpen ? null : c.id)}
+                      style={{ width: '100%', textAlign: 'left', display: 'flex', gap: 12, padding: 12, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                      {c.poster_url ? (
+                        <img src={c.poster_url} alt="" style={{ width: 56, height: 56, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+                      ) : (
+                        <div style={{ width: 56, height: 56, borderRadius: 8, background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>🎓</div>
+                      )}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 14 }}>{c.title}</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                          {new Date(c.start_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          {c.end_date ? ` – ${new Date(c.end_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : ''}
+                          {c.location ? ` · ${c.location}` : ''}
+                        </div>
+                      </div>
+                      <span style={{ fontSize: 12, color: 'var(--text-tertiary)', alignSelf: 'center' }}>{isOpen ? '▲' : '▼'}</span>
+                    </button>
+                    {isOpen && (
+                      <div style={{ padding: '0 12px 12px' }}>
+                        {c.poster_url && <img src={c.poster_url} alt="" style={{ width: '100%', maxWidth: 320, borderRadius: 8, marginBottom: 10, display: 'block' }} />}
+                        {c.description && <p style={{ fontSize: 13, whiteSpace: 'pre-line', marginBottom: 10 }}>{c.description}</p>}
+                        {c.price && <p style={{ fontSize: 13, marginBottom: 10 }}><strong>Price:</strong> {c.price}</p>}
+                        {isAdmin && (
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button className="btn btn-sm" onClick={() => startEditCourse(c)}>Edit</button>
+                            <button className="btn btn-sm" onClick={() => deleteCourse(c.id)} style={{ color: '#E24B4A' }}>Delete</button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {editingCourse !== null && (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
+              onClick={() => setEditingCourse(null)}>
+              <div className="card" style={{ width: '100%', maxWidth: 420, maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+                <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 14 }}>{editingCourse?.id ? 'Edit course' : 'Add course'}</h3>
+
+                <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Title</label>
+                <input value={courseForm.title} onChange={e => setCourseForm(f => ({ ...f, title: e.target.value }))}
+                  placeholder="e.g. Kickboxing Level 1 Grading" style={{ width: '100%', marginBottom: 10 }} />
+
+                <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Poster</label>
+                {courseForm.poster_url && <img src={courseForm.poster_url} alt="" style={{ width: 120, borderRadius: 8, marginBottom: 8, display: 'block' }} />}
+                <input type="file" accept="image/*" style={{ marginBottom: 10 }} disabled={uploadingPoster}
+                  onChange={e => { const f = e.target.files?.[0]; if (f) uploadCoursePoster(f) }} />
+                {uploadingPoster && <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Uploading…</p>}
+
+                <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Start date</label>
+                    <input type="date" value={courseForm.start_date} onChange={e => setCourseForm(f => ({ ...f, start_date: e.target.value }))} style={{ width: '100%' }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>End date (optional)</label>
+                    <input type="date" value={courseForm.end_date} onChange={e => setCourseForm(f => ({ ...f, end_date: e.target.value }))} style={{ width: '100%' }} />
+                  </div>
+                </div>
+
+                <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Location</label>
+                <input value={courseForm.location} onChange={e => setCourseForm(f => ({ ...f, location: e.target.value }))}
+                  placeholder="e.g. KR Centre" style={{ width: '100%', marginBottom: 10 }} />
+
+                <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Price</label>
+                <input value={courseForm.price} onChange={e => setCourseForm(f => ({ ...f, price: e.target.value }))}
+                  placeholder="e.g. £25" style={{ width: '100%', marginBottom: 10 }} />
+
+                <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Description</label>
+                <textarea value={courseForm.description} onChange={e => setCourseForm(f => ({ ...f, description: e.target.value }))}
+                  rows={4} style={{ width: '100%', marginBottom: 14, resize: 'vertical' }} />
+
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn btn-primary" disabled={savingCourse} onClick={saveCourse}>{savingCourse ? 'Saving…' : 'Save'}</button>
+                  <button className="btn" onClick={() => setEditingCourse(null)}>Cancel</button>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       )}

@@ -17,6 +17,7 @@ export default function CalendarPage() {
   const [classes, setClasses] = useState([])
   const [holidays, setHolidays] = useState([])
   const [fixtures, setFixtures] = useState([])
+  const [courses, setCourses] = useState([])
   const [loading, setLoading] = useState(true)
   const [month, setMonth] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() } })
   const [selectedDate, setSelectedDate] = useState(null)
@@ -32,14 +33,16 @@ export default function CalendarPage() {
   useEffect(() => { load() }, [])
 
   async function load() {
-    const [{ data: c }, { data: h }, { data: f }] = await Promise.all([
+    const [{ data: c }, { data: h }, { data: f }, { data: co }] = await Promise.all([
       supabase.from('classes').select('*').eq('active', true).eq('is_custom', false).order('start_time'),
       supabase.from('holidays').select('*, classes(name)').order('start_date', { ascending: false }),
       supabase.from('fixtures').select('*, home_house:houses!home_house_id(name), away_house:houses!away_house_id(name)').order('date'),
+      supabase.from('courses').select('*').order('start_date'),
     ])
     setClasses(c || [])
     setHolidays(h || [])
     setFixtures(f || [])
+    setCourses(co || [])
     setLoading(false)
   }
 
@@ -56,16 +59,23 @@ export default function CalendarPage() {
     return classes.filter(c => (DAY_TO_JS_DAYS[c.day_of_week] || []).includes(jsDay))
   }
   function holidayCoveringDate(dateStr) {
-    return holidays.find(h => !h.class_id && h.start_date <= dateStr && h.end_date >= dateStr)
+    // A row with only student_id set (individual athlete holiday) is
+    // not club-wide -- must be excluded here too, or an individual's
+    // time off would incorrectly show as closing the whole club.
+    return holidays.find(h => !h.class_id && !h.student_id && h.start_date <= dateStr && h.end_date >= dateStr)
   }
   function fixturesForDate(dateStr) {
     return fixtures.filter(f => f.date === dateStr)
+  }
+  function coursesForDate(dateStr) {
+    return courses.filter(c => c.start_date <= dateStr && (c.end_date || c.start_date) >= dateStr)
   }
 
   const selectedClasses = selectedDate ? classesForDate(selectedDate) : []
   const selectedHoliday = selectedDate ? holidayCoveringDate(selectedDate) : null
   const selectedPerClassHolidays = selectedDate ? holidays.filter(h => h.class_id && h.start_date <= selectedDate && h.end_date >= selectedDate) : []
   const selectedFixtures = selectedDate ? fixturesForDate(selectedDate) : []
+  const selectedCourses = selectedDate ? coursesForDate(selectedDate) : []
 
   // Derived From/To for the holiday selection, shown in editable inputs
   const sortedSelected = [...holidaySelected].sort()
@@ -223,6 +233,7 @@ export default function CalendarPage() {
                 const perClassHolidayIds = new Set(holidays.filter(h => h.class_id && h.start_date <= dateStr && h.end_date >= dateStr).map(h => h.class_id))
                 const runningClasses = clubWideHoliday ? [] : dayClasses.filter(c => !perClassHolidayIds.has(c.id))
                 const dayFixtures = fixturesForDate(dateStr)
+                const dayCourses = coursesForDate(dateStr)
                 const isToday = dateStr === new Date().toISOString().split('T')[0]
                 const isSelected = dateStr === selectedDate
                 const isHolidaySelected = holidaySelected.has(dateStr)
@@ -241,6 +252,7 @@ export default function CalendarPage() {
                     {!settingHolidays && clubWideHoliday && <span style={{ fontSize: 8 }}>🏖️</span>}
                     {!settingHolidays && !clubWideHoliday && runningClasses.length > 0 && <span style={{ fontSize: 8, color: '#378ADD' }}>●{runningClasses.length > 1 ? runningClasses.length : ''}</span>}
                     {!settingHolidays && dayFixtures.length > 0 && <span style={{ fontSize: 8, color: '#EF9F27' }}>🏆</span>}
+                    {!settingHolidays && dayCourses.length > 0 && <span style={{ fontSize: 8, color: '#8B5CF6' }}>🎓</span>}
                   </button>
                 )
               })}
@@ -249,6 +261,7 @@ export default function CalendarPage() {
               <span>● Session(s)</span>
               <span>🏖️ Closed</span>
               <span>🏆 Fixture</span>
+              <span>🎓 Course</span>
             </div>
           </div>
 
@@ -305,6 +318,23 @@ export default function CalendarPage() {
                       {f.venue && <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{f.venue}</div>}
                       {f.status === 'completed' && <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{f.home_score} – {f.away_score}</div>}
                     </div>
+                  ))}
+                </div>
+              )}
+
+              <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, marginTop: 12 }}>Courses</p>
+              {selectedCourses.length === 0 ? (
+                <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No courses</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {selectedCourses.map(c => (
+                    <a key={c.id} href="/crm" style={{ padding: '6px 10px', background: '#8B5CF612', borderRadius: 'var(--radius)', textDecoration: 'none', color: 'inherit', display: 'flex', gap: 8, alignItems: 'center' }}>
+                      {c.poster_url ? <img src={c.poster_url} alt="" style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover' }} /> : <span style={{ fontSize: 18 }}>🎓</span>}
+                      <div>
+                        <span style={{ fontSize: 12, fontWeight: 600, display: 'block' }}>{c.title}</span>
+                        {c.location && <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{c.location}</span>}
+                      </div>
+                    </a>
                   ))}
                 </div>
               )}
