@@ -822,6 +822,7 @@ export default function AthleteApp() {
   const [sessionsCalendarView, setSessionsCalendarView] = useState('sessions') // 'sessions' | 'f2f' | 'pdp'
   const [opponentNotes, setOpponentNotes] = useState([])
   const [newOpponentName, setNewOpponentName] = useState('')
+  const [sectionTargets, setSectionTargets] = useState([])
   const [student, setStudent]   = useState(null)
   const [houses, setHouses] = useState([])
   const [rankList, setRankList] = useState([])
@@ -1157,6 +1158,12 @@ export default function AthleteApp() {
 
         supabase.from('opponent_notes').select('*').eq('student_id', s.id).order('created_at', { ascending: true })
           .then(({ data, error }) => { if (!error) setOpponentNotes(data || []) })
+
+        // Section-level targets (question_label is null) that apply to
+        // this athlete -- either team-wide or set specifically for them.
+        supabase.from('team_targets').select('*').is('question_label', null)
+          .or(`student_id.is.null,student_id.eq.${s.id}`)
+          .then(({ data, error }) => { if (!error) setSectionTargets(data || []) })
 
         supabase.from('athlete_notes_log').select('*').eq('student_id', s.id).order('logged_at', { ascending: false })
           .then(({ data, error }) => { if (!error) setMyNotesLog(data || []) })
@@ -1567,6 +1574,56 @@ export default function AthleteApp() {
     if (new Date() > expiresAt) setActiveCheckIn(null)
     else setActiveCheckIn(mostRecent)
   }, [student, attendanceData, assignedClasses])
+
+  // Section header progress badge ("1/3") -- picks the athlete-specific
+  // target for a section if one's been set, otherwise falls back to
+  // the team-wide one; only shows a badge for frequency-style targets
+  // ("N per day/week/month"), since free-text targets can't be counted
+  // against. "Completed" counts distinct days within the current
+  // period that have any activity logged in that section.
+  const SECTION_FIELD_CHECK = {
+    physical:  s => !!(s.running || s.watt_bike || s.bodyweight || s.stretch_flows || s.snc || s.other_session),
+    technique: s => !!s.techniques,
+    tactical:  s => !!s.tactical,
+    mentality: s => !!s.mentality_log,
+    wellbeing: s => !!s.wellbeing,
+    test:      s => !!s.test,
+  }
+  function getSectionProgress(sectionKey) {
+    const own = sectionTargets.find(t => t.section_key === sectionKey && t.student_id === student?.id)
+    const target = own || sectionTargets.find(t => t.section_key === sectionKey && !t.student_id)
+    if (!target) return null
+    const m = /^(\d+)\s*per\s*1?\s*(day|week|month)/i.exec(target.target_value || '')
+    if (!m) return null
+    const targetNum = parseInt(m[1])
+    const period = m[2].toLowerCase()
+    const now = new Date()
+    let periodStart
+    if (period === 'day') {
+      periodStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    } else if (period === 'week') {
+      const day = (now.getDay() + 6) % 7 // Monday = 0
+      periodStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day)
+    } else {
+      periodStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    }
+    const periodStartStr = periodStart.toISOString().split('T')[0]
+    const check = SECTION_FIELD_CHECK[sectionKey]
+    const daysWithActivity = new Set(
+      sessions.filter(s => s.session_date >= periodStartStr && check(s)).map(s => s.session_date)
+    )
+    return { done: daysWithActivity.size, target: targetNum }
+  }
+  function SectionProgressBadge({ sectionKey }) {
+    const progress = getSectionProgress(sectionKey)
+    if (!progress) return <span style={{ width: 28 }} />
+    const hit = progress.done >= progress.target
+    return (
+      <span style={{ fontSize: 11, fontWeight: 700, color: hit ? '#1D9E75' : 'var(--text-tertiary)', minWidth: 28, textAlign: 'left' }}>
+        {progress.done}/{progress.target}
+      </span>
+    )
+  }
 
   async function checkInNow(attendanceType) {
     if (!student) return
@@ -2010,13 +2067,16 @@ export default function AthleteApp() {
 
                     <div ref={physicalSectionRef}>
                     <button type="button" onClick={togglePhysicalSection} style={{
-                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
                       textAlign: 'center', padding: '10px 8px', marginBottom: 8, cursor: 'pointer', fontFamily: 'var(--font-sans)',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
-                      <span style={{ fontSize: 18 }}>💪</span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Physical</span>
-                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{showPhysicalSection ? '▲' : '▼'}</span>
+                      <SectionProgressBadge sectionKey="physical" />
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, justifyContent: 'center' }}>
+                        <span style={{ fontSize: 18 }}>💪</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Physical</span>
+                      </span>
+                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)', minWidth: 28, textAlign: 'right' }}>{showPhysicalSection ? '▲' : '▼'}</span>
                     </button>
 
                     <div style={{
@@ -2325,13 +2385,16 @@ export default function AthleteApp() {
 
                     <div ref={techniqueSectionRef}>
                     <button type="button" onClick={() => { setShowTechniqueSection(v => { if (v) setExpandedTechniqueCategory(null); return !v }) }} style={{
-                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
                       textAlign: 'center', padding: '10px 8px', marginBottom: 8, cursor: 'pointer', fontFamily: 'var(--font-sans)',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
-                      <span style={{ fontSize: 18 }}>🥊</span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Technique</span>
-                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{showTechniqueSection ? '▲' : '▼'}</span>
+                      <SectionProgressBadge sectionKey="technique" />
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, justifyContent: 'center' }}>
+                        <span style={{ fontSize: 18 }}>🥊</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Technique</span>
+                      </span>
+                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)', minWidth: 28, textAlign: 'right' }}>{showTechniqueSection ? '▲' : '▼'}</span>
                     </button>
 
                     <div style={{
@@ -2410,13 +2473,16 @@ export default function AthleteApp() {
 
                     <div ref={tacticalSectionRef}>
                     <button type="button" onClick={() => { setShowTacticalSection(v => { if (v) setExpandedTacticalCategory(null); return !v }) }} style={{
-                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
                       textAlign: 'center', padding: '10px 8px', marginBottom: 8, cursor: 'pointer', fontFamily: 'var(--font-sans)',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
-                      <span style={{ fontSize: 18 }}>🧩</span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Tactical</span>
-                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{showTacticalSection ? '▲' : '▼'}</span>
+                      <SectionProgressBadge sectionKey="tactical" />
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, justifyContent: 'center' }}>
+                        <span style={{ fontSize: 18 }}>🧩</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Tactical</span>
+                      </span>
+                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)', minWidth: 28, textAlign: 'right' }}>{showTacticalSection ? '▲' : '▼'}</span>
                     </button>
 
                     <div style={{
@@ -2515,13 +2581,16 @@ export default function AthleteApp() {
 
                     <div ref={mentalitySectionRef}>
                     <button type="button" onClick={() => { setShowMentalitySection(v => { if (v) setExpandedHomeMentality(null); return !v }) }} style={{
-                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
                       textAlign: 'center', padding: '10px 8px', marginBottom: 8, cursor: 'pointer', fontFamily: 'var(--font-sans)',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
-                      <span style={{ fontSize: 18 }}>🧠</span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Mentality</span>
-                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{showMentalitySection ? '▲' : '▼'}</span>
+                      <SectionProgressBadge sectionKey="mentality" />
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, justifyContent: 'center' }}>
+                        <span style={{ fontSize: 18 }}>🧠</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Mentality</span>
+                      </span>
+                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)', minWidth: 28, textAlign: 'right' }}>{showMentalitySection ? '▲' : '▼'}</span>
                     </button>
 
                     <div style={{
@@ -2843,13 +2912,16 @@ export default function AthleteApp() {
 
                     <div ref={wellbeingSectionRef}>
                     <button type="button" onClick={() => { setShowWellbeingSection(v => { if (v) setExpandedHomeWb(null); return !v }) }} style={{
-                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
                       textAlign: 'center', padding: '10px 8px', marginBottom: 8, cursor: 'pointer', fontFamily: 'var(--font-sans)',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
-                      <span style={{ fontSize: 18 }}>🌱</span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Wellbeing</span>
-                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{showWellbeingSection ? '▲' : '▼'}</span>
+                      <SectionProgressBadge sectionKey="wellbeing" />
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, justifyContent: 'center' }}>
+                        <span style={{ fontSize: 18 }}>🌱</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Wellbeing</span>
+                      </span>
+                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)', minWidth: 28, textAlign: 'right' }}>{showWellbeingSection ? '▲' : '▼'}</span>
                     </button>
 
                     <div style={{
@@ -3090,13 +3162,16 @@ export default function AthleteApp() {
                     </div>
                     <div ref={testSectionRef}>
                     <button type="button" onClick={() => { setShowTestSection(v => { if (v) setExpandedHomeTestCategory(null); return !v }) }} style={{
-                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
                       textAlign: 'center', padding: '10px 8px', marginBottom: 8, cursor: 'pointer', fontFamily: 'var(--font-sans)',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
-                      <span style={{ fontSize: 18 }}>📋</span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Test</span>
-                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{showTestSection ? '▲' : '▼'}</span>
+                      <SectionProgressBadge sectionKey="test" />
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, justifyContent: 'center' }}>
+                        <span style={{ fontSize: 18 }}>📋</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Test</span>
+                      </span>
+                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)', minWidth: 28, textAlign: 'right' }}>{showTestSection ? '▲' : '▼'}</span>
                     </button>
 
                     <div style={{
