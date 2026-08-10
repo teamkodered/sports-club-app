@@ -35,7 +35,8 @@ const CATEGORIES = [
     extract: r => toEntries(r.watt_bike).map(e => ({ value: Math.max(...setValues(e.sets), e.max_wattage || 0), sub: normalizeIntervalMode(e.interval_mode || e.type) })),
   },
   {
-    key: 'running', label: '🏃 Running', unit: '', colour: '#1D9E75',
+    // Running is logged as a time -- lower is better (a faster run wins).
+    key: 'running', label: '🏃 Running', unit: '', colour: '#1D9E75', lowerIsBetter: true,
     extract: r => toEntries(r.running).map(e => ({ value: Math.max(...setValues(e.sets), 0), sub: e.category || e.test || 'Running' })),
   },
   {
@@ -55,12 +56,32 @@ const CATEGORIES = [
     extract: r => Object.entries(r.test || {}).filter(([k]) => k.toLowerCase().includes('grip')).map(([, v]) => ({ value: parseFloat(v) || 0, sub: 'Grip Test' })),
   },
   {
-    key: 'circuit', label: '⭕ Fixed Load Circuit', unit: '', colour: '#DC2626',
+    // Fixed Load Circuit is logged as a completion time -- lower is
+    // better (faster through the circuit wins).
+    key: 'circuit', label: '⭕ Fixed Load Circuit', unit: '', colour: '#DC2626', lowerIsBetter: true,
     extract: r => Object.entries(r.test || {}).filter(([k]) => k.toLowerCase().includes('fixed load circuit')).map(([, v]) => ({ value: parseFloat(v) || 0, sub: 'Fixed Load Circuit' })),
   },
 ]
 
 const AUTO_SCROLL_SECONDS = 8
+
+// Best value per athlete for a category, plus the final ranking order --
+// both respect lowerIsBetter (e.g. a faster running/circuit time is the
+// "best" value to keep per athlete, and ranks first, not last).
+function buildLeaderboard(cat, rows) {
+  const perAthlete = {}
+  rows.forEach(r => {
+    const name = maskName(r.first_name, r.last_name)
+    cat.extract(r).forEach(({ value, sub }) => {
+      if (!value) return
+      const better = cat.lowerIsBetter ? value < perAthlete[name]?.value : value > perAthlete[name]?.value
+      if (!perAthlete[name] || better) perAthlete[name] = { name, value, sub }
+    })
+  })
+  return Object.values(perAthlete)
+    .sort((a, b) => cat.lowerIsBetter ? a.value - b.value : b.value - a.value)
+    .slice(0, 10)
+}
 
 export default function ResultsPublic() {
   const [rows, setRows] = useState([])
@@ -85,14 +106,19 @@ export default function ResultsPublic() {
     load()
   }, [])
 
+  // Only categories with at least one real result are shown at all --
+  // an empty "No results logged yet" page would just be dead air on an
+  // unattended display.
+  const categoriesWithData = CATEGORIES.filter(cat => buildLeaderboard(cat, rows).length > 0)
+
   // Auto-scroll through each category leaderboard in turn, pausing
   // while the visitor is actively interacting with it -- meant to run
   // unattended on a shared/TV display otherwise.
   useEffect(() => {
-    if (paused) return
-    const t = setInterval(() => setActiveIdx(i => (i + 1) % CATEGORIES.length), AUTO_SCROLL_SECONDS * 1000)
+    if (paused || categoriesWithData.length === 0) return
+    const t = setInterval(() => setActiveIdx(i => (i + 1) % categoriesWithData.length), AUTO_SCROLL_SECONDS * 1000)
     return () => clearInterval(t)
-  }, [paused])
+  }, [paused, categoriesWithData.length])
 
   if (loading) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-tertiary)' }}>
@@ -100,19 +126,17 @@ export default function ResultsPublic() {
     </div>
   )
 
-  const cat = CATEGORIES[activeIdx]
-  // Best value per athlete for the active category -- each row can
-  // hold several entries (e.g. multiple watt bike sessions), so this
-  // keeps the highest value found across all of an athlete's rows.
-  const perAthlete = {}
-  rows.forEach(r => {
-    const name = maskName(r.first_name, r.last_name)
-    cat.extract(r).forEach(({ value, sub }) => {
-      if (!value) return
-      if (!perAthlete[name] || value > perAthlete[name].value) perAthlete[name] = { name, value, sub }
-    })
-  })
-  const leaderboard = Object.values(perAthlete).sort((a, b) => b.value - a.value).slice(0, 10)
+  if (categoriesWithData.length === 0) return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-tertiary)', flexDirection: 'column', gap: 8 }}>
+      <div style={{ fontSize: 40 }}>{clubEmoji}</div>
+      <h1 style={{ fontSize: 20, fontWeight: 700 }}>{clubName}</h1>
+      <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>No results logged yet — check back soon.</p>
+    </div>
+  )
+
+  const safeIdx = activeIdx % categoriesWithData.length
+  const cat = categoriesWithData[safeIdx]
+  const leaderboard = buildLeaderboard(cat, rows)
   const MEDALS = ['🥇', '🥈', '🥉', '🎖️']
 
   return (
@@ -153,13 +177,13 @@ export default function ResultsPublic() {
 
         {/* Dots + manual arrows -- also pause auto-scroll while used */}
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10, marginTop: 16 }}>
-          <button onClick={() => { setPaused(true); setActiveIdx(i => (i - 1 + CATEGORIES.length) % CATEGORIES.length) }}
+          <button onClick={() => { setPaused(true); setActiveIdx(i => (i - 1 + categoriesWithData.length) % categoriesWithData.length) }}
             style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-tertiary)' }}>◀</button>
-          {CATEGORIES.map((c, i) => (
+          {categoriesWithData.map((c, i) => (
             <button key={c.key} onClick={() => { setPaused(true); setActiveIdx(i) }}
-              style={{ width: 8, height: 8, borderRadius: '50%', border: 'none', cursor: 'pointer', background: i === activeIdx ? cat.colour : 'var(--border-strong)', padding: 0 }} />
+              style={{ width: 8, height: 8, borderRadius: '50%', border: 'none', cursor: 'pointer', background: i === safeIdx ? cat.colour : 'var(--border-strong)', padding: 0 }} />
           ))}
-          <button onClick={() => { setPaused(true); setActiveIdx(i => (i + 1) % CATEGORIES.length) }}
+          <button onClick={() => { setPaused(true); setActiveIdx(i => (i + 1) % categoriesWithData.length) }}
             style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-tertiary)' }}>▶</button>
         </div>
         {paused && (
