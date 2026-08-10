@@ -393,12 +393,12 @@ export default function LeagueViews() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
         <div className="page-header" style={{ marginBottom: 0 }}>
           <h1>League</h1>
           <p>Points standings across all classes</p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <a href="/league-public" target="_blank" rel="noreferrer" className="btn btn-sm">
             🔗 Public view
           </a>
