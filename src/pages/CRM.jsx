@@ -46,13 +46,17 @@ export default function CRM() {
   const [missedTrainingLoading, setMissedTrainingLoading] = useState(false)
   const [selectedMissed, setSelectedMissed] = useState(new Set())
   const [autoSendMissedTraining, setAutoSendMissedTraining] = useState(false)
+  const [birthdays, setBirthdays] = useState([]) // computed list, loaded on first visit to that tab
+  const [birthdaysLoaded, setBirthdaysLoaded] = useState(false)
+  const [selectedBirthdays, setSelectedBirthdays] = useState(new Set())
+  const [autoSendBirthdays, setAutoSendBirthdays] = useState(false)
 
   useEffect(() => { loadData() }, [])
 
   async function loadData() {
     setLoading(true)
     const [{ data: s }, { data: pl }] = await Promise.all([
-      supabase.from('students').select('id, student_ref, discipline, class_schedule, members(first_name, last_name, status, email, phone)'),
+      supabase.from('students').select('id, student_ref, discipline, class_schedule, members(first_name, last_name, status, email, phone, date_of_birth)'),
       supabase.from('payer_links').select('*'),
     ])
     setStudents((s || []).filter(x => x.members?.status === 'active'))
@@ -97,6 +101,31 @@ export default function CRM() {
     setMissedTraining(results)
     setMissedTrainingLoaded(true)
     setMissedTrainingLoading(false)
+  }
+
+  // Upcoming birthdays -- any active student whose next birthday
+  // (this year, or next year if it's already passed) falls within the
+  // next 28 days. Purely computed from date_of_birth already loaded
+  // with students, so no extra queries needed.
+  function loadBirthdays() {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const results = students
+      .map(s => {
+        const dob = s.members?.date_of_birth
+        if (!dob) return null
+        const birth = new Date(dob + 'T00:00:00')
+        let next = new Date(today.getFullYear(), birth.getMonth(), birth.getDate())
+        if (next < today) next = new Date(today.getFullYear() + 1, birth.getMonth(), birth.getDate())
+        const daysUntil = Math.round((next - today) / (24 * 60 * 60 * 1000))
+        if (daysUntil > 28) return null
+        const turningAge = next.getFullYear() - birth.getFullYear()
+        return { student: s, nextBirthday: next, daysUntil, turningAge }
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.daysUntil - b.daysUntil)
+    setBirthdays(results)
+    setBirthdaysLoaded(true)
   }
 
   // KR Centre PKA students are identified by having a day-pattern class_schedule
@@ -343,6 +372,12 @@ export default function CRM() {
           color: tab === 'missed_training' ? 'var(--text)' : 'var(--text-secondary)',
           fontWeight: tab === 'missed_training' ? 500 : 400,
         }}>Missed training{missedTraining.length > 0 ? ` (${missedTraining.length})` : ''}</button>
+        <button onClick={() => { setTab('birthdays'); if (!birthdaysLoaded) loadBirthdays() }} style={{
+          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
+          borderBottom: `2px solid ${tab === 'birthdays' ? 'var(--text)' : 'transparent'}`,
+          color: tab === 'birthdays' ? 'var(--text)' : 'var(--text-secondary)',
+          fontWeight: tab === 'birthdays' ? 500 : 400,
+        }}>Birthdays{birthdays.length > 0 ? ` (${birthdays.length})` : ''}</button>
       </div>
 
       {tab === 'standing_orders' && (
@@ -574,6 +609,95 @@ export default function CRM() {
                                 onClick={e => { if (!email) e.preventDefault() }}
                                 title={email || 'No real email on file'}>✉️</a>
                               <a className="btn btn-sm" style={{ fontSize: 11 }} href={phone ? `sms:${phone.replace(/\s/g,'')}?body=${smsBody}` : undefined}
+                                onClick={e => { if (!phone) e.preventDefault() }}
+                                title={phone || 'No phone on file'}>📱</a>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {tab === 'birthdays' && (
+        <div>
+          <div className="card" style={{ marginBottom: 16 }}>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 10 }}>
+              Active students with a birthday in the next 4 weeks.
+            </p>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, opacity: 0.6 }}>
+              <input type="checkbox" checked={autoSendBirthdays} disabled onChange={() => {}} />
+              Auto-send a birthday message on the morning of their birthday
+              <span style={{ fontStyle: 'italic' }}>— needs an email/SMS service + a daily scheduled job (not set up yet); manual send below works now</span>
+            </label>
+          </div>
+
+          {birthdays.length === 0 ? (
+            <div className="empty-state"><h3>No birthdays in the next 4 weeks</h3></div>
+          ) : (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+                <button className="btn btn-sm" onClick={() => setSelectedBirthdays(
+                  selectedBirthdays.size === birthdays.length ? new Set() : new Set(birthdays.map(r => r.student.id))
+                )}>
+                  {selectedBirthdays.size === birthdays.length ? 'Deselect all' : 'Select all'}
+                </button>
+                {selectedBirthdays.size > 0 && (() => {
+                  const selectedRows = birthdays.filter(r => selectedBirthdays.has(r.student.id))
+                  const emails = selectedRows.map(r => r.student.members?.email).filter(e => e && !e.includes('@kr-centre.placeholder'))
+                  const subject = encodeURIComponent('Happy Birthday!')
+                  const body = encodeURIComponent("Hi,\n\nWishing you a very happy birthday from everyone at KR Centre! Hope you have a great day.\n\nSee you at training soon,\nKR Centre")
+                  return (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <span style={{ fontSize: 12, color: 'var(--text-tertiary)', alignSelf: 'center' }}>{selectedBirthdays.size} selected</span>
+                      <a className="btn btn-sm btn-primary" href={emails.length ? `mailto:?bcc=${emails.join(',')}&subject=${subject}&body=${body}` : undefined}
+                        onClick={e => { if (!emails.length) { e.preventDefault(); alert('None of the selected students have a real email on file.') } }}>
+                        ✉️ Email selected ({emails.length})
+                      </a>
+                    </div>
+                  )
+                })()}
+              </div>
+              <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+                <table>
+                  <thead><tr>
+                    <th style={{ width: 30 }}></th>
+                    <th>Student</th>
+                    <th>Birthday</th>
+                    <th>Turning</th>
+                    <th>Contact</th>
+                  </tr></thead>
+                  <tbody>
+                    {birthdays.map(r => {
+                      const m = r.student.members
+                      const email = m?.email && !m.email.includes('@kr-centre.placeholder') ? m.email : null
+                      const phone = m?.phone
+                      const whenLabel = r.daysUntil === 0 ? 'Today! 🎉' : r.daysUntil === 1 ? 'Tomorrow' : `In ${r.daysUntil} days`
+                      const msgBody = encodeURIComponent(`Hi ${m?.first_name}, happy birthday from everyone at KR Centre! Hope you have a great day 🎉`)
+                      return (
+                        <tr key={r.student.id}>
+                          <td><input type="checkbox" checked={selectedBirthdays.has(r.student.id)}
+                            onChange={() => setSelectedBirthdays(prev => {
+                              const next = new Set(prev)
+                              next.has(r.student.id) ? next.delete(r.student.id) : next.add(r.student.id)
+                              return next
+                            })} /></td>
+                          <td style={{ fontSize: 13 }}>{m?.first_name} {m?.last_name}</td>
+                          <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                            {r.nextBirthday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} — {whenLabel}
+                          </td>
+                          <td style={{ fontSize: 13, fontWeight: 600, color: '#EF9F27' }}>{r.turningAge}</td>
+                          <td>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <a className="btn btn-sm" style={{ fontSize: 11 }} href={email ? `mailto:${email}?subject=Happy%20Birthday!&body=${msgBody}` : undefined}
+                                onClick={e => { if (!email) e.preventDefault() }}
+                                title={email || 'No real email on file'}>✉️</a>
+                              <a className="btn btn-sm" style={{ fontSize: 11 }} href={phone ? `sms:${phone.replace(/\s/g,'')}?body=${msgBody}` : undefined}
                                 onClick={e => { if (!phone) e.preventDefault() }}
                                 title={phone || 'No phone on file'}>📱</a>
                             </div>
