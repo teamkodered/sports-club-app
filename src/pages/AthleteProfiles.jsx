@@ -6588,14 +6588,32 @@ export default function AthleteProfiles() {
                       <div style={{ fontSize: 22, marginBottom: 4 }}>🔥</div>
                       <div style={{ fontSize: 22, fontWeight: 700, color: '#378ADD' }}>
                         {(() => {
+                          // Checking "does this field have any keys" isn't
+                          // enough for Wellbeing/Mentality -- their values
+                          // are nested objects that still have keys even
+                          // when every value inside is blank (e.g. opening
+                          // the Sleep card and closing it without entering
+                          // anything still saves {sleep:{hours:'',efficiency:''}}).
+                          // Uses the same genuine-completion checks as the
+                          // section progress badges, so an empty touch
+                          // doesn't get counted as a real logged result.
                           const hasContent = v => Array.isArray(v) ? v.length > 0 : (v && typeof v === 'object' ? Object.keys(v).length > 0 : !!v)
-                          const activityFields = ['running', 'watt_bike', 'bodyweight', 'stretch_flows', 'snc', 'other_session', 'techniques', 'tactical', 'mentality_log', 'wellbeing', 'test']
+                          const sessionHasGenuineActivity = s => {
+                            const plainFields = ['running', 'watt_bike', 'bodyweight', 'stretch_flows', 'snc', 'other_session']
+                            if (plainFields.some(f => hasContent(s[f]))) return true
+                            if (Array.isArray(s.techniques) ? s.techniques.length > 0 : hasContent(s.techniques)) return true
+                            if (Array.isArray(s.tactical) ? s.tactical.length > 0 : hasContent(s.tactical)) return true
+                            if (WELLBEING_QUESTIONS.some(q => isWellbeingQComplete(q.key, s.wellbeing))) return true
+                            if (MENTALITY_QUESTIONS.some(q => isMentalityQComplete(q.key, s.mentality_log))) return true
+                            if (s.test && Object.values(s.test).some(v => v !== '' && v != null)) return true
+                            return false
+                          }
                           // Follows this card's configured date range --
                           // the actual Results tab below is unaffected
                           // and keeps its own independent date filter.
                           const f2fSettings = cardDateSettings.f2f_sessions
                           const dateScoped = f2fData.filter(s => s.session_date >= f2fSettings.from && s.session_date <= f2fSettings.to)
-                          return dateScoped.filter(s => activityFields.some(f => hasContent(s[f]))).length
+                          return dateScoped.filter(sessionHasGenuineActivity).length
                         })()}
                       </div>
                       <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>F2F Results</div>
