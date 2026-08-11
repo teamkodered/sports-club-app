@@ -38,6 +38,8 @@ export default function CRM() {
   const [students, setStudents] = useState([])
   const [payerLinks, setPayerLinks] = useState([])
   const [payments, setPayments] = useState([]) // parsed from the uploaded file: [{ name, amount, raw }]
+  const [pastUploads, setPastUploads] = useState([]) // [{ id, uploaded_at, filename }] -- history list, not the full payments
+  const [activeUploadId, setActiveUploadId] = useState(null) // which past upload (if any) is currently loaded
   const [loading, setLoading] = useState(false)
   const [draggedPayment, setDraggedPayment] = useState(null)
   const [dragOverStudentId, setDragOverStudentId] = useState(null)
@@ -110,6 +112,21 @@ export default function CRM() {
   }
 
   useEffect(() => { loadData() }, [])
+  useEffect(() => { loadPastUploads() }, [])
+
+  async function loadPastUploads() {
+    const { data } = await supabase.from('standing_order_uploads')
+      .select('id, uploaded_at, filename').order('uploaded_at', { ascending: false }).limit(30)
+    setPastUploads(data || [])
+  }
+
+  async function openPastUpload(id) {
+    const { data, error } = await supabase.from('standing_order_uploads').select('payments').eq('id', id).single()
+    if (error) { alert('Error opening this list: ' + error.message); return }
+    setPayments(data.payments || [])
+    setSelectedPaymentIdx(null)
+    setActiveUploadId(id)
+  }
 
   async function loadData() {
     setLoading(true)
@@ -201,7 +218,7 @@ export default function CRM() {
     const file = e.target.files[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = ev => {
+    reader.onload = async ev => {
       const wb = XLSX.read(ev.target.result, { type: 'array' })
       const ws = wb.Sheets[wb.SheetNames[0]]
       const rows = XLSX.utils.sheet_to_json(ws, { raw: false, defval: '' })
@@ -210,6 +227,16 @@ export default function CRM() {
         .map(r => ({ name: (r[nameKey] || '').toString().trim(), amount: amountKey ? r[amountKey] : null, raw: r }))
         .filter(p => p.name)
       setPayments(parsed)
+      setActiveUploadId(null)
+
+      // Save this list so it can be reopened later by date, rather than
+      // being lost the moment the page reloads or someone navigates away.
+      const { data, error } = await supabase.from('standing_order_uploads')
+        .insert({ payments: parsed, filename: file.name }).select('id, uploaded_at, filename').single()
+      if (!error && data) {
+        setPastUploads(prev => [data, ...prev])
+        setActiveUploadId(data.id)
+      }
     }
     reader.readAsArrayBuffer(file)
     // Without this, selecting a file with the same filename as last
@@ -224,6 +251,7 @@ export default function CRM() {
   function clearPayments() {
     setPayments([])
     setSelectedPaymentIdx(null)
+    setActiveUploadId(null)
   }
 
   // Removes a single transaction from the list -- for bank-export noise
@@ -476,6 +504,21 @@ export default function CRM() {
               a paid student's card for payments that cover several siblings.
             </p>
             <input type="file" accept=".xlsx,.xls" onChange={handleFile} />
+            {pastUploads.length > 0 && (
+              <div style={{ marginTop: 12 }}>
+                <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>Past lists — click to reopen:</p>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {pastUploads.map(u => (
+                    <button key={u.id} className="btn btn-sm" onClick={() => openPastUpload(u.id)}
+                      title={u.filename || undefined}
+                      style={activeUploadId === u.id ? { background: 'var(--text)', color: 'var(--bg)' } : undefined}>
+                      {new Date(u.uploaded_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                      {' '}{new Date(u.uploaded_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {payments.length > 0 && (
               <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
                 {payments.length} payments loaded · {matchedStudentIds.size} matched · {unmatchedPayments.length} unmatched
