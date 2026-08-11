@@ -1195,9 +1195,11 @@ export default function AthleteApp() {
         supabase.from('opponent_notes').select('*').eq('student_id', s.id).order('created_at', { ascending: true })
           .then(({ data, error }) => { if (!error) setOpponentNotes(data || []) })
 
-        // Section-level targets (question_label is null) that apply to
-        // this athlete -- either team-wide or set specifically for them.
-        supabase.from('team_targets').select('*').is('question_label', null)
+        // Every target (section-level AND individual question-level)
+        // that could apply to this athlete -- either team-wide or set
+        // specifically for them. Used to build the combined done/target
+        // ratio shown on each section header.
+        supabase.from('team_targets').select('*')
           .or(`student_id.is.null,student_id.eq.${s.id}`)
           .then(({ data, error }) => { if (!error) setSectionTargets(data || []) })
 
@@ -1625,30 +1627,64 @@ export default function AthleteApp() {
     wellbeing: s => WELLBEING_KEYS_FOR_CHECK.some(k => isWellbeingQComplete(k, s.wellbeing)),
     test:      s => !!(s.test && Object.values(s.test).some(v => v !== '' && v != null)),
   }
-  function getSectionProgress(sectionKey) {
-    const own = sectionTargets.find(t => t.section_key === sectionKey && t.student_id === student?.id)
-    const target = own || sectionTargets.find(t => t.section_key === sectionKey && !t.student_id)
-    if (!target) return null
-    const m = /^(\d+)\s*per\s*1?\s*(day|week|month)/i.exec(target.target_value || '')
+  function parseFrequencyTarget(targetValue) {
+    const m = /^(\d+)\s*per\s*1?\s*(day|week|month)/i.exec(targetValue || '')
     if (!m) return null
-    const targetNum = parseInt(m[1])
-    const period = m[2].toLowerCase()
+    return { targetNum: parseInt(m[1]), period: m[2].toLowerCase() }
+  }
+  function periodStartFor(period) {
     const now = new Date()
-    let periodStart
-    if (period === 'day') {
-      periodStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    } else if (period === 'week') {
-      const day = (now.getDay() + 6) % 7 // Monday = 0
-      periodStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day)
-    } else {
-      periodStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    if (period === 'day') return new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    if (period === 'week') { const day = (now.getDay() + 6) % 7; return new Date(now.getFullYear(), now.getMonth(), now.getDate() - day) }
+    return new Date(now.getFullYear(), now.getMonth(), 1)
+  }
+  // Checks a specific question (by its label, matching what's stored on
+  // the target) rather than "anything in the whole section" -- Wellbeing
+  // and Mentality have full per-question metadata here so those are
+  // exact; the others fall back to the whole-section check since this
+  // file doesn't carry the same per-question match metadata the coach
+  // dashboard does.
+  function questionLogged(sectionKey, questionLabel, s) {
+    if (sectionKey === 'wellbeing') {
+      const q = WELLBEING_QUESTIONS.find(q => q.label === questionLabel)
+      return q ? isWellbeingQComplete(q.key, s.wellbeing) : false
     }
-    const periodStartStr = periodStart.toISOString().split('T')[0]
-    const check = SECTION_FIELD_CHECK[sectionKey]
-    const daysWithActivity = new Set(
-      sessions.filter(s => s.session_date >= periodStartStr && check(s)).map(s => s.session_date)
-    )
-    return { done: daysWithActivity.size, target: targetNum }
+    if (sectionKey === 'mentality') {
+      const q = MENTALITY_QUESTIONS.find(q => q.label === questionLabel)
+      return q ? isMentalityQComplete(q.key, s.mentality_log) : false
+    }
+    return SECTION_FIELD_CHECK[sectionKey] ? SECTION_FIELD_CHECK[sectionKey](s) : false
+  }
+  function getSectionProgress(sectionKey) {
+    // One target per (question_label) slot -- athlete-specific wins
+    // over team-wide for that same slot.
+    const slots = new Map() // question_label (or '' for section-level) -> target row
+    sectionTargets.filter(t => t.section_key === sectionKey).forEach(t => {
+      const key = t.question_label || ''
+      const existing = slots.get(key)
+      if (!existing || (t.student_id === student?.id && existing.student_id !== student?.id)) {
+        if (!t.student_id || t.student_id === student?.id) slots.set(key, t)
+      }
+    })
+    if (slots.size === 0) return null
+
+    let totalDone = 0, totalTarget = 0
+    for (const [questionLabel, target] of slots) {
+      const freq = parseFrequencyTarget(target.target_value)
+      if (!freq) continue
+      const periodStartStr = periodStartFor(freq.period).toISOString().split('T')[0]
+      const check = questionLabel
+        ? s => questionLogged(sectionKey, questionLabel, s)
+        : SECTION_FIELD_CHECK[sectionKey]
+      if (!check) continue
+      const daysWithActivity = new Set(
+        sessions.filter(s => s.session_date >= periodStartStr && check(s)).map(s => s.session_date)
+      )
+      totalDone += daysWithActivity.size
+      totalTarget += freq.targetNum
+    }
+    if (totalTarget === 0) return null
+    return { done: totalDone, target: totalTarget }
   }
   function SectionProgressBadge({ sectionKey }) {
     const progress = getSectionProgress(sectionKey)
