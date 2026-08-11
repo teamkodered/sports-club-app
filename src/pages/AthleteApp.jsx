@@ -1646,6 +1646,14 @@ export default function AthleteApp() {
   // exact; the others fall back to the whole-section check since this
   // file doesn't carry the same per-question match metadata the coach
   // dashboard does.
+  // Matches the labels added to Physical's Running sub-categories in
+  // AthleteProfiles.jsx's DASHBOARD_SECTIONS -- kept in sync manually
+  // since this file doesn't share that same array.
+  const RUN_CATEGORY_TARGET_LABELS = {
+    'Running: Timed Sprints': 'Timed Sprints',
+    'Running: Timed Distance Run': 'Timed Distance Run',
+    'Running: Interval': 'Interval',
+  }
   function questionLogged(sectionKey, questionLabel, s) {
     if (sectionKey === 'wellbeing') {
       const q = WELLBEING_QUESTIONS.find(q => q.label === questionLabel)
@@ -1654,6 +1662,9 @@ export default function AthleteApp() {
     if (sectionKey === 'mentality') {
       const q = MENTALITY_QUESTIONS.find(q => q.label === questionLabel)
       return q ? isMentalityQComplete(q.key, s.mentality_log) : false
+    }
+    if (sectionKey === 'physical' && RUN_CATEGORY_TARGET_LABELS[questionLabel]) {
+      return toEntries(s.running).some(e => e.category === RUN_CATEGORY_TARGET_LABELS[questionLabel])
     }
     return SECTION_FIELD_CHECK[sectionKey] ? SECTION_FIELD_CHECK[sectionKey](s) : false
   }
@@ -1693,6 +1704,28 @@ export default function AthleteApp() {
     // show all the letters involved rather than pick one arbitrarily.
     const periodLabel = [...periodsUsed].map(p => PERIOD_LETTER[p]).sort().join('/')
     return { done: totalDone, target: totalTarget, periodLabel }
+  }
+  function getQuestionProgress(sectionKey, questionLabel) {
+    const own = sectionTargets.find(t => t.section_key === sectionKey && t.question_label === questionLabel && t.student_id === student?.id)
+    const target = own || sectionTargets.find(t => t.section_key === sectionKey && t.question_label === questionLabel && !t.student_id)
+    if (!target) return null
+    const freq = parseFrequencyTarget(target.target_value)
+    if (!freq) return null
+    const periodStartStr = periodStartFor(freq.period).toISOString().split('T')[0]
+    const daysWithActivity = new Set(
+      sessions.filter(s => s.session_date >= periodStartStr && questionLogged(sectionKey, questionLabel, s)).map(s => s.session_date)
+    )
+    return { done: daysWithActivity.size, target: freq.targetNum, periodLabel: PERIOD_LETTER[freq.period] }
+  }
+  function QuestionProgressBadge({ sectionKey, questionLabel }) {
+    const progress = getQuestionProgress(sectionKey, questionLabel)
+    if (!progress) return null
+    const hit = progress.done >= progress.target
+    return (
+      <span style={{ fontSize: 8, fontWeight: 700, color: hit ? '#0E9F6E' : 'var(--text-tertiary)' }}>
+        {progress.done}/{progress.target} {progress.periodLabel}
+      </span>
+    )
   }
   function SectionProgressBadge({ sectionKey }) {
     const progress = getSectionProgress(sectionKey)
@@ -2296,6 +2329,7 @@ export default function AthleteApp() {
                           }}>
                             <span style={{ fontSize: 16 }}>{cat.icon}</span>
                             <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat.label}</span>
+                            <QuestionProgressBadge sectionKey="physical" questionLabel={`Running: ${cat.key}`} />
                           </button>
                         )
                       })}
@@ -2800,6 +2834,7 @@ export default function AthleteApp() {
                           }}>
                             <span style={{ fontSize: active ? 26 : 16 }}>{q.icon}</span>
                             <span style={{ fontSize: active ? 14 : 9, fontWeight: active ? 700 : 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{q.label}</span>
+                            <QuestionProgressBadge sectionKey="mentality" questionLabel={q.label} />
                           </button>
                         )
                       })}
@@ -3131,6 +3166,7 @@ export default function AthleteApp() {
                           }}>
                             <span style={{ fontSize: active ? 26 : 16 }}>{q.icon}</span>
                             <span style={{ fontSize: active ? 14 : 9, fontWeight: active ? 700 : 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{q.label}</span>
+                            <QuestionProgressBadge sectionKey="wellbeing" questionLabel={q.label} />
                           </button>
                         )
                       })}

@@ -524,6 +524,9 @@ const RESULTS_DEFAULT_VISIBLE = ['athlete', 'date', 'weight_before', 'weight_aft
 const DASHBOARD_SECTIONS = [
   { key: 'physical', icon: '💪', label: 'Physical', subItems: [
     { key: 'running', label: 'Running', field: 'running' },
+    { key: 'running_sprints', label: 'Running: Timed Sprints', matchRunCategory: 'Timed Sprints' },
+    { key: 'running_distance', label: 'Running: Timed Distance Run', matchRunCategory: 'Timed Distance Run' },
+    { key: 'running_interval', label: 'Running: Interval', matchRunCategory: 'Interval' },
     { key: 'watt_bike', label: 'Watt Bike', field: 'watt_bike' },
     { key: 'bodyweight', label: 'Bodyweight', field: 'bodyweight' },
     { key: 'stretch_flows', label: 'Stretch flows', field: 'stretch_flows' },
@@ -2384,6 +2387,7 @@ export default function AthleteProfiles() {
   const hasContentCoach = v => Array.isArray(v) ? v.length > 0 : (v && typeof v === 'object' ? Object.keys(v).length > 0 : !!v)
   function subItemLoggedCoach(subItem, s) {
     if (subItem.field) return hasContentCoach(s[subItem.field])
+    if (subItem.matchRunCategory) return (s.running || []).some(e => e.category === subItem.matchRunCategory)
     if (subItem.matchStyle) return (s.techniques || []).some(t => t.style === subItem.matchStyle)
     if (subItem.matchCategory) return (s.tactical || []).some(t => t.category === subItem.matchCategory)
     if (subItem.mentalityQ) return isMentalityQComplete(subItem.mentalityQ, s.mentality_log)
@@ -5454,6 +5458,7 @@ export default function AthleteProfiles() {
 
               const subItemLogged = (subItem, s) => {
                 if (subItem.field) return hasContent(s[subItem.field])
+                if (subItem.matchRunCategory) return (s.running || []).some(e => e.category === subItem.matchRunCategory)
                 if (subItem.matchStyle) return (s.techniques || []).some(t => t.style === subItem.matchStyle)
                 if (subItem.matchCategory) return (s.tactical || []).some(t => t.category === subItem.matchCategory)
                 if (subItem.mentalityQ) return isMentalityQComplete(subItem.mentalityQ, s.mentality_log)
