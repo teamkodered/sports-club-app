@@ -1795,7 +1795,6 @@ export default function AthleteApp() {
     ['reports',   '📄 Reports'],
     ['analysis',  '📊 Analysis'],
     ['points',    '⭐ Points'],
-    ['search',    '🔍 Find athlete'],
   ]
 
   return (
