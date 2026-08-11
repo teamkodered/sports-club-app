@@ -3341,6 +3341,80 @@ export default function AthleteApp() {
                     )}
                     </div>
                     </div>
+
+
+
+                    {apData && (apData.top_achievements || (Array.isArray(apData.recent_results) && apData.recent_results.length > 0)) && (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                        {apData.top_achievements && (
+                          <div className="card" style={{ gridColumn: '1/-1' }}>
+                            <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: colour }}>🏆 Top achievements</h3>
+                            <p style={{ fontSize: 13, lineHeight: 1.6 }}>{apData.top_achievements}</p>
+                          </div>
+                        )}
+                        {Array.isArray(apData.recent_results) && apData.recent_results.length > 0 && (
+                          <div className="card" style={{ gridColumn: '1/-1' }}>
+                            <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Recent results</h3>
+                            {apData.recent_results.map((r, i) => (
+                              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                                <span style={{ fontSize: 16 }}>🎖</span>{r}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                  </>
+                )
+               } catch (e) {
+                 console.error('Home tab render error:', e)
+                 return (
+                   <div className="card" style={{ textAlign: 'center', padding: 20 }}>
+                     <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 8 }}>
+                       Something didn't load correctly here. Try refreshing the app.
+                     </p>
+                     <p style={{ fontSize: 11, color: 'var(--text-tertiary)', fontFamily: 'monospace', wordBreak: 'break-word' }}>
+                       {e?.message || String(e)}
+                     </p>
+                   </div>
+                 )
+               }
+              })()}
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginTop: 14, marginBottom: 8 }}>
+                {[
+                  { label: 'Media', icon: '🖼', colour: '#8B5CF6', tab: 'media' },
+                  { label: 'Notes', icon: '📝', colour: '#378ADD', tab: 'notes' },
+                ].map(l => (
+                  <button key={l.label} onClick={() => setTab(l.tab)} style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                    padding: '14px 8px', background: l.colour + '12',
+                    border: `1px solid ${l.colour}30`, borderRadius: 'var(--border-radius-lg)',
+                    cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                  }}>
+                    <span style={{ fontSize: 24 }}>{l.icon}</span>
+                    <span style={{ fontSize: 12, fontWeight: 500, color: l.colour }}>{l.label}</span>
+                  </button>
+                ))}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8 }}>
+                {[
+                  { label: 'Whoop', icon: '⌚', colour: '#1D9E75', tab: 'whoop' },
+                  { label: 'TTP', icon: '📊', colour: '#E24B4A', tab: 'tpt' },
+                ].map(l => (
+                  <button key={l.label} onClick={() => l.tab && setTab(l.tab)} style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                    padding: '14px 8px', background: l.colour + '12',
+                    border: `1px solid ${l.colour}30`, borderRadius: 'var(--border-radius-lg)',
+                    cursor: l.tab ? 'pointer' : 'default', fontFamily: 'var(--font-sans)',
+                    opacity: l.tab ? 1 : 0.6,
+                  }}>
+                    <span style={{ fontSize: 24 }}>{l.icon}</span>
+                    <span style={{ fontSize: 12, fontWeight: 500, color: l.colour }}>{l.label}</span>
+                  </button>
+                ))}
+              </div>
                     <div ref={testSectionRef}>
                     <button type="button" onClick={() => { setShowTestSection(v => { if (v) setExpandedHomeTestCategory(null); return !v }) }} style={{
                       width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
@@ -3413,30 +3487,6 @@ export default function AthleteApp() {
                     })()}
                     </div>
                     </div>
-
-
-
-                    {apData && (apData.top_achievements || (Array.isArray(apData.recent_results) && apData.recent_results.length > 0)) && (
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-                        {apData.top_achievements && (
-                          <div className="card" style={{ gridColumn: '1/-1' }}>
-                            <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: colour }}>🏆 Top achievements</h3>
-                            <p style={{ fontSize: 13, lineHeight: 1.6 }}>{apData.top_achievements}</p>
-                          </div>
-                        )}
-                        {Array.isArray(apData.recent_results) && apData.recent_results.length > 0 && (
-                          <div className="card" style={{ gridColumn: '1/-1' }}>
-                            <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Recent results</h3>
-                            {apData.recent_results.map((r, i) => (
-                              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
-                                <span style={{ fontSize: 16 }}>🎖</span>{r}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
                     {points.length > 0 && (
                       <div className="card" style={{ padding: 0, marginBottom: 14 }}>
                         <div onClick={() => setRecentPointsExpanded(v => !v)}
@@ -3462,56 +3512,6 @@ export default function AthleteApp() {
                         </div>
                       </div>
                     )}
-                  </>
-                )
-               } catch (e) {
-                 console.error('Home tab render error:', e)
-                 return (
-                   <div className="card" style={{ textAlign: 'center', padding: 20 }}>
-                     <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 8 }}>
-                       Something didn't load correctly here. Try refreshing the app.
-                     </p>
-                     <p style={{ fontSize: 11, color: 'var(--text-tertiary)', fontFamily: 'monospace', wordBreak: 'break-word' }}>
-                       {e?.message || String(e)}
-                     </p>
-                   </div>
-                 )
-               }
-              })()}
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginTop: 14, marginBottom: 8 }}>
-                {[
-                  { label: 'Media', icon: '🖼', colour: '#8B5CF6', tab: 'media' },
-                  { label: 'Notes', icon: '📝', colour: '#378ADD', tab: 'notes' },
-                ].map(l => (
-                  <button key={l.label} onClick={() => setTab(l.tab)} style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                    padding: '14px 8px', background: l.colour + '12',
-                    border: `1px solid ${l.colour}30`, borderRadius: 'var(--border-radius-lg)',
-                    cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                  }}>
-                    <span style={{ fontSize: 24 }}>{l.icon}</span>
-                    <span style={{ fontSize: 12, fontWeight: 500, color: l.colour }}>{l.label}</span>
-                  </button>
-                ))}
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8 }}>
-                {[
-                  { label: 'Whoop', icon: '⌚', colour: '#1D9E75', tab: 'whoop' },
-                  { label: 'TTP', icon: '📊', colour: '#E24B4A', tab: 'tpt' },
-                ].map(l => (
-                  <button key={l.label} onClick={() => l.tab && setTab(l.tab)} style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                    padding: '14px 8px', background: l.colour + '12',
-                    border: `1px solid ${l.colour}30`, borderRadius: 'var(--border-radius-lg)',
-                    cursor: l.tab ? 'pointer' : 'default', fontFamily: 'var(--font-sans)',
-                    opacity: l.tab ? 1 : 0.6,
-                  }}>
-                    <span style={{ fontSize: 24 }}>{l.icon}</span>
-                    <span style={{ fontSize: 12, fontWeight: 500, color: l.colour }}>{l.label}</span>
-                  </button>
-                ))}
-              </div>
 
             </>
           ) : (
