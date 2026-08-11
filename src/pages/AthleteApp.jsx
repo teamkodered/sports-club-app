@@ -1628,7 +1628,7 @@ export default function AthleteApp() {
     test:      s => !!(s.test && Object.values(s.test).some(v => v !== '' && v != null)),
   }
   function parseFrequencyTarget(targetValue) {
-    const m = /^(\d+)\s*per\s*1?\s*(day|week|month)/i.exec(targetValue || '')
+    const m = /^(\d+)\s*per\s*1?\s*(day|week|month|year)/i.exec(targetValue || '')
     if (!m) return null
     return { targetNum: parseInt(m[1]), period: m[2].toLowerCase() }
   }
@@ -1636,8 +1636,10 @@ export default function AthleteApp() {
     const now = new Date()
     if (period === 'day') return new Date(now.getFullYear(), now.getMonth(), now.getDate())
     if (period === 'week') { const day = (now.getDay() + 6) % 7; return new Date(now.getFullYear(), now.getMonth(), now.getDate() - day) }
+    if (period === 'year') return new Date(now.getFullYear(), 0, 1)
     return new Date(now.getFullYear(), now.getMonth(), 1)
   }
+  const PERIOD_LETTER = { day: 'D', week: 'W', month: 'M', year: 'Y' }
   // Checks a specific question (by its label, matching what's stored on
   // the target) rather than "anything in the whole section" -- Wellbeing
   // and Mentality have full per-question metadata here so those are
@@ -1669,6 +1671,7 @@ export default function AthleteApp() {
     if (slots.size === 0) return null
 
     let totalDone = 0, totalTarget = 0
+    const periodsUsed = new Set()
     for (const [questionLabel, target] of slots) {
       const freq = parseFrequencyTarget(target.target_value)
       if (!freq) continue
@@ -1682,9 +1685,14 @@ export default function AthleteApp() {
       )
       totalDone += daysWithActivity.size
       totalTarget += freq.targetNum
+      periodsUsed.add(freq.period)
     }
     if (totalTarget === 0) return null
-    return { done: totalDone, target: totalTarget }
+    // If every combined target shares the same period (the usual case),
+    // show that single letter (D/W/M/Y). If they're genuinely mixed,
+    // show all the letters involved rather than pick one arbitrarily.
+    const periodLabel = [...periodsUsed].map(p => PERIOD_LETTER[p]).sort().join('/')
+    return { done: totalDone, target: totalTarget, periodLabel }
   }
   function SectionProgressBadge({ sectionKey }) {
     const progress = getSectionProgress(sectionKey)
@@ -1693,6 +1701,7 @@ export default function AthleteApp() {
     return (
       <span style={{ fontSize: 11, fontWeight: 700, color: hit ? '#1D9E75' : 'var(--text-tertiary)', minWidth: 28, textAlign: 'left' }}>
         {progress.done}/{progress.target}
+        <span style={{ fontWeight: 400, color: 'var(--text-tertiary)' }}> {progress.periodLabel}</span>
       </span>
     )
   }

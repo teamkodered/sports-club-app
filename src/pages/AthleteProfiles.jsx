@@ -2392,7 +2392,7 @@ export default function AthleteProfiles() {
     return false
   }
   function parseFrequencyTarget(targetValue) {
-    const m = /^(\d+)\s*per\s*1?\s*(day|week|month)/i.exec(targetValue || '')
+    const m = /^(\d+)\s*per\s*1?\s*(day|week|month|year)/i.exec(targetValue || '')
     if (!m) return null
     return { targetNum: parseInt(m[1]), period: m[2].toLowerCase() }
   }
@@ -2400,8 +2400,10 @@ export default function AthleteProfiles() {
     const now = new Date()
     if (period === 'day') return new Date(now.getFullYear(), now.getMonth(), now.getDate())
     if (period === 'week') { const day = (now.getDay() + 6) % 7; return new Date(now.getFullYear(), now.getMonth(), now.getDate() - day) }
+    if (period === 'year') return new Date(now.getFullYear(), 0, 1)
     return new Date(now.getFullYear(), now.getMonth(), 1)
   }
+  const PERIOD_LETTER = { day: 'D', week: 'W', month: 'M', year: 'Y' }
   function getCoachSectionProgress(sectionKey) {
     const section = DASHBOARD_SECTIONS.find(sec => sec.key === sectionKey)
     if (!section) return null
@@ -2419,6 +2421,7 @@ export default function AthleteProfiles() {
     if (slots.size === 0) return null
 
     let totalDone = 0, totalTarget = 0
+    const periodsUsed = new Set()
     for (const [questionLabel, target] of slots) {
       const freq = parseFrequencyTarget(target.target_value)
       if (!freq) continue
@@ -2430,9 +2433,16 @@ export default function AthleteProfiles() {
       )
       totalDone += daysWithActivity.size
       totalTarget += freq.targetNum
+      periodsUsed.add(freq.period)
     }
     if (totalTarget === 0) return null
-    return { done: totalDone, target: totalTarget }
+    // If every combined target shares the same period (the usual case),
+    // show that single letter (D/W/M/Y). If they're genuinely mixed
+    // (e.g. one "per week" target and one "per month" target combined
+    // into this section), show all the letters involved rather than
+    // pick one arbitrarily and imply a cadence that isn't quite right.
+    const periodLabel = [...periodsUsed].map(p => PERIOD_LETTER[p]).sort().join('/')
+    return { done: totalDone, target: totalTarget, periodLabel }
   }
   function CoachSectionProgressBadge({ sectionKey }) {
     const progress = getCoachSectionProgress(sectionKey)
@@ -2441,6 +2451,7 @@ export default function AthleteProfiles() {
     return (
       <span style={{ fontSize: 11, fontWeight: 700, color: hit ? '#1D9E75' : 'var(--text-tertiary)', minWidth: 28, textAlign: 'left' }}>
         {progress.done}/{progress.target}
+        <span style={{ fontWeight: 400, color: 'var(--text-tertiary)' }}> {progress.periodLabel}</span>
       </span>
     )
   }
@@ -2841,7 +2852,7 @@ export default function AthleteProfiles() {
 
   async function addTeamTarget() {
     const finalValue = !targetUseFreeText
-      ? (targetFreqNumber ? `${targetFreqNumber} per ${targetFreqPeriod === 'day' ? '1 day' : targetFreqPeriod === 'week' ? '1 week' : '1 month'}` : '')
+      ? (targetFreqNumber ? `${targetFreqNumber} per ${targetFreqPeriod === 'day' ? '1 day' : targetFreqPeriod === 'week' ? '1 week' : targetFreqPeriod === 'month' ? '1 month' : '1 year'}` : '')
       : newTargetValue.trim()
     if (!finalValue) return
     setSavingTarget(true)
@@ -2948,6 +2959,7 @@ export default function AthleteProfiles() {
                 <option value="day">1 day</option>
                 <option value="week">1 week</option>
                 <option value="month">1 month</option>
+                <option value="year">1 year</option>
               </select>
             </div>
             <button onClick={() => setTargetUseFreeText(true)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 11, padding: 0, marginTop: 6, textDecoration: 'underline' }}>
