@@ -1127,82 +1127,6 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
 
   const shared = apData?.pdp_shared || {} // items shared to athlete view
 
-  // Section header progress badge ("1/3") for the coach's view of an
-  // individual athlete -- same logic as the athlete's own app, using
-  // this athlete's f2fData and any target set specifically for them
-  // (falling back to a team-wide target if there's no athlete-specific one).
-  //
-  // Includes BOTH the section-level target (if any) AND every
-  // individual question-level target within that section (e.g. a
-  // target set just on "Running" within Physical) -- each is worked
-  // out on its own using the same per-question matching the individual
-  // question cards use, then combined into one done/target ratio for
-  // the top card, so a section with only question-level targets still
-  // shows something instead of a blank badge.
-  const hasContentCoach = v => Array.isArray(v) ? v.length > 0 : (v && typeof v === 'object' ? Object.keys(v).length > 0 : !!v)
-  function subItemLoggedCoach(subItem, s) {
-    if (subItem.field) return hasContentCoach(s[subItem.field])
-    if (subItem.matchStyle) return (s.techniques || []).some(t => t.style === subItem.matchStyle)
-    if (subItem.matchCategory) return (s.tactical || []).some(t => t.category === subItem.matchCategory)
-    if (subItem.mentalityQ) return isMentalityQComplete(subItem.mentalityQ, s.mentality_log)
-    if (subItem.wellbeingQ) return isWellbeingQComplete(subItem.wellbeingQ, s.wellbeing)
-    if (subItem.testCategory) return subItem.testCategory.tests.some(t => s.test?.[t.name])
-    return false
-  }
-  function parseFrequencyTarget(targetValue) {
-    const m = /^(\d+)\s*per\s*1?\s*(day|week|month)/i.exec(targetValue || '')
-    if (!m) return null
-    return { targetNum: parseInt(m[1]), period: m[2].toLowerCase() }
-  }
-  function periodStartFor(period) {
-    const now = new Date()
-    if (period === 'day') return new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    if (period === 'week') { const day = (now.getDay() + 6) % 7; return new Date(now.getFullYear(), now.getMonth(), now.getDate() - day) }
-    return new Date(now.getFullYear(), now.getMonth(), 1)
-  }
-  function getCoachSectionProgress(sectionKey) {
-    const section = DASHBOARD_SECTIONS.find(sec => sec.key === sectionKey)
-    if (!section) return null
-    // One target per (question_label) slot -- athlete-specific wins over
-    // team-wide for that same slot, matching how individual question
-    // cards already resolve which target applies.
-    const slots = new Map() // question_label (or '' for section-level) -> target row
-    teamTargets.filter(t => t.section_key === sectionKey).forEach(t => {
-      const key = t.question_label || ''
-      const existing = slots.get(key)
-      if (!existing || (t.student_id === selected?.id && existing.student_id !== selected?.id)) {
-        if (!t.student_id || t.student_id === selected?.id) slots.set(key, t)
-      }
-    })
-    if (slots.size === 0) return null
-
-    let totalDone = 0, totalTarget = 0
-    for (const [questionLabel, target] of slots) {
-      const freq = parseFrequencyTarget(target.target_value)
-      if (!freq) continue
-      const subItems = questionLabel ? section.subItems.filter(sub => sub.label === questionLabel) : section.subItems
-      if (!subItems.length) continue
-      const periodStartStr = periodStartFor(freq.period).toISOString().split('T')[0]
-      const daysWithActivity = new Set(
-        f2fData.filter(s => s.session_date >= periodStartStr && subItems.some(sub => subItemLoggedCoach(sub, s))).map(s => s.session_date)
-      )
-      totalDone += daysWithActivity.size
-      totalTarget += freq.targetNum
-    }
-    if (totalTarget === 0) return null
-    return { done: totalDone, target: totalTarget }
-  }
-  function CoachSectionProgressBadge({ sectionKey }) {
-    const progress = getCoachSectionProgress(sectionKey)
-    if (!progress) return <span style={{ width: 28 }} />
-    const hit = progress.done >= progress.target
-    return (
-      <span style={{ fontSize: 11, fontWeight: 700, color: hit ? '#1D9E75' : 'var(--text-tertiary)', minWidth: 28, textAlign: 'left' }}>
-        {progress.done}/{progress.target}
-      </span>
-    )
-  }
-
   // Sections visible to athlete: non-coachOnly + any shared coach items
   const athleteSections = PDP_SECTIONS.filter(s => !s.coachOnly)
 
@@ -2443,6 +2367,83 @@ export default function AthleteProfiles() {
   const [reportTab, setReportTab]   = useState('individual')
   const [reportData, setReportData] = useState(null)
   const [f2fData, setF2fData]         = useState([])
+
+  // Section header progress badge ("1/3") for the coach's view of an
+  // individual athlete -- same logic as the athlete's own app, using
+  // this athlete's f2fData and any target set specifically for them
+  // (falling back to a team-wide target if there's no athlete-specific one).
+  //
+  // Includes BOTH the section-level target (if any) AND every
+  // individual question-level target within that section (e.g. a
+  // target set just on "Running" within Physical) -- each is worked
+  // out on its own using the same per-question matching the individual
+  // question cards use, then combined into one done/target ratio for
+  // the top card, so a section with only question-level targets still
+  // shows something instead of a blank badge.
+  const hasContentCoach = v => Array.isArray(v) ? v.length > 0 : (v && typeof v === 'object' ? Object.keys(v).length > 0 : !!v)
+  function subItemLoggedCoach(subItem, s) {
+    if (subItem.field) return hasContentCoach(s[subItem.field])
+    if (subItem.matchStyle) return (s.techniques || []).some(t => t.style === subItem.matchStyle)
+    if (subItem.matchCategory) return (s.tactical || []).some(t => t.category === subItem.matchCategory)
+    if (subItem.mentalityQ) return isMentalityQComplete(subItem.mentalityQ, s.mentality_log)
+    if (subItem.wellbeingQ) return isWellbeingQComplete(subItem.wellbeingQ, s.wellbeing)
+    if (subItem.testCategory) return subItem.testCategory.tests.some(t => s.test?.[t.name])
+    return false
+  }
+  function parseFrequencyTarget(targetValue) {
+    const m = /^(\d+)\s*per\s*1?\s*(day|week|month)/i.exec(targetValue || '')
+    if (!m) return null
+    return { targetNum: parseInt(m[1]), period: m[2].toLowerCase() }
+  }
+  function periodStartFor(period) {
+    const now = new Date()
+    if (period === 'day') return new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    if (period === 'week') { const day = (now.getDay() + 6) % 7; return new Date(now.getFullYear(), now.getMonth(), now.getDate() - day) }
+    return new Date(now.getFullYear(), now.getMonth(), 1)
+  }
+  function getCoachSectionProgress(sectionKey) {
+    const section = DASHBOARD_SECTIONS.find(sec => sec.key === sectionKey)
+    if (!section) return null
+    // One target per (question_label) slot -- athlete-specific wins over
+    // team-wide for that same slot, matching how individual question
+    // cards already resolve which target applies.
+    const slots = new Map() // question_label (or '' for section-level) -> target row
+    teamTargets.filter(t => t.section_key === sectionKey).forEach(t => {
+      const key = t.question_label || ''
+      const existing = slots.get(key)
+      if (!existing || (t.student_id === selected?.id && existing.student_id !== selected?.id)) {
+        if (!t.student_id || t.student_id === selected?.id) slots.set(key, t)
+      }
+    })
+    if (slots.size === 0) return null
+
+    let totalDone = 0, totalTarget = 0
+    for (const [questionLabel, target] of slots) {
+      const freq = parseFrequencyTarget(target.target_value)
+      if (!freq) continue
+      const subItems = questionLabel ? section.subItems.filter(sub => sub.label === questionLabel) : section.subItems
+      if (!subItems.length) continue
+      const periodStartStr = periodStartFor(freq.period).toISOString().split('T')[0]
+      const daysWithActivity = new Set(
+        f2fData.filter(s => s.session_date >= periodStartStr && subItems.some(sub => subItemLoggedCoach(sub, s))).map(s => s.session_date)
+      )
+      totalDone += daysWithActivity.size
+      totalTarget += freq.targetNum
+    }
+    if (totalTarget === 0) return null
+    return { done: totalDone, target: totalTarget }
+  }
+  function CoachSectionProgressBadge({ sectionKey }) {
+    const progress = getCoachSectionProgress(sectionKey)
+    if (!progress) return <span style={{ width: 28 }} />
+    const hit = progress.done >= progress.target
+    return (
+      <span style={{ fontSize: 11, fontWeight: 700, color: hit ? '#1D9E75' : 'var(--text-tertiary)', minWidth: 28, textAlign: 'left' }}>
+        {progress.done}/{progress.target}
+      </span>
+    )
+  }
+
   const [f2fFrom, setF2fFrom]         = useState('')
   const [resultsGraphSection, setResultsGraphSection] = useState(0)
   const resultsGraphSwipeStart = useRef(null)
