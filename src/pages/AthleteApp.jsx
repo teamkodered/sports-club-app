@@ -623,7 +623,7 @@ function computeLastLogged(sorted, key) {
 // Defined at module scope (not inside the page component's render) so
 // React treats it as a stable component across renders, rather than
 // unmounting/remounting it every time the parent re-renders.
-function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setTab, setResultsGraphSection, studentId, onToggleLog, onQuickLog, large }) {
+function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setTab, setResultsGraphSection, studentId, onToggleLog, onQuickLog, large, questionProgress }) {
   const subTypeOptions = getSubTypeOptions(sorted, b.key)
   const currentSubType = moduleSubType[b.key] ?? subTypeOptions[0] ?? null
   const noNumericStat = ['stretch', 'eye_training', 'one_percenters', 'mentality', 'wellbeing'].includes(b.key)
@@ -715,6 +715,11 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
         <span style={{ fontSize: large ? 26 : 16 }}>{b.icon}</span>
         {b.key !== 'test' && <span style={{ fontSize: large ? 14 : 9, fontWeight: 600, whiteSpace: 'nowrap' }}>{b.label}</span>}
         {b.key !== 'test' && currentSubType && <span style={{ fontSize: large ? 10 : 7, color: colour, fontWeight: 600, textAlign: 'center', lineHeight: 1.2 }}>{currentSubType}</span>}
+        {questionProgress && (
+          <span style={{ fontSize: 8, fontWeight: 700, color: questionProgress.done >= questionProgress.target ? '#0E9F6E' : 'var(--text-tertiary)' }}>
+            {questionProgress.done}/{questionProgress.target} {questionProgress.periodLabel}
+          </span>
+        )}
       </button>
 
       {/* Right: recent/PB (or last-logged), tap to view results --
@@ -1654,6 +1659,14 @@ export default function AthleteApp() {
     'Running: Timed Distance Run': 'Timed Distance Run',
     'Running: Interval': 'Interval',
   }
+  // Field-level Physical questions (the plain "Running"/"Watt Bike"/etc
+  // targets, as opposed to the Running sub-category ones above) --
+  // maps a question label to its exact underlying field, mirroring
+  // DASHBOARD_SECTIONS' physical subItems in AthleteProfiles.jsx.
+  const PHYSICAL_FIELD_TARGET_LABELS = {
+    'Running': 'running', 'Watt Bike': 'watt_bike', 'Bodyweight': 'bodyweight',
+    'Stretch flows': 'stretch_flows', 'SnC': 'snc', 'Other session': 'other_session',
+  }
   function questionLogged(sectionKey, questionLabel, s) {
     if (sectionKey === 'wellbeing') {
       const q = WELLBEING_QUESTIONS.find(q => q.label === questionLabel)
@@ -1665,6 +1678,11 @@ export default function AthleteApp() {
     }
     if (sectionKey === 'physical' && RUN_CATEGORY_TARGET_LABELS[questionLabel]) {
       return toEntries(s.running).some(e => e.category === RUN_CATEGORY_TARGET_LABELS[questionLabel])
+    }
+    if (sectionKey === 'physical' && PHYSICAL_FIELD_TARGET_LABELS[questionLabel]) {
+      const field = PHYSICAL_FIELD_TARGET_LABELS[questionLabel]
+      const v = s[field]
+      return Array.isArray(v) ? v.length > 0 : (v && typeof v === 'object' ? Object.keys(v).length > 0 : !!v)
     }
     return SECTION_FIELD_CHECK[sectionKey] ? SECTION_FIELD_CHECK[sectionKey](s) : false
   }
@@ -2308,10 +2326,10 @@ export default function AthleteApp() {
                     }}>
                     <div style={{ display: 'grid', gridTemplateColumns: activePhysicalCategory && (activePhysicalCategory === 'running' || activePhysicalCategory === 'watt_bike') ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 8 }}>
                       {(!activePhysicalCategory || activePhysicalCategory === 'running') && (
-                        <ModuleButton b={modules[0]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setResultsGraphSection={setResultsGraphSection} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'running'} />
+                        <ModuleButton b={modules[0]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setResultsGraphSection={setResultsGraphSection} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'running'} questionProgress={getQuestionProgress('physical', 'Running')} />
                       )}
                       {(!activePhysicalCategory || activePhysicalCategory === 'watt_bike') && (
-                        <ModuleButton b={modules[1]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setResultsGraphSection={setResultsGraphSection} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'watt_bike'} />
+                        <ModuleButton b={modules[1]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setResultsGraphSection={setResultsGraphSection} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'watt_bike'} questionProgress={getQuestionProgress('physical', 'Watt Bike')} />
                       )}
                     </div>
                     {showRunCards && (
@@ -2435,10 +2453,10 @@ export default function AthleteApp() {
 
                     <div style={{ display: 'grid', gridTemplateColumns: activePhysicalCategory && (activePhysicalCategory === 'bodyweight' || activePhysicalCategory === 'stretch') ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 8 }}>
                       {(!activePhysicalCategory || activePhysicalCategory === 'bodyweight') && (
-                        <ModuleButton b={modules[2]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setResultsGraphSection={setResultsGraphSection} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'bodyweight'} />
+                        <ModuleButton b={modules[2]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setResultsGraphSection={setResultsGraphSection} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'bodyweight'} questionProgress={getQuestionProgress('physical', 'Bodyweight')} />
                       )}
                       {(!activePhysicalCategory || activePhysicalCategory === 'stretch') && (
-                        <ModuleButton b={modules[3]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setResultsGraphSection={setResultsGraphSection} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'stretch'} />
+                        <ModuleButton b={modules[3]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setResultsGraphSection={setResultsGraphSection} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'stretch'} questionProgress={getQuestionProgress('physical', 'Stretch flows')} />
                       )}
                     </div>
                     {showBodyweightCards && (
