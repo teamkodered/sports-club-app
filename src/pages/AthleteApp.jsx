@@ -1676,6 +1676,16 @@ export default function AthleteApp() {
       const q = MENTALITY_QUESTIONS.find(q => q.label === questionLabel)
       return q ? isMentalityQComplete(q.key, s.mentality_log) : false
     }
+    if (sectionKey === 'technique') {
+      return (s.techniques || []).some(t => t.style === questionLabel) // Boxing/Kickboxing -- label equals matchStyle exactly
+    }
+    if (sectionKey === 'tactical') {
+      return (s.tactical || []).some(t => t.category === questionLabel) // label equals matchCategory exactly
+    }
+    if (sectionKey === 'test') {
+      const cat = TEST_CATEGORIES.find(c => c.label === questionLabel)
+      return cat ? cat.tests.some(t => s.test?.[t.name]) : false
+    }
     if (sectionKey === 'physical' && RUN_CATEGORY_TARGET_LABELS[questionLabel]) {
       return toEntries(s.running).some(e => e.category === RUN_CATEGORY_TARGET_LABELS[questionLabel])
     }
@@ -1760,6 +1770,28 @@ export default function AthleteApp() {
   async function checkInNow(attendanceType) {
     if (!student) return
     setCheckingIn(true)
+    // Self check-in never knew which specific class it was for, so it
+    // could never show up on a register filtered to one class (which
+    // only ever matches an exact class_id) -- this works out the best
+    // match from the athlete's own schedule: if only one of their
+    // classes runs today, use that; if more than one does (a
+    // double-session day), pick whichever is closest to the current
+    // time, since that's almost certainly the one they're walking into.
+    const todayJsDay = new Date().getDay()
+    const todaysClasses = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(todayJsDay) && a.classes?.id)
+    let matchedClassId = null
+    if (todaysClasses.length === 1) {
+      matchedClassId = todaysClasses[0].classes.id
+    } else if (todaysClasses.length > 1) {
+      const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes()
+      matchedClassId = [...todaysClasses].sort((a, b) => {
+        const diffFor = c => {
+          const [h, m] = (c.classes?.start_time || '00:00').split(':').map(Number)
+          return Math.abs((h * 60 + m) - nowMinutes)
+        }
+        return diffFor(a) - diffFor(b)
+      })[0].classes.id
+    }
     const { data, error } = await supabase.from('attendance').insert({
       student_id: student.id,
       present: true,
@@ -1768,6 +1800,7 @@ export default function AthleteApp() {
       session_date: new Date().toISOString().split('T')[0],
       attended_at: new Date().toISOString(),
       self_checked_in: true,
+      class_id: matchedClassId,
     }).select().single()
     if (error) {
       alert('Error checking in: ' + error.message)
@@ -2648,7 +2681,10 @@ export default function AthleteApp() {
                       if (expandedTechniqueCategory && !hasActiveInThisStyle) return null
                       return (
                       <div key={style} style={{ marginBottom: 14 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>{style} Techniques</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                          {style} Techniques
+                          <QuestionProgressBadge sectionKey="technique" questionLabel={style} />
+                        </div>
                         <div style={{ display: 'grid', gridTemplateColumns: expandedTechniqueCategory ? '1fr' : 'repeat(3, 1fr)', gap: 8, marginBottom: 8 }}>
                           {Object.keys(categories).filter(cat => !expandedTechniqueCategory || expandedTechniqueCategory === `${style}::${cat}`).map(cat => {
                             const catKey = `${style}::${cat}`
@@ -2762,6 +2798,7 @@ export default function AthleteApp() {
                             }}>
                             <span style={{ fontSize: active ? 14 : 9, fontWeight: active ? 700 : 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat_}</span>
                             {count > 0 && <span style={{ fontSize: active ? 10 : 8, color: '#1D9E75' }}>{count} selected</span>}
+                            <QuestionProgressBadge sectionKey="tactical" questionLabel={cat_} />
                           </button>
                         )
                       })}
@@ -3509,6 +3546,7 @@ export default function AthleteApp() {
                           }}>
                             <span style={{ fontSize: active ? 26 : 16 }}>{cat.icon}</span>
                             <span style={{ fontSize: active ? 14 : 9, fontWeight: active ? 700 : 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat.label}</span>
+                            <QuestionProgressBadge sectionKey="test" questionLabel={cat.label} />
                           </button>
                         )
                       })}

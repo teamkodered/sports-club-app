@@ -528,6 +528,21 @@ export default function Registers() {
     await supabase.from('student_class_assignments').insert({ student_id: studentId, class_id: classFilter })
   }
 
+  // When marking attendance from the "All classes" combined view (not
+  // scoped to one specific class), the resulting row previously always
+  // got class_id = null -- which meant it could never show up on any
+  // specific class's own register afterwards, even though the student
+  // genuinely has just one class that day. If the student has exactly
+  // one assigned class matching today's day-of-week, use that;
+  // multiple (a double-session day) stays null rather than guessing
+  // which one was actually meant.
+  function detectClassIdForStudent(studentId) {
+    const allTodayClasses = [...todayClasses, ...derbyMooreClasses, ...moorwaysClasses]
+    const assignedIds = new Set(explicitAssignments.filter(a => a.student_id === studentId).map(a => a.class_id))
+    const matches = allTodayClasses.filter(c => assignedIds.has(c.id))
+    return matches.length === 1 ? matches[0].id : null
+  }
+
   async function toggleAttendance(id) {
     const cur = attendance[id] || 'none'
     const next = cur === 'none' ? 'attended' : cur === 'attended' ? 'full_kit' : 'none'
@@ -543,13 +558,14 @@ export default function Registers() {
     await delQuery
 
     if (next !== 'none') {
+      const detectedClassId = scopedToClass ? classFilter : detectClassIdForStudent(id)
       const { error } = await supabase.from('attendance').insert({
         student_id: id,
         present: true,
         attendance_type: next,
         session_date: date,
         attended_at: new Date(date + 'T12:00:00').toISOString(),
-        class_id: scopedToClass ? classFilter : null,
+        class_id: detectedClassId,
       })
       if (error) {
         alert('Error saving attendance: ' + error.message)
@@ -559,7 +575,7 @@ export default function Registers() {
       await ensureClassAssignment(id)
       const student = students.find(s => s.id === id)
       if (student) {
-        await awardAttendancePoints(student, next, scopedToClass ? classFilter : null)
+        await awardAttendancePoints(student, next, detectedClassId)
         if (scopedToClass) {
           const cascaded = await cascadeDoubleSession(student, next)
           if (cascaded) setCascadedEntries(prev => [...prev, cascaded])
@@ -601,6 +617,7 @@ export default function Registers() {
       await delQuery
 
       // Log to attendance table
+      const detectedClassId = scopedToClass ? classFilter : detectClassIdForStudent(s.id)
       await supabase.from('attendance').insert({
         student_id: s.id,
         present: true,
@@ -608,10 +625,10 @@ export default function Registers() {
         attendance_type: type,
         session_date: date,
         attended_at: new Date(date + 'T12:00:00').toISOString(),
-        class_id: scopedToClass ? classFilter : null,
+        class_id: detectedClassId,
       })
 
-      await awardAttendancePoints(s, type, scopedToClass ? classFilter : null)
+      await awardAttendancePoints(s, type, detectedClassId)
       await ensureClassAssignment(s.id)
       if (scopedToClass) {
         const cascaded = await cascadeDoubleSession(s, type)
