@@ -882,6 +882,7 @@ export default function AthleteApp() {
   // equivalent card on the Coaches Dashboard. No editing here -- this
   // is purely a visibility toggle for the athlete's own info.
   const [myProfileExpanded, setMyProfileExpanded] = useState(false)
+  const [recentPointsExpanded, setRecentPointsExpanded] = useState(false)
   const [myNotesLog, setMyNotesLog] = useState([])
   const [tptData, setTptData] = useState({ kickboxing: [], boxing: [] })
   const [whoopConnection, setWhoopConnection] = useState(null)
@@ -3403,16 +3404,27 @@ export default function AthleteApp() {
 
                     {points.length > 0 && (
                       <div className="card" style={{ padding: 0, marginBottom: 14 }}>
-                        <div style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)' }}>Recent points</div>
-                        <table><tbody>
-                          {points.slice(0,5).map((p,i) => (
-                            <tr key={i}>
-                              <td style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{new Date(p.awarded_at).toLocaleDateString('en-GB')}</td>
-                              <td style={{ fontSize: 13 }}>{p.point_type}</td>
-                              <td style={{ textAlign: 'right', fontWeight: 700, color: p.points_awarded < 0 ? '#a32d2d' : '#1d9e75' }}>{p.points_awarded > 0 ? '+' : ''}{p.points_awarded}</td>
-                            </tr>
-                          ))}
-                        </tbody></table>
+                        <div onClick={() => setRecentPointsExpanded(v => !v)}
+                          style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
+                          <span>Recent points</span>
+                          <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{recentPointsExpanded ? '▲' : '▼'}</span>
+                        </div>
+                        <div style={{
+                          maxHeight: recentPointsExpanded ? 400 : 0,
+                          opacity: recentPointsExpanded ? 1 : 0,
+                          overflow: 'hidden',
+                          transition: 'max-height 0.3s ease, opacity 0.25s ease',
+                        }}>
+                          <table><tbody>
+                            {points.slice(0,5).map((p,i) => (
+                              <tr key={i} onClick={() => setTab('points')} style={{ cursor: 'pointer' }}>
+                                <td style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{new Date(p.awarded_at).toLocaleDateString('en-GB')}</td>
+                                <td style={{ fontSize: 13 }}>{p.point_type}</td>
+                                <td style={{ textAlign: 'right', fontWeight: 700, color: p.points_awarded < 0 ? '#a32d2d' : '#1d9e75' }}>{p.points_awarded > 0 ? '+' : ''}{p.points_awarded}</td>
+                              </tr>
+                            ))}
+                          </tbody></table>
+                        </div>
                       </div>
                     )}
                   </>
