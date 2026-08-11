@@ -621,10 +621,9 @@ export default function FitToFight() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 4 }}>
-            {['log', 'history'].map(v => (
-              <button key={v} onClick={() => setView(v)} className={v === view ? 'btn btn-primary btn-sm' : 'btn btn-sm'}
-                style={{ textTransform: 'capitalize' }}>{v}</button>
-            ))}
+            <button onClick={() => setView(view === 'log' ? 'history' : 'log')} className="btn btn-sm">
+              {view === 'log' ? 'History' : 'Logger'}
+            </button>
           </div>
         </div>
 
