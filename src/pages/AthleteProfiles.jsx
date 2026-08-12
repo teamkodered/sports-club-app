@@ -953,6 +953,20 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
   // show at once before needing to scroll -- 1, 2, or 3. Doesn't apply
   // to Winning ways, which always spans full width regardless.
   const [pdpColumnsVisible, setPdpColumnsVisible] = useState(1)
+  // Lock/unlock scroll sync across the 4 category groups (Psychology/
+  // Technical/Tactical/Physical) -- when locked, scrolling any one of
+  // them moves all the others to match, keeping the same column lined
+  // up across every group; when unlocked, each scrolls independently.
+  const [pdpScrollLocked, setPdpScrollLocked] = useState(false)
+  const pdpScrollRefs = useRef({}) // group.label -> scroll container element
+  const pdpLastScrollLeft = useRef(0) // most recent scrollLeft, used to line everything up the moment lock turns on
+  function handlePdpGroupScroll(groupLabel, e) {
+    pdpLastScrollLeft.current = e.target.scrollLeft
+    if (!pdpScrollLocked) return
+    Object.entries(pdpScrollRefs.current).forEach(([label, el]) => {
+      if (label !== groupLabel && el && el.scrollLeft !== e.target.scrollLeft) el.scrollLeft = e.target.scrollLeft
+    })
+  }
   const [editSection, setEditSection] = useState(null)
   const editingCardRef = useRef(null)
   const [editItems, setEditItems]   = useState([])
@@ -1762,8 +1776,6 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
             <div className="empty-state"><h3>No notes yet</h3><p>Your coach hasn't shared any PDP notes yet</p></div>
           )}
 
-          {renderOpponentsCard(true)}
-
           {/* ── Weekly Timetable ── */}
           {(() => {
             const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday']
@@ -1804,7 +1816,27 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
               category's 4 columns (Notes/Maintain/Work on/To do) are
               visible before needing to scroll sideways. Winning ways is
               unaffected -- it always spans full width. */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 10 }}>
+            <button onClick={() => {
+              const next = !pdpScrollLocked
+              setPdpScrollLocked(next)
+              // "Line up the columns" -- when turning lock ON, snap every
+              // group to the same scroll position (whichever was scrolled
+              // most recently, or 0 if none have moved) rather than
+              // leaving them wherever they each happened to be.
+              if (next) {
+                const target = pdpLastScrollLeft.current
+                Object.values(pdpScrollRefs.current).forEach(el => { if (el) el.scrollLeft = target })
+              }
+            }}
+              title={pdpScrollLocked ? 'Unlock — scroll each category independently' : 'Lock — scroll all categories together, lined up'}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600,
+                border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                background: pdpScrollLocked ? 'var(--text)' : 'var(--bg-secondary)', color: pdpScrollLocked ? 'var(--bg)' : 'var(--text-secondary)',
+              }}>
+              {pdpScrollLocked ? '🔒 Locked' : '🔓 Unlocked'}
+            </button>
             <div style={{ display: 'inline-flex', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
               {[1, 2, 3].map(n => (
                 <button key={n} onClick={() => setPdpColumnsVisible(n)}
@@ -1863,7 +1895,8 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
                 rendered.push(
                   <div key={`group-${group.label}`} style={{ marginBottom: 10 }}>
                     <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', marginBottom: 10, letterSpacing: 0.3 }}>{group.label}</div>
-                    <div className="hscroll-area" style={{ display: 'flex', overflowX: 'auto', gap: 10, scrollSnapType: 'x mandatory', paddingBottom: 4 }}>
+                    <div className="hscroll-area" ref={el => { pdpScrollRefs.current[group.label] = el }} onScroll={e => handlePdpGroupScroll(group.label, e)}
+                      style={{ display: 'flex', overflowX: 'auto', gap: 10, scrollSnapType: 'x mandatory', paddingBottom: 4 }}>
                       {group.keys.map(key => {
                         const sec = allSections.find(s => s.key === key)
                         return sec ? (
@@ -1889,7 +1922,6 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
             })
             return rendered
           })()}
-          {renderOpponentsCard(false)}
         </div>
       )}
 
@@ -8121,6 +8153,61 @@ export default function AthleteProfiles() {
                       <span style={{ fontSize: 24 }}>💪</span>
                       <span style={{ fontSize: 12, fontWeight: 500, color: '#EF9F27' }}>Fit II Fight — log session</span>
                     </a>
+                  </div>
+
+                  {/* Opponents -- moved here from the bottom of the PDP
+                      tab's coach view, so it's visible right on the
+                      Home tab instead of buried at the end of a long list. */}
+                  <div className="card" style={{ borderLeft: '3px solid #E24B4A', borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0', marginBottom: 14 }}>
+                    <h3 style={{ fontSize: 13, fontWeight: 600, color: '#E24B4A', marginBottom: 10 }}>🥊 Opponents</h3>
+                    {(() => {
+                      const opponentNames = [...new Set(opponentNotes.map(n => n.opponent_name))].sort()
+                      if (!opponentNames.length) return <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 10 }}>No opponent notes yet.</p>
+                      return opponentNames.map(name => {
+                        const notes = opponentNotes.filter(n => n.opponent_name === name)
+                        const isOpen = expandedOpponent === name
+                        return (
+                          <div key={name} style={{ marginBottom: 8, border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                            <button onClick={() => setExpandedOpponent(isOpen ? null : name)}
+                              style={{ width: '100%', textAlign: 'left', padding: '8px 12px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontFamily: 'var(--font-sans)' }}>
+                              <span style={{ fontSize: 13, fontWeight: 600 }}>{name}</span>
+                              <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{notes.length} note{notes.length === 1 ? '' : 's'} {isOpen ? '▲' : '▼'}</span>
+                            </button>
+                            {isOpen && (
+                              <div style={{ padding: '0 12px 10px' }}>
+                                {notes.map(n => (
+                                  <div key={n.id} style={{ padding: '6px 0', borderTop: '1px solid var(--border)' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                                      <span style={{ fontSize: 10, fontWeight: 600, color: n.author_role === 'coach' ? '#666' : '#185FA5' }}>
+                                        {n.author_role === 'coach' ? '🧑‍🏫 Coach' : '🥋 Athlete'} · {new Date(n.created_at).toLocaleDateString('en-GB')}
+                                      </span>
+                                      {isAdmin && (
+                                        <div style={{ display: 'flex', gap: 6 }}>
+                                          {n.author_role === 'coach' && (
+                                            <button onClick={() => toggleOpponentNoteShared(n)} style={{ fontSize: 10, background: 'none', border: 'none', color: n.is_shared ? '#1D9E75' : 'var(--text-tertiary)', cursor: 'pointer' }}>
+                                              {n.is_shared ? '✓ Shared' : 'Share'}
+                                            </button>
+                                          )}
+                                          <button onClick={() => deleteOpponentNote(n.id)} style={{ fontSize: 10, background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer' }}>✕</button>
+                                        </div>
+                                      )}
+                                    </div>
+                                    <p style={{ fontSize: 12, margin: 0, whiteSpace: 'pre-line' }}>{n.note_text}</p>
+                                  </div>
+                                ))}
+                                <OpponentQuickNoteForm opponentName={name} onSave={(text, sharedFlag) => addOpponentNote(name, text, 'coach', sharedFlag)} showShareToggle />
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })
+                    })()}
+                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+                      <p style={{ fontSize: 11, fontWeight: 600, marginBottom: 6 }}>+ New opponent</p>
+                      <input value={newOpponentName} onChange={e => setNewOpponentName(e.target.value)} placeholder="Opponent name"
+                        style={{ width: '100%', fontSize: 12, marginBottom: 6 }} />
+                      <OpponentQuickNoteForm opponentName={newOpponentName} onSave={(text, sharedFlag) => { addOpponentNote(newOpponentName, text, 'coach', sharedFlag); setNewOpponentName('') }} showShareToggle disabled={!newOpponentName.trim()} />
+                    </div>
                   </div>
 
                   {sessionPoints.length > 0 && (
