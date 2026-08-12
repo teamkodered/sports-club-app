@@ -40,6 +40,7 @@ export default function CRM() {
   const [payments, setPayments] = useState([]) // parsed from the uploaded file: [{ name, amount, raw }]
   const [pastUploads, setPastUploads] = useState([]) // [{ id, uploaded_at, filename }] -- history list, not the full payments
   const [activeUploadId, setActiveUploadId] = useState(null) // which past upload (if any) is currently loaded
+  const [lastAction, setLastAction] = useState(null) // { label, undo } -- covers every undoable action on this page, not just dismiss
   const [loading, setLoading] = useState(false)
   const [draggedPayment, setDraggedPayment] = useState(null)
   const [dragOverStudentId, setDragOverStudentId] = useState(null)
@@ -126,12 +127,21 @@ export default function CRM() {
     setPayments(data.payments || [])
     setSelectedPaymentIdx(null)
     setActiveUploadId(id)
+    setLastAction(null)
   }
 
   async function markSponsored(studentId, sponsored) {
+    const priorValue = students.find(s => s.id === studentId)?.sponsored ?? false
     const { error } = await supabase.from('students').update({ sponsored }).eq('id', studentId)
     if (error) { alert('Error updating: ' + error.message); return }
     setStudents(prev => prev.map(s => s.id === studentId ? { ...s, sponsored } : s))
+    setLastAction({
+      label: sponsored ? 'Marked as sponsored' : 'Unmarked as sponsored',
+      undo: async () => {
+        await supabase.from('students').update({ sponsored: priorValue }).eq('id', studentId)
+        setStudents(prev => prev.map(s => s.id === studentId ? { ...s, sponsored: priorValue } : s))
+      },
+    })
   }
 
   async function loadData() {
@@ -234,6 +244,7 @@ export default function CRM() {
         .filter(p => p.name)
       setPayments(parsed)
       setActiveUploadId(null)
+      setLastAction(null)
 
       // Save this list so it can be reopened later by date, rather than
       // being lost the moment the page reloads or someone navigates away.
@@ -258,6 +269,7 @@ export default function CRM() {
     setPayments([])
     setSelectedPaymentIdx(null)
     setActiveUploadId(null)
+    setLastAction(null)
   }
 
   // Removes a single transaction from the list -- for bank-export noise
@@ -266,12 +278,31 @@ export default function CRM() {
   // it doesn't touch any stored data, so re-uploading the same export
   // later brings it back (nothing to "undo" otherwise, and no risk of
   // accidentally suppressing a real payment for good).
-  function removePayment(idx) {
-    setPayments(prev => prev.filter((_, i) => i !== idx))
+  async function removePayment(idx) {
+    const removed = payments[idx]
+    const updated = payments.filter((_, i) => i !== idx)
+    setPayments(updated)
     // Any payment after this one shifts down by one index once the
     // array is filtered, so a stale selectedPaymentIdx could end up
     // pointing at the wrong transaction -- always clear it here.
     setSelectedPaymentIdx(null)
+    // Persist immediately so this stays dismissed the next time this
+    // same saved list is reopened, instead of the removed entry
+    // silently reappearing since the saved copy was never updated.
+    if (activeUploadId) {
+      await supabase.from('standing_order_uploads').update({ payments: updated }).eq('id', activeUploadId)
+    }
+    setLastAction({
+      label: `Removed "${removed.name}"`,
+      undo: async () => {
+        const restored = [...payments]
+        restored.splice(idx, 0, removed)
+        setPayments(restored)
+        if (activeUploadId) {
+          await supabase.from('standing_order_uploads').update({ payments: restored }).eq('id', activeUploadId)
+        }
+      },
+    })
   }
 
   function studentFullName(s) {
@@ -409,6 +440,10 @@ export default function CRM() {
   const paidStudents = venueFilteredStudents.filter(s => matchedStudentIds.has(s.id) || s.sponsored).sort(sortByName)
 
   async function linkPayment(payment, studentId) {
+    // Capture whatever existed for this exact pairing before this
+    // change, so undo can put it back exactly as it was (not just
+    // delete the new link, which would be wrong if one already existed).
+    const priorLink = payerLinks.find(l => l.payer_name === payment.name && l.student_id === studentId) || null
     // excluded: false explicitly clears any earlier "this isn't right"
     // rejection stored against this exact payment+student pairing, so
     // re-linking after a mistaken exclusion works correctly.
@@ -422,12 +457,34 @@ export default function CRM() {
       return [...others, { payer_name: payment.name, student_id: studentId, excluded: false }]
     })
     setSelectedPaymentIdx(null)
+    setLastAction({
+      label: `Linked "${payment.name}" to a student`,
+      undo: async () => {
+        if (priorLink) {
+          await supabase.from('payer_links').upsert(priorLink, { onConflict: 'payer_name,student_id' })
+          setPayerLinks(prev => [...prev.filter(l => !(l.payer_name === payment.name && l.student_id === studentId)), priorLink])
+        } else {
+          await supabase.from('payer_links').delete().eq('payer_name', payment.name).eq('student_id', studentId)
+          setPayerLinks(prev => prev.filter(l => !(l.payer_name === payment.name && l.student_id === studentId)))
+        }
+      },
+    })
   }
 
   async function unlinkPayment(payerName, studentId) {
+    const priorLink = payerLinks.find(l => l.payer_name === payerName && l.student_id === studentId) || null
     const { error } = await supabase.from('payer_links').delete().eq('payer_name', payerName).eq('student_id', studentId)
     if (error) { alert('Error removing link: ' + error.message); return }
     setPayerLinks(prev => prev.filter(l => !(l.payer_name === payerName && l.student_id === studentId)))
+    if (priorLink) {
+      setLastAction({
+        label: `Unlinked "${payerName}"`,
+        undo: async () => {
+          await supabase.from('payer_links').upsert(priorLink, { onConflict: 'payer_name,student_id' })
+          setPayerLinks(prev => [...prev.filter(l => !(l.payer_name === payerName && l.student_id === studentId)), priorLink])
+        },
+      })
+    }
   }
 
   // For an AUTOMATIC match (not a manually-created link) there's nothing
@@ -436,6 +493,7 @@ export default function CRM() {
   // be recorded as an explicit rejection instead, which the matcher then
   // knows to skip for that exact payment name going forward.
   async function rejectAutoMatch(payment, studentId) {
+    const priorLink = payerLinks.find(l => l.payer_name === payment.name && l.student_id === studentId) || null
     const { error } = await supabase.from('payer_links').upsert(
       { payer_name: payment.name, student_id: studentId, excluded: true },
       { onConflict: 'payer_name,student_id' }
@@ -444,6 +502,18 @@ export default function CRM() {
     setPayerLinks(prev => {
       const others = prev.filter(l => !(l.payer_name === payment.name && l.student_id === studentId))
       return [...others, { payer_name: payment.name, student_id: studentId, excluded: true }]
+    })
+    setLastAction({
+      label: `Marked "${payment.name}" as wrong student`,
+      undo: async () => {
+        if (priorLink) {
+          await supabase.from('payer_links').upsert(priorLink, { onConflict: 'payer_name,student_id' })
+          setPayerLinks(prev => [...prev.filter(l => !(l.payer_name === payment.name && l.student_id === studentId)), priorLink])
+        } else {
+          await supabase.from('payer_links').delete().eq('payer_name', payment.name).eq('student_id', studentId)
+          setPayerLinks(prev => prev.filter(l => !(l.payer_name === payment.name && l.student_id === studentId)))
+        }
+      },
     })
   }
 
@@ -537,6 +607,13 @@ export default function CRM() {
           </div>
 
           {loading ? <p>Loading…</p> : payments.length > 0 && (
+            <>
+            {lastAction && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-tertiary)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', padding: '8px 14px', marginBottom: 14, fontSize: 13 }}>
+                <span>{lastAction.label}</span>
+                <button className="btn btn-sm" onClick={() => { lastAction.undo(); setLastAction(null) }}>Undo</button>
+              </div>
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20 }}>
               <div className="card">
                 <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>💳 Unmatched payments ({unmatchedPayments.length})</h3>
@@ -676,6 +753,7 @@ export default function CRM() {
                 </div>
               </div>
             </div>
+            </>
           )}
         </div>
       )}
