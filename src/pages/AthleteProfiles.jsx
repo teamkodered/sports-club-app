@@ -1976,6 +1976,9 @@ function OpponentQuickNoteForm({ onSave, showShareToggle, disabled }) {
 export default function AthleteProfiles() {
   const { profile, isAdmin } = useAuth()
   const navigate = useNavigate()
+  const flameHoldTimer = useRef(null)
+  const [showQuickLoggerPicker, setShowQuickLoggerPicker] = useState(false)
+  const [quickLoggerSearch, setQuickLoggerSearch] = useState('')
   const swipeStartX = useRef(null)
   const [isMobileView, setIsMobileView] = useState(() => typeof window !== 'undefined' && window.innerWidth < 900)
   const [mobilePanel, setMobilePanel] = useState('dashboard') // 'list' | 'dashboard' -- which of the two "screens" mobile is showing
@@ -6389,6 +6392,30 @@ export default function AthleteProfiles() {
                 ))}
               </div>
 
+              {showQuickLoggerPicker && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
+                  onClick={() => { setShowQuickLoggerPicker(false); setQuickLoggerSearch('') }}>
+                  <div className="card" style={{ width: '100%', maxWidth: 360, maxHeight: '70vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+                    <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 10 }}>🔥 Quick logger — pick an athlete</h3>
+                    <input value={quickLoggerSearch} onChange={e => setQuickLoggerSearch(e.target.value)}
+                      placeholder="Search athletes…" autoFocus style={{ width: '100%', marginBottom: 10 }} />
+                    <div style={{ overflowY: 'auto', flex: 1 }}>
+                      {athletes
+                        .filter(s => !quickLoggerSearch || `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.toLowerCase().includes(quickLoggerSearch.toLowerCase()))
+                        .map(s => (
+                          <button key={s.id} onClick={() => { setShowQuickLoggerPicker(false); setQuickLoggerSearch(''); navigate(`/fit2fight?student_id=${s.id}`) }}
+                            style={{
+                              display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: 6, fontSize: 13,
+                              background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', fontFamily: 'var(--font-sans)',
+                            }}>
+                            {s.members?.first_name} {s.members?.last_name}
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Actions row -- moved below the name/house details so it fits better on mobile */}
               <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
                 {isAdmin && m?.status !== 'stopped' && (
@@ -6844,7 +6871,14 @@ export default function AthleteProfiles() {
                       </div>
                       <button onClick={() => setF2fStatsScope(v => v + 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4, appearance: 'none', WebkitAppearance: 'none', fontFamily: 'var(--font-sans)' }}>▶</button>
                     </div>
-                    <button onClick={() => setTab('fit2fight')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none' }} title="View Fit II Fight results">
+                    <button onClick={() => navigate(`/fit2fight?student_id=${selected?.id}`)}
+                      onContextMenu={e => e.preventDefault()}
+                      onTouchStart={() => { flameHoldTimer.current = setTimeout(() => setShowQuickLoggerPicker(true), 500) }}
+                      onTouchEnd={() => clearTimeout(flameHoldTimer.current)}
+                      onMouseDown={() => { flameHoldTimer.current = setTimeout(() => setShowQuickLoggerPicker(true), 500) }}
+                      onMouseUp={() => clearTimeout(flameHoldTimer.current)}
+                      className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none' }}
+                      title="Log a Fit II Fight session — hold for quick logger">
                       <div style={{ fontSize: 22, marginBottom: 4 }}>🔥</div>
                       <div style={{ fontSize: 22, fontWeight: 700, color: '#378ADD' }}>
                         {(() => {

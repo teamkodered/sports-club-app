@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { supabasePublic } from '../lib/supabasePublic.js'
 import { useAuth } from '../hooks/useAuth.jsx'
@@ -821,6 +821,7 @@ const MENTALITY_KEYS_FOR_CHECK = ['videoAnalysis', 'meditation', 'visualisation'
 
 export default function AthleteApp() {
   const { profile, isStaff } = useAuth()
+  const navigate = useNavigate()
   const [tab, setTab]           = useState('home')
   const [termsChecked, setTermsChecked] = useState(false) // the checkbox inside the modal
   const [acceptingTerms, setAcceptingTerms] = useState(false)
@@ -847,6 +848,11 @@ export default function AthleteApp() {
     } else if (params.get('whoop_error')) {
       alert('There was a problem connecting Whoop: ' + params.get('whoop_error'))
       setTab('whoop')
+      window.history.replaceState({}, '', window.location.pathname)
+    } else if (params.get('tab')) {
+      // General deep-link support -- e.g. the Fit II Fight logger's
+      // "Results" button links back here with ?tab=fit2fight.
+      setTab(params.get('tab'))
       window.history.replaceState({}, '', window.location.pathname)
     }
   }, [])
@@ -2396,7 +2402,8 @@ export default function AthleteApp() {
                           </div>
                         )}
                       </div>
-                      <button onClick={() => setTab('fit2fight')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none' }}>
+                      <button onClick={() => navigate(`/fit2fight?student_id=${student.id}`)}
+                        className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none' }}>
                         <div style={{ fontSize: 22, marginBottom: 4 }}>🔥</div>
                         <div style={{ fontSize: 22, fontWeight: 700, color: '#378ADD' }}>
                           {(() => {

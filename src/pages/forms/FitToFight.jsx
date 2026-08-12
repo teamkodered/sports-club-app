@@ -622,8 +622,12 @@ export default function FitToFight() {
           </div>
           <div style={{ display: 'flex', gap: 4 }}>
             <button onClick={() => setView(view === 'log' ? 'history' : 'log')} className="btn btn-sm">
-              {view === 'log' ? 'History' : 'Logger'}
+              {view === 'log' ? 'Quick view' : 'Logger'}
             </button>
+            {view === 'history' && (
+              <button onClick={() => navigate(isAdmin ? `/athletes?id=${student.id}&tab=fit2fight` : '/athlete-app?tab=fit2fight')}
+                className="btn btn-sm" title="Go to Results">Results</button>
+            )}
           </div>
         </div>
 
