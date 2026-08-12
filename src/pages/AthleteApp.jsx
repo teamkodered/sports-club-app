@@ -2018,7 +2018,6 @@ export default function AthleteApp() {
     ['fit2fight', '💪 Results'],
     ['pdp',       '🎯 My PDP'],
     ['reports',   '📄 Reports'],
-    ['analysis',  '📊 Analysis'],
     ['points',    '⭐ Points'],
   ]
 
@@ -2240,23 +2239,36 @@ export default function AthleteApp() {
         })()}
       </div>
 
-      {/* Tabs */}
-      <div className="hide-scrollbar" style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 14, overflowX: 'auto' }}>
-        {TABS.map(([key, label]) => (
-          <button key={key} onClick={() => setTab(key)} style={{
-            padding: '10px 14px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
-            borderBottom: `2px solid ${tab === key ? colour : 'transparent'}`,
-            color: tab === key ? 'var(--text)' : 'var(--text-secondary)',
-            fontWeight: tab === key ? 600 : 400, whiteSpace: 'nowrap',
-          }}>{label}</button>
-        ))}
-      </div>
+      {/* Tabs bar removed -- every page below is now reached via cards
+          on the Home tab instead. All the pages themselves (Schedule,
+          Results, My PDP, Reports, Points, etc.) are unchanged. */}
 
       {/* ── Home ── */}
       {tab === 'home' && (
         <div>
           {student ? (
             <>
+              {/* Primary navigation -- these pages used to be reachable
+                  via the tab bar (now removed), so they need cards here
+                  instead. The pages themselves are all unchanged. */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 8 }}>
+                {[
+                  { label: 'Schedule', icon: '📅', colour: '#378ADD', tab: 'sessions' },
+                  { label: 'Results', icon: '💪', colour: '#EF9F27', tab: 'fit2fight' },
+                  { label: 'My PDP', icon: '🎯', colour: '#1D9E75', tab: 'pdp' },
+                  { label: 'Points', icon: '⭐', colour: '#8B5CF6', tab: 'points' },
+                ].map(l => (
+                  <button key={l.label} onClick={() => setTab(l.tab)} style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                    padding: '14px 8px', background: l.colour + '12',
+                    border: `1px solid ${l.colour}30`, borderRadius: 'var(--border-radius-lg)',
+                    cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                  }}>
+                    <span style={{ fontSize: 24 }}>{l.icon}</span>
+                    <span style={{ fontSize: 12, fontWeight: 500, color: l.colour }}>{l.label}</span>
+                  </button>
+                ))}
+              </div>
 
               {(() => {
                try {
@@ -4568,25 +4580,6 @@ export default function AthleteApp() {
       )}
 
       {/* ── Analysis ── */}
-      {tab === 'analysis' && (
-        <div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <Link to="/kickboxing-tpt" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 20, color: '#378ADD' }}>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>📊</div>
-              <div style={{ fontWeight: 600 }}>Kickboxing TTP</div>
-            </Link>
-            <Link to="/boxing-tpt" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 20, color: '#E24B4A' }}>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>📊</div>
-              <div style={{ fontWeight: 600 }}>Boxing TTP</div>
-            </Link>
-            <Link to="/grading" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 20, color: '#1D9E75' }}>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>🎽</div>
-              <div style={{ fontWeight: 600 }}>Grading</div>
-            </Link>
-          </div>
-        </div>
-      )}
-
       {/* ── Fit II Fight ── */}
       {tab === 'fit2fight' && (
         <div>
