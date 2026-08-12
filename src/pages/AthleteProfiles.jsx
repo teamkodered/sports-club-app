@@ -2407,6 +2407,7 @@ export default function AthleteProfiles() {
   // page-level swipe that navigates between athletes.
   const [headerCardView, setHeaderCardView] = useState(0)
   const headerSwipeStartX = useRef(null)
+  const headerWasSwipe = useRef(false)
   const [showOverallPos, setShowOverallPos] = useState(false)
   const [belts, setBelts] = useState({ junior: [], senior: [], krba: [] })
   const [selected, setSelected]     = useState(null)
@@ -6300,15 +6301,16 @@ export default function AthleteProfiles() {
                 and House info), avatar stays fixed on the left in both.
                 Not part of the page-level swipe-zone (which navigates
                 between athletes) -- this has its own local swipe. */}
-            <div className="card" style={{ marginBottom: 12, borderLeft: `3px solid ${colour}`, borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0' }}
-              onTouchStart={e => { e.stopPropagation(); headerSwipeStartX.current = e.touches[0].clientX }}
+            <div className="card" style={{ marginBottom: 12, borderLeft: `3px solid ${colour}`, borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0', cursor: 'pointer' }}
+              onTouchStart={e => { e.stopPropagation(); headerSwipeStartX.current = e.touches[0].clientX; headerWasSwipe.current = false }}
               onTouchEnd={e => {
                 e.stopPropagation()
                 if (headerSwipeStartX.current == null) return
                 const delta = e.changedTouches[0].clientX - headerSwipeStartX.current
-                if (Math.abs(delta) > 50) setHeaderCardView(v => delta < 0 ? 1 : 0)
+                if (Math.abs(delta) > 50) { setHeaderCardView(v => delta < 0 ? 1 : 0); headerWasSwipe.current = true }
                 headerSwipeStartX.current = null
-              }}>
+              }}
+              onClick={() => { if (headerWasSwipe.current) { headerWasSwipe.current = false; return } setProfileInfoExpanded(v => !v) }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                 <div style={{ width: 64, height: 64, borderRadius: '50%', background: colour + '22', color: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 700, flexShrink: 0 }}>
                   {initials}
@@ -6317,19 +6319,19 @@ export default function AthleteProfiles() {
                   {headerCardView === 0 ? (
                     <>
                       <div ref={nameDropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
-                        <button onClick={() => setShowNameDropdown(v => !v)} title="Click to switch athlete"
+                        <button onClick={e => { e.stopPropagation(); setShowNameDropdown(v => !v) }} title="Click to switch athlete"
                           style={{ fontSize: 21, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-sans)', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
                           {m?.first_name} {m?.last_name} <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{showNameDropdown ? '▲' : '▼'}</span>
                         </button>
                         {showNameDropdown && (
                           <div className="card" style={{ position: 'absolute', top: '100%', left: 0, zIndex: 20, width: '100%', minWidth: 220, marginTop: 4, padding: 8, maxHeight: 320, overflowY: 'auto' }}
-                            onTouchStart={e => e.stopPropagation()} onTouchEnd={e => e.stopPropagation()}>
+                            onTouchStart={e => e.stopPropagation()} onTouchEnd={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
                             <input value={nameDropdownSearch} onChange={e => setNameDropdownSearch(e.target.value)}
                               placeholder="Search athletes…" autoFocus style={{ width: '100%', fontSize: 13, marginBottom: 6 }} />
                             {athletes
                               .filter(s => !nameDropdownSearch || `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.toLowerCase().includes(nameDropdownSearch.toLowerCase()))
                               .map(s => (
-                                <button key={s.id} onClick={() => { selectStudent(s); setShowNameDropdown(false); setNameDropdownSearch('') }}
+                                <button key={s.id} onClick={e => { e.stopPropagation(); selectStudent(s); setShowNameDropdown(false); setNameDropdownSearch('') }}
                                   style={{
                                     display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', borderRadius: 6, fontSize: 13,
                                     background: s.id === selected.id ? colour + '15' : 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', fontFamily: 'var(--font-sans)',
@@ -6361,7 +6363,7 @@ export default function AthleteProfiles() {
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                         {positionInHouse > 0 && (
-                          <button onClick={() => setShowOverallPos(v => !v)}
+                          <button onClick={e => { e.stopPropagation(); setShowOverallPos(v => !v) }}
                             title={showOverallPos ? 'Showing overall position — click for position in house' : 'Showing position in house — click for overall position'}
                             style={{
                               background: 'var(--bg-secondary)', border: '1px solid var(--border-strong)', borderRadius: 20,
@@ -6371,7 +6373,7 @@ export default function AthleteProfiles() {
                           </button>
                         )}
                         {selected.house_points != null && (
-                          <button onClick={() => setShowContribution(v => !v)}
+                          <button onClick={e => { e.stopPropagation(); setShowContribution(v => !v) }}
                             title={showContribution ? 'Showing % contribution to house — click to show points' : 'Showing house points — click to show % contribution'}
                             style={{
                               background: 'var(--bg-secondary)', border: '1px solid var(--border-strong)', borderRadius: 20,
@@ -6385,11 +6387,12 @@ export default function AthleteProfiles() {
                   )}
                 </div>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 10, position: 'relative' }}>
                 {[0, 1].map(v => (
-                  <button key={v} onClick={() => setHeaderCardView(v)}
+                  <button key={v} onClick={e => { e.stopPropagation(); setHeaderCardView(v) }}
                     style={{ width: 6, height: 6, borderRadius: '50%', border: 'none', cursor: 'pointer', padding: 0, background: headerCardView === v ? colour : 'var(--border-strong)' }} />
                 ))}
+                <span style={{ position: 'absolute', right: 0, fontSize: 12, color: 'var(--text-tertiary)' }}>{profileInfoExpanded ? '▲' : '▼'}</span>
               </div>
 
               {showQuickLoggerPicker && (

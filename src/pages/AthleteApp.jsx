@@ -2120,8 +2120,11 @@ export default function AthleteApp() {
       )}
 
       {/* Profile header -- two swipeable views (Name/Club/Age/Level,
-          and House info), avatar stays fixed on the left in both. */}
-      <div className="card" style={{ marginBottom: 12, borderLeft: `4px solid ${colour}`, cursor: 'pointer' }}
+          and House info), avatar stays fixed on the left in both.
+          Tap (not swipe) slides the full profile details down from
+          underneath, replacing the separate "Profile" card that used
+          to sit below this as its own tile. */}
+      <div className="card" style={{ marginBottom: 14, borderLeft: `4px solid ${colour}`, cursor: 'pointer' }}
         onTouchStart={e => { headerSwipeStartX.current = e.touches[0].clientX; headerWasSwipe.current = false }}
         onTouchEnd={e => {
           if (headerSwipeStartX.current == null || !student) return
@@ -2129,7 +2132,7 @@ export default function AthleteApp() {
           if (Math.abs(delta) > 50) { setHeaderCardView(v => delta < 0 ? 1 : 0); headerWasSwipe.current = true }
           headerSwipeStartX.current = null
         }}
-        onClick={() => { if (headerWasSwipe.current) { headerWasSwipe.current = false; return } setTab('home') }}>
+        onClick={() => { if (headerWasSwipe.current) { headerWasSwipe.current = false; return } if (student) setMyProfileExpanded(v => !v) }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <div style={{ width: 64, height: 64, borderRadius: '50%', background: colour + '22', color: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 700, flexShrink: 0 }}>
             {initials}
@@ -2175,6 +2178,9 @@ export default function AthleteApp() {
               </>
             )}
           </div>
+          {student && (
+            <span style={{ fontSize: 12, color: 'var(--text-tertiary)', flexShrink: 0, alignSelf: 'flex-start', marginTop: 4 }}>{myProfileExpanded ? '▲' : '▼'}</span>
+          )}
         </div>
         {student && (
           <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: 8 }}>
@@ -2184,60 +2190,57 @@ export default function AthleteApp() {
             ))}
           </div>
         )}
-      </div>
 
-      {student && (() => {
-        const pct = weightTargetActiveMode === 'in_comp' ? weightTargetPctInComp : weightTargetPctOutComp
-        const compWeightMatch = apData?.weight_division?.match(/[\d.]+/)
-        const baseWeight = compWeightMatch ? parseFloat(compWeightMatch[0]) : student.weight_kg
-        const override = apData?.weight_target_override
-        let targetWeight = baseWeight ? (baseWeight * (1 + pct)).toFixed(1) : null
-        if (override?.type === 'actual' && override.value) targetWeight = parseFloat(override.value).toFixed(1)
-        else if (override?.type === 'percent' && override.value && baseWeight) targetWeight = (baseWeight * (1 + parseFloat(override.value))).toFixed(1)
-        return (
-      <div className="card" style={{ padding: 0, marginBottom: 14 }}>
-        <div onClick={() => setMyProfileExpanded(v => !v)}
-          style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
-          <span>Profile</span>
-          <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{myProfileExpanded ? '▲' : '▼'}</span>
-        </div>
-        <div style={{
-          maxHeight: myProfileExpanded ? 600 : 0,
-          opacity: myProfileExpanded ? 1 : 0,
-          overflow: 'hidden',
-          transition: 'max-height 0.3s ease, opacity 0.25s ease',
-        }}>
-        {[
-          ['Club', student.discipline || '—'],
-          ...(student.is_kr ? [['Discipline', student.discipline_codes || '—']] : []),
-          [student.discipline === 'KRBA' ? 'Level' : student.is_kr ? 'Experience' : 'Grade',
-            student.discipline === 'KRBA' ? (student.krba_level || '—') : student.is_kr ? (student.competition_team || '—') : (student.pka_belt || '—')],
-          ['Record', `${student.wins || 0}W ${student.losses || 0}L ${student.draws || 0}D`],
-          ['Weight', student.weight_kg ? `${student.weight_kg}kg${student.weight_category ? ` (${student.weight_category})` : ''}` : '—', targetWeight],
-          ['Comp weight', apData?.weight_division ? `${apData.weight_division}${/kg/i.test(apData.weight_division) ? '' : 'kg'}` : '—'],
-          ['VO2 Max', (() => {
-            const latest = [...sessions].sort((a, b) => new Date(b.session_date) - new Date(a.session_date)).find(s => s.test?.['VO2 Max'] != null)
-            return latest ? `${latest.test['VO2 Max']} ml/kg/min` : '—'
-          })()],
-          ['Groups', [student.is_kr && 'KR', student.is_pts && 'PTs', student.is_leader && 'Leader', student.is_coach && 'Coach'].filter(Boolean).join(', ') || 'None'],
-        ].map(([label, val, target], i, arr) => {
-          const isWeightRow = label === 'Weight'
-          const isOverTarget = isWeightRow && target && student.weight_kg != null && parseFloat(student.weight_kg) > parseFloat(target)
+        {student && (() => {
+          const pct = weightTargetActiveMode === 'in_comp' ? weightTargetPctInComp : weightTargetPctOutComp
+          const compWeightMatch = apData?.weight_division?.match(/[\d.]+/)
+          const baseWeight = compWeightMatch ? parseFloat(compWeightMatch[0]) : student.weight_kg
+          const override = apData?.weight_target_override
+          let targetWeight = baseWeight ? (baseWeight * (1 + pct)).toFixed(1) : null
+          if (override?.type === 'actual' && override.value) targetWeight = parseFloat(override.value).toFixed(1)
+          else if (override?.type === 'percent' && override.value && baseWeight) targetWeight = (baseWeight * (1 + parseFloat(override.value))).toFixed(1)
           return (
-          <div key={label} onClick={isWeightRow ? e => { e.stopPropagation(); setTab('fit2fight'); setResultsGraphSection(0) } : undefined}
-            style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 14px', borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13, cursor: isWeightRow ? 'pointer' : 'default' }}>
-            <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontWeight: isWeightRow && target ? 700 : 500, textAlign: 'right', color: isWeightRow && target ? (isOverTarget ? '#E24B4A' : '#1D9E75') : 'inherit' }}>{val}</span>
-              {target && <span style={{ fontSize: 11, color: override ? colour : 'var(--text-tertiary)', fontWeight: override ? 600 : 400 }} title={override ? 'Target set by your coach for you specifically' : `Target: current weight + ${pct}`}>{target}kg{override && ' *'}</span>}
-            </span>
-          </div>
+            <div onClick={e => e.stopPropagation()} style={{
+              maxHeight: myProfileExpanded ? 600 : 0,
+              opacity: myProfileExpanded ? 1 : 0,
+              overflow: 'hidden',
+              transition: 'max-height 0.3s ease, opacity 0.25s ease',
+              marginTop: myProfileExpanded ? 12 : 0,
+              marginLeft: -16, marginRight: -16, marginBottom: -16,
+            }}>
+              <div style={{ borderTop: '1px solid var(--border)' }}>
+              {[
+                ['Club', student.discipline || '—'],
+                ...(student.is_kr ? [['Discipline', student.discipline_codes || '—']] : []),
+                [student.discipline === 'KRBA' ? 'Level' : student.is_kr ? 'Experience' : 'Grade',
+                  student.discipline === 'KRBA' ? (student.krba_level || '—') : student.is_kr ? (student.competition_team || '—') : (student.pka_belt || '—')],
+                ['Record', `${student.wins || 0}W ${student.losses || 0}L ${student.draws || 0}D`],
+                ['Weight', student.weight_kg ? `${student.weight_kg}kg${student.weight_category ? ` (${student.weight_category})` : ''}` : '—', targetWeight],
+                ['Comp weight', apData?.weight_division ? `${apData.weight_division}${/kg/i.test(apData.weight_division) ? '' : 'kg'}` : '—'],
+                ['VO2 Max', (() => {
+                  const latest = [...sessions].sort((a, b) => new Date(b.session_date) - new Date(a.session_date)).find(s => s.test?.['VO2 Max'] != null)
+                  return latest ? `${latest.test['VO2 Max']} ml/kg/min` : '—'
+                })()],
+                ['Groups', [student.is_kr && 'KR', student.is_pts && 'PTs', student.is_leader && 'Leader', student.is_coach && 'Coach'].filter(Boolean).join(', ') || 'None'],
+              ].map(([label, val, target], i, arr) => {
+                const isWeightRow = label === 'Weight'
+                const isOverTarget = isWeightRow && target && student.weight_kg != null && parseFloat(student.weight_kg) > parseFloat(target)
+                return (
+                <div key={label} onClick={isWeightRow ? e => { e.stopPropagation(); setTab('fit2fight'); setResultsGraphSection(0) } : undefined}
+                  style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 16px', borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13, cursor: isWeightRow ? 'pointer' : 'default' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontWeight: isWeightRow && target ? 700 : 500, textAlign: 'right', color: isWeightRow && target ? (isOverTarget ? '#E24B4A' : '#1D9E75') : 'inherit' }}>{val}</span>
+                    {target && <span style={{ fontSize: 11, color: override ? colour : 'var(--text-tertiary)', fontWeight: override ? 600 : 400 }} title={override ? 'Target set by your coach for you specifically' : `Target: current weight + ${pct}`}>{target}kg{override && ' *'}</span>}
+                  </span>
+                </div>
+                )
+              })}
+              </div>
+            </div>
           )
-        })}
-        </div>
+        })()}
       </div>
-        )
-      })()}
 
       {/* Tabs */}
       <div className="hide-scrollbar" style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 14, overflowX: 'auto' }}>
