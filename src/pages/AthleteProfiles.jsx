@@ -947,7 +947,7 @@ const PDP_MAINTAIN_FOR_CHECK = Object.fromEntries(
 // Checking off a Maintain item moves it to the Notes log as a completed PDP task
 const PDP_MAINTAIN_SECTIONS = new Set(PDP_CATEGORY_GROUPS.map(g => g.keys.find(k => k.endsWith('maintain'))).filter(Boolean))
 
-function PDPTab({ apData, setApData, student, isAdmin }) {
+function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOpponentNote, onToggleOpponentNoteShared, onDeleteOpponentNote, newOpponentName, setNewOpponentName, expandedOpponent, setExpandedOpponent }) {
   const [pdpView, setPdpView]       = useState('coach') // 'coach' | 'athlete' | 'split'
   // How many of each category's 4 columns (Notes/Maintain/Work on/To do)
   // show at once before needing to scroll -- 1, 2, or 3. Doesn't apply
@@ -1174,11 +1174,11 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
                         {isAdmin && !restrictToShared && (
                           <div style={{ display: 'flex', gap: 6 }}>
                             {n.author_role === 'coach' && (
-                              <button onClick={() => toggleOpponentNoteShared(n)} style={{ fontSize: 10, background: 'none', border: 'none', color: n.is_shared ? '#1D9E75' : 'var(--text-tertiary)', cursor: 'pointer' }}>
+                              <button onClick={() => onToggleOpponentNoteShared(n)} style={{ fontSize: 10, background: 'none', border: 'none', color: n.is_shared ? '#1D9E75' : 'var(--text-tertiary)', cursor: 'pointer' }}>
                                 {n.is_shared ? '✓ Shared' : 'Share'}
                               </button>
                             )}
-                            <button onClick={() => deleteOpponentNote(n.id)} style={{ fontSize: 10, background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer' }}>✕</button>
+                            <button onClick={() => onDeleteOpponentNote(n.id)} style={{ fontSize: 10, background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer' }}>✕</button>
                           </div>
                         )}
                       </div>
@@ -1186,7 +1186,7 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
                     </div>
                   ))}
                   {!restrictToShared && (
-                    <OpponentQuickNoteForm opponentName={name} onSave={(text, sharedFlag) => addOpponentNote(name, text, 'coach', sharedFlag)} showShareToggle />
+                    <OpponentQuickNoteForm opponentName={name} onSave={(text, sharedFlag) => onAddOpponentNote(name, text, 'coach', sharedFlag)} showShareToggle />
                   )}
                 </div>
               )}
@@ -1198,7 +1198,7 @@ function PDPTab({ apData, setApData, student, isAdmin }) {
             <p style={{ fontSize: 11, fontWeight: 600, marginBottom: 6 }}>+ New opponent</p>
             <input value={newOpponentName} onChange={e => setNewOpponentName(e.target.value)} placeholder="Opponent name"
               style={{ width: '100%', fontSize: 12, marginBottom: 6 }} />
-            <OpponentQuickNoteForm opponentName={newOpponentName} onSave={(text, sharedFlag) => { addOpponentNote(newOpponentName, text, 'coach', sharedFlag); setNewOpponentName('') }} showShareToggle disabled={!newOpponentName.trim()} />
+            <OpponentQuickNoteForm opponentName={newOpponentName} onSave={(text, sharedFlag) => { onAddOpponentNote(newOpponentName, text, 'coach', sharedFlag); setNewOpponentName('') }} showShareToggle disabled={!newOpponentName.trim()} />
           </div>
         )}
       </div>
@@ -5475,7 +5475,9 @@ export default function AthleteProfiles() {
                         </div>
                       )}
                     </div>
-                    <PDPTab apData={teamPdpApData} setApData={setTeamPdpApData} student={teamTemplateStudent} isAdmin={isAdmin} />
+                    <PDPTab apData={teamPdpApData} setApData={setTeamPdpApData} student={teamTemplateStudent} isAdmin={isAdmin}
+                      opponentNotes={[]} onAddOpponentNote={() => {}} onToggleOpponentNoteShared={() => {}} onDeleteOpponentNote={() => {}}
+                      newOpponentName="" setNewOpponentName={() => {}} expandedOpponent={null} setExpandedOpponent={() => {}} />
                   </>
                 )}
               </div>
@@ -8863,6 +8865,14 @@ export default function AthleteProfiles() {
                 setApData={setApData}
                 student={selected}
                 isAdmin={isAdmin}
+                opponentNotes={opponentNotes}
+                onAddOpponentNote={addOpponentNote}
+                onToggleOpponentNoteShared={toggleOpponentNoteShared}
+                onDeleteOpponentNote={deleteOpponentNote}
+                newOpponentName={newOpponentName}
+                setNewOpponentName={setNewOpponentName}
+                expandedOpponent={expandedOpponent}
+                setExpandedOpponent={setExpandedOpponent}
               />
             )}
 
