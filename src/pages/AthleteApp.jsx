@@ -3615,38 +3615,28 @@ export default function AthleteApp() {
                 ))}
               </div>
 
-              {/* Opponents -- shared coach notes + the athlete's own,
-                  read-only for shared coach notes, can add their own.
-                  Moved here from the bottom of the PDP tab. */}
-              <div className="card" style={{ borderLeft: '3px solid #E24B4A', borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0', marginTop: 8 }}>
-                <h3 style={{ fontSize: 13, fontWeight: 600, color: '#E24B4A', marginBottom: 10 }}>🥊 Opponents</h3>
-                {(() => {
-                  const opponentNames = [...new Set(opponentNotes.map(n => n.opponent_name))].sort()
-                  if (!opponentNames.length) return <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 10 }}>No opponent notes yet.</p>
-                  return opponentNames.map(name => {
-                    const notes = opponentNotes.filter(n => n.opponent_name === name && (n.author_role === 'athlete' || n.is_shared))
-                    if (!notes.length) return null
-                    return (
-                      <div key={name} style={{ marginBottom: 10 }}>
-                        <p style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>{name}</p>
-                        {notes.map(n => (
-                          <div key={n.id} style={{ padding: '5px 0', borderTop: '1px solid var(--border)' }}>
-                            <span style={{ fontSize: 10, fontWeight: 600, color: n.author_role === 'coach' ? '#666' : '#185FA5' }}>
-                              {n.author_role === 'coach' ? '🧑‍🏫 Coach' : '🥋 You'} · {new Date(n.created_at).toLocaleDateString('en-GB')}
-                            </span>
-                            <p style={{ fontSize: 12, margin: '2px 0 0', whiteSpace: 'pre-line' }}>{n.note_text}</p>
-                          </div>
-                        ))}
-                      </div>
-                    )
-                  })
-                })()}
-                <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
-                  <p style={{ fontSize: 11, fontWeight: 600, marginBottom: 6 }}>+ Add a note</p>
-                  <input value={newOpponentName} onChange={e => setNewOpponentName(e.target.value)} placeholder="Opponent name"
-                    style={{ width: '100%', fontSize: 12, marginBottom: 6 }} />
-                  <OpponentQuickNoteForm onSave={text => { addOwnOpponentNote(newOpponentName, text); setNewOpponentName('') }} disabled={!newOpponentName.trim()} />
-                </div>
+              {/* Opponents + Reports -- tiles linking to their own full
+                  screens, instead of Opponents being a large card
+                  embedded directly in the Home tab. */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginTop: 8, marginBottom: 8 }}>
+                <button onClick={() => setTab('opponents')} style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                  padding: '14px 8px', background: '#E24B4A12',
+                  border: '1px solid #E24B4A30', borderRadius: 'var(--border-radius-lg)',
+                  cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                }}>
+                  <span style={{ fontSize: 24 }}>🥊</span>
+                  <span style={{ fontSize: 12, fontWeight: 500, color: '#E24B4A' }}>Opponents</span>
+                </button>
+                <button onClick={() => setTab('reports')} style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                  padding: '14px 8px', background: '#378ADD12',
+                  border: '1px solid #378ADD30', borderRadius: 'var(--border-radius-lg)',
+                  cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                }}>
+                  <span style={{ fontSize: 24 }}>📄</span>
+                  <span style={{ fontSize: 12, fontWeight: 500, color: '#378ADD' }}>Reports</span>
+                </button>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8 }}>
@@ -4265,6 +4255,43 @@ export default function AthleteApp() {
       )}
 
       {/* ── Media ── */}
+      {/* ── Opponents (moved out from being an inline card on Home) ── */}
+      {tab === 'opponents' && (
+        <div>
+          <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
+          <div className="card" style={{ borderLeft: '3px solid #E24B4A', borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0' }}>
+            <h3 style={{ fontSize: 13, fontWeight: 600, color: '#E24B4A', marginBottom: 10 }}>🥊 Opponents</h3>
+            {(() => {
+              const opponentNames = [...new Set(opponentNotes.map(n => n.opponent_name))].sort()
+              if (!opponentNames.length) return <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 10 }}>No opponent notes yet.</p>
+              return opponentNames.map(name => {
+                const notes = opponentNotes.filter(n => n.opponent_name === name && (n.author_role === 'athlete' || n.is_shared))
+                if (!notes.length) return null
+                return (
+                  <div key={name} style={{ marginBottom: 10 }}>
+                    <p style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>{name}</p>
+                    {notes.map(n => (
+                      <div key={n.id} style={{ padding: '5px 0', borderTop: '1px solid var(--border)' }}>
+                        <span style={{ fontSize: 10, fontWeight: 600, color: n.author_role === 'coach' ? '#666' : '#185FA5' }}>
+                          {n.author_role === 'coach' ? '🧑‍🏫 Coach' : '🥋 You'} · {new Date(n.created_at).toLocaleDateString('en-GB')}
+                        </span>
+                        <p style={{ fontSize: 12, margin: '2px 0 0', whiteSpace: 'pre-line' }}>{n.note_text}</p>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })
+            })()}
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+              <p style={{ fontSize: 11, fontWeight: 600, marginBottom: 6 }}>+ Add a note</p>
+              <input value={newOpponentName} onChange={e => setNewOpponentName(e.target.value)} placeholder="Opponent name"
+                style={{ width: '100%', fontSize: 12, marginBottom: 6 }} />
+              <OpponentQuickNoteForm onSave={text => { addOwnOpponentNote(newOpponentName, text); setNewOpponentName('') }} disabled={!newOpponentName.trim()} />
+            </div>
+          </div>
+        </div>
+      )}
+
       {tab === 'media' && (
         <div>
           <div className="card" style={{ marginBottom: 12 }}>
