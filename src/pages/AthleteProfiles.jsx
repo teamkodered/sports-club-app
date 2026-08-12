@@ -965,6 +965,8 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
   const [pdpHistory, setPdpHistory] = useState([]) // for undo
   const [editSectionMeta, setEditSectionMeta] = useState(null) // {key, label, colour}
   const [clipboard, setClipboard] = useState(null)
+  const [editingItemIndex, setEditingItemIndex] = useState(null)
+  const [editingItemDraft, setEditingItemDraft] = useState('')
   const [selectedItems, setSelectedItems] = useState([]) // multi-select indices
   const [selectionAnchor, setSelectionAnchor] = useState(null) // last plain/ctrl-clicked index, for shift-click ranges
   const pillClickTimer = useRef(null)
@@ -1566,7 +1568,32 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
                   }}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', background: isSel ? col+'35' : col+'15', color: col, border: `${isSel?2:1}px solid ${col}${isSel?'':'30'}`, borderRadius: 8, padding: '6px 10px', fontSize: 12, cursor: 'grab', userSelect: 'none' }}>
                   <span style={{ fontSize: 12, opacity: 0.5 }}>⠿</span>
-                  <span style={{ flex: 1, wordBreak: 'break-word' }}>{item}</span>
+                  {editingItemIndex === i ? (
+                    <input
+                      autoFocus
+                      value={editingItemDraft}
+                      onChange={e => setEditingItemDraft(e.target.value)}
+                      onClick={e => e.stopPropagation()}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          setEditItems(prev => prev.map((it, j) => j === i ? editingItemDraft : it))
+                          setEditingItemIndex(null)
+                        } else if (e.key === 'Escape') {
+                          setEditingItemIndex(null)
+                        }
+                      }}
+                      onBlur={() => {
+                        setEditItems(prev => prev.map((it, j) => j === i ? editingItemDraft : it))
+                        setEditingItemIndex(null)
+                      }}
+                      style={{ flex: 1, fontSize: 12, padding: '2px 4px', border: `1px solid ${col}`, borderRadius: 4, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)' }}
+                    />
+                  ) : (
+                    <span style={{ flex: 1, wordBreak: 'break-word' }}>{item}</span>
+                  )}
+                  <button title="Edit" onClick={e => { e.stopPropagation(); setEditingItemIndex(i); setEditingItemDraft(item) }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, opacity: 0.6, padding: '0 2px' }}>✏️</button>
                   <button title="Cut (Ctrl+X)" onClick={e => { e.stopPropagation(); const sel = selectedItems.includes(i) ? selectedItems : [i]; setClipboard(sel.map(idx=>editItems[idx])); setEditItems(prev => prev.filter((_,j)=>!sel.includes(j))); setSelectedItems([]) }}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, opacity: 0.6, padding: '0 2px' }}>✂</button>
                   <button title="Copy (Ctrl+C)" onClick={e => { e.stopPropagation(); const sel = selectedItems.includes(i) ? selectedItems : [i]; setClipboard(sel.map(idx=>editItems[idx])); setSelectedItems(sel) }}
