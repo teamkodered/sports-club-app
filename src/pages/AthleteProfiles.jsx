@@ -10015,33 +10015,16 @@ export default function AthleteProfiles() {
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {notesLog.map(note => (
-                      <div key={note.id} className="card">
+                      <div key={note.id} className="card" onClick={() => { setEditingNoteId(note.id); setEditingNoteText(note.note_text) }} style={{ cursor: 'pointer' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                           <div style={{ flex: 1 }}>
                             <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>
                               {new Date(note.logged_at).toLocaleDateString('en-GB')} · {new Date(note.logged_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                             </div>
-                            {editingNoteId === note.id ? (
-                              <div>
-                                <textarea value={editingNoteText} onChange={e => setEditingNoteText(e.target.value)} rows={2} autoFocus
-                                  style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 6 }} />
-                                <div style={{ display: 'flex', gap: 6 }}>
-                                  <button className="btn btn-sm btn-primary" onClick={() => updateNote(note.id, editingNoteText)}>Save</button>
-                                  <button className="btn btn-sm" onClick={() => setEditingNoteId(null)}>Cancel</button>
-                                </div>
-                              </div>
-                            ) : (
-                              <p style={{ fontSize: 13, lineHeight: 1.5, margin: 0, whiteSpace: 'pre-line' }}>{note.note_text}</p>
-                            )}
+                            <p style={{ fontSize: 13, lineHeight: 1.5, margin: 0, whiteSpace: 'pre-line' }}>{note.note_text}</p>
                           </div>
-                          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                            {editingNoteId !== note.id && (
-                              <button onClick={() => { setEditingNoteId(note.id); setEditingNoteText(note.note_text) }} title="Edit note"
-                                style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 13 }}>✎</button>
-                            )}
-                            <button onClick={() => deleteNote(note.id)} title="Delete note"
-                              style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 16 }}>×</button>
-                          </div>
+                          <button onClick={e => { e.stopPropagation(); deleteNote(note.id) }} title="Delete note"
+                            style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 16, flexShrink: 0 }}>×</button>
                         </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
                           <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Send to:</span>
@@ -10049,7 +10032,7 @@ export default function AthleteProfiles() {
                             const sent = (note.sent_to || []).includes(label)
                             return (
                               <button key={label} className="btn btn-sm" disabled={sent}
-                                onClick={() => sendNoteToPdpCategory(note, label)}
+                                onClick={e => { e.stopPropagation(); sendNoteToPdpCategory(note, label) }}
                                 style={{ fontSize: 11, opacity: sent ? 0.5 : 1 }}
                                 title={sent ? `Already sent to ${label}` : `Send to ${label}`}>
                                 {sent ? `✓ ${label}` : label}
@@ -10063,6 +10046,42 @@ export default function AthleteProfiles() {
                 )}
               </div>
             )}
+
+            {editingNoteId && (() => {
+              const note = notesLog.find(n => n.id === editingNoteId)
+              if (!note) return null
+              return (
+                <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 200, display: 'flex', flexDirection: 'column', padding: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                    <button onClick={() => setEditingNoteId(null)} className="btn btn-sm">← Back</button>
+                    <h2 style={{ fontSize: 15, fontWeight: 600 }}>{new Date(note.logged_at).toLocaleDateString('en-GB')}</h2>
+                  </div>
+                  <textarea autoFocus value={editingNoteText} onChange={e => setEditingNoteText(e.target.value)}
+                    style={{ flex: 1, width: '100%', padding: 14, border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 15, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'none', marginBottom: 14 }} />
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginBottom: 14 }}>
+                    <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Send to:</span>
+                    {Object.keys(NOTE_PDP_TARGETS).map(label => {
+                      const sent = (note.sent_to || []).includes(label)
+                      return (
+                        <button key={label} className="btn btn-sm" disabled={sent}
+                          onClick={() => sendNoteToPdpCategory(note, label)}
+                          style={{ fontSize: 11, opacity: sent ? 0.5 : 1 }}
+                          title={sent ? `Already sent to ${label}` : `Send to ${label}`}>
+                          {sent ? `✓ ${label}` : label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setEditingNoteId(null)}>Cancel</button>
+                    <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} disabled={!editingNoteText.trim() || savingNote}
+                      onClick={() => updateNote(note.id, editingNoteText)}>
+                      {savingNote ? 'Saving…' : 'Save'}
+                    </button>
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* ── Report tab ── */}
             {tab === 'report' && (

@@ -894,6 +894,8 @@ export default function AthleteApp() {
   const [whoopSessions, setWhoopSessions] = useState([])
   const [newNoteText, setNewNoteText] = useState('')
   const [showFullscreenNoteComposer, setShowFullscreenNoteComposer] = useState(false)
+  const [openNoteId, setOpenNoteId] = useState(null) // which existing note is open full-screen (view/edit), or null
+  const [openNoteDraft, setOpenNoteDraft] = useState('')
   const [savingNote, setSavingNote] = useState(false)
   const [myChartPopup, setMyChartPopup] = useState(null)
   const [highlightedMyEntryId, setHighlightedMyEntryId] = useState(null)
@@ -1351,6 +1353,16 @@ export default function AthleteApp() {
     const { error } = await supabase.from('athlete_notes_log').delete().eq('id', noteId)
     if (error) { alert('Error deleting note: ' + error.message); return }
     setMyNotesLog(prev => prev.filter(n => n.id !== noteId))
+  }
+
+  async function updateNote(noteId, text) {
+    if (!text.trim()) return
+    setSavingNote(true)
+    const { error } = await supabase.from('athlete_notes_log').update({ note_text: text.trim() }).eq('id', noteId)
+    setSavingNote(false)
+    if (error) { alert('Error saving note: ' + error.message); return }
+    setMyNotesLog(prev => prev.map(n => n.id === noteId ? { ...n, note_text: text.trim() } : n))
+    setOpenNoteId(null)
   }
 
   async function quickLogStretch() {
@@ -4128,7 +4140,7 @@ export default function AthleteApp() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {myNotesLog.map(note => (
-                <div key={note.id} className="card">
+                <div key={note.id} className="card" onClick={() => { setOpenNoteId(note.id); setOpenNoteDraft(note.note_text) }} style={{ cursor: 'pointer' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
                       <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>
@@ -4136,7 +4148,7 @@ export default function AthleteApp() {
                       </div>
                       <p style={{ fontSize: 13, lineHeight: 1.5, margin: 0, whiteSpace: 'pre-line' }}>{note.note_text}</p>
                     </div>
-                    <button onClick={() => deleteNote(note.id)} title="Delete note"
+                    <button onClick={e => { e.stopPropagation(); deleteNote(note.id) }} title="Delete note"
                       style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 16, flexShrink: 0 }}>×</button>
                   </div>
                 </div>
@@ -4161,6 +4173,28 @@ export default function AthleteApp() {
           </button>
         </div>
       )}
+
+      {openNoteId && (() => {
+        const note = myNotesLog.find(n => n.id === openNoteId)
+        if (!note) return null
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 200, display: 'flex', flexDirection: 'column', padding: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+              <button onClick={() => setOpenNoteId(null)} className="btn btn-sm">← Back</button>
+              <h2 style={{ fontSize: 15, fontWeight: 600 }}>{new Date(note.logged_at).toLocaleDateString('en-GB')}</h2>
+            </div>
+            <textarea autoFocus value={openNoteDraft} onChange={e => setOpenNoteDraft(e.target.value)}
+              style={{ flex: 1, width: '100%', padding: 14, border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 15, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'none', marginBottom: 14 }} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setOpenNoteId(null)}>Cancel</button>
+              <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} disabled={!openNoteDraft.trim() || savingNote}
+                onClick={() => updateNote(note.id, openNoteDraft)}>
+                {savingNote ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ── TTP (read-only summary — dedicated form will be integrated better later) ── */}
       {tab === 'tpt' && (
