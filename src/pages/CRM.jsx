@@ -128,10 +128,16 @@ export default function CRM() {
     setActiveUploadId(id)
   }
 
+  async function markSponsored(studentId, sponsored) {
+    const { error } = await supabase.from('students').update({ sponsored }).eq('id', studentId)
+    if (error) { alert('Error updating: ' + error.message); return }
+    setStudents(prev => prev.map(s => s.id === studentId ? { ...s, sponsored } : s))
+  }
+
   async function loadData() {
     setLoading(true)
     const [{ data: s }, { data: pl }] = await Promise.all([
-      supabase.from('students').select('id, student_ref, discipline, class_schedule, members(first_name, last_name, status, email, phone, date_of_birth)'),
+      supabase.from('students').select('id, student_ref, discipline, class_schedule, sponsored, members(first_name, last_name, status, email, phone, date_of_birth)'),
       supabase.from('payer_links').select('*'),
     ])
     setStudents((s || []).filter(x => x.members?.status === 'active'))
@@ -396,8 +402,11 @@ export default function CRM() {
   })
   const matchedStudentIds = new Set(Object.keys(paymentsByStudentId))
   const sortByName = (a, b) => studentFullName(a).localeCompare(studentFullName(b))
-  const unpaidStudents = venueFilteredStudents.filter(s => !matchedStudentIds.has(s.id)).sort(sortByName)
-  const paidStudents = venueFilteredStudents.filter(s => matchedStudentIds.has(s.id)).sort(sortByName)
+  // Sponsored students always count as "paid" -- their fees are covered
+  // another way, so they shouldn't need to appear in every upload to
+  // avoid being chased for payment.
+  const unpaidStudents = venueFilteredStudents.filter(s => !matchedStudentIds.has(s.id) && !s.sponsored).sort(sortByName)
+  const paidStudents = venueFilteredStudents.filter(s => matchedStudentIds.has(s.id) || s.sponsored).sort(sortByName)
 
   async function linkPayment(payment, studentId) {
     // excluded: false explicitly clears any earlier "this isn't right"
@@ -572,27 +581,45 @@ export default function CRM() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {unpaidStudents.length === 0 ? (
                     <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Everyone's paid 🎉</p>
-                  ) : unpaidStudents.map(s => (
+                  ) : unpaidStudents.map(s => {
+                    const email = s.members?.email && !s.members.email.includes('@kr-centre.placeholder') ? s.members.email : null
+                    const phone = s.members?.phone
+                    const msgBody = encodeURIComponent(`Hi ${s.members?.first_name}, just checking in about your membership payment — let us know if there's anything we can help with. Thanks, KR Centre`)
+                    return (
                     <div key={s.id}
                       onDragOver={e => { e.preventDefault(); setDragOverStudentId(s.id) }}
                       onDragLeave={() => setDragOverStudentId(null)}
                       onDrop={e => { e.preventDefault(); if (draggedPayment) linkPayment(draggedPayment, s.id); setDragOverStudentId(null) }}
                       onClick={() => { if (selectedPaymentIdx != null) linkPayment(payments[selectedPaymentIdx], s.id) }}
                       style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
                         padding: '8px 10px', borderRadius: 'var(--radius)', cursor: selectedPaymentIdx != null ? 'pointer' : 'default',
                         background: dragOverStudentId === s.id ? '#1D9E7520' : 'var(--bg-secondary)',
                         border: dragOverStudentId === s.id ? '2px solid #1D9E75' : '1px solid transparent',
                       }}>
-                      <span style={{ fontSize: 13, fontWeight: 600 }}>{studentFullName(s)}</span>
-                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)', marginLeft: 8 }}>{s.student_ref}</span>
+                      <span style={{ minWidth: 0 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600 }}>{studentFullName(s)}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-tertiary)', marginLeft: 8 }}>{s.student_ref}</span>
+                      </span>
+                      <span style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                        <a className="btn btn-sm" style={{ fontSize: 11 }} href={email ? `mailto:${email}?subject=Membership%20payment&body=${msgBody}` : undefined}
+                          onClick={e => { e.stopPropagation(); if (!email) e.preventDefault() }}
+                          title={email || 'No real email on file'}>✉️</a>
+                        <a className="btn btn-sm" style={{ fontSize: 11 }} href={phone ? `sms:${phone.replace(/\s/g,'')}?body=${msgBody}` : undefined}
+                          onClick={e => { e.stopPropagation(); if (!phone) e.preventDefault() }}
+                          title={phone || 'No phone on file'}>📱</a>
+                        <button className="btn btn-sm" style={{ fontSize: 11 }} title="Mark as sponsored -- moves to paid list, won't be chased for payment"
+                          onClick={e => { e.stopPropagation(); markSponsored(s.id, true) }}>🎗️ Sponsored</button>
+                      </span>
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
 
               <div className="card">
                 <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>✅ Paid students ({paidStudents.length})</h3>
-                <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 10 }}>Matched against this upload</p>
+                <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 10 }}>Matched against this upload{paidStudents.some(s => s.sponsored) ? ', plus sponsored students' : ''}</p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {paidStudents.length === 0 ? (
                     <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No matches yet</p>
@@ -603,10 +630,20 @@ export default function CRM() {
                     // it would just re-match immediately anyway.
                     const isManualLink = payment => payerLinks.some(l => normalizeName(l.payer_name) === normalizeName(payment.name) && l.student_id === s.id)
                     return (
-                      <div key={s.id} style={{ padding: '8px 10px', borderRadius: 'var(--radius)', background: '#1D9E7512' }}>
+                      <div key={s.id} style={{ padding: '8px 10px', borderRadius: 'var(--radius)', background: s.sponsored && !matchedStudentIds.has(s.id) ? '#EF9F2712' : '#1D9E7512' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontSize: 13, fontWeight: 600 }}>{studentFullName(s)}</span>
-                          <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{s.student_ref}</span>
+                          <span style={{ fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            {studentFullName(s)}
+                            {s.sponsored && (
+                              <span style={{ fontSize: 10, fontWeight: 600, color: '#EF9F27', background: '#EF9F2720', borderRadius: 10, padding: '1px 8px' }}>🎗️ Sponsored</span>
+                            )}
+                          </span>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{s.student_ref}</span>
+                            {s.sponsored && (
+                              <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }} onClick={() => markSponsored(s.id, false)}>Unmark</button>
+                            )}
+                          </span>
                         </div>
                         {matchedPayments.map(({ payment: p, idx }) => (
                           <div key={idx} style={{ marginTop: 4, paddingTop: 4, borderTop: idx === matchedPayments[0].idx ? '1px solid #1D9E7530' : 'none' }}>
