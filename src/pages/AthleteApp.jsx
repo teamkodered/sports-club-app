@@ -874,6 +874,7 @@ export default function AthleteApp() {
   const [rankList, setRankList] = useState([])
   const [truePointTotals, setTruePointTotals] = useState({})
   const [showContribution, setShowContribution] = useState(false)
+  const [showIndividualPct, setShowIndividualPct] = useState(false)
   // Top detail card: 0 = Name/Club/Age/Level, 1 = House info. Swipe
   // left/right on the card to switch.
   const [headerCardView, setHeaderCardView] = useState(0)
@@ -1988,7 +1989,7 @@ export default function AthleteApp() {
   const shared    = apData?.pdp_shared || {}
   const pdp       = apData?.pdp_notes || {}
 
-  let houseRank = null, houseTotalPoints = null, contributionPct = null, positionInHouse = null, overallPosition = null
+  let houseRank = null, houseTotalPoints = null, contributionPct = null, positionInHouse = null, overallPosition = null, individualPointsPct = null
   try {
     const safeHouses = Array.isArray(houses) ? houses : []
     const safeRankList = Array.isArray(rankList) ? rankList : []
@@ -2004,6 +2005,9 @@ export default function AthleteApp() {
     const safeTotals = truePointTotals || {}
     const overallSorted = [...safeRankList].sort((a, b) => (safeTotals[b?.id] || 0) - (safeTotals[a?.id] || 0))
     overallPosition = student ? overallSorted.findIndex(s => s?.id === student.id) + 1 : null
+    const totalIndividualPoints = safeRankList.reduce((sum, s) => sum + (s?.individual_points || 0), 0)
+    individualPointsPct = (totalIndividualPoints && student?.individual_points)
+      ? ((student.individual_points / totalIndividualPoints) * 100).toFixed(1) : null
   } catch (e) {
     console.error('AthleteApp header calc error:', e)
   }
@@ -2132,7 +2136,12 @@ export default function AthleteApp() {
           if (Math.abs(delta) > 50) { setHeaderCardView(v => delta < 0 ? 1 : 0); headerWasSwipe.current = true }
           headerSwipeStartX.current = null
         }}
-        onClick={() => { if (headerWasSwipe.current) { headerWasSwipe.current = false; return } if (student) setMyProfileExpanded(v => !v) }}>
+        onClick={() => {
+          if (headerWasSwipe.current) { headerWasSwipe.current = false; return }
+          if (!student) return
+          if (headerCardView === 1) { setTab('points'); return }
+          setMyProfileExpanded(v => !v)
+        }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <div style={{ width: 64, height: 64, borderRadius: '50%', background: colour + '22', color: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 700, flexShrink: 0 }}>
             {initials}
@@ -2153,22 +2162,7 @@ export default function AthleteApp() {
                     <span style={{ color: colour, fontWeight: 600 }}>{houseName || '—'}</span>
                     {houseTotalPoints != null && <span style={{ color: 'var(--text-tertiary)' }}>({houseTotalPoints} pts)</span>}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
-                    {positionInHouse > 0 && (
-                      <button onClick={e => { e.stopPropagation(); setShowOverallPos(v => !v) }}
-                        title={showOverallPos ? 'Showing overall position — tap for position in house' : 'Showing position in house — tap for overall position'}
-                        style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-strong)', borderRadius: 20, padding: '3px 10px', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: colour }}>
-                        {showOverallPos ? `#${overallPosition} overall` : `#${positionInHouse} in house`}
-                      </button>
-                    )}
-                    {student.house_points != null && (
-                      <button onClick={e => { e.stopPropagation(); setShowContribution(v => !v) }}
-                        title={showContribution ? 'Showing % contribution to house — tap to show points' : 'Showing house points — tap to show % contribution'}
-                        style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-strong)', borderRadius: 20, padding: '3px 10px', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>
-                        {showContribution ? `${contributionPct ?? 0}% of house` : `⭐ ${student.house_points} pts`}
-                      </button>
-                    )}
-                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>Tap to view your points</div>
                 </>
               )
             ) : (
@@ -2178,8 +2172,11 @@ export default function AthleteApp() {
               </>
             )}
           </div>
-          {student && (
+          {student && headerCardView === 0 && (
             <span style={{ fontSize: 12, color: 'var(--text-tertiary)', flexShrink: 0, alignSelf: 'flex-start', marginTop: 4 }}>{myProfileExpanded ? '▲' : '▼'}</span>
+          )}
+          {student && headerCardView === 1 && (
+            <span style={{ fontSize: 12, color: 'var(--text-tertiary)', flexShrink: 0, alignSelf: 'flex-start', marginTop: 4 }}>→</span>
           )}
         </div>
         {student && (
@@ -5071,14 +5068,16 @@ export default function AthleteApp() {
       {tab === 'points' && (
         <div>
           <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
-            <div className="card" style={{ flex: 1, textAlign: 'center' }}>
-              <div style={{ fontSize: 24, fontWeight: 700, color: colour }}>{student?.house_points || 0}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>House points</div>
-            </div>
-            <div className="card" style={{ flex: 1, textAlign: 'center' }}>
-              <div style={{ fontSize: 24, fontWeight: 700, color: '#1d9e75' }}>{student?.individual_points || 0}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Individual points</div>
-            </div>
+            <button onClick={() => setShowOverallPos(v => !v)} className="card" style={{ flex: 1, textAlign: 'center', cursor: 'pointer', border: 'none', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)' }}
+              title={showOverallPos ? 'Showing overall position — tap for position in house' : 'Showing position in house — tap for overall position'}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: colour }}>{showOverallPos ? `#${overallPosition || '—'}` : `#${positionInHouse || '—'}`}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{showOverallPos ? 'Overall position' : 'Position in house'}</div>
+            </button>
+            <button onClick={() => setShowIndividualPct(v => !v)} className="card" style={{ flex: 1, textAlign: 'center', cursor: 'pointer', border: 'none', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)' }}
+              title={showIndividualPct ? 'Showing % of all individual points — tap to show points' : 'Showing individual points — tap to show % of total'}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: '#1d9e75' }}>{showIndividualPct ? `${individualPointsPct ?? 0}%` : (student?.individual_points || 0)}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{showIndividualPct ? '% of total individual points' : 'Individual points'}</div>
+            </button>
           </div>
           <div className="card" style={{ padding: 0 }}>
             {points.length === 0 ? (
