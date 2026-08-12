@@ -2143,7 +2143,8 @@ export default function AthleteApp() {
           setMyProfileExpanded(v => !v)
         }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <div style={{ width: 64, height: 64, borderRadius: '50%', background: colour + '22', color: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 700, flexShrink: 0 }}>
+          <div onClick={e => { e.stopPropagation(); setTab('home') }}
+            style={{ width: 64, height: 64, borderRadius: '50%', background: colour + '22', color: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 700, flexShrink: 0, cursor: 'pointer' }}>
             {initials}
           </div>
           <div style={{ minWidth: 0, flex: 1 }}>
