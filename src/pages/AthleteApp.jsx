@@ -2248,28 +2248,6 @@ export default function AthleteApp() {
         <div>
           {student ? (
             <>
-              {/* Primary navigation -- these pages used to be reachable
-                  via the tab bar (now removed), so they need cards here
-                  instead. The pages themselves are all unchanged. */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 8 }}>
-                {[
-                  { label: 'Schedule', icon: '📅', colour: '#378ADD', tab: 'sessions' },
-                  { label: 'Results', icon: '💪', colour: '#EF9F27', tab: 'fit2fight' },
-                  { label: 'My PDP', icon: '🎯', colour: '#1D9E75', tab: 'pdp' },
-                  { label: 'Points', icon: '⭐', colour: '#8B5CF6', tab: 'points' },
-                ].map(l => (
-                  <button key={l.label} onClick={() => setTab(l.tab)} style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                    padding: '14px 8px', background: l.colour + '12',
-                    border: `1px solid ${l.colour}30`, borderRadius: 'var(--border-radius-lg)',
-                    cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                  }}>
-                    <span style={{ fontSize: 24 }}>{l.icon}</span>
-                    <span style={{ fontSize: 12, fontWeight: 500, color: l.colour }}>{l.label}</span>
-                  </button>
-                ))}
-              </div>
-
               {(() => {
                try {
                 const sorted = [...sessions].sort((a,b) => new Date(a.session_date) - new Date(b.session_date))
@@ -3406,6 +3384,11 @@ export default function AthleteApp() {
                                     className="btn btn-sm" style={{ background: todaysWellbeing.nutrition?.quality === v ? '#0E9F6E20' : undefined, borderColor: todaysWellbeing.nutrition?.quality === v ? '#0E9F6E' : undefined }}>{v}</button>
                                 ))}
                               </div>
+                            </div>
+                            <div className="field" style={{ marginBottom: 0, marginTop: 12 }}><label>Notes</label>
+                              <textarea key={todaysWellbeing.nutrition ? 'loaded' : 'empty'} rows={2} defaultValue={todaysWellbeing.nutrition?.notes || ''}
+                                onBlur={e => { if (e.target.value !== (todaysWellbeing.nutrition?.notes || '')) saveWellbeingField('nutrition', cur => ({ ...cur, notes: e.target.value })) }}
+                                placeholder="Anything else about today's food…" style={{ resize: 'none', width: '100%' }} />
                             </div>
 
                             <hr style={{ margin: '16px 0', border: 'none', borderTop: '1px solid var(--border)' }} />
