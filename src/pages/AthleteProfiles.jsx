@@ -2399,6 +2399,11 @@ export default function AthleteProfiles() {
   const [otherSessionDraft, setOtherSessionDraft] = useState('')
   const [savingPhysical, setSavingPhysical] = useState(false)
   const [showContribution, setShowContribution] = useState(false)
+  // Top detail card: 0 = Name/Club/Age/Level, 1 = House info. Swipe
+  // left/right on the card itself to switch, independent of the
+  // page-level swipe that navigates between athletes.
+  const [headerCardView, setHeaderCardView] = useState(0)
+  const headerSwipeStartX = useRef(null)
   const [showOverallPos, setShowOverallPos] = useState(false)
   const [belts, setBelts] = useState({ junior: [], senior: [], krba: [] })
   const [selected, setSelected]     = useState(null)
@@ -6288,74 +6293,100 @@ export default function AthleteProfiles() {
               </div>
             </div>
 
-            {/* Athlete header */}
-            <div className="card swipe-zone" style={{ marginBottom: 12, borderLeft: `3px solid ${colour}`, borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0' }}>
+            {/* Athlete header -- two swipeable views (Name/Club/Age/Level,
+                and House info), avatar stays fixed on the left in both.
+                Not part of the page-level swipe-zone (which navigates
+                between athletes) -- this has its own local swipe. */}
+            <div className="card" style={{ marginBottom: 12, borderLeft: `3px solid ${colour}`, borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0' }}
+              onTouchStart={e => { e.stopPropagation(); headerSwipeStartX.current = e.touches[0].clientX }}
+              onTouchEnd={e => {
+                e.stopPropagation()
+                if (headerSwipeStartX.current == null) return
+                const delta = e.changedTouches[0].clientX - headerSwipeStartX.current
+                if (Math.abs(delta) > 50) setHeaderCardView(v => delta < 0 ? 1 : 0)
+                headerSwipeStartX.current = null
+              }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                 <div style={{ width: 64, height: 64, borderRadius: '50%', background: colour + '22', color: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 700, flexShrink: 0 }}>
                   {initials}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {positionInHouse > 0 && (
-                      <button onClick={() => setShowOverallPos(v => !v)}
-                        title={showOverallPos ? 'Showing overall position — click for position in house' : 'Showing position in house — click for overall position'}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 13, fontWeight: 700, color: colour }}>
-                        #{showOverallPos ? overallPosition : positionInHouse}
-                      </button>
-                    )}
-                    <div ref={nameDropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
-                      <button onClick={() => setShowNameDropdown(v => !v)} title="Click to switch athlete"
-                        style={{ fontSize: 21, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-sans)', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        {m?.first_name} {m?.last_name} <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{showNameDropdown ? '▲' : '▼'}</span>
-                      </button>
-                      {showNameDropdown && (
-                        <div className="card" style={{ position: 'absolute', top: '100%', left: 0, zIndex: 20, width: '100%', minWidth: 220, marginTop: 4, padding: 8, maxHeight: 320, overflowY: 'auto' }}>
-                          <input value={nameDropdownSearch} onChange={e => setNameDropdownSearch(e.target.value)}
-                            placeholder="Search athletes…" autoFocus style={{ width: '100%', fontSize: 13, marginBottom: 6 }} />
-                          {athletes
-                            .filter(s => !nameDropdownSearch || `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.toLowerCase().includes(nameDropdownSearch.toLowerCase()))
-                            .map(s => (
-                              <button key={s.id} onClick={() => { selectStudent(s); setShowNameDropdown(false); setNameDropdownSearch('') }}
-                                style={{
-                                  display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', borderRadius: 6, fontSize: 13,
-                                  background: s.id === selected.id ? colour + '15' : 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', fontFamily: 'var(--font-sans)',
-                                }}>
-                                {s.members?.first_name} {s.members?.last_name}
-                              </button>
-                            ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 3 }}>
-                    {selected.discipline}{age ? ` · Age ${age}` : ''}
-                    {selected.pka_belt || selected.krba_level ? ` · ${selected.pka_belt || selected.krba_level}` : ''}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-                    <div style={{
-                      display: 'flex', alignItems: 'center', gap: 6, background: colour + '15',
-                      border: `1px solid ${colour}35`, borderRadius: 20, padding: '4px 12px',
-                    }}>
-                      {houseRank > 0 && (
-                        <span style={{ background: colour, color: '#fff', borderRadius: '50%', width: 18, height: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
-                          {houseRank}
-                        </span>
-                      )}
-                      <span style={{ color: colour, fontWeight: 700, fontSize: 13 }}>{houseName || '—'}</span>
-                      {houseTotalPoints != null && <span style={{ color: colour, fontSize: 12, opacity: 0.75 }}>{houseTotalPoints} pts</span>}
-                    </div>
-                    {selected.house_points != null && (
-                      <button onClick={() => setShowContribution(v => !v)}
-                        title={showContribution ? 'Showing % contribution to house — click to show points' : 'Showing house points — click to show % contribution'}
-                        style={{
-                          background: 'var(--bg-secondary)', border: '1px solid var(--border-strong)', borderRadius: 20,
-                          padding: '4px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)',
-                        }}>
-                        {showContribution ? `${contributionPct ?? 0}% of house` : `⭐ ${selected.house_points} pts`}
-                      </button>
-                    )}
-                  </div>
+                  {headerCardView === 0 ? (
+                    <>
+                      <div ref={nameDropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
+                        <button onClick={() => setShowNameDropdown(v => !v)} title="Click to switch athlete"
+                          style={{ fontSize: 21, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-sans)', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {m?.first_name} {m?.last_name} <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{showNameDropdown ? '▲' : '▼'}</span>
+                        </button>
+                        {showNameDropdown && (
+                          <div className="card" style={{ position: 'absolute', top: '100%', left: 0, zIndex: 20, width: '100%', minWidth: 220, marginTop: 4, padding: 8, maxHeight: 320, overflowY: 'auto' }}
+                            onTouchStart={e => e.stopPropagation()} onTouchEnd={e => e.stopPropagation()}>
+                            <input value={nameDropdownSearch} onChange={e => setNameDropdownSearch(e.target.value)}
+                              placeholder="Search athletes…" autoFocus style={{ width: '100%', fontSize: 13, marginBottom: 6 }} />
+                            {athletes
+                              .filter(s => !nameDropdownSearch || `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.toLowerCase().includes(nameDropdownSearch.toLowerCase()))
+                              .map(s => (
+                                <button key={s.id} onClick={() => { selectStudent(s); setShowNameDropdown(false); setNameDropdownSearch('') }}
+                                  style={{
+                                    display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', borderRadius: 6, fontSize: 13,
+                                    background: s.id === selected.id ? colour + '15' : 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', fontFamily: 'var(--font-sans)',
+                                  }}>
+                                  {s.members?.first_name} {s.members?.last_name}
+                                </button>
+                              ))}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 3 }}>
+                        {selected.discipline}{age ? ` · Age ${age}` : ''}
+                        {selected.pka_belt || selected.krba_level ? ` · ${selected.pka_belt || selected.krba_level}` : ''}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6, background: colour + '15',
+                        border: `1px solid ${colour}35`, borderRadius: 20, padding: '4px 12px', marginBottom: 8,
+                      }}>
+                        {houseRank > 0 && (
+                          <span style={{ background: colour, color: '#fff', borderRadius: '50%', width: 18, height: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
+                            {houseRank}
+                          </span>
+                        )}
+                        <span style={{ color: colour, fontWeight: 700, fontSize: 13 }}>{houseName || '—'}</span>
+                        {houseTotalPoints != null && <span style={{ color: colour, fontSize: 12, opacity: 0.75 }}>{houseTotalPoints} pts</span>}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        {positionInHouse > 0 && (
+                          <button onClick={() => setShowOverallPos(v => !v)}
+                            title={showOverallPos ? 'Showing overall position — click for position in house' : 'Showing position in house — click for overall position'}
+                            style={{
+                              background: 'var(--bg-secondary)', border: '1px solid var(--border-strong)', borderRadius: 20,
+                              padding: '4px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: colour,
+                            }}>
+                            {showOverallPos ? `#${overallPosition} overall` : `#${positionInHouse} in house`}
+                          </button>
+                        )}
+                        {selected.house_points != null && (
+                          <button onClick={() => setShowContribution(v => !v)}
+                            title={showContribution ? 'Showing % contribution to house — click to show points' : 'Showing house points — click to show % contribution'}
+                            style={{
+                              background: 'var(--bg-secondary)', border: '1px solid var(--border-strong)', borderRadius: 20,
+                              padding: '4px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)',
+                            }}>
+                            {showContribution ? `${contributionPct ?? 0}% of house` : `⭐ ${selected.house_points} pts`}
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: 10 }}>
+                {[0, 1].map(v => (
+                  <button key={v} onClick={() => setHeaderCardView(v)}
+                    style={{ width: 6, height: 6, borderRadius: '50%', border: 'none', cursor: 'pointer', padding: 0, background: headerCardView === v ? colour : 'var(--border-strong)' }} />
+                ))}
               </div>
 
               {/* Actions row -- moved below the name/house details so it fits better on mobile */}
