@@ -74,19 +74,26 @@ export default function LeagueViews() {
   useEffect(() => { loadAll() }, [dateFrom, dateTo, classFilter])
 
   // Load saved "show top" selections and date range so the public
-  // league display can mirror whatever is currently set here,
-  // without its own control -- this also fixes the two pages showing
-  // different totals when someone had adjusted the date range here
-  // without the public page knowing about it.
+  // league display can mirror whatever is currently set here, without
+  // its own control. dateFrom is deliberately kept as whatever was
+  // last saved (a season start date shouldn't move on its own), but
+  // dateTo is NOT loaded from the saved value here -- it always stays
+  // "today" locally (its useState default), and gets written back to
+  // settings immediately below so the public page's mirrored cutoff
+  // never goes stale either. Previously dateTo was loaded FROM
+  // settings, which meant whatever date was last saved (e.g. from a
+  // one-off historical look-back) stayed "stuck" as the cutoff on
+  // every future visit, silently excluding anything awarded since.
   useEffect(() => {
-    supabase.from('settings').select('key,value').in('key', ['league_topn_individual', 'league_topn_house', 'league_date_from', 'league_date_to'])
+    supabase.from('settings').select('key,value').in('key', ['league_topn_individual', 'league_topn_house', 'league_date_from'])
       .then(({ data }) => {
         const map = Object.fromEntries((data || []).map(r => [r.key, r.value]))
         if (map.league_topn_individual) setTopN(map.league_topn_individual)
         if (map.league_topn_house) setHouseTopN(map.league_topn_house)
         if (map.league_date_from) setDateFrom(map.league_date_from)
-        if (map.league_date_to) setDateTo(map.league_date_to)
       })
+    const todayStr = new Date().toISOString().split('T')[0]
+    supabase.from('settings').upsert({ key: 'league_date_to', value: todayStr }, { onConflict: 'key' })
   }, [])
 
   async function updateTopN(n) {
