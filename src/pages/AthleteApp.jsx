@@ -896,6 +896,10 @@ export default function AthleteApp() {
   const [showFullscreenNoteComposer, setShowFullscreenNoteComposer] = useState(false)
   const [openNoteId, setOpenNoteId] = useState(null) // which existing note is open full-screen (view/edit), or null
   const [openNoteDraft, setOpenNoteDraft] = useState('')
+  const [dayDetailModal, setDayDetailModal] = useState(null) // dateStr, or null
+  const [sessionNoteModal, setSessionNoteModal] = useState(null) // { dateStr, classId, className, attendanceId } or null
+  const [sessionNoteDraft, setSessionNoteDraft] = useState('')
+  const [savingSessionNote, setSavingSessionNote] = useState(false)
   const [savingNote, setSavingNote] = useState(false)
   const [myChartPopup, setMyChartPopup] = useState(null)
   const [highlightedMyEntryId, setHighlightedMyEntryId] = useState(null)
@@ -1828,6 +1832,43 @@ export default function AthleteApp() {
   async function checkOutNow() {
     setShowWeightCheckPrompt('out')
     setWeightCheckValue('')
+  }
+
+  // Save a note tied to one specific session (a specific class on a
+  // specific date), opened from the calendar's day-detail popup --
+  // reuses the same attendance.note field the coach's own session
+  // notes already use, so a note written here shows up there too.
+  async function saveSessionNoteForModal() {
+    if (!sessionNoteModal?.attendanceId) return
+    setSavingSessionNote(true)
+    const { error } = await supabase.from('attendance').update({ note: sessionNoteDraft }).eq('id', sessionNoteModal.attendanceId)
+    setSavingSessionNote(false)
+    if (error) { alert('Error saving note: ' + error.message); return }
+    setAttendanceData(prev => prev.map(a => a.id === sessionNoteModal.attendanceId ? { ...a, note: sessionNoteDraft } : a))
+  }
+
+  // Checking in directly from the day-detail/session-note panel --
+  // this is for a SPECIFIC known class (picked from that day's
+  // schedule), so it doesn't need the auto-detection checkInNow()
+  // uses for the generic "Check in" button.
+  async function checkInForSessionModal() {
+    if (!sessionNoteModal || !student) return
+    const { data, error } = await supabase.from('attendance').insert({
+      student_id: student.id, present: true, attendance_type: 'attended',
+      session_date: sessionNoteModal.dateStr, attended_at: new Date().toISOString(),
+      self_checked_in: true, class_id: sessionNoteModal.classId,
+    }).select().single()
+    if (error) { alert('Error checking in: ' + error.message); return }
+    setAttendanceData(prev => [...prev, data])
+    setSessionNoteModal(m => ({ ...m, attendanceId: data.id, checkedOutAt: null }))
+  }
+
+  async function checkOutForSessionModal() {
+    if (!sessionNoteModal?.attendanceId) return
+    const { error } = await supabase.from('attendance').update({ checked_out_at: new Date().toISOString() }).eq('id', sessionNoteModal.attendanceId)
+    if (error) { alert('Error checking out: ' + error.message); return }
+    setAttendanceData(prev => prev.map(a => a.id === sessionNoteModal.attendanceId ? { ...a, checked_out_at: new Date().toISOString() } : a))
+    setSessionNoteModal(m => ({ ...m, checkedOutAt: new Date().toISOString() }))
   }
 
   // Backs out of whatever the weight-check prompt was for. For a check-in,
@@ -3834,14 +3875,14 @@ export default function AthleteApp() {
                   const pdpItemsToday = allPdpEntries.filter(e => e.date === dateStr)
                   const eventsToday = clubEvents.filter(e => e.event_date === dateStr)
                   return (
-                    <div key={i}
+                    <div key={i} onClick={() => setDayDetailModal(dateStr)}
                       title={(attended ? 'Attended' : showAsRed ? 'Missed' : (wasTrainingDay && dateStr === todayStr) ? 'Upcoming session — not yet happened' : '')
                         + (classesToday.length ? `\nClass: ${classesToday.map(a => `${a.classes?.name} ${a.classes?.start_time?.slice(0,5)}`).join(', ')}` : '')
                         + (pdpItemsToday.length ? `\nPDP: ${pdpItemsToday.map(e => `${e.item}${e.time ? ` ${e.time}` : ''}`).join(', ')}` : '')
                         + (eventsToday.length ? `\nEvent: ${eventsToday.map(e => `${e.title}${e.event_time ? ` ${e.event_time.slice(0,5)}` : ''}`).join(', ')}` : '')}
                       style={{
                         aspectRatio: '0.85', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        borderRadius: 6, fontSize: 12, background: bg, color: fg, fontFamily: 'var(--font-sans)',
+                        borderRadius: 6, fontSize: 12, background: bg, color: fg, fontFamily: 'var(--font-sans)', cursor: 'pointer',
                         border: !attended && !showAsRed ? '1px solid var(--border)' : 'none', position: 'relative', overflow: 'hidden',
                       }}>
                       <span style={{ position: 'relative', zIndex: 1 }}>{d}</span>
@@ -3871,6 +3912,85 @@ export default function AthleteApp() {
                 <span><span style={{ display: 'inline-block', width: 8, height: 2, background: '#EF9F27', borderRadius: 2, marginRight: 4 }} />Event</span>
               </div>
             </div>
+
+            {dayDetailModal && (() => {
+              const jsDay = new Date(dayDetailModal + 'T12:00:00').getDay()
+              const classesForDay = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay))
+              return (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
+                  onClick={() => setDayDetailModal(null)}>
+                  <div className="card" style={{ width: '100%', maxWidth: 400 }} onClick={e => e.stopPropagation()}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                      <h2 style={{ fontSize: 15, fontWeight: 600 }}>
+                        {new Date(dayDetailModal + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
+                      </h2>
+                      <button onClick={() => setDayDetailModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}>✕</button>
+                    </div>
+                    {classesForDay.length === 0 ? (
+                      <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No sessions scheduled this day.</p>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {classesForDay.map(a => {
+                          const classId = a.classes?.id
+                          const existing = attendanceData.find(att => att.session_date === dayDetailModal && att.class_id === classId)
+                          return (
+                            <button key={classId} onClick={() => {
+                              setSessionNoteModal({ dateStr: dayDetailModal, classId, className: a.classes?.name, attendanceId: existing?.id || null, checkedOutAt: existing?.checked_out_at || null, selfCheckedIn: existing?.self_checked_in || false })
+                              setSessionNoteDraft(existing?.note || '')
+                              setDayDetailModal(null)
+                            }} style={{
+                              display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%',
+                              padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                              background: existing ? '#1D9E7512' : 'var(--bg-secondary)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                            }}>
+                              <span style={{ fontSize: 13, fontWeight: 500 }}>{a.classes?.name} — {a.classes?.start_time?.slice(0, 5)}</span>
+                              <span style={{ fontSize: 11, color: existing ? '#1D9E75' : 'var(--text-tertiary)' }}>{existing ? '✓ Attended' : 'Not checked in'}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
+
+            {sessionNoteModal && (
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
+                onClick={() => setSessionNoteModal(null)}>
+                <div className="card" style={{ width: '100%', maxWidth: 400 }} onClick={e => e.stopPropagation()}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                    <h2 style={{ fontSize: 15, fontWeight: 600 }}>
+                      {sessionNoteModal.className} — {new Date(sessionNoteModal.dateStr + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                    </h2>
+                    <button onClick={() => setSessionNoteModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}>✕</button>
+                  </div>
+                  <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500, display: 'block', marginBottom: 6 }}>
+                    Note for this session
+                  </label>
+                  <textarea rows={4} value={sessionNoteDraft} onChange={e => setSessionNoteDraft(e.target.value)}
+                    placeholder={sessionNoteModal.attendanceId ? 'How did this session go?' : 'Check in first to add a note…'}
+                    disabled={!sessionNoteModal.attendanceId}
+                    style={{ resize: 'none', width: '100%', marginBottom: 10 }} />
+                  {sessionNoteModal.attendanceId && (
+                    <button className="btn btn-primary btn-sm" style={{ marginBottom: 12 }} onClick={saveSessionNoteForModal} disabled={savingSessionNote}>
+                      {savingSessionNote ? 'Saving…' : 'Save note'}
+                    </button>
+                  )}
+                  <div style={{ display: 'flex', gap: 8, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                    {!sessionNoteModal.attendanceId ? (
+                      <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={checkInForSessionModal}>✅ Check in</button>
+                    ) : sessionNoteModal.selfCheckedIn && !sessionNoteModal.checkedOutAt ? (
+                      <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={checkOutForSessionModal}>Check out</button>
+                    ) : (
+                      <span style={{ fontSize: 12, color: 'var(--text-tertiary)', alignSelf: 'center' }}>
+                        {sessionNoteModal.checkedOutAt ? 'Checked out' : 'Already marked present'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="card" style={{ marginBottom: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
