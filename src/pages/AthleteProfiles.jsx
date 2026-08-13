@@ -6442,7 +6442,7 @@ export default function AthleteProfiles() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   {headerCardView === 0 ? (
                     <>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8 }}>
                         <div ref={nameDropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
                           <button onClick={e => { e.stopPropagation(); setShowNameDropdown(v => !v) }} title="Click to switch athlete"
                             style={{ fontSize: 21, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-sans)', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -6467,8 +6467,8 @@ export default function AthleteProfiles() {
                             </div>
                           )}
                         </div>
-                        {selected.is_kr && <img src="/logos/kr-dragon.gif" alt="Kode Red Kickboxing" style={{ height: 36, width: 'auto', flexShrink: 0 }} />}
-                        {selected.discipline === 'KRBA' && <img src="/logos/krba-logo.jpg" alt="Kode Red Boxing Academy" style={{ height: 30, width: 'auto', flexShrink: 0 }} />}
+                        {selected.is_kr && <img src="/logos/kr-dragon.gif" alt="Kode Red Kickboxing" style={{ height: 56, width: 'auto', flexShrink: 0 }} />}
+                        {selected.discipline === 'KRBA' && <img src="/logos/krba-logo.png" alt="Kode Red Boxing Academy" style={{ height: 44, width: 'auto', flexShrink: 0 }} />}
                       </div>
                       <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 3 }}>
                         {selected.discipline}{age ? ` · Age ${age}` : ''}

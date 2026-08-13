@@ -2163,10 +2163,10 @@ export default function AthleteApp() {
             {student ? (
               headerCardView === 0 ? (
                 <>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8 }}>
                     <div style={{ fontSize: 20, fontWeight: 700 }}>{m?.first_name} {m?.last_name}</div>
-                    {student.is_kr && <img src="/logos/kr-dragon.gif" alt="Kode Red Kickboxing" style={{ height: 36, width: 'auto', flexShrink: 0 }} />}
-                    {student.discipline === 'KRBA' && <img src="/logos/krba-logo.jpg" alt="Kode Red Boxing Academy" style={{ height: 30, width: 'auto', flexShrink: 0 }} />}
+                    {student.is_kr && <img src="/logos/kr-dragon.gif" alt="Kode Red Kickboxing" style={{ height: 56, width: 'auto', flexShrink: 0 }} />}
+                    {student.discipline === 'KRBA' && <img src="/logos/krba-logo.png" alt="Kode Red Boxing Academy" style={{ height: 44, width: 'auto', flexShrink: 0 }} />}
                   </div>
                   <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 3 }}>
                     {student.discipline}{age ? ` · Age ${age}` : ''}{student.pka_belt || student.krba_level ? ` · ${student.pka_belt || student.krba_level}` : ''}
