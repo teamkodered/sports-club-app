@@ -7748,12 +7748,20 @@ export default function AthleteProfiles() {
                           <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.eyeTracking?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>drill{(todaysMentalityLog.eyeTracking?.count || 0) === 1 ? '' : 's'} today</span></div>
                           <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
                             onClick={() => saveMentalityField('eyeTracking', cur => ({ count: (cur.count || 0) + 1 }))}>+1 drill</button>
-                          <div className="field" style={{ marginBottom: 0 }}><label>Or write a number to add</label>
+                          <div className="field" style={{ marginBottom: 12 }}><label>Or write a number to add</label>
                             <div style={{ display: 'flex', gap: 6 }}>
                               <input type="number" value={eyeTrackingCustomAdd} onChange={e => setEyeTrackingCustomAdd(e.target.value)} placeholder="e.g. 3" style={{ flex: 1 }} />
                               <button type="button" className="btn btn-sm" disabled={!eyeTrackingCustomAdd}
                                 onClick={() => { saveMentalityField('eyeTracking', cur => ({ count: (cur.count || 0) + parseInt(eyeTrackingCustomAdd || 0) })); setEyeTrackingCustomAdd('') }}>Add</button>
                             </div>
+                          </div>
+                          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+                            <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>Drill videos</p>
+                            <a href="https://youtu.be/bbk_ufmkYdE?si=yGVw8UoERqRE547i" target="_blank" rel="noreferrer"
+                              style={{ display: 'block', fontSize: 12, color: '#378ADD', marginBottom: 4 }}>▶ Eye tracking drill 1</a>
+                            <a href="https://youtu.be/RhdUV4F_ybM?si=xPpDj5Wlu6bNOkVY" target="_blank" rel="noreferrer"
+                              style={{ display: 'block', fontSize: 12, color: '#378ADD', marginBottom: 6 }}>▶ Eye tracking drill 2</a>
+                            <p style={{ fontSize: 11, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>Best performed on a TV</p>
                           </div>
                         </>
                       )}
