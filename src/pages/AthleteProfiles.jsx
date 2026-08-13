@@ -6927,13 +6927,13 @@ export default function AthleteProfiles() {
                   <div ref={physicalSectionRef}>
                   <button type="button" onClick={togglePhysicalSection} style={{
                     width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                    textAlign: 'center', padding: '10px 8px', marginBottom: 8, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                    textAlign: 'center', padding: '16px 12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
                     <CoachSectionProgressBadge sectionKey="physical" />
                     <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, justifyContent: 'center' }}>
-                      <span style={{ fontSize: 18 }}>💪</span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Physical</span>
+                      <span style={{ fontSize: 24 }}>💪</span>
+                      <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Physical</span>
                     </span>
                     <span style={{ fontSize: 11, color: 'var(--text-tertiary)', minWidth: 28, textAlign: 'right' }}>{showPhysicalSection ? '▲' : '▼'}</span>
                   </button>
@@ -6958,13 +6958,13 @@ export default function AthleteProfiles() {
                       const active = expandedHomeRun === cat.key
                       return (
                         <button key={cat.key} type="button" onClick={() => openOnlyPhysicalPanel('run', active ? null : cat.key)} style={{
-                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 8px',
                           borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                           border: `2px solid ${active ? colour : complete ? '#E24B4A' : 'var(--border)'}`,
                           background: complete ? '#E24B4A12' : 'var(--bg-secondary)',
                         }}>
-                          <span style={{ fontSize: 16 }}>{cat.icon}</span>
-                          <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat.label}</span>
+                          <span style={{ fontSize: 22 }}>{cat.icon}</span>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat.label}</span>
                           <CoachQuestionProgressBadge sectionKey="physical" questionLabel={`Running: ${cat.key}`} />
                         </button>
                       )
@@ -7016,13 +7016,13 @@ export default function AthleteProfiles() {
                       const active = expandedHomeWatt === grp.key
                       return (
                         <button key={grp.key} type="button" onClick={() => openOnlyPhysicalPanel('watt', active ? null : grp.key)} style={{
-                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 8px',
                           borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                           border: `2px solid ${active ? colour : complete ? '#378ADD' : 'var(--border)'}`,
                           background: complete ? '#378ADD12' : 'var(--bg-secondary)',
                         }}>
-                          <span style={{ fontSize: 16 }}>{grp.icon}</span>
-                          <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{grp.label}</span>
+                          <span style={{ fontSize: 22 }}>{grp.icon}</span>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{grp.label}</span>
                         </button>
                       )
                     })}
@@ -7085,13 +7085,13 @@ export default function AthleteProfiles() {
                       const active = expandedHomeBodyweight === grp.key
                       return (
                         <button key={grp.key} type="button" onClick={() => openOnlyPhysicalPanel('bodyweight', active ? null : grp.key)} style={{
-                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 8px',
                           borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                           border: `2px solid ${active ? colour : complete ? '#1D9E75' : 'var(--border)'}`,
                           background: complete ? '#1D9E7512' : 'var(--bg-secondary)',
                         }}>
-                          <span style={{ fontSize: 16 }}>{grp.icon}</span>
-                          <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{grp.label}</span>
+                          <span style={{ fontSize: 22 }}>{grp.icon}</span>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{grp.label}</span>
                         </button>
                       )
                     })}
@@ -7159,7 +7159,7 @@ export default function AthleteProfiles() {
                         <button key={i} type="button"
                           onClick={() => { const next = [...todaysStretches]; next[i] = complete ? '' : flow.label; savePhysicalField('stretch_flows', next, setTodaysStretches) }}
                           style={{
-                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px',
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 8px',
                             borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                             border: `2px solid ${complete ? '#EF9F27' : 'var(--border)'}`,
                             background: complete ? '#EF9F2712' : 'var(--bg-secondary)', textAlign: 'left',
@@ -7305,13 +7305,13 @@ export default function AthleteProfiles() {
                   <div ref={techniqueSectionRef}>
                   <button type="button" onClick={() => { setShowTechniqueSection(v => { if (v) setExpandedTechniqueCategory(null); return !v }) }} style={{
                     width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                    textAlign: 'center', padding: '10px 8px', marginBottom: 8, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                    textAlign: 'center', padding: '16px 12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
                     <CoachSectionProgressBadge sectionKey="technique" />
                     <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, justifyContent: 'center' }}>
-                      <span style={{ fontSize: 18 }}>🥊</span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Technique</span>
+                      <span style={{ fontSize: 24 }}>🥊</span>
+                      <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Technique</span>
                     </span>
                     <span style={{ fontSize: 11, color: 'var(--text-tertiary)', minWidth: 28, textAlign: 'right' }}>{showTechniqueSection ? '▲' : '▼'}</span>
                   </button>
@@ -7338,12 +7338,12 @@ export default function AthleteProfiles() {
                             <button key={cat} type="button"
                               onClick={() => setExpandedTechniqueCategory(active ? null : catKey)}
                               style={{
-                                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: active ? '16px 8px' : '10px 6px',
+                                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: active ? '20px 10px' : '14px 8px',
                                 borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                                 border: `2px solid ${active ? '#E24B4A' : count ? '#1D9E75' : 'var(--border)'}`,
                                 background: count ? '#1D9E7512' : 'var(--bg-secondary)',
                               }}>
-                              <span style={{ fontSize: active ? 14 : 9, fontWeight: active ? 700 : 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat}</span>
+                              <span style={{ fontSize: active ? 15 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat}</span>
                               {count > 0 && <span style={{ fontSize: active ? 10 : 8, color: '#1D9E75' }}>{count} selected</span>}
                             </button>
                           )
@@ -7396,13 +7396,13 @@ export default function AthleteProfiles() {
                   <div ref={tacticalSectionRef}>
                   <button type="button" onClick={() => { setShowTacticalSection(v => { if (v) setExpandedTacticalCategory(null); return !v }) }} style={{
                     width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                    textAlign: 'center', padding: '10px 8px', marginBottom: 8, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                    textAlign: 'center', padding: '16px 12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
                     <CoachSectionProgressBadge sectionKey="tactical" />
                     <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, justifyContent: 'center' }}>
-                      <span style={{ fontSize: 18 }}>🧩</span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Tactical</span>
+                      <span style={{ fontSize: 24 }}>🧩</span>
+                      <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Tactical</span>
                     </span>
                     <span style={{ fontSize: 11, color: 'var(--text-tertiary)', minWidth: 28, textAlign: 'right' }}>{showTacticalSection ? '▲' : '▼'}</span>
                   </button>
@@ -7418,13 +7418,13 @@ export default function AthleteProfiles() {
                         const complete = !!todaysMentalityLog.videoAnalysis?.type
                         return (
                           <button key={cat} type="button" onClick={() => setExpandedTacticalCategory(active ? null : cat)} style={{
-                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: active ? '16px 8px' : '10px 6px',
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: active ? '20px 10px' : '14px 8px',
                             borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                             border: `2px solid ${active ? '#E24B4A' : complete ? '#1D9E75' : 'var(--border)'}`,
                             background: complete ? '#1D9E7512' : 'var(--bg-secondary)',
                           }}>
                             <span style={{ fontSize: active ? 20 : 16 }}>🎥</span>
-                            <span style={{ fontSize: active ? 14 : 9, fontWeight: active ? 700 : 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>Video Analysis</span>
+                            <span style={{ fontSize: active ? 15 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>Video Analysis</span>
                           </button>
                         )
                       }
@@ -7435,12 +7435,12 @@ export default function AthleteProfiles() {
                         <button key={cat_} type="button"
                           onClick={() => setExpandedTacticalCategory(active ? null : cat_)}
                           style={{
-                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: active ? '16px 8px' : '10px 6px',
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: active ? '20px 10px' : '14px 8px',
                             borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                             border: `2px solid ${active ? '#E24B4A' : count ? '#1D9E75' : 'var(--border)'}`,
                             background: count ? '#1D9E7512' : 'var(--bg-secondary)',
                           }}>
-                          <span style={{ fontSize: active ? 14 : 9, fontWeight: active ? 700 : 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat_}</span>
+                          <span style={{ fontSize: active ? 15 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat_}</span>
                           {count > 0 && <span style={{ fontSize: active ? 10 : 8, color: '#1D9E75' }}>{count} selected</span>}
                           <CoachQuestionProgressBadge sectionKey="tactical" questionLabel={cat_} />
                         </button>
@@ -7505,13 +7505,13 @@ export default function AthleteProfiles() {
                   <div ref={mentalitySectionRef}>
                   <button type="button" onClick={() => { setShowMentalitySection(v => { if (v) setExpandedHomeMentality(null); return !v }) }} style={{
                     width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                    textAlign: 'center', padding: '10px 8px', marginBottom: 8, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                    textAlign: 'center', padding: '16px 12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
                     <CoachSectionProgressBadge sectionKey="mentality" />
                     <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, justifyContent: 'center' }}>
-                      <span style={{ fontSize: 18 }}>🧠</span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Mentality</span>
+                      <span style={{ fontSize: 24 }}>🧠</span>
+                      <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Mentality</span>
                     </span>
                     <span style={{ fontSize: 11, color: 'var(--text-tertiary)', minWidth: 28, textAlign: 'right' }}>{showMentalitySection ? '▲' : '▼'}</span>
                   </button>
@@ -7526,13 +7526,13 @@ export default function AthleteProfiles() {
                       const active = expandedHomeMentality === q.key
                       return (
                         <button key={q.key} type="button" onClick={() => q.key === 'alterEgo' ? setShowAlterEgoModal(true) : setExpandedHomeMentality(active ? null : q.key)} style={{
-                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: active ? '16px 8px' : '10px 6px',
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: active ? '20px 10px' : '14px 8px',
                           borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                           border: `2px solid ${active ? colour : complete ? '#6D28D9' : 'var(--border)'}`,
                           background: complete ? '#6D28D912' : 'var(--bg-secondary)',
                         }}>
-                          <span style={{ fontSize: active ? 26 : 16 }}>{q.icon}</span>
-                          <span style={{ fontSize: active ? 14 : 9, fontWeight: active ? 700 : 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{q.label}</span>
+                          <span style={{ fontSize: active ? 30 : 20 }}>{q.icon}</span>
+                          <span style={{ fontSize: active ? 15 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{q.label}</span>
                           <CoachQuestionProgressBadge sectionKey="mentality" questionLabel={q.label} />
                         </button>
                       )
@@ -7837,13 +7837,13 @@ export default function AthleteProfiles() {
                   <div ref={wellbeingSectionRef}>
                   <button type="button" onClick={() => { setShowWellbeingSection(v => { if (v) setExpandedHomeWb(null); return !v }) }} style={{
                     width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                    textAlign: 'center', padding: '10px 8px', marginBottom: 8, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                    textAlign: 'center', padding: '16px 12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
                     <CoachSectionProgressBadge sectionKey="wellbeing" />
                     <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, justifyContent: 'center' }}>
-                      <span style={{ fontSize: 18 }}>🌱</span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Wellbeing</span>
+                      <span style={{ fontSize: 24 }}>🌱</span>
+                      <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Wellbeing</span>
                     </span>
                     <span style={{ fontSize: 11, color: 'var(--text-tertiary)', minWidth: 28, textAlign: 'right' }}>{showWellbeingSection ? '▲' : '▼'}</span>
                   </button>
@@ -7858,13 +7858,13 @@ export default function AthleteProfiles() {
                       const active = expandedHomeWb === q.key
                       return (
                         <button key={q.key} type="button" onClick={() => setExpandedHomeWb(active ? null : q.key)} style={{
-                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: active ? '16px 8px' : '10px 6px',
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: active ? '20px 10px' : '14px 8px',
                           borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                           border: `2px solid ${active ? colour : complete ? '#0E9F6E' : 'var(--border)'}`,
                           background: complete ? '#0E9F6E12' : 'var(--bg-secondary)',
                         }}>
-                          <span style={{ fontSize: active ? 26 : 16 }}>{q.icon}</span>
-                          <span style={{ fontSize: active ? 14 : 9, fontWeight: active ? 700 : 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{q.label}</span>
+                          <span style={{ fontSize: active ? 30 : 20 }}>{q.icon}</span>
+                          <span style={{ fontSize: active ? 15 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{q.label}</span>
                           <CoachQuestionProgressBadge sectionKey="wellbeing" questionLabel={q.label} />
                         </button>
                       )
@@ -7922,6 +7922,11 @@ export default function AthleteProfiles() {
                                   className="btn btn-sm" style={{ background: todaysWellbeing.nutrition?.quality === v ? '#0E9F6E20' : undefined, borderColor: todaysWellbeing.nutrition?.quality === v ? '#0E9F6E' : undefined }}>{v}</button>
                               ))}
                             </div>
+                          </div>
+                          <div className="field" style={{ marginBottom: 0, marginTop: 12 }}><label>Notes</label>
+                            <textarea key={todaysWellbeing.nutrition ? 'loaded' : 'empty'} rows={2} defaultValue={todaysWellbeing.nutrition?.notes || ''}
+                              onBlur={e => { if (e.target.value !== (todaysWellbeing.nutrition?.notes || '')) saveWellbeingField('nutrition', cur => ({ ...cur, notes: e.target.value })) }}
+                              placeholder="Anything else about today's food…" style={{ resize: 'none', width: '100%' }} />
                           </div>
 
                           <hr style={{ margin: '16px 0', border: 'none', borderTop: '1px solid var(--border)' }} />
@@ -8088,13 +8093,13 @@ export default function AthleteProfiles() {
                   <div ref={testSectionRef}>
                   <button type="button" onClick={() => { setShowTestSection(v => { if (v) setExpandedHomeTestCategory(null); return !v }) }} style={{
                     width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                    textAlign: 'center', padding: '10px 8px', marginBottom: 8, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                    textAlign: 'center', padding: '16px 12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
                     <CoachSectionProgressBadge sectionKey="test" />
                     <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, justifyContent: 'center' }}>
-                      <span style={{ fontSize: 18 }}>📋</span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Test</span>
+                      <span style={{ fontSize: 24 }}>📋</span>
+                      <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Test</span>
                     </span>
                     <span style={{ fontSize: 11, color: 'var(--text-tertiary)', minWidth: 28, textAlign: 'right' }}>{showTestSection ? '▲' : '▼'}</span>
                   </button>
@@ -8109,13 +8114,13 @@ export default function AthleteProfiles() {
                       const active = expandedHomeTestCategory === cat.key
                       return (
                         <button key={cat.key} type="button" onClick={() => setExpandedHomeTestCategory(active ? null : cat.key)} style={{
-                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: active ? '16px 8px' : '10px 6px',
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: active ? '20px 10px' : '14px 8px',
                           borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                           border: `2px solid ${active ? colour : complete ? '#8B5CF6' : 'var(--border)'}`,
                           background: complete ? '#8B5CF612' : 'var(--bg-secondary)',
                         }}>
-                          <span style={{ fontSize: active ? 26 : 16 }}>{cat.icon}</span>
-                          <span style={{ fontSize: active ? 14 : 9, fontWeight: active ? 700 : 500, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat.label}</span>
+                          <span style={{ fontSize: active ? 30 : 20 }}>{cat.icon}</span>
+                          <span style={{ fontSize: active ? 15 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat.label}</span>
                           <CoachQuestionProgressBadge sectionKey="test" questionLabel={cat.label} />
                         </button>
                       )
