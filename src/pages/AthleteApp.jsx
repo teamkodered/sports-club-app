@@ -2164,12 +2164,14 @@ export default function AthleteApp() {
               headerCardView === 0 ? (
                 <>
                   <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8 }}>
-                    <div style={{ fontSize: 20, fontWeight: 700 }}>{m?.first_name} {m?.last_name}</div>
+                    <div>
+                      <div style={{ fontSize: 20, fontWeight: 700 }}>{m?.first_name} {m?.last_name}</div>
+                      <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 3 }}>
+                        {student.discipline}{age ? ` · Age ${age}` : ''}{student.pka_belt || student.krba_level ? ` · ${student.pka_belt || student.krba_level}` : ''}
+                      </div>
+                    </div>
                     {student.is_kr && <img src="/logos/kr-dragon.gif" alt="Kode Red Kickboxing" style={{ height: 56, width: 'auto', flexShrink: 0 }} />}
                     {student.discipline === 'KRBA' && <img src="/logos/krba-logo.png" alt="Kode Red Boxing Academy" style={{ height: 44, width: 'auto', flexShrink: 0 }} />}
-                  </div>
-                  <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 3 }}>
-                    {student.discipline}{age ? ` · Age ${age}` : ''}{student.pka_belt || student.krba_level ? ` · ${student.pka_belt || student.krba_level}` : ''}
                   </div>
                 </>
               ) : (
@@ -2799,7 +2801,14 @@ export default function AthleteApp() {
                       overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
                       maxHeight: showTechniqueSection ? 8000 : 0, opacity: showTechniqueSection ? 1 : 0,
                     }}>
-                    {TECHNIQUE_STYLES.map(({ style, categories }) => {
+                    {TECHNIQUE_STYLES.filter(({ style }) => {
+                      // KRBA athletes only need Boxing questions, KR
+                      // Kickboxing athletes only need Kickboxing ones --
+                      // any other discipline still sees both, unchanged.
+                      if (student.discipline === 'KRBA') return style === 'Boxing'
+                      if (student.is_kr) return style === 'Kickboxing'
+                      return true
+                    }).map(({ style, categories }) => {
                       const hasActiveInThisStyle = Object.keys(categories).some(cat => expandedTechniqueCategory === `${style}::${cat}`)
                       if (expandedTechniqueCategory && !hasActiveInThisStyle) return null
                       return (

@@ -6443,36 +6443,38 @@ export default function AthleteProfiles() {
                   {headerCardView === 0 ? (
                     <>
                       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8 }}>
-                        <div ref={nameDropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
-                          <button onClick={e => { e.stopPropagation(); setShowNameDropdown(v => !v) }} title="Click to switch athlete"
-                            style={{ fontSize: 21, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-sans)', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                            {m?.first_name} {m?.last_name} <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{showNameDropdown ? '▲' : '▼'}</span>
-                          </button>
-                          {showNameDropdown && (
-                            <div className="card" style={{ position: 'absolute', top: '100%', left: 0, zIndex: 20, width: '100%', minWidth: 220, marginTop: 4, padding: 8, maxHeight: 320, overflowY: 'auto' }}
-                              onTouchStart={e => e.stopPropagation()} onTouchEnd={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
-                              <input value={nameDropdownSearch} onChange={e => setNameDropdownSearch(e.target.value)}
-                                placeholder="Search athletes…" autoFocus style={{ width: '100%', fontSize: 13, marginBottom: 6 }} />
-                              {athletes
-                                .filter(s => !nameDropdownSearch || `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.toLowerCase().includes(nameDropdownSearch.toLowerCase()))
-                                .map(s => (
-                                  <button key={s.id} onClick={e => { e.stopPropagation(); selectStudent(s); setShowNameDropdown(false); setNameDropdownSearch('') }}
-                                    style={{
-                                      display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', borderRadius: 6, fontSize: 13,
-                                      background: s.id === selected.id ? colour + '15' : 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', fontFamily: 'var(--font-sans)',
-                                    }}>
-                                    {s.members?.first_name} {s.members?.last_name}
-                                  </button>
-                                ))}
-                            </div>
-                          )}
+                        <div>
+                          <div ref={nameDropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
+                            <button onClick={e => { e.stopPropagation(); setShowNameDropdown(v => !v) }} title="Click to switch athlete"
+                              style={{ fontSize: 21, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-sans)', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                              {m?.first_name} {m?.last_name} <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{showNameDropdown ? '▲' : '▼'}</span>
+                            </button>
+                            {showNameDropdown && (
+                              <div className="card" style={{ position: 'absolute', top: '100%', left: 0, zIndex: 20, width: '100%', minWidth: 220, marginTop: 4, padding: 8, maxHeight: 320, overflowY: 'auto' }}
+                                onTouchStart={e => e.stopPropagation()} onTouchEnd={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
+                                <input value={nameDropdownSearch} onChange={e => setNameDropdownSearch(e.target.value)}
+                                  placeholder="Search athletes…" autoFocus style={{ width: '100%', fontSize: 13, marginBottom: 6 }} />
+                                {athletes
+                                  .filter(s => !nameDropdownSearch || `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.toLowerCase().includes(nameDropdownSearch.toLowerCase()))
+                                  .map(s => (
+                                    <button key={s.id} onClick={e => { e.stopPropagation(); selectStudent(s); setShowNameDropdown(false); setNameDropdownSearch('') }}
+                                      style={{
+                                        display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', borderRadius: 6, fontSize: 13,
+                                        background: s.id === selected.id ? colour + '15' : 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', fontFamily: 'var(--font-sans)',
+                                      }}>
+                                      {s.members?.first_name} {s.members?.last_name}
+                                    </button>
+                                  ))}
+                              </div>
+                            )}
+                          </div>
+                          <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 3 }}>
+                            {selected.discipline}{age ? ` · Age ${age}` : ''}
+                            {selected.pka_belt || selected.krba_level ? ` · ${selected.pka_belt || selected.krba_level}` : ''}
+                          </div>
                         </div>
                         {selected.is_kr && <img src="/logos/kr-dragon.gif" alt="Kode Red Kickboxing" style={{ height: 56, width: 'auto', flexShrink: 0 }} />}
                         {selected.discipline === 'KRBA' && <img src="/logos/krba-logo.png" alt="Kode Red Boxing Academy" style={{ height: 44, width: 'auto', flexShrink: 0 }} />}
-                      </div>
-                      <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 3 }}>
-                        {selected.discipline}{age ? ` · Age ${age}` : ''}
-                        {selected.pka_belt || selected.krba_level ? ` · ${selected.pka_belt || selected.krba_level}` : ''}
                       </div>
                     </>
                   ) : (
@@ -7448,7 +7450,14 @@ export default function AthleteProfiles() {
                     overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
                     maxHeight: showTechniqueSection ? 8000 : 0, opacity: showTechniqueSection ? 1 : 0,
                   }}>
-                  {TECHNIQUE_STYLES.map(({ style, categories }) => {
+                  {TECHNIQUE_STYLES.filter(({ style }) => {
+                    // KRBA athletes only need Boxing questions, KR
+                    // Kickboxing athletes only need Kickboxing ones --
+                    // any other discipline still sees both, unchanged.
+                    if (selected.discipline === 'KRBA') return style === 'Boxing'
+                    if (selected.is_kr) return style === 'Kickboxing'
+                    return true
+                  }).map(({ style, categories }) => {
                     const hasActiveInThisStyle = Object.keys(categories).some(cat => expandedTechniqueCategory === `${style}::${cat}`)
                     if (expandedTechniqueCategory && !hasActiveInThisStyle) return null
                     return (
