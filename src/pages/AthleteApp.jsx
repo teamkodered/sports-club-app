@@ -867,6 +867,7 @@ export default function AthleteApp() {
   // count, and a PDP completed-actions-per-day count.
   const [sessionsCalendarView, setSessionsCalendarView] = useState('sessions') // 'sessions' | 'f2f' | 'pdp'
   const [opponentNotes, setOpponentNotes] = useState([])
+  const [shedTasks, setShedTasks] = useState([])
   const [newOpponentName, setNewOpponentName] = useState('')
   const [sectionTargets, setSectionTargets] = useState([])
   const [student, setStudent]   = useState(null)
@@ -1218,6 +1219,10 @@ export default function AthleteApp() {
         supabase.from('opponent_notes').select('*').eq('student_id', s.id).order('created_at', { ascending: true })
           .then(({ data, error }) => { if (!error) setOpponentNotes(data || []) })
 
+        // Sweep the Sheds -- tasks a coach has assigned to this athlete
+        supabase.from('shed_tasks').select('*').eq('student_id', s.id).order('assigned_at', { ascending: false })
+          .then(({ data, error }) => { if (!error) setShedTasks(data || []) })
+
         // Every target (section-level AND individual question-level)
         // that could apply to this athlete -- either team-wide or set
         // specifically for them. Used to build the combined done/target
@@ -1289,6 +1294,14 @@ export default function AthleteApp() {
     setApData(a => ({ ...(a || {}), pdp_notes: updated }))
     setEditNote(false)
     setSaving(false)
+  }
+
+  async function toggleShedTask(taskId, completed) {
+    const { error } = await supabase.from('shed_tasks')
+      .update({ completed, completed_at: completed ? new Date().toISOString() : null })
+      .eq('id', taskId)
+    if (error) { alert('Error updating task: ' + error.message); return }
+    setShedTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed, completed_at: completed ? new Date().toISOString() : null } : t))
   }
 
   async function addOwnOpponentNote(opponentName, noteText) {
@@ -3651,6 +3664,27 @@ export default function AthleteApp() {
                   </button>
                 ))}
               </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginTop: 8 }}>
+                <button onClick={() => setTab('sweep')} style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                  padding: '14px 8px', background: '#1D9E7512',
+                  border: '1px solid #1D9E7530', borderRadius: 'var(--border-radius-lg)',
+                  cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                }}>
+                  <span style={{ fontSize: 24 }}>🧹</span>
+                  <span style={{ fontSize: 12, fontWeight: 500, color: '#1D9E75' }}>Sweep the sheds</span>
+                </button>
+                <button onClick={() => setTab('leagues')} style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                  padding: '14px 8px', background: '#8B5CF612',
+                  border: '1px solid #8B5CF630', borderRadius: 'var(--border-radius-lg)',
+                  cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                }}>
+                  <span style={{ fontSize: 24 }}>🏆</span>
+                  <span style={{ fontSize: 12, fontWeight: 500, color: '#8B5CF6' }}>Leagues</span>
+                </button>
+              </div>
                     <div ref={testSectionRef}>
                     <button type="button" onClick={() => { setShowTestSection(v => { if (v) setExpandedHomeTestCategory(null); return !v }) }} style={{
                       width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
@@ -4225,6 +4259,59 @@ export default function AthleteApp() {
       )}
 
       {/* ── Media ── */}
+      {/* ── Sweep the Sheds -- athlete's own assigned tasks ── */}
+      {tab === 'sweep' && (
+        <div>
+          <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
+          <div className="card" style={{ borderLeft: '3px solid #1D9E75', borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0' }}>
+            <h3 style={{ fontSize: 15, fontWeight: 600, color: '#1D9E75', marginBottom: 12 }}>🧹 Sweep the Sheds</h3>
+            {shedTasks.length === 0 ? (
+              <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No tasks assigned right now.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {shedTasks.map(t => (
+                  <label key={t.id} style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px',
+                    borderRadius: 'var(--radius)', background: t.completed ? '#1D9E7512' : 'var(--bg-secondary)',
+                    border: '1px solid var(--border)', cursor: 'pointer',
+                  }}>
+                    <input type="checkbox" checked={t.completed} onChange={e => toggleShedTask(t.id, e.target.checked)} style={{ marginTop: 2 }} />
+                    <span style={{ flex: 1 }}>
+                      <span style={{ fontSize: 14, textDecoration: t.completed ? 'line-through' : 'none', color: t.completed ? 'var(--text-tertiary)' : 'var(--text)' }}>
+                        {t.task_text}
+                      </span>
+                      <span style={{ display: 'block', fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
+                        Assigned {new Date(t.assigned_at).toLocaleDateString('en-GB')}
+                        {t.completed && t.completed_at ? ` · Done ${new Date(t.completed_at).toLocaleDateString('en-GB')}` : ''}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Leagues -- choose House League or Exercise Leagues ── */}
+      {tab === 'leagues' && (
+        <div>
+          <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <a href="/league-public" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 24, color: '#8B5CF6' }}>
+              <div style={{ fontSize: 36, marginBottom: 8 }}>🏠</div>
+              <div style={{ fontWeight: 700, fontSize: 15 }}>House League</div>
+              <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>Points standings by house</div>
+            </a>
+            <a href="/results-public" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 24, color: '#EF9F27' }}>
+              <div style={{ fontSize: 36, marginBottom: 8 }}>🏋️</div>
+              <div style={{ fontWeight: 700, fontSize: 15 }}>Exercise Leagues</div>
+              <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>Fitness results leaderboard</div>
+            </a>
+          </div>
+        </div>
+      )}
+
       {/* ── Opponents (moved out from being an inline card on Home) ── */}
       {tab === 'opponents' && (
         <div>

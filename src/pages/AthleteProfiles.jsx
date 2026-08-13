@@ -1978,6 +1978,12 @@ export default function AthleteProfiles() {
   const navigate = useNavigate()
   const flameHoldTimer = useRef(null)
   const [showQuickLoggerPicker, setShowQuickLoggerPicker] = useState(false)
+  // Sweep the Sheds -- coach assigns a task to any number of athletes
+  // at once, independent of whichever athlete is currently selected.
+  const [newShedTaskText, setNewShedTaskText] = useState('')
+  const [selectedShedAthletes, setSelectedShedAthletes] = useState(new Set())
+  const [shedTasksAll, setShedTasksAll] = useState([])
+  const [assigningShedTask, setAssigningShedTask] = useState(false)
   const [quickLoggerSearch, setQuickLoggerSearch] = useState('')
   const swipeStartX = useRef(null)
   const [isMobileView, setIsMobileView] = useState(() => typeof window !== 'undefined' && window.innerWidth < 900)
@@ -3741,6 +3747,31 @@ export default function AthleteProfiles() {
     const { error } = await supabase.from('opponent_notes').delete().eq('id', noteId)
     if (error) { alert('Error deleting: ' + error.message); return }
     setOpponentNotes(prev => prev.filter(n => n.id !== noteId))
+  }
+
+  async function loadShedTasksAll() {
+    const { data } = await supabase.from('shed_tasks').select('*, students(id, members(first_name, last_name))').order('assigned_at', { ascending: false }).limit(100)
+    setShedTasksAll(data || [])
+  }
+
+  async function assignShedTask() {
+    if (!newShedTaskText.trim() || selectedShedAthletes.size === 0) return
+    setAssigningShedTask(true)
+    const rows = [...selectedShedAthletes].map(studentId => ({
+      student_id: studentId, task_text: newShedTaskText.trim(), assigned_by: profile?.id || null,
+    }))
+    const { error } = await supabase.from('shed_tasks').insert(rows)
+    setAssigningShedTask(false)
+    if (error) { alert('Error assigning task: ' + error.message); return }
+    setNewShedTaskText('')
+    setSelectedShedAthletes(new Set())
+    loadShedTasksAll()
+  }
+
+  async function deleteShedTask(taskId) {
+    const { error } = await supabase.from('shed_tasks').delete().eq('id', taskId)
+    if (error) { alert('Error deleting task: ' + error.message); return }
+    setShedTasksAll(prev => prev.filter(t => t.id !== taskId))
   }
 
   async function deleteNote(noteId) {
@@ -6736,13 +6767,13 @@ export default function AthleteProfiles() {
 
             {/* Tabs */}
             <div className="hide-scrollbar hscroll-area" style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 14, overflowX: 'auto' }}>
-              {['home', 'sessions', 'fit2fight', 'pdp', 'tpt', 'whoop', 'media', 'notes', 'report'].map(t => (
-                <button key={t} onClick={() => setTab(t)} style={{
+              {['home', 'sessions', 'fit2fight', 'pdp', 'tpt', 'whoop', 'sweep', 'leagues', 'media', 'notes', 'report'].map(t => (
+                <button key={t} onClick={() => { setTab(t); if (t === 'sweep') loadShedTasksAll() }} style={{
                   padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
                   borderBottom: `2px solid ${tab === t ? 'var(--text)' : 'transparent'}`,
                   color: tab === t ? 'var(--text)' : 'var(--text-secondary)',
                   fontWeight: tab === t ? 500 : 400, textTransform: 'capitalize', whiteSpace: 'nowrap', flexShrink: 0,
-                }}>{t === 'tpt' ? 'TTP' : t === 'whoop' ? 'Whoop' : t === 'sessions' ? 'Attendance' : t === 'fit2fight' ? 'Fit II Fight' : t}</button>
+                }}>{t === 'tpt' ? 'TTP' : t === 'whoop' ? 'Whoop' : t === 'sessions' ? 'Attendance' : t === 'fit2fight' ? 'Fit II Fight' : t === 'sweep' ? 'Sweep the Sheds' : t}</button>
               ))}
             </div>
 
@@ -8226,6 +8257,27 @@ export default function AthleteProfiles() {
                       <span style={{ fontSize: 24 }}>💪</span>
                       <span style={{ fontSize: 12, fontWeight: 500, color: '#EF9F27' }}>Fit II Fight — log session</span>
                     </a>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 14 }}>
+                    <button onClick={() => { setTab('sweep'); loadShedTasksAll() }} style={{
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                      padding: '14px 8px', background: '#1D9E7512',
+                      border: '1px solid #1D9E7530', borderRadius: 'var(--border-radius-lg)',
+                      cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                    }}>
+                      <span style={{ fontSize: 24 }}>🧹</span>
+                      <span style={{ fontSize: 12, fontWeight: 500, color: '#1D9E75' }}>Sweep the sheds</span>
+                    </button>
+                    <button onClick={() => setTab('leagues')} style={{
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                      padding: '14px 8px', background: '#8B5CF612',
+                      border: '1px solid #8B5CF630', borderRadius: 'var(--border-radius-lg)',
+                      cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                    }}>
+                      <span style={{ fontSize: 24 }}>🏆</span>
+                      <span style={{ fontSize: 12, fontWeight: 500, color: '#8B5CF6' }}>Leagues</span>
+                    </button>
                   </div>
 
                   {/* Opponents -- moved here from the bottom of the PDP
@@ -9998,6 +10050,78 @@ export default function AthleteProfiles() {
 
 
             {/* ── Media tab ── */}
+            {/* ── Sweep the Sheds -- coach assigns tasks to any athletes ── */}
+            {tab === 'sweep' && (
+              <div>
+                <button onClick={() => { setTab('home'); loadShedTasksAll() }} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
+                <div className="card" style={{ marginBottom: 14 }}>
+                  <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>🧹 Assign a task</h2>
+                  <input value={newShedTaskText} onChange={e => setNewShedTaskText(e.target.value)}
+                    placeholder="e.g. Sweep the sheds, tidy the equipment room…" style={{ width: '100%', marginBottom: 12 }} />
+                  <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>
+                    Assign to ({selectedShedAthletes.size} selected):
+                  </p>
+                  <div style={{ maxHeight: 280, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 8, marginBottom: 12 }}>
+                    {athletes.map(s => (
+                      <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 4px', cursor: 'pointer', fontSize: 13 }}>
+                        <input type="checkbox" checked={selectedShedAthletes.has(s.id)}
+                          onChange={() => setSelectedShedAthletes(prev => {
+                            const next = new Set(prev)
+                            next.has(s.id) ? next.delete(s.id) : next.add(s.id)
+                            return next
+                          })} />
+                        {s.members?.first_name} {s.members?.last_name}
+                      </label>
+                    ))}
+                  </div>
+                  <button className="btn btn-primary" disabled={!newShedTaskText.trim() || selectedShedAthletes.size === 0 || assigningShedTask} onClick={assignShedTask}>
+                    {assigningShedTask ? 'Assigning…' : `Assign to ${selectedShedAthletes.size || ''} athlete${selectedShedAthletes.size === 1 ? '' : 's'}`}
+                  </button>
+                </div>
+
+                <div className="card">
+                  <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Recently assigned</h2>
+                  {shedTasksAll.length === 0 ? (
+                    <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No tasks assigned yet.</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {shedTasksAll.map(t => (
+                        <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', borderRadius: 'var(--radius)', background: t.completed ? '#1D9E7512' : 'var(--bg-secondary)' }}>
+                          <span>
+                            <span style={{ fontSize: 13, fontWeight: 600 }}>{t.students?.members?.first_name} {t.students?.members?.last_name}</span>
+                            <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginLeft: 8 }}>{t.task_text}</span>
+                            <span style={{ display: 'block', fontSize: 11, color: t.completed ? '#1D9E75' : 'var(--text-tertiary)' }}>
+                              {t.completed ? `✓ Done ${new Date(t.completed_at).toLocaleDateString('en-GB')}` : 'Not done yet'}
+                            </span>
+                          </span>
+                          <button onClick={() => deleteShedTask(t.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 16 }}>×</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ── Leagues -- choose House League or Exercise Leagues ── */}
+            {tab === 'leagues' && (
+              <div>
+                <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <a href="/league-public" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 24, color: '#8B5CF6' }}>
+                    <div style={{ fontSize: 36, marginBottom: 8 }}>🏠</div>
+                    <div style={{ fontWeight: 700, fontSize: 15 }}>House League</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>Points standings by house</div>
+                  </a>
+                  <a href="/results-public" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 24, color: '#EF9F27' }}>
+                    <div style={{ fontSize: 36, marginBottom: 8 }}>🏋️</div>
+                    <div style={{ fontWeight: 700, fontSize: 15 }}>Exercise Leagues</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>Fitness results leaderboard</div>
+                  </a>
+                </div>
+              </div>
+            )}
+
             {tab === 'media' && (
               <div>
                 <div className="card" style={{ marginBottom: 12 }}>
