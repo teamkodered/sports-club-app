@@ -41,6 +41,12 @@ export default function CRM() {
   const [pastUploads, setPastUploads] = useState([]) // [{ id, uploaded_at, filename }] -- history list, not the full payments
   const [activeUploadId, setActiveUploadId] = useState(null) // which past upload (if any) is currently loaded
   const [lastAction, setLastAction] = useState(null) // { label, undo } -- covers every undoable action on this page, not just dismiss
+  const [unmatchedSearch, setUnmatchedSearch] = useState('')
+  const [unpaidSearch, setUnpaidSearch] = useState('')
+  const [paidSearch, setPaidSearch] = useState('')
+  const [addingNoteForStudent, setAddingNoteForStudent] = useState(null) // student object, or null
+  const [quickNoteDraft, setQuickNoteDraft] = useState('')
+  const [savingQuickNote, setSavingQuickNote] = useState(false)
   const [loading, setLoading] = useState(false)
   const [draggedPayment, setDraggedPayment] = useState(null)
   const [dragOverStudentId, setDragOverStudentId] = useState(null)
@@ -128,6 +134,18 @@ export default function CRM() {
     setSelectedPaymentIdx(null)
     setActiveUploadId(id)
     setLastAction(null)
+  }
+
+  async function saveQuickNote() {
+    if (!addingNoteForStudent || !quickNoteDraft.trim()) return
+    setSavingQuickNote(true)
+    const { error } = await supabase.from('athlete_notes_log').insert({
+      student_id: addingNoteForStudent.id, note_text: quickNoteDraft.trim(),
+    })
+    setSavingQuickNote(false)
+    if (error) { alert('Error saving note: ' + error.message); return }
+    setAddingNoteForStudent(null)
+    setQuickNoteDraft('')
   }
 
   async function markSponsored(studentId, sponsored) {
@@ -389,7 +407,14 @@ export default function CRM() {
       if (!fw.length || !lw.length) return false
       return fw.every(w => namePartPresent(w, paymentWordSet)) && lw.every(w => namePartPresent(w, paymentWordSet))
     }))
-    if (nameCandidates.length === 1) return [nameCandidates[0].id]
+    // A full first+last name match is a strong, reliable signal on its
+    // own -- finding it for MORE than one student just means a family
+    // payment genuinely covering several siblings (e.g. "Smith Family -
+    // John and Jane Smith"), not an ambiguous guess. All of them get
+    // matched automatically. The looser surname-only/first-name-only
+    // fallbacks below stay conservative and single-match-only, since
+    // those are weaker signals where ambiguity really does mean "don't guess".
+    if (nameCandidates.length >= 1) return nameCandidates.map(s => s.id)
 
     if (!nameCandidates.length) {
       const surnameCandidates = []
@@ -620,10 +645,12 @@ export default function CRM() {
                 <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 10 }}>
                   Drag onto a student, or click one here then click a student, to link them
                 </p>
+                <input value={unmatchedSearch} onChange={e => setUnmatchedSearch(e.target.value)} placeholder="Search…"
+                  style={{ width: '100%', fontSize: 12, marginBottom: 10 }} />
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {unmatchedPayments.length === 0 ? (
-                    <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Everything matched 🎉</p>
-                  ) : unmatchedPayments.map(({ payment: p, idx }) => (
+                  {unmatchedPayments.filter(({ payment: p }) => !unmatchedSearch || p.name.toLowerCase().includes(unmatchedSearch.toLowerCase())).length === 0 ? (
+                    <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{unmatchedSearch ? 'No matches' : 'Everything matched 🎉'}</p>
+                  ) : unmatchedPayments.filter(({ payment: p }) => !unmatchedSearch || p.name.toLowerCase().includes(unmatchedSearch.toLowerCase())).map(({ payment: p, idx }) => (
                     <div key={idx} draggable
                       onDragStart={() => setDraggedPayment(p)} onDragEnd={() => setDraggedPayment(null)}
                       onClick={() => setSelectedPaymentIdx(selectedPaymentIdx === idx ? null : idx)}
@@ -655,10 +682,12 @@ export default function CRM() {
                 <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 10 }}>
                   {selectedPaymentIdx != null ? 'Click a student to link the selected payment' : 'Drop an unmatched payment here to link'}
                 </p>
+                <input value={unpaidSearch} onChange={e => setUnpaidSearch(e.target.value)} placeholder="Search…"
+                  style={{ width: '100%', fontSize: 12, marginBottom: 10 }} />
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {unpaidStudents.length === 0 ? (
-                    <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Everyone's paid 🎉</p>
-                  ) : unpaidStudents.map(s => {
+                  {unpaidStudents.filter(s => !unpaidSearch || studentFullName(s).toLowerCase().includes(unpaidSearch.toLowerCase())).length === 0 ? (
+                    <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{unpaidSearch ? 'No matches' : "Everyone's paid 🎉"}</p>
+                  ) : unpaidStudents.filter(s => !unpaidSearch || studentFullName(s).toLowerCase().includes(unpaidSearch.toLowerCase())).map(s => {
                     const email = s.members?.email && !s.members.email.includes('@kr-centre.placeholder') ? s.members.email : null
                     const phone = s.members?.phone
                     const msgBody = encodeURIComponent(`Hi ${s.members?.first_name}, just checking in about your membership payment — let us know if there's anything we can help with. Thanks, KR Centre`)
@@ -685,6 +714,8 @@ export default function CRM() {
                         <a className="btn btn-sm" style={{ fontSize: 11 }} href={phone ? `sms:${phone.replace(/\s/g,'')}?body=${msgBody}` : undefined}
                           onClick={e => { e.stopPropagation(); if (!phone) e.preventDefault() }}
                           title={phone || 'No phone on file'}>📱</a>
+                        <button className="btn btn-sm" style={{ fontSize: 11 }} title="Add a note about this student"
+                          onClick={e => { e.stopPropagation(); setAddingNoteForStudent(s); setQuickNoteDraft('') }}>📝</button>
                         <button className="btn btn-sm" style={{ fontSize: 11 }} title="Mark as sponsored -- moves to paid list, won't be chased for payment"
                           onClick={e => { e.stopPropagation(); markSponsored(s.id, true) }}>🎗️ Sponsored</button>
                       </span>
@@ -697,10 +728,12 @@ export default function CRM() {
               <div className="card">
                 <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>✅ Paid students ({paidStudents.length})</h3>
                 <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 10 }}>Matched against this upload{paidStudents.some(s => s.sponsored) ? ', plus sponsored students' : ''}</p>
+                <input value={paidSearch} onChange={e => setPaidSearch(e.target.value)} placeholder="Search…"
+                  style={{ width: '100%', fontSize: 12, marginBottom: 10 }} />
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {paidStudents.length === 0 ? (
-                    <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No matches yet</p>
-                  ) : paidStudents.map(s => {
+                  {paidStudents.filter(s => !paidSearch || studentFullName(s).toLowerCase().includes(paidSearch.toLowerCase())).length === 0 ? (
+                    <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{paidSearch ? 'No matches' : 'No matches yet'}</p>
+                  ) : paidStudents.filter(s => !paidSearch || studentFullName(s).toLowerCase().includes(paidSearch.toLowerCase())).map(s => {
                     const matchedPayments = paymentsByStudentId[s.id] || []
                     // Only manually-created payer_links can be unlinked --
                     // a direct name match has nothing stored to remove,
@@ -1035,6 +1068,24 @@ export default function CRM() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {addingNoteForStudent && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
+          onClick={() => setAddingNoteForStudent(null)}>
+          <div className="card" style={{ width: '100%', maxWidth: 380 }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 10 }}>📝 Note for {studentFullName(addingNoteForStudent)}</h3>
+            <textarea value={quickNoteDraft} onChange={e => setQuickNoteDraft(e.target.value)} rows={4} autoFocus
+              placeholder="e.g. Spoke to parent, payment coming next week…"
+              style={{ width: '100%', marginBottom: 12, resize: 'none' }} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-primary" disabled={!quickNoteDraft.trim() || savingQuickNote} onClick={saveQuickNote}>
+                {savingQuickNote ? 'Saving…' : 'Save note'}
+              </button>
+              <button className="btn" onClick={() => setAddingNoteForStudent(null)}>Cancel</button>
+            </div>
+          </div>
         </div>
       )}
     </div>
