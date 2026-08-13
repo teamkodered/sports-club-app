@@ -242,10 +242,21 @@ export default function Forms() {
     setResponses([])
     const { data } = await supabase
       .from('membership_forms')
-      .select('*')
+      .select('*, members(students(media_restriction))')
       .eq('form_type', form.key)
       .order('submitted_at', { ascending: false })
-    setResponses(data || [])
+    // Flatten the joined media_restriction up to the top level and drop
+    // the nested "members" object -- both the on-screen response viewer
+    // and the print view render every field generically with
+    // Object.entries(), which would otherwise show the raw nested
+    // object instead of a clean "Media permission" row.
+    const flattened = (data || []).map(r => {
+      const studentsData = r.members?.students
+      const mediaRestriction = Array.isArray(studentsData) ? studentsData[0]?.media_restriction : studentsData?.media_restriction
+      const { members, ...rest } = r
+      return { ...rest, media_permission: mediaRestriction === 'Yes' ? 'Yes' : mediaRestriction === 'No' ? 'No' : null }
+    })
+    setResponses(flattened)
     setResponsesLoading(false)
   }
 
