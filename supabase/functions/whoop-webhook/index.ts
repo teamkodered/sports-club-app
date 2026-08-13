@@ -15,7 +15,10 @@
 // your webhook endpoint.
 //
 // Required secrets: WHOOP_CLIENT_ID, WHOOP_CLIENT_SECRET,
-//   WHOOP_WEBHOOK_SECRET, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+//   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+// (Whoop doesn't issue a separate webhook signing secret -- it signs
+// webhook payloads with your Client Secret, so that's reused here for
+// signature verification too.)
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { refreshWhoopToken, fetchWhoopWorkout, mapWhoopWorkoutToSession } from '../_shared/whoop-client.ts'
@@ -35,7 +38,17 @@ Deno.serve(async (req) => {
   try {
     const rawBody = await req.text()
     const signature = req.headers.get('X-WHOOP-Signature') || req.headers.get('x-whoop-signature')
-    const webhookSecret = Deno.env.get('WHOOP_WEBHOOK_SECRET')!
+    // Whoop signs webhook payloads with the app's Client Secret --
+    // there's no separate webhook signing secret in their dashboard.
+    const webhookSecret = Deno.env.get('WHOOP_CLIENT_SECRET')!
+
+    // Temporary diagnostic logging -- never logs the actual secret
+    // values, only whether each one is present and how long it is, to
+    // pin down exactly which secret (if any) isn't reaching this
+    // function at runtime. Safe to remove once this is working.
+    console.log('DIAGNOSTIC: WHOOP_CLIENT_SECRET length =', webhookSecret?.length ?? 'undefined')
+    console.log('DIAGNOSTIC: WHOOP_CLIENT_ID length =', Deno.env.get('WHOOP_CLIENT_ID')?.length ?? 'undefined')
+    console.log('DIAGNOSTIC: signature header present =', !!signature)
 
     const isValid = await verifySignature(rawBody, signature, webhookSecret)
     if (!isValid) {
