@@ -140,9 +140,7 @@ export default function ResultsPublic() {
   const MEDALS = ['🥇', '🥈', '🥉', '🎖️']
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-tertiary)', padding: '24px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
-      onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}
-      onTouchStart={() => setPaused(true)}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-tertiary)', padding: '24px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       <div style={{ maxWidth: 560, width: '100%', margin: '0 auto' }}>
         <button onClick={() => window.history.back()} className="btn btn-sm" style={{ marginBottom: 14 }}>← Back</button>
         <div style={{ textAlign: 'center', marginBottom: 20 }}>
