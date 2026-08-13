@@ -98,8 +98,16 @@ export default function LeaguePublic() {
 
       if (sm.club_name)  setClubName(sm.club_name)
       if (sm.club_emoji) setClubEmoji(sm.club_emoji)
-      if (sm.league_topn_individual) setTopN(sm.league_topn_individual)
-      if (sm.league_topn_house) setHouseTopN(sm.league_topn_house)
+      // A ?limit= param (used by the in-app "Leagues" tiles, so athletes/
+      // coaches browsing from inside the app see a shorter top-10 list)
+      // caps whatever the normal public setting is, but never raises it --
+      // a genuinely public/TV display with no ?limit= param is unaffected
+      // and keeps showing the full configured amount.
+      const urlLimit = parseInt(new URLSearchParams(window.location.search).get('limit'))
+      const configuredIndividual = sm.league_topn_individual ? parseInt(sm.league_topn_individual) : 50
+      const configuredHouse = sm.league_topn_house ? parseInt(sm.league_topn_house) : 8
+      setTopN(urlLimit ? Math.min(configuredIndividual, urlLimit) : configuredIndividual)
+      setHouseTopN(urlLimit ? Math.min(configuredHouse, urlLimit) : configuredHouse)
       setLoading(false)
     } catch(e) {
       console.error('LeaguePublic load error:', e)
@@ -120,6 +128,7 @@ export default function LeaguePublic() {
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-tertiary)', padding: '24px 16px' }}>
       <div style={{ maxWidth: tab === 'student-house' ? 960 : 560, margin: '0 auto', transition: 'max-width 0.2s' }}>
+        <button onClick={() => window.history.back()} className="btn btn-sm" style={{ marginBottom: 14 }}>← Back</button>
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <div style={{ fontSize: 40, marginBottom: 8 }}>{clubEmoji}</div>

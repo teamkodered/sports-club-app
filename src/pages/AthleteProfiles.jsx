@@ -5934,6 +5934,27 @@ export default function AthleteProfiles() {
               )
             })()}
 
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 14 }}>
+              <button onClick={() => { setDashboardTab('sweep'); loadShedTasksAll() }} style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                padding: '14px 8px', background: '#1D9E7512',
+                border: '1px solid #1D9E7530', borderRadius: 'var(--border-radius-lg)',
+                cursor: 'pointer', fontFamily: 'var(--font-sans)',
+              }}>
+                <span style={{ fontSize: 24 }}>🧹</span>
+                <span style={{ fontSize: 12, fontWeight: 500, color: '#1D9E75' }}>Sweep the sheds</span>
+              </button>
+              <button onClick={() => setDashboardTab('leagues')} style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                padding: '14px 8px', background: '#8B5CF612',
+                border: '1px solid #8B5CF630', borderRadius: 'var(--border-radius-lg)',
+                cursor: 'pointer', fontFamily: 'var(--font-sans)',
+              }}>
+                <span style={{ fontSize: 24 }}>🏆</span>
+                <span style={{ fontSize: 12, fontWeight: 500, color: '#8B5CF6' }}>Leagues</span>
+              </button>
+            </div>
+
             {/* TTP Benchmark */}
             <div className="card" style={{ padding: 0, marginBottom: 14 }}>
               <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -6265,6 +6286,78 @@ export default function AthleteProfiles() {
             </div>
 
               </>
+            )}
+
+            {/* ── Sweep the Sheds (team dashboard) ── */}
+            {dashboardTab === 'sweep' && (
+              <div>
+                <button onClick={() => setDashboardTab('overview')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
+                <div className="card" style={{ marginBottom: 14 }}>
+                  <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>🧹 Assign a task</h2>
+                  <input value={newShedTaskText} onChange={e => setNewShedTaskText(e.target.value)}
+                    placeholder="e.g. Sweep the sheds, tidy the equipment room…" style={{ width: '100%', marginBottom: 12 }} />
+                  <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>
+                    Assign to ({selectedShedAthletes.size} selected):
+                  </p>
+                  <div style={{ maxHeight: 280, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 8, marginBottom: 12 }}>
+                    {athletes.map(s => (
+                      <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 4px', cursor: 'pointer', fontSize: 13 }}>
+                        <input type="checkbox" checked={selectedShedAthletes.has(s.id)}
+                          onChange={() => setSelectedShedAthletes(prev => {
+                            const next = new Set(prev)
+                            next.has(s.id) ? next.delete(s.id) : next.add(s.id)
+                            return next
+                          })} />
+                        {s.members?.first_name} {s.members?.last_name}
+                      </label>
+                    ))}
+                  </div>
+                  <button className="btn btn-primary" disabled={!newShedTaskText.trim() || selectedShedAthletes.size === 0 || assigningShedTask} onClick={assignShedTask}>
+                    {assigningShedTask ? 'Assigning…' : `Assign to ${selectedShedAthletes.size || ''} athlete${selectedShedAthletes.size === 1 ? '' : 's'}`}
+                  </button>
+                </div>
+
+                <div className="card">
+                  <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Recently assigned</h2>
+                  {shedTasksAll.length === 0 ? (
+                    <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No tasks assigned yet.</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {shedTasksAll.map(t => (
+                        <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', borderRadius: 'var(--radius)', background: t.completed ? '#1D9E7512' : 'var(--bg-secondary)' }}>
+                          <span>
+                            <span style={{ fontSize: 13, fontWeight: 600 }}>{t.students?.members?.first_name} {t.students?.members?.last_name}</span>
+                            <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginLeft: 8 }}>{t.task_text}</span>
+                            <span style={{ display: 'block', fontSize: 11, color: t.completed ? '#1D9E75' : 'var(--text-tertiary)' }}>
+                              {t.completed ? `✓ Done ${new Date(t.completed_at).toLocaleDateString('en-GB')}` : 'Not done yet'}
+                            </span>
+                          </span>
+                          <button onClick={() => deleteShedTask(t.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 16 }}>×</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ── Leagues (team dashboard) ── */}
+            {dashboardTab === 'leagues' && (
+              <div>
+                <button onClick={() => setDashboardTab('overview')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <a href="/league-public?limit=10" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 24, color: '#8B5CF6' }}>
+                    <div style={{ fontSize: 36, marginBottom: 8 }}>🏠</div>
+                    <div style={{ fontWeight: 700, fontSize: 15 }}>House League</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>Points standings by house</div>
+                  </a>
+                  <a href="/results-public" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 24, color: '#EF9F27' }}>
+                    <div style={{ fontSize: 36, marginBottom: 8 }}>🏋️</div>
+                    <div style={{ fontWeight: 700, fontSize: 15 }}>Exercise Leagues</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>Fitness results leaderboard</div>
+                  </a>
+                </div>
+              </div>
             )}
 
             {/* Scroll to browse athlete profiles -- same as swiping */}
@@ -10108,7 +10201,7 @@ export default function AthleteProfiles() {
               <div>
                 <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <a href="/league-public" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 24, color: '#8B5CF6' }}>
+                  <a href="/league-public?limit=10" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 24, color: '#8B5CF6' }}>
                     <div style={{ fontSize: 36, marginBottom: 8 }}>🏠</div>
                     <div style={{ fontWeight: 700, fontSize: 15 }}>House League</div>
                     <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>Points standings by house</div>

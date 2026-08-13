@@ -144,6 +144,7 @@ export default function ResultsPublic() {
       onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}
       onTouchStart={() => setPaused(true)}>
       <div style={{ maxWidth: 560, width: '100%', margin: '0 auto' }}>
+        <button onClick={() => window.history.back()} className="btn btn-sm" style={{ marginBottom: 14 }}>← Back</button>
         <div style={{ textAlign: 'center', marginBottom: 20 }}>
           <div style={{ fontSize: 40, marginBottom: 8 }}>{clubEmoji}</div>
           <h1 style={{ fontSize: 22, fontWeight: 700 }}>{clubName}</h1>
