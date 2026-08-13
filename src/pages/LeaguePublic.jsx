@@ -5,6 +5,10 @@ const HOUSE_COLOURS = {
   'Dragon House': '#E24B4A', 'Super House': '#378ADD',
   'Ice House': '#1D9E75', 'Jet House': '#EF9F27',
 }
+const HOUSE_LOGOS = {
+  'Dragon House': '/logos/house-dragon.png', 'Super House': '/logos/house-super.png',
+  'Ice House': '/logos/house-ice.png', 'Jet House': '/logos/house-jet.png',
+}
 
 function maskName(first, last) {
   if (!first) return '—'
@@ -156,9 +160,11 @@ export default function LeaguePublic() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {houses.map((h, i) => {
               const colour = HOUSE_COLOURS[h.name] || '#888'
+              const logo = HOUSE_LOGOS[h.name]
               return (
                 <div key={h.id} className="card" style={{ borderLeft: `4px solid ${colour}`, borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0', display: 'flex', alignItems: 'center', gap: 14 }}>
                   <div style={{ fontSize: 28 }}>{MEDALS[i] || `${i+1}`}</div>
+                  {logo && <img src={logo} alt="" style={{ width: 48, height: 48, objectFit: 'contain', flexShrink: 0 }} />}
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 16, fontWeight: 700, color: colour }}>{h.name}</div>
                     <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
@@ -202,7 +208,11 @@ export default function LeaguePublic() {
                       <td style={{ fontWeight: 500 }}>{maskName(s.first, s.last)}</td>
                       <td>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12 }}>
-                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: colour, display: 'inline-block' }} />
+                          {HOUSE_LOGOS[s.house] ? (
+                            <img src={HOUSE_LOGOS[s.house]} alt="" style={{ width: 16, height: 16, objectFit: 'contain' }} />
+                          ) : (
+                            <span style={{ width: 8, height: 8, borderRadius: '50%', background: colour, display: 'inline-block' }} />
+                          )}
                           {s.house || '—'}
                         </span>
                       </td>
@@ -225,7 +235,10 @@ export default function LeaguePublic() {
               return (
                 <div key={h.id} className="card" style={{ padding: 0, borderTop: `3px solid ${colour}` }}>
                   <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: colour }}>{hIdx+1}. {h.name}</span>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: colour, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {HOUSE_LOGOS[h.name] && <img src={HOUSE_LOGOS[h.name]} alt="" style={{ width: 22, height: 22, objectFit: 'contain' }} />}
+                      {hIdx+1}. {h.name}
+                    </span>
                     <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{h.points || 0} pts</span>
                   </div>
                   <table>

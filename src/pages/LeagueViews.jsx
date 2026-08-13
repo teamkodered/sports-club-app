@@ -19,6 +19,12 @@ const HOUSE_COLOURS = {
   'Ice House':    '#1D9E75',
   'Jet House':    '#EF9F27',
 }
+const HOUSE_LOGOS = {
+  'Dragon House': '/logos/house-dragon.png',
+  'Super House':  '/logos/house-super.png',
+  'Ice House':    '/logos/house-ice.png',
+  'Jet House':    '/logos/house-jet.png',
+}
 const HOUSE_BG = {
   'Dragon House': '#fcebeb',
   'Super House':  '#e6f1fb',
@@ -476,7 +482,10 @@ export default function LeagueViews() {
                 <div key={h.name} className="card" style={{ borderLeft: `3px solid ${colour}`, borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0', position: 'relative', overflow: 'hidden', cursor: 'pointer' }}
                   onClick={() => navigate(`/students?house=${encodeURIComponent(h.name)}`)}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                    <div style={{ fontSize: 15, fontWeight: 600 }}>{h.name}</div>
+                    <div style={{ fontSize: 15, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {HOUSE_LOGOS[h.name] && <img src={HOUSE_LOGOS[h.name]} alt="" style={{ width: 26, height: 26, objectFit: 'contain' }} />}
+                      {h.name}
+                    </div>
                     <div style={{ fontSize: 22 }}>{RANK_MEDAL[i] || `${i + 1}th`}</div>
                   </div>
                   <div style={{ fontSize: 32, fontWeight: 700, color: colour }}>{h.sessionPoints}</div>
@@ -524,7 +533,11 @@ export default function LeagueViews() {
               return (
                 <div key={h.name} className="card" style={{ padding: '14px 0' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 14px 10px', borderBottom: '1px solid var(--border)' }}>
-                    <span style={{ width: 10, height: 10, borderRadius: '50%', background: colour, display: 'inline-block' }} />
+                    {HOUSE_LOGOS[h.name] ? (
+                      <img src={HOUSE_LOGOS[h.name]} alt="" style={{ width: 18, height: 18, objectFit: 'contain' }} />
+                    ) : (
+                      <span style={{ width: 10, height: 10, borderRadius: '50%', background: colour, display: 'inline-block' }} />
+                    )}
                     <span style={{ fontSize: 13, fontWeight: 600 }}>{h.name}</span>
                     <span style={{ fontSize: 11, color: 'var(--text-tertiary)', marginLeft: 'auto' }}>Top scorers</span>
                   </div>
