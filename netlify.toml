@@ -2,6 +2,15 @@
   command = "npm run build"
   publish = "dist"
 
+[build.environment]
+  # VITE_-prefixed values are intentionally inlined into the client
+  # bundle by Vite -- that's the whole point of the VITE_ prefix, and
+  # a Client ID is meant to be public in OAuth anyway (unlike the
+  # Client Secret, which stays server-side only in Supabase). Netlify's
+  # secret scanner flags it as a false positive; this tells it to skip
+  # just this one key rather than disabling the scan entirely.
+  SECRETS_SCAN_OMIT_KEYS = "VITE_WHOOP_CLIENT_ID"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
