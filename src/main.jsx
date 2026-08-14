@@ -121,3 +121,17 @@ function App() {
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App />)
+
+// Register a minimal, pass-through service worker -- this exists purely
+// to satisfy Chrome/Android's PWA installability requirement (needed for
+// the "Add to Home Screen"/install prompt to appear at all). It adds no
+// caching or offline behavior, so app updates stay instant with no risk
+// of a stale version getting stuck on someone's device.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      // Non-fatal if this fails (e.g. unsupported browser) -- the app
+      // still works fully in a normal browser tab either way.
+    })
+  })
+}
