@@ -2432,9 +2432,7 @@ export default function AthleteApp() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
                     {houseRank > 0 && <span style={{ color: 'var(--text-tertiary)', fontWeight: 600 }}>#{houseRank}</span>}
                     {HOUSE_TEXT_LOGOS[houseName] ? (
-                      <span style={{ background: '#000', borderRadius: 5, padding: '3px 8px', display: 'inline-flex' }}>
-                        <img src={HOUSE_TEXT_LOGOS[houseName]} alt={houseName} style={{ height: 22, width: 'auto', objectFit: 'contain', display: 'block' }} />
-                      </span>
+                      <img src={HOUSE_TEXT_LOGOS[houseName]} alt={houseName} style={{ height: 22, width: 'auto', objectFit: 'contain', display: 'block', filter: 'drop-shadow(1px 0 0 #000) drop-shadow(-1px 0 0 #000) drop-shadow(0 1px 0 #000) drop-shadow(0 -1px 0 #000) drop-shadow(1px 1px 0 #000) drop-shadow(-1px -1px 0 #000) drop-shadow(1px -1px 0 #000) drop-shadow(-1px 1px 0 #000)' }} />
                     ) : (
                       <span style={{ color: colour, fontWeight: 600 }}>{houseName || '—'}</span>
                     )}

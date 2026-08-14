@@ -169,9 +169,7 @@ export default function LeaguePublic() {
                   <div style={{ fontSize: 28 }}>{MEDALS[i] || `${i+1}`}</div>
                   <div style={{ flex: 1 }}>
                     {HOUSE_TEXT_LOGOS[h.name] ? (
-                      <div style={{ background: '#000', borderRadius: 8, padding: '6px 12px', display: 'inline-block' }}>
-                        <img src={HOUSE_TEXT_LOGOS[h.name]} alt={h.name} style={{ height: 34, width: 'auto', objectFit: 'contain', display: 'block' }} />
-                      </div>
+                      <img src={HOUSE_TEXT_LOGOS[h.name]} alt={h.name} style={{ height: 34, width: 'auto', objectFit: 'contain', display: 'block', filter: 'drop-shadow(1px 0 0 #000) drop-shadow(-1px 0 0 #000) drop-shadow(0 1px 0 #000) drop-shadow(0 -1px 0 #000) drop-shadow(1px 1px 0 #000) drop-shadow(-1px -1px 0 #000) drop-shadow(1px -1px 0 #000) drop-shadow(-1px 1px 0 #000)' }} />
                     ) : (
                       <div style={{ fontSize: 16, fontWeight: 700, color: colour }}>{h.name}</div>
                     )}
@@ -241,9 +239,7 @@ export default function LeaguePublic() {
                   <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: 14, fontWeight: 700, color: colour, display: 'flex', alignItems: 'center', gap: 8 }}>
                       {hIdx+1}. {HOUSE_TEXT_LOGOS[h.name] ? (
-                        <span style={{ background: '#000', borderRadius: 6, padding: '4px 8px', display: 'inline-flex' }}>
-                          <img src={HOUSE_TEXT_LOGOS[h.name]} alt={h.name} style={{ height: 24, width: 'auto', objectFit: 'contain', display: 'block' }} />
-                        </span>
+                        <img src={HOUSE_TEXT_LOGOS[h.name]} alt={h.name} style={{ height: 24, width: 'auto', objectFit: 'contain', display: 'block', filter: 'drop-shadow(1px 0 0 #000) drop-shadow(-1px 0 0 #000) drop-shadow(0 1px 0 #000) drop-shadow(0 -1px 0 #000) drop-shadow(1px 1px 0 #000) drop-shadow(-1px -1px 0 #000) drop-shadow(1px -1px 0 #000) drop-shadow(-1px 1px 0 #000)' }} />
                       ) : h.name}
                     </span>
                     <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{h.points || 0} pts</span>

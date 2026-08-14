@@ -523,7 +523,7 @@ const RESULTS_ALL_COLUMNS = [
   { key: 'techniques', label: 'Techniques' },
   { key: 'tactical', label: 'Tactical' },
   { key: 'mentality_log', label: 'Mentality' },
-  { key: 'wellbeing', label: 'Wellbeing' },
+  { key: 'wellbeing', label: 'Foundation' },
   { key: 'test', label: 'Test' },
   { key: 'metric_value', label: 'Filtered metric' },
 ]
@@ -547,7 +547,7 @@ const DASHBOARD_SECTIONS = [
   ]},
   { key: 'tactical', icon: '🧩', label: 'Tactical', subItems: Object.keys(TACTICAL_CATEGORIES).map(cat => ({ key: cat, label: cat, matchCategory: cat })) },
   { key: 'mentality', icon: '🧠', label: 'Mentality', subItems: MENTALITY_QUESTIONS.map(q => ({ key: q.key, label: q.label, mentalityQ: q.key })) },
-  { key: 'wellbeing', icon: '🌱', label: 'Wellbeing', subItems: WELLBEING_QUESTIONS.map(q => ({ key: q.key, label: q.label, wellbeingQ: q.key })) },
+  { key: 'wellbeing', icon: '🌱', label: 'Foundation', subItems: WELLBEING_QUESTIONS.map(q => ({ key: q.key, label: q.label, wellbeingQ: q.key })) },
   { key: 'test', icon: '📋', label: 'Test', subItems: TEST_CATEGORIES.map(c => ({ key: c.key, label: c.label, testCategory: c })) },
 ]
 
@@ -6702,9 +6702,7 @@ export default function AthleteProfiles() {
                           </span>
                         )}
                         {HOUSE_TEXT_LOGOS[houseName] ? (
-                          <span style={{ background: '#000', borderRadius: 5, padding: '3px 8px', display: 'inline-flex' }}>
-                            <img src={HOUSE_TEXT_LOGOS[houseName]} alt={houseName} style={{ height: 20, width: 'auto', objectFit: 'contain', display: 'block' }} />
-                          </span>
+                          <img src={HOUSE_TEXT_LOGOS[houseName]} alt={houseName} style={{ height: 20, width: 'auto', objectFit: 'contain', display: 'block', filter: 'drop-shadow(1px 0 0 #000) drop-shadow(-1px 0 0 #000) drop-shadow(0 1px 0 #000) drop-shadow(0 -1px 0 #000) drop-shadow(1px 1px 0 #000) drop-shadow(-1px -1px 0 #000) drop-shadow(1px -1px 0 #000) drop-shadow(-1px 1px 0 #000)' }} />
                         ) : (
                           <span style={{ color: colour, fontWeight: 700, fontSize: 13 }}>{houseName || '—'}</span>
                         )}
@@ -7177,7 +7175,7 @@ export default function AthleteProfiles() {
               const modules2 = [
                 // { key: 'techniques', label: 'Techniques', icon: '🥋' }, // removed for now, kept for possible future use
                 { key: 'mentality',      label: 'Mentality',      icon: '🧠' },
-                { key: 'wellbeing',      label: 'Wellbeing',      icon: '🌱' },
+                { key: 'wellbeing',      label: 'Foundation',      icon: '🌱' },
               ]
               const togglePhysicalLog = key => {
                 setActivePhysicalCategory(cur => cur === key ? null : key)
@@ -8207,7 +8205,7 @@ export default function AthleteProfiles() {
                     <CoachSectionProgressBadge sectionKey="wellbeing" />
                     <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, justifyContent: 'center' }}>
                       <span style={{ fontSize: 24 }}>🌱</span>
-                      <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Wellbeing</span>
+                      <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Foundation</span>
                     </span>
                     <span style={{ fontSize: 11, color: 'var(--text-tertiary)', minWidth: 28, textAlign: 'right' }}>{showWellbeingSection ? '▲' : '▼'}</span>
                   </button>
@@ -9770,7 +9768,7 @@ export default function AthleteProfiles() {
                   ]
 
                   // Breakdown data for each axis, shown when that axis is clicked.
-                  const SECTION_LABELS = { physical: 'Physical', technique: 'Technique', tactical: 'Tactical', mentality: 'Mentality', wellbeing: 'Wellbeing', test: 'Test' }
+                  const SECTION_LABELS = { physical: 'Physical', technique: 'Technique', tactical: 'Tactical', mentality: 'Mentality', wellbeing: 'Foundation', test: 'Test' }
                   const f2fBreakdown = ['physical', 'technique', 'tactical', 'mentality', 'wellbeing', 'test'].map(sectionKey => {
                     const p = getCoachSectionProgress(sectionKey)
                     return { key: sectionKey, label: SECTION_LABELS[sectionKey], done: p?.done || 0, target: p?.target || 0, pct: p?.target ? Math.round((p.done / p.target) * 100) : null }
