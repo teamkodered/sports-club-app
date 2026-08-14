@@ -121,6 +121,7 @@ export default function Registers() {
   const [attendHistory, setAttendHistory] = useState([])
   const [attendFuture, setAttendFuture]   = useState([])
   const [contactModal, setContactModal] = useState(null)
+  const [birthdayPopup, setBirthdayPopup] = useState(null) // { name, info } or null
   const [attendance, setAttendance]     = useState({})
   // Entries auto-added by the double-session cascade, shown as an
   // undoable banner so a coach can remove any that shouldn't have been
@@ -310,6 +311,22 @@ export default function Registers() {
   function calcAge(dob) {
     if (!dob) return '—'
     return Math.floor((Date.now() - new Date(dob)) / (365.25 * 24 * 60 * 60 * 1000))
+  }
+
+  // Same calculation as the CRM's Birthdays list (within the next 28
+  // days) -- kept identical so a student flagged here matches exactly
+  // who'd show up there.
+  function getBirthdayInfo(dob) {
+    if (!dob) return null
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const birth = new Date(dob + 'T00:00:00')
+    let next = new Date(today.getFullYear(), birth.getMonth(), birth.getDate())
+    if (next < today) next = new Date(today.getFullYear() + 1, birth.getMonth(), birth.getDate())
+    const daysUntil = Math.round((next - today) / (24 * 60 * 60 * 1000))
+    if (daysUntil > 28) return null
+    const turningAge = next.getFullYear() - birth.getFullYear()
+    return { nextBirthday: next, daysUntil, turningAge }
   }
 
   const selectedClass = todayClasses.find(c => c.id === classFilter)
@@ -1086,10 +1103,22 @@ export default function Registers() {
                       </span>
                     </td>}
                     {visibleCols.includes('name') && <td onClick={e => e.stopPropagation()}>
-                      <a href={studentProfileLink(s)}
-                        style={{ color: 'var(--text)', fontWeight: 500, fontSize: 13, textDecoration: 'none', cursor: 'pointer' }}>
-                        {m?.first_name} {m?.last_name}
-                      </a>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <a href={studentProfileLink(s)}
+                          style={{ color: 'var(--text)', fontWeight: 500, fontSize: 13, textDecoration: 'none', cursor: 'pointer' }}>
+                          {m?.first_name} {m?.last_name}
+                        </a>
+                        {(() => {
+                          const bday = getBirthdayInfo(m?.date_of_birth)
+                          if (!bday) return null
+                          return (
+                            <button onClick={e => { e.stopPropagation(); setBirthdayPopup({ name: `${m?.first_name} ${m?.last_name}`, info: bday }) }}
+                              title="Upcoming birthday" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, padding: 0, lineHeight: 1 }}>
+                              🎂
+                            </button>
+                          )
+                        })()}
+                      </span>
                     </td>}
                     {visibleCols.includes('age') && <td style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{age}</td>}
                     {visibleCols.includes('house') && <td>
@@ -1203,6 +1232,26 @@ export default function Registers() {
       <OneOffStudent displayStudents={displayStudents} onAdd={(s) => setStudents(prev => prev.find(x => x.id === s.id) ? prev : [...prev, s])} date={date} />
 
       {/* Contact modal */}
+      {birthdayPopup && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 55, padding: 16 }}
+          onClick={() => setBirthdayPopup(null)}>
+          <div className="card" style={{ width: '100%', maxWidth: 320, textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 36, marginBottom: 8 }}>🎂</div>
+            <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 10 }}>{birthdayPopup.name}</h2>
+            <p style={{ fontSize: 13, marginBottom: 4 }}>
+              {birthdayPopup.info.nextBirthday.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
+            </p>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 4 }}>
+              {birthdayPopup.info.daysUntil === 0 ? "Today! 🎉" : birthdayPopup.info.daysUntil === 1 ? 'Tomorrow' : `${birthdayPopup.info.daysUntil} days to go`}
+            </p>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 14 }}>
+              Turning {birthdayPopup.info.turningAge}
+            </p>
+            <button className="btn btn-sm" onClick={() => setBirthdayPopup(null)}>Close</button>
+          </div>
+        </div>
+      )}
+
       {contactModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
           <div className="card" style={{ width: '100%', maxWidth: 380 }}>
