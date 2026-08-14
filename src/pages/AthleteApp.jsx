@@ -467,6 +467,10 @@ const RUN_PRESET_TESTS = {
     '10 seconds on 10 seconds jog track distance',
     '20 seconds on 20 seconds jog track distance',
     'Suicides 20 seconds on 10 seconds off',
+    '3,2,1',
+    '30 seconds',
+    '25 seconds',
+    '20 seconds',
   ],
 }
 // Used for Timed Sprints when "time" mode is picked (the fixed value is
@@ -2749,23 +2753,25 @@ export default function AthleteApp() {
                       const presets = RUN_PRESET_TESTS[expandedHomeRun] || []
                       const cat = RUN_CATEGORY_CARDS.find(c => c.key === expandedHomeRun)
                       const isTimedSprints = expandedHomeRun === 'Timed Sprints'
+                      const isInterval = expandedHomeRun === 'Interval'
                       const sprintMode = entry.mode || 'distance' // 'distance' = fixed distance, time is the result; 'time' = fixed time, distance is the result
                       const sprintPresets = isTimedSprints ? (sprintMode === 'time' ? TIMED_SPRINTS_TIME_PRESETS : RUN_PRESET_TESTS['Timed Sprints']) : presets
+                      const intervalMode = entry.mode || 'distance' // whether the per-rep result logged is a distance or a time
                       return (
                         <div className="card" style={{ marginBottom: 8 }}>
                           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                             <button type="button" className="btn btn-sm" style={{ fontSize: 11 }}
                               onClick={() => savePhysicalField('running', todaysRunning.filter(e => e.category !== expandedHomeRun), setTodaysRunning)}>✕ Clear</button>
                           </div>
-                          {isTimedSprints && (
+                          {(isTimedSprints || isInterval) && (
                             <div style={{ display: 'flex', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
                               <div>
                                 <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Distance / Time</label>
                                 <div style={{ display: 'flex', gap: 4 }}>
                                   {['distance', 'time'].map(m => (
-                                    <button key={m} type="button" onClick={() => upsert({ ...entry, mode: m, test: '' })}
-                                      className="btn btn-sm" style={{ fontSize: 11, background: sprintMode === m ? '#E24B4A20' : undefined, borderColor: sprintMode === m ? '#E24B4A' : undefined }}>
-                                      {m === 'distance' ? 'Fixed distance' : 'Fixed time'}
+                                    <button key={m} type="button" onClick={() => upsert({ ...entry, mode: m, ...(isTimedSprints ? { test: '' } : {}) })}
+                                      className="btn btn-sm" style={{ fontSize: 11, background: (isTimedSprints ? sprintMode : intervalMode) === m ? '#E24B4A20' : undefined, borderColor: (isTimedSprints ? sprintMode : intervalMode) === m ? '#E24B4A' : undefined }}>
+                                      {isTimedSprints ? (m === 'distance' ? 'Fixed distance' : 'Fixed time') : (m === 'distance' ? 'Distance' : 'Time')}
                                     </button>
                                   ))}
                                 </div>
@@ -2799,13 +2805,13 @@ export default function AthleteApp() {
                               </div>
                             )}
                           </div>
-                          <div className="field" style={{ marginBottom: 0 }}><label>{isTimedSprints ? 'Results' : (cat?.resultLabel || 'Results (time)')}</label>
+                          <div className="field" style={{ marginBottom: 0 }}><label>{isTimedSprints ? 'Results' : isInterval ? (intervalMode === 'time' ? 'Results (time, sec)' : 'Results (distance, km)') : (cat?.resultLabel || 'Results (time)')}</label>
                             {isTimedSprints ? (
                               <TimedSprintsInput key={sprintMode} sets={entry.sets || []} mode={sprintMode} fixedValue={entry.test}
                                 onChange={sets => upsert({ ...entry, sets })} />
                             ) : (
                               <SetInput key={cat?.key} sets={entry.sets || []} onChange={sets => upsert({ ...entry, sets })}
-                                inputType="number" placeholder={cat?.resultLabel ? 'e.g. 2.4' : 'e.g. 12.3'} />
+                                inputType="number" placeholder={isInterval ? (intervalMode === 'time' ? 'e.g. 45' : 'e.g. 2.4') : (cat?.resultLabel ? 'e.g. 2.4' : 'e.g. 12.3')} />
                             )}
                           </div>
                           {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>Saving…</p>}
