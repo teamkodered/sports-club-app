@@ -16,6 +16,18 @@ const HOUSE_TEXT_LOGOS = {
   'Dragon House': '/logos/text-dragon.png', 'Super House': '/logos/text-super.png',
   'Ice House': '/logos/text-ice.png', 'Jet House': '/logos/text-jet.png',
 }
+// Matches AthleteProfiles.jsx's TTP_BENCHMARK_FIELDS exactly -- the two
+// must stay in sync since they describe the same benchmark records.
+const TTP_BENCHMARK_FIELDS = [
+  'shapes','punch_quality','footwork','defence','counters','attack','combinations',
+  'change_of_tempo','use_of_phases','distance','flow','self_expression',
+  'foot_speed','limb_speed','combination_speed','reaction','punching_power',
+  'strength_upper','strength_lower','stability_core','agility','stop_n_go',
+  'stamina_aerobic','stamina_anaerobic','suppleness_upper','suppleness_lower',
+  'recovery','health',
+  'read_opponent','tempo_rhythm','tactical_intelligence','ring_awareness',
+  'know_strengths_weaknesses','heart_grit','concentration','timing',
+]
 
 const WELLBEING_QUESTIONS = [
   { key: 'sleep',        label: 'Sleep',        icon: '😴' },
@@ -548,6 +560,56 @@ function toEntries(val) {
   return []
 }
 
+// Generic radar/spider chart -- axes is [{ label, value (0-100), colour }].
+// Hand-rolled SVG to match this file's existing custom-chart approach
+// (see LineChart below) rather than pulling in a charting library.
+function RadarChart({ axes, size = 280 }) {
+  const cx = size / 2, cy = size / 2
+  const maxR = size / 2 - 46 // leave room for axis labels
+  const n = axes.length
+  const angleFor = i => (Math.PI * 2 * i) / n - Math.PI / 2
+  const pointFor = (i, pct) => {
+    const angle = angleFor(i)
+    const r = (Math.max(0, Math.min(100, pct)) / 100) * maxR
+    return [cx + r * Math.cos(angle), cy + r * Math.sin(angle)]
+  }
+  const dataPoints = axes.map((a, i) => pointFor(i, a.value)).map(p => p.join(',')).join(' ')
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <svg viewBox={`0 0 ${size} ${size}`} style={{ width: '100%', maxWidth: size, height: 'auto' }}>
+        {/* Gridlines -- concentric polygons at 25/50/75/100% */}
+        {[0.25, 0.5, 0.75, 1].map(t => (
+          <polygon key={t}
+            points={axes.map((_, i) => pointFor(i, t * 100).join(',')).join(' ')}
+            fill="none" stroke="var(--border)" strokeWidth="1" />
+        ))}
+        {/* Axis lines + labels */}
+        {axes.map((a, i) => {
+          const [x, y] = pointFor(i, 100)
+          const labelR = maxR + 22
+          const angle = angleFor(i)
+          const lx = cx + labelR * Math.cos(angle)
+          const ly = cy + labelR * Math.sin(angle)
+          return (
+            <g key={a.label}>
+              <line x1={cx} y1={cy} x2={x} y2={y} stroke="var(--border)" strokeWidth="1" />
+              <text x={lx} y={ly} textAnchor="middle" dominantBaseline="middle" fontSize="11" fontWeight="600" fill={a.colour}>{a.label}</text>
+              <text x={lx} y={ly + 13} textAnchor="middle" fontSize="10" fill="var(--text-tertiary)">{Math.round(a.value)}%</text>
+            </g>
+          )
+        })}
+        {/* Data shape */}
+        <polygon points={dataPoints} fill="#EF9F2730" stroke="#EF9F27" strokeWidth="2" />
+        {axes.map((a, i) => {
+          const [x, y] = pointFor(i, a.value)
+          return <circle key={a.label} cx={x} cy={y} r="4" fill={a.colour} />
+        })}
+      </svg>
+    </div>
+  )
+}
+
 function getSubTypeOptions(sorted, key) {
   try {
     if (key === 'running') return [...new Set(sorted.flatMap(s => toEntries(s.running).map(e => e.category)).filter(Boolean))]
@@ -911,6 +973,9 @@ export default function AthleteApp() {
   const [recentPointsExpanded, setRecentPointsExpanded] = useState(false)
   const [myNotesLog, setMyNotesLog] = useState([])
   const [tptData, setTptData] = useState({ kickboxing: [], boxing: [] })
+  const [ttpBenchmark, setTtpBenchmark] = useState(null)
+  const [radarDateFrom, setRadarDateFrom] = useState(() => { const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split('T')[0] })
+  const [radarDateTo, setRadarDateTo] = useState(() => new Date().toISOString().split('T')[0])
   const [whoopConnection, setWhoopConnection] = useState(null)
   const [whoopSessions, setWhoopSessions] = useState([])
   const [newNoteText, setNewNoteText] = useState('')
@@ -1246,6 +1311,13 @@ export default function AthleteApp() {
           .then(({ data, error }) => { if (!error) setTptData(prev => ({ ...prev, kickboxing: data || [] })) })
         supabase.from('tpt_boxing').select('*').eq('student_id', s.id).order('assessed_at', { ascending: false }).limit(2)
           .then(({ data, error }) => { if (!error) setTptData(prev => ({ ...prev, boxing: data || [] })) })
+
+        // TTP benchmark only currently exists for boxing (KRBA) --
+        // there's no equivalent for kickboxing yet, so the TTP radar
+        // axis is only meaningful for KRBA athletes for now.
+        supabase.from('ttp_benchmarks').select('*').eq('discipline', 'boxing')
+          .order('set_at', { ascending: false }).limit(1)
+          .then(({ data, error }) => { if (!error) setTtpBenchmark(data?.[0] || null) })
 
         supabase.from('whoop_connections').select('*').eq('student_id', s.id).maybeSingle()
           .then(({ data }) => setWhoopConnection(data || null))
@@ -3719,6 +3791,16 @@ export default function AthleteApp() {
                   <span style={{ fontSize: 12, fontWeight: 500, color: '#8B5CF6' }}>Leagues</span>
                 </button>
               </div>
+
+              <button onClick={() => setTab('radar')} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                width: '100%', marginTop: 8, padding: '12px 8px', background: '#EF9F2712',
+                border: '1px solid #EF9F2730', borderRadius: 'var(--border-radius-lg)',
+                cursor: 'pointer', fontFamily: 'var(--font-sans)',
+              }}>
+                <span style={{ fontSize: 20 }}>🕸️</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#EF9F27' }}>Performance Overview</span>
+              </button>
                     <div ref={testSectionRef}>
                     <button type="button" onClick={() => { setShowTestSection(v => { if (v) setExpandedHomeTestCategory(null); return !v }) }} style={{
                       width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
@@ -4326,6 +4408,109 @@ export default function AthleteApp() {
           </div>
         </div>
       )}
+
+      {/* ── Performance Overview -- radar chart across Attendance, F2F
+          Results, PDP, and TTP. Each axis is expressed as "% of target
+          achieved" so four genuinely different kinds of data can share
+          one scale. See the notes shown under the chart for exactly
+          how each axis is worked out and where an approximation was
+          needed. ── */}
+      {tab === 'radar' && student && (() => {
+        const fromStr = radarDateFrom, toStr = radarDateTo
+
+        // Attendance % -- a clean, straightforward version (does not
+        // replicate the exact-key/holiday-fallback logic the main
+        // Attendance card uses, so this number may differ slightly
+        // from that card if class changes/holidays are involved).
+        const scheduledDaysInRange = new Set()
+        assignedClasses.forEach(a => {
+          const jsDays = DAY_TO_JS_DAYS[a.classes?.day_of_week] || []
+          if (!jsDays.length) return
+          const cursor = new Date(fromStr + 'T00:00:00')
+          const end = new Date(toStr + 'T00:00:00')
+          while (cursor <= end) {
+            if (jsDays.includes(cursor.getDay()) && !isDateOnHoliday(cursor.toISOString().split('T')[0], holidays, [a.classes?.id], student.id)) {
+              scheduledDaysInRange.add(cursor.toISOString().split('T')[0])
+            }
+            cursor.setDate(cursor.getDate() + 1)
+          }
+        })
+        const attendedDaysInRange = new Set(
+          attendanceData.filter(a => a.session_date >= fromStr && a.session_date <= toStr && a.attendance_type !== 'absent' && a.attendance_type !== 'excused').map(a => a.session_date)
+        )
+        const attendancePct = scheduledDaysInRange.size ? Math.round((attendedDaysInRange.size / scheduledDaysInRange.size) * 100) : null
+
+        // F2F Results % -- combines every section-level and question-level
+        // target set for this athlete (reusing the exact same logic that
+        // powers the "X/Y" badges shown on each section elsewhere).
+        let f2fDone = 0, f2fTarget = 0
+        ;['physical', 'technique', 'tactical', 'mentality', 'wellbeing', 'test'].forEach(sectionKey => {
+          const p = getSectionProgress(sectionKey)
+          if (p) { f2fDone += p.done; f2fTarget += p.target }
+        })
+        const f2fPct = f2fTarget > 0 ? Math.round((f2fDone / f2fTarget) * 100) : null
+
+        // PDP % -- PDP timetable entries don't actually have a "done"
+        // flag in the data (they're a schedule, not a checklist), so
+        // this uses "scheduled items whose date has already passed" as
+        // the closest honest stand-in for completion within the range.
+        const pdpEntriesInRange = PDP_TIMETABLE_SECTION_KEYS.flatMap(sectionKey =>
+          Object.values((apData?.pdp_notes || {})[`__timetable_${sectionKey}`] || {})
+        ).filter(e => e?.date >= fromStr && e?.date <= toStr)
+        const todayStr = new Date().toISOString().split('T')[0]
+        const pdpPastDue = pdpEntriesInRange.filter(e => e.date <= todayStr)
+        const pdpPct = pdpEntriesInRange.length ? Math.round((pdpPastDue.length / pdpEntriesInRange.length) * 100) : null
+
+        // TTP % -- athlete's latest assessment vs the coach-set team
+        // benchmark. Only exists for boxing (KRBA) right now -- there's
+        // no kickboxing benchmark yet, so this axis is left out for KR athletes.
+        let ttpPct = null
+        if (student.discipline === 'KRBA' && ttpBenchmark) {
+          const latest = tptData.boxing?.[0]
+          if (latest) {
+            const ratios = TTP_BENCHMARK_FIELDS
+              .filter(f => latest[f] != null && ttpBenchmark[f] != null && ttpBenchmark[f] > 0)
+              .map(f => latest[f] / ttpBenchmark[f])
+            if (ratios.length) ttpPct = Math.round((ratios.reduce((a, b) => a + b, 0) / ratios.length) * 100)
+          }
+        }
+
+        const axes = [
+          { label: 'Attendance', value: attendancePct, colour: '#378ADD' },
+          { label: 'F2F Results', value: f2fPct, colour: '#EF9F27' },
+          { label: 'PDP', value: pdpPct, colour: '#1D9E75' },
+          ...(ttpPct != null ? [{ label: 'TTP', value: ttpPct, colour: '#E24B4A' }] : []),
+        ].filter(a => a.value != null)
+
+        return (
+          <div>
+            <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
+            <div className="card" style={{ marginBottom: 14 }}>
+              <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>🕸️ Performance Overview</h2>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}>
+                <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>From</label>
+                <input type="date" value={radarDateFrom} onChange={e => setRadarDateFrom(e.target.value)} style={{ fontSize: 12 }} />
+                <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>To</label>
+                <input type="date" value={radarDateTo} onChange={e => setRadarDateTo(e.target.value)} style={{ fontSize: 12 }} />
+              </div>
+              {axes.length < 2 ? (
+                <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Not enough data yet to draw a radar — targets need to be set and some activity logged in this date range.</p>
+              ) : (
+                <RadarChart axes={axes} />
+              )}
+            </div>
+            <div className="card">
+              <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>How each axis is worked out</p>
+              <ul style={{ fontSize: 12, color: 'var(--text-secondary)', paddingLeft: 18, lineHeight: 1.6 }}>
+                <li><strong>Attendance</strong>: sessions attended ÷ sessions scheduled in this date range{attendancePct == null && ' — no scheduled classes found in this range'}.</li>
+                <li><strong>F2F Results</strong>: combined progress across every target set for you (all sections), same as the badges shown on each section{f2fPct == null && ' — no targets set yet'}.</li>
+                <li><strong>PDP</strong>: an approximation — % of your scheduled PDP timetable items whose date has already passed (there's no separate "done" tick in the data yet){pdpPct == null && ' — no PDP timetable items in this range'}.</li>
+                <li><strong>TTP</strong>: your latest assessment vs the coach-set team benchmark{student.discipline !== 'KRBA' ? ' — only available for KRBA (boxing) right now, no kickboxing benchmark exists yet' : !ttpBenchmark ? ' — no benchmark has been set yet' : ''}.</li>
+              </ul>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ── Leagues -- choose House League or Exercise Leagues ── */}
       {tab === 'leagues' && (
