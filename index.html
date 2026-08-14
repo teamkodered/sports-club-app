@@ -5,6 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>KR Centre</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- PWA: lets athletes install the app to their home screen as
+         "Fit II Fight". No service worker is used, so there's no
+         offline caching layer -- every launch loads fresh from the
+         server, meaning app updates are automatic and instant, exactly
+         like using it in a browser tab. -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#E24B4A" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Fit II Fight" />
   </head>
   <body>
     <div id="root"></div>
