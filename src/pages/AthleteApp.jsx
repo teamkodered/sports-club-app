@@ -2520,9 +2520,12 @@ export default function AthleteApp() {
                   if (scopeLabel === student.discipline) return a.classes?.discipline === student.discipline
                   return true
                 })
-                const earliestDate = coachAttendanceDateSettings?.from || (attendanceData.length
+                const earliestDateRaw = coachAttendanceDateSettings?.from || (attendanceData.length
                   ? attendanceData.reduce((min, a) => a.session_date < min ? a.session_date : min, attendanceData[0].session_date)
                   : new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
+                // Never count attendance from before the soft launch date --
+                // earlier data isn't reliable enough to hold against athletes.
+                const earliestDate = earliestDateRaw < SOFT_LAUNCH_DATE ? SOFT_LAUNCH_DATE : earliestDateRaw
                 // "Possible sessions" only ever counts sessions that have
                 // actually happened -- if the coach's date filter's end
                 // date is in the future (e.g. an end-of-term date not yet
@@ -2645,7 +2648,7 @@ export default function AthleteApp() {
                         <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>Assigned sessions</div>
                         {coachAttendanceDateSettings && (
                           <div style={{ fontSize: 8, color: 'var(--text-tertiary)' }}>
-                            {new Date(coachAttendanceDateSettings.from).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – {new Date(coachAttendanceDateSettings.to).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                            {new Date(earliestDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – {new Date(coachAttendanceDateSettings.to).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                           </div>
                         )}
                       </div>
