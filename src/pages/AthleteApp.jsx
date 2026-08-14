@@ -737,7 +737,7 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
   }
 
   const logHref = `/fit2fight?student_id=${studentId}&module=${b.key}`
-  const isPhysicalModule = ['running', 'watt_bike', 'bodyweight', 'stretch'].includes(b.key)
+  const isPhysicalModule = ['running', 'watt_bike', 'bodyweight', 'stretch', 'techniques'].includes(b.key)
   const isSimplifiedModule = ['wellbeing', 'mentality', 'test'].includes(b.key)
   const hideLeftZone = isSimplifiedModule || isPhysicalModule
   const canCycle = subTypeOptions.length > 1
@@ -4835,9 +4835,8 @@ export default function AthleteApp() {
       {/* ── Fit II Fight ── */}
       {tab === 'fit2fight' && (
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <div style={{ marginBottom: 14 }}>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{sessions.length} sessions</p>
-            <Link to="/fit2fight" className="btn btn-primary btn-sm">+ Log session</Link>
           </div>
 
           {student && (() => {
@@ -5248,7 +5247,6 @@ export default function AthleteApp() {
                     )}
                     {resultsGraphSection === 1 && (weightData.length > 1 ? (
                       <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
-                        <Link to={`/fit2fight?student_id=${student.id}`} className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, zIndex: 1 }}>+ Log</Link>
                         <LineChart
                           data={weightData.map(s => ({ id: s.id, session_date: s.session_date, before: s.weight_before, after: s.weight_after }))}
                           lines={[
@@ -5281,7 +5279,6 @@ export default function AthleteApp() {
                       })
                       return (
                         <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
-                          <Link to={`/fit2fight?student_id=${student.id}&module=watt_bike`} className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, zIndex: 1 }}>+ Log</Link>
                           {wattTypes.length > 1 && (
                             <div className="field" style={{ marginBottom: 10, maxWidth: 220 }}>
                               <label style={{ fontSize: 11 }}>Show</label>
@@ -5324,7 +5321,6 @@ export default function AthleteApp() {
                       })
                       return (
                         <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
-                          <Link to={`/fit2fight?student_id=${student.id}&module=running`} className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, zIndex: 1 }}>+ Log</Link>
                           {runTests.length > 1 && (
                             <div className="field" style={{ marginBottom: 10, maxWidth: 220 }}>
                               <label style={{ fontSize: 11 }}>Show</label>
@@ -5349,7 +5345,6 @@ export default function AthleteApp() {
                         }).filter(s => s.level != null)
                       return (
                         <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
-                          <Link to={`/fit2fight?student_id=${student.id}&module=test`} className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, zIndex: 1 }}>+ Log</Link>
                           <LineChart data={bleepData} lines={[{ key: 'level', label: 'Bleep test', colour: '#1D9E75' }]} title="🏃 Bleep test over time" unit="" />
                         </div>
                       )
@@ -5366,7 +5361,6 @@ export default function AthleteApp() {
                         }).filter(s => s.left != null || s.right != null)
                       return (
                         <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
-                          <Link to={`/fit2fight?student_id=${student.id}&module=test`} className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, zIndex: 1 }}>+ Log</Link>
                           <LineChart data={gripData} lines={[{ key: 'left', label: 'Grip left', colour: '#378ADD' }, { key: 'right', label: 'Grip right', colour: '#E24B4A' }]} title="✊ Grip test over time" unit="kg" />
                         </div>
                       )
@@ -5382,7 +5376,6 @@ export default function AthleteApp() {
                         }).filter(s => s.value != null)
                       return (
                         <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
-                          <Link to={`/fit2fight?student_id=${student.id}&module=test`} className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, zIndex: 1 }}>+ Log</Link>
                           <LineChart data={circuitData} lines={[{ key: 'value', label: 'Fixed load circuit', colour: '#854F0B' }]} title="⭕ Fixed load circuit over time" unit="" />
                         </div>
                       )
@@ -5406,7 +5399,6 @@ export default function AthleteApp() {
                       })
                       return (
                         <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
-                          <Link to={`/fit2fight?student_id=${student.id}&module=bodyweight`} className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, zIndex: 1 }}>+ Log</Link>
                           {bwTypes.length > 1 && (
                             <div className="field" style={{ marginBottom: 10, maxWidth: 220 }}>
                               <label style={{ fontSize: 11 }}>Show</label>
@@ -5437,7 +5429,6 @@ export default function AthleteApp() {
                       })
                       return (
                         <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
-                          <Link to={`/fit2fight?student_id=${student.id}&module=techniques`} className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, zIndex: 1 }}>+ Log</Link>
                           {techTypes.length > 1 && (
                             <div className="field" style={{ marginBottom: 10, maxWidth: 220 }}>
                               <label style={{ fontSize: 11 }}>Show</label>
