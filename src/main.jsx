@@ -42,6 +42,7 @@ import Fit2FightForm from './pages/Fit2FightForm.jsx'
 import BoxingTPTForm from './pages/BoxingTPTForm.jsx'
 import AthleteApp from './pages/AthleteApp.jsx'
 import CheckInPublic from './pages/CheckInPublic.jsx'
+import CourseInterest from './pages/forms/CourseInterest.jsx'
 import WhoopDisplayBoard from './pages/WhoopDisplayBoard.jsx'
 import Layout from './components/shared/Layout.jsx'
 
@@ -86,6 +87,7 @@ function App() {
           <Route path="/privacy"         element={<PrivacyPolicy />} />
           <Route path="/results-public"  element={<ResultsPublic />} />
           <Route path="/checkin-public"  element={<CheckInPublic />} />
+          <Route path="/course-interest" element={<CourseInterest />} />
           <Route path="/whoop-board"     element={<WhoopDisplayBoard />} />
           <Route path="/athlete-app"     element={<ProtectedRoute><AthleteApp /></ProtectedRoute>} />
           <Route path="/" element={<Navigate to="/dashboard" replace />} />

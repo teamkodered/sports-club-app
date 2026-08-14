@@ -64,7 +64,9 @@ export default function CRM() {
   const [courses, setCourses] = useState([])
   const [coursesLoaded, setCoursesLoaded] = useState(false)
   const [editingCourse, setEditingCourse] = useState(null) // {} for new, or the course object
-  const [courseForm, setCourseForm] = useState({ title: '', description: '', poster_url: '', start_date: '', end_date: '', location: '', price: '' })
+  const [courseForm, setCourseForm] = useState({ title: '', description: '', poster_url: '', start_date: '', end_date: '', location: '', price: '', message_text: '' })
+  const [courseInterest, setCourseInterest] = useState({}) // course_id -> array of responses
+  const [loadingInterestFor, setLoadingInterestFor] = useState(null)
   const [savingCourse, setSavingCourse] = useState(false)
   const [uploadingPoster, setUploadingPoster] = useState(false)
   const [expandedCourseId, setExpandedCourseId] = useState(null)
@@ -78,8 +80,8 @@ export default function CRM() {
   function startEditCourse(course) {
     setEditingCourse(course || {})
     setCourseForm(course
-      ? { title: course.title, description: course.description || '', poster_url: course.poster_url || '', start_date: course.start_date, end_date: course.end_date || '', location: course.location || '', price: course.price || '' }
-      : { title: '', description: '', poster_url: '', start_date: '', end_date: '', location: '', price: '' })
+      ? { title: course.title, description: course.description || '', poster_url: course.poster_url || '', start_date: course.start_date, end_date: course.end_date || '', location: course.location || '', price: course.price || '', message_text: course.message_text || '' }
+      : { title: '', description: '', poster_url: '', start_date: '', end_date: '', location: '', price: '', message_text: '' })
   }
 
   async function uploadCoursePoster(file) {
@@ -116,6 +118,23 @@ export default function CRM() {
     const { error } = await supabase.from('courses').delete().eq('id', id)
     if (error) { alert('Error deleting course: ' + error.message); return }
     setCourses(prev => prev.filter(c => c.id !== id))
+  }
+
+  async function loadCourseInterest(courseId) {
+    setLoadingInterestFor(courseId)
+    const { data } = await supabase.from('course_interest').select('*').eq('course_id', courseId).order('submitted_at', { ascending: false })
+    setCourseInterest(prev => ({ ...prev, [courseId]: data || [] }))
+    setLoadingInterestFor(null)
+  }
+
+  async function confirmAttendance(interestId, courseId) {
+    const { error } = await supabase.from('course_interest')
+      .update({ status: 'confirmed', confirmed_at: new Date().toISOString() }).eq('id', interestId)
+    if (error) { alert('Error confirming: ' + error.message); return }
+    setCourseInterest(prev => ({
+      ...prev,
+      [courseId]: (prev[courseId] || []).map(r => r.id === interestId ? { ...r, status: 'confirmed', confirmed_at: new Date().toISOString() } : r),
+    }))
   }
 
   useEffect(() => { loadData() }, [])
@@ -986,7 +1005,7 @@ export default function CRM() {
                 const isPast = c.start_date < new Date().toISOString().split('T')[0]
                 return (
                   <div key={c.id} className="card" style={{ padding: 0, opacity: isPast ? 0.6 : 1 }}>
-                    <button onClick={() => setExpandedCourseId(isOpen ? null : c.id)}
+                    <button onClick={() => { const next = isOpen ? null : c.id; setExpandedCourseId(next); if (next) loadCourseInterest(next) }}
                       style={{ width: '100%', textAlign: 'left', display: 'flex', gap: 12, padding: 12, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                       {c.poster_url ? (
                         <img src={c.poster_url} alt="" style={{ width: 56, height: 56, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
@@ -1009,9 +1028,66 @@ export default function CRM() {
                         {c.description && <p style={{ fontSize: 13, whiteSpace: 'pre-line', marginBottom: 10 }}>{c.description}</p>}
                         {c.price && <p style={{ fontSize: 13, marginBottom: 10 }}><strong>Price:</strong> {c.price}</p>}
                         {isAdmin && (
-                          <div style={{ display: 'flex', gap: 8 }}>
+                          <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
                             <button className="btn btn-sm" onClick={() => startEditCourse(c)}>Edit</button>
                             <button className="btn btn-sm" onClick={() => deleteCourse(c.id)} style={{ color: '#E24B4A' }}>Delete</button>
+                          </div>
+                        )}
+
+                        {isAdmin && (() => {
+                          const interestUrl = `${window.location.origin}/course-interest?course_id=${c.id}`
+                          const posterLine = c.poster_url ? `\n${c.poster_url}` : ''
+                          const messageBody = `${c.message_text || `Check out our upcoming course: ${c.title}`}${posterLine}\n\nExpress your interest here: ${interestUrl}`
+                          const encodedBody = encodeURIComponent(messageBody)
+                          return (
+                            <div className="card" style={{ background: 'var(--bg-secondary)', marginBottom: 14 }}>
+                              <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>📢 Send details</p>
+                              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+                                <a className="btn btn-sm" href={`mailto:?subject=${encodeURIComponent(c.title)}&body=${encodedBody}`}>✉️ Email</a>
+                                <a className="btn btn-sm" href={`sms:?body=${encodedBody}`}>📱 Text</a>
+                                <a className="btn btn-sm" href={`https://wa.me/?text=${encodedBody}`} target="_blank" rel="noreferrer">💬 WhatsApp</a>
+                                <button className="btn btn-sm" onClick={() => { navigator.clipboard?.writeText(interestUrl); alert('Interest form link copied!') }}>🔗 Copy interest link</button>
+                              </div>
+                              <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                                Sends the saved message plus the poster image link and a link to the expression of interest form. Edit the course to change the message.
+                              </p>
+                            </div>
+                          )
+                        })()}
+
+                        {isAdmin && (
+                          <div>
+                            <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>
+                              📋 Expressions of interest {courseInterest[c.id] ? `(${courseInterest[c.id].length})` : ''}
+                            </p>
+                            {loadingInterestFor === c.id ? (
+                              <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Loading…</p>
+                            ) : !courseInterest[c.id] || courseInterest[c.id].length === 0 ? (
+                              <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No responses yet — share the interest link above.</p>
+                            ) : (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                {courseInterest[c.id].map(r => (
+                                  <div key={r.id} style={{
+                                    display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
+                                    padding: '8px 10px', borderRadius: 'var(--radius)',
+                                    background: r.status === 'confirmed' ? '#1D9E7512' : 'var(--bg-secondary)',
+                                  }}>
+                                    <span style={{ minWidth: 0 }}>
+                                      <span style={{ fontSize: 13, fontWeight: 600 }}>{r.name}</span>
+                                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)', marginLeft: 8 }}>
+                                        {r.email || r.phone || ''}
+                                      </span>
+                                      {r.notes && <span style={{ display: 'block', fontSize: 11, color: 'var(--text-secondary)' }}>{r.notes}</span>}
+                                    </span>
+                                    {r.status === 'confirmed' ? (
+                                      <span style={{ fontSize: 11, fontWeight: 600, color: '#1D9E75', flexShrink: 0 }}>✓ Confirmed</span>
+                                    ) : (
+                                      <button className="btn btn-sm" style={{ flexShrink: 0 }} onClick={() => confirmAttendance(r.id, c.id)}>Confirm place</button>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1060,6 +1136,11 @@ export default function CRM() {
                 <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Description</label>
                 <textarea value={courseForm.description} onChange={e => setCourseForm(f => ({ ...f, description: e.target.value }))}
                   rows={4} style={{ width: '100%', marginBottom: 14, resize: 'vertical' }} />
+
+                <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Message to send (email/text/WhatsApp)</label>
+                <textarea value={courseForm.message_text} onChange={e => setCourseForm(f => ({ ...f, message_text: e.target.value }))}
+                  rows={4} placeholder="e.g. Places still available for our upcoming grading — let us know if you're interested!"
+                  style={{ width: '100%', marginBottom: 14, resize: 'vertical' }} />
 
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button className="btn btn-primary" disabled={savingCourse} onClick={saveCourse}>{savingCourse ? 'Saving…' : 'Save'}</button>
