@@ -2732,13 +2732,13 @@ export default function AthleteApp() {
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
                     <div ref={physicalSectionRef} style={{ order: 4 }}>
                     <button type="button" onClick={togglePhysicalSection} style={{
-                      width: '100%', aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
+                      width: '100%', maxWidth: 140, aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, margin: '0 auto',
                       textAlign: 'center', padding: '10px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
                       <span style={{ position: 'absolute', top: 8, left: 8 }}><SectionProgressBadge sectionKey="physical" /></span>
-                      <span style={{ fontSize: 30 }}>💪</span>
-                      <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>Physical</span>
+                      <span style={{ fontSize: 24 }}>💪</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Physical</span>
                       <span style={{ position: 'absolute', bottom: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showPhysicalSection ? '▲' : '▼'}</span>
                     </button>
 
@@ -3085,13 +3085,13 @@ export default function AthleteApp() {
 
                     <div ref={techniqueSectionRef} style={{ order: 3 }}>
                     <button type="button" onClick={() => { setShowTechniqueSection(v => { if (v) setExpandedTechniqueCategory(null); return !v }) }} style={{
-                      width: '100%', aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
+                      width: '100%', maxWidth: 140, aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, margin: '0 auto',
                       textAlign: 'center', padding: '10px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
                       <span style={{ position: 'absolute', top: 8, left: 8 }}><SectionProgressBadge sectionKey="technique" /></span>
-                      <span style={{ fontSize: 30 }}>🥊</span>
-                      <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>Technique</span>
+                      <span style={{ fontSize: 24 }}>🥊</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Technique</span>
                       <span style={{ position: 'absolute', bottom: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showTechniqueSection ? '▲' : '▼'}</span>
                     </button>
 
@@ -3181,13 +3181,13 @@ export default function AthleteApp() {
 
                     <div ref={tacticalSectionRef} style={{ order: 2 }}>
                     <button type="button" onClick={() => { setShowTacticalSection(v => { if (v) setExpandedTacticalCategory(null); return !v }) }} style={{
-                      width: '100%', aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
+                      width: '100%', maxWidth: 140, aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, margin: '0 auto',
                       textAlign: 'center', padding: '10px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
                       <span style={{ position: 'absolute', top: 8, left: 8 }}><SectionProgressBadge sectionKey="tactical" /></span>
-                      <span style={{ fontSize: 30 }}>🧩</span>
-                      <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>Tactical</span>
+                      <span style={{ fontSize: 24 }}>🧩</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Tactical</span>
                       <span style={{ position: 'absolute', bottom: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showTacticalSection ? '▲' : '▼'}</span>
                     </button>
 
@@ -3288,13 +3288,13 @@ export default function AthleteApp() {
 
                     <div ref={mentalitySectionRef} style={{ order: 1 }}>
                     <button type="button" onClick={() => { setShowMentalitySection(v => { if (v) setExpandedHomeMentality(null); return !v }) }} style={{
-                      width: '100%', aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
+                      width: '100%', maxWidth: 140, aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, margin: '0 auto',
                       textAlign: 'center', padding: '10px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
                       <span style={{ position: 'absolute', top: 8, left: 8 }}><SectionProgressBadge sectionKey="mentality" /></span>
-                      <span style={{ fontSize: 30 }}>🧠</span>
-                      <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>Mentality</span>
+                      <span style={{ fontSize: 24 }}>🧠</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Mentality</span>
                       <span style={{ position: 'absolute', bottom: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showMentalitySection ? '▲' : '▼'}</span>
                     </button>
 
