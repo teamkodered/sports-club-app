@@ -28,6 +28,22 @@ const TTP_BENCHMARK_FIELDS = [
   'read_opponent','tempo_rhythm','tactical_intelligence','ring_awareness',
   'know_strengths_weaknesses','heart_grit','concentration','timing',
 ]
+// Kickboxing TTP fields -- matches KickboxingTPT.jsx and
+// AthleteProfiles.jsx's KB_TTP_FIELDS exactly (all 3 must stay in sync).
+const KB_TTP_FIELDS = [
+  'weight_kg','height_cm','arm_span_cm','leg_reach_cm',
+  'straight_punches','round_kicks_floor_left','round_kicks_floor_right','round_kicks_air_left','round_kicks_air_right',
+  'resting_hr','session_peak_hr','run_20min_distance','run_20min_peak_hr','bleep_test_level','bleep_test_peak_hr',
+  'run_200m_1','run_200m_2','run_200m_3','run_200m_4','sprint_peak_hr','run_1600m','run_4800m','fixed_load_circuit_time',
+  'dips','push_ups','pull_ups','full_sit_up','squats',
+  'flat_plank','side_plank_right','side_plank_left','kick_hold_front_left','kick_hold_front_right','kick_hold_side_left','kick_hold_side_right',
+  'pinch_left','pinch_right','grip_left','grip_right',
+  'hamstring_stretch','box_splits','front_splits_left','front_splits_right','shoulder_range_right','shoulder_range_left',
+  'vertical_jump','long_jump',
+]
+// Matches KickboxingTPT.jsx's own "improved" convention -- these fields
+// are the only ones where a LOWER number is the better one.
+const KB_LOWER_IS_BETTER = ['weight_kg', 'resting_hr', 'run_200m_1', 'run_200m_2', 'run_200m_3', 'run_200m_4', 'run_1600m', 'run_4800m', 'fixed_load_circuit_time']
 
 const WELLBEING_QUESTIONS = [
   { key: 'sleep',        label: 'Sleep',        icon: '😴' },
@@ -974,6 +990,7 @@ export default function AthleteApp() {
   const [myNotesLog, setMyNotesLog] = useState([])
   const [tptData, setTptData] = useState({ kickboxing: [], boxing: [] })
   const [ttpBenchmark, setTtpBenchmark] = useState(null)
+  const [ttpBenchmarkKB, setTtpBenchmarkKB] = useState(null)
   const [radarDateFrom, setRadarDateFrom] = useState(() => { const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split('T')[0] })
   const [radarDateTo, setRadarDateTo] = useState(() => new Date().toISOString().split('T')[0])
   const [whoopConnection, setWhoopConnection] = useState(null)
@@ -1318,6 +1335,10 @@ export default function AthleteApp() {
         supabase.from('ttp_benchmarks').select('*').eq('discipline', 'boxing')
           .order('set_at', { ascending: false }).limit(1)
           .then(({ data, error }) => { if (!error) setTtpBenchmark(data?.[0] || null) })
+
+        supabase.from('ttp_benchmarks').select('*').eq('discipline', 'kickboxing')
+          .order('set_at', { ascending: false }).limit(1)
+          .then(({ data, error }) => { if (!error) setTtpBenchmarkKB(data?.[0] || null) })
 
         supabase.from('whoop_connections').select('*').eq('student_id', s.id).maybeSingle()
           .then(({ data }) => setWhoopConnection(data || null))
@@ -3791,16 +3812,6 @@ export default function AthleteApp() {
                   <span style={{ fontSize: 12, fontWeight: 500, color: '#8B5CF6' }}>Leagues</span>
                 </button>
               </div>
-
-              <button onClick={() => setTab('radar')} style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                width: '100%', marginTop: 8, padding: '12px 8px', background: '#EF9F2712',
-                border: '1px solid #EF9F2730', borderRadius: 'var(--border-radius-lg)',
-                cursor: 'pointer', fontFamily: 'var(--font-sans)',
-              }}>
-                <span style={{ fontSize: 20 }}>🕸️</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: '#EF9F27' }}>Performance Overview</span>
-              </button>
                     <div ref={testSectionRef}>
                     <button type="button" onClick={() => { setShowTestSection(v => { if (v) setExpandedHomeTestCategory(null); return !v }) }} style={{
                       width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
@@ -4409,108 +4420,7 @@ export default function AthleteApp() {
         </div>
       )}
 
-      {/* ── Performance Overview -- radar chart across Attendance, F2F
-          Results, PDP, and TTP. Each axis is expressed as "% of target
-          achieved" so four genuinely different kinds of data can share
-          one scale. See the notes shown under the chart for exactly
-          how each axis is worked out and where an approximation was
-          needed. ── */}
-      {tab === 'radar' && student && (() => {
-        const fromStr = radarDateFrom, toStr = radarDateTo
-
-        // Attendance % -- a clean, straightforward version (does not
-        // replicate the exact-key/holiday-fallback logic the main
-        // Attendance card uses, so this number may differ slightly
-        // from that card if class changes/holidays are involved).
-        const scheduledDaysInRange = new Set()
-        assignedClasses.forEach(a => {
-          const jsDays = DAY_TO_JS_DAYS[a.classes?.day_of_week] || []
-          if (!jsDays.length) return
-          const cursor = new Date(fromStr + 'T00:00:00')
-          const end = new Date(toStr + 'T00:00:00')
-          while (cursor <= end) {
-            if (jsDays.includes(cursor.getDay()) && !isDateOnHoliday(cursor.toISOString().split('T')[0], holidays, [a.classes?.id], student.id)) {
-              scheduledDaysInRange.add(cursor.toISOString().split('T')[0])
-            }
-            cursor.setDate(cursor.getDate() + 1)
-          }
-        })
-        const attendedDaysInRange = new Set(
-          attendanceData.filter(a => a.session_date >= fromStr && a.session_date <= toStr && a.attendance_type !== 'absent' && a.attendance_type !== 'excused').map(a => a.session_date)
-        )
-        const attendancePct = scheduledDaysInRange.size ? Math.round((attendedDaysInRange.size / scheduledDaysInRange.size) * 100) : null
-
-        // F2F Results % -- combines every section-level and question-level
-        // target set for this athlete (reusing the exact same logic that
-        // powers the "X/Y" badges shown on each section elsewhere).
-        let f2fDone = 0, f2fTarget = 0
-        ;['physical', 'technique', 'tactical', 'mentality', 'wellbeing', 'test'].forEach(sectionKey => {
-          const p = getSectionProgress(sectionKey)
-          if (p) { f2fDone += p.done; f2fTarget += p.target }
-        })
-        const f2fPct = f2fTarget > 0 ? Math.round((f2fDone / f2fTarget) * 100) : null
-
-        // PDP % -- PDP timetable entries don't actually have a "done"
-        // flag in the data (they're a schedule, not a checklist), so
-        // this uses "scheduled items whose date has already passed" as
-        // the closest honest stand-in for completion within the range.
-        const pdpEntriesInRange = PDP_TIMETABLE_SECTION_KEYS.flatMap(sectionKey =>
-          Object.values((apData?.pdp_notes || {})[`__timetable_${sectionKey}`] || {})
-        ).filter(e => e?.date >= fromStr && e?.date <= toStr)
-        const todayStr = new Date().toISOString().split('T')[0]
-        const pdpPastDue = pdpEntriesInRange.filter(e => e.date <= todayStr)
-        const pdpPct = pdpEntriesInRange.length ? Math.round((pdpPastDue.length / pdpEntriesInRange.length) * 100) : null
-
-        // TTP % -- athlete's latest assessment vs the coach-set team
-        // benchmark. Only exists for boxing (KRBA) right now -- there's
-        // no kickboxing benchmark yet, so this axis is left out for KR athletes.
-        let ttpPct = null
-        if (student.discipline === 'KRBA' && ttpBenchmark) {
-          const latest = tptData.boxing?.[0]
-          if (latest) {
-            const ratios = TTP_BENCHMARK_FIELDS
-              .filter(f => latest[f] != null && ttpBenchmark[f] != null && ttpBenchmark[f] > 0)
-              .map(f => latest[f] / ttpBenchmark[f])
-            if (ratios.length) ttpPct = Math.round((ratios.reduce((a, b) => a + b, 0) / ratios.length) * 100)
-          }
-        }
-
-        const axes = [
-          { label: 'Attendance', value: attendancePct, colour: '#378ADD' },
-          { label: 'F2F Results', value: f2fPct, colour: '#EF9F27' },
-          { label: 'PDP', value: pdpPct, colour: '#1D9E75' },
-          ...(ttpPct != null ? [{ label: 'TTP', value: ttpPct, colour: '#E24B4A' }] : []),
-        ].filter(a => a.value != null)
-
-        return (
-          <div>
-            <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
-            <div className="card" style={{ marginBottom: 14 }}>
-              <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>🕸️ Performance Overview</h2>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}>
-                <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>From</label>
-                <input type="date" value={radarDateFrom} onChange={e => setRadarDateFrom(e.target.value)} style={{ fontSize: 12 }} />
-                <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>To</label>
-                <input type="date" value={radarDateTo} onChange={e => setRadarDateTo(e.target.value)} style={{ fontSize: 12 }} />
-              </div>
-              {axes.length < 2 ? (
-                <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Not enough data yet to draw a radar — targets need to be set and some activity logged in this date range.</p>
-              ) : (
-                <RadarChart axes={axes} />
-              )}
-            </div>
-            <div className="card">
-              <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>How each axis is worked out</p>
-              <ul style={{ fontSize: 12, color: 'var(--text-secondary)', paddingLeft: 18, lineHeight: 1.6 }}>
-                <li><strong>Attendance</strong>: sessions attended ÷ sessions scheduled in this date range{attendancePct == null && ' — no scheduled classes found in this range'}.</li>
-                <li><strong>F2F Results</strong>: combined progress across every target set for you (all sections), same as the badges shown on each section{f2fPct == null && ' — no targets set yet'}.</li>
-                <li><strong>PDP</strong>: an approximation — % of your scheduled PDP timetable items whose date has already passed (there's no separate "done" tick in the data yet){pdpPct == null && ' — no PDP timetable items in this range'}.</li>
-                <li><strong>TTP</strong>: your latest assessment vs the coach-set team benchmark{student.discipline !== 'KRBA' ? ' — only available for KRBA (boxing) right now, no kickboxing benchmark exists yet' : !ttpBenchmark ? ' — no benchmark has been set yet' : ''}.</li>
-              </ul>
-            </div>
-          </div>
-        )
-      })()}
+      {/* ── Analysis ── */}
 
       {/* ── Leagues -- choose House League or Exercise Leagues ── */}
       {tab === 'leagues' && (
@@ -4851,6 +4761,109 @@ export default function AthleteApp() {
             <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{sessions.length} sessions</p>
             <Link to="/fit2fight" className="btn btn-primary btn-sm">+ Log session</Link>
           </div>
+
+          {student && (() => {
+            const fromStr = radarDateFrom, toStr = radarDateTo
+
+            // Attendance % -- a clean, straightforward version (does not
+            // replicate the exact-key/holiday-fallback logic the main
+            // Attendance card uses, so this number may differ slightly
+            // from that card if class changes/holidays are involved).
+            const scheduledDaysInRange = new Set()
+            assignedClasses.forEach(a => {
+              const jsDays = DAY_TO_JS_DAYS[a.classes?.day_of_week] || []
+              if (!jsDays.length) return
+              const cursor = new Date(fromStr + 'T00:00:00')
+              const end = new Date(toStr + 'T00:00:00')
+              while (cursor <= end) {
+                if (jsDays.includes(cursor.getDay()) && !isDateOnHoliday(cursor.toISOString().split('T')[0], holidays, [a.classes?.id], student.id)) {
+                  scheduledDaysInRange.add(cursor.toISOString().split('T')[0])
+                }
+                cursor.setDate(cursor.getDate() + 1)
+              }
+            })
+            const attendedDaysInRange = new Set(
+              attendanceData.filter(a => a.session_date >= fromStr && a.session_date <= toStr && a.attendance_type !== 'absent' && a.attendance_type !== 'excused').map(a => a.session_date)
+            )
+            const attendancePct = scheduledDaysInRange.size ? Math.round((attendedDaysInRange.size / scheduledDaysInRange.size) * 100) : null
+
+            // F2F Results % -- combines every section-level and question-level
+            // target set for this athlete (reusing the exact same logic that
+            // powers the "X/Y" badges shown on each section elsewhere).
+            let f2fDone = 0, f2fTarget = 0
+            ;['physical', 'technique', 'tactical', 'mentality', 'wellbeing', 'test'].forEach(sectionKey => {
+              const p = getSectionProgress(sectionKey)
+              if (p) { f2fDone += p.done; f2fTarget += p.target }
+            })
+            const f2fPct = f2fTarget > 0 ? Math.round((f2fDone / f2fTarget) * 100) : null
+
+            // PDP % -- uses the genuine "completed" flag on each scheduled
+            // timetable item (coaches tick items off in the Weekly Timetable).
+            const pdpEntriesInRange = PDP_TIMETABLE_SECTION_KEYS.flatMap(sectionKey =>
+              Object.values((apData?.pdp_notes || {})[`__timetable_${sectionKey}`] || {})
+            ).filter(e => e?.date >= fromStr && e?.date <= toStr)
+            const pdpCompleted = pdpEntriesInRange.filter(e => e.completed)
+            const pdpPct = pdpEntriesInRange.length ? Math.round((pdpCompleted.length / pdpEntriesInRange.length) * 100) : null
+
+            // TTP % -- athlete's latest assessment vs the coach-set team
+            // benchmark. Boxing (KRBA) and kickboxing (KR) each have their
+            // own benchmark and field set, with direction-aware ratios
+            // (some kickboxing fields like run times are "lower is
+            // better", so those get an inverted ratio rather than being
+            // averaged the wrong way round).
+            let ttpPct = null
+            if (student.discipline === 'KRBA' && ttpBenchmark) {
+              const latest = tptData.boxing?.[0]
+              if (latest) {
+                const ratios = TTP_BENCHMARK_FIELDS
+                  .filter(f => latest[f] != null && ttpBenchmark[f] != null && ttpBenchmark[f] > 0)
+                  .map(f => latest[f] / ttpBenchmark[f])
+                if (ratios.length) ttpPct = Math.round((ratios.reduce((a, b) => a + b, 0) / ratios.length) * 100)
+              }
+            } else if (student.is_kr && ttpBenchmarkKB) {
+              const latest = tptData.kickboxing?.[0]
+              if (latest) {
+                const ratios = KB_TTP_FIELDS
+                  .filter(f => latest[f] != null && ttpBenchmarkKB[f] != null && ttpBenchmarkKB[f] > 0 && latest[f] > 0)
+                  .map(f => KB_LOWER_IS_BETTER.includes(f) ? ttpBenchmarkKB[f] / latest[f] : latest[f] / ttpBenchmarkKB[f])
+                if (ratios.length) ttpPct = Math.round((ratios.reduce((a, b) => a + b, 0) / ratios.length) * 100)
+              }
+            }
+
+            const axes = [
+              { label: 'Attendance', value: attendancePct, colour: '#378ADD' },
+              { label: 'F2F Results', value: f2fPct, colour: '#EF9F27' },
+              { label: 'PDP', value: pdpPct, colour: '#1D9E75' },
+              ...(ttpPct != null ? [{ label: 'TTP', value: ttpPct, colour: '#E24B4A' }] : []),
+            ].filter(a => a.value != null)
+
+            return (
+              <div className="card" style={{ marginBottom: 14 }}>
+                <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>🕸️ Performance Overview</h2>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}>
+                  <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>From</label>
+                  <input type="date" value={radarDateFrom} onChange={e => setRadarDateFrom(e.target.value)} style={{ fontSize: 12 }} />
+                  <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>To</label>
+                  <input type="date" value={radarDateTo} onChange={e => setRadarDateTo(e.target.value)} style={{ fontSize: 12 }} />
+                </div>
+                {axes.length < 2 ? (
+                  <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Not enough data yet to draw a radar — targets need to be set and some activity logged in this date range.</p>
+                ) : (
+                  <RadarChart axes={axes} />
+                )}
+                <details style={{ marginTop: 12 }}>
+                  <summary style={{ fontSize: 12, fontWeight: 600, cursor: 'pointer', color: 'var(--text-secondary)' }}>How each axis is worked out</summary>
+                  <ul style={{ fontSize: 12, color: 'var(--text-secondary)', paddingLeft: 18, lineHeight: 1.6, marginTop: 8 }}>
+                    <li><strong>Attendance</strong>: sessions attended ÷ sessions scheduled in this date range{attendancePct == null && ' — no scheduled classes found in this range'}.</li>
+                    <li><strong>F2F Results</strong>: combined progress across every target set for you (all sections), same as the badges shown on each section{f2fPct == null && ' — no targets set yet'}.</li>
+                    <li><strong>PDP</strong>: % of your scheduled PDP timetable items your coach has ticked off as done{pdpPct == null && ' — no PDP timetable items in this range'}.</li>
+                    <li><strong>TTP</strong>: your latest assessment vs the coach-set team benchmark{!ttpBenchmark && !ttpBenchmarkKB ? ' — no benchmark has been set yet for your discipline' : ttpPct == null ? ' — no benchmark set yet for your discipline, or no TTP assessment logged' : ''}.</li>
+                  </ul>
+                </details>
+              </div>
+            )
+          })()}
+
           {sessions.length === 0 ? (
             <div className="empty-state"><h3>No sessions yet</h3></div>
           ) : (

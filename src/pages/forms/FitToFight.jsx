@@ -692,7 +692,7 @@ export default function FitToFight() {
                     <button type="button" className="btn btn-sm" onClick={() => setShowWeightLogger(true)}>Edit</button>
                   </div>
                 ) : (
-                  <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setShowWeightLogger(true)}>
+                  <button type="button" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '16px 20px', fontSize: 16, fontWeight: 600 }} onClick={() => setShowWeightLogger(true)}>
                     ⚖️ Log weight
                   </button>
                 )}

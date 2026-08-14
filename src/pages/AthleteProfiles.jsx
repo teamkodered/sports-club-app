@@ -668,6 +668,53 @@ function toEntries(val) {
   return []
 }
 
+// Generic radar/spider chart -- axes is [{ label, value (0-100), colour }].
+// Matches AthleteApp.jsx's own RadarChart exactly (same hand-rolled SVG
+// approach as this file's other custom charts).
+function RadarChart({ axes, size = 280 }) {
+  const cx = size / 2, cy = size / 2
+  const maxR = size / 2 - 46
+  const n = axes.length
+  const angleFor = i => (Math.PI * 2 * i) / n - Math.PI / 2
+  const pointFor = (i, pct) => {
+    const angle = angleFor(i)
+    const r = (Math.max(0, Math.min(100, pct)) / 100) * maxR
+    return [cx + r * Math.cos(angle), cy + r * Math.sin(angle)]
+  }
+  const dataPoints = axes.map((a, i) => pointFor(i, a.value)).map(p => p.join(',')).join(' ')
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <svg viewBox={`0 0 ${size} ${size}`} style={{ width: '100%', maxWidth: size, height: 'auto' }}>
+        {[0.25, 0.5, 0.75, 1].map(t => (
+          <polygon key={t}
+            points={axes.map((_, i) => pointFor(i, t * 100).join(',')).join(' ')}
+            fill="none" stroke="var(--border)" strokeWidth="1" />
+        ))}
+        {axes.map((a, i) => {
+          const [x, y] = pointFor(i, 100)
+          const labelR = maxR + 22
+          const angle = angleFor(i)
+          const lx = cx + labelR * Math.cos(angle)
+          const ly = cy + labelR * Math.sin(angle)
+          return (
+            <g key={a.label}>
+              <line x1={cx} y1={cy} x2={x} y2={y} stroke="var(--border)" strokeWidth="1" />
+              <text x={lx} y={ly} textAnchor="middle" dominantBaseline="middle" fontSize="11" fontWeight="600" fill={a.colour}>{a.label}</text>
+              <text x={lx} y={ly + 13} textAnchor="middle" fontSize="10" fill="var(--text-tertiary)">{Math.round(a.value)}%</text>
+            </g>
+          )
+        })}
+        <polygon points={dataPoints} fill="#EF9F2730" stroke="#EF9F27" strokeWidth="2" />
+        {axes.map((a, i) => {
+          const [x, y] = pointFor(i, a.value)
+          return <circle key={a.label} cx={x} cy={y} r="4" fill={a.colour} />
+        })}
+      </svg>
+    </div>
+  )
+}
+
 function getSubTypeOptions(sorted, key) {
   try {
     if (key === 'running') return [...new Set(sorted.flatMap(s => toEntries(s.running).map(e => e.category)).filter(Boolean))]
@@ -1101,6 +1148,21 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
     setTimetableModal(null)
     setTimetableDraftDate('')
     setTimetableDraftTime('')
+  }
+
+  // Marks a scheduled PDP timetable item as done/not done -- previously
+  // these entries had no completion flag at all (just a date/time), so
+  // "was this actually done" could only ever be guessed at from whether
+  // the date had passed. This adds a genuine tick.
+  async function toggleTimetableCompleted(sectionKey, item) {
+    const key = `__timetable_${sectionKey}`
+    const current = pdp[key] || {}
+    const entry = current[item]
+    if (!entry) return
+    const updated = { ...pdp, [key]: { ...current, [item]: { ...entry, completed: !entry.completed } } }
+    const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: updated }, { onConflict: 'student_id' })
+    if (error) { alert('Error updating: ' + error.message); return }
+    setApData(a => ({ ...a, pdp_notes: updated }))
   }
 
   async function removeFromTimetable(sectionKey, item) {
@@ -1986,6 +2048,8 @@ export default function AthleteProfiles() {
   const navigate = useNavigate()
   const flameHoldTimer = useRef(null)
   const [showQuickLoggerPicker, setShowQuickLoggerPicker] = useState(false)
+  const [radarDateFrom, setRadarDateFrom] = useState(() => { const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split('T')[0] })
+  const [radarDateTo, setRadarDateTo] = useState(() => new Date().toISOString().split('T')[0])
   // Sweep the Sheds -- coach assigns a task to any number of athletes
   // at once, independent of whichever athlete is currently selected.
   const [newShedTaskText, setNewShedTaskText] = useState('')
@@ -2048,6 +2112,11 @@ export default function AthleteProfiles() {
   const [benchmarkScores, setBenchmarkScores] = useState({})
   const [benchmarkNotes, setBenchmarkNotes] = useState('')
   const [savingBenchmark, setSavingBenchmark] = useState(false)
+  const [ttpBenchmarkKB, setTtpBenchmarkKB] = useState(null) // current kickboxing benchmark
+  const [showSetBenchmarkKB, setShowSetBenchmarkKB] = useState(false)
+  const [benchmarkScoresKB, setBenchmarkScoresKB] = useState({})
+  const [benchmarkNotesKB, setBenchmarkNotesKB] = useState('')
+  const [savingBenchmarkKB, setSavingBenchmarkKB] = useState(false)
   const [teamTargets, setTeamTargets] = useState([])
   const [showAddTarget, setShowAddTarget] = useState(false)
   const [recentPointsExpandedCoach, setRecentPointsExpandedCoach] = useState(false)
@@ -2940,6 +3009,76 @@ export default function AthleteProfiles() {
       .order('set_at', { ascending: false }).limit(1)
       .then(({ data }) => setTtpBenchmark(data?.[0] || null))
   }, [])
+
+  useEffect(() => {
+    supabase.from('ttp_benchmarks').select('*').eq('discipline', 'kickboxing')
+      .order('set_at', { ascending: false }).limit(1)
+      .then(({ data }) => setTtpBenchmarkKB(data?.[0] || null))
+  }, [])
+
+  // Kickboxing TTP fields -- matches KickboxingTPT.jsx's own SECTIONS
+  // exactly, since the benchmark must be set on the same fields
+  // athletes are actually assessed against.
+  const KB_TTP_SECTIONS = [
+    { label: 'Body measurements', fields: [
+      { key: 'weight_kg', label: 'Weight', unit: 'kg' }, { key: 'height_cm', label: 'Height', unit: 'cm' },
+      { key: 'arm_span_cm', label: 'Arm span', unit: 'cm' }, { key: 'leg_reach_cm', label: 'Leg reach', unit: 'cm' },
+    ]},
+    { label: 'Technique counts', fields: [
+      { key: 'straight_punches', label: 'Straight punches', unit: 'reps' },
+      { key: 'round_kicks_floor_left', label: 'Round kicks floor (L)', unit: 'reps' }, { key: 'round_kicks_floor_right', label: 'Round kicks floor (R)', unit: 'reps' },
+      { key: 'round_kicks_air_left', label: 'Round kicks air (L)', unit: 'reps' }, { key: 'round_kicks_air_right', label: 'Round kicks air (R)', unit: 'reps' },
+    ]},
+    { label: 'Cardiovascular', fields: [
+      { key: 'resting_hr', label: 'Resting HR', unit: 'bpm' }, { key: 'session_peak_hr', label: 'Session peak HR', unit: 'bpm' },
+      { key: 'run_20min_distance', label: '20min run distance', unit: 'km' }, { key: 'run_20min_peak_hr', label: '20min run peak HR', unit: 'bpm' },
+      { key: 'bleep_test_level', label: 'Bleep test level', unit: 'lvl' }, { key: 'bleep_test_peak_hr', label: 'Bleep test peak HR', unit: 'bpm' },
+      { key: 'run_200m_1', label: '200m run 1', unit: 's' }, { key: 'run_200m_2', label: '200m run 2', unit: 's' },
+      { key: 'run_200m_3', label: '200m run 3', unit: 's' }, { key: 'run_200m_4', label: '200m run 4', unit: 's' },
+      { key: 'sprint_peak_hr', label: 'Sprint peak HR', unit: 'bpm' }, { key: 'run_1600m', label: '1600m run', unit: 'min' },
+      { key: 'run_4800m', label: '4800m run', unit: 'min' }, { key: 'fixed_load_circuit_time', label: 'Fixed load circuit', unit: 's' },
+    ]},
+    { label: 'Strength & endurance', fields: [
+      { key: 'dips', label: 'Dips', unit: 'reps' }, { key: 'push_ups', label: 'Push ups', unit: 'reps' },
+      { key: 'pull_ups', label: 'Pull ups', unit: 'reps' }, { key: 'full_sit_up', label: 'Full sit up', unit: 'reps' }, { key: 'squats', label: 'Squats', unit: 'reps' },
+    ]},
+    { label: 'Plank & kick holds', fields: [
+      { key: 'flat_plank', label: 'Flat plank', unit: 's' }, { key: 'side_plank_right', label: 'Side plank (R)', unit: 's' }, { key: 'side_plank_left', label: 'Side plank (L)', unit: 's' },
+      { key: 'kick_hold_front_left', label: 'Front kick hold (L)', unit: 's' }, { key: 'kick_hold_front_right', label: 'Front kick hold (R)', unit: 's' },
+      { key: 'kick_hold_side_left', label: 'Side kick hold (L)', unit: 's' }, { key: 'kick_hold_side_right', label: 'Side kick hold (R)', unit: 's' },
+    ]},
+    { label: 'Grip & pinch strength', fields: [
+      { key: 'pinch_left', label: 'Pinch (L)', unit: 'kg' }, { key: 'pinch_right', label: 'Pinch (R)', unit: 'kg' },
+      { key: 'grip_left', label: 'Grip (L)', unit: 'kg' }, { key: 'grip_right', label: 'Grip (R)', unit: 'kg' },
+    ]},
+    { label: 'Flexibility', fields: [
+      { key: 'hamstring_stretch', label: 'Hamstring stretch', unit: 'cm' }, { key: 'box_splits', label: 'Box splits', unit: 'cm' },
+      { key: 'front_splits_left', label: 'Front splits (L)', unit: 'cm' }, { key: 'front_splits_right', label: 'Front splits (R)', unit: 'cm' },
+      { key: 'shoulder_range_right', label: 'Shoulder range (R)', unit: 'cm' }, { key: 'shoulder_range_left', label: 'Shoulder range (L)', unit: 'cm' },
+    ]},
+    { label: 'Power & explosiveness', fields: [
+      { key: 'vertical_jump', label: 'Vertical jump', unit: 'cm' }, { key: 'long_jump', label: 'Long jump', unit: 'cm' },
+    ]},
+  ]
+  const KB_TTP_FIELDS = KB_TTP_SECTIONS.flatMap(s => s.fields.map(f => f.key))
+  // Matches KickboxingTPT.jsx's own "improved" convention exactly --
+  // these are the only fields where a LOWER number is the better one
+  // (times and resting/weight measurements); everything else is
+  // higher-is-better (reps, holds, distances, jumps, flexibility).
+  const KB_LOWER_IS_BETTER = ['weight_kg', 'resting_hr', 'run_200m_1', 'run_200m_2', 'run_200m_3', 'run_200m_4', 'run_1600m', 'run_4800m', 'fixed_load_circuit_time']
+
+  async function saveNewBenchmarkKB() {
+    setSavingBenchmarkKB(true)
+    const payload = { discipline: 'kickboxing', notes: benchmarkNotesKB.trim() || null }
+    KB_TTP_FIELDS.forEach(f => { payload[f] = benchmarkScoresKB[f] ? Number(benchmarkScoresKB[f]) : null })
+    const { data, error } = await supabase.from('ttp_benchmarks').insert(payload).select('*').single()
+    if (error) { alert('Error saving benchmark: ' + error.message); setSavingBenchmarkKB(false); return }
+    setTtpBenchmarkKB(data)
+    setShowSetBenchmarkKB(false)
+    setBenchmarkScoresKB({})
+    setBenchmarkNotesKB('')
+    setSavingBenchmarkKB(false)
+  }
 
   const TTP_BENCHMARK_FIELDS = [
     'shapes','punch_quality','footwork','defence','counters','attack','combinations',
@@ -6014,6 +6153,53 @@ export default function AthleteProfiles() {
               </div>
             </div>
 
+            {/* Kickboxing TTP Benchmark */}
+            <div className="card" style={{ padding: 0, marginBottom: 14 }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h2 style={{ fontSize: 14, fontWeight: 600 }}>🎯 TTP Benchmark (Kickboxing)</h2>
+                <button className="btn btn-sm" onClick={() => {
+                  if (!showSetBenchmarkKB) setBenchmarkScoresKB(ttpBenchmarkKB ? Object.fromEntries(KB_TTP_FIELDS.map(f => [f, ttpBenchmarkKB[f] ?? ''])) : {})
+                  setShowSetBenchmarkKB(v => !v)
+                }}>{showSetBenchmarkKB ? 'Cancel' : '+ Set new benchmark'}</button>
+              </div>
+              <div style={{ padding: 16 }}>
+                {ttpBenchmarkKB ? (
+                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: showSetBenchmarkKB ? 14 : 0 }}>
+                    Current benchmark set {new Date(ttpBenchmarkKB.set_at).toLocaleDateString('en-GB')}
+                    {ttpBenchmarkKB.notes ? ` — ${ttpBenchmarkKB.notes}` : ''}. Shown for comparison on every kickboxing athlete's TTP page.
+                  </p>
+                ) : (
+                  <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: showSetBenchmarkKB ? 14 : 0 }}>No benchmark set yet.</p>
+                )}
+
+                {showSetBenchmarkKB && (
+                  <div style={{ borderTop: ttpBenchmarkKB ? '1px solid var(--border)' : 'none', paddingTop: ttpBenchmarkKB ? 14 : 0 }}>
+                    <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Complete a Kickboxing TTP form to set this as the new team benchmark</p>
+                    {KB_TTP_SECTIONS.map(group => (
+                      <div key={group.label} style={{ marginBottom: 14 }}>
+                        <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, textTransform: 'uppercase' }}>{group.label}</p>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 8 }}>
+                          {group.fields.map(f => (
+                            <div key={f.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
+                              <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{f.label} ({f.unit})</span>
+                              <input type="number" min="0" step="any" value={benchmarkScoresKB[f.key] ?? ''}
+                                onChange={e => setBenchmarkScoresKB(prev => ({ ...prev, [f.key]: e.target.value }))}
+                                style={{ width: 60, padding: '3px 6px', fontSize: 12 }} />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                    <textarea value={benchmarkNotesKB} onChange={e => setBenchmarkNotesKB(e.target.value)} placeholder="Notes (optional)" rows={2}
+                      style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
+                    <button className="btn btn-primary btn-sm" disabled={savingBenchmarkKB} onClick={saveNewBenchmarkKB}>
+                      {savingBenchmarkKB ? 'Saving…' : 'Save as new benchmark'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Team notes */}
             <div className="card" style={{ padding: 0, marginBottom: 14 }}>
               <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
@@ -8924,10 +9110,17 @@ export default function AthleteProfiles() {
                                       const pct = timeToTimelinePercent(e.time)
                                       if (pct == null) return null
                                       return (
-                                        <div key={pi} title={`${e.item}${e.time ? ` ${e.time}` : ''}`}
-                                          style={{ position: 'absolute', left: 2, right: 2, top: `${pct}%`, background: '#8B5CF622', border: '1px solid #8B5CF6', borderRadius: 3, padding: '1px 3px', fontSize: 8, color: '#8B5CF6', lineHeight: 1.3, zIndex: 2 }}>
-                                          {e.time ? `${e.time} ` : ''}{e.item}
-                                        </div>
+                                        <button key={pi} type="button" onClick={() => toggleTimetableCompleted(e.sectionKey, e.item)}
+                                          title={`${e.item}${e.time ? ` ${e.time}` : ''} — click to ${e.completed ? 'un-mark' : 'mark'} as done`}
+                                          style={{
+                                            position: 'absolute', left: 2, right: 2, top: `${pct}%`, textAlign: 'left',
+                                            background: e.completed ? '#1D9E7522' : '#8B5CF622', border: `1px solid ${e.completed ? '#1D9E75' : '#8B5CF6'}`,
+                                            borderRadius: 3, padding: '1px 3px', fontSize: 8, color: e.completed ? '#1D9E75' : '#8B5CF6',
+                                            lineHeight: 1.3, zIndex: 2, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                                            textDecoration: e.completed ? 'line-through' : 'none',
+                                          }}>
+                                          {e.completed ? '✓ ' : ''}{e.time ? `${e.time} ` : ''}{e.item}
+                                        </button>
                                       )
                                     })}
                                     {eventsToday.map((e, ei) => {
@@ -9495,6 +9688,93 @@ export default function AthleteProfiles() {
                     <a href={`/fit2fight?student_id=${selected?.id}`} className="btn btn-sm" style={{ fontSize: 11 }}>+ Full session log</a>
                   </div>
                 </div>
+
+                {selected && (() => {
+                  const fromStr = radarDateFrom, toStr = radarDateTo
+
+                  const scheduledDaysInRange = new Set()
+                  assignedClasses.forEach(a => {
+                    const jsDays = DAY_TO_JS_DAYS[a.classes?.day_of_week] || []
+                    if (!jsDays.length) return
+                    const cursor = new Date(fromStr + 'T00:00:00')
+                    const end = new Date(toStr + 'T00:00:00')
+                    while (cursor <= end) {
+                      if (jsDays.includes(cursor.getDay()) && !isDateOnHoliday(cursor.toISOString().split('T')[0], holidays, [a.classes?.id], selected.id)) {
+                        scheduledDaysInRange.add(cursor.toISOString().split('T')[0])
+                      }
+                      cursor.setDate(cursor.getDate() + 1)
+                    }
+                  })
+                  const attendedDaysInRange = new Set(
+                    attendanceData.filter(a => a.session_date >= fromStr && a.session_date <= toStr && a.attendance_type !== 'absent' && a.attendance_type !== 'excused').map(a => a.session_date)
+                  )
+                  const attendancePct = scheduledDaysInRange.size ? Math.round((attendedDaysInRange.size / scheduledDaysInRange.size) * 100) : null
+
+                  let f2fDone = 0, f2fTarget = 0
+                  ;['physical', 'technique', 'tactical', 'mentality', 'wellbeing', 'test'].forEach(sectionKey => {
+                    const p = getCoachSectionProgress(sectionKey)
+                    if (p) { f2fDone += p.done; f2fTarget += p.target }
+                  })
+                  const f2fPct = f2fTarget > 0 ? Math.round((f2fDone / f2fTarget) * 100) : null
+
+                  const pdpEntriesInRange = Array.from(PDP_CHECKABLE_SECTIONS).flatMap(sectionKey =>
+                    Object.values((apData?.pdp_notes || {})[`__timetable_${sectionKey}`] || {})
+                  ).filter(e => e?.date >= fromStr && e?.date <= toStr)
+                  const pdpCompleted = pdpEntriesInRange.filter(e => e.completed)
+                  const pdpPct = pdpEntriesInRange.length ? Math.round((pdpCompleted.length / pdpEntriesInRange.length) * 100) : null
+
+                  let ttpPct = null
+                  if (selected.discipline === 'KRBA' && ttpBenchmark) {
+                    const latest = tptData.boxing?.[0]
+                    if (latest) {
+                      const ratios = TTP_BENCHMARK_FIELDS
+                        .filter(f => latest[f] != null && ttpBenchmark[f] != null && ttpBenchmark[f] > 0)
+                        .map(f => latest[f] / ttpBenchmark[f])
+                      if (ratios.length) ttpPct = Math.round((ratios.reduce((a, b) => a + b, 0) / ratios.length) * 100)
+                    }
+                  } else if (selected.is_kr && ttpBenchmarkKB) {
+                    const latest = tptData.kickboxing?.[0]
+                    if (latest) {
+                      const ratios = KB_TTP_FIELDS
+                        .filter(f => latest[f] != null && ttpBenchmarkKB[f] != null && ttpBenchmarkKB[f] > 0 && latest[f] > 0)
+                        .map(f => KB_LOWER_IS_BETTER.includes(f) ? ttpBenchmarkKB[f] / latest[f] : latest[f] / ttpBenchmarkKB[f])
+                      if (ratios.length) ttpPct = Math.round((ratios.reduce((a, b) => a + b, 0) / ratios.length) * 100)
+                    }
+                  }
+
+                  const axes = [
+                    { label: 'Attendance', value: attendancePct, colour: '#378ADD' },
+                    { label: 'F2F Results', value: f2fPct, colour: '#EF9F27' },
+                    { label: 'PDP', value: pdpPct, colour: '#1D9E75' },
+                    ...(ttpPct != null ? [{ label: 'TTP', value: ttpPct, colour: '#E24B4A' }] : []),
+                  ].filter(a => a.value != null)
+
+                  return (
+                    <div className="card" style={{ marginBottom: 14 }}>
+                      <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>🕸️ Performance Overview</h2>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}>
+                        <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>From</label>
+                        <input type="date" value={radarDateFrom} onChange={e => setRadarDateFrom(e.target.value)} style={{ fontSize: 12 }} />
+                        <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>To</label>
+                        <input type="date" value={radarDateTo} onChange={e => setRadarDateTo(e.target.value)} style={{ fontSize: 12 }} />
+                      </div>
+                      {axes.length < 2 ? (
+                        <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Not enough data yet to draw a radar — targets need to be set and some activity logged in this date range.</p>
+                      ) : (
+                        <RadarChart axes={axes} />
+                      )}
+                      <details style={{ marginTop: 12 }}>
+                        <summary style={{ fontSize: 12, fontWeight: 600, cursor: 'pointer', color: 'var(--text-secondary)' }}>How each axis is worked out</summary>
+                        <ul style={{ fontSize: 12, color: 'var(--text-secondary)', paddingLeft: 18, lineHeight: 1.6, marginTop: 8 }}>
+                          <li><strong>Attendance</strong>: sessions attended ÷ sessions scheduled in this date range{attendancePct == null && ' — no scheduled classes found in this range'}.</li>
+                          <li><strong>F2F Results</strong>: combined progress across every target set for this athlete (all sections){f2fPct == null && ' — no targets set yet'}.</li>
+                          <li><strong>PDP</strong>: % of scheduled PDP timetable items ticked off as done in the Weekly Timetable{pdpPct == null && ' — no PDP timetable items in this range'}.</li>
+                          <li><strong>TTP</strong>: latest assessment vs the coach-set team benchmark{!ttpBenchmark && !ttpBenchmarkKB ? ' — no benchmark has been set yet for this discipline' : ttpPct == null ? ' — no benchmark set yet for this discipline, or no TTP assessment logged' : ''}.</li>
+                        </ul>
+                      </details>
+                    </div>
+                  )
+                })()}
 
                 {/* Date range filter */}
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}>
