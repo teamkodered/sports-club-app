@@ -2559,6 +2559,17 @@ export default function AthleteProfiles() {
     if (subItem.testCategory) return subItem.testCategory.tests.some(t => s.test?.[t.name])
     return false
   }
+  // Counts how many separate qualifying entries a subItem has within
+  // ONE session -- e.g. two different "Timed Sprints" runs logged the
+  // same day both count, rather than the whole day only counting once.
+  // Fields that can only ever hold one value per day (wellbeing,
+  // mentality, a single test score, etc.) still just contribute 0 or 1.
+  function subItemCountInSession(subItem, s) {
+    if (subItem.matchRunCategory) return (s.running || []).filter(e => e.category === subItem.matchRunCategory).length
+    if (subItem.matchStyle) return (s.techniques || []).filter(t => t.style === subItem.matchStyle).length
+    if (subItem.matchCategory) return (s.tactical || []).filter(t => t.category === subItem.matchCategory).length
+    return subItemLoggedCoach(subItem, s) ? 1 : 0
+  }
   function parseFrequencyTarget(targetValue) {
     const m = /^(\d+)\s*per\s*1?\s*(day|week|month|year)/i.exec(targetValue || '')
     if (!m) return null
@@ -2596,10 +2607,10 @@ export default function AthleteProfiles() {
       const subItems = questionLabel ? section.subItems.filter(sub => sub.label === questionLabel) : section.subItems
       if (!subItems.length) continue
       const periodStartStr = periodStartFor(freq.period).toISOString().split('T')[0]
-      const daysWithActivity = new Set(
-        f2fData.filter(s => s.session_date >= periodStartStr && subItems.some(sub => subItemLoggedCoach(sub, s))).map(s => s.session_date)
-      )
-      totalDone += daysWithActivity.size
+      const entryCount = f2fData
+        .filter(s => s.session_date >= periodStartStr)
+        .reduce((sum, s) => sum + subItems.reduce((subSum, sub) => subSum + subItemCountInSession(sub, s), 0), 0)
+      totalDone += entryCount
       totalTarget += freq.targetNum
       periodsUsed.add(freq.period)
     }
@@ -2627,10 +2638,10 @@ export default function AthleteProfiles() {
     const freq = parseFrequencyTarget(target.target_value)
     if (!freq) return null
     const periodStartStr = periodStartFor(freq.period).toISOString().split('T')[0]
-    const daysWithActivity = new Set(
-      f2fData.filter(s => s.session_date >= periodStartStr && subItemLoggedCoach(subItem, s)).map(s => s.session_date)
-    )
-    return { done: daysWithActivity.size, target: freq.targetNum, periodLabel: PERIOD_LETTER[freq.period] }
+    const entryCount = f2fData
+      .filter(s => s.session_date >= periodStartStr)
+      .reduce((sum, s) => sum + subItemCountInSession(subItem, s), 0)
+    return { done: entryCount, target: freq.targetNum, periodLabel: PERIOD_LETTER[freq.period] }
   }
   function CoachQuestionProgressBadge({ sectionKey, questionLabel }) {
     const progress = getCoachQuestionProgress(sectionKey, questionLabel)

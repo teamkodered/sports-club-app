@@ -1880,6 +1880,18 @@ export default function AthleteApp() {
     }
     return SECTION_FIELD_CHECK[sectionKey] ? SECTION_FIELD_CHECK[sectionKey](s) : false
   }
+  // Counts how many separate qualifying entries a question has within
+  // ONE session -- e.g. two different runs logged the same day both
+  // count, rather than the whole day only counting once. Fields that
+  // can only ever hold one value per day still just contribute 0 or 1.
+  function questionLoggedCount(sectionKey, questionLabel, s) {
+    if (sectionKey === 'technique') return (s.techniques || []).filter(t => t.style === questionLabel).length
+    if (sectionKey === 'tactical') return (s.tactical || []).filter(t => t.category === questionLabel).length
+    if (sectionKey === 'physical' && RUN_CATEGORY_TARGET_LABELS[questionLabel]) {
+      return toEntries(s.running).filter(e => e.category === RUN_CATEGORY_TARGET_LABELS[questionLabel]).length
+    }
+    return questionLogged(sectionKey, questionLabel, s) ? 1 : 0
+  }
   function getSectionProgress(sectionKey) {
     // One target per (question_label) slot -- athlete-specific wins
     // over team-wide for that same slot.
@@ -1899,14 +1911,10 @@ export default function AthleteApp() {
       const freq = parseFrequencyTarget(target.target_value)
       if (!freq) continue
       const periodStartStr = periodStartFor(freq.period).toISOString().split('T')[0]
-      const check = questionLabel
-        ? s => questionLogged(sectionKey, questionLabel, s)
-        : SECTION_FIELD_CHECK[sectionKey]
-      if (!check) continue
-      const daysWithActivity = new Set(
-        sessions.filter(s => s.session_date >= periodStartStr && check(s)).map(s => s.session_date)
-      )
-      totalDone += daysWithActivity.size
+      const entryCount = questionLabel
+        ? sessions.filter(s => s.session_date >= periodStartStr).reduce((sum, s) => sum + questionLoggedCount(sectionKey, questionLabel, s), 0)
+        : sessions.filter(s => s.session_date >= periodStartStr && SECTION_FIELD_CHECK[sectionKey]?.(s)).length
+      totalDone += entryCount
       totalTarget += freq.targetNum
       periodsUsed.add(freq.period)
     }
@@ -1924,10 +1932,10 @@ export default function AthleteApp() {
     const freq = parseFrequencyTarget(target.target_value)
     if (!freq) return null
     const periodStartStr = periodStartFor(freq.period).toISOString().split('T')[0]
-    const daysWithActivity = new Set(
-      sessions.filter(s => s.session_date >= periodStartStr && questionLogged(sectionKey, questionLabel, s)).map(s => s.session_date)
-    )
-    return { done: daysWithActivity.size, target: freq.targetNum, periodLabel: PERIOD_LETTER[freq.period] }
+    const entryCount = sessions
+      .filter(s => s.session_date >= periodStartStr)
+      .reduce((sum, s) => sum + questionLoggedCount(sectionKey, questionLabel, s), 0)
+    return { done: entryCount, target: freq.targetNum, periodLabel: PERIOD_LETTER[freq.period] }
   }
   function QuestionProgressBadge({ sectionKey, questionLabel }) {
     const progress = getQuestionProgress(sectionKey, questionLabel)
