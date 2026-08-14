@@ -2730,9 +2730,9 @@ export default function AthleteApp() {
                         displayed sequence and pairing changes: Mentality+Tactical
                         side by side, then Technique+Physical side by side. */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
-                    <div ref={physicalSectionRef} style={{ order: 4 }}>
+                    <div ref={physicalSectionRef} style={{ order: 4, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                     <button type="button" onClick={togglePhysicalSection} style={{
-                      width: '100%', maxWidth: 140, aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, margin: '0 auto',
+                      width: '100%', maxWidth: 140, aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
                       textAlign: 'center', padding: '10px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
@@ -3083,9 +3083,9 @@ export default function AthleteApp() {
                     </div>
                     </div>
 
-                    <div ref={techniqueSectionRef} style={{ order: 3 }}>
+                    <div ref={techniqueSectionRef} style={{ order: 3, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                     <button type="button" onClick={() => { setShowTechniqueSection(v => { if (v) setExpandedTechniqueCategory(null); return !v }) }} style={{
-                      width: '100%', maxWidth: 140, aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, margin: '0 auto',
+                      width: '100%', maxWidth: 140, aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
                       textAlign: 'center', padding: '10px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
@@ -3179,9 +3179,9 @@ export default function AthleteApp() {
                     </div>
                     </div>
 
-                    <div ref={tacticalSectionRef} style={{ order: 2 }}>
+                    <div ref={tacticalSectionRef} style={{ order: 2, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                     <button type="button" onClick={() => { setShowTacticalSection(v => { if (v) setExpandedTacticalCategory(null); return !v }) }} style={{
-                      width: '100%', maxWidth: 140, aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, margin: '0 auto',
+                      width: '100%', maxWidth: 140, aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
                       textAlign: 'center', padding: '10px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
@@ -3286,9 +3286,9 @@ export default function AthleteApp() {
                     </div>
                     </div>
 
-                    <div ref={mentalitySectionRef} style={{ order: 1 }}>
+                    <div ref={mentalitySectionRef} style={{ order: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                     <button type="button" onClick={() => { setShowMentalitySection(v => { if (v) setExpandedHomeMentality(null); return !v }) }} style={{
-                      width: '100%', maxWidth: 140, aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, margin: '0 auto',
+                      width: '100%', maxWidth: 140, aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
                       textAlign: 'center', padding: '10px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
