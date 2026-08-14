@@ -2724,7 +2724,13 @@ export default function AthleteApp() {
                       </button>
                     </div>
 
-                    <div ref={physicalSectionRef}>
+                    {/* Physical/Technique/Tactical/Mentality reordered visually
+                        via CSS grid + order -- source code order is untouched
+                        (Physical, Technique, Tactical, Mentality), only the
+                        displayed sequence and pairing changes: Mentality+Tactical
+                        side by side, then Technique+Physical side by side. */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+                    <div ref={physicalSectionRef} style={{ order: 4 }}>
                     <button type="button" onClick={togglePhysicalSection} style={{
                       width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
                       textAlign: 'center', padding: '16px 12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)',
@@ -3079,7 +3085,7 @@ export default function AthleteApp() {
                     </div>
                     </div>
 
-                    <div ref={techniqueSectionRef}>
+                    <div ref={techniqueSectionRef} style={{ order: 3 }}>
                     <button type="button" onClick={() => { setShowTechniqueSection(v => { if (v) setExpandedTechniqueCategory(null); return !v }) }} style={{
                       width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
                       textAlign: 'center', padding: '16px 12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)',
@@ -3177,7 +3183,7 @@ export default function AthleteApp() {
                     </div>
                     </div>
 
-                    <div ref={tacticalSectionRef}>
+                    <div ref={tacticalSectionRef} style={{ order: 2 }}>
                     <button type="button" onClick={() => { setShowTacticalSection(v => { if (v) setExpandedTacticalCategory(null); return !v }) }} style={{
                       width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
                       textAlign: 'center', padding: '16px 12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)',
@@ -3286,7 +3292,7 @@ export default function AthleteApp() {
                     </div>
                     </div>
 
-                    <div ref={mentalitySectionRef}>
+                    <div ref={mentalitySectionRef} style={{ order: 1 }}>
                     <button type="button" onClick={() => { setShowMentalitySection(v => { if (v) setExpandedHomeMentality(null); return !v }) }} style={{
                       width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
                       textAlign: 'center', padding: '16px 12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)',
@@ -3453,6 +3459,8 @@ export default function AthleteApp() {
                     )}
                     </div>
                     </div>
+                    </div>
+                    {/* end Physical/Technique/Tactical/Mentality reordered grid */}
 
                     {showAlterEgoModal && (() => {
                       const MORE_OF_OPTIONS = ['Fearlessness', 'Patience', 'Aggression', 'Composure', 'Confidence', 'Focus']
