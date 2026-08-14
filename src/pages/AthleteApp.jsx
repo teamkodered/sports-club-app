@@ -8,6 +8,14 @@ const HOUSE_COLOURS = {
   'Dragon House': '#E24B4A', 'Super House': '#378ADD',
   'Ice House': '#1D9E75', 'Jet House': '#EF9F27',
 }
+const HOUSE_LOGOS = {
+  'Dragon House': '/logos/house-dragon.png', 'Super House': '/logos/house-super.png',
+  'Ice House': '/logos/house-ice.png', 'Jet House': '/logos/house-jet.png',
+}
+const HOUSE_TEXT_LOGOS = {
+  'Dragon House': '/logos/text-dragon.png', 'Super House': '/logos/text-super.png',
+  'Ice House': '/logos/text-ice.png', 'Jet House': '/logos/text-jet.png',
+}
 
 const WELLBEING_QUESTIONS = [
   { key: 'sleep',        label: 'Sleep',        icon: '😴' },
@@ -2178,7 +2186,12 @@ export default function AthleteApp() {
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
                     {houseRank > 0 && <span style={{ color: 'var(--text-tertiary)', fontWeight: 600 }}>#{houseRank}</span>}
-                    <span style={{ color: colour, fontWeight: 600 }}>{houseName || '—'}</span>
+                    {HOUSE_LOGOS[houseName] && <img src={HOUSE_LOGOS[houseName]} alt="" style={{ width: 22, height: 22, objectFit: 'contain' }} />}
+                    {HOUSE_TEXT_LOGOS[houseName] ? (
+                      <img src={HOUSE_TEXT_LOGOS[houseName]} alt={houseName} style={{ height: 16, width: 'auto' }} />
+                    ) : (
+                      <span style={{ color: colour, fontWeight: 600 }}>{houseName || '—'}</span>
+                    )}
                     {houseTotalPoints != null && <span style={{ color: 'var(--text-tertiary)' }}>({houseTotalPoints} pts)</span>}
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>Tap to view your points</div>

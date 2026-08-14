@@ -9,6 +9,10 @@ const HOUSE_LOGOS = {
   'Dragon House': '/logos/house-dragon.png', 'Super House': '/logos/house-super.png',
   'Ice House': '/logos/house-ice.png', 'Jet House': '/logos/house-jet.png',
 }
+const HOUSE_TEXT_LOGOS = {
+  'Dragon House': '/logos/text-dragon.png', 'Super House': '/logos/text-super.png',
+  'Ice House': '/logos/text-ice.png', 'Jet House': '/logos/text-jet.png',
+}
 
 function maskName(first, last) {
   if (!first) return '—'
@@ -166,7 +170,11 @@ export default function LeaguePublic() {
                   <div style={{ fontSize: 28 }}>{MEDALS[i] || `${i+1}`}</div>
                   {logo && <img src={logo} alt="" style={{ width: 48, height: 48, objectFit: 'contain', flexShrink: 0 }} />}
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: colour }}>{h.name}</div>
+                    {HOUSE_TEXT_LOGOS[h.name] ? (
+                      <img src={HOUSE_TEXT_LOGOS[h.name]} alt={h.name} style={{ height: 22, width: 'auto' }} />
+                    ) : (
+                      <div style={{ fontSize: 16, fontWeight: 700, color: colour }}>{h.name}</div>
+                    )}
                     <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
                       W: {h.wins||0} · D: {h.draws||0} · L: {h.losses||0}
                     </div>
@@ -237,7 +245,7 @@ export default function LeaguePublic() {
                   <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: 14, fontWeight: 700, color: colour, display: 'flex', alignItems: 'center', gap: 6 }}>
                       {HOUSE_LOGOS[h.name] && <img src={HOUSE_LOGOS[h.name]} alt="" style={{ width: 22, height: 22, objectFit: 'contain' }} />}
-                      {hIdx+1}. {h.name}
+                      {hIdx+1}. {HOUSE_TEXT_LOGOS[h.name] ? <img src={HOUSE_TEXT_LOGOS[h.name]} alt={h.name} style={{ height: 16, width: 'auto' }} /> : h.name}
                     </span>
                     <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{h.points || 0} pts</span>
                   </div>

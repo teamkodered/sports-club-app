@@ -9,6 +9,14 @@ const HOUSE_COLOURS = {
   'Dragon House': '#E24B4A', 'Super House': '#378ADD',
   'Ice House': '#1D9E75',    'Jet House':   '#EF9F27',
 }
+const HOUSE_LOGOS = {
+  'Dragon House': '/logos/house-dragon.png', 'Super House': '/logos/house-super.png',
+  'Ice House': '/logos/house-ice.png', 'Jet House': '/logos/house-jet.png',
+}
+const HOUSE_TEXT_LOGOS = {
+  'Dragon House': '/logos/text-dragon.png', 'Super House': '/logos/text-super.png',
+  'Ice House': '/logos/text-ice.png', 'Jet House': '/logos/text-jet.png',
+}
 
 const WELLBEING_QUESTIONS = [
   { key: 'sleep',        label: 'Sleep',        icon: '😴' },
@@ -6488,7 +6496,12 @@ export default function AthleteProfiles() {
                             {houseRank}
                           </span>
                         )}
-                        <span style={{ color: colour, fontWeight: 700, fontSize: 13 }}>{houseName || '—'}</span>
+                        {HOUSE_LOGOS[houseName] && <img src={HOUSE_LOGOS[houseName]} alt="" style={{ width: 20, height: 20, objectFit: 'contain' }} />}
+                        {HOUSE_TEXT_LOGOS[houseName] ? (
+                          <img src={HOUSE_TEXT_LOGOS[houseName]} alt={houseName} style={{ height: 15, width: 'auto' }} />
+                        ) : (
+                          <span style={{ color: colour, fontWeight: 700, fontSize: 13 }}>{houseName || '—'}</span>
+                        )}
                         {houseTotalPoints != null && <span style={{ color: colour, fontSize: 12, opacity: 0.75 }}>{houseTotalPoints} pts</span>}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>

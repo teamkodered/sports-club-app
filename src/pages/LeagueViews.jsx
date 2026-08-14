@@ -25,6 +25,12 @@ const HOUSE_LOGOS = {
   'Ice House':    '/logos/house-ice.png',
   'Jet House':    '/logos/house-jet.png',
 }
+const HOUSE_TEXT_LOGOS = {
+  'Dragon House': '/logos/text-dragon.png',
+  'Super House':  '/logos/text-super.png',
+  'Ice House':    '/logos/text-ice.png',
+  'Jet House':    '/logos/text-jet.png',
+}
 const HOUSE_BG = {
   'Dragon House': '#fcebeb',
   'Super House':  '#e6f1fb',
@@ -484,7 +490,7 @@ export default function LeagueViews() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                     <div style={{ fontSize: 15, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
                       {HOUSE_LOGOS[h.name] && <img src={HOUSE_LOGOS[h.name]} alt="" style={{ width: 26, height: 26, objectFit: 'contain' }} />}
-                      {h.name}
+                      {HOUSE_TEXT_LOGOS[h.name] ? <img src={HOUSE_TEXT_LOGOS[h.name]} alt={h.name} style={{ height: 18, width: 'auto' }} /> : h.name}
                     </div>
                     <div style={{ fontSize: 22 }}>{RANK_MEDAL[i] || `${i + 1}th`}</div>
                   </div>
@@ -538,7 +544,11 @@ export default function LeagueViews() {
                     ) : (
                       <span style={{ width: 10, height: 10, borderRadius: '50%', background: colour, display: 'inline-block' }} />
                     )}
-                    <span style={{ fontSize: 13, fontWeight: 600 }}>{h.name}</span>
+                    {HOUSE_TEXT_LOGOS[h.name] ? (
+                      <img src={HOUSE_TEXT_LOGOS[h.name]} alt={h.name} style={{ height: 14, width: 'auto' }} />
+                    ) : (
+                      <span style={{ fontSize: 13, fontWeight: 600 }}>{h.name}</span>
+                    )}
                     <span style={{ fontSize: 11, color: 'var(--text-tertiary)', marginLeft: 'auto' }}>Top scorers</span>
                   </div>
                   {houseMembers.length === 0
