@@ -490,7 +490,7 @@ export default function LeagueViews() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                     <div style={{ fontSize: 15, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
                       {HOUSE_TEXT_LOGOS[h.name] ? (
-                        <img src={HOUSE_TEXT_LOGOS[h.name]} alt={h.name} style={{ height: 26, width: 'auto', objectFit: 'contain', display: 'block', filter: 'drop-shadow(1px 0 0 #000) drop-shadow(-1px 0 0 #000) drop-shadow(0 1px 0 #000) drop-shadow(0 -1px 0 #000) drop-shadow(1px 1px 0 #000) drop-shadow(-1px -1px 0 #000) drop-shadow(1px -1px 0 #000) drop-shadow(-1px 1px 0 #000)' }} />
+                        <img src={HOUSE_TEXT_LOGOS[h.name]} alt={h.name} style={{ height: 26, width: 'auto', objectFit: 'contain', display: 'block' }} />
                       ) : h.name}
                     </div>
                     <div style={{ fontSize: 22 }}>{RANK_MEDAL[i] || `${i + 1}th`}</div>
@@ -541,7 +541,7 @@ export default function LeagueViews() {
                 <div key={h.name} className="card" style={{ padding: '14px 0' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 14px 10px', borderBottom: '1px solid var(--border)' }}>
                     {HOUSE_TEXT_LOGOS[h.name] ? (
-                      <img src={HOUSE_TEXT_LOGOS[h.name]} alt={h.name} style={{ height: 20, width: 'auto', objectFit: 'contain', display: 'block', filter: 'drop-shadow(1px 0 0 #000) drop-shadow(-1px 0 0 #000) drop-shadow(0 1px 0 #000) drop-shadow(0 -1px 0 #000) drop-shadow(1px 1px 0 #000) drop-shadow(-1px -1px 0 #000) drop-shadow(1px -1px 0 #000) drop-shadow(-1px 1px 0 #000)' }} />
+                      <img src={HOUSE_TEXT_LOGOS[h.name]} alt={h.name} style={{ height: 20, width: 'auto', objectFit: 'contain', display: 'block' }} />
                     ) : (
                       <span style={{ fontSize: 13, fontWeight: 600 }}>{h.name}</span>
                     )}

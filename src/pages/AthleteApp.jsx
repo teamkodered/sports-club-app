@@ -2432,7 +2432,7 @@ export default function AthleteApp() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
                     {houseRank > 0 && <span style={{ color: 'var(--text-tertiary)', fontWeight: 600 }}>#{houseRank}</span>}
                     {HOUSE_TEXT_LOGOS[houseName] ? (
-                      <img src={HOUSE_TEXT_LOGOS[houseName]} alt={houseName} style={{ height: 22, width: 'auto', objectFit: 'contain', display: 'block', filter: 'drop-shadow(1px 0 0 #000) drop-shadow(-1px 0 0 #000) drop-shadow(0 1px 0 #000) drop-shadow(0 -1px 0 #000) drop-shadow(1px 1px 0 #000) drop-shadow(-1px -1px 0 #000) drop-shadow(1px -1px 0 #000) drop-shadow(-1px 1px 0 #000)' }} />
+                      <img src={HOUSE_TEXT_LOGOS[houseName]} alt={houseName} style={{ height: 22, width: 'auto', objectFit: 'contain', display: 'block' }} />
                     ) : (
                       <span style={{ color: colour, fontWeight: 600 }}>{houseName || '—'}</span>
                     )}
@@ -3629,12 +3629,12 @@ export default function AthleteApp() {
                     <div ref={wellbeingSectionRef}>
                     <button type="button" onClick={() => { setShowWellbeingSection(v => { if (v) setExpandedHomeWb(null); return !v }) }} style={{
                       width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                      textAlign: 'center', padding: '16px 12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                      textAlign: 'center', padding: '32px 12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
                       <SectionProgressBadge sectionKey="wellbeing" />
                       <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, justifyContent: 'center' }}>
-                        <span style={{ fontSize: 24 }}>🌱</span>
+                        <span style={{ fontSize: 24 }}>🧱</span>
                         <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Foundation</span>
                       </span>
                       <span style={{ fontSize: 11, color: 'var(--text-tertiary)', minWidth: 28, textAlign: 'right' }}>{showWellbeingSection ? '▲' : '▼'}</span>
@@ -4554,6 +4554,23 @@ export default function AthleteApp() {
                       </button>
                     </>
                   )}
+
+                  <div style={{ borderTop: '1px solid var(--border)', marginTop: 16, paddingTop: 14 }}>
+                    <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>⚖️ Weight check</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <button className="btn btn-sm" style={{ width: '100%', justifyContent: 'center' }}
+                        onClick={() => {
+                          if (!activeCheckIn) { checkInNow('attended') } else { setShowWeightCheckPrompt('in'); setWeightCheckValue(activeCheckIn.weight_before?.toString() || '') }
+                        }}>
+                        Weigh in — before
+                      </button>
+                      <button className="btn btn-sm" style={{ width: '100%', justifyContent: 'center' }} disabled={!activeCheckIn}
+                        onClick={() => { setShowWeightCheckPrompt('out'); setWeightCheckValue(activeCheckIn?.weight_after?.toString() || '') }}>
+                        Weigh in — after
+                      </button>
+                      {!activeCheckIn && <p style={{ fontSize: 10, color: 'var(--text-tertiary)', textAlign: 'center', marginTop: 2 }}>Check in first to log a weight after</p>}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

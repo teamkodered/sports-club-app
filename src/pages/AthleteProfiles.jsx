@@ -6702,7 +6702,7 @@ export default function AthleteProfiles() {
                           </span>
                         )}
                         {HOUSE_TEXT_LOGOS[houseName] ? (
-                          <img src={HOUSE_TEXT_LOGOS[houseName]} alt={houseName} style={{ height: 20, width: 'auto', objectFit: 'contain', display: 'block', filter: 'drop-shadow(1px 0 0 #000) drop-shadow(-1px 0 0 #000) drop-shadow(0 1px 0 #000) drop-shadow(0 -1px 0 #000) drop-shadow(1px 1px 0 #000) drop-shadow(-1px -1px 0 #000) drop-shadow(1px -1px 0 #000) drop-shadow(-1px 1px 0 #000)' }} />
+                          <img src={HOUSE_TEXT_LOGOS[houseName]} alt={houseName} style={{ height: 20, width: 'auto', objectFit: 'contain', display: 'block' }} />
                         ) : (
                           <span style={{ color: colour, fontWeight: 700, fontSize: 13 }}>{houseName || '—'}</span>
                         )}
