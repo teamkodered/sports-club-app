@@ -109,6 +109,79 @@ function SetInput({ sets, onChange, placeholder = 'e.g. 12.3', inputType = 'text
   )
 }
 
+// Dedicated Timed Sprints input -- distance/time toggle decides which
+// value is FIXED (picked once, e.g. "30m") vs RESULT (entered per set,
+// e.g. the time it took). Each set can instead be marked as a rest,
+// which skips it from the total calculations. Shows each set inline
+// as "1 - 30m - 13sec" (or "1 - 30sec - 50m" in time mode) rather than
+// a bare list of numbers, so the fixed value doesn't have to be
+// remembered separately while reading results back.
+function TimedSprintsInput({ sets, mode, fixedValue, onChange }) {
+  const [localSets, setLocalSets] = useState(sets)
+  function update(i, patch) {
+    const next = [...localSets]
+    next[i] = { ...next[i], ...patch }
+    setLocalSets(next)
+    onChange(next)
+  }
+  function add() {
+    const next = [...localSets, { value: '', isRest: false }]
+    setLocalSets(next)
+    onChange(next)
+  }
+  function remove(i) {
+    const next = localSets.filter((_, idx) => idx !== i)
+    setLocalSets(next)
+    onChange(next)
+  }
+  const resultUnit = mode === 'time' ? 'm' : 'sec'
+  const activeSets = localSets.filter(s => !s?.isRest)
+  const numericResults = activeSets.map(s => parseFloat(s?.value)).filter(v => !isNaN(v))
+  const fixedNum = parseFloat(fixedValue)
+  // Time mode: results ARE distances, each took the fixed time --
+  // total distance sums the results, total time is set-count x fixed time.
+  // Distance mode: results ARE times, each covered the fixed distance --
+  // total time sums the results, total distance is set-count x fixed distance.
+  const totalTime = mode === 'time'
+    ? (isNaN(fixedNum) ? null : (activeSets.length * fixedNum))
+    : (numericResults.length ? numericResults.reduce((a, b) => a + b, 0) : null)
+  const totalDistance = mode === 'time'
+    ? (numericResults.length ? numericResults.reduce((a, b) => a + b, 0) : null)
+    : (isNaN(fixedNum) ? null : (activeSets.length * fixedNum))
+
+  return (
+    <div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+        {localSets.map((s, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-tertiary)', width: 14, flexShrink: 0 }}>{i + 1}</span>
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)', flexShrink: 0 }}>{fixedValue || '—'}</span>
+            <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>–</span>
+            {s?.isRest ? (
+              <span style={{ fontSize: 12, color: 'var(--text-tertiary)', fontStyle: 'italic', flex: 1 }}>rest</span>
+            ) : (
+              <input type="number" inputMode="decimal" value={s?.value ?? ''} onChange={e => update(i, { value: e.target.value })}
+                placeholder={mode === 'time' ? 'e.g. 50' : 'e.g. 13'}
+                style={{ width: 64, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 12, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)' }} />
+            )}
+            {!s?.isRest && <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{resultUnit}</span>}
+            <button type="button" onClick={() => update(i, { isRest: !s?.isRest })}
+              style={{ fontSize: 10, background: s?.isRest ? '#EF9F2720' : 'none', border: '1px solid var(--border-strong)', borderRadius: 6, padding: '3px 6px', cursor: 'pointer', color: s?.isRest ? '#EF9F27' : 'var(--text-tertiary)', fontFamily: 'var(--font-sans)' }}>
+              {s?.isRest ? '✓ Rest' : 'Rest?'}
+            </button>
+            <button onClick={() => remove(i)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14, padding: 0 }}>×</button>
+          </div>
+        ))}
+      </div>
+      <button type="button" className="btn btn-sm" onClick={add} style={{ fontSize: 11, marginBottom: 10 }}>+ Add set</button>
+      <div style={{ display: 'flex', gap: 14, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+        <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Total time: <strong style={{ color: 'var(--text)' }}>{totalTime != null ? `${totalTime}sec` : '—'}</strong></span>
+        <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Total distance: <strong style={{ color: 'var(--text)' }}>{totalDistance != null ? `${totalDistance}m` : '—'}</strong></span>
+      </div>
+    </div>
+  )
+}
+
 // Two fields per set -- e.g. Watt Bike's Wattage + Distance, each with
 // its own appropriately-formatted input
 function DualSetInput({ sets, onChange, fields }) {
@@ -396,6 +469,10 @@ const RUN_PRESET_TESTS = {
     'Suicides 20 seconds on 10 seconds off',
   ],
 }
+// Used for Timed Sprints when "time" mode is picked (the fixed value is
+// a time, e.g. "everyone sprints for 30sec", and the result entered
+// per set is the distance covered).
+const TIMED_SPRINTS_TIME_PRESETS = ['10sec', '20sec', '30sec', '40sec', '60sec']
 const WATT_BIKE_PRESETS = {
   output: ['10 seconds on 90 seconds off', '15 seconds on 90 seconds off', '10 seconds on 20 seconds off', '15 seconds on 30 seconds off'],
   standard: ['20 seconds on 20 seconds off', '20 seconds on 40 seconds off', '30 seconds on 30 seconds off'],
@@ -647,7 +724,7 @@ function getSubTypeOptions(sorted, key) {
 function computeModuleStats(sorted, key, subType) {
   try {
     let entries = [], allTypeEntries = [], unit = '', higherIsBetter = true
-    const numSets = arr => Array.isArray(arr) ? arr.map(v => parseFloat((v && typeof v === 'object') ? v.wattage : v)).filter(v => !isNaN(v)) : []
+    const numSets = arr => Array.isArray(arr) ? arr.map(v => parseFloat((v && typeof v === 'object') ? (v.wattage ?? v.value) : v)).filter(v => !isNaN(v)) : []
     if (key === 'running') {
       entries = sorted.flatMap(s => toEntries(s.running)
         .filter(e => !subType || e.category === subType)
@@ -2671,19 +2748,48 @@ export default function AthleteApp() {
                       const upsert = updatedEntry => savePhysicalField('running', [...todaysRunning.filter(e => e.category !== expandedHomeRun), updatedEntry], setTodaysRunning)
                       const presets = RUN_PRESET_TESTS[expandedHomeRun] || []
                       const cat = RUN_CATEGORY_CARDS.find(c => c.key === expandedHomeRun)
+                      const isTimedSprints = expandedHomeRun === 'Timed Sprints'
+                      const sprintMode = entry.mode || 'distance' // 'distance' = fixed distance, time is the result; 'time' = fixed time, distance is the result
+                      const sprintPresets = isTimedSprints ? (sprintMode === 'time' ? TIMED_SPRINTS_TIME_PRESETS : RUN_PRESET_TESTS['Timed Sprints']) : presets
                       return (
                         <div className="card" style={{ marginBottom: 8 }}>
                           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                             <button type="button" className="btn btn-sm" style={{ fontSize: 11 }}
                               onClick={() => savePhysicalField('running', todaysRunning.filter(e => e.category !== expandedHomeRun), setTodaysRunning)}>✕ Clear</button>
                           </div>
-                          <div className="field"><label>Specific test</label>
+                          {isTimedSprints && (
+                            <div style={{ display: 'flex', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
+                              <div>
+                                <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Distance / Time</label>
+                                <div style={{ display: 'flex', gap: 4 }}>
+                                  {['distance', 'time'].map(m => (
+                                    <button key={m} type="button" onClick={() => upsert({ ...entry, mode: m, test: '' })}
+                                      className="btn btn-sm" style={{ fontSize: 11, background: sprintMode === m ? '#E24B4A20' : undefined, borderColor: sprintMode === m ? '#E24B4A' : undefined }}>
+                                      {m === 'distance' ? 'Fixed distance' : 'Fixed time'}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                              <div>
+                                <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Terrain</label>
+                                <div style={{ display: 'flex', gap: 4 }}>
+                                  {['flat', 'hill'].map(t => (
+                                    <button key={t} type="button" onClick={() => upsert({ ...entry, terrain: t })}
+                                      className="btn btn-sm" style={{ fontSize: 11, textTransform: 'capitalize', background: (entry.terrain || 'flat') === t ? '#E24B4A20' : undefined, borderColor: (entry.terrain || 'flat') === t ? '#E24B4A' : undefined }}>
+                                      {t}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          <div className="field"><label>{isTimedSprints ? (sprintMode === 'time' ? 'Fixed time' : 'Fixed distance') : 'Specific test'}</label>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-                              {presets.map(t => (
+                              {sprintPresets.map(t => (
                                 <button key={t} type="button" onClick={() => upsert({ ...entry, test: t })}
                                   className="btn btn-sm" style={{ background: entry.test === t ? '#E24B4A20' : undefined, borderColor: entry.test === t ? '#E24B4A' : undefined }}>{t}</button>
                               ))}
-                              <input defaultValue={presets.includes(entry.test) ? '' : (entry.test || '')}
+                              <input defaultValue={sprintPresets.includes(entry.test) ? '' : (entry.test || '')}
                                 onBlur={e => e.target.value && upsert({ ...entry, test: e.target.value })}
                                 placeholder="Other…" style={{ width: 90, flexShrink: 0 }} />
                             </div>
@@ -2693,9 +2799,14 @@ export default function AthleteApp() {
                               </div>
                             )}
                           </div>
-                          <div className="field" style={{ marginBottom: 0 }}><label>{cat?.resultLabel || 'Results (time)'}</label>
-                            <SetInput key={cat?.key} sets={entry.sets || []} onChange={sets => upsert({ ...entry, sets })}
-                              inputType="number" placeholder={cat?.resultLabel ? 'e.g. 2.4' : 'e.g. 12.3'} />
+                          <div className="field" style={{ marginBottom: 0 }}><label>{isTimedSprints ? 'Results' : (cat?.resultLabel || 'Results (time)')}</label>
+                            {isTimedSprints ? (
+                              <TimedSprintsInput key={sprintMode} sets={entry.sets || []} mode={sprintMode} fixedValue={entry.test}
+                                onChange={sets => upsert({ ...entry, sets })} />
+                            ) : (
+                              <SetInput key={cat?.key} sets={entry.sets || []} onChange={sets => upsert({ ...entry, sets })}
+                                inputType="number" placeholder={cat?.resultLabel ? 'e.g. 2.4' : 'e.g. 12.3'} />
+                            )}
                           </div>
                           {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>Saving…</p>}
                         </div>
@@ -5324,6 +5435,7 @@ export default function AthleteApp() {
                       }))
                       const toChartValue = v => {
                         if (v == null || v === '') return null
+                        if (v && typeof v === 'object') return v.isRest ? null : toChartValue(v.value ?? v.wattage)
                         if (typeof v === 'string' && v.includes(':')) {
                           const [mm, ss] = v.split(':').map(Number)
                           return (mm || 0) * 60 + (ss || 0)
@@ -5498,7 +5610,7 @@ export default function AthleteApp() {
                               </div>
                               {s.running && toEntries(s.running).map((e, ei) => (
                                 <p key={ei} style={{ fontSize: 12, margin: '4px 0' }}>
-                                  🏃 {e.category || e.test || 'Running'}{(e.sets?.length) ? `: ${e.sets.map(v => (v && typeof v === 'object') ? v.wattage : v).join(', ')}` : ' logged'}
+                                  🏃 {e.category || e.test || 'Running'}{(e.sets?.length) ? `: ${e.sets.map(v => { if (!v || typeof v !== 'object') return v; if (v.isRest) return 'rest'; return v.value ?? v.wattage }).join(', ')}` : ' logged'}
                                 </p>
                               ))}
                               {s.watt_bike && toEntries(s.watt_bike).map((e, ei) => (
