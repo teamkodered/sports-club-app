@@ -164,15 +164,9 @@ export default function LeaguePublic() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {houses.map((h, i) => {
               const colour = HOUSE_COLOURS[h.name] || '#888'
-              const logo = HOUSE_LOGOS[h.name]
               return (
                 <div key={h.id} className="card" style={{ borderLeft: `4px solid ${colour}`, borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0', display: 'flex', alignItems: 'center', gap: 14 }}>
                   <div style={{ fontSize: 28 }}>{MEDALS[i] || `${i+1}`}</div>
-                  {logo && (
-                    <div style={{ background: '#000', borderRadius: 10, padding: 6, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <img src={logo} alt="" style={{ width: 72, height: 72, objectFit: 'contain' }} />
-                    </div>
-                  )}
                   <div style={{ flex: 1 }}>
                     {HOUSE_TEXT_LOGOS[h.name] ? (
                       <div style={{ background: '#000', borderRadius: 8, padding: '6px 12px', display: 'inline-block' }}>
@@ -222,13 +216,7 @@ export default function LeaguePublic() {
                       <td style={{ fontWeight: 500 }}>{maskName(s.first, s.last)}</td>
                       <td>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12 }}>
-                          {HOUSE_LOGOS[s.house] ? (
-                            <span style={{ background: '#000', borderRadius: 4, padding: 2, display: 'inline-flex' }}>
-                              <img src={HOUSE_LOGOS[s.house]} alt="" style={{ width: 20, height: 20, objectFit: 'contain' }} />
-                            </span>
-                          ) : (
-                            <span style={{ width: 8, height: 8, borderRadius: '50%', background: colour, display: 'inline-block' }} />
-                          )}
+                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: colour, display: 'inline-block' }} />
                           {s.house || '—'}
                         </span>
                       </td>
@@ -252,11 +240,6 @@ export default function LeaguePublic() {
                 <div key={h.id} className="card" style={{ padding: 0, borderTop: `3px solid ${colour}` }}>
                   <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: 14, fontWeight: 700, color: colour, display: 'flex', alignItems: 'center', gap: 8 }}>
-                      {HOUSE_LOGOS[h.name] && (
-                        <span style={{ background: '#000', borderRadius: 8, padding: 4, display: 'inline-flex' }}>
-                          <img src={HOUSE_LOGOS[h.name]} alt="" style={{ width: 36, height: 36, objectFit: 'contain' }} />
-                        </span>
-                      )}
                       {hIdx+1}. {HOUSE_TEXT_LOGOS[h.name] ? (
                         <span style={{ background: '#000', borderRadius: 6, padding: '4px 8px', display: 'inline-flex' }}>
                           <img src={HOUSE_TEXT_LOGOS[h.name]} alt={h.name} style={{ height: 24, width: 'auto', objectFit: 'contain', display: 'block' }} />

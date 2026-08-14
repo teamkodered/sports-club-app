@@ -489,11 +489,6 @@ export default function LeagueViews() {
                   onClick={() => navigate(`/students?house=${encodeURIComponent(h.name)}`)}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                     <div style={{ fontSize: 15, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
-                      {HOUSE_LOGOS[h.name] && (
-                        <span style={{ background: '#000', borderRadius: 8, padding: 4, display: 'inline-flex' }}>
-                          <img src={HOUSE_LOGOS[h.name]} alt="" style={{ width: 40, height: 40, objectFit: 'contain' }} />
-                        </span>
-                      )}
                       {HOUSE_TEXT_LOGOS[h.name] ? (
                         <span style={{ background: '#000', borderRadius: 6, padding: '4px 10px', display: 'inline-flex' }}>
                           <img src={HOUSE_TEXT_LOGOS[h.name]} alt={h.name} style={{ height: 26, width: 'auto', objectFit: 'contain', display: 'block' }} />
@@ -547,13 +542,6 @@ export default function LeagueViews() {
               return (
                 <div key={h.name} className="card" style={{ padding: '14px 0' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 14px 10px', borderBottom: '1px solid var(--border)' }}>
-                    {HOUSE_LOGOS[h.name] ? (
-                      <span style={{ background: '#000', borderRadius: 6, padding: 3, display: 'inline-flex' }}>
-                        <img src={HOUSE_LOGOS[h.name]} alt="" style={{ width: 28, height: 28, objectFit: 'contain' }} />
-                      </span>
-                    ) : (
-                      <span style={{ width: 10, height: 10, borderRadius: '50%', background: colour, display: 'inline-block' }} />
-                    )}
                     {HOUSE_TEXT_LOGOS[h.name] ? (
                       <span style={{ background: '#000', borderRadius: 5, padding: '3px 8px', display: 'inline-flex' }}>
                         <img src={HOUSE_TEXT_LOGOS[h.name]} alt={h.name} style={{ height: 20, width: 'auto', objectFit: 'contain', display: 'block' }} />

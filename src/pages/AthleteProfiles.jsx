@@ -6701,11 +6701,6 @@ export default function AthleteProfiles() {
                             {houseRank}
                           </span>
                         )}
-                        {HOUSE_LOGOS[houseName] && (
-                          <span style={{ background: '#000', borderRadius: 6, padding: 3, display: 'inline-flex' }}>
-                            <img src={HOUSE_LOGOS[houseName]} alt="" style={{ width: 30, height: 30, objectFit: 'contain' }} />
-                          </span>
-                        )}
                         {HOUSE_TEXT_LOGOS[houseName] ? (
                           <span style={{ background: '#000', borderRadius: 5, padding: '3px 8px', display: 'inline-flex' }}>
                             <img src={HOUSE_TEXT_LOGOS[houseName]} alt={houseName} style={{ height: 20, width: 'auto', objectFit: 'contain', display: 'block' }} />
