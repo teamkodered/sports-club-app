@@ -2408,11 +2408,17 @@ export default function AthleteApp() {
                 </>
               ) : (
                 <>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
                     {houseRank > 0 && <span style={{ color: 'var(--text-tertiary)', fontWeight: 600 }}>#{houseRank}</span>}
-                    {HOUSE_LOGOS[houseName] && <img src={HOUSE_LOGOS[houseName]} alt="" style={{ width: 22, height: 22, objectFit: 'contain' }} />}
+                    {HOUSE_LOGOS[houseName] && (
+                      <span style={{ background: '#000', borderRadius: 6, padding: 3, display: 'inline-flex' }}>
+                        <img src={HOUSE_LOGOS[houseName]} alt="" style={{ width: 32, height: 32, objectFit: 'contain' }} />
+                      </span>
+                    )}
                     {HOUSE_TEXT_LOGOS[houseName] ? (
-                      <img src={HOUSE_TEXT_LOGOS[houseName]} alt={houseName} style={{ height: 16, width: 'auto' }} />
+                      <span style={{ background: '#000', borderRadius: 5, padding: '3px 8px', display: 'inline-flex' }}>
+                        <img src={HOUSE_TEXT_LOGOS[houseName]} alt={houseName} style={{ height: 22, width: 'auto', objectFit: 'contain', display: 'block' }} />
+                      </span>
                     ) : (
                       <span style={{ color: colour, fontWeight: 600 }}>{houseName || '—'}</span>
                     )}

@@ -168,10 +168,16 @@ export default function LeaguePublic() {
               return (
                 <div key={h.id} className="card" style={{ borderLeft: `4px solid ${colour}`, borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0', display: 'flex', alignItems: 'center', gap: 14 }}>
                   <div style={{ fontSize: 28 }}>{MEDALS[i] || `${i+1}`}</div>
-                  {logo && <img src={logo} alt="" style={{ width: 48, height: 48, objectFit: 'contain', flexShrink: 0 }} />}
+                  {logo && (
+                    <div style={{ background: '#000', borderRadius: 10, padding: 6, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <img src={logo} alt="" style={{ width: 72, height: 72, objectFit: 'contain' }} />
+                    </div>
+                  )}
                   <div style={{ flex: 1 }}>
                     {HOUSE_TEXT_LOGOS[h.name] ? (
-                      <img src={HOUSE_TEXT_LOGOS[h.name]} alt={h.name} style={{ height: 22, width: 'auto' }} />
+                      <div style={{ background: '#000', borderRadius: 8, padding: '6px 12px', display: 'inline-block' }}>
+                        <img src={HOUSE_TEXT_LOGOS[h.name]} alt={h.name} style={{ height: 34, width: 'auto', objectFit: 'contain', display: 'block' }} />
+                      </div>
                     ) : (
                       <div style={{ fontSize: 16, fontWeight: 700, color: colour }}>{h.name}</div>
                     )}
@@ -217,7 +223,9 @@ export default function LeaguePublic() {
                       <td>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12 }}>
                           {HOUSE_LOGOS[s.house] ? (
-                            <img src={HOUSE_LOGOS[s.house]} alt="" style={{ width: 16, height: 16, objectFit: 'contain' }} />
+                            <span style={{ background: '#000', borderRadius: 4, padding: 2, display: 'inline-flex' }}>
+                              <img src={HOUSE_LOGOS[s.house]} alt="" style={{ width: 20, height: 20, objectFit: 'contain' }} />
+                            </span>
                           ) : (
                             <span style={{ width: 8, height: 8, borderRadius: '50%', background: colour, display: 'inline-block' }} />
                           )}
@@ -243,9 +251,17 @@ export default function LeaguePublic() {
               return (
                 <div key={h.id} className="card" style={{ padding: 0, borderTop: `3px solid ${colour}` }}>
                   <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: colour, display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {HOUSE_LOGOS[h.name] && <img src={HOUSE_LOGOS[h.name]} alt="" style={{ width: 22, height: 22, objectFit: 'contain' }} />}
-                      {hIdx+1}. {HOUSE_TEXT_LOGOS[h.name] ? <img src={HOUSE_TEXT_LOGOS[h.name]} alt={h.name} style={{ height: 16, width: 'auto' }} /> : h.name}
+                    <span style={{ fontSize: 14, fontWeight: 700, color: colour, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {HOUSE_LOGOS[h.name] && (
+                        <span style={{ background: '#000', borderRadius: 8, padding: 4, display: 'inline-flex' }}>
+                          <img src={HOUSE_LOGOS[h.name]} alt="" style={{ width: 36, height: 36, objectFit: 'contain' }} />
+                        </span>
+                      )}
+                      {hIdx+1}. {HOUSE_TEXT_LOGOS[h.name] ? (
+                        <span style={{ background: '#000', borderRadius: 6, padding: '4px 8px', display: 'inline-flex' }}>
+                          <img src={HOUSE_TEXT_LOGOS[h.name]} alt={h.name} style={{ height: 24, width: 'auto', objectFit: 'contain', display: 'block' }} />
+                        </span>
+                      ) : h.name}
                     </span>
                     <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{h.points || 0} pts</span>
                   </div>
