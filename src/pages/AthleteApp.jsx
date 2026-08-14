@@ -993,7 +993,11 @@ export default function AthleteApp() {
   const [tptData, setTptData] = useState({ kickboxing: [], boxing: [] })
   const [ttpBenchmark, setTtpBenchmark] = useState(null)
   const [ttpBenchmarkKB, setTtpBenchmarkKB] = useState(null)
-  const [radarDateFrom, setRadarDateFrom] = useState(() => { const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split('T')[0] })
+  // Data before 1 Aug 2026 predates the soft launch and isn't reliable
+  // for Performance/Attendance reporting, so the radar's date range
+  // never goes earlier than this, regardless of the "last 30 days" default.
+  const SOFT_LAUNCH_DATE = '2026-08-01'
+  const [radarDateFrom, setRadarDateFrom] = useState(() => { const d = new Date(); d.setDate(d.getDate() - 30); const iso = d.toISOString().split('T')[0]; return iso < SOFT_LAUNCH_DATE ? SOFT_LAUNCH_DATE : iso })
   const [radarDateTo, setRadarDateTo] = useState(() => new Date().toISOString().split('T')[0])
   const [radarDrilldown, setRadarDrilldown] = useState(null) // which axis label is expanded, or null
   const [whoopConnection, setWhoopConnection] = useState(null)
@@ -2521,7 +2525,7 @@ export default function AthleteApp() {
                           </div>
                         )}
                       </div>
-                      <button onClick={() => navigate(`/fit2fight?student_id=${student.id}`)}
+                      <button onClick={() => setTab('fit2fight')}
                         className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none' }}>
                         <div style={{ fontSize: 22, marginBottom: 4 }}>🔥</div>
                         <div style={{ fontSize: 22, fontWeight: 700, color: '#378ADD' }}>
@@ -4766,7 +4770,7 @@ export default function AthleteApp() {
           </div>
 
           {student && (() => {
-            const fromStr = radarDateFrom, toStr = radarDateTo
+            const fromStr = radarDateFrom < SOFT_LAUNCH_DATE ? SOFT_LAUNCH_DATE : radarDateFrom, toStr = radarDateTo
 
             // Attendance % -- a clean, straightforward version (does not
             // replicate the exact-key/holiday-fallback logic the main
@@ -4872,7 +4876,7 @@ export default function AthleteApp() {
                 <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>🕸️ Performance Overview</h2>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}>
                   <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>From</label>
-                  <input type="date" value={radarDateFrom} onChange={e => setRadarDateFrom(e.target.value)} style={{ fontSize: 12 }} />
+                  <input type="date" value={radarDateFrom} min={SOFT_LAUNCH_DATE} onChange={e => setRadarDateFrom(e.target.value < SOFT_LAUNCH_DATE ? SOFT_LAUNCH_DATE : e.target.value)} style={{ fontSize: 12 }} />
                   <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>To</label>
                   <input type="date" value={radarDateTo} onChange={e => setRadarDateTo(e.target.value)} style={{ fontSize: 12 }} />
                 </div>
