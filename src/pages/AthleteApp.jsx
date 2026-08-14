@@ -3940,6 +3940,7 @@ export default function AthleteApp() {
 
       {/* ── Sessions ── */}
       {tab === 'sessions' && student && (() => {
+        const backButton = <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
         const { year, month } = sessionsCalMonth
         const firstDay = new Date(year, month, 1)
         const daysInMonth = new Date(year, month + 1, 0).getDate()
@@ -4019,6 +4020,7 @@ export default function AthleteApp() {
 
         return (
           <div>
+            {backButton}
             {checkedInMsg ? (
               <div className="card" style={{ textAlign: 'center', padding: 12, marginBottom: 14, background: '#1D9E7515', border: '1px solid #1D9E7530', color: '#1D9E75', fontWeight: 600, fontSize: 14 }}>
                 {checkedInMsg}
@@ -4397,6 +4399,7 @@ export default function AthleteApp() {
       {/* ── PDP ── */}
       {tab === 'pdp' && (
         <div>
+          <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
           {!student ? <p style={{ color: 'var(--text-secondary)' }}>No student record linked.</p> : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {!PDP_SECTIONS.some(section => (shared[section.key] || []).length > 0) && (
@@ -4558,6 +4561,7 @@ export default function AthleteApp() {
 
       {tab === 'media' && (
         <div>
+          <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
           <div className="card" style={{ marginBottom: 12 }}>
             <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Media files</h2>
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>Upload your own photos, videos, and documents here.</p>
@@ -4611,6 +4615,7 @@ export default function AthleteApp() {
       {/* ── Notes ── */}
       {tab === 'notes' && (
         <div>
+          <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
           <div className="card" style={{ marginBottom: 12 }}>
             <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>Log a note</h2>
             <textarea value={newNoteText} onChange={e => setNewNoteText(e.target.value)}
@@ -4682,6 +4687,7 @@ export default function AthleteApp() {
       {/* ── TTP (read-only summary — dedicated form will be integrated better later) ── */}
       {tab === 'tpt' && (
         <div>
+          <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
           {tptData.kickboxing.length === 0 && tptData.boxing.length === 0 ? (
             <div className="empty-state"><h3>No TTP assessments yet</h3><p>Your coach will log these after each assessment</p></div>
           ) : (
@@ -4708,6 +4714,7 @@ export default function AthleteApp() {
       {/* ── Whoop ── */}
       {tab === 'whoop' && (
         <div>
+          <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
           {!whoopConnection ? (
             <div className="card" style={{ textAlign: 'center', padding: 24 }}>
               <div style={{ fontSize: 40, marginBottom: 10 }}>⌚</div>
@@ -4774,6 +4781,7 @@ export default function AthleteApp() {
       {/* ── Reports ── */}
       {tab === 'reports' && (
         <div>
+          <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
           {myReports.length === 0 ? (
             <div className="empty-state"><h3>No reports yet</h3><p>Reports your coach sends will appear here</p></div>
           ) : (
@@ -4835,6 +4843,7 @@ export default function AthleteApp() {
       {/* ── Fit II Fight ── */}
       {tab === 'fit2fight' && (
         <div>
+          <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
           <div style={{ marginBottom: 14 }}>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{sessions.length} sessions</p>
           </div>
@@ -5533,6 +5542,7 @@ export default function AthleteApp() {
       {/* ── Points ── */}
       {tab === 'points' && (
         <div>
+          <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
           <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
             <button onClick={() => setShowOverallPos(v => !v)} className="card" style={{ flex: 1, textAlign: 'center', cursor: 'pointer', border: 'none', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)' }}
               title={showOverallPos ? 'Showing overall position — tap for position in house' : 'Showing position in house — tap for overall position'}>
@@ -5571,6 +5581,7 @@ export default function AthleteApp() {
       {/* ── Find athlete ── */}
       {tab === 'search' && (
         <div>
+          <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>Search for any athlete by name</p>
           <AthleteSearch />
         </div>
