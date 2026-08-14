@@ -586,7 +586,7 @@ function RadarChart({ axes, size = 280, onAxisClick, activeLabel }) {
   const angleFor = i => (Math.PI * 2 * i) / n - Math.PI / 2
   const pointFor = (i, pct) => {
     const angle = angleFor(i)
-    const r = (Math.max(0, Math.min(100, pct)) / 100) * maxR
+    const r = (Math.max(0, Math.min(100, pct ?? 0)) / 100) * maxR
     return [cx + r * Math.cos(angle), cy + r * Math.sin(angle)]
   }
   const dataPoints = axes.map((a, i) => pointFor(i, a.value)).map(p => p.join(',')).join(' ')
@@ -600,7 +600,9 @@ function RadarChart({ axes, size = 280, onAxisClick, activeLabel }) {
             points={axes.map((_, i) => pointFor(i, t * 100).join(',')).join(' ')}
             fill="none" stroke="var(--border)" strokeWidth="1" />
         ))}
-        {/* Axis lines + labels -- clickable to drill into that axis */}
+        {/* Axis lines + labels -- clickable to drill into that axis, even
+            when there's no data yet (shown as "No data" rather than 0%,
+            since a missing value isn't the same as a genuine 0%). */}
         {axes.map((a, i) => {
           const [x, y] = pointFor(i, 100)
           const labelR = maxR + 22
@@ -608,12 +610,13 @@ function RadarChart({ axes, size = 280, onAxisClick, activeLabel }) {
           const lx = cx + labelR * Math.cos(angle)
           const ly = cy + labelR * Math.sin(angle)
           const isActive = activeLabel === a.label
+          const hasData = a.value != null
           return (
             <g key={a.label} onClick={() => onAxisClick && onAxisClick(a.label)} style={{ cursor: onAxisClick ? 'pointer' : 'default' }}>
               <line x1={cx} y1={cy} x2={x} y2={y} stroke="var(--border)" strokeWidth="1" />
               {isActive && <circle cx={lx} cy={ly - 4} r="30" fill={a.colour + '15'} />}
-              <text x={lx} y={ly} textAnchor="middle" dominantBaseline="middle" fontSize="11" fontWeight="600" fill={a.colour} textDecoration={isActive ? 'underline' : 'none'}>{a.label}</text>
-              <text x={lx} y={ly + 13} textAnchor="middle" fontSize="10" fill="var(--text-tertiary)">{Math.round(a.value)}%</text>
+              <text x={lx} y={ly} textAnchor="middle" dominantBaseline="middle" fontSize="11" fontWeight="600" fill={hasData ? a.colour : 'var(--text-tertiary)'} textDecoration={isActive ? 'underline' : 'none'}>{a.label}</text>
+              <text x={lx} y={ly + 13} textAnchor="middle" fontSize="10" fill="var(--text-tertiary)">{hasData ? `${Math.round(a.value)}%` : 'No data'}</text>
             </g>
           )
         })}
@@ -621,7 +624,7 @@ function RadarChart({ axes, size = 280, onAxisClick, activeLabel }) {
         <polygon points={dataPoints} fill="#EF9F2730" stroke="#EF9F27" strokeWidth="2" />
         {axes.map((a, i) => {
           const [x, y] = pointFor(i, a.value)
-          return <circle key={a.label} cx={x} cy={y} r="4" fill={a.colour} />
+          return a.value != null ? <circle key={a.label} cx={x} cy={y} r="4" fill={a.colour} /> : null
         })}
       </svg>
     </div>
@@ -4841,8 +4844,8 @@ export default function AthleteApp() {
               { label: 'Attendance', value: attendancePct, colour: '#378ADD' },
               { label: 'F2F Results', value: f2fPct, colour: '#EF9F27' },
               { label: 'PDP', value: pdpPct, colour: '#1D9E75' },
-              ...(ttpPct != null ? [{ label: 'TTP', value: ttpPct, colour: '#E24B4A' }] : []),
-            ].filter(a => a.value != null)
+              ...(student.discipline === 'KRBA' || student.is_kr ? [{ label: 'TTP', value: ttpPct, colour: '#E24B4A' }] : []),
+            ]
 
             // Breakdown data for each axis, shown when that axis is clicked.
             const SECTION_LABELS = { physical: 'Physical', technique: 'Technique', tactical: 'Tactical', mentality: 'Mentality', wellbeing: 'Wellbeing', test: 'Test' }
@@ -4880,14 +4883,8 @@ export default function AthleteApp() {
                   <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>To</label>
                   <input type="date" value={radarDateTo} onChange={e => setRadarDateTo(e.target.value)} style={{ fontSize: 12 }} />
                 </div>
-                {axes.length < 2 ? (
-                  <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Not enough data yet to draw a radar — targets need to be set and some activity logged in this date range.</p>
-                ) : (
-                  <>
-                    <RadarChart axes={axes} onAxisClick={label => setRadarDrilldown(d => d === label ? null : label)} activeLabel={radarDrilldown} />
-                    <p style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center', marginTop: -4, marginBottom: 8 }}>Tap an axis label to see the numbers behind it</p>
-                  </>
-                )}
+                <RadarChart axes={axes} onAxisClick={label => setRadarDrilldown(d => d === label ? null : label)} activeLabel={radarDrilldown} />
+                <p style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center', marginTop: -4, marginBottom: 8 }}>Tap an axis label to see the numbers behind it</p>
 
                 {radarDrilldown === 'Attendance' && (
                   <div style={{ marginTop: 8, marginBottom: 8 }}>
