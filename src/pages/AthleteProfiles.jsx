@@ -1830,7 +1830,7 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
             if (!items.length) return null
             const sentAt = shared[`${section.key}_sent_at`]
             return (
-              <div key={section.key} className="card" style={{ borderLeft: `3px solid ${sectionColour}`, borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0', marginBottom: 10 }}>
+              <div key={section.key} className="card" style={{ borderLeft: `3px solid ${section.colour}`, borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0', marginBottom: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                   <h3 style={{ fontSize: 13, fontWeight: 600, color: section.colour, display: 'flex', alignItems: 'center', gap: 7, margin: 0 }}>
                     <span style={{ cursor: 'grab', color: 'var(--text-tertiary)', fontSize: 16, lineHeight: 1, userSelect: 'none' }}>⋮⋮</span>
@@ -1839,7 +1839,7 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {items.map((item, i) => (
-                    <span key={i} style={notePillStyle(sectionColour, section.key, item, { border: `1px solid ${section.colour}30`, padding: '4px 10px', fontSize: 12, fontWeight: 500 })}>{item}</span>
+                    <span key={i} style={notePillStyle(section.colour, section.key, item, { border: `1px solid ${section.colour}30`, padding: '4px 10px', fontSize: 12, fontWeight: 500 })}>{item}</span>
                   ))}
                 </div>
               </div>
