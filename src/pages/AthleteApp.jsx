@@ -1003,6 +1003,9 @@ export default function AthleteApp() {
   const [radarDateFrom, setRadarDateFrom] = useState(() => { const d = new Date(); d.setDate(d.getDate() - 30); const iso = d.toISOString().split('T')[0]; return iso < SOFT_LAUNCH_DATE ? SOFT_LAUNCH_DATE : iso })
   const [radarDateTo, setRadarDateTo] = useState(() => new Date().toISOString().split('T')[0])
   const [radarDrilldown, setRadarDrilldown] = useState(null) // which axis label is expanded, or null
+  const [athleteTimetableModal, setAthleteTimetableModal] = useState(null) // { sectionKey, item } or null
+  const [athleteTimetableDraftDate, setAthleteTimetableDraftDate] = useState('')
+  const [athleteTimetableDraftTime, setAthleteTimetableDraftTime] = useState('')
   const [whoopConnection, setWhoopConnection] = useState(null)
   const [whoopSessions, setWhoopSessions] = useState([])
   const [newNoteText, setNewNoteText] = useState('')
@@ -1405,6 +1408,35 @@ export default function AthleteApp() {
     setApData(a => ({ ...(a || {}), pdp_notes: updated }))
     setEditNote(false)
     setSaving(false)
+  }
+
+  // Athlete adds one of their own shared PDP items to their calendar --
+  // matches the coach's own "send to timetable" feature, so the athlete
+  // can schedule when they'll actually work on something their coach
+  // has shared with them.
+  async function athleteSendToTimetable() {
+    if (!athleteTimetableModal || !athleteTimetableDraftDate || !student) return
+    const { sectionKey, item } = athleteTimetableModal
+    const key = `__timetable_${sectionKey}`
+    const pdp = apData?.pdp_notes || {}
+    const current = pdp[key] || {}
+    const dayName = new Date(athleteTimetableDraftDate + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long' })
+    const updated = {
+      ...pdp,
+      [key]: { ...current, [item]: { date: athleteTimetableDraftDate, time: athleteTimetableDraftTime || null, day: dayName } },
+    }
+    const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: updated }, { onConflict: 'student_id' })
+    if (error) { alert('Error adding to calendar: ' + error.message); return }
+    setApData(a => ({ ...a, pdp_notes: updated }))
+    setAthleteTimetableModal(null)
+    setAthleteTimetableDraftDate('')
+    setAthleteTimetableDraftTime('')
+  }
+
+  // Looks up a scheduled timetable entry for a given PDP item, if the
+  // athlete has already added it to their calendar.
+  function timetableEntry(sectionKey, item) {
+    return ((apData?.pdp_notes || {})[`__timetable_${sectionKey}`] || {})[item] || null
   }
 
   async function toggleShedTask(taskId, completed) {
@@ -4377,21 +4409,57 @@ export default function AthleteApp() {
               {PDP_SECTIONS.map(section => {
                 const items = shared[section.key] || []
                 if (!items.length) return null
+                const canSchedule = PDP_TIMETABLE_SECTION_KEYS.includes(section.key)
                 return (
                   <div key={section.key} className="card" style={{ borderLeft: `3px solid ${section.colour}` }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                       <h3 style={{ fontSize: 13, fontWeight: 600, color: section.colour, margin: 0 }}>{section.label}</h3>
                     </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                      {items.map((item, i) => (
-                        <span key={i} style={{ background: section.colour + '15', color: section.colour, borderRadius: 20, padding: '4px 10px', fontSize: 12 }}>{item}</span>
-                      ))}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {items.map((item, i) => {
+                        const existing = timetableEntry(section.key, item)
+                        return (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: section.colour + '15', borderRadius: 'var(--radius)', padding: '6px 10px' }}>
+                            <span style={{ color: section.colour, fontSize: 12 }}>{item}</span>
+                            {canSchedule && (
+                              existing?.date ? (
+                                <span style={{ fontSize: 10, color: 'var(--text-tertiary)', flexShrink: 0 }}>
+                                  📅 {new Date(existing.date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}{existing.time ? ` ${existing.time}` : ''}
+                                </span>
+                              ) : (
+                                <button onClick={() => { setAthleteTimetableModal({ sectionKey: section.key, item }); setAthleteTimetableDraftDate(''); setAthleteTimetableDraftTime('') }}
+                                  style={{ fontSize: 10, background: 'none', border: 'none', color: section.colour, cursor: 'pointer', fontWeight: 600, flexShrink: 0, fontFamily: 'var(--font-sans)' }}>
+                                  📅 Add to calendar
+                                </button>
+                              )
+                            )}
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
                 )
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {athleteTimetableModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
+          onClick={() => setAthleteTimetableModal(null)}>
+          <div className="card" style={{ width: '100%', maxWidth: 340 }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>📅 Add to your calendar</h3>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>{athleteTimetableModal.item}</p>
+            <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Date</label>
+            <input type="date" value={athleteTimetableDraftDate} onChange={e => setAthleteTimetableDraftDate(e.target.value)} style={{ width: '100%', marginBottom: 10 }} />
+            <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Time (optional)</label>
+            <input type="time" value={athleteTimetableDraftTime} onChange={e => setAthleteTimetableDraftTime(e.target.value)} style={{ width: '100%', marginBottom: 14 }} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-primary" disabled={!athleteTimetableDraftDate} onClick={athleteSendToTimetable}>Add</button>
+              <button className="btn" onClick={() => setAthleteTimetableModal(null)}>Cancel</button>
+            </div>
+          </div>
         </div>
       )}
 

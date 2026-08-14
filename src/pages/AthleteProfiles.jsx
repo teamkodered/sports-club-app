@@ -1824,8 +1824,12 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
       {/* ── ATHLETE VIEW ── */}
       {pdpView === 'athlete' && (
         <div>
-          {/* Shared coach notes visible to athlete */}
-          {PDP_SECTIONS.filter(s => !s.coachOnly && !(pdp.__hidden_sections || []).includes(s.key)).map(section => {
+          {/* Shared coach notes visible to athlete -- coachOnly only
+              controls who can ADD to the master list, not whether
+              sent/shared items are visible here (the items.length
+              check just below already hides anything with nothing
+              actually shared). */}
+          {PDP_SECTIONS.filter(s => !(pdp.__hidden_sections || []).includes(s.key)).map(section => {
             const items = shared[section.key] || []
             if (!items.length) return null
             const sentAt = shared[`${section.key}_sent_at`]
