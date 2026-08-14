@@ -671,7 +671,7 @@ function toEntries(val) {
 // Generic radar/spider chart -- axes is [{ label, value (0-100), colour }].
 // Matches AthleteApp.jsx's own RadarChart exactly (same hand-rolled SVG
 // approach as this file's other custom charts).
-function RadarChart({ axes, size = 280 }) {
+function RadarChart({ axes, size = 280, onAxisClick, activeLabel }) {
   const cx = size / 2, cy = size / 2
   const maxR = size / 2 - 46
   const n = axes.length
@@ -697,10 +697,12 @@ function RadarChart({ axes, size = 280 }) {
           const angle = angleFor(i)
           const lx = cx + labelR * Math.cos(angle)
           const ly = cy + labelR * Math.sin(angle)
+          const isActive = activeLabel === a.label
           return (
-            <g key={a.label}>
+            <g key={a.label} onClick={() => onAxisClick && onAxisClick(a.label)} style={{ cursor: onAxisClick ? 'pointer' : 'default' }}>
               <line x1={cx} y1={cy} x2={x} y2={y} stroke="var(--border)" strokeWidth="1" />
-              <text x={lx} y={ly} textAnchor="middle" dominantBaseline="middle" fontSize="11" fontWeight="600" fill={a.colour}>{a.label}</text>
+              {isActive && <circle cx={lx} cy={ly - 4} r="30" fill={a.colour + '15'} />}
+              <text x={lx} y={ly} textAnchor="middle" dominantBaseline="middle" fontSize="11" fontWeight="600" fill={a.colour} textDecoration={isActive ? 'underline' : 'none'}>{a.label}</text>
               <text x={lx} y={ly + 13} textAnchor="middle" fontSize="10" fill="var(--text-tertiary)">{Math.round(a.value)}%</text>
             </g>
           )
@@ -2050,6 +2052,7 @@ export default function AthleteProfiles() {
   const [showQuickLoggerPicker, setShowQuickLoggerPicker] = useState(false)
   const [radarDateFrom, setRadarDateFrom] = useState(() => { const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split('T')[0] })
   const [radarDateTo, setRadarDateTo] = useState(() => new Date().toISOString().split('T')[0])
+  const [radarDrilldown, setRadarDrilldown] = useState(null)
   // Sweep the Sheds -- coach assigns a task to any number of athletes
   // at once, independent of whichever athlete is currently selected.
   const [newShedTaskText, setNewShedTaskText] = useState('')
@@ -9749,6 +9752,33 @@ export default function AthleteProfiles() {
                     ...(ttpPct != null ? [{ label: 'TTP', value: ttpPct, colour: '#E24B4A' }] : []),
                   ].filter(a => a.value != null)
 
+                  // Breakdown data for each axis, shown when that axis is clicked.
+                  const SECTION_LABELS = { physical: 'Physical', technique: 'Technique', tactical: 'Tactical', mentality: 'Mentality', wellbeing: 'Wellbeing', test: 'Test' }
+                  const f2fBreakdown = ['physical', 'technique', 'tactical', 'mentality', 'wellbeing', 'test'].map(sectionKey => {
+                    const p = getCoachSectionProgress(sectionKey)
+                    return { key: sectionKey, label: SECTION_LABELS[sectionKey], done: p?.done || 0, target: p?.target || 0, pct: p?.target ? Math.round((p.done / p.target) * 100) : null }
+                  }).filter(s => s.target > 0)
+
+                  const attendanceBreakdown = [...scheduledDaysInRange].sort().map(d => ({ date: d, attended: attendedDaysInRange.has(d) }))
+
+                  let ttpBreakdown = []
+                  if (selected.discipline === 'KRBA' && ttpBenchmark && tptData.boxing?.[0]) {
+                    const latest = tptData.boxing[0]
+                    ttpBreakdown = TTP_BENCHMARK_FIELDS
+                      .filter(f => latest[f] != null && ttpBenchmark[f] != null && ttpBenchmark[f] > 0)
+                      .map(f => ({ key: f, label: f.replace(/_/g, ' '), value: latest[f], target: ttpBenchmark[f], pct: Math.round((latest[f] / ttpBenchmark[f]) * 100) }))
+                      .sort((a, b) => a.pct - b.pct)
+                  } else if (selected.is_kr && ttpBenchmarkKB && tptData.kickboxing?.[0]) {
+                    const latest = tptData.kickboxing[0]
+                    ttpBreakdown = KB_TTP_FIELDS
+                      .filter(f => latest[f] != null && ttpBenchmarkKB[f] != null && ttpBenchmarkKB[f] > 0 && latest[f] > 0)
+                      .map(f => ({
+                        key: f, label: f.replace(/_/g, ' '), value: latest[f], target: ttpBenchmarkKB[f],
+                        pct: Math.round((KB_LOWER_IS_BETTER.includes(f) ? ttpBenchmarkKB[f] / latest[f] : latest[f] / ttpBenchmarkKB[f]) * 100),
+                      }))
+                      .sort((a, b) => a.pct - b.pct)
+                  }
+
                   return (
                     <div className="card" style={{ marginBottom: 14 }}>
                       <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>🕸️ Performance Overview</h2>
@@ -9761,8 +9791,86 @@ export default function AthleteProfiles() {
                       {axes.length < 2 ? (
                         <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Not enough data yet to draw a radar — targets need to be set and some activity logged in this date range.</p>
                       ) : (
-                        <RadarChart axes={axes} />
+                        <>
+                          <RadarChart axes={axes} onAxisClick={label => setRadarDrilldown(d => d === label ? null : label)} activeLabel={radarDrilldown} />
+                          <p style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center', marginTop: -4, marginBottom: 8 }}>Tap an axis label to see the numbers behind it</p>
+                        </>
                       )}
+
+                      {radarDrilldown === 'Attendance' && (
+                        <div style={{ marginTop: 8, marginBottom: 8 }}>
+                          <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Attendance — {attendedDaysInRange.size} of {scheduledDaysInRange.size} sessions</p>
+                          {attendanceBreakdown.length === 0 ? (
+                            <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No scheduled sessions in this range.</p>
+                          ) : (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                              {attendanceBreakdown.map(d => (
+                                <span key={d.date} title={new Date(d.date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
+                                  style={{ fontSize: 11, padding: '4px 8px', borderRadius: 12, background: d.attended ? '#1D9E7520' : '#E24B4A20', color: d.attended ? '#1D9E75' : '#E24B4A', fontWeight: 600 }}>
+                                  {new Date(d.date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} {d.attended ? '✓' : '✕'}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {radarDrilldown === 'F2F Results' && (
+                        <div style={{ marginTop: 8, marginBottom: 8 }}>
+                          <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>F2F Results by section</p>
+                          {f2fBreakdown.length === 0 ? (
+                            <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No targets set in any section yet.</p>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              {f2fBreakdown.map(s => (
+                                <div key={s.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, padding: '6px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)' }}>
+                                  <span>{s.label}</span>
+                                  <span style={{ fontWeight: 600, color: '#EF9F27' }}>{s.done}/{s.target} ({s.pct}%)</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {radarDrilldown === 'PDP' && (
+                        <div style={{ marginTop: 8, marginBottom: 8 }}>
+                          <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>PDP timetable items in this range</p>
+                          {pdpEntriesInRange.length === 0 ? (
+                            <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No PDP timetable items scheduled in this range.</p>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              {[...pdpEntriesInRange].sort((a, b) => a.date.localeCompare(b.date)).map((e, i) => (
+                                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, padding: '6px 10px', background: e.completed ? '#1D9E7512' : 'var(--bg-secondary)', borderRadius: 'var(--radius)' }}>
+                                  <span style={{ textDecoration: e.completed ? 'line-through' : 'none', color: e.completed ? 'var(--text-tertiary)' : 'var(--text)' }}>
+                                    {new Date(e.date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} — {e.item}
+                                  </span>
+                                  <span style={{ fontWeight: 600, color: e.completed ? '#1D9E75' : 'var(--text-tertiary)' }}>{e.completed ? '✓ Done' : 'Not done'}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {radarDrilldown === 'TTP' && (
+                        <div style={{ marginTop: 8, marginBottom: 8 }}>
+                          <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>TTP by field vs benchmark</p>
+                          {ttpBreakdown.length === 0 ? (
+                            <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No TTP data to break down.</p>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
+                              {ttpBreakdown.map(f => (
+                                <div key={f.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, padding: '6px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', textTransform: 'capitalize' }}>
+                                  <span>{f.label}</span>
+                                  <span style={{ fontWeight: 600, color: f.pct >= 100 ? '#1D9E75' : '#E24B4A' }}>{f.value} / {f.target} ({f.pct}%)</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       <details style={{ marginTop: 12 }}>
                         <summary style={{ fontSize: 12, fontWeight: 600, cursor: 'pointer', color: 'var(--text-secondary)' }}>How each axis is worked out</summary>
                         <ul style={{ fontSize: 12, color: 'var(--text-secondary)', paddingLeft: 18, lineHeight: 1.6, marginTop: 8 }}>
