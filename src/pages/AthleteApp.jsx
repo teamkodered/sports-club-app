@@ -1030,6 +1030,7 @@ export default function AthleteApp() {
   }, [])
   const [checkingIn, setCheckingIn]   = useState(false)
   const [checkedInMsg, setCheckedInMsg] = useState(null)
+  const [checkInDrawerOpen, setCheckInDrawerOpen] = useState(false)
   const [activeCheckIn, setActiveCheckIn] = useState(null) // the open attendance row (checked in, not yet checked out) if still within its session window
   const [showWeightCheckPrompt, setShowWeightCheckPrompt] = useState(null) // 'in' | 'out' | null
   const [weightCheckValue, setWeightCheckValue] = useState('')
@@ -2040,30 +2041,32 @@ export default function AthleteApp() {
     )
   }
 
-  async function checkInNow(attendanceType) {
+  async function checkInNow(attendanceType, explicitClassId = null) {
     if (!student) return
     setCheckingIn(true)
-    // Self check-in never knew which specific class it was for, so it
-    // could never show up on a register filtered to one class (which
-    // only ever matches an exact class_id) -- this works out the best
-    // match from the athlete's own schedule: if only one of their
-    // classes runs today, use that; if more than one does (a
-    // double-session day), pick whichever is closest to the current
-    // time, since that's almost certainly the one they're walking into.
-    const todayJsDay = new Date().getDay()
-    const todaysClasses = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(todayJsDay) && a.classes?.id)
-    let matchedClassId = null
-    if (todaysClasses.length === 1) {
-      matchedClassId = todaysClasses[0].classes.id
-    } else if (todaysClasses.length > 1) {
-      const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes()
-      matchedClassId = [...todaysClasses].sort((a, b) => {
-        const diffFor = c => {
-          const [h, m] = (c.classes?.start_time || '00:00').split(':').map(Number)
-          return Math.abs((h * 60 + m) - nowMinutes)
-        }
-        return diffFor(a) - diffFor(b)
-      })[0].classes.id
+    let matchedClassId = explicitClassId
+    if (!matchedClassId) {
+      // Self check-in never knew which specific class it was for, so it
+      // could never show up on a register filtered to one class (which
+      // only ever matches an exact class_id) -- this works out the best
+      // match from the athlete's own schedule: if only one of their
+      // classes runs today, use that; if more than one does (a
+      // double-session day), pick whichever is closest to the current
+      // time, since that's almost certainly the one they're walking into.
+      const todayJsDay = new Date().getDay()
+      const todaysClasses = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(todayJsDay) && a.classes?.id)
+      if (todaysClasses.length === 1) {
+        matchedClassId = todaysClasses[0].classes.id
+      } else if (todaysClasses.length > 1) {
+        const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes()
+        matchedClassId = [...todaysClasses].sort((a, b) => {
+          const diffFor = c => {
+            const [h, m] = (c.classes?.start_time || '00:00').split(':').map(Number)
+            return Math.abs((h * 60 + m) - nowMinutes)
+          }
+          return diffFor(a) - diffFor(b)
+        })[0].classes.id
+      }
     }
     const { data, error } = await supabase.from('attendance').insert({
       student_id: student.id,
@@ -2206,6 +2209,24 @@ export default function AthleteApp() {
       // Also sync students.weight_kg from the latest weigh-in, same as elsewhere in the app
       if (updates[field] != null) {
         await supabase.from('students').update({ weight_kg: updates[field] }).eq('id', student.id)
+      }
+      // Also sync into today's fit2fight_sessions row (weight_before/
+      // weight_after), same fields the standalone logger and Results
+      // page read from -- previously this only ever wrote to the
+      // attendance row, so a weigh-in done via check-in/check-out never
+      // actually showed up anywhere in Results.
+      if (updates[field] != null) {
+        const todaysDate = new Date().toISOString().split('T')[0]
+        const existingSession = sessions.find(s => s.session_date === todaysDate)
+        if (existingSession) {
+          await supabase.from('fit2fight_sessions').update({ [field]: updates[field] }).eq('id', existingSession.id)
+          setSessions(prev => prev.map(s => s.id === existingSession.id ? { ...s, [field]: updates[field] } : s))
+        } else {
+          const { data: newSession } = await supabase.from('fit2fight_sessions')
+            .insert({ student_id: student.id, session_date: todaysDate, [field]: updates[field] })
+            .select().single()
+          if (newSession) setSessions(prev => [newSession, ...prev])
+        }
       }
       setAttendanceData(prev => prev.map(a => a.id === activeCheckIn.id ? { ...a, ...updates } : a))
       if (showWeightCheckPrompt === 'in') {
@@ -2606,7 +2627,7 @@ export default function AthleteApp() {
                   { key: 'test',       label: 'Test',          icon: '📋' },
                   // { key: 'techniques', label: 'Techniques', icon: '🥋' }, // removed for now, kept for possible future use
                   { key: 'mentality',      label: 'Mentality',      icon: '🧠' },
-                  { key: 'wellbeing',      label: 'Wellbeing',      icon: '🌱' },
+                  { key: 'wellbeing',      label: 'Foundation',      icon: '🌱' },
                 ]
                 const togglePhysicalLog = key => {
                   setActivePhysicalCategory(cur => cur === key ? null : key)
@@ -3616,7 +3637,7 @@ export default function AthleteApp() {
                       <SectionProgressBadge sectionKey="wellbeing" />
                       <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, justifyContent: 'center' }}>
                         <span style={{ fontSize: 24 }}>🌱</span>
-                        <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Wellbeing</span>
+                        <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Foundation</span>
                       </span>
                       <span style={{ fontSize: 11, color: 'var(--text-tertiary)', minWidth: 28, textAlign: 'right' }}>{showWellbeingSection ? '▲' : '▼'}</span>
                     </button>
@@ -4150,28 +4171,6 @@ export default function AthleteApp() {
         return (
           <div>
             {backButton}
-            {checkedInMsg ? (
-              <div className="card" style={{ textAlign: 'center', padding: 12, marginBottom: 14, background: '#1D9E7515', border: '1px solid #1D9E7530', color: '#1D9E75', fontWeight: 600, fontSize: 14 }}>
-                {checkedInMsg}
-              </div>
-            ) : activeCheckIn ? (
-              <div style={{ marginBottom: 14 }}>
-                <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: 12, fontSize: 14, background: '#E24B4A', borderColor: '#E24B4A' }}
-                  onClick={checkOutNow} disabled={checkingIn}>
-                  🚪 Check out
-                </button>
-                <p style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center', marginTop: 6 }}>
-                  Checked in {new Date(activeCheckIn.attended_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}{activeCheckIn.attendance_type === 'full_kit' ? ' — Full Kit' : ''}
-                </p>
-              </div>
-            ) : (
-              <div style={{ marginBottom: 14 }}>
-                <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: 12, fontSize: 14 }}
-                  onClick={() => checkInNow('attended')} disabled={checkingIn}>
-                  ✅ Check in
-                </button>
-              </div>
-            )}
             <div className="card" style={{ marginBottom: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8 }}>
                 <button className="btn btn-sm" onClick={() => setSessionsCalMonth(m => m.month === 0 ? { year: m.year - 1, month: 11 } : { year: m.year, month: m.month - 1 })}>←</button>
@@ -4490,6 +4489,79 @@ export default function AthleteApp() {
           </div>
         </div>
       )}
+
+      {/* ── Check-in side drawer -- vertical edge tab always visible,
+          slides open to show today's available sessions, check-in/out,
+          and (via the existing global weight-check modal) weigh-in/out. ── */}
+      {student && (() => {
+        const todayJsDay = new Date().getDay()
+        const todaysSessions = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(todayJsDay) && a.classes?.id)
+        return (
+          <>
+            <button onClick={() => setCheckInDrawerOpen(v => !v)} style={{
+              position: 'fixed', left: 0, top: '50%', transform: 'translateY(-50%) rotate(180deg)', writingMode: 'vertical-rl',
+              background: activeCheckIn ? '#1D9E75' : '#E24B4A', color: '#fff', border: 'none', borderRadius: '0 8px 8px 0',
+              padding: '14px 8px', fontSize: 12, fontWeight: 700, letterSpacing: 1, cursor: 'pointer', zIndex: 90,
+              boxShadow: '2px 0 8px rgba(0,0,0,0.15)', fontFamily: 'var(--font-sans)',
+            }}>
+              {activeCheckIn ? 'CHECKED IN' : 'CHECK IN'}
+            </button>
+
+            {checkInDrawerOpen && (
+              <div style={{ position: 'fixed', inset: 0, zIndex: 95, display: 'flex', background: 'rgba(0,0,0,0.35)' }} onClick={() => setCheckInDrawerOpen(false)}>
+                <div className="card" style={{ width: 300, maxWidth: '85vw', height: '100%', borderRadius: 0, overflowY: 'auto', boxShadow: '4px 0 16px rgba(0,0,0,0.25)' }}
+                  onClick={e => e.stopPropagation()}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                    <h2 style={{ fontSize: 16, fontWeight: 700 }}>✅ Check In</h2>
+                    <button onClick={() => setCheckInDrawerOpen(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text-tertiary)' }}>×</button>
+                  </div>
+
+                  {checkedInMsg && (
+                    <div style={{ textAlign: 'center', padding: 10, marginBottom: 14, background: '#1D9E7515', border: '1px solid #1D9E7530', color: '#1D9E75', fontWeight: 600, fontSize: 13, borderRadius: 'var(--radius)' }}>
+                      {checkedInMsg}
+                    </div>
+                  )}
+
+                  {activeCheckIn ? (
+                    <div style={{ marginBottom: 16 }}>
+                      <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: 12, fontSize: 14, background: '#E24B4A', borderColor: '#E24B4A' }}
+                        onClick={checkOutNow} disabled={checkingIn}>
+                        🚪 Check out
+                      </button>
+                      <p style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center', marginTop: 6 }}>
+                        Checked in {new Date(activeCheckIn.attended_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}{activeCheckIn.attendance_type === 'full_kit' ? ' — Full Kit' : ''}
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>
+                        {todaysSessions.length ? "Today's sessions" : 'No sessions scheduled today'}
+                      </p>
+                      {todaysSessions.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+                          {todaysSessions.map(a => (
+                            <div key={a.classes.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)' }}>
+                              <span>
+                                <span style={{ display: 'block', fontSize: 13, fontWeight: 600 }}>{a.classes.name}</span>
+                                <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{a.classes.start_time?.slice(0, 5)}</span>
+                              </span>
+                              <button className="btn btn-sm btn-primary" onClick={() => { checkInNow('attended', a.classes.id); setCheckInDrawerOpen(false) }} disabled={checkingIn}>Check in</button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: 10, fontSize: 13 }}
+                        onClick={() => { checkInNow('attended'); setCheckInDrawerOpen(false) }} disabled={checkingIn}>
+                        {todaysSessions.length ? 'Check in (other session)' : '✅ Check in'}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+          </>
+        )
+      })()}
 
       {showWeightCheckPrompt && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}>
@@ -5052,7 +5124,7 @@ export default function AthleteApp() {
             ]
 
             // Breakdown data for each axis, shown when that axis is clicked.
-            const SECTION_LABELS = { physical: 'Physical', technique: 'Technique', tactical: 'Tactical', mentality: 'Mentality', wellbeing: 'Wellbeing', test: 'Test' }
+            const SECTION_LABELS = { physical: 'Physical', technique: 'Technique', tactical: 'Tactical', mentality: 'Mentality', wellbeing: 'Foundation', test: 'Test' }
             const f2fBreakdown = ['physical', 'technique', 'tactical', 'mentality', 'wellbeing', 'test'].map(sectionKey => {
               const p = getSectionProgress(sectionKey)
               return { key: sectionKey, label: SECTION_LABELS[sectionKey], done: p?.done || 0, target: p?.target || 0, pct: p?.target ? Math.round((p.done / p.target) * 100) : null }
