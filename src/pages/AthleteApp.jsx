@@ -620,51 +620,136 @@ const VISUALISATION_OPTIONS = ['Performing a technique', 'Performing in competit
 // specific types per area. "General" keeps the original short option
 // list so nothing that was already there is lost.
 const MEDITATION_CATEGORIES = [
-  { key: 'general', label: 'General', types: MEDITATION_TYPE_OPTIONS },
-  { key: 'calm', label: 'Calm — Control Your Arousal', types: [
-    'Breath-focused meditation', 'Box breathing', 'Slow controlled breathing', 'Body scan meditation', 'Progressive relaxation',
-    'Pre-fight calming meditation', 'Between-round breathing reset', 'Post-training relaxation', 'Competition-nerves meditation', 'Grounding meditation',
+  { key: 'general', label: 'General', description: '', types: MEDITATION_TYPE_OPTIONS.map(name => ({ name })) },
+  { key: 'calm', label: 'Calm', description: 'Control Your Arousal', types: [
+    { name: 'Breath-focused meditation', howTo: 'Sit comfortably, breathe naturally, and rest your attention on the sensation of each breath in and out.' },
+    { name: 'Box breathing', howTo: 'Breathe in for 4, hold for 4, breathe out for 4, hold for 4. Repeat.' },
+    { name: 'Slow controlled breathing', howTo: 'Breathe in for 4, breathe out for 6-8, making the exhale longer than the inhale.' },
+    { name: 'Body scan meditation', howTo: 'Slowly move your attention from your feet up to your head, noticing tension in each area and letting it soften.' },
+    { name: 'Progressive relaxation', howTo: 'Tense each muscle group for 5 seconds, then release, working from feet to head.' },
+    { name: 'Pre-fight calming meditation', howTo: 'Sit quietly for 5-10 minutes before the fight, using slow breathing to settle nerves and focus the mind.' },
+    { name: 'Between-round breathing reset', howTo: 'On the stool, take 3-4 slow breaths in for 4, out for 6, to bring the heart rate down.' },
+    { name: 'Post-training relaxation', howTo: 'Lie or sit still for a few minutes after training, breathing slowly and letting the body settle.' },
+    { name: 'Competition-nerves meditation', howTo: 'Acknowledge the nerves without fighting them, breathe slowly, and remind yourself nerves mean you\'re ready.' },
+    { name: 'Grounding meditation', howTo: 'Notice 5 things you can feel/hear/see around you to bring your attention fully into the present moment.' },
   ]},
-  { key: 'focus', label: 'Focus — Control Your Attention', types: [
-    'Mindfulness meditation', 'Present-moment meditation', 'Single-point focus', 'Breath concentration', 'Sound-focused meditation',
-    'Sensory awareness', 'Open-awareness meditation', 'Distraction-control practice', 'Moving meditation', 'Mindful shadowboxing',
+  { key: 'focus', label: 'Focus', description: 'Control Your Attention', types: [
+    { name: 'Mindfulness meditation', howTo: 'Sit quietly and notice thoughts as they arise, without judging them, gently returning attention to the breath.' },
+    { name: 'Present-moment meditation', howTo: 'Focus entirely on what is happening right now — sounds, sensations, breath — letting go of past or future thoughts.' },
+    { name: 'Single-point focus', howTo: 'Pick one object (a candle, a spot on the wall, your breath) and hold your attention on it, refocusing whenever it wanders.' },
+    { name: 'Breath concentration', howTo: 'Count each breath cycle up to 10, then start again, using the counting to anchor your attention.' },
+    { name: 'Sound-focused meditation', howTo: 'Focus purely on the sounds around you, near and far, without labelling or judging them.' },
+    { name: 'Sensory awareness', howTo: 'Cycle attention through each sense in turn — what you can see, hear, feel, smell — for a minute each.' },
+    { name: 'Open-awareness meditation', howTo: 'Let attention rest broadly on whatever arises — thoughts, sounds, sensations — without fixing on any one thing.' },
+    { name: 'Distraction-control practice', howTo: 'Deliberately introduce a mild distraction (noise, movement) and practise returning focus to your breath each time.' },
+    { name: 'Moving meditation', howTo: 'Walk slowly and deliberately, keeping full attention on the sensation of each step and movement.' },
+    { name: 'Mindful shadowboxing', howTo: 'Shadowbox slowly and deliberately, keeping full attention on technique and breathing rather than going through the motions.' },
   ]},
-  { key: 'confidence', label: 'Confidence — Control Your Mindset', types: [
-    'Confidence meditation', 'Positive self-talk meditation', 'Strengths-focused meditation', 'Achievement reflection', 'Gratitude meditation',
-    'Preparation-trust meditation', 'Cue-word meditation', 'Positive affirmation practice', 'Self-belief meditation', 'Pre-competition confidence routine',
+  { key: 'confidence', label: 'Confidence', description: 'Control Your Mindset', types: [
+    { name: 'Confidence meditation', howTo: 'Sit quietly and bring to mind a time you performed well, holding that feeling in your body for a few minutes.' },
+    { name: 'Positive self-talk meditation', howTo: 'Repeat a short, positive phrase about yourself slowly and deliberately, in time with your breathing.' },
+    { name: 'Strengths-focused meditation', howTo: 'Bring to mind 3 of your genuine strengths as an athlete, and sit with the feeling each one brings.' },
+    { name: 'Achievement reflection', howTo: 'Recall a specific achievement in detail — what happened, how it felt — and let that feeling settle.' },
+    { name: 'Gratitude meditation', howTo: 'Bring to mind 3 things you\'re grateful for right now, sitting with the feeling each one brings.' },
+    { name: 'Preparation-trust meditation', howTo: 'Reflect on the training you\'ve put in, reminding yourself that the work is done and you can trust it.' },
+    { name: 'Cue-word meditation', howTo: 'Pick one word (e.g. "strong", "calm") and repeat it slowly in time with your breath for a few minutes.' },
+    { name: 'Positive affirmation practice', howTo: 'Repeat a short affirmation ("I am prepared", "I am ready") slowly, several times, with full attention.' },
+    { name: 'Self-belief meditation', howTo: 'Sit quietly and bring to mind evidence of your own ability, letting the feeling of self-belief grow.' },
+    { name: 'Pre-competition confidence routine', howTo: 'Run through a short, familiar sequence of breathing plus a confidence phrase before competing.' },
   ]},
-  { key: 'emotions', label: 'Emotions — Control Your Reactions', types: [
-    'Thought-observation meditation', 'Acceptance meditation', 'Emotional-awareness meditation', 'Pressure meditation', 'Reset meditation',
-    'Mistake-release meditation', 'Frustration-control meditation', 'Non-judgement mindfulness', 'Staying-composed meditation', "Respond-don't-react practice",
+  { key: 'emotions', label: 'Emotions', description: 'Control Your Reactions', types: [
+    { name: 'Thought-observation meditation', howTo: 'Watch your thoughts come and go like clouds, without getting pulled into them or judging them.' },
+    { name: 'Acceptance meditation', howTo: 'Notice whatever feeling is present and let it be there without trying to change or fight it.' },
+    { name: 'Emotional-awareness meditation', howTo: 'Sit quietly and name whatever emotion is present, noticing where you feel it in the body.' },
+    { name: 'Pressure meditation', howTo: 'Bring to mind a pressured situation, notice the reaction it creates, and practise breathing slowly through it.' },
+    { name: 'Reset meditation', howTo: 'Take 3-5 slow breaths, deliberately letting go of whatever just happened before moving on.' },
+    { name: 'Mistake-release meditation', howTo: 'Bring the mistake to mind briefly, acknowledge it, then consciously let it go with an exhale.' },
+    { name: 'Frustration-control meditation', howTo: 'Notice the frustration in the body, breathe slowly into it, and let the intensity reduce before reacting.' },
+    { name: 'Non-judgement mindfulness', howTo: 'Notice thoughts and feelings as they are, without labelling them good or bad.' },
+    { name: 'Staying-composed meditation', howTo: 'Practise slow, steady breathing while picturing a scenario that normally rattles you, staying calm throughout.' },
+    { name: "Respond-don't-react practice", howTo: 'Before responding to anything, pause for one breath first, so the response is chosen rather than automatic.' },
   ]},
-  { key: 'recovery', label: 'Recovery — Control Your Reset', types: [
-    'Post-training meditation', 'Relaxation meditation', 'Sleep meditation', 'Body scan', 'Recovery breathing',
-    'Mental switch-off meditation', 'Muscle-relaxation meditation', 'Stress-release meditation', 'End-of-day mindfulness', 'Positive training reflection',
+  { key: 'recovery', label: 'Recovery', description: 'Control Your Reset', types: [
+    { name: 'Post-training meditation', howTo: 'Sit or lie quietly for a few minutes after training, breathing slowly and letting the nervous system settle.' },
+    { name: 'Relaxation meditation', howTo: 'Lie down, breathe slowly, and consciously relax each part of the body in turn.' },
+    { name: 'Sleep meditation', howTo: 'Lie in bed, breathe slowly, and let the body relax fully, releasing the need to control anything.' },
+    { name: 'Body scan', howTo: 'Move attention slowly from feet to head, releasing tension in each area as you go.' },
+    { name: 'Recovery breathing', howTo: 'Breathe in for 4, out for 6-8, for several minutes to activate the body\'s rest-and-recover state.' },
+    { name: 'Mental switch-off meditation', howTo: 'Deliberately set aside training/competition thoughts for a set period, refocusing on breath whenever they return.' },
+    { name: 'Muscle-relaxation meditation', howTo: 'Tense and release each major muscle group in turn, noticing the contrast between tension and relaxation.' },
+    { name: 'Stress-release meditation', howTo: 'Breathe slowly, and with each exhale imagine releasing built-up tension from the day.' },
+    { name: 'End-of-day mindfulness', howTo: 'Sit quietly, reflect briefly on the day without judgement, then let it go with a few slow breaths.' },
+    { name: 'Positive training reflection', howTo: 'Bring to mind one thing that went well in training today, and sit with that feeling for a minute.' },
   ]},
 ]
 const VISUALISATION_CATEGORIES = [
-  { key: 'general', label: 'General', types: VISUALISATION_OPTIONS },
-  { key: 'technique', label: 'Technique — See Yourself Doing It Correctly', types: [
-    'Punch technique visualisation', 'Kick technique visualisation', 'Defensive technique visualisation', 'Combination rehearsal', 'Footwork visualisation',
-    'Head-movement rehearsal', 'Counter-attack visualisation', 'Distance-control rehearsal', 'Pad-work visualisation', 'Perfect-execution imagery',
+  { key: 'general', label: 'General', description: '', types: VISUALISATION_OPTIONS.map(name => ({ name })) },
+  { key: 'technique', label: 'Technique', description: 'See Yourself Doing It Correctly', types: [
+    { name: 'Punch technique visualisation', howTo: 'Vividly picture yourself throwing the punch with perfect technique — stance, rotation, snap, return to guard.' },
+    { name: 'Kick technique visualisation', howTo: 'Vividly picture the kick from set-up to impact to recovery, with perfect balance and technique throughout.' },
+    { name: 'Defensive technique visualisation', howTo: 'Picture an attack coming and see yourself defending it cleanly — the block, slip or parry, and the return.' },
+    { name: 'Combination rehearsal', howTo: 'Mentally run through a full combination, feeling the rhythm and timing between each shot.' },
+    { name: 'Footwork visualisation', howTo: 'Picture yourself moving with light, balanced footwork, always in the right position to attack or defend.' },
+    { name: 'Head-movement rehearsal', howTo: 'Picture slipping and rolling shots smoothly, staying balanced and in position to counter.' },
+    { name: 'Counter-attack visualisation', howTo: 'See the opponent\'s attack coming, picture your defence, then immediately see your counter landing.' },
+    { name: 'Distance-control rehearsal', howTo: 'Picture yourself managing range perfectly — staying just out of reach, then closing the distance to attack.' },
+    { name: 'Pad-work visualisation', howTo: 'Mentally rehearse a pad combination exactly as your coach calls it, seeing each shot land cleanly.' },
+    { name: 'Perfect-execution imagery', howTo: 'Picture your best-ever technique performance in vivid detail — how it looked, felt and sounded.' },
   ]},
-  { key: 'tactics', label: 'Tactics — See the Problem & the Solution', types: [
-    'Opponent-style visualisation', 'Southpaw vs orthodox scenarios', 'Pressure-fighter scenarios', 'Counter-fighter scenarios', 'Taller/shorter opponent scenarios',
-    'Range-management visualisation', 'Ring/cage control', 'Creating openings', 'Tactical adjustment visualisation', 'Plan A, B and C scenarios',
+  { key: 'tactics', label: 'Tactics', description: 'See the Problem & the Solution', types: [
+    { name: 'Opponent-style visualisation', howTo: 'Picture a specific opponent style and mentally rehearse your game plan for dealing with it.' },
+    { name: 'Southpaw vs orthodox scenarios', howTo: 'Picture yourself adjusting footwork and angles to deal with the opposite stance.' },
+    { name: 'Pressure-fighter scenarios', howTo: 'Picture an opponent walking you down, and see yourself using movement and countering to control the exchange.' },
+    { name: 'Counter-fighter scenarios', howTo: 'Picture an opponent who waits and counters, and see yourself using feints and pressure to draw them out.' },
+    { name: 'Taller/shorter opponent scenarios', howTo: 'Picture adjusting range, angles and technique choice to deal with the height difference.' },
+    { name: 'Range-management visualisation', howTo: 'Picture yourself controlling the range throughout an exchange, staying at your preferred distance.' },
+    { name: 'Ring/cage control', howTo: 'Picture yourself controlling position, cutting off the ring/cage and avoiding being trapped on the ropes/fence.' },
+    { name: 'Creating openings', howTo: 'Picture setting up an opponent with feints or combinations, then seeing the opening appear and taking it.' },
+    { name: 'Tactical adjustment visualisation', howTo: 'Picture a plan not working, then see yourself calmly switching to a different approach mid-round.' },
+    { name: 'Plan A, B and C scenarios', howTo: 'Mentally rehearse your main game plan, then picture switching to your backup plans if needed.' },
   ]},
-  { key: 'confidence', label: 'Confidence — See Yourself Succeeding', types: [
-    'Successful-performance visualisation', 'Winning exchanges', 'Executing your best techniques', 'Staying composed', 'Recovering after mistakes',
-    'Strong final-round visualisation', 'Walking confidently to the ring', 'Hearing your name announced', 'Trusting your preparation', 'Performing at your best',
+  { key: 'confidence', label: 'Confidence', description: 'See Yourself Succeeding', types: [
+    { name: 'Successful-performance visualisation', howTo: 'Picture your whole performance going exactly as you want it to, from start to finish.' },
+    { name: 'Winning exchanges', howTo: 'Picture yourself winning exchanges cleanly — landing your shots, avoiding theirs.' },
+    { name: 'Executing your best techniques', howTo: 'Picture your best technique or combination landing perfectly under competition pressure.' },
+    { name: 'Staying composed', howTo: 'Picture a difficult moment in the fight, and see yourself staying calm and in control throughout.' },
+    { name: 'Recovering after mistakes', howTo: 'Picture making a mistake, then immediately see yourself refocusing and performing well straight after.' },
+    { name: 'Strong final-round visualisation', howTo: 'Picture yourself finishing the final round strong, pushing the pace when it matters most.' },
+    { name: 'Walking confidently to the ring', howTo: 'Picture the walk to the ring/cage — head up, relaxed shoulders, confident and focused.' },
+    { name: 'Hearing your name announced', howTo: 'Picture the moment your name is announced, and see yourself feeling calm, ready and confident.' },
+    { name: 'Trusting your preparation', howTo: 'Bring to mind your training, and picture yourself performing with full trust in that preparation.' },
+    { name: 'Performing at your best', howTo: 'Picture yourself performing at your absolute best, exactly as you\'ve trained to.' },
   ]},
-  { key: 'pressure', label: 'Pressure — See Yourself Handling Difficult Situations', types: [
-    'Being under pressure', 'Opponent starting quickly', 'Losing an early round', 'Getting tired', 'Making a mistake',
-    'Technique not working', 'Facing an aggressive opponent', 'Dealing with crowd noise', "Receiving a coach's instruction between rounds", 'Changing tactics mid-fight',
-    'Staying disciplined when frustrated', 'Finishing strongly',
+  { key: 'pressure', label: 'Pressure', description: 'See Yourself Handling Difficult Situations', types: [
+    { name: 'Being under pressure', howTo: 'Picture a moment of heavy pressure and see yourself staying composed and making good decisions.' },
+    { name: 'Opponent starting quickly', howTo: 'Picture an opponent coming out fast, and see yourself staying calm and matching or managing the pace.' },
+    { name: 'Losing an early round', howTo: 'Picture being behind early, then see yourself staying calm and working your way back into the fight.' },
+    { name: 'Getting tired', howTo: 'Picture the fatigue setting in, and see yourself digging in and maintaining technique and effort anyway.' },
+    { name: 'Making a mistake', howTo: 'Picture making an error, then immediately see yourself letting it go and refocusing on the next action.' },
+    { name: 'Technique not working', howTo: 'Picture your usual approach not working, and see yourself calmly adjusting to something that does.' },
+    { name: 'Facing an aggressive opponent', howTo: 'Picture an aggressive opponent coming forward, and see yourself staying composed and countering effectively.' },
+    { name: 'Dealing with crowd noise', howTo: 'Picture a loud, distracting crowd, and see yourself blocking it out and staying focused on the task.' },
+    { name: "Receiving a coach's instruction between rounds", howTo: 'Picture your coach giving instructions between rounds, and see yourself listening and applying it immediately.' },
+    { name: 'Changing tactics mid-fight', howTo: 'Picture realising a change is needed mid-fight, and see yourself calmly switching approach without panic.' },
+    { name: 'Staying disciplined when frustrated', howTo: 'Picture a frustrating moment, and see yourself staying disciplined rather than reacting emotionally.' },
+    { name: 'Finishing strongly', howTo: 'Picture the final moments of the fight, and see yourself finishing on your terms with a strong effort.' },
   ]},
-  { key: 'performance', label: 'Performance — See the Whole Competition', types: [
-    'Arriving at the venue', 'Weigh-in', 'Changing room', 'Wrapping hands', 'Warming up',
-    'Walking to the ring', 'Opening bell', 'First exchange', 'Following the game plan', 'Listening to the corner',
-    'Between-round recovery', 'Tactical adjustments', 'Final round', 'End of competition', 'Post-fight reflection',
+  { key: 'performance', label: 'Performance', description: 'See the Whole Competition', types: [
+    { name: 'Arriving at the venue', howTo: 'Picture arriving at the venue, feeling settled and focused, going through your normal routine.' },
+    { name: 'Weigh-in', howTo: 'Picture the weigh-in going smoothly, staying calm and business-like throughout.' },
+    { name: 'Changing room', howTo: 'Picture the changing room before the fight — your routine, your kit, your headspace.' },
+    { name: 'Wrapping hands', howTo: 'Picture your hands being wrapped, using this quiet moment to settle your focus.' },
+    { name: 'Warming up', howTo: 'Picture your warm-up routine, feeling your body and mind coming to full readiness.' },
+    { name: 'Walking to the ring', howTo: 'Picture the walk-out, feeling calm, focused and ready for what\'s ahead.' },
+    { name: 'Opening bell', howTo: 'Picture the opening bell going, and see yourself starting exactly as planned.' },
+    { name: 'First exchange', howTo: 'Picture the very first exchange of the fight going well, landing clean and staying composed.' },
+    { name: 'Following the game plan', howTo: 'Picture yourself sticking to the game plan you and your coach agreed on.' },
+    { name: 'Listening to the corner', howTo: 'Picture your corner giving instructions between rounds, and see yourself taking it in and using it.' },
+    { name: 'Between-round recovery', howTo: 'Picture the minute between rounds — breathing, recovering, resetting for the next round.' },
+    { name: 'Tactical adjustments', howTo: 'Picture making a tactical change mid-fight based on what you\'re seeing, and it working well.' },
+    { name: 'Final round', howTo: 'Picture the final round, giving everything you have left, finishing the way you want to.' },
+    { name: 'End of competition', howTo: 'Picture the final bell, and see yourself feeling proud of the effort you gave, regardless of outcome.' },
+    { name: 'Post-fight reflection', howTo: 'Picture yourself afterwards, calmly reflecting on what went well and what to work on next.' },
   ]},
 ]
 const ACTIVE_RECOVERY_OPTIONS = ['Swimming', 'Walking', 'Yoga']
@@ -1233,6 +1318,7 @@ export default function AthleteApp() {
   const [eyeTrackingCustomAdd, setEyeTrackingCustomAdd] = useState('')
   const [mentalityDraftDurations, setMentalityDraftDurations] = useState({}) // "field::type" -> draft minutes, before saving as an entry
   const [expandedLoggerCategory, setExpandedLoggerCategory] = useState({}) // field -> currently open category key, or null
+  const [expandedLoggerHowTo, setExpandedLoggerHowTo] = useState({}) // "field::type" -> true if its how-to text is shown
   const [coldWaterCustomAdd, setColdWaterCustomAdd] = useState('')
   const [gratitudeDraft, setGratitudeDraft] = useState('')
   const [expandedHomeTestCategory, setExpandedHomeTestCategory] = useState(null)
@@ -2185,11 +2271,11 @@ export default function AthleteApp() {
           </div>
         )}
         <label>Choose a performance area</label>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: expandedCategory ? 10 : 0 }}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 6, overflowX: 'auto', paddingBottom: 4 }}>
           {categories.map(c => (
             <button key={c.key} type="button"
               onClick={() => setExpandedLoggerCategory(prev => ({ ...prev, [field]: prev[field] === c.key ? null : c.key }))}
-              className="btn btn-sm" style={{ background: expandedCategory === c.key ? colour + '20' : undefined, borderColor: expandedCategory === c.key ? colour : undefined }}>
+              className="btn btn-sm" style={{ flexShrink: 0, background: expandedCategory === c.key ? colour + '20' : undefined, borderColor: expandedCategory === c.key ? colour : undefined }}>
               {c.label}
             </button>
           ))}
@@ -2197,23 +2283,33 @@ export default function AthleteApp() {
         {expandedCategory && (() => {
           const cat = categories.find(c => c.key === expandedCategory)
           return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {cat.types.map(v => {
-                const draftKey = `${field}::${v}`
-                return (
-                  <div key={v} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 13, flex: 1 }}>{v}</span>
-                    <input type="number" inputMode="numeric" placeholder="min" value={mentalityDraftDurations[draftKey] ?? ''}
-                      onChange={e => setMentalityDraftDurations(prev => ({ ...prev, [draftKey]: e.target.value }))}
-                      style={{ width: 60, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 12, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)' }} />
-                    <button type="button" className="btn btn-sm" disabled={!mentalityDraftDurations[draftKey]}
-                      onClick={() => {
-                        saveMentalityField(field, cur => ({ entries: [...(cur.entries || []), { type: v, duration: mentalityDraftDurations[draftKey] }] }))
-                        setMentalityDraftDurations(prev => ({ ...prev, [draftKey]: '' }))
-                      }}>Save</button>
-                  </div>
-                )
-              })}
+            <div>
+              {cat.description && <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 8, fontStyle: 'italic' }}>{cat.description}</p>}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {cat.types.map(t => {
+                  const draftKey = `${field}::${t.name}`
+                  const howToShown = expandedLoggerHowTo[draftKey]
+                  return (
+                    <div key={t.name}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <button type="button" onClick={() => t.howTo && setExpandedLoggerHowTo(prev => ({ ...prev, [draftKey]: !prev[draftKey] }))}
+                          style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', padding: 0, cursor: t.howTo ? 'pointer' : 'default', fontSize: 13, color: t.howTo ? colour : 'var(--text)', fontFamily: 'var(--font-sans)' }}>
+                          {t.name}{t.howTo ? ' ⓘ' : ''}
+                        </button>
+                        <input type="number" inputMode="numeric" placeholder="min" value={mentalityDraftDurations[draftKey] ?? ''}
+                          onChange={e => setMentalityDraftDurations(prev => ({ ...prev, [draftKey]: e.target.value }))}
+                          style={{ width: 60, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 12, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)' }} />
+                        <button type="button" className="btn btn-sm" disabled={!mentalityDraftDurations[draftKey]}
+                          onClick={() => {
+                            saveMentalityField(field, cur => ({ entries: [...(cur.entries || []), { type: t.name, duration: mentalityDraftDurations[draftKey] }] }))
+                            setMentalityDraftDurations(prev => ({ ...prev, [draftKey]: '' }))
+                          }}>Save</button>
+                      </div>
+                      {howToShown && <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '4px 0 0', paddingLeft: 2 }}>{t.howTo}</p>}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           )
         })()}
