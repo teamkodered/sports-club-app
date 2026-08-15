@@ -2252,7 +2252,7 @@ export default function AthleteApp() {
     const entries = todaysMentalityLog[field]?.entries || []
     const expandedCategory = expandedLoggerCategory[field] || null
     return (
-      <div className="field" style={{ marginBottom: 0 }}>
+      <div className="field" style={{ marginBottom: 0, width: '100%', minWidth: 0 }}>
         {entries.length > 0 && (
           <div style={{ marginBottom: 12 }}>
             <label>Logged today</label>
@@ -2271,11 +2271,11 @@ export default function AthleteApp() {
           </div>
         )}
         <label>Choose a performance area</label>
-        <div style={{ display: 'flex', gap: 6, marginBottom: 6, overflowX: 'auto', paddingBottom: 4 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8, overflowX: 'auto', paddingBottom: 4, width: '100%', minWidth: 0 }}>
           {categories.map(c => (
             <button key={c.key} type="button"
               onClick={() => setExpandedLoggerCategory(prev => ({ ...prev, [field]: prev[field] === c.key ? null : c.key }))}
-              className="btn btn-sm" style={{ flexShrink: 0, background: expandedCategory === c.key ? colour + '20' : undefined, borderColor: expandedCategory === c.key ? colour : undefined }}>
+              className="btn" style={{ flexShrink: 0, fontSize: 14, padding: '10px 16px', background: expandedCategory === c.key ? colour + '20' : undefined, borderColor: expandedCategory === c.key ? colour : undefined }}>
               {c.label}
             </button>
           ))}
@@ -2283,23 +2283,23 @@ export default function AthleteApp() {
         {expandedCategory && (() => {
           const cat = categories.find(c => c.key === expandedCategory)
           return (
-            <div>
+            <div style={{ width: '100%', minWidth: 0 }}>
               {cat.description && <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 8, fontStyle: 'italic' }}>{cat.description}</p>}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {cat.types.map(t => {
                   const draftKey = `${field}::${t.name}`
                   const howToShown = expandedLoggerHowTo[draftKey]
                   return (
-                    <div key={t.name}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div key={t.name} style={{ width: '100%', minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', minWidth: 0 }}>
                         <button type="button" onClick={() => t.howTo && setExpandedLoggerHowTo(prev => ({ ...prev, [draftKey]: !prev[draftKey] }))}
-                          style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', padding: 0, cursor: t.howTo ? 'pointer' : 'default', fontSize: 13, color: t.howTo ? colour : 'var(--text)', fontFamily: 'var(--font-sans)' }}>
+                          style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'none', border: 'none', padding: 0, cursor: t.howTo ? 'pointer' : 'default', fontSize: 14, color: t.howTo ? colour : 'var(--text)', fontFamily: 'var(--font-sans)' }}>
                           {t.name}{t.howTo ? ' ⓘ' : ''}
                         </button>
                         <input type="number" inputMode="numeric" placeholder="min" value={mentalityDraftDurations[draftKey] ?? ''}
                           onChange={e => setMentalityDraftDurations(prev => ({ ...prev, [draftKey]: e.target.value }))}
-                          style={{ width: 60, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 12, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)' }} />
-                        <button type="button" className="btn btn-sm" disabled={!mentalityDraftDurations[draftKey]}
+                          style={{ width: 68, flexShrink: 0, padding: '8px 8px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 14, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)' }} />
+                        <button type="button" className="btn" disabled={!mentalityDraftDurations[draftKey]} style={{ flexShrink: 0, fontSize: 13, padding: '8px 14px' }}
                           onClick={() => {
                             saveMentalityField(field, cur => ({ entries: [...(cur.entries || []), { type: t.name, duration: mentalityDraftDurations[draftKey] }] }))
                             setMentalityDraftDurations(prev => ({ ...prev, [draftKey]: '' }))
