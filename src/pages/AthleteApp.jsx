@@ -2271,11 +2271,11 @@ export default function AthleteApp() {
           </div>
         )}
         <label>Choose a performance area</label>
-        <div style={{ display: 'flex', gap: 6, marginBottom: 8, overflowX: 'auto', paddingBottom: 4, width: '100%', minWidth: 0 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
           {categories.map(c => (
             <button key={c.key} type="button"
               onClick={() => setExpandedLoggerCategory(prev => ({ ...prev, [field]: prev[field] === c.key ? null : c.key }))}
-              className="btn btn-sm" style={{ flexShrink: 0, background: expandedCategory === c.key ? colour + '20' : undefined, borderColor: expandedCategory === c.key ? colour : undefined }}>
+              className="btn btn-sm" style={{ background: expandedCategory === c.key ? colour + '20' : undefined, borderColor: expandedCategory === c.key ? colour : undefined }}>
               {c.label}
             </button>
           ))}
