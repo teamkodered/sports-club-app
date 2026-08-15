@@ -2954,7 +2954,7 @@ export default function AthleteApp() {
                             ? `${possibleSessions ? Math.round((attendedDayCount / possibleSessions) * 100) : 0}%`
                             : `${attendedDayCount}/${possibleSessions || attendedDayCount}`}
                         </div>
-                        <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>Assigned sessions</div>
+                        <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>Sessions</div>
                         {coachAttendanceDateSettings && (
                           <div style={{ fontSize: 8, color: 'var(--text-tertiary)' }}>
                             {new Date(earliestDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – {new Date(coachAttendanceDateSettings.to).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
@@ -3684,9 +3684,9 @@ export default function AthleteApp() {
                         )}
                         {expandedHomeMentality === 'chess' && (
                           <>
-                            <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.chess?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>game{(todaysMentalityLog.chess?.count || 0) === 1 ? '' : 's'} today</span></div>
-                            <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
+                            <button type="button" className="btn" style={{ width: '100%', justifyContent: 'center', marginBottom: 10, fontSize: 16, padding: '14px' }}
                               onClick={() => saveMentalityField('chess', cur => ({ count: (cur.count || 0) + 1 }))}>+1 game</button>
+                            <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.chess?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>game{(todaysMentalityLog.chess?.count || 0) === 1 ? '' : 's'} today</span></div>
                             <div className="field" style={{ marginBottom: 0 }}><label>Or write a number to add</label>
                               <div style={{ display: 'flex', gap: 6 }}>
                                 <input type="number" value={chessCustomAdd} onChange={e => setChessCustomAdd(e.target.value)} placeholder="e.g. 3" style={{ flex: 1 }} />
@@ -5605,7 +5605,7 @@ export default function AthleteApp() {
                   <div style={{ marginTop: 8, marginBottom: 8 }}>
                     <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>TTP by field vs benchmark</p>
                     {ttpBreakdown.length === 0 ? (
-                      <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No TTP data to break down.</p>
+                      <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No TTP data yet — ask your coach to complete a TTP assessment for you.</p>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
                         {ttpBreakdown.map(f => (

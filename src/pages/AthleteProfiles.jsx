@@ -7503,7 +7503,7 @@ export default function AthleteProfiles() {
                       </div>
                       <button onClick={() => setF2fStatsScope(v => v + 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4, appearance: 'none', WebkitAppearance: 'none', fontFamily: 'var(--font-sans)' }}>▶</button>
                     </div>
-                    <button onClick={() => navigate(`/fit2fight?student_id=${selected?.id}`)}
+                    <button onClick={() => setTab('fit2fight')}
                       onContextMenu={e => e.preventDefault()}
                       onTouchStart={() => { flameHoldTimer.current = setTimeout(() => setShowQuickLoggerPicker(true), 500) }}
                       onTouchEnd={() => clearTimeout(flameHoldTimer.current)}
@@ -8181,9 +8181,9 @@ export default function AthleteProfiles() {
                       )}
                       {expandedHomeMentality === 'chess' && (
                         <>
-                          <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.chess?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>game{(todaysMentalityLog.chess?.count || 0) === 1 ? '' : 's'} today</span></div>
-                          <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
+                          <button type="button" className="btn" style={{ width: '100%', justifyContent: 'center', marginBottom: 10, fontSize: 16, padding: '14px' }}
                             onClick={() => saveMentalityField('chess', cur => ({ count: (cur.count || 0) + 1 }))}>+1 game</button>
+                          <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.chess?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>game{(todaysMentalityLog.chess?.count || 0) === 1 ? '' : 's'} today</span></div>
                           <div className="field" style={{ marginBottom: 0 }}><label>Or write a number to add</label>
                             <div style={{ display: 'flex', gap: 6 }}>
                               <input type="number" value={chessCustomAdd} onChange={e => setChessCustomAdd(e.target.value)} placeholder="e.g. 3" style={{ flex: 1 }} />
@@ -10140,7 +10140,12 @@ export default function AthleteProfiles() {
                         <div style={{ marginTop: 8, marginBottom: 8 }}>
                           <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>TTP by field vs benchmark</p>
                           {ttpBreakdown.length === 0 ? (
-                            <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No TTP data to break down.</p>
+                            <div>
+                              <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 8 }}>No TTP data to break down.</p>
+                              <a href={`/${selected.is_kr ? 'kickboxing' : 'boxing'}-tpt?student_id=${selected.id}`} className="btn btn-sm btn-primary">
+                                📋 Complete TTP form
+                              </a>
+                            </div>
                           ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
                               {ttpBreakdown.map(f => (
