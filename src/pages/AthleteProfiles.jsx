@@ -500,6 +500,19 @@ const MENTALITY_QUESTIONS = [
   { key: 'activeRecovery',  label: 'Active recovery day', icon: '🚶' },
   { key: 'gratitude',       label: 'Self gratitude',   icon: '🙏' },
   { key: 'alterEgo',        label: 'Alter Ego',        icon: '🎭' },
+  { key: 'coachability',    label: 'Coachability',     icon: '🤝' },
+]
+const COACHABILITY_PROMPTS = [
+  { key: 'listened', label: 'Listened to feedback today' },
+  { key: 'applied', label: 'Applied corrections given' },
+  { key: 'askedQuestions', label: 'Asked questions when unsure' },
+  { key: 'openToChallenge', label: 'Open to being challenged/pushed' },
+  { key: 'positiveAttitude', label: 'Kept a positive attitude when corrected' },
+  { key: 'listenOrDefend', label: 'When corrected, does the athlete listen or defend themselves?', positiveLabel: 'Listens', negativeLabel: 'Defends' },
+  { key: 'appliesInstruction', label: 'When given an instruction, do they actually attempt to apply it?' },
+  { key: 'solutionOrExcuse', label: 'When something goes wrong, do they look for a solution or an excuse?', positiveLabel: 'Solution', negativeLabel: 'Excuse' },
+  { key: 'egoAside', label: 'Can they put their ego aside long enough to learn?' },
+  { key: 'behaviourChanges', label: 'Does their behaviour change after feedback, or does the coach have to keep repeating the same message?', positiveLabel: 'Changes', negativeLabel: 'Repeats' },
 ]
 const VIDEO_ANALYSIS_OPTIONS = ['Self in competition', 'Self in training', 'Elite athlete in competition', 'Elite athlete in training']
 const MEDITATION_TYPE_OPTIONS = ['Guided meditation', 'Breathing meditation', 'Body scan meditation', 'Mindfulness meditation', 'Silent meditation', 'Other']
@@ -641,6 +654,7 @@ function isMentalityQComplete(key, m) {
     case 'coldWater': return !!(m.coldWater?.count > 0)
     case 'activeRecovery': return !!(m.activeRecovery?.entries?.length > 0)
     case 'gratitude': return !!(m.gratitude?.count > 0)
+    case 'coachability': return !!(m.coachability && Object.keys(m.coachability).length > 0)
     default: return false
   }
 }
@@ -8013,8 +8027,10 @@ export default function AthleteProfiles() {
                             <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>Drill videos</p>
                             <a href="https://youtu.be/bbk_ufmkYdE?si=yGVw8UoERqRE547i" target="_blank" rel="noreferrer"
                               style={{ display: 'block', fontSize: 12, color: '#378ADD', marginBottom: 4 }}>▶ Eye tracking drill 1</a>
+                            <a href="https://youtu.be/E7HOlJ_OhEo?si=_pVUpaZfYWS2zKFE" target="_blank" rel="noreferrer"
+                              style={{ display: 'block', fontSize: 12, color: '#378ADD', marginBottom: 4 }}>▶ Eye tracking drill 2</a>
                             <a href="https://youtu.be/RhdUV4F_ybM?si=xPpDj5Wlu6bNOkVY" target="_blank" rel="noreferrer"
-                              style={{ display: 'block', fontSize: 12, color: '#378ADD', marginBottom: 6 }}>▶ Eye tracking drill 2</a>
+                              style={{ display: 'block', fontSize: 12, color: '#378ADD', marginBottom: 6 }}>▶ Eye tracking drill 3</a>
                             <p style={{ fontSize: 11, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>Best performed on a TV</p>
                           </div>
                         </>
@@ -8047,6 +8063,24 @@ export default function AthleteProfiles() {
                             Save gratitude entry
                           </button>
                         </>
+                      )}
+                      {expandedHomeMentality === 'coachability' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {COACHABILITY_PROMPTS.map(p => {
+                            const current = todaysMentalityLog.coachability?.[p.key]
+                            return (
+                              <div key={p.key} style={{ padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)' }}>
+                                <p style={{ fontSize: 13, marginBottom: 6 }}>{p.label}</p>
+                                <div style={{ display: 'flex', gap: 4 }}>
+                                  <button type="button" onClick={() => saveMentalityField('coachability', cur => ({ ...cur, [p.key]: true }))}
+                                    className="btn btn-sm" style={{ padding: '3px 10px', background: current === true ? '#1D9E7520' : undefined, borderColor: current === true ? '#1D9E75' : undefined, color: current === true ? '#1D9E75' : undefined }}>{p.positiveLabel || 'Yes'}</button>
+                                  <button type="button" onClick={() => saveMentalityField('coachability', cur => ({ ...cur, [p.key]: false }))}
+                                    className="btn btn-sm" style={{ padding: '3px 10px', background: current === false ? '#E24B4A20' : undefined, borderColor: current === false ? '#E24B4A' : undefined, color: current === false ? '#E24B4A' : undefined }}>{p.negativeLabel || 'No'}</button>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
                       )}
                       {savingMentalityLog && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>Saving…</p>}
                     </div>
