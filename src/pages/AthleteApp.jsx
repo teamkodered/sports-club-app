@@ -4110,6 +4110,7 @@ export default function AthleteApp() {
 
                     {expandedHomeTestCategory && (() => {
                       const cat = TEST_CATEGORIES.find(c => c.key === expandedHomeTestCategory)
+                      const sorted = [...sessions].sort((a, b) => new Date(a.session_date) - new Date(b.session_date))
                       return (
                         <div className="card" style={{ marginBottom: 8 }}>
                           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
