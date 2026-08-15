@@ -571,8 +571,14 @@ const TEST_CATEGORIES = [
     { name: 'Watt bike 2 min (distance)', unit: 'km' },
     { name: 'Watt bike 3 min (distance)', unit: 'km' },
   ]},
-  { key: 'other', label: 'Other tests', icon: '📋', tests: [
-    { name: 'Fixed load circuit', unit: 'sec' },
+  { key: 'fixedload', label: 'Fixed Load Circuit', icon: '🔴', tests: [
+    { name: 'Fixed load circuit - Red', unit: 'sec' },
+    { name: 'Fixed load circuit - Yellow', unit: 'sec' },
+    { name: 'Fixed load circuit - Green', unit: 'sec' },
+    { name: 'Fixed load circuit - Blue', unit: 'sec' },
+    { name: 'Fixed load circuit - Black', unit: 'sec' },
+  ]},
+  { key: 'timedrun', label: 'Timed Run', icon: '🏃', tests: [
     { name: '200m sprint', unit: 'sec' },
     { name: '1600m time trial', unit: 'sec' },
     { name: '4800m time trial', unit: 'sec' },
