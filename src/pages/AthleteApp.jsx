@@ -2649,6 +2649,7 @@ export default function AthleteApp() {
                 const togglePhysicalSection = () => {
                   setShowPhysicalSection(v => {
                     if (v) { openOnlyPhysicalPanel(null, null); setActivePhysicalCategory(null) } // closing -- reset any open detail panel/category too
+                    else { setTimeout(() => physicalSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50) }
                     return !v
                   })
                 }
@@ -3101,7 +3102,7 @@ export default function AthleteApp() {
                     </div>
 
                     <div ref={techniqueSectionRef} style={{ order: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showTechniqueSection ? '1 / -1' : 'auto' }}>
-                    <button type="button" onClick={() => { setShowTechniqueSection(v => { if (v) setExpandedTechniqueCategory(null); return !v }) }} style={showTechniqueSection ? {
+                    <button type="button" onClick={() => { setShowTechniqueSection(v => { if (v) setExpandedTechniqueCategory(null); else setTimeout(() => techniqueSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); return !v }) }} style={showTechniqueSection ? {
                       width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
                       textAlign: 'center', padding: '16px 12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
@@ -3214,7 +3215,7 @@ export default function AthleteApp() {
                     </div>
 
                     <div ref={tacticalSectionRef} style={{ order: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showTacticalSection ? '1 / -1' : 'auto' }}>
-                    <button type="button" onClick={() => { setShowTacticalSection(v => { if (v) setExpandedTacticalCategory(null); return !v }) }} style={showTacticalSection ? {
+                    <button type="button" onClick={() => { setShowTacticalSection(v => { if (v) setExpandedTacticalCategory(null); else setTimeout(() => tacticalSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); return !v }) }} style={showTacticalSection ? {
                       width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
                       textAlign: 'center', padding: '16px 12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
@@ -3338,7 +3339,7 @@ export default function AthleteApp() {
                     </div>
 
                     <div ref={mentalitySectionRef} style={{ order: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showMentalitySection ? '1 / -1' : 'auto' }}>
-                    <button type="button" onClick={() => { setShowMentalitySection(v => { if (v) setExpandedHomeMentality(null); return !v }) }} style={showMentalitySection ? {
+                    <button type="button" onClick={() => { setShowMentalitySection(v => { if (v) setExpandedHomeMentality(null); else setTimeout(() => mentalitySectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); return !v }) }} style={showMentalitySection ? {
                       width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
                       textAlign: 'center', padding: '16px 12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
