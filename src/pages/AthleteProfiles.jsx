@@ -7511,7 +7511,7 @@ export default function AthleteProfiles() {
                       onMouseUp={() => clearTimeout(flameHoldTimer.current)}
                       className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none' }}
                       title="Log a Fit II Fight session — hold for quick logger">
-                      <div style={{ fontSize: 22, marginBottom: 4 }}>🔥</div>
+                      <img src="/logos/f2f-logo.png" alt="Fit II Fight" style={{ height: 22, width: 'auto', marginBottom: 4, objectFit: 'contain', filter: 'invert(1)' }} />
                       <div style={{ fontSize: 22, fontWeight: 700, color: '#378ADD' }}>
                         {(() => {
                           // Checking "does this field have any keys" isn't

@@ -160,7 +160,7 @@ function GroupAvg({ group, scores }) {
 }
 
 export default function BoxingTPT() {
-  const { profile, isAdmin } = useAuth()
+  const { profile, isAdmin, isStaff } = useAuth()
   const [searchParams] = useSearchParams()
   const [mode, setMode] = useState('form') // 'form' | 'history'
   const [scores, setScores] = useState(emptyScores)
@@ -180,13 +180,18 @@ export default function BoxingTPT() {
   }, [mode])
 
   useEffect(() => {
-    const studentId = searchParams.get('student_id')
+    // Staff can assess any student via ?student_id=X. A non-staff user
+    // (an athlete completing their own assessment) can only ever be
+    // assessing themselves -- their own linked student record is used
+    // regardless of what's in the URL, so there's no way to submit an
+    // assessment for someone else by editing the query string.
+    const studentId = isStaff ? searchParams.get('student_id') : profile?.student?.id
     if (!studentId) return
     supabase.from('students').select('id, members(first_name, last_name)').eq('id', studentId).maybeSingle()
       .then(({ data }) => {
         if (data) setStudent({ id: data.id, first_name: data.members?.first_name || '', last_name: data.members?.last_name || '' })
       })
-  }, [searchParams])
+  }, [searchParams, isStaff, profile])
 
   async function loadStudents() {
     const { data } = await supabase
@@ -278,7 +283,7 @@ export default function BoxingTPT() {
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => { setSubmitted(null); setScores(emptyScores()); setStudent({ first_name: '', last_name: '' }); setNotes('') }}>New analysis</button>
-            <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setMode('history')}>View history</button>
+            {isStaff && <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setMode('history')}>View history</button>}
           </div>
         </div>
       </div>
@@ -296,7 +301,7 @@ export default function BoxingTPT() {
             <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Technical, Physical & Mental assessment</p>
           </div>
           <div style={{ display: 'flex', gap: 4 }}>
-            {['form','history'].map(m => (
+            {isStaff && ['form','history'].map(m => (
               <button key={m} onClick={() => setMode(m)} className={m === mode ? 'btn btn-primary btn-sm' : 'btn btn-sm'}
                 style={{ textTransform: 'capitalize' }}>{m}</button>
             ))}
@@ -392,7 +397,7 @@ export default function BoxingTPT() {
         )}
 
         {/* ── HISTORY MODE ── */}
-        {mode === 'history' && (
+        {mode === 'history' && isStaff && (
           <>
             {loadingHistory
               ? <div className="loading">Loading history…</div>

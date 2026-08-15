@@ -106,8 +106,8 @@ function App() {
             <Route path="forms"           element={<Forms />} />
             <Route path="trackers"        element={<ProtectedRoute staffOnly><Trackers /></ProtectedRoute>} />
             <Route path="profile"         element={<Profile />} />
-            <Route path="boxing-tpt"      element={<ProtectedRoute staffOnly><BoxingTPT /></ProtectedRoute>} />
-            <Route path="kickboxing-tpt"  element={<ProtectedRoute staffOnly><KickboxingTPT /></ProtectedRoute>} />
+            <Route path="boxing-tpt"      element={<ProtectedRoute><BoxingTPT /></ProtectedRoute>} />
+            <Route path="kickboxing-tpt"  element={<ProtectedRoute><KickboxingTPT /></ProtectedRoute>} />
             <Route path="fit2fight"       element={<FitToFight />} />
             <Route path="athletes"        element={<ProtectedRoute staffOnly><AthleteProfiles /></ProtectedRoute>} />
             <Route path="import"          element={<ProtectedRoute adminOnly><AdminImport /></ProtectedRoute>} />

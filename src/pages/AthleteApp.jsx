@@ -2963,7 +2963,7 @@ export default function AthleteApp() {
                       </div>
                       <button onClick={() => setTab('fit2fight')}
                         className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none' }}>
-                        <div style={{ fontSize: 22, marginBottom: 4 }}>🔥</div>
+                        <img src="/logos/f2f-logo.png" alt="Fit II Fight" style={{ height: 22, width: 'auto', marginBottom: 4, objectFit: 'contain', filter: 'invert(1)' }} />
                         <div style={{ fontSize: 22, fontWeight: 700, color: '#378ADD' }}>
                           {(() => {
                             // Checking "does this field have any keys" isn't
@@ -5605,7 +5605,12 @@ export default function AthleteApp() {
                   <div style={{ marginTop: 8, marginBottom: 8 }}>
                     <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>TTP by field vs benchmark</p>
                     {ttpBreakdown.length === 0 ? (
-                      <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No TTP data yet — ask your coach to complete a TTP assessment for you.</p>
+                      <div>
+                        <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 8 }}>No TTP data yet.</p>
+                        <a href={`/${student.is_kr ? 'kickboxing' : 'boxing'}-tpt`} className="btn btn-sm btn-primary">
+                          📋 Complete TTP form
+                        </a>
+                      </div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
                         {ttpBreakdown.map(f => (
