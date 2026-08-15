@@ -2889,11 +2889,11 @@ export default function AthleteProfiles() {
           </div>
         )}
         <label>Choose a performance area</label>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 8, overflowX: 'auto', paddingBottom: 4, width: '100%', minWidth: 0 }}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 8, overflowX: 'auto', paddingBottom: 4, width: '100%', minWidth: 0 }}>
           {categories.map(c => (
             <button key={c.key} type="button"
               onClick={() => setExpandedLoggerCategory(prev => ({ ...prev, [field]: prev[field] === c.key ? null : c.key }))}
-              className="btn" style={{ flexShrink: 0, fontSize: 14, padding: '10px 16px', background: expandedCategory === c.key ? colour + '20' : undefined, borderColor: expandedCategory === c.key ? colour : undefined }}>
+              className="btn btn-sm" style={{ flexShrink: 0, background: expandedCategory === c.key ? colour + '20' : undefined, borderColor: expandedCategory === c.key ? colour : undefined }}>
               {c.label}
             </button>
           ))}
@@ -2908,22 +2908,22 @@ export default function AthleteProfiles() {
                   const draftKey = `${field}::${t.name}`
                   const howToShown = expandedLoggerHowTo[draftKey]
                   return (
-                    <div key={t.name} style={{ width: '100%', minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', minWidth: 0 }}>
-                        <button type="button" onClick={() => t.howTo && setExpandedLoggerHowTo(prev => ({ ...prev, [draftKey]: !prev[draftKey] }))}
-                          style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'none', border: 'none', padding: 0, cursor: t.howTo ? 'pointer' : 'default', fontSize: 14, color: t.howTo ? colour : 'var(--text)', fontFamily: 'var(--font-sans)' }}>
-                          {t.name}{t.howTo ? ' ⓘ' : ''}
-                        </button>
+                    <div key={t.name} style={{ width: '100%', minWidth: 0, padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)' }}>
+                      <button type="button" onClick={() => t.howTo && setExpandedLoggerHowTo(prev => ({ ...prev, [draftKey]: !prev[draftKey] }))}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: 0, marginBottom: 6, cursor: t.howTo ? 'pointer' : 'default', fontSize: 13, color: t.howTo ? colour : 'var(--text)', fontFamily: 'var(--font-sans)', whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                        {t.name}{t.howTo ? ' ⓘ' : ''}
+                      </button>
+                      {howToShown && <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 6px' }}>{t.howTo}</p>}
+                      <div style={{ display: 'flex', gap: 6 }}>
                         <input type="number" inputMode="numeric" placeholder="min" value={mentalityDraftDurations[draftKey] ?? ''}
                           onChange={e => setMentalityDraftDurations(prev => ({ ...prev, [draftKey]: e.target.value }))}
-                          style={{ width: 68, flexShrink: 0, padding: '8px 8px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 14, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)' }} />
-                        <button type="button" className="btn" disabled={!mentalityDraftDurations[draftKey]} style={{ flexShrink: 0, fontSize: 13, padding: '8px 14px' }}
+                          style={{ width: 60, flexShrink: 0, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 12, background: 'var(--bg-primary)', color: 'var(--text)', fontFamily: 'var(--font-sans)' }} />
+                        <button type="button" className="btn btn-sm" disabled={!mentalityDraftDurations[draftKey]}
                           onClick={() => {
                             saveMentalityField(field, cur => ({ entries: [...(cur.entries || []), { type: t.name, duration: mentalityDraftDurations[draftKey] }] }))
                             setMentalityDraftDurations(prev => ({ ...prev, [draftKey]: '' }))
                           }}>Save</button>
                       </div>
-                      {howToShown && <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '4px 0 0', paddingLeft: 2 }}>{t.howTo}</p>}
                     </div>
                   )
                 })}
