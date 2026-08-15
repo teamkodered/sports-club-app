@@ -616,6 +616,57 @@ const COACHABILITY_PROMPTS = [
 const VIDEO_ANALYSIS_OPTIONS = ['Self in competition', 'Self in training', 'Elite athlete in competition', 'Elite athlete in training']
 const MEDITATION_TYPE_OPTIONS = ['Guided meditation', 'Breathing meditation', 'Body scan meditation', 'Mindfulness meditation', 'Silent meditation', 'Other']
 const VISUALISATION_OPTIONS = ['Performing a technique', 'Performing in competition']
+// Full structured templates -- 5 performance areas each, with ~10
+// specific types per area. "General" keeps the original short option
+// list so nothing that was already there is lost.
+const MEDITATION_CATEGORIES = [
+  { key: 'general', label: 'General', types: MEDITATION_TYPE_OPTIONS },
+  { key: 'calm', label: 'Calm — Control Your Arousal', types: [
+    'Breath-focused meditation', 'Box breathing', 'Slow controlled breathing', 'Body scan meditation', 'Progressive relaxation',
+    'Pre-fight calming meditation', 'Between-round breathing reset', 'Post-training relaxation', 'Competition-nerves meditation', 'Grounding meditation',
+  ]},
+  { key: 'focus', label: 'Focus — Control Your Attention', types: [
+    'Mindfulness meditation', 'Present-moment meditation', 'Single-point focus', 'Breath concentration', 'Sound-focused meditation',
+    'Sensory awareness', 'Open-awareness meditation', 'Distraction-control practice', 'Moving meditation', 'Mindful shadowboxing',
+  ]},
+  { key: 'confidence', label: 'Confidence — Control Your Mindset', types: [
+    'Confidence meditation', 'Positive self-talk meditation', 'Strengths-focused meditation', 'Achievement reflection', 'Gratitude meditation',
+    'Preparation-trust meditation', 'Cue-word meditation', 'Positive affirmation practice', 'Self-belief meditation', 'Pre-competition confidence routine',
+  ]},
+  { key: 'emotions', label: 'Emotions — Control Your Reactions', types: [
+    'Thought-observation meditation', 'Acceptance meditation', 'Emotional-awareness meditation', 'Pressure meditation', 'Reset meditation',
+    'Mistake-release meditation', 'Frustration-control meditation', 'Non-judgement mindfulness', 'Staying-composed meditation', "Respond-don't-react practice",
+  ]},
+  { key: 'recovery', label: 'Recovery — Control Your Reset', types: [
+    'Post-training meditation', 'Relaxation meditation', 'Sleep meditation', 'Body scan', 'Recovery breathing',
+    'Mental switch-off meditation', 'Muscle-relaxation meditation', 'Stress-release meditation', 'End-of-day mindfulness', 'Positive training reflection',
+  ]},
+]
+const VISUALISATION_CATEGORIES = [
+  { key: 'general', label: 'General', types: VISUALISATION_OPTIONS },
+  { key: 'technique', label: 'Technique — See Yourself Doing It Correctly', types: [
+    'Punch technique visualisation', 'Kick technique visualisation', 'Defensive technique visualisation', 'Combination rehearsal', 'Footwork visualisation',
+    'Head-movement rehearsal', 'Counter-attack visualisation', 'Distance-control rehearsal', 'Pad-work visualisation', 'Perfect-execution imagery',
+  ]},
+  { key: 'tactics', label: 'Tactics — See the Problem & the Solution', types: [
+    'Opponent-style visualisation', 'Southpaw vs orthodox scenarios', 'Pressure-fighter scenarios', 'Counter-fighter scenarios', 'Taller/shorter opponent scenarios',
+    'Range-management visualisation', 'Ring/cage control', 'Creating openings', 'Tactical adjustment visualisation', 'Plan A, B and C scenarios',
+  ]},
+  { key: 'confidence', label: 'Confidence — See Yourself Succeeding', types: [
+    'Successful-performance visualisation', 'Winning exchanges', 'Executing your best techniques', 'Staying composed', 'Recovering after mistakes',
+    'Strong final-round visualisation', 'Walking confidently to the ring', 'Hearing your name announced', 'Trusting your preparation', 'Performing at your best',
+  ]},
+  { key: 'pressure', label: 'Pressure — See Yourself Handling Difficult Situations', types: [
+    'Being under pressure', 'Opponent starting quickly', 'Losing an early round', 'Getting tired', 'Making a mistake',
+    'Technique not working', 'Facing an aggressive opponent', 'Dealing with crowd noise', "Receiving a coach's instruction between rounds", 'Changing tactics mid-fight',
+    'Staying disciplined when frustrated', 'Finishing strongly',
+  ]},
+  { key: 'performance', label: 'Performance — See the Whole Competition', types: [
+    'Arriving at the venue', 'Weigh-in', 'Changing room', 'Wrapping hands', 'Warming up',
+    'Walking to the ring', 'Opening bell', 'First exchange', 'Following the game plan', 'Listening to the corner',
+    'Between-round recovery', 'Tactical adjustments', 'Final round', 'End of competition', 'Post-fight reflection',
+  ]},
+]
 const ACTIVE_RECOVERY_OPTIONS = ['Swimming', 'Walking', 'Yoga']
 
 function isMentalityQComplete(key, m) {
@@ -1181,6 +1232,7 @@ export default function AthleteApp() {
   const [gamingCustomAdd, setGamingCustomAdd] = useState('')
   const [eyeTrackingCustomAdd, setEyeTrackingCustomAdd] = useState('')
   const [mentalityDraftDurations, setMentalityDraftDurations] = useState({}) // "field::type" -> draft minutes, before saving as an entry
+  const [expandedLoggerCategory, setExpandedLoggerCategory] = useState({}) // field -> currently open category key, or null
   const [coldWaterCustomAdd, setColdWaterCustomAdd] = useState('')
   const [gratitudeDraft, setGratitudeDraft] = useState('')
   const [expandedHomeTestCategory, setExpandedHomeTestCategory] = useState(null)
@@ -2100,6 +2152,71 @@ export default function AthleteApp() {
             )
           })}
         </div>
+      </div>
+    )
+  }
+
+  // Two-level version of the same idea: pick a performance area/category
+  // first (e.g. "Calm", "Technique"), which reveals the specific types
+  // within it, each with its own duration input and Save button --
+  // matching MultiSessionTypeLogger's entry/duration/save pattern, just
+  // with a category picker layered on top for structured templates with
+  // many more types than fit comfortably in one flat list.
+  function CategorizedSessionLogger({ field, categories, colour = '#6D28D9' }) {
+    const entries = todaysMentalityLog[field]?.entries || []
+    const expandedCategory = expandedLoggerCategory[field] || null
+    return (
+      <div className="field" style={{ marginBottom: 0 }}>
+        {entries.length > 0 && (
+          <div style={{ marginBottom: 12 }}>
+            <label>Logged today</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {entries.map((e, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', background: colour + '12', borderRadius: 'var(--radius)' }}>
+                  <span style={{ fontSize: 13 }}>{e.type}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: colour }}>{e.duration} min</span>
+                    <button onClick={() => saveMentalityField(field, cur => ({ entries: (cur.entries || []).filter((_, idx) => idx !== i) }))}
+                      style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14, padding: 0 }}>×</button>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        <label>Choose a performance area</label>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: expandedCategory ? 10 : 0 }}>
+          {categories.map(c => (
+            <button key={c.key} type="button"
+              onClick={() => setExpandedLoggerCategory(prev => ({ ...prev, [field]: prev[field] === c.key ? null : c.key }))}
+              className="btn btn-sm" style={{ background: expandedCategory === c.key ? colour + '20' : undefined, borderColor: expandedCategory === c.key ? colour : undefined }}>
+              {c.label}
+            </button>
+          ))}
+        </div>
+        {expandedCategory && (() => {
+          const cat = categories.find(c => c.key === expandedCategory)
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {cat.types.map(v => {
+                const draftKey = `${field}::${v}`
+                return (
+                  <div key={v} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 13, flex: 1 }}>{v}</span>
+                    <input type="number" inputMode="numeric" placeholder="min" value={mentalityDraftDurations[draftKey] ?? ''}
+                      onChange={e => setMentalityDraftDurations(prev => ({ ...prev, [draftKey]: e.target.value }))}
+                      style={{ width: 60, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 12, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)' }} />
+                    <button type="button" className="btn btn-sm" disabled={!mentalityDraftDurations[draftKey]}
+                      onClick={() => {
+                        saveMentalityField(field, cur => ({ entries: [...(cur.entries || []), { type: v, duration: mentalityDraftDurations[draftKey] }] }))
+                        setMentalityDraftDurations(prev => ({ ...prev, [draftKey]: '' }))
+                      }}>Save</button>
+                  </div>
+                )
+              })}
+            </div>
+          )
+        })()}
       </div>
     )
   }
@@ -3464,10 +3581,10 @@ export default function AthleteApp() {
                           <button type="button" className="btn btn-sm" onClick={() => clearMentalityQuestion(expandedHomeMentality)} style={{ fontSize: 11 }}>✕ Clear</button>
                         </div>
                         {expandedHomeMentality === 'meditation' && (
-                          <MultiSessionTypeLogger field="meditation" options={MEDITATION_TYPE_OPTIONS} />
+                          <CategorizedSessionLogger field="meditation" categories={MEDITATION_CATEGORIES} />
                         )}
                         {expandedHomeMentality === 'visualisation' && (
-                          <MultiSessionTypeLogger field="visualisation" options={VISUALISATION_OPTIONS} />
+                          <CategorizedSessionLogger field="visualisation" categories={VISUALISATION_CATEGORIES} />
                         )}
                         {expandedHomeMentality === 'chess' && (
                           <>
@@ -4308,10 +4425,28 @@ export default function AthleteApp() {
             {backButton}
             <div className="card" style={{ marginBottom: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8 }}>
-                <button className="btn btn-sm" onClick={() => setSessionsCalMonth(m => m.month === 0 ? { year: m.year - 1, month: 11 } : { year: m.year, month: m.month - 1 })}>←</button>
-                <input type="month" value={`${year}-${String(month+1).padStart(2,'0')}`}
-                  onChange={e => { const [y, m] = e.target.value.split('-').map(Number); if (y && m) setSessionsCalMonth({ year: y, month: m - 1 }) }}
-                  style={{ fontSize: 11, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+                {(() => {
+                  const [launchYear, launchMonthNum] = SOFT_LAUNCH_DATE.split('-').map(Number)
+                  const launchMonth = launchMonthNum - 1 // 0-indexed to match sessionsCalMonth
+                  const atEarliestMonth = year === launchYear && month === launchMonth
+                  return (
+                    <>
+                      <button className="btn btn-sm" disabled={atEarliestMonth}
+                        onClick={() => setSessionsCalMonth(m => {
+                          if (m.year === launchYear && m.month === launchMonth) return m // never go earlier than the soft launch month
+                          return m.month === 0 ? { year: m.year - 1, month: 11 } : { year: m.year, month: m.month - 1 }
+                        })}>←</button>
+                      <input type="month" value={`${year}-${String(month+1).padStart(2,'0')}`} min={`${launchYear}-${String(launchMonth+1).padStart(2,'0')}`}
+                        onChange={e => {
+                          const [y, m] = e.target.value.split('-').map(Number)
+                          if (!y || !m) return
+                          const beforeLaunch = y < launchYear || (y === launchYear && (m - 1) < launchMonth)
+                          setSessionsCalMonth(beforeLaunch ? { year: launchYear, month: launchMonth } : { year: y, month: m - 1 })
+                        }}
+                        style={{ fontSize: 11, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+                    </>
+                  )
+                })()}
                 <button className="btn btn-sm" onClick={() => setSessionsCalMonth(m => m.month === 11 ? { year: m.year + 1, month: 0 } : { year: m.year, month: m.month + 1 })}>→</button>
               </div>
               <button className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 10 }}
