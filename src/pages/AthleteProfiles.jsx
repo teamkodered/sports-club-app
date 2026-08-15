@@ -632,7 +632,7 @@ function isMentalityQComplete(key, m) {
   if (!m) return false
   switch (key) {
     case 'videoAnalysis': return !!m.videoAnalysis?.type
-    case 'meditation': return !!m.meditation?.type
+    case 'meditation': return !!(m.meditation?.entries?.length > 0)
     case 'visualisation': return !!m.visualisation?.type
     case 'chess': return !!(m.chess?.count > 0)
     case 'reading': return !!(m.reading?.count > 0)
@@ -2307,6 +2307,7 @@ export default function AthleteProfiles() {
   const [readingCustomAdd, setReadingCustomAdd] = useState('')
   const [gamingCustomAdd, setGamingCustomAdd] = useState('')
   const [eyeTrackingCustomAdd, setEyeTrackingCustomAdd] = useState('')
+  const [meditationDraftDurations, setMeditationDraftDurations] = useState({})
   const [coldWaterCustomAdd, setColdWaterCustomAdd] = useState('')
   const [gratitudeDraft, setGratitudeDraft] = useState('')
   const [expandedHomeTestCategory, setExpandedHomeTestCategory] = useState(null)
@@ -3684,7 +3685,7 @@ export default function AthleteProfiles() {
   function clearMentalityQuestion(key) {
     const defaults = {
       videoAnalysis: { type: '' },
-      meditation: { type: '' },
+      meditation: { entries: [] },
       visualisation: { type: '' },
       chess: { count: 0 },
       reading: { count: 0 },
@@ -7905,11 +7906,38 @@ export default function AthleteProfiles() {
                         <button type="button" className="btn btn-sm" onClick={() => clearMentalityQuestion(expandedHomeMentality)} style={{ fontSize: 11 }}>✕ Clear</button>
                       </div>
                       {expandedHomeMentality === 'meditation' && (
-                        <div className="field" style={{ marginBottom: 0 }}><label>Type</label>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        <div className="field" style={{ marginBottom: 0 }}>
+                          {(todaysMentalityLog.meditation?.entries?.length > 0) && (
+                            <div style={{ marginBottom: 12 }}>
+                              <label>Logged today</label>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                {todaysMentalityLog.meditation.entries.map((e, i) => (
+                                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', background: '#6D28D912', borderRadius: 'var(--radius)' }}>
+                                    <span style={{ fontSize: 13 }}>{e.type}</span>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                      <span style={{ fontSize: 12, fontWeight: 600, color: '#6D28D9' }}>{e.duration} min</span>
+                                      <button onClick={() => saveMentalityField('meditation', cur => ({ entries: (cur.entries || []).filter((_, idx) => idx !== i) }))}
+                                        style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14, padding: 0 }}>×</button>
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          <label>Add a session</label>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                             {MEDITATION_TYPE_OPTIONS.map(v => (
-                              <button key={v} type="button" onClick={() => saveMentalityField('meditation', () => ({ type: v }))}
-                                className="btn btn-sm" style={{ background: todaysMentalityLog.meditation?.type === v ? '#6D28D920' : undefined, borderColor: todaysMentalityLog.meditation?.type === v ? '#6D28D9' : undefined }}>{v}</button>
+                              <div key={v} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ fontSize: 13, flex: 1 }}>{v}</span>
+                                <input type="number" inputMode="numeric" placeholder="min" value={meditationDraftDurations[v] ?? ''}
+                                  onChange={e => setMeditationDraftDurations(prev => ({ ...prev, [v]: e.target.value }))}
+                                  style={{ width: 60, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 12, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)' }} />
+                                <button type="button" className="btn btn-sm" disabled={!meditationDraftDurations[v]}
+                                  onClick={() => {
+                                    saveMentalityField('meditation', cur => ({ entries: [...(cur.entries || []), { type: v, duration: meditationDraftDurations[v] }] }))
+                                    setMeditationDraftDurations(prev => ({ ...prev, [v]: '' }))
+                                  }}>Save</button>
+                              </div>
                             ))}
                           </div>
                         </div>
