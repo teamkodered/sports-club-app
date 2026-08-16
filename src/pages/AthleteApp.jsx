@@ -3019,7 +3019,7 @@ export default function AthleteApp() {
                       </div>
                       <button onClick={() => setTab('fit2fight')}
                         className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none' }}>
-                        <img src="/logos/f2f-logo.png" alt="Fit II Fight" style={{ height: 22, width: 'auto', marginBottom: 4, objectFit: 'contain', filter: 'invert(1)' }} />
+                        <img src="/logos/f2f-logo-red.png" alt="Fit II Fight" style={{ height: 22, width: 'auto', marginBottom: 4, objectFit: 'contain' }} />
                         <div style={{ fontSize: 22, fontWeight: 700, color: '#378ADD' }}>
                           {(() => {
                             // Checking "does this field have any keys" isn't
@@ -3053,7 +3053,7 @@ export default function AthleteApp() {
                             return dateScoped.filter(sessionHasGenuineActivity).length
                           })()}
                         </div>
-                        <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>F2F Results</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Results</div>
                         {coachF2fDateSettings && (
                           <div style={{ fontSize: 8, color: 'var(--text-tertiary)' }}>
                             {new Date(coachF2fDateSettings.from).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – {new Date(coachF2fDateSettings.to).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
