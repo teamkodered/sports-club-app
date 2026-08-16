@@ -3470,7 +3470,7 @@ export default function AthleteApp() {
                     }}>
                       <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                         <span style={{ fontSize: showPhysicalSection ? 17 : 15, fontWeight: 700, color: 'var(--text)' }}>Physical</span>
-                        <span style={{ fontSize: 24, flexShrink: 0 }}>💪</span>
+                        <img src="/logos/icon-physical.png" alt="Physical" style={{ height: 32, width: 'auto', flexShrink: 0, objectFit: 'contain' }} />
                       </div>
                       <SectionProgressBars sectionKey="physical" vertical />
                       <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showPhysicalSection ? '▲' : '▼'}</span>
@@ -3829,7 +3829,7 @@ export default function AthleteApp() {
                     }}>
                       <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                         <span style={{ fontSize: showTechniqueSection ? 17 : 15, fontWeight: 700, color: 'var(--text)' }}>Technique</span>
-                        <span style={{ fontSize: 24, flexShrink: 0 }}>🥊</span>
+                        <img src="/logos/icon-technical.png" alt="Technique" style={{ height: 32, width: 'auto', flexShrink: 0, objectFit: 'contain' }} />
                       </div>
                       <SectionProgressBars sectionKey="technique" vertical />
                       <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showTechniqueSection ? '▲' : '▼'}</span>
@@ -3934,7 +3934,7 @@ export default function AthleteApp() {
                     }}>
                       <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                         <span style={{ fontSize: showTacticalSection ? 17 : 15, fontWeight: 700, color: 'var(--text)' }}>Tactical</span>
-                        <span style={{ fontSize: 24, flexShrink: 0 }}>🧩</span>
+                        <img src="/logos/icon-tactical.png" alt="Tactical" style={{ height: 32, width: 'auto', flexShrink: 0, objectFit: 'contain' }} />
                       </div>
                       <SectionProgressBars sectionKey="tactical" vertical />
                       <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showTacticalSection ? '▲' : '▼'}</span>
@@ -4043,7 +4043,7 @@ export default function AthleteApp() {
                     }}>
                       <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                         <span style={{ fontSize: showMentalitySection ? 17 : 15, fontWeight: 700, color: 'var(--text)' }}>Mentality</span>
-                        <span style={{ fontSize: 24, flexShrink: 0 }}>🧠</span>
+                        <img src="/logos/icon-mentality.png" alt="Mentality" style={{ height: 32, width: 'auto', flexShrink: 0, objectFit: 'contain' }} />
                       </div>
                       <SectionProgressBars sectionKey="mentality" vertical />
                       <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showMentalitySection ? '▲' : '▼'}</span>
@@ -4384,7 +4384,7 @@ export default function AthleteApp() {
                     }}>
                       <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                         <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Foundation</span>
-                        <span style={{ fontSize: 24, flexShrink: 0 }}>🧱</span>
+                        <img src="/logos/icon-foundation.png" alt="Foundation" style={{ height: 32, width: 'auto', flexShrink: 0, objectFit: 'contain' }} />
                       </div>
                       <SectionProgressBars sectionKey="wellbeing" vertical />
                       <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showWellbeingSection ? '▲' : '▼'}</span>
@@ -4982,9 +4982,13 @@ export default function AthleteApp() {
                 })()}
                 <button className="btn btn-sm" onClick={() => setSessionsCalMonth(m => m.month === 11 ? { year: m.year + 1, month: 0 } : { year: m.year, month: m.month + 1 })}>→</button>
               </div>
-              <button className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 10 }}
+              <button className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 10, gap: 6 }}
                 onClick={() => setSessionsCalendarView(v => v === 'sessions' ? 'f2f' : v === 'f2f' ? 'pdp' : 'sessions')}>
-                {sessionsCalendarView === 'sessions' ? '📅 Sessions' : sessionsCalendarView === 'f2f' ? '🔥 Fit II Fight' : '🎯 PDP'}
+                {sessionsCalendarView === 'sessions' ? (
+                  <><img src="/logos/icon-schedule.png" alt="" style={{ height: 18, width: 'auto', objectFit: 'contain' }} /> Sessions</>
+                ) : sessionsCalendarView === 'f2f' ? '🔥 Fit II Fight' : (
+                  <><img src="/logos/icon-pdp.png" alt="" style={{ height: 18, width: 'auto', objectFit: 'contain' }} /> PDP</>
+                )}
                 <span style={{ marginLeft: 6, fontSize: 10, opacity: 0.6 }}>tap to switch</span>
               </button>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 6 }}>
