@@ -3527,9 +3527,11 @@ export default function AthleteApp() {
                       textAlign: 'center', padding: '18px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
-                      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-                        <span style={{ fontSize: showPhysicalSection ? 17 : 15, fontWeight: 700, color: 'var(--text)' }}>Physical</span>
-                        <img src="/logos/icon-physical.png" alt="Physical" style={{ height: 32, width: 'auto', flexShrink: 0, objectFit: 'contain' }} />
+                      <div style={{ display: 'flex', width: '100%' }}>
+                        <img
+                          src={student.discipline === 'KRBA' ? '/logos/physical-boxing.png' : student.is_kr ? '/logos/physical-kickboxing.png' : '/logos/icon-physical.png'}
+                          alt="Physical" style={{ width: '100%', height: 'auto', objectFit: 'contain' }}
+                        />
                       </div>
                       <SectionProgressBars sectionKey="physical" vertical />
                       <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showPhysicalSection ? '▲' : '▼'}</span>
@@ -3886,9 +3888,11 @@ export default function AthleteApp() {
                       textAlign: 'center', padding: '18px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
-                      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-                        <span style={{ fontSize: showTechniqueSection ? 17 : 15, fontWeight: 700, color: 'var(--text)' }}>Technique</span>
-                        <img src="/logos/icon-technical.png" alt="Technique" style={{ height: 32, width: 'auto', flexShrink: 0, objectFit: 'contain' }} />
+                      <div style={{ display: 'flex', width: '100%' }}>
+                        <img
+                          src={student.discipline === 'KRBA' ? '/logos/technical-boxing.png' : student.is_kr ? '/logos/technical-kickboxing.png' : '/logos/icon-technical.png'}
+                          alt="Technique" style={{ width: '100%', height: 'auto', objectFit: 'contain' }}
+                        />
                       </div>
                       <SectionProgressBars sectionKey="technique" vertical />
                       <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showTechniqueSection ? '▲' : '▼'}</span>
@@ -3992,9 +3996,11 @@ export default function AthleteApp() {
                       textAlign: 'center', padding: '18px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
-                      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-                        <span style={{ fontSize: showTacticalSection ? 17 : 15, fontWeight: 700, color: 'var(--text)' }}>Tactical</span>
-                        <img src="/logos/icon-tactical.png" alt="Tactical" style={{ height: 32, width: 'auto', flexShrink: 0, objectFit: 'contain' }} />
+                      <div style={{ display: 'flex', width: '100%' }}>
+                        <img
+                          src={student.discipline === 'KRBA' ? '/logos/tactical-boxing.png' : student.is_kr ? '/logos/tactical-kickboxing.png' : '/logos/icon-tactical.png'}
+                          alt="Tactical" style={{ width: '100%', height: 'auto', objectFit: 'contain' }}
+                        />
                       </div>
                       <SectionProgressBars sectionKey="tactical" vertical />
                       <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showTacticalSection ? '▲' : '▼'}</span>
@@ -4103,9 +4109,11 @@ export default function AthleteApp() {
                       textAlign: 'center', padding: '18px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
-                      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-                        <span style={{ fontSize: showMentalitySection ? 17 : 15, fontWeight: 700, color: 'var(--text)' }}>Mentality</span>
-                        <img src="/logos/icon-mentality.png" alt="Mentality" style={{ height: 32, width: 'auto', flexShrink: 0, objectFit: 'contain' }} />
+                      <div style={{ display: 'flex', width: '100%' }}>
+                        <img
+                          src={student.discipline === 'KRBA' ? '/logos/mentality-boxing.png' : student.is_kr ? '/logos/mentality-kickboxing.png' : '/logos/icon-mentality.png'}
+                          alt="Mentality" style={{ width: '100%', height: 'auto', objectFit: 'contain' }}
+                        />
                       </div>
                       <SectionProgressBars sectionKey="mentality" vertical />
                       <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showMentalitySection ? '▲' : '▼'}</span>
@@ -4445,9 +4453,11 @@ export default function AthleteApp() {
                       textAlign: 'center', padding: '18px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
-                      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-                        <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Foundation</span>
-                        <img src="/logos/icon-foundation.png" alt="Foundation" style={{ height: 32, width: 'auto', flexShrink: 0, objectFit: 'contain' }} />
+                      <div style={{ display: 'flex', width: '100%' }}>
+                        <img
+                          src={student.discipline === 'KRBA' ? '/logos/foundation-boxing.png' : student.is_kr ? '/logos/foundation-kickboxing.png' : '/logos/icon-foundation.png'}
+                          alt="Foundation" style={{ width: '100%', height: 'auto', objectFit: 'contain' }}
+                        />
                       </div>
                       <SectionProgressBars sectionKey="wellbeing" vertical />
                       <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showWellbeingSection ? '▲' : '▼'}</span>
