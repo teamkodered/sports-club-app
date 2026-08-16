@@ -1069,7 +1069,7 @@ export default function Registers() {
                 {visibleCols.includes('champ')       && <th style={{ textAlign: 'center' }}>🏆</th>}
                 {visibleCols.includes('media')       && <SortTh col="media_restriction" label="Media" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} style={{ textAlign: 'center' }} />}
                 {visibleCols.includes('points')      && <SortTh col="house_points" label="Pts" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} style={{ textAlign: 'center' }} />}
-                {isAdmin && <th></th>}
+                {(isAdmin || isLeader) && <th></th>}
               </tr>
             </thead>
             <tbody>
@@ -1215,7 +1215,7 @@ export default function Registers() {
                         ) : null
                       })()}
                     </td>}
-                    {isAdmin && (
+                    {(isAdmin || isLeader) && (
                       <td onClick={e => e.stopPropagation()}>
                         <button className="btn btn-sm btn-primary" onClick={() => { setAwardingFor(s); setSelectedPoints([]) }} style={{ fontSize: 11, padding: '4px 8px' }}>+ Pts</button>
                       </td>
