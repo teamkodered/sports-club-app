@@ -2887,6 +2887,65 @@ export default function AthleteApp() {
     return Math.max(0, (end - start) / (1000 * 60 * 60))
   }
 
+  // Uploads a photo/video attached to a specific question's entry for
+  // today -- tagged with section/question/date so it's tied to that
+  // entry, but stored in the same media_files array the athlete's own
+  // "Media" gallery tab already reads from, so it shows up there too
+  // alongside everything else they've uploaded.
+  async function uploadQuestionMedia(sectionKey, questionLabel, file) {
+    if (!student || !file) return
+    const path = `athletes/${student.id}/${Date.now()}-${file.name}`
+    const { error } = await supabase.storage.from('athlete-media').upload(path, file)
+    if (error) { alert('Upload failed: ' + error.message); return }
+    const { data: urlData } = supabase.storage.from('athlete-media').getPublicUrl(path)
+    const existing = apData?.media_files || []
+    const updated = [...existing, {
+      name: file.name, url: urlData.publicUrl, type: file.type, uploaded_at: new Date().toISOString(),
+      section_key: sectionKey, question_label: questionLabel, session_date: new Date().toISOString().split('T')[0],
+    }]
+    const { error: saveError } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, media_files: updated }, { onConflict: 'student_id' })
+    if (saveError) { alert('Error saving upload: ' + saveError.message); return }
+    setApData(p => ({ ...(p || {}), media_files: updated }))
+  }
+  // Reusable "attach photo/video" block for a question's expanded detail
+  // view -- separate Upload file / Take photo-video buttons (the second
+  // uses capture="environment" to open the camera directly on mobile),
+  // plus thumbnails of anything already attached to today's entry for
+  // this exact question.
+  function QuestionMediaUpload({ sectionKey, questionLabel }) {
+    const idBase = `qmedia-${sectionKey}-${questionLabel}`.replace(/[^a-zA-Z0-9]/g, '-')
+    const todayStr = new Date().toISOString().split('T')[0]
+    const attached = (apData?.media_files || []).filter(f => f.section_key === sectionKey && f.question_label === questionLabel && f.session_date === todayStr)
+    return (
+      <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+        <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Attach photo/video</label>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <input type="file" accept="image/*,video/*" style={{ display: 'none' }} id={`${idBase}-file`}
+            onChange={e => { const f = e.target.files[0]; if (f) uploadQuestionMedia(sectionKey, questionLabel, f); e.target.value = '' }} />
+          <label htmlFor={`${idBase}-file`} className="btn btn-sm" style={{ cursor: 'pointer' }}>📁 Upload file</label>
+          <input type="file" accept="image/*,video/*" capture="environment" style={{ display: 'none' }} id={`${idBase}-camera`}
+            onChange={e => { const f = e.target.files[0]; if (f) uploadQuestionMedia(sectionKey, questionLabel, f); e.target.value = '' }} />
+          <label htmlFor={`${idBase}-camera`} className="btn btn-sm" style={{ cursor: 'pointer' }}>📷 Take photo/video</label>
+        </div>
+        {attached.length > 0 && (
+          <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+            {attached.map((f, i) => (
+              <a key={i} href={f.url} target="_blank" rel="noreferrer">
+                {f.type?.startsWith('image') ? (
+                  <img src={f.url} alt={f.name} style={{ width: 50, height: 50, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)' }} />
+                ) : (
+                  <div style={{ width: 50, height: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, background: 'var(--bg-secondary)', borderRadius: 6, border: '1px solid var(--border)' }}>
+                    {f.type?.includes('video') ? '🎥' : '📄'}
+                  </div>
+                )}
+              </a>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   // Backs out of whatever the weight-check prompt was for. For a check-in,
   // that means actually undoing it -- the attendance row was already
   // created the moment "Check in"/"Full Kit" was pressed, so cancelling
@@ -3383,7 +3442,7 @@ export default function AthleteApp() {
 
                 return (
                   <>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 8 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10, marginBottom: 8 }}>
                       <div className="card" style={{ textAlign: 'center', padding: '10px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, background: 'var(--bg-secondary)' }}>
                         <button onClick={() => setTab('sessions')} title="View Sessions tab"
                           style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, marginBottom: 2, padding: 0, fontFamily: 'var(--font-sans)', appearance: 'none', WebkitAppearance: 'none' }}>📅</button>
@@ -3490,7 +3549,7 @@ export default function AthleteApp() {
                     </div>
                     {showRunCards && (
                     <div ref={runPanelRef}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeRun ? 10 : 8 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeRun ? 10 : 8 }}>
                       {RUN_CATEGORY_CARDS.map(cat => {
                         const complete = todaysRunning.some(e => e.category === cat.key)
                         const active = expandedHomeRun === cat.key
@@ -3584,7 +3643,7 @@ export default function AthleteApp() {
 
                     {showWattCards && (
                     <div ref={wattPanelRef}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeWatt ? 10 : 8 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeWatt ? 10 : 8 }}>
                       {WATT_BIKE_GROUPS.map(grp => {
                         const complete = todaysWattBike.some(e => grp.match(e.interval_mode || e.type))
                         const active = expandedHomeWatt === grp.key
@@ -3726,7 +3785,7 @@ export default function AthleteApp() {
 
                     {showStretchCards && (
                     <div ref={stretchPanelRef}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 8 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 8 }}>
                       {STRETCH_FLOWS.map((flow, i) => {
                         const complete = !!todaysStretches[i]
                         return (
@@ -3855,7 +3914,7 @@ export default function AthleteApp() {
                           {style} Techniques
                           <QuestionProgressBadge sectionKey="technique" questionLabel={style} />
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: expandedTechniqueCategory ? '1fr' : 'repeat(3, 1fr)', gap: 8, marginBottom: 8 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: expandedTechniqueCategory ? '1fr' : 'repeat(2, 1fr)', gap: 8, marginBottom: 8 }}>
                           {Object.keys(categories).filter(cat => !expandedTechniqueCategory || expandedTechniqueCategory === `${style}::${cat}`).map(cat => {
                             const catKey = `${style}::${cat}`
                             const active = expandedTechniqueCategory === catKey
@@ -3864,7 +3923,7 @@ export default function AthleteApp() {
                               <button key={cat} type="button"
                                 onClick={() => setExpandedTechniqueCategory(active ? null : catKey)}
                                 style={{
-                                  display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '16px 10px' : '10px 8px',
+                                  display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '20px 14px' : '18px 14px',
                                   borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                                   border: `2px solid ${active ? '#E24B4A' : count ? '#1D9E75' : 'var(--border)'}`,
                                   background: count ? '#1D9E7512' : 'var(--bg-secondary)',
@@ -3912,6 +3971,7 @@ export default function AthleteApp() {
                                   )
                                 })}
                               </div>
+                              <QuestionMediaUpload sectionKey="technique" questionLabel={cat} />
                             </div>
                           )
                         })}
@@ -3944,14 +4004,14 @@ export default function AthleteApp() {
                       overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
                       maxHeight: showTacticalSection ? 8000 : 0, opacity: showTacticalSection ? 1 : 0,
                     }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: expandedTacticalCategory ? '1fr' : 'repeat(3, 1fr)', gap: 8, marginBottom: 8 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: expandedTacticalCategory ? '1fr' : 'repeat(2, 1fr)', gap: 8, marginBottom: 8 }}>
                       {(expandedTacticalCategory ? [] : ['__videoAnalysis__']).concat(Object.keys(TACTICAL_CATEGORIES)).filter(cat => !expandedTacticalCategory || expandedTacticalCategory === cat).map(cat => {
                         if (cat === '__videoAnalysis__') {
                           const active = expandedTacticalCategory === cat
                           const complete = !!todaysMentalityLog.videoAnalysis?.type
                           return (
                             <button key={cat} type="button" onClick={() => setExpandedTacticalCategory(active ? null : cat)} style={{
-                              display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '16px 10px' : '10px 8px',
+                              display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '20px 14px' : '18px 14px',
                               borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                               border: `2px solid ${active ? '#E24B4A' : complete ? '#1D9E75' : 'var(--border)'}`,
                               background: complete ? '#1D9E7512' : 'var(--bg-secondary)',
@@ -3969,7 +4029,7 @@ export default function AthleteApp() {
                           <button key={cat_} type="button"
                             onClick={() => setExpandedTacticalCategory(active ? null : cat_)}
                             style={{
-                              display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '16px 10px' : '10px 8px',
+                              display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '20px 14px' : '18px 14px',
                               borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                               border: `2px solid ${active ? '#E24B4A' : count ? '#1D9E75' : 'var(--border)'}`,
                               background: count ? '#1D9E7512' : 'var(--bg-secondary)',
@@ -3989,6 +4049,7 @@ export default function AthleteApp() {
                           <button type="button" className="btn btn-sm" onClick={() => clearMentalityQuestion('videoAnalysis')} style={{ fontSize: 11 }}>✕ Clear</button>
                         </div>
                         <MultiSessionTypeLogger field="videoAnalysis" options={VIDEO_ANALYSIS_OPTIONS} />
+                        <QuestionMediaUpload sectionKey="tactical" questionLabel="Video Analysis" />
                       </div>
                     )}
                     {Object.entries(TACTICAL_CATEGORIES).map(([cat, items]) => {
@@ -4024,6 +4085,7 @@ export default function AthleteApp() {
                               )
                             })}
                           </div>
+                          <QuestionMediaUpload sectionKey="tactical" questionLabel={cat} />
                         </div>
                       )
                     })}
@@ -4053,13 +4115,13 @@ export default function AthleteApp() {
                       overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
                       maxHeight: showMentalitySection ? 4000 : 0, opacity: showMentalitySection ? 1 : 0,
                     }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: expandedHomeMentality ? '1fr' : 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeMentality ? 10 : 8 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: expandedHomeMentality ? '1fr' : 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeMentality ? 10 : 8 }}>
                       {MENTALITY_QUESTIONS.filter(q => !expandedHomeMentality || expandedHomeMentality === q.key).map(q => {
                         const complete = q.key === 'alterEgo' ? !!(alterEgoWorkbook.topTraits?.some(Boolean) || alterEgoWorkbook.nameOption1) : isMentalityQComplete(q.key, todaysMentalityLog)
                         const active = expandedHomeMentality === q.key
                         return (
                           <button key={q.key} type="button" onClick={() => q.key === 'alterEgo' ? setShowAlterEgoModal(true) : setExpandedHomeMentality(active ? null : q.key)} style={{
-                            display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '16px 10px' : '10px 8px',
+                            display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '20px 14px' : '18px 14px',
                             borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                             border: `2px solid ${active ? colour : complete ? '#6D28D9' : 'var(--border)'}`,
                             background: complete ? '#6D28D912' : 'var(--bg-secondary)',
@@ -4197,6 +4259,7 @@ export default function AthleteApp() {
                           </div>
                         )}
                         {savingMentalityLog && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>Saving…</p>}
+                        <QuestionMediaUpload sectionKey="mentality" questionLabel={MENTALITY_QUESTIONS.find(q => q.key === expandedHomeMentality)?.label || expandedHomeMentality} />
                       </div>
                     )}
                     </div>
@@ -4394,13 +4457,13 @@ export default function AthleteApp() {
                       overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
                       maxHeight: showWellbeingSection ? 6000 : 0, opacity: showWellbeingSection ? 1 : 0,
                     }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: expandedHomeWb ? '1fr' : 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeWb ? 10 : 8 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: expandedHomeWb ? '1fr' : 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeWb ? 10 : 8 }}>
                       {WELLBEING_QUESTIONS.filter(q => !expandedHomeWb || expandedHomeWb === q.key).map(q => {
                         const complete = isWellbeingQComplete(q.key, todaysWellbeing)
                         const active = expandedHomeWb === q.key
                         return (
                           <button key={q.key} type="button" onClick={() => setExpandedHomeWb(active ? null : q.key)} style={{
-                            display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '16px 10px' : '10px 8px',
+                            display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '20px 14px' : '18px 14px',
                             borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                             border: `2px solid ${active ? colour : complete ? '#0E9F6E' : 'var(--border)'}`,
                             background: complete ? '#0E9F6E12' : 'var(--bg-secondary)',
@@ -4628,6 +4691,7 @@ export default function AthleteApp() {
                           </>
                         )}
                         {savingWellbeing && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>Saving…</p>}
+                        <QuestionMediaUpload sectionKey="wellbeing" questionLabel={WELLBEING_QUESTIONS.find(q => q.key === expandedHomeWb)?.label || expandedHomeWb} />
                       </div>
                     )}
                     </div>
@@ -4794,13 +4858,13 @@ export default function AthleteApp() {
                       overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
                       maxHeight: showTestSection ? 4000 : 0, opacity: showTestSection ? 1 : 0,
                     }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: expandedHomeTestCategory ? '1fr' : 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeTestCategory ? 10 : 8 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: expandedHomeTestCategory ? '1fr' : 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeTestCategory ? 10 : 8 }}>
                       {TEST_CATEGORIES.filter(cat => !expandedHomeTestCategory || expandedHomeTestCategory === cat.key).map(cat => {
                         const complete = cat.tests.some(t => todaysTest[t.name] != null && todaysTest[t.name] !== '')
                         const active = expandedHomeTestCategory === cat.key
                         return (
                           <button key={cat.key} type="button" onClick={() => setExpandedHomeTestCategory(active ? null : cat.key)} style={{
-                            display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '16px 10px' : '10px 8px',
+                            display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '20px 14px' : '18px 14px',
                             borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                             border: `2px solid ${active ? colour : complete ? '#8B5CF6' : 'var(--border)'}`,
                             background: complete ? '#8B5CF612' : 'var(--bg-secondary)',
@@ -4845,6 +4909,7 @@ export default function AthleteApp() {
                             )
                           })}
                           {savingTest && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>Saving…</p>}
+                          <QuestionMediaUpload sectionKey="test" questionLabel={cat.label} />
                         </div>
                       )
                     })()}

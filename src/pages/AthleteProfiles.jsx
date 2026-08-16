@@ -7921,7 +7921,7 @@ export default function AthleteProfiles() {
 
               return (
                 <div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 8 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10, marginBottom: 8 }}>
                     <div className="card" style={{ textAlign: 'center', padding: '10px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, background: 'var(--bg-secondary)' }}>
                       <button onClick={() => setF2fStatsScope(v => v - 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4, appearance: 'none', WebkitAppearance: 'none', fontFamily: 'var(--font-sans)' }}>◀</button>
                       <div style={{ flex: 1 }}>
@@ -8020,7 +8020,7 @@ export default function AthleteProfiles() {
                   </div>
                   {showRunCards && (
                   <div ref={runPanelRef}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeRun ? 10 : 8 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeRun ? 10 : 8 }}>
                     {RUN_CATEGORY_CARDS.map(cat => {
                       const complete = todaysRunning.some(e => e.category === cat.key)
                       const active = expandedHomeRun === cat.key
@@ -8078,7 +8078,7 @@ export default function AthleteProfiles() {
 
                   {showWattCards && (
                   <div ref={wattPanelRef}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeWatt ? 10 : 8 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeWatt ? 10 : 8 }}>
                     {WATT_BIKE_GROUPS.map(grp => {
                       const complete = todaysWattBike.some(e => grp.match(e.interval_mode || e.type))
                       const active = expandedHomeWatt === grp.key
@@ -8220,7 +8220,7 @@ export default function AthleteProfiles() {
 
                   {showStretchCards && (
                   <div ref={stretchPanelRef}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 8 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 8 }}>
                     {STRETCH_FLOWS.map((flow, i) => {
                       const complete = !!todaysStretches[i]
                       return (
@@ -8408,7 +8408,7 @@ export default function AthleteProfiles() {
                         {style} Techniques
                         <CoachQuestionProgressBadge sectionKey="technique" questionLabel={style} />
                       </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: expandedTechniqueCategory ? '1fr' : 'repeat(3, 1fr)', gap: 8, marginBottom: 8 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: expandedTechniqueCategory ? '1fr' : 'repeat(2, 1fr)', gap: 8, marginBottom: 8 }}>
                         {Object.keys(categories).filter(cat => !expandedTechniqueCategory || expandedTechniqueCategory === `${style}::${cat}`).map(cat => {
                           const catKey = `${style}::${cat}`
                           const active = expandedTechniqueCategory === catKey
@@ -8417,7 +8417,7 @@ export default function AthleteProfiles() {
                             <button key={cat} type="button"
                               onClick={() => setExpandedTechniqueCategory(active ? null : catKey)}
                               style={{
-                                display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '16px 10px' : '10px 8px',
+                                display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '20px 14px' : '18px 14px',
                                 borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                                 border: `2px solid ${active ? '#E24B4A' : count ? '#1D9E75' : 'var(--border)'}`,
                                 background: count ? '#1D9E7512' : 'var(--bg-secondary)',
@@ -8497,14 +8497,14 @@ export default function AthleteProfiles() {
                     overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
                     maxHeight: showTacticalSection ? 8000 : 0, opacity: showTacticalSection ? 1 : 0,
                   }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: expandedTacticalCategory ? '1fr' : 'repeat(3, 1fr)', gap: 8, marginBottom: 8 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: expandedTacticalCategory ? '1fr' : 'repeat(2, 1fr)', gap: 8, marginBottom: 8 }}>
                     {(expandedTacticalCategory ? [] : ['__videoAnalysis__']).concat(Object.keys(TACTICAL_CATEGORIES)).filter(cat => !expandedTacticalCategory || expandedTacticalCategory === cat).map(cat => {
                       if (cat === '__videoAnalysis__') {
                         const active = expandedTacticalCategory === cat
                         const complete = !!todaysMentalityLog.videoAnalysis?.type
                         return (
                           <button key={cat} type="button" onClick={() => setExpandedTacticalCategory(active ? null : cat)} style={{
-                            display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '16px 10px' : '10px 8px',
+                            display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '20px 14px' : '18px 14px',
                             borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                             border: `2px solid ${active ? '#E24B4A' : complete ? '#1D9E75' : 'var(--border)'}`,
                             background: complete ? '#1D9E7512' : 'var(--bg-secondary)',
@@ -8522,7 +8522,7 @@ export default function AthleteProfiles() {
                         <button key={cat_} type="button"
                           onClick={() => setExpandedTacticalCategory(active ? null : cat_)}
                           style={{
-                            display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '16px 10px' : '10px 8px',
+                            display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '20px 14px' : '18px 14px',
                             borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                             border: `2px solid ${active ? '#E24B4A' : count ? '#1D9E75' : 'var(--border)'}`,
                             background: count ? '#1D9E7512' : 'var(--bg-secondary)',
@@ -8606,13 +8606,13 @@ export default function AthleteProfiles() {
                     overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
                     maxHeight: showMentalitySection ? 4000 : 0, opacity: showMentalitySection ? 1 : 0,
                   }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: expandedHomeMentality ? '1fr' : 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeMentality ? 10 : 8 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: expandedHomeMentality ? '1fr' : 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeMentality ? 10 : 8 }}>
                     {MENTALITY_QUESTIONS.filter(q => !expandedHomeMentality || expandedHomeMentality === q.key).map(q => {
                       const complete = q.key === 'alterEgo' ? !!(alterEgoWorkbook.topTraits?.some(Boolean) || alterEgoWorkbook.nameOption1) : isMentalityQComplete(q.key, todaysMentalityLog)
                       const active = expandedHomeMentality === q.key
                       return (
                         <button key={q.key} type="button" onClick={() => q.key === 'alterEgo' ? setShowAlterEgoModal(true) : setExpandedHomeMentality(active ? null : q.key)} style={{
-                          display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '16px 10px' : '10px 8px',
+                          display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '20px 14px' : '18px 14px',
                           borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                           border: `2px solid ${active ? colour : complete ? '#6D28D9' : 'var(--border)'}`,
                           background: complete ? '#6D28D912' : 'var(--bg-secondary)',
@@ -8947,13 +8947,13 @@ export default function AthleteProfiles() {
                     overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
                     maxHeight: showWellbeingSection ? 6000 : 0, opacity: showWellbeingSection ? 1 : 0,
                   }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: expandedHomeWb ? '1fr' : 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeWb ? 10 : 8 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: expandedHomeWb ? '1fr' : 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeWb ? 10 : 8 }}>
                     {WELLBEING_QUESTIONS.filter(q => !expandedHomeWb || expandedHomeWb === q.key).map(q => {
                       const complete = isWellbeingQComplete(q.key, todaysWellbeing)
                       const active = expandedHomeWb === q.key
                       return (
                         <button key={q.key} type="button" onClick={() => setExpandedHomeWb(active ? null : q.key)} style={{
-                          display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '16px 10px' : '10px 8px',
+                          display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '20px 14px' : '18px 14px',
                           borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                           border: `2px solid ${active ? colour : complete ? '#0E9F6E' : 'var(--border)'}`,
                           background: complete ? '#0E9F6E12' : 'var(--bg-secondary)',
@@ -9201,13 +9201,13 @@ export default function AthleteProfiles() {
                     overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
                     maxHeight: showTestSection ? 4000 : 0, opacity: showTestSection ? 1 : 0,
                   }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: expandedHomeTestCategory ? '1fr' : 'repeat(3,1fr)', gap: 8, marginBottom: expandedHomeTestCategory ? 10 : 8 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: expandedHomeTestCategory ? '1fr' : 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeTestCategory ? 10 : 8 }}>
                     {TEST_CATEGORIES.filter(cat => !expandedHomeTestCategory || expandedHomeTestCategory === cat.key).map(cat => {
                       const complete = cat.tests.some(t => todaysTest[t.name] != null && todaysTest[t.name] !== '')
                       const active = expandedHomeTestCategory === cat.key
                       return (
                         <button key={cat.key} type="button" onClick={() => setExpandedHomeTestCategory(active ? null : cat.key)} style={{
-                          display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '16px 10px' : '10px 8px',
+                          display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '20px 14px' : '18px 14px',
                           borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                           border: `2px solid ${active ? colour : complete ? '#8B5CF6' : 'var(--border)'}`,
                           background: complete ? '#8B5CF612' : 'var(--bg-secondary)',
