@@ -11,13 +11,13 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
-      if (session) fetchProfile(session.user.id)
+      if (session) fetchProfile(session.user.id, session.access_token)
       else setLoading(false)
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
-      if (session) fetchProfile(session.user.id)
+      if (session) fetchProfile(session.user.id, session.access_token)
       else { setProfile(null); setLoading(false) }
     })
 
@@ -26,7 +26,7 @@ export function AuthProvider({ children }) {
 
   const [profileError, setProfileError] = useState(null)
 
-  async function fetchProfile(userId) {
+  async function fetchProfile(userId, accessToken) {
     setProfileError(null)
     const { data, error } = await supabase
       .from('members')
@@ -41,6 +41,37 @@ export function AuthProvider({ children }) {
       return
     }
     if (!data) {
+      // No members row is linked to this login yet. If a signup was
+      // recently started here that needed email confirmation first
+      // (see Claim.jsx), the ref being claimed is remembered in
+      // localStorage -- so this can complete that link automatically
+      // now that a real session exists, rather than leaving the person
+      // stuck on "no profile found" because they signed in through the
+      // normal login page instead of the confirmation email's link
+      // (which is the only place that retry used to happen).
+      let pendingRef = null
+      try { pendingRef = window.localStorage.getItem('pending_claim_ref') } catch {}
+      if (pendingRef && accessToken) {
+        try {
+          const { data: studentRows } = await supabase
+            .from('students').select('id').eq('student_ref', pendingRef).limit(1)
+          const pendingStudentId = studentRows?.[0]?.id
+          if (pendingStudentId) {
+            const res = await fetch('/.netlify/functions/link-profile', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+              body: JSON.stringify({ studentId: pendingStudentId }),
+            })
+            const linkResult = await res.json()
+            if (linkResult.success) {
+              try { window.localStorage.removeItem('pending_claim_ref') } catch {}
+              return fetchProfile(userId, accessToken) // re-fetch now that the link exists
+            }
+          }
+        } catch (e) {
+          console.error('Auto-completing pending profile link failed:', e)
+        }
+      }
       console.error('No members row found for auth_id', userId)
       setProfileError('no_member_record')
       setProfile(null)
@@ -65,7 +96,7 @@ export function AuthProvider({ children }) {
   const isAthlete = !!(profile?.student?.is_kr || profile?.student?.discipline === 'KRBA' || profile?.student?.is_pts)
 
   return (
-    <AuthContext.Provider value={{ session, profile, role, isAdmin, isCoach, isLeader, isStaff, isAthlete, loading, profileError, refreshProfile: () => fetchProfile(session?.user?.id) }}>
+    <AuthContext.Provider value={{ session, profile, role, isAdmin, isCoach, isLeader, isStaff, isAthlete, loading, profileError, refreshProfile: () => fetchProfile(session?.user?.id, session?.access_token) }}>
       {children}
     </AuthContext.Provider>
   )

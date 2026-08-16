@@ -47,6 +47,29 @@ export default function Claim() {
       })
   }, [ref])
 
+  // If signup required email confirmation, createLoginAndLink() stores
+  // the ref being claimed in localStorage before showing "check your
+  // email". When the confirmation link is clicked, Supabase redirects
+  // back to this exact page (emailRedirectTo) with a fresh session --
+  // but landing back on the "Is this you?" screen looks like nothing
+  // happened, and it's easy to assume confirming the email was the
+  // last step. So instead of waiting for another manual "Yes, that's
+  // me" click, this finishes the link automatically the moment a
+  // session appears for the same ref that was pending confirmation --
+  // matching the person's own explicit signup action a few minutes
+  // earlier, not just any already-active session (a shared-device
+  // session with a stranger still gets the manual confirmation screen
+  // as before, since there'd be no matching pending-claim flag for it).
+  useEffect(() => {
+    if (!session || !student || linked || linking) return
+    let pendingRef = null
+    try { pendingRef = window.localStorage.getItem('pending_claim_ref') } catch {}
+    if (pendingRef && pendingRef === ref) {
+      try { window.localStorage.removeItem('pending_claim_ref') } catch {}
+      doLink(session.access_token)
+    }
+  }, [session, student])
+
   async function doLink(accessToken) {
     setLinking(true)
     setLinkError('')
@@ -98,6 +121,12 @@ export default function Claim() {
     if (data?.session) {
       await doLink(data.session.access_token)
     } else {
+      // No session yet -- email confirmation is required first. Remember
+      // which ref this signup was for, so the link can complete
+      // automatically the moment a session appears (see the effect
+      // above), instead of relying on a second manual "Yes, that's me"
+      // click after coming back from the confirmation email.
+      try { window.localStorage.setItem('pending_claim_ref', ref) } catch {}
       setAwaitingConfirmation(true)
     }
     setCreating(false)
