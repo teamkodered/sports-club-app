@@ -8916,13 +8916,15 @@ export default function AthleteProfiles() {
 
                   <div ref={wellbeingSectionRef}>
                   <button type="button" onClick={() => { setShowWellbeingSection(v => { if (v) setExpandedHomeWb(null); return !v }) }} style={{
-                    width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10,
-                    textAlign: 'center', padding: '42px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
+                    width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 12,
+                    textAlign: 'center', padding: '18px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
+                    <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                      <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Foundation</span>
+                      <span style={{ fontSize: 24, flexShrink: 0 }}>🧱</span>
+                    </div>
                     <CoachSectionProgressBars sectionKey="wellbeing" vertical />
-                    <span style={{ flex: 1, fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Foundation</span>
-                    <span style={{ fontSize: 24, flexShrink: 0 }}>🧱</span>
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showWellbeingSection ? '▲' : '▼'}</span>
                   </button>
 
