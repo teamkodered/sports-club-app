@@ -2804,23 +2804,24 @@ export default function AthleteApp() {
   // row, which the database wouldn't allow for the same class+date anyway.
   async function checkInForSessionModal() {
     if (!sessionNoteModal || !student) return
+    const nowIso = new Date().toISOString()
     if (sessionNoteModal.attendanceId) {
       const { error } = await supabase.from('attendance')
-        .update({ present: true, attendance_type: 'attended', self_checked_in: true, attended_at: new Date().toISOString() })
+        .update({ present: true, attendance_type: 'attended', self_checked_in: true, attended_at: nowIso })
         .eq('id', sessionNoteModal.attendanceId)
       if (error) { alert('Error checking in: ' + error.message); return }
-      setAttendanceData(prev => prev.map(a => a.id === sessionNoteModal.attendanceId ? { ...a, present: true, attendance_type: 'attended', self_checked_in: true } : a))
-      setSessionNoteModal(m => ({ ...m, selfCheckedIn: true, checkedOutAt: null }))
+      setAttendanceData(prev => prev.map(a => a.id === sessionNoteModal.attendanceId ? { ...a, present: true, attendance_type: 'attended', self_checked_in: true, attended_at: nowIso } : a))
+      setSessionNoteModal(m => ({ ...m, selfCheckedIn: true, checkedOutAt: null, attendedAt: nowIso, attendanceType: 'attended' }))
       return
     }
     const { data, error } = await supabase.from('attendance').insert({
       student_id: student.id, present: true, attendance_type: 'attended',
-      session_date: sessionNoteModal.dateStr, attended_at: new Date().toISOString(),
+      session_date: sessionNoteModal.dateStr, attended_at: nowIso,
       self_checked_in: true, class_id: sessionNoteModal.classId, note: sessionNoteDraft || null,
     }).select().single()
     if (error) { alert('Error checking in: ' + error.message); return }
     setAttendanceData(prev => [...prev, data])
-    setSessionNoteModal(m => ({ ...m, attendanceId: data.id, checkedOutAt: null, selfCheckedIn: true }))
+    setSessionNoteModal(m => ({ ...m, attendanceId: data.id, checkedOutAt: null, selfCheckedIn: true, attendedAt: nowIso, attendanceType: 'attended' }))
   }
 
   async function checkOutForSessionModal() {
@@ -2829,6 +2830,46 @@ export default function AthleteApp() {
     if (error) { alert('Error checking out: ' + error.message); return }
     setAttendanceData(prev => prev.map(a => a.id === sessionNoteModal.attendanceId ? { ...a, checked_out_at: new Date().toISOString() } : a))
     setSessionNoteModal(m => ({ ...m, checkedOutAt: new Date().toISOString() }))
+  }
+
+  // Register-marked attendance (a coach ticking someone present rather
+  // than the athlete self-checking-in) stamps attended_at as a
+  // placeholder noon timestamp, not a real check-in time -- for hours/
+  // duration purposes, the class's own scheduled start time is a far
+  // more meaningful stand-in. A genuine self check-in's real timestamp
+  // is always used as-is.
+  function getEffectiveCheckin(attendance, classInfo) {
+    if (!attendance?.attended_at) return null
+    if (attendance.self_checked_in) return new Date(attendance.attended_at)
+    if (classInfo?.start_time) return new Date(attendance.session_date + 'T' + classInfo.start_time)
+    return new Date(attendance.attended_at)
+  }
+  // Effective check-out: the real one if they checked out, or -- if the
+  // session's scheduled end time has already passed and nobody checked
+  // them out (forgot) -- the session's end time as a stand-in, purely
+  // for duration/hours calculations. This is computed on read, never
+  // written to the database, so it never overrides a genuine manual
+  // check-out (e.g. someone leaving early stays exactly as they
+  // recorded it). Per-date coach overrides (a session running over)
+  // take priority over the class's normal scheduled end time.
+  function getEffectiveCheckout(attendance, classInfo) {
+    if (!attendance?.attended_at) return null
+    if (attendance.checked_out_at) return new Date(attendance.checked_out_at)
+    const override = classInfo?.session_end_overrides?.[attendance.session_date]
+    const endTimeStr = override || classInfo?.end_time
+    if (!endTimeStr) return null // nothing to fall back on -- still counts as in progress
+    const sessionEnd = new Date(attendance.session_date + 'T' + endTimeStr)
+    if (sessionEnd > new Date()) return null // session hasn't ended yet
+    return sessionEnd
+  }
+  // Hours trained for one attendance record -- null if the session is
+  // still in progress (no effective check-out yet), not zero, so
+  // callers can tell "not finished" apart from "zero duration".
+  function getSessionHours(attendance, classInfo) {
+    const start = getEffectiveCheckin(attendance, classInfo)
+    const end = getEffectiveCheckout(attendance, classInfo)
+    if (!start || !end) return null
+    return Math.max(0, (end - start) / (1000 * 60 * 60))
   }
 
   // Backs out of whatever the weight-check prompt was for. For a check-in,
@@ -4876,11 +4917,23 @@ export default function AthleteApp() {
         })
         const hourMarks = Array.from({ length: 9 }, (_, i) => 6 + i * 2)
 
+        // Total hours trained this month -- sums each attended
+        // session's duration (real check-out if there is one, or the
+        // class's scheduled end time as a stand-in for anyone who
+        // forgot to check out).
+        const totalHoursThisMonth = myAttendance.reduce((sum, att) => {
+          const classInfo = assignedClasses.find(a => a.classes?.id === att.class_id)?.classes
+          return sum + (getSessionHours(att, classInfo) || 0)
+        }, 0)
+
         return (
           <div>
             {backButton}
             <div className="card" style={{ marginBottom: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>
+                  ⏱ {totalHoursThisMonth.toFixed(1)}hrs
+                </span>
                 {(() => {
                   const [launchYear, launchMonthNum] = SOFT_LAUNCH_DATE.split('-').map(Number)
                   const launchMonth = launchMonthNum - 1 // 0-indexed to match sessionsCalMonth
@@ -5017,7 +5070,7 @@ export default function AthleteApp() {
                           const reallyAttended = existing?.attendance_type === 'attended' || existing?.attendance_type === 'full_kit'
                           return (
                             <button key={classId} onClick={() => {
-                              setSessionNoteModal({ dateStr: dayDetailModal, classId, className: a.classes?.name, attendanceId: existing?.id || null, attendanceType: existing?.attendance_type || null, checkedOutAt: existing?.checked_out_at || null, selfCheckedIn: existing?.self_checked_in || false })
+                              setSessionNoteModal({ dateStr: dayDetailModal, classId, className: a.classes?.name, attendanceId: existing?.id || null, attendanceType: existing?.attendance_type || null, checkedOutAt: existing?.checked_out_at || null, selfCheckedIn: existing?.self_checked_in || false, attendedAt: existing?.attended_at || null, classInfo: a.classes })
                               setSessionNoteDraft(existing?.note || '')
                               setDayDetailModal(null)
                             }} style={{
@@ -5049,6 +5102,33 @@ export default function AthleteApp() {
                     </h2>
                     <button onClick={() => setSessionNoteModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}>✕</button>
                   </div>
+                  {sessionNoteModal.attendedAt && (() => {
+                    const attRecord = { attended_at: sessionNoteModal.attendedAt, checked_out_at: sessionNoteModal.checkedOutAt, self_checked_in: sessionNoteModal.selfCheckedIn, session_date: sessionNoteModal.dateStr }
+                    const checkinTime = getEffectiveCheckin(attRecord, sessionNoteModal.classInfo)
+                    const checkoutTime = getEffectiveCheckout(attRecord, sessionNoteModal.classInfo)
+                    const hours = getSessionHours(attRecord, sessionNoteModal.classInfo)
+                    const autoCheckedOut = !sessionNoteModal.checkedOutAt && checkoutTime
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12, padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', fontSize: 12 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>Checked in</span>
+                          <span style={{ fontWeight: 600 }}>{checkinTime?.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                        {checkoutTime && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ color: 'var(--text-secondary)' }}>Checked out{autoCheckedOut ? ' (auto)' : ''}</span>
+                            <span style={{ fontWeight: 600 }}>{checkoutTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 4, borderTop: '1px solid var(--border)' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>{hours != null ? 'Time trained' : 'Status'}</span>
+                          <span style={{ fontWeight: 700, color: hours != null ? '#1D9E75' : 'var(--text-tertiary)' }}>
+                            {hours != null ? `${hours.toFixed(1)}hrs` : 'Still checked in'}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })()}
                   <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500, display: 'block', marginBottom: 6 }}>
                     Note for this session
                   </label>
