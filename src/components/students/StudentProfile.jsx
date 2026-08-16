@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase.js'
 
 const HOUSE_COLOURS = { Phoenix: '#e24b4a', Titan: '#378add', Viper: '#1d9e75', Storm: '#ef9f27' }
 
 export default function StudentProfile({ student, onClose, isAdmin, embedded = false }) {
+  const navigate = useNavigate()
   const [tab, setTab] = useState('profile')
   const [pointTypes, setPointTypes] = useState([])
   const [pointsLog, setPointsLog] = useState([])
@@ -194,6 +196,15 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
               <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Champ</div>
             </div>
           </div>
+          {!embedded && (
+            <button className="btn btn-sm" onClick={() => {
+              const params = new URLSearchParams({ student_id: localStudent.id })
+              if (assignedClasses[0]?.class_id) params.set('class_id', assignedClasses[0].class_id)
+              navigate(`/registers?${params.toString()}`)
+            }} style={{ marginLeft: 8, flexShrink: 0 }}>
+              📋 Register
+            </button>
+          )}
           {!embedded && (
             <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text-secondary)', marginLeft: 8, padding: 8, lineHeight: 1 }}>✕</button>
           )}

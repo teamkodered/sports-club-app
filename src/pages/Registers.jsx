@@ -58,7 +58,7 @@ function OneOffStudent({ displayStudents, onAdd, date }) {
 }
 
 import { useEffect, useState, useRef } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { studentProfileLink } from '../lib/studentLinks.js'
@@ -101,9 +101,10 @@ const DOUBLE_SESSION_PAIRS = [
 export default function Registers() {
   const { isAdmin, isCoach, isLeader, isStaff } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [regType, setRegType]           = useState('class')
   const [date, setDate]                 = useState(new Date().toISOString().split('T')[0])
-  const [classFilter, setClassFilter]   = useState('all')
+  const [classFilter, setClassFilter]   = useState(() => searchParams.get('class_id') || 'all')
   const [students, setStudents]         = useState([])
   const [explicitAssignments, setExplicitAssignments] = useState([])
   const [todayClasses, setTodayClasses] = useState([])
@@ -811,6 +812,9 @@ export default function Registers() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
         <div className="page-header" style={{ marginBottom: 0 }}>
+          {searchParams.get('student_id') && (
+            <button className="btn btn-sm" style={{ marginBottom: 8 }} onClick={() => navigate(-1)}>← Back</button>
+          )}
           <h1>Registers</h1>
           <p>{displayStudents.length} students · {new Date(date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
         </div>
