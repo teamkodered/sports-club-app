@@ -3450,7 +3450,7 @@ export default function AthleteApp() {
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     } : {
                       width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10,
-                      textAlign: 'center', padding: '16px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
+                      textAlign: 'center', padding: '42px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
                       <SectionProgressBars sectionKey="physical" vertical />
@@ -3807,7 +3807,7 @@ export default function AthleteApp() {
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     } : {
                       width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10,
-                      textAlign: 'center', padding: '16px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
+                      textAlign: 'center', padding: '42px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
                       <SectionProgressBars sectionKey="technique" vertical />
@@ -3910,7 +3910,7 @@ export default function AthleteApp() {
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     } : {
                       width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10,
-                      textAlign: 'center', padding: '16px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
+                      textAlign: 'center', padding: '42px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
                       <SectionProgressBars sectionKey="tactical" vertical />
@@ -4017,7 +4017,7 @@ export default function AthleteApp() {
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     } : {
                       width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10,
-                      textAlign: 'center', padding: '16px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
+                      textAlign: 'center', padding: '42px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
                       <SectionProgressBars sectionKey="mentality" vertical />
