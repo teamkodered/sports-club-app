@@ -107,6 +107,9 @@ export default function Registers() {
   const [students, setStudents]         = useState([])
   const [explicitAssignments, setExplicitAssignments] = useState([])
   const [todayClasses, setTodayClasses] = useState([])
+  const [showEndTimeEditor, setShowEndTimeEditor] = useState(false)
+  const [endTimeDraft, setEndTimeDraft] = useState('')
+  const [savingEndTime, setSavingEndTime] = useState(false)
   const [derbyMooreClasses, setDerbyMooreClasses] = useState([])
   const [moorwaysClasses, setMoorwaysClasses] = useState([])
   const [loading, setLoading]           = useState(true)
@@ -613,6 +616,33 @@ export default function Registers() {
     setStudents(prev => prev.map(x => x.id === studentId ? { ...x, [field]: value } : x))
   }
 
+  // Lets a coach extend a specific session's effective end time (e.g.
+  // it ran over), so athletes checked in that day get credit for the
+  // full duration rather than being auto-checked-out at the class's
+  // normal scheduled time. Stored per-date on the class itself
+  // (session_end_overrides), so it can be set or changed at any time --
+  // including well after the session has already happened.
+  async function saveSessionEndTimeOverride() {
+    if (!selectedClass || !endTimeDraft) return
+    setSavingEndTime(true)
+    const current = selectedClass.session_end_overrides || {}
+    const updated = { ...current, [date]: endTimeDraft }
+    const { error } = await supabase.from('classes').update({ session_end_overrides: updated }).eq('id', selectedClass.id)
+    setSavingEndTime(false)
+    if (error) { alert('Error saving: ' + error.message); return }
+    setTodayClasses(prev => prev.map(c => c.id === selectedClass.id ? { ...c, session_end_overrides: updated } : c))
+    setShowEndTimeEditor(false)
+  }
+  async function clearSessionEndTimeOverride() {
+    if (!selectedClass) return
+    const current = { ...(selectedClass.session_end_overrides || {}) }
+    delete current[date]
+    const { error } = await supabase.from('classes').update({ session_end_overrides: current }).eq('id', selectedClass.id)
+    if (error) { alert('Error clearing: ' + error.message); return }
+    setTodayClasses(prev => prev.map(c => c.id === selectedClass.id ? { ...c, session_end_overrides: current } : c))
+    setShowEndTimeEditor(false)
+  }
+
   async function markAttendance(type) {
     if (selectedStudents.length === 0) return
     setSaving(true)
@@ -1022,8 +1052,29 @@ export default function Registers() {
             if ((e.ctrlKey || e.metaKey) && e.key === 'y') { e.preventDefault(); if (attendFuture.length > 0) { setAttendHistory(h => [...h, attendance]); setAttendance(attendFuture[0]); setAttendFuture(f => f.slice(1)) } }
           }}>
           {selectedClass && (
-            <div style={{ marginBottom: 8 }}>
+            <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <Link to={`/classes?class_id=${selectedClass.id}`} className="btn btn-sm">📋 View class</Link>
+              {!showEndTimeEditor ? (
+                <button className="btn btn-sm" onClick={() => {
+                  setEndTimeDraft((selectedClass.session_end_overrides || {})[date] || selectedClass.end_time || '')
+                  setShowEndTimeEditor(true)
+                }}>
+                  ⏱ Session end: {((selectedClass.session_end_overrides || {})[date] || selectedClass.end_time || '—').slice(0, 5)}
+                  {(selectedClass.session_end_overrides || {})[date] && ' (extended)'}
+                </button>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-secondary)', padding: '4px 8px', borderRadius: 'var(--radius)' }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Session ran over — actual end time:</span>
+                  <input type="time" value={endTimeDraft} onChange={e => setEndTimeDraft(e.target.value)} style={{ fontSize: 12, padding: '3px 6px' }} />
+                  <button className="btn btn-sm btn-primary" disabled={savingEndTime || !endTimeDraft} onClick={saveSessionEndTimeOverride}>
+                    {savingEndTime ? 'Saving…' : 'Save'}
+                  </button>
+                  {(selectedClass.session_end_overrides || {})[date] && (
+                    <button className="btn btn-sm" onClick={clearSessionEndTimeOverride}>Reset to default</button>
+                  )}
+                  <button className="btn btn-sm" onClick={() => setShowEndTimeEditor(false)}>Cancel</button>
+                </div>
+              )}
             </div>
           )}
           <table style={{ minWidth: isKR ? 900 : 680 }}>
