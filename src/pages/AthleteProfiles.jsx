@@ -1325,6 +1325,48 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
   // these entries had no completion flag at all (just a date/time), so
   // "was this actually done" could only ever be guessed at from whether
   // the date had passed. This adds a genuine tick.
+  // Athlete writes their own "Ready" competition-prep notes, but coach
+  // can view/edit them too from here.
+  // Short "3 rounds x 30 sec" style summary of a scheduled item's metric
+  // (mirrors the athlete-side formatter -- same shape of data, saved by
+  // the athlete's own "Add to calendar" wizard).
+  function formatScheduleMetric(metric) {
+    if (!metric?.type) return null
+    if (metric.type === 'rounds') {
+      let s = `${metric.value || '?'} round${metric.value == 1 ? '' : 's'}`
+      if (metric.subType === 'time' && metric.subValue) s += ` × ${metric.subValue}s`
+      if (metric.subType === 'reps' && metric.subValue) s += ` × ${metric.subValue} reps`
+      return s
+    }
+    if (metric.type === 'time') return metric.value ? `${metric.value}s` : null
+    if (metric.type === 'reps') return metric.value ? `${metric.value} reps` : null
+    return null
+  }
+  // All items the athlete has scheduled (via their own "Add to
+  // calendar" wizard) that repeat on a given weekday, across every PDP
+  // section -- this is what actually "sends" a scheduled item here to
+  // the Weekly Timetable.
+  function getScheduledItemsForDay(day) {
+    const out = []
+    PDP_SECTIONS.forEach(section => {
+      const key = `__timetable_${section.key}`
+      Object.entries(pdp[key] || {}).forEach(([item, entry]) => {
+        if (entry?.days?.includes(day)) {
+          const metricStr = formatScheduleMetric(entry.metric)
+          out.push({ item, text: item + (metricStr ? ` — ${metricStr}` : ''), time: entry.time, completed: entry.completed, sectionKey: section.key, colour: section.colour })
+        }
+      })
+    })
+    return out
+  }
+  async function saveCoachPdpReadyField(field, value) {
+    if (!student?.id) return
+    const updated = { ...pdp, ready: { ...(pdp.ready || {}), [field]: value } }
+    const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: updated }, { onConflict: 'student_id' })
+    if (error) { alert('Error saving: ' + error.message); return }
+    setApData(a => ({ ...a, pdp_notes: updated }))
+  }
+
   async function toggleTimetableCompleted(sectionKey, item) {
     const key = `__timetable_${sectionKey}`
     const current = pdp[key] || {}
@@ -1999,7 +2041,6 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
               actually shared). */}
           {PDP_SECTIONS.filter(s => !(pdp.__hidden_sections || []).includes(s.key)).map(section => {
             const items = shared[section.key] || []
-            if (!items.length) return null
             const sentAt = shared[`${section.key}_sent_at`]
             return (
               <div key={section.key} className="card" style={{ borderLeft: `3px solid ${section.colour}`, borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0', marginBottom: 10 }}>
@@ -2010,6 +2051,9 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
                   {sentAt && <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Sent {new Date(sentAt).toLocaleDateString('en-GB')}</span>}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {items.length === 0 && (
+                    <p style={{ fontSize: 11, color: 'var(--text-tertiary)', fontStyle: 'italic', margin: 0 }}>Nothing here yet</p>
+                  )}
                   {items.map((item, i) => (
                     <span key={i} style={notePillStyle(section.colour, section.key, item, { border: `1px solid ${section.colour}30`, padding: '4px 10px', fontSize: 12, fontWeight: 500 })}>{item}</span>
                   ))}
@@ -2017,30 +2061,53 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
               </div>
             )
           })}
-          {Object.keys(shared).filter(k => !k.endsWith('_sent_at')).every(k => !(shared[k]?.length)) && (
-            <div className="empty-state"><h3>No notes yet</h3><p>Your coach hasn't shared any PDP notes yet</p></div>
-          )}
+
+          {/* Ready -- athlete's own competition-prep notes (they write
+              it themselves; coach can view/edit here too). */}
+          <div className="card" style={{ borderLeft: '3px solid #E24B4A', marginBottom: 10 }}>
+            <h3 style={{ fontSize: 13, fontWeight: 600, color: '#E24B4A', margin: '0 0 10px' }}>🥊 Ready</h3>
+            {[
+              { key: 'dayBefore', label: 'Day before', placeholder: 'e.g. early night, kit packed, weigh-in plan…' },
+              { key: 'morningPrep', label: 'Morning prep', placeholder: 'e.g. food, water, electrolytes…' },
+              { key: 'warmUpRoutine', label: 'Warm up routine', placeholder: 'e.g. usual warm-up sequence…' },
+            ].map(f => (
+              <div key={f.key} className="field" style={{ marginBottom: 10 }}>
+                <label>{f.label}</label>
+                <textarea defaultValue={pdp?.ready?.[f.key] || ''} placeholder={f.placeholder}
+                  onBlur={e => saveCoachPdpReadyField(f.key, e.target.value)}
+                  rows={2} style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical' }} />
+              </div>
+            ))}
+          </div>
 
           {/* ── Weekly Timetable ── */}
           {(() => {
-            const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday']
+            const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
             const timetable = pdp.timetable || {}
             return (
               <div style={{ marginTop: 24 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                   <h3 style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>📅 Weekly Timetable</h3>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
-                  {DAYS.map(day => (
-                    <div key={day} style={{ background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', padding: '10px 8px', minHeight: 80 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, textAlign: 'center' }}>{day.slice(0,3)}</div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+                  {DAYS.map(day => {
+                    const scheduled = getScheduledItemsForDay(day)
+                    return (
+                    <div key={day} style={{ background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', padding: '8px 4px', minHeight: 70 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 5, textAlign: 'center' }}>{day.slice(0,3)}</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                         {(timetable[day] || []).map((note, i) => (
-                          <div key={i} style={{ fontSize: 11, background: 'var(--bg)', borderRadius: 8, padding: '3px 7px', color: 'var(--text)', border: '1px solid var(--border)' }}>{note}</div>
+                          <div key={`n${i}`} style={{ fontSize: 10, background: 'var(--bg)', borderRadius: 8, padding: '3px 6px', color: 'var(--text)', border: '1px solid var(--border)' }}>{note}</div>
+                        ))}
+                        {scheduled.map((it, i) => (
+                          <div key={`s${i}`} style={{ fontSize: 10, background: it.colour + '15', borderRadius: 8, padding: '3px 6px', color: it.colour, border: `1px solid ${it.colour}30`, textDecoration: it.completed ? 'line-through' : 'none' }}>
+                            {it.time && <span style={{ fontWeight: 700 }}>{it.time} </span>}{it.text}
+                          </div>
                         ))}
                       </div>
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             )
@@ -2097,19 +2164,25 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
           </div>
           {/* Weekly Timetable -- shows PDP "Check" items sent here from any category */}
           {(() => {
-            const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday']
+            const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
             const timetable = pdp.timetable || {}
-            if (DAYS.every(d => !(timetable[d]?.length))) return null
+            const scheduledByDay = Object.fromEntries(DAYS.map(d => [d, getScheduledItemsForDay(d)]))
+            if (DAYS.every(d => !(timetable[d]?.length) && !scheduledByDay[d].length)) return null
             return (
               <div className="card" style={{ marginBottom: 16 }}>
                 <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>📅 Weekly Timetable</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
                   {DAYS.map(day => (
-                    <div key={day} style={{ background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', padding: '10px 8px', minHeight: 60 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, textAlign: 'center' }}>{day.slice(0,3)}</div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <div key={day} style={{ background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', padding: '8px 4px', minHeight: 60 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 5, textAlign: 'center' }}>{day.slice(0,3)}</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                         {(timetable[day] || []).map((note, i) => (
-                          <div key={i} style={{ fontSize: 11, background: 'var(--bg)', borderRadius: 8, padding: '3px 7px', color: 'var(--text)', border: '1px solid var(--border)' }}>{note}</div>
+                          <div key={`n${i}`} style={{ fontSize: 10, background: 'var(--bg)', borderRadius: 8, padding: '3px 6px', color: 'var(--text)', border: '1px solid var(--border)' }}>{note}</div>
+                        ))}
+                        {scheduledByDay[day].map((it, i) => (
+                          <div key={`s${i}`} style={{ fontSize: 10, background: it.colour + '15', borderRadius: 8, padding: '3px 6px', color: it.colour, border: `1px solid ${it.colour}30`, textDecoration: it.completed ? 'line-through' : 'none' }}>
+                            {it.time && <span style={{ fontWeight: 700 }}>{it.time} </span>}{it.text}
+                          </div>
                         ))}
                       </div>
                     </div>
