@@ -2363,9 +2363,29 @@ export default function AthleteApp() {
   // header -- fills as tasks are completed against whatever targets
   // exist for that period; greyed out/empty if no target is set for
   // that particular period.
-  function SectionProgressBars({ sectionKey, compact = false }) {
+  function SectionProgressBars({ sectionKey, compact = false, vertical = false }) {
     const byPeriod = getSectionProgressByPeriod(sectionKey)
     const periods = [['day', 'D'], ['week', 'W'], ['month', 'M']]
+    if (vertical) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, width: 20, flexShrink: 0 }}>
+          {periods.map(([key, letter]) => {
+            const { done, target } = byPeriod[key]
+            const hasTarget = target > 0
+            const pct = hasTarget ? Math.min(100, Math.round((done / target) * 100)) : 0
+            const hit = hasTarget && done >= target
+            return (
+              <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                <span style={{ fontSize: 6, fontWeight: 700, width: 6, color: hasTarget ? (hit ? '#1D9E75' : 'var(--text-tertiary)') : 'var(--border)' }}>{letter}</span>
+                <div style={{ flex: 1, height: 3, borderRadius: 2, background: 'var(--border)', overflow: 'hidden' }}>
+                  {hasTarget && <div style={{ width: `${pct}%`, height: '100%', background: hit ? '#1D9E75' : '#E24B4A', borderRadius: 2 }} />}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )
+    }
     return (
       <div style={{ display: 'flex', gap: compact ? 4 : 6, width: '100%', marginBottom: compact ? 4 : 6 }}>
         {periods.map(([key, letter]) => {
@@ -3284,17 +3304,17 @@ export default function AthleteApp() {
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, alignItems: 'start', width: '100%' }}>
                     <div ref={physicalSectionRef} style={{ order: showPhysicalSection ? 0 : 4, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showPhysicalSection ? '1 / -1' : 'auto' }}>
                     <button type="button" onClick={togglePhysicalSection} style={showPhysicalSection ? {
-                      width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                      width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8,
                       textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     } : {
-                      width: '100%', maxWidth: 140, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                      width: '100%', maxWidth: 140, display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6,
                       textAlign: 'center', padding: '10px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
-                      <SectionProgressBars sectionKey="physical" compact={!showPhysicalSection} />
-                      <span style={{ fontSize: showPhysicalSection ? 24 : 24 }}>💪</span>
-                      <span style={{ fontSize: showPhysicalSection ? 16 : 13, fontWeight: 700, color: 'var(--text)' }}>Physical</span>
+                      <SectionProgressBars sectionKey="physical" vertical />
+                      <span style={{ flex: 1, fontSize: showPhysicalSection ? 16 : 13, fontWeight: 700, color: 'var(--text)' }}>Physical</span>
+                      <span style={{ fontSize: showPhysicalSection ? 24 : 24, flexShrink: 0 }}>💪</span>
                       <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showPhysicalSection ? '▲' : '▼'}</span>
                     </button>
 
@@ -3641,17 +3661,17 @@ export default function AthleteApp() {
 
                     <div ref={techniqueSectionRef} style={{ order: showTechniqueSection ? 0 : 3, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showTechniqueSection ? '1 / -1' : 'auto' }}>
                     <button type="button" onClick={() => { setShowTechniqueSection(v => { if (v) setExpandedTechniqueCategory(null); setTimeout(() => techniqueSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); return !v }) }} style={showTechniqueSection ? {
-                      width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                      width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8,
                       textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     } : {
-                      width: '100%', maxWidth: 140, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                      width: '100%', maxWidth: 140, display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6,
                       textAlign: 'center', padding: '10px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
-                      <SectionProgressBars sectionKey="technique" compact={!showTechniqueSection} />
-                      <span style={{ fontSize: 24 }}>🥊</span>
-                      <span style={{ fontSize: showTechniqueSection ? 16 : 13, fontWeight: 700, color: 'var(--text)' }}>Technique</span>
+                      <SectionProgressBars sectionKey="technique" vertical />
+                      <span style={{ flex: 1, fontSize: showTechniqueSection ? 16 : 13, fontWeight: 700, color: 'var(--text)' }}>Technique</span>
+                      <span style={{ fontSize: 24, flexShrink: 0 }}>🥊</span>
                       <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showTechniqueSection ? '▲' : '▼'}</span>
                     </button>
 
@@ -3744,17 +3764,17 @@ export default function AthleteApp() {
 
                     <div ref={tacticalSectionRef} style={{ order: showTacticalSection ? 0 : 2, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showTacticalSection ? '1 / -1' : 'auto' }}>
                     <button type="button" onClick={() => { setShowTacticalSection(v => { if (v) setExpandedTacticalCategory(null); setTimeout(() => tacticalSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); return !v }) }} style={showTacticalSection ? {
-                      width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                      width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8,
                       textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     } : {
-                      width: '100%', maxWidth: 140, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                      width: '100%', maxWidth: 140, display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6,
                       textAlign: 'center', padding: '10px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
-                      <SectionProgressBars sectionKey="tactical" compact={!showTacticalSection} />
-                      <span style={{ fontSize: 24 }}>🧩</span>
-                      <span style={{ fontSize: showTacticalSection ? 16 : 13, fontWeight: 700, color: 'var(--text)' }}>Tactical</span>
+                      <SectionProgressBars sectionKey="tactical" vertical />
+                      <span style={{ flex: 1, fontSize: showTacticalSection ? 16 : 13, fontWeight: 700, color: 'var(--text)' }}>Tactical</span>
+                      <span style={{ fontSize: 24, flexShrink: 0 }}>🧩</span>
                       <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showTacticalSection ? '▲' : '▼'}</span>
                     </button>
 
@@ -3851,17 +3871,17 @@ export default function AthleteApp() {
 
                     <div ref={mentalitySectionRef} style={{ order: showMentalitySection ? 0 : 1, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showMentalitySection ? '1 / -1' : 'auto' }}>
                     <button type="button" onClick={() => { setShowMentalitySection(v => { if (v) setExpandedHomeMentality(null); setTimeout(() => mentalitySectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); return !v }) }} style={showMentalitySection ? {
-                      width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                      width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8,
                       textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     } : {
-                      width: '100%', maxWidth: 140, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                      width: '100%', maxWidth: 140, display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6,
                       textAlign: 'center', padding: '10px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
-                      <SectionProgressBars sectionKey="mentality" compact={!showMentalitySection} />
-                      <span style={{ fontSize: 24 }}>🧠</span>
-                      <span style={{ fontSize: showMentalitySection ? 16 : 13, fontWeight: 700, color: 'var(--text)' }}>Mentality</span>
+                      <SectionProgressBars sectionKey="mentality" vertical />
+                      <span style={{ flex: 1, fontSize: showMentalitySection ? 16 : 13, fontWeight: 700, color: 'var(--text)' }}>Mentality</span>
+                      <span style={{ fontSize: 24, flexShrink: 0 }}>🧠</span>
                       <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showMentalitySection ? '▲' : '▼'}</span>
                     </button>
 
@@ -4194,13 +4214,13 @@ export default function AthleteApp() {
 
                     <div ref={wellbeingSectionRef}>
                     <button type="button" onClick={() => { setShowWellbeingSection(v => { if (v) setExpandedHomeWb(null); setTimeout(() => wellbeingSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); return !v }) }} style={{
-                      width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                      width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10,
                       textAlign: 'center', padding: '24px 12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
-                      <SectionProgressBars sectionKey="wellbeing" />
-                      <span style={{ fontSize: 24 }}>🧱</span>
-                      <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Foundation</span>
+                      <SectionProgressBars sectionKey="wellbeing" vertical />
+                      <span style={{ flex: 1, fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Foundation</span>
+                      <span style={{ fontSize: 24, flexShrink: 0 }}>🧱</span>
                       <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showWellbeingSection ? '▲' : '▼'}</span>
                     </button>
 
@@ -4568,13 +4588,13 @@ export default function AthleteApp() {
               </div>
                     <div ref={testSectionRef}>
                     <button type="button" onClick={() => { setShowTestSection(v => { if (v) setExpandedHomeTestCategory(null); setTimeout(() => testSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); return !v }) }} style={{
-                      width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                      width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8,
                       textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
-                      <SectionProgressBars sectionKey="test" />
-                      <span style={{ fontSize: 24 }}>📋</span>
-                      <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Test</span>
+                      <SectionProgressBars sectionKey="test" vertical />
+                      <span style={{ flex: 1, fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Test</span>
+                      <span style={{ fontSize: 24, flexShrink: 0 }}>📋</span>
                       <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showTestSection ? '▲' : '▼'}</span>
                     </button>
 
