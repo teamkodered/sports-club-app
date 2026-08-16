@@ -328,8 +328,12 @@ function timeToTimelinePercent(timeStr) {
 }
 // PDP "Check" category keys -- used to read any items sent to the
 // timetable from the PDP, for display on the Sessions calendar/weekly
-// timetable here.
-const PDP_TIMETABLE_SECTION_KEYS = ['psychology_what_to_do', 'tech_what_to_do', 'tact_what_to_do', 'physical_what_to_do', 'skill_what_to_do']
+// timetable here. These are the actionable "work on"/"to do" style
+// categories (maintain/winning-ways notes aren't scheduled tasks) --
+// must match this file's own PDP_SECTIONS keys (the coach's file has a
+// separate, richer 4-column-per-category schema with its own matching
+// constant, not shared with this one).
+const PDP_TIMETABLE_SECTION_KEYS = ['to_work_on', 'psychology_work_on', 'tech_work_on', 'tact_work_on', 'physical_work_on']
 
 // Tactical development presets -- multi-select per category, note
 // added once selected (same pattern as Techniques).

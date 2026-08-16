@@ -1154,6 +1154,13 @@ const PDP_SECTIONS = [
   { key: 'skill_what_to_do',      label: 'To do',             colour: PDP_COLUMN_COLOURS.what_to_do, coachOnly: true },
 ]
 
+// Which of the above categories represent actionable "to do" tasks that
+// can be scheduled onto the Weekly Timetable (Notes/Maintain/Work-on
+// entries aren't scheduled tasks) -- matches this file's own richer
+// 4-column-per-category PDP_SECTIONS schema (the athlete's file has a
+// separate, simpler schema with its own matching constant).
+const PDP_TIMETABLE_SECTION_KEYS = ['psychology_what_to_do', 'tech_what_to_do', 'tact_what_to_do', 'physical_what_to_do', 'skill_what_to_do']
+
 // Groups of 4 sections (Notes / Maintain / To work on / Check) shown
 // as a horizontally-scrollable row for each category, 3 visible at a
 // time, coach view.
@@ -1358,6 +1365,122 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
       })
     })
     return out
+  }
+  // Looks up a scheduled timetable entry for a given PDP item (mirrors
+  // the athlete-side lookup -- same underlying data, coach can also
+  // schedule on the athlete's behalf here).
+  function timetableEntry(sectionKey, item) {
+    return (pdp[`__timetable_${sectionKey}`] || {})[item] || null
+  }
+  async function coachSendToTimetable() {
+    if (!athleteTimetableModal || !schedWizardDays.length || !student?.id) return
+    const { sectionKey, item } = athleteTimetableModal
+    const key = `__timetable_${sectionKey}`
+    const current = pdp[key] || {}
+    const metric = schedWizardMetricType ? {
+      type: schedWizardMetricType,
+      value: schedWizardValue || null,
+      subType: schedWizardMetricType === 'rounds' ? schedWizardSubType : null,
+      subValue: schedWizardMetricType === 'rounds' ? (schedWizardSubValue || null) : null,
+    } : null
+    const updated = {
+      ...pdp,
+      [key]: { ...current, [item]: { days: schedWizardDays, time: schedWizardTime || null, metric } },
+    }
+    const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: updated }, { onConflict: 'student_id' })
+    if (error) { alert('Error adding to calendar: ' + error.message); return }
+    setApData(a => ({ ...a, pdp_notes: updated }))
+    setAthleteTimetableModal(null)
+    setSchedWizardStep('days'); setSchedWizardDays([]); setSchedWizardTime('')
+    setSchedWizardMetricType(null); setSchedWizardValue(''); setSchedWizardSubType(null); setSchedWizardSubValue('')
+  }
+  // Inline schedule wizard, same UI/flow as the athlete's own version --
+  // called as a plain function (not JSX component) so it doesn't
+  // remount (and lose input focus) on every keystroke.
+  function ScheduleWizardPanel() {
+    const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    return (
+      <div>
+        {schedWizardStep === 'days' && (
+          <>
+            <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Which day(s)? (repeats every week)</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+              {DAYS_OF_WEEK.map(d => (
+                <button key={d} type="button" onClick={() => setSchedWizardDays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d])}
+                  className="btn btn-sm" style={{ background: schedWizardDays.includes(d) ? '#E24B4A20' : undefined, borderColor: schedWizardDays.includes(d) ? '#E24B4A' : undefined }}>
+                  {d.slice(0, 3)}
+                </button>
+              ))}
+            </div>
+            <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Time (optional)</label>
+            <input type="time" value={schedWizardTime} onChange={e => setSchedWizardTime(e.target.value)} style={{ width: '100%', marginBottom: 14 }} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-primary" disabled={!schedWizardDays.length} onClick={() => setSchedWizardStep('metric')}>Next</button>
+              <button className="btn" onClick={() => setAthleteTimetableModal(null)}>Cancel</button>
+            </div>
+          </>
+        )}
+        {schedWizardStep === 'metric' && (
+          <>
+            <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 8 }}>How should this be measured? (optional)</label>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+              {[['rounds', 'Rounds'], ['time', 'Time'], ['reps', 'Reps']].map(([key, label]) => (
+                <button key={key} type="button" className="btn btn-sm" style={{ flex: 1, justifyContent: 'center' }}
+                  onClick={() => { setSchedWizardMetricType(key); setSchedWizardStep('value') }}>{label}</button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-primary" onClick={coachSendToTimetable}>Save (no detail)</button>
+              <button className="btn" onClick={() => setSchedWizardStep('days')}>Back</button>
+            </div>
+          </>
+        )}
+        {schedWizardStep === 'value' && (
+          <>
+            <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>
+              {schedWizardMetricType === 'rounds' ? 'How many rounds?' : schedWizardMetricType === 'time' ? 'How long (seconds)?' : 'How many reps?'}
+            </label>
+            <input type="number" inputMode="numeric" value={schedWizardValue} onChange={e => setSchedWizardValue(e.target.value)}
+              placeholder={schedWizardMetricType === 'time' ? 'e.g. 30' : 'e.g. 3'} style={{ width: '100%', marginBottom: 14 }} />
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button className="btn btn-primary" disabled={!schedWizardValue} onClick={coachSendToTimetable}>Save</button>
+              {schedWizardMetricType === 'rounds' && (
+                <button className="btn" disabled={!schedWizardValue} onClick={() => setSchedWizardStep('submetric')}>Next</button>
+              )}
+              <button className="btn" onClick={() => setSchedWizardStep('metric')}>Back</button>
+            </div>
+          </>
+        )}
+        {schedWizardStep === 'submetric' && (
+          <>
+            <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 8 }}>Per round, measured by?</label>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+              {[['time', 'Time'], ['reps', 'Reps']].map(([key, label]) => (
+                <button key={key} type="button" className="btn btn-sm" style={{ flex: 1, justifyContent: 'center' }}
+                  onClick={() => { setSchedWizardSubType(key); setSchedWizardStep('subvalue') }}>{label}</button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-primary" onClick={coachSendToTimetable}>Save (rounds only)</button>
+              <button className="btn" onClick={() => setSchedWizardStep('value')}>Back</button>
+            </div>
+          </>
+        )}
+        {schedWizardStep === 'subvalue' && (
+          <>
+            <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>
+              {schedWizardSubType === 'time' ? 'Seconds per round?' : 'Reps per round?'}
+            </label>
+            <input type="number" inputMode="numeric" value={schedWizardSubValue} onChange={e => setSchedWizardSubValue(e.target.value)}
+              placeholder={schedWizardSubType === 'time' ? 'e.g. 30' : 'e.g. 10'} style={{ width: '100%', marginBottom: 14 }} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-primary" disabled={!schedWizardSubValue} onClick={coachSendToTimetable}>Save</button>
+              <button className="btn" onClick={() => setSchedWizardStep('submetric')}>Back</button>
+            </div>
+          </>
+        )}
+      </div>
+    )
   }
   async function saveCoachPdpReadyField(field, value) {
     if (!student?.id) return
@@ -2042,6 +2165,7 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
           {PDP_SECTIONS.filter(s => !(pdp.__hidden_sections || []).includes(s.key)).map(section => {
             const items = shared[section.key] || []
             const sentAt = shared[`${section.key}_sent_at`]
+            const canSchedule = PDP_TIMETABLE_SECTION_KEYS.includes(section.key)
             return (
               <div key={section.key} className="card" style={{ borderLeft: `3px solid ${section.colour}`, borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0', marginBottom: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -2054,9 +2178,37 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
                   {items.length === 0 && (
                     <p style={{ fontSize: 11, color: 'var(--text-tertiary)', fontStyle: 'italic', margin: 0 }}>Nothing here yet</p>
                   )}
-                  {items.map((item, i) => (
-                    <span key={i} style={notePillStyle(section.colour, section.key, item, { border: `1px solid ${section.colour}30`, padding: '4px 10px', fontSize: 12, fontWeight: 500 })}>{item}</span>
-                  ))}
+                  {items.map((item, i) => {
+                    const existing = timetableEntry(section.key, item)
+                    const isActive = athleteTimetableModal?.sectionKey === section.key && athleteTimetableModal?.item === item
+                    if (!canSchedule) {
+                      return <span key={i} style={notePillStyle(section.colour, section.key, item, { border: `1px solid ${section.colour}30`, padding: '4px 10px', fontSize: 12, fontWeight: 500 })}>{item}</span>
+                    }
+                    return (
+                      <div key={i} style={{ background: section.colour + '15', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '6px 10px' }}>
+                          <span style={{ color: section.colour, fontSize: 12 }}>{item}</span>
+                          {existing?.days?.length ? (
+                            <button onClick={() => setAthleteTimetableModal(isActive ? null : { sectionKey: section.key, item })}
+                              style={{ fontSize: 10, background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontWeight: 600, flexShrink: 0, textAlign: 'right', fontFamily: 'var(--font-sans)' }}>
+                              📅 {existing.days.map(d => d.slice(0, 3)).join('/')}{existing.time ? ` ${existing.time}` : ''}
+                              {formatScheduleMetric(existing.metric) && <><br />{formatScheduleMetric(existing.metric)}</>}
+                            </button>
+                          ) : (
+                            <button onClick={() => setAthleteTimetableModal(isActive ? null : { sectionKey: section.key, item })}
+                              style={{ fontSize: 10, background: 'none', border: 'none', color: section.colour, cursor: 'pointer', fontWeight: 600, flexShrink: 0, fontFamily: 'var(--font-sans)' }}>
+                              📅 Schedule for athlete
+                            </button>
+                          )}
+                        </div>
+                        <div style={{ overflow: 'hidden', transition: 'max-height 0.3s ease, opacity 0.2s ease', maxHeight: isActive ? 500 : 0, opacity: isActive ? 1 : 0 }}>
+                          <div style={{ padding: '4px 10px 12px' }}>
+                            {ScheduleWizardPanel()}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )
@@ -2544,6 +2696,17 @@ export default function AthleteProfiles() {
   const [eyeTrackingCustomAdd, setEyeTrackingCustomAdd] = useState('')
   const [mentalityDraftDurations, setMentalityDraftDurations] = useState({})
   const [expandedLoggerCategory, setExpandedLoggerCategory] = useState({})
+  // Coach-side scheduling wizard state -- lets a coach schedule a PDP
+  // item on the athlete's behalf, same flow/UI as the athlete's own
+  // "Add to calendar" wizard.
+  const [athleteTimetableModal, setAthleteTimetableModal] = useState(null) // { sectionKey, item } or null
+  const [schedWizardStep, setSchedWizardStep] = useState('days') // 'days' | 'metric' | 'value' | 'submetric' | 'subvalue'
+  const [schedWizardDays, setSchedWizardDays] = useState([])
+  const [schedWizardTime, setSchedWizardTime] = useState('')
+  const [schedWizardMetricType, setSchedWizardMetricType] = useState(null)
+  const [schedWizardValue, setSchedWizardValue] = useState('')
+  const [schedWizardSubType, setSchedWizardSubType] = useState(null)
+  const [schedWizardSubValue, setSchedWizardSubValue] = useState('')
   const [expandedLoggerHowTo, setExpandedLoggerHowTo] = useState({})
   const [coldWaterCustomAdd, setColdWaterCustomAdd] = useState('')
   const [gratitudeDraft, setGratitudeDraft] = useState('')
