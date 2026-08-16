@@ -1944,6 +1944,107 @@ export default function AthleteApp() {
     setOpenNoteId(null)
   }
 
+  // Simple keyword-matching (not true AI) to spot notes that read like
+  // they belong in a specific F2F category, so they can be sent there
+  // with one tap instead of the athlete retyping the same thing twice.
+  // Deliberately conservative -- only flags a note when there's a clear
+  // signal, rather than guessing on ambiguous text.
+  //
+  // action types:
+  //   'wellbeing-notes' -- has a free-text notes field (nutrition/
+  //                        creative/productivity), so the note's text
+  //                        is appended straight in
+  //   'wellbeing-open'  -- no notes field (sleep/hydration), so this
+  //                        just opens that question for the athlete to
+  //                        fill in themselves
+  //   'mentality-open'  -- opens the matching Mentality question
+  //   'physical-open'   -- opens the matching Physical panel
+  //   'interval-run'    -- opens Running > Interval specifically
+  const NOTE_CATEGORY_MATCHERS = [
+    { key: 'nutrition', label: 'Nutrition', action: 'wellbeing-notes', field: 'nutrition', keywords: [
+      'egg', 'toast', 'chicken', 'rice', 'pasta', 'protein', 'shake', 'smoothie', 'oats', 'porridge',
+      'breakfast', 'lunch', 'dinner', 'snack', 'meal', 'salad', 'fish', 'yoghurt', 'yogurt', 'calories',
+      'ate ', 'eating', 'food', 'fruit', 'veg', 'vegetables', 'carbs',
+    ]},
+    { key: 'interval', label: 'Interval Run', action: 'interval-run', keywords: [
+      'interval', 'sprint', 'seconds on', 'sec on', 'on/off', 'on off', 'rest interval',
+    ]},
+    { key: 'sleep', label: 'Sleep', action: 'wellbeing-open', field: 'sleep', keywords: [
+      'slept', 'hours sleep', 'hrs sleep', 'went to bed', 'bad night', 'good night sleep', 'insomnia', 'woke up', 'nap',
+    ]},
+    { key: 'hydration', label: 'Hydration', action: 'wellbeing-open', field: 'hydration', keywords: [
+      'litres of water', 'liters of water', 'glasses of water', 'dehydrated', 'drank water', 'water intake',
+    ]},
+    { key: 'creative', label: 'Creative time', action: 'wellbeing-notes', field: 'creative', keywords: [
+      'drew', 'painted', 'played guitar', 'played piano', 'wrote a song', 'creative time', 'sketched', 'played music',
+    ]},
+    { key: 'productivity', label: 'Productivity', action: 'wellbeing-notes', field: 'productivity', keywords: [
+      'productive day', 'got loads done', 'ticked off my list', 'to-do list', 'todo list', 'got a lot done',
+    ]},
+    { key: 'meditation', label: 'Meditation', action: 'mentality-open', questionKey: 'meditation', keywords: [
+      'meditated', 'meditation', 'breathing exercise', 'mindfulness',
+    ]},
+    { key: 'reading', label: 'Reading', action: 'mentality-open', questionKey: 'reading', keywords: [
+      'read a book', 'reading a book', 'pages of', 'finished a chapter',
+    ]},
+    { key: 'chess', label: 'Chess', action: 'mentality-open', questionKey: 'chess', keywords: [
+      'played chess', 'chess game', 'chess match',
+    ]},
+    { key: 'gaming', label: 'Gaming', action: 'mentality-open', questionKey: 'gaming', keywords: [
+      'played fifa', 'on the xbox', 'on the playstation', 'video game', 'gaming session',
+    ]},
+    { key: 'coldWater', label: 'Cold water', action: 'mentality-open', questionKey: 'coldWater', keywords: [
+      'cold shower', 'ice bath', 'cold plunge', 'cold water therapy',
+    ]},
+    { key: 'gratitude', label: 'Gratitude', action: 'mentality-open', questionKey: 'gratitude', keywords: [
+      'grateful for', 'feeling grateful', 'thankful for',
+    ]},
+    { key: 'stretch', label: 'Stretch flows', action: 'physical-open', panel: 'stretch', keywords: [
+      'stretching session', 'did some stretches', 'stretch flow', 'flexibility session',
+    ]},
+  ]
+  function detectNoteCategory(text) {
+    const lower = (text || '').toLowerCase()
+    return NOTE_CATEGORY_MATCHERS.find(m => m.keywords.some(w => lower.includes(w))) || null
+  }
+  // Single handler covering every action type above -- keeps the send
+  // logic in one place rather than a separate function per category.
+  async function sendNoteToCategory(matcher, noteText) {
+    if (matcher.action === 'wellbeing-notes') {
+      const existing = todaysWellbeing[matcher.field]?.notes || ''
+      const combined = existing ? `${existing}\n${noteText}` : noteText
+      await saveWellbeingField(matcher.field, cur => ({ ...cur, notes: combined }))
+      setTab('home')
+      setShowWellbeingSection(true)
+      setExpandedHomeWb(matcher.field)
+      setTimeout(() => wellbeingSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+    } else if (matcher.action === 'wellbeing-open') {
+      setTab('home')
+      setShowWellbeingSection(true)
+      setExpandedHomeWb(matcher.field)
+      setTimeout(() => wellbeingSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+    } else if (matcher.action === 'mentality-open') {
+      setTab('home')
+      setShowMentalitySection(true)
+      setExpandedHomeMentality(matcher.questionKey)
+      setTimeout(() => mentalitySectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+    } else if (matcher.action === 'physical-open') {
+      setTab('home')
+      setShowPhysicalSection(true)
+      setActivePhysicalCategory(matcher.panel)
+      setExpandedHomeRun(null); setExpandedHomeWatt(null); setExpandedHomeBodyweight(null); setExpandedHomeStretch(null)
+      if (matcher.panel === 'stretch') setExpandedHomeStretch(true)
+      setTimeout(() => physicalSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+    } else if (matcher.action === 'interval-run') {
+      setTab('home')
+      setShowPhysicalSection(true)
+      setActivePhysicalCategory('running')
+      setExpandedHomeRun('Interval')
+      setExpandedHomeWatt(null); setExpandedHomeBodyweight(null); setExpandedHomeStretch(null)
+      setTimeout(() => physicalSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+    }
+  }
+
   async function quickLogStretch() {
     if (!student) return
     const todaysDate = new Date().toISOString().split('T')[0]
@@ -5502,7 +5603,9 @@ export default function AthleteApp() {
             <div className="empty-state"><h3>No notes yet</h3></div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {myNotesLog.map(note => (
+              {myNotesLog.map(note => {
+                const match = detectNoteCategory(note.note_text)
+                return (
                 <div key={note.id} className="card" onClick={() => { setOpenNoteId(note.id); setOpenNoteDraft(note.note_text) }} style={{ cursor: 'pointer' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
@@ -5514,8 +5617,20 @@ export default function AthleteApp() {
                     <button onClick={e => { e.stopPropagation(); deleteNote(note.id) }} title="Delete note"
                       style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 16, flexShrink: 0 }}>×</button>
                   </div>
+                  {match && (
+                    <div onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+                      <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                        💡 Looks like a {match.label} entry
+                      </span>
+                      <button className="btn btn-sm" style={{ flexShrink: 0 }}
+                        onClick={() => sendNoteToCategory(match, note.note_text)}>
+                        Send to {match.label}
+                      </button>
+                    </div>
+                  )}
                 </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
