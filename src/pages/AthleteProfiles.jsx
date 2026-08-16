@@ -7979,12 +7979,12 @@ export default function AthleteProfiles() {
                     textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   } : {
-                    width: '100%', maxWidth: 140, display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6,
-                    textAlign: 'center', padding: '10px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
+                    width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10,
+                    textAlign: 'center', padding: '16px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
                     <CoachSectionProgressBars sectionKey="physical" vertical />
-                    <span style={{ flex: 1, fontSize: showPhysicalSection ? 16 : 13, fontWeight: 700, color: 'var(--text)' }}>Physical</span>
+                    <span style={{ flex: 1, fontSize: showPhysicalSection ? 17 : 15, fontWeight: 700, color: 'var(--text)' }}>Physical</span>
                     <span style={{ fontSize: 24, flexShrink: 0 }}>💪</span>
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showPhysicalSection ? '▲' : '▼'}</span>
                   </button>
@@ -8359,12 +8359,12 @@ export default function AthleteProfiles() {
                     textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   } : {
-                    width: '100%', maxWidth: 140, display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6,
-                    textAlign: 'center', padding: '10px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
+                    width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10,
+                    textAlign: 'center', padding: '16px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
                     <CoachSectionProgressBars sectionKey="technique" vertical />
-                    <span style={{ flex: 1, fontSize: showTechniqueSection ? 16 : 13, fontWeight: 700, color: 'var(--text)' }}>Technique</span>
+                    <span style={{ flex: 1, fontSize: showTechniqueSection ? 17 : 15, fontWeight: 700, color: 'var(--text)' }}>Technique</span>
                     <span style={{ fontSize: 24, flexShrink: 0 }}>🥊</span>
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showTechniqueSection ? '▲' : '▼'}</span>
                   </button>
@@ -8462,12 +8462,12 @@ export default function AthleteProfiles() {
                     textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   } : {
-                    width: '100%', maxWidth: 140, display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6,
-                    textAlign: 'center', padding: '10px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
+                    width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10,
+                    textAlign: 'center', padding: '16px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
                     <CoachSectionProgressBars sectionKey="tactical" vertical />
-                    <span style={{ flex: 1, fontSize: showTacticalSection ? 16 : 13, fontWeight: 700, color: 'var(--text)' }}>Tactical</span>
+                    <span style={{ flex: 1, fontSize: showTacticalSection ? 17 : 15, fontWeight: 700, color: 'var(--text)' }}>Tactical</span>
                     <span style={{ fontSize: 24, flexShrink: 0 }}>🧩</span>
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showTacticalSection ? '▲' : '▼'}</span>
                   </button>
@@ -8569,12 +8569,12 @@ export default function AthleteProfiles() {
                     textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   } : {
-                    width: '100%', maxWidth: 140, display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6,
-                    textAlign: 'center', padding: '10px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
+                    width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10,
+                    textAlign: 'center', padding: '16px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
                     <CoachSectionProgressBars sectionKey="mentality" vertical />
-                    <span style={{ flex: 1, fontSize: showMentalitySection ? 16 : 13, fontWeight: 700, color: 'var(--text)' }}>Mentality</span>
+                    <span style={{ flex: 1, fontSize: showMentalitySection ? 17 : 15, fontWeight: 700, color: 'var(--text)' }}>Mentality</span>
                     <span style={{ fontSize: 24, flexShrink: 0 }}>🧠</span>
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showMentalitySection ? '▲' : '▼'}</span>
                   </button>
