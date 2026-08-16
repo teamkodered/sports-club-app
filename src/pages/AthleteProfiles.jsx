@@ -3150,16 +3150,29 @@ export default function AthleteProfiles() {
     const section = DASHBOARD_SECTIONS.find(sec => sec.key === sectionKey)
     const subItem = section?.subItems.find(sub => sub.label === questionLabel)
     if (!subItem) return byPeriod
-    const own = teamTargets.find(t => t.section_key === sectionKey && t.question_label === questionLabel && t.student_id === selected?.id)
-    const target = own || teamTargets.find(t => t.section_key === sectionKey && t.question_label === questionLabel && !t.student_id)
-    if (!target) return byPeriod
-    const freq = parseFrequencyTarget(target.target_value)
-    if (!freq || !byPeriod[freq.period]) return byPeriod
-    const periodStartStr = periodStartFor(freq.period).toISOString().split('T')[0]
-    const entryCount = f2fData
-      .filter(s => s.session_date >= periodStartStr)
-      .reduce((sum, s) => sum + subItemCountInSession(subItem, s), 0)
-    byPeriod[freq.period] = { done: entryCount, target: freq.targetNum }
+    // A question can have more than one target set against it at once
+    // (e.g. a daily target AND a separate weekly target) -- each is its
+    // own row in teamTargets, so all matching rows need checking, not
+    // just the first one found. For a given period, this athlete's own
+    // override (if any) takes priority over the team-wide default.
+    const matching = teamTargets.filter(t => t.section_key === sectionKey && t.question_label === questionLabel)
+    const resolvedByPeriod = {}
+    matching.forEach(t => {
+      const freq = parseFrequencyTarget(t.target_value)
+      if (!freq || !byPeriod[freq.period]) return
+      const existing = resolvedByPeriod[freq.period]
+      if (existing && existing.student_id === selected?.id) return // already have this athlete's own override for this period
+      if (t.student_id && t.student_id !== selected?.id) return // someone else's override -- not relevant
+      resolvedByPeriod[freq.period] = t
+    })
+    for (const [period, target] of Object.entries(resolvedByPeriod)) {
+      const freq = parseFrequencyTarget(target.target_value)
+      const periodStartStr = periodStartFor(freq.period).toISOString().split('T')[0]
+      const entryCount = f2fData
+        .filter(s => s.session_date >= periodStartStr)
+        .reduce((sum, s) => sum + subItemCountInSession(subItem, s), 0)
+      byPeriod[period] = { done: entryCount, target: freq.targetNum }
+    }
     return byPeriod
   }
   function CoachQuestionProgressBarsVertical({ sectionKey, questionLabel }) {

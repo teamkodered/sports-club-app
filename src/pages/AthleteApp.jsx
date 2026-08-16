@@ -2530,16 +2530,29 @@ export default function AthleteApp() {
   // empty/greyed out.
   function getQuestionProgressByPeriod(sectionKey, questionLabel) {
     const byPeriod = { day: { done: 0, target: 0 }, week: { done: 0, target: 0 }, month: { done: 0, target: 0 } }
-    const own = sectionTargets.find(t => t.section_key === sectionKey && t.question_label === questionLabel && t.student_id === student?.id)
-    const target = own || sectionTargets.find(t => t.section_key === sectionKey && t.question_label === questionLabel && !t.student_id)
-    if (!target) return byPeriod
-    const freq = parseFrequencyTarget(target.target_value)
-    if (!freq || !byPeriod[freq.period]) return byPeriod
-    const periodStartStr = periodStartFor(freq.period).toISOString().split('T')[0]
-    const entryCount = sessions
-      .filter(s => s.session_date >= periodStartStr)
-      .reduce((sum, s) => sum + questionLoggedCount(sectionKey, questionLabel, s), 0)
-    byPeriod[freq.period] = { done: entryCount, target: freq.targetNum }
+    // A question can have more than one target set against it at once
+    // (e.g. a daily target AND a separate weekly target) -- each is its
+    // own row in sectionTargets, so all matching rows need checking,
+    // not just the first one found. For a given period, the athlete's
+    // own override (if any) takes priority over the team-wide default.
+    const matching = sectionTargets.filter(t => t.section_key === sectionKey && t.question_label === questionLabel)
+    const resolvedByPeriod = {}
+    matching.forEach(t => {
+      const freq = parseFrequencyTarget(t.target_value)
+      if (!freq || !byPeriod[freq.period]) return
+      const existing = resolvedByPeriod[freq.period]
+      if (existing && existing.student_id === student?.id) return // already have this athlete's own override for this period
+      if (t.student_id && t.student_id !== student?.id) return // someone else's override -- not relevant
+      resolvedByPeriod[freq.period] = t
+    })
+    for (const [period, target] of Object.entries(resolvedByPeriod)) {
+      const freq = parseFrequencyTarget(target.target_value)
+      const periodStartStr = periodStartFor(freq.period).toISOString().split('T')[0]
+      const entryCount = sessions
+        .filter(s => s.session_date >= periodStartStr)
+        .reduce((sum, s) => sum + questionLoggedCount(sectionKey, questionLabel, s), 0)
+      byPeriod[period] = { done: entryCount, target: freq.targetNum }
+    }
     return byPeriod
   }
   // Compact vertical version (3 bars stacked, not side by side) for
