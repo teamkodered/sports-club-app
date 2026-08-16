@@ -4490,6 +4490,32 @@ export default function AthleteApp() {
                       </div>
                     )}
 
+                    {/* Website Profile preview -- same show_on_website
+                        toggle your coach controls, no separate hide
+                        mechanism here. Public website page itself isn't
+                        live yet; this is a preview of what it will show. */}
+                    {apData?.show_on_website && (
+                      <div className="card" style={{ marginBottom: 14, border: '1px solid #378ADD40' }}>
+                        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: '#378ADD', display: 'flex', alignItems: 'center', gap: 6 }}>
+                          🌐 Website Profile Preview
+                        </h3>
+                        <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 10, fontStyle: 'italic' }}>
+                          This is what will show publicly once the website page is live.
+                        </p>
+                        {[
+                          ['Favourite technique', apData.favourite_technique],
+                          ['Training music', apData.training_music],
+                          ['Social media', apData.social_media],
+                          ['Sponsors', apData.sponsor_links],
+                        ].map(([l, v]) => v && (
+                          <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                            <span style={{ color: 'var(--text-secondary)' }}>{l}</span>
+                            <span style={{ fontWeight: 500, maxWidth: '55%', textAlign: 'right' }}>{v}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
                   </>
                 )
                } catch (e) {

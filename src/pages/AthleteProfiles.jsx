@@ -7698,6 +7698,52 @@ export default function AthleteProfiles() {
                           ))}
                         </div>
                       )}
+                      {/* Website Profile preview -- same show_on_website
+                          toggle as the badge above controls this too, no
+                          separate hide mechanism. Public website page
+                          itself isn't built yet; this is a preview of
+                          what it will show once it is. */}
+                      {apData.show_on_website && (
+                        <div className="card" style={{ gridColumn: '1/-1', border: '1px solid #378ADD40' }}>
+                          <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: '#378ADD', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            🌐 Website Profile Preview
+                          </h3>
+                          <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 10, fontStyle: 'italic' }}>
+                            This is what will show publicly once the website page is live.
+                          </p>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            <div style={{ fontSize: 15, fontWeight: 600 }}>{selected.members?.first_name} {selected.members?.last_name}</div>
+                            {selected.discipline && <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{selected.discipline}</div>}
+                          </div>
+                          {[
+                            ['Favourite technique', apData.favourite_technique],
+                            ['Training music', apData.training_music],
+                            ['Social media', apData.social_media],
+                            ['Sponsors', apData.sponsor_links],
+                          ].map(([l, v]) => v && (
+                            <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13, marginTop: 6 }}>
+                              <span style={{ color: 'var(--text-secondary)' }}>{l}</span>
+                              <span style={{ fontWeight: 500, maxWidth: '55%', textAlign: 'right' }}>{v}</span>
+                            </div>
+                          ))}
+                          {apData.top_achievements && (
+                            <div style={{ marginTop: 10 }}>
+                              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>🏆 Top achievements</div>
+                              <p style={{ fontSize: 13, lineHeight: 1.6 }}>{apData.top_achievements}</p>
+                            </div>
+                          )}
+                          {Array.isArray(apData.recent_results) && apData.recent_results.length > 0 && (
+                            <div style={{ marginTop: 10 }}>
+                              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Recent results</div>
+                              {apData.recent_results.map((r, i) => (
+                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 13 }}>
+                                  <span style={{ fontSize: 14 }}>🎖</span>{r}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
 
