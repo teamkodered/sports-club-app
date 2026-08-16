@@ -2469,16 +2469,18 @@ export default function AthleteApp() {
     const periods = [['day', 'D'], ['week', 'W'], ['month', 'M']]
     if (vertical) {
       return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: 36, flexShrink: 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
           {periods.map(([key, letter]) => {
             const { done, target } = byPeriod[key]
             const hasTarget = target > 0
             const pct = hasTarget ? Math.min(100, Math.round((done / target) * 100)) : 0
             const hit = hasTarget && done >= target
             return (
-              <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ fontSize: 9, fontWeight: 700, width: 9, color: hasTarget ? (hit ? '#1D9E75' : 'var(--text-tertiary)') : 'var(--border)' }}>{letter}</span>
-                <div style={{ flex: 1, height: 5, borderRadius: 3, background: 'var(--border)', overflow: 'hidden' }}>
+              <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, width: 34, flexShrink: 0, textAlign: 'left', color: hasTarget ? (hit ? '#1D9E75' : 'var(--text-tertiary)') : 'var(--border)' }}>
+                  {letter} {hasTarget ? `${done}/${target}` : ''}
+                </span>
+                <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'var(--border)', overflow: 'hidden' }}>
                   {hasTarget && <div style={{ width: `${pct}%`, height: '100%', background: hit ? '#1D9E75' : '#E24B4A', borderRadius: 3 }} />}
                 </div>
               </div>
