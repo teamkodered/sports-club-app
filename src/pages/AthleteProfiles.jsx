@@ -953,7 +953,7 @@ const TEST_CHART_IDS = { 'Bleep test': 'f2f-chart-bleep', 'Fixed load circuit': 
 // Defined at module scope (not inside the page component's render) so
 // React treats it as a stable component across renders, rather than
 // unmounting/remounting it every time the parent re-renders.
-function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setTab, setRunChartFilter, studentId, onToggleLog, onQuickLog, large, questionProgress }) {
+function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setTab, setRunChartFilter, studentId, onToggleLog, onQuickLog, large, questionProgressByPeriod }) {
   const subTypeOptions = getSubTypeOptions(sorted, b.key)
   const currentSubType = moduleSubType[b.key] ?? subTypeOptions[0] ?? null
   const noNumericStat = ['stretch', 'eye_training', 'one_percenters', 'mentality', 'wellbeing'].includes(b.key)
@@ -1059,19 +1059,34 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
         }}
         title={isPhysicalModule ? 'Tap to log in detail — hold to quick-log as done today' : undefined}
         style={{
-        flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
-        padding: large ? '16px 8px' : '8px 4px', background: 'none', border: 'none', borderRight: isSimplifiedModule ? 'none' : '1px solid var(--border)',
+        flex: 1, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+        padding: large ? '12px 8px' : '6px 4px', background: 'none', border: 'none', borderRight: isSimplifiedModule ? 'none' : '1px solid var(--border)',
         cursor: (b.key === 'test' || subTypeOptions.length > 1) ? 'pointer' : 'default',
         minWidth: 0, touchAction: isPhysicalModule ? 'none' : undefined,
       }}>
-        <span style={{ fontSize: large ? 26 : 16 }}>{b.icon}</span>
-        {b.key !== 'test' && <span style={{ fontSize: large ? 14 : 9, fontWeight: 600, whiteSpace: 'nowrap' }}>{b.label}</span>}
-        {b.key !== 'test' && currentSubType && <span style={{ fontSize: large ? 10 : 7, color: colour, fontWeight: 600, textAlign: 'center', lineHeight: 1.2 }}>{currentSubType}</span>}
-        {questionProgress && (
-          <span style={{ fontSize: 8, fontWeight: 700, color: questionProgress.done >= questionProgress.target ? '#0E9F6E' : 'var(--text-tertiary)' }}>
-            {questionProgress.done}/{questionProgress.target} {questionProgress.periodLabel}
-          </span>
+        {questionProgressByPeriod && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, width: 18, flexShrink: 0 }}>
+            {[['day', 'D'], ['week', 'W'], ['month', 'M']].map(([key, letter]) => {
+              const { done, target } = questionProgressByPeriod[key]
+              const hasTarget = target > 0
+              const pct = hasTarget ? Math.min(100, Math.round((done / target) * 100)) : 0
+              const hit = hasTarget && done >= target
+              return (
+                <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <span style={{ fontSize: 6, fontWeight: 700, width: 6, color: hasTarget ? (hit ? '#1D9E75' : 'var(--text-tertiary)') : 'var(--border)' }}>{letter}</span>
+                  <div style={{ flex: 1, height: 3, borderRadius: 2, background: 'var(--border)', overflow: 'hidden' }}>
+                    {hasTarget && <div style={{ width: `${pct}%`, height: '100%', background: hit ? '#1D9E75' : '#E24B4A', borderRadius: 2 }} />}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         )}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minWidth: 0 }}>
+          {b.key !== 'test' && <span style={{ fontSize: large ? 14 : 9, fontWeight: 600, whiteSpace: 'nowrap' }}>{b.label}</span>}
+          {b.key !== 'test' && currentSubType && <span style={{ fontSize: large ? 10 : 7, color: colour, fontWeight: 600, textAlign: 'center', lineHeight: 1.2 }}>{currentSubType}</span>}
+        </div>
+        <span style={{ fontSize: large ? 26 : 16, flexShrink: 0 }}>{b.icon}</span>
       </button>
 
       {/* Right: recent/PB (or last-logged), tap to view results --
@@ -2866,6 +2881,49 @@ export default function AthleteProfiles() {
       <span style={{ fontSize: 8, fontWeight: 700, color: hit ? '#0E9F6E' : 'var(--text-tertiary)' }}>
         {progress.done}/{progress.target} {progress.periodLabel}
       </span>
+    )
+  }
+  // Same as getCoachQuestionProgress, but always returns all 3 periods
+  // (day/week/month) so a question tile can show 3 stacked bars -- a
+  // single question only ever has one target though, so at most one of
+  // the 3 will actually have a non-zero target.
+  function getCoachQuestionProgressByPeriod(sectionKey, questionLabel) {
+    const byPeriod = { day: { done: 0, target: 0 }, week: { done: 0, target: 0 }, month: { done: 0, target: 0 } }
+    const section = DASHBOARD_SECTIONS.find(sec => sec.key === sectionKey)
+    const subItem = section?.subItems.find(sub => sub.label === questionLabel)
+    if (!subItem) return byPeriod
+    const own = teamTargets.find(t => t.section_key === sectionKey && t.question_label === questionLabel && t.student_id === selected?.id)
+    const target = own || teamTargets.find(t => t.section_key === sectionKey && t.question_label === questionLabel && !t.student_id)
+    if (!target) return byPeriod
+    const freq = parseFrequencyTarget(target.target_value)
+    if (!freq || !byPeriod[freq.period]) return byPeriod
+    const periodStartStr = periodStartFor(freq.period).toISOString().split('T')[0]
+    const entryCount = f2fData
+      .filter(s => s.session_date >= periodStartStr)
+      .reduce((sum, s) => sum + subItemCountInSession(subItem, s), 0)
+    byPeriod[freq.period] = { done: entryCount, target: freq.targetNum }
+    return byPeriod
+  }
+  function CoachQuestionProgressBarsVertical({ sectionKey, questionLabel }) {
+    const byPeriod = getCoachQuestionProgressByPeriod(sectionKey, questionLabel)
+    const periods = [['day', 'D'], ['week', 'W'], ['month', 'M']]
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, width: 20, flexShrink: 0 }}>
+        {periods.map(([key, letter]) => {
+          const { done, target } = byPeriod[key]
+          const hasTarget = target > 0
+          const pct = hasTarget ? Math.min(100, Math.round((done / target) * 100)) : 0
+          const hit = hasTarget && done >= target
+          return (
+            <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+              <span style={{ fontSize: 6, fontWeight: 700, width: 6, color: hasTarget ? (hit ? '#1D9E75' : 'var(--text-tertiary)') : 'var(--border)' }}>{letter}</span>
+              <div style={{ flex: 1, height: 3, borderRadius: 2, background: 'var(--border)', overflow: 'hidden' }}>
+                {hasTarget && <div style={{ width: `${pct}%`, height: '100%', background: hit ? '#1D9E75' : '#E24B4A', borderRadius: 2 }} />}
+              </div>
+            </div>
+          )
+        })}
+      </div>
     )
   }
   // Reusable "log multiple sessions of a type per day" UI -- used by
@@ -7635,10 +7693,10 @@ export default function AthleteProfiles() {
                   }}>
                   <div style={{ display: 'grid', gridTemplateColumns: activePhysicalCategory && (activePhysicalCategory === 'running' || activePhysicalCategory === 'watt_bike') ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 8 }}>
                     {(!activePhysicalCategory || activePhysicalCategory === 'running') && (
-                      <ModuleButton b={modules[0]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setRunChartFilter={setRunChartFilter} studentId={selected?.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'running'} questionProgress={getCoachQuestionProgress('physical', 'Running')} />
+                      <ModuleButton b={modules[0]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setRunChartFilter={setRunChartFilter} studentId={selected?.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'running'} questionProgressByPeriod={getCoachQuestionProgressByPeriod('physical', 'Running')} />
                     )}
                     {(!activePhysicalCategory || activePhysicalCategory === 'watt_bike') && (
-                      <ModuleButton b={modules[1]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setRunChartFilter={setRunChartFilter} studentId={selected?.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'watt_bike'} questionProgress={getCoachQuestionProgress('physical', 'Watt Bike')} />
+                      <ModuleButton b={modules[1]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setRunChartFilter={setRunChartFilter} studentId={selected?.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'watt_bike'} questionProgressByPeriod={getCoachQuestionProgressByPeriod('physical', 'Watt Bike')} />
                     )}
                   </div>
                   {showRunCards && (
@@ -7649,14 +7707,14 @@ export default function AthleteProfiles() {
                       const active = expandedHomeRun === cat.key
                       return (
                         <button key={cat.key} type="button" onClick={() => openOnlyPhysicalPanel('run', active ? null : cat.key)} style={{
-                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 8px',
+                          display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: '10px 8px',
                           borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                           border: `2px solid ${active ? colour : complete ? '#E24B4A' : 'var(--border)'}`,
                           background: complete ? '#E24B4A12' : 'var(--bg-secondary)',
                         }}>
-                          <span style={{ fontSize: 22 }}>{cat.icon}</span>
-                          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat.label}</span>
-                          <CoachQuestionProgressBadge sectionKey="physical" questionLabel={`Running: ${cat.key}`} />
+                          <CoachQuestionProgressBarsVertical sectionKey="physical" questionLabel={`Running: ${cat.key}`} />
+                          <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat.label}</span>
+                          <span style={{ fontSize: 22, flexShrink: 0 }}>{cat.icon}</span>
                         </button>
                       )
                     })}
@@ -7762,10 +7820,10 @@ export default function AthleteProfiles() {
 
                   <div style={{ display: 'grid', gridTemplateColumns: activePhysicalCategory && (activePhysicalCategory === 'bodyweight' || activePhysicalCategory === 'stretch') ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 8 }}>
                     {(!activePhysicalCategory || activePhysicalCategory === 'bodyweight') && (
-                      <ModuleButton b={modules[2]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setRunChartFilter={setRunChartFilter} studentId={selected?.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'bodyweight'} questionProgress={getCoachQuestionProgress('physical', 'Bodyweight')} />
+                      <ModuleButton b={modules[2]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setRunChartFilter={setRunChartFilter} studentId={selected?.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'bodyweight'} questionProgressByPeriod={getCoachQuestionProgressByPeriod('physical', 'Bodyweight')} />
                     )}
                     {(!activePhysicalCategory || activePhysicalCategory === 'stretch') && (
-                      <ModuleButton b={modules[3]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setRunChartFilter={setRunChartFilter} studentId={selected?.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'stretch'} questionProgress={getCoachQuestionProgress('physical', 'Stretch flows')} />
+                      <ModuleButton b={modules[3]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setRunChartFilter={setRunChartFilter} studentId={selected?.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'stretch'} questionProgressByPeriod={getCoachQuestionProgressByPeriod('physical', 'Stretch flows')} />
                     )}
                   </div>
                   {showBodyweightCards && (
@@ -8038,13 +8096,16 @@ export default function AthleteProfiles() {
                             <button key={cat} type="button"
                               onClick={() => setExpandedTechniqueCategory(active ? null : catKey)}
                               style={{
-                                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: active ? '20px 10px' : '14px 8px',
+                                display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '16px 10px' : '10px 8px',
                                 borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                                 border: `2px solid ${active ? '#E24B4A' : count ? '#1D9E75' : 'var(--border)'}`,
                                 background: count ? '#1D9E7512' : 'var(--bg-secondary)',
                               }}>
-                              <span style={{ fontSize: active ? 15 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat}</span>
-                              {count > 0 && <span style={{ fontSize: active ? 10 : 8, color: '#1D9E75' }}>{count} selected</span>}
+                              <CoachQuestionProgressBarsVertical sectionKey="technique" questionLabel={cat} />
+                              <span style={{ flex: 1, textAlign: 'center' }}>
+                                <span style={{ display: 'block', fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', lineHeight: 1.2 }}>{cat}</span>
+                                {count > 0 && <span style={{ display: 'block', fontSize: active ? 10 : 8, color: '#1D9E75' }}>{count} selected</span>}
+                              </span>
                             </button>
                           )
                         })}
@@ -8120,13 +8181,14 @@ export default function AthleteProfiles() {
                         const complete = !!todaysMentalityLog.videoAnalysis?.type
                         return (
                           <button key={cat} type="button" onClick={() => setExpandedTacticalCategory(active ? null : cat)} style={{
-                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: active ? '20px 10px' : '14px 8px',
+                            display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '16px 10px' : '10px 8px',
                             borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                             border: `2px solid ${active ? '#E24B4A' : complete ? '#1D9E75' : 'var(--border)'}`,
                             background: complete ? '#1D9E7512' : 'var(--bg-secondary)',
                           }}>
-                            <span style={{ fontSize: active ? 20 : 16 }}>🎥</span>
-                            <span style={{ fontSize: active ? 15 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>Video Analysis</span>
+                            <CoachQuestionProgressBarsVertical sectionKey="mentality" questionLabel="Video Analysis" />
+                            <span style={{ flex: 1, fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>Video Analysis</span>
+                            <span style={{ fontSize: active ? 20 : 16, flexShrink: 0 }}>🎥</span>
                           </button>
                         )
                       }
@@ -8137,14 +8199,16 @@ export default function AthleteProfiles() {
                         <button key={cat_} type="button"
                           onClick={() => setExpandedTacticalCategory(active ? null : cat_)}
                           style={{
-                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: active ? '20px 10px' : '14px 8px',
+                            display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '16px 10px' : '10px 8px',
                             borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                             border: `2px solid ${active ? '#E24B4A' : count ? '#1D9E75' : 'var(--border)'}`,
                             background: count ? '#1D9E7512' : 'var(--bg-secondary)',
                           }}>
-                          <span style={{ fontSize: active ? 15 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat_}</span>
-                          {count > 0 && <span style={{ fontSize: active ? 10 : 8, color: '#1D9E75' }}>{count} selected</span>}
-                          <CoachQuestionProgressBadge sectionKey="tactical" questionLabel={cat_} />
+                          <CoachQuestionProgressBarsVertical sectionKey="tactical" questionLabel={cat_} />
+                          <span style={{ flex: 1, textAlign: 'center' }}>
+                            <span style={{ display: 'block', fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', lineHeight: 1.2 }}>{cat_}</span>
+                            {count > 0 && <span style={{ display: 'block', fontSize: active ? 10 : 8, color: '#1D9E75' }}>{count} selected</span>}
+                          </span>
                         </button>
                       )
                     })}
@@ -8223,14 +8287,14 @@ export default function AthleteProfiles() {
                       const active = expandedHomeMentality === q.key
                       return (
                         <button key={q.key} type="button" onClick={() => q.key === 'alterEgo' ? setShowAlterEgoModal(true) : setExpandedHomeMentality(active ? null : q.key)} style={{
-                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: active ? '20px 10px' : '14px 8px',
+                          display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '16px 10px' : '10px 8px',
                           borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                           border: `2px solid ${active ? colour : complete ? '#6D28D9' : 'var(--border)'}`,
                           background: complete ? '#6D28D912' : 'var(--bg-secondary)',
                         }}>
-                          <span style={{ fontSize: active ? 30 : 20 }}>{q.icon}</span>
-                          <span style={{ fontSize: active ? 15 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{q.label}</span>
-                          <CoachQuestionProgressBadge sectionKey="mentality" questionLabel={q.label} />
+                          <CoachQuestionProgressBarsVertical sectionKey="mentality" questionLabel={q.label} />
+                          <span style={{ flex: 1, fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{q.label}</span>
+                          <span style={{ fontSize: active ? 26 : 20, flexShrink: 0 }}>{q.icon}</span>
                         </button>
                       )
                     })}
@@ -8562,14 +8626,14 @@ export default function AthleteProfiles() {
                       const active = expandedHomeWb === q.key
                       return (
                         <button key={q.key} type="button" onClick={() => setExpandedHomeWb(active ? null : q.key)} style={{
-                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: active ? '20px 10px' : '14px 8px',
+                          display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '16px 10px' : '10px 8px',
                           borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                           border: `2px solid ${active ? colour : complete ? '#0E9F6E' : 'var(--border)'}`,
                           background: complete ? '#0E9F6E12' : 'var(--bg-secondary)',
                         }}>
-                          <span style={{ fontSize: active ? 30 : 20 }}>{q.icon}</span>
-                          <span style={{ fontSize: active ? 15 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{q.label}</span>
-                          <CoachQuestionProgressBadge sectionKey="wellbeing" questionLabel={q.label} />
+                          <CoachQuestionProgressBarsVertical sectionKey="wellbeing" questionLabel={q.label} />
+                          <span style={{ flex: 1, fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{q.label}</span>
+                          <span style={{ fontSize: active ? 26 : 20, flexShrink: 0 }}>{q.icon}</span>
                         </button>
                       )
                     })}
@@ -8816,14 +8880,14 @@ export default function AthleteProfiles() {
                       const active = expandedHomeTestCategory === cat.key
                       return (
                         <button key={cat.key} type="button" onClick={() => setExpandedHomeTestCategory(active ? null : cat.key)} style={{
-                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: active ? '20px 10px' : '14px 8px',
+                          display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '16px 10px' : '10px 8px',
                           borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                           border: `2px solid ${active ? colour : complete ? '#8B5CF6' : 'var(--border)'}`,
                           background: complete ? '#8B5CF612' : 'var(--bg-secondary)',
                         }}>
-                          <span style={{ fontSize: active ? 30 : 20 }}>{cat.icon}</span>
-                          <span style={{ fontSize: active ? 15 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat.label}</span>
-                          <CoachQuestionProgressBadge sectionKey="test" questionLabel={cat.label} />
+                          <CoachQuestionProgressBarsVertical sectionKey="test" questionLabel={cat.label} />
+                          <span style={{ flex: 1, fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat.label}</span>
+                          <span style={{ fontSize: active ? 26 : 20, flexShrink: 0 }}>{cat.icon}</span>
                         </button>
                       )
                     })}
