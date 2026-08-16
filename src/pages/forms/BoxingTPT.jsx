@@ -327,11 +327,13 @@ export default function BoxingTPT() {
                     ))}
                   </select>
                 </div>
-              ) : (
+              ) : isStaff ? (
                 <div className="field-row">
                   <div className="field"><label>First name</label><input value={student.first_name} onChange={e => setStudent(s => ({ ...s, first_name: e.target.value }))} placeholder="First name" /></div>
                   <div className="field"><label>Last name</label><input value={student.last_name} onChange={e => setStudent(s => ({ ...s, last_name: e.target.value }))} placeholder="Last name" /></div>
                 </div>
+              ) : (
+                <p style={{ fontSize: 14, fontWeight: 500 }}>{student.first_name} {student.last_name}</p>
               )}
             </div>
 
