@@ -7975,19 +7975,19 @@ export default function AthleteProfiles() {
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, alignItems: 'start', width: '100%' }}>
                   <div ref={physicalSectionRef} style={{ order: showPhysicalSection ? 0 : 4, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showPhysicalSection ? '1 / -1' : 'auto' }}>
                   <button type="button" onClick={togglePhysicalSection} style={showPhysicalSection ? {
-                    width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'stretch', gap: 8,
+                    width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
                     textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   } : {
-                    width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'stretch', gap: 10,
-                    textAlign: 'center', padding: '42px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
+                    width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 12,
+                    textAlign: 'center', padding: '18px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-start', flex: 1 }}>
-                      <CoachSectionProgressBars sectionKey="physical" vertical />
+                    <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                       <span style={{ fontSize: showPhysicalSection ? 17 : 15, fontWeight: 700, color: 'var(--text)' }}>Physical</span>
+                      <span style={{ fontSize: 24, flexShrink: 0 }}>💪</span>
                     </div>
-                    <span style={{ fontSize: 24, flexShrink: 0, alignSelf: 'center' }}>💪</span>
+                    <CoachSectionProgressBars sectionKey="physical" vertical />
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showPhysicalSection ? '▲' : '▼'}</span>
                   </button>
 
@@ -8357,19 +8357,19 @@ export default function AthleteProfiles() {
 
                   <div ref={techniqueSectionRef} style={{ order: showTechniqueSection ? 0 : 3, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showTechniqueSection ? '1 / -1' : 'auto' }}>
                   <button type="button" onClick={() => { setShowTechniqueSection(v => { if (v) setExpandedTechniqueCategory(null); return !v }) }} style={showTechniqueSection ? {
-                    width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'stretch', gap: 8,
+                    width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
                     textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   } : {
-                    width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'stretch', gap: 10,
-                    textAlign: 'center', padding: '42px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
+                    width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 12,
+                    textAlign: 'center', padding: '18px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-start', flex: 1 }}>
-                      <CoachSectionProgressBars sectionKey="technique" vertical />
+                    <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                       <span style={{ fontSize: showTechniqueSection ? 17 : 15, fontWeight: 700, color: 'var(--text)' }}>Technique</span>
+                      <span style={{ fontSize: 24, flexShrink: 0 }}>🥊</span>
                     </div>
-                    <span style={{ fontSize: 24, flexShrink: 0, alignSelf: 'center' }}>🥊</span>
+                    <CoachSectionProgressBars sectionKey="technique" vertical />
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showTechniqueSection ? '▲' : '▼'}</span>
                   </button>
 
@@ -8462,19 +8462,19 @@ export default function AthleteProfiles() {
 
                   <div ref={tacticalSectionRef} style={{ order: showTacticalSection ? 0 : 2, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showTacticalSection ? '1 / -1' : 'auto' }}>
                   <button type="button" onClick={() => { setShowTacticalSection(v => { if (v) setExpandedTacticalCategory(null); return !v }) }} style={showTacticalSection ? {
-                    width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'stretch', gap: 8,
+                    width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
                     textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   } : {
-                    width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'stretch', gap: 10,
-                    textAlign: 'center', padding: '42px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
+                    width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 12,
+                    textAlign: 'center', padding: '18px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-start', flex: 1 }}>
-                      <CoachSectionProgressBars sectionKey="tactical" vertical />
+                    <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                       <span style={{ fontSize: showTacticalSection ? 17 : 15, fontWeight: 700, color: 'var(--text)' }}>Tactical</span>
+                      <span style={{ fontSize: 24, flexShrink: 0 }}>🧩</span>
                     </div>
-                    <span style={{ fontSize: 24, flexShrink: 0, alignSelf: 'center' }}>🧩</span>
+                    <CoachSectionProgressBars sectionKey="tactical" vertical />
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showTacticalSection ? '▲' : '▼'}</span>
                   </button>
 
@@ -8571,19 +8571,19 @@ export default function AthleteProfiles() {
 
                   <div ref={mentalitySectionRef} style={{ order: showMentalitySection ? 0 : 1, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showMentalitySection ? '1 / -1' : 'auto' }}>
                   <button type="button" onClick={() => { setShowMentalitySection(v => { if (v) setExpandedHomeMentality(null); return !v }) }} style={showMentalitySection ? {
-                    width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'stretch', gap: 8,
+                    width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
                     textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   } : {
-                    width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'stretch', gap: 10,
-                    textAlign: 'center', padding: '42px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
+                    width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 12,
+                    textAlign: 'center', padding: '18px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-start', flex: 1 }}>
-                      <CoachSectionProgressBars sectionKey="mentality" vertical />
+                    <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                       <span style={{ fontSize: showMentalitySection ? 17 : 15, fontWeight: 700, color: 'var(--text)' }}>Mentality</span>
+                      <span style={{ fontSize: 24, flexShrink: 0 }}>🧠</span>
                     </div>
-                    <span style={{ fontSize: 24, flexShrink: 0, alignSelf: 'center' }}>🧠</span>
+                    <CoachSectionProgressBars sectionKey="mentality" vertical />
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showMentalitySection ? '▲' : '▼'}</span>
                   </button>
 
