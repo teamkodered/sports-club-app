@@ -3529,7 +3529,7 @@ export default function AthleteApp() {
                     }}>
                       <div style={{ display: 'flex', width: '100%' }}>
                         <img
-                          src={student.discipline === 'KRBA' ? '/logos/physical-boxing.png' : student.is_kr ? '/logos/physical-kickboxing.png' : '/logos/icon-physical.png'}
+                          src="/logos/section-physical.png"
                           alt="Physical" style={{ width: '100%', height: 'auto', objectFit: 'contain' }}
                         />
                       </div>
@@ -3890,10 +3890,10 @@ export default function AthleteApp() {
                     }}>
                       <div style={{ display: 'flex', width: '100%' }}>
                         <img
-                          src={student.discipline === 'KRBA' ? '/logos/technical-boxing.png' : student.is_kr ? '/logos/technical-kickboxing.png' : '/logos/icon-technical.png'}
+                          src="/logos/section-technical.png"
                           alt="Technique" style={{
                             width: '100%', height: 'auto', objectFit: 'cover',
-                            aspectRatio: student.discipline === 'KRBA' ? '964 / 324' : student.is_kr ? '832 / 346' : undefined,
+                            aspectRatio: '798 / 274',
                           }}
                         />
                       </div>
@@ -4001,7 +4001,7 @@ export default function AthleteApp() {
                     }}>
                       <div style={{ display: 'flex', width: '100%' }}>
                         <img
-                          src={student.discipline === 'KRBA' ? '/logos/tactical-boxing.png' : student.is_kr ? '/logos/tactical-kickboxing.png' : '/logos/icon-tactical.png'}
+                          src="/logos/section-tactical.png"
                           alt="Tactical" style={{ width: '100%', height: 'auto', objectFit: 'contain' }}
                         />
                       </div>
@@ -4114,10 +4114,10 @@ export default function AthleteApp() {
                     }}>
                       <div style={{ display: 'flex', width: '100%' }}>
                         <img
-                          src={student.discipline === 'KRBA' ? '/logos/mentality-boxing.png' : student.is_kr ? '/logos/mentality-kickboxing.png' : '/logos/icon-mentality.png'}
+                          src="/logos/section-mentality.png"
                           alt="Mentality" style={{
                             width: '100%', height: 'auto', objectFit: 'cover',
-                            aspectRatio: student.discipline === 'KRBA' ? '966 / 284' : student.is_kr ? '988 / 327' : undefined,
+                            aspectRatio: '799 / 240',
                           }}
                         />
                       </div>
@@ -4461,7 +4461,7 @@ export default function AthleteApp() {
                     }}>
                       <div style={{ display: 'flex', width: '100%', justifyContent: 'center' }}>
                         <img
-                          src={student.discipline === 'KRBA' ? '/logos/foundation-boxing.png' : student.is_kr ? '/logos/foundation-kickboxing.png' : '/logos/icon-foundation.png'}
+                          src="/logos/section-foundation.png"
                           alt="Foundation" style={{ width: '55%', height: 'auto', objectFit: 'contain' }}
                         />
                       </div>
