@@ -57,10 +57,38 @@ export default function CRM() {
   const [missedTrainingLoading, setMissedTrainingLoading] = useState(false)
   const [selectedMissed, setSelectedMissed] = useState(new Set())
   const [autoSendMissedTraining, setAutoSendMissedTraining] = useState(false)
+  const [showMissedTrainingHelp, setShowMissedTrainingHelp] = useState(false)
+  const [mtTemplates, setMtTemplates] = useState([
+    { label: 'Template 1', body: '' },
+    { label: 'Template 2', body: '' },
+    { label: 'Template 3', body: '' },
+    { label: 'Template 4', body: '' },
+    { label: 'Template 5', body: '' },
+  ])
+  const [mtEditingIdx, setMtEditingIdx] = useState(null)
+  const [mtTemplateDraft, setMtTemplateDraft] = useState({ label: '', body: '' })
+  const [mtSavingTemplate, setMtSavingTemplate] = useState(false)
+  const [mtSelectedTemplateIdx, setMtSelectedTemplateIdx] = useState(null)
+  const [mtRecipientId, setMtRecipientId] = useState(null)
+  const [mtRecipientSearch, setMtRecipientSearch] = useState('')
   const [birthdays, setBirthdays] = useState([]) // computed list, loaded on first visit to that tab
   const [birthdaysLoaded, setBirthdaysLoaded] = useState(false)
   const [selectedBirthdays, setSelectedBirthdays] = useState(new Set())
   const [autoSendBirthdays, setAutoSendBirthdays] = useState(false)
+  const [showBirthdaysHelp, setShowBirthdaysHelp] = useState(false)
+  const [bdTemplates, setBdTemplates] = useState([
+    { label: 'Template 1', body: '' },
+    { label: 'Template 2', body: '' },
+    { label: 'Template 3', body: '' },
+    { label: 'Template 4', body: '' },
+    { label: 'Template 5', body: '' },
+  ])
+  const [bdEditingIdx, setBdEditingIdx] = useState(null)
+  const [bdTemplateDraft, setBdTemplateDraft] = useState({ label: '', body: '' })
+  const [bdSavingTemplate, setBdSavingTemplate] = useState(false)
+  const [bdSelectedTemplateIdx, setBdSelectedTemplateIdx] = useState(null)
+  const [bdRecipientId, setBdRecipientId] = useState(null)
+  const [bdRecipientSearch, setBdRecipientSearch] = useState('')
   const [courses, setCourses] = useState([])
   const [coursesLoaded, setCoursesLoaded] = useState(false)
   const [editingCourse, setEditingCourse] = useState(null) // {} for new, or the course object
@@ -92,6 +120,14 @@ export default function CRM() {
         if (Array.isArray(data?.value) && data.value.length === 5) setTemplates(data.value)
         setTemplatesLoaded(true)
       })
+    supabase.from('settings').select('value').eq('key', 'crm_missed_training_templates').single()
+      .then(({ data }) => {
+        if (Array.isArray(data?.value) && data.value.length === 5) setMtTemplates(data.value)
+      })
+    supabase.from('settings').select('value').eq('key', 'crm_birthday_templates').single()
+      .then(({ data }) => {
+        if (Array.isArray(data?.value) && data.value.length === 5) setBdTemplates(data.value)
+      })
   }, [])
 
   async function saveTemplate(idx) {
@@ -102,6 +138,26 @@ export default function CRM() {
     if (error) { alert('Error saving template: ' + error.message); return }
     setTemplates(updated)
     setEditingTemplateIdx(null)
+  }
+
+  async function saveMtTemplate(idx) {
+    setMtSavingTemplate(true)
+    const updated = mtTemplates.map((t, i) => i === idx ? { ...mtTemplateDraft } : t)
+    const { error } = await supabase.from('settings').upsert({ key: 'crm_missed_training_templates', value: updated }, { onConflict: 'key' })
+    setMtSavingTemplate(false)
+    if (error) { alert('Error saving template: ' + error.message); return }
+    setMtTemplates(updated)
+    setMtEditingIdx(null)
+  }
+
+  async function saveBdTemplate(idx) {
+    setBdSavingTemplate(true)
+    const updated = bdTemplates.map((t, i) => i === idx ? { ...bdTemplateDraft } : t)
+    const { error } = await supabase.from('settings').upsert({ key: 'crm_birthday_templates', value: updated }, { onConflict: 'key' })
+    setBdSavingTemplate(false)
+    if (error) { alert('Error saving template: ' + error.message); return }
+    setBdTemplates(updated)
+    setBdEditingIdx(null)
   }
 
   async function loadCourses() {
@@ -936,14 +992,87 @@ export default function CRM() {
       {tab === 'missed_training' && (
         <div>
           <div className="card" style={{ marginBottom: 16 }}>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 10 }}>
-              Active students with an assigned class who haven't attended anything in 4+ weeks (28 days) — or have never attended at all.
-            </p>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, opacity: 0.6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: showMissedTrainingHelp ? 6 : 10 }}>
+              <h2 style={{ fontSize: 15, fontWeight: 600 }}>Missed training</h2>
+              <button className="btn btn-sm" title="What does this do?" onClick={() => setShowMissedTrainingHelp(v => !v)}
+                style={{ width: 20, height: 20, padding: 0, borderRadius: '50%', fontSize: 11, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                ?
+              </button>
+            </div>
+            {showMissedTrainingHelp && (
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 10 }}>
+                Active students with an assigned class who haven't attended anything in 4+ weeks (28 days) — or have never attended at all.
+              </p>
+            )}
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, opacity: 0.6, marginBottom: 14 }}>
               <input type="checkbox" checked={autoSendMissedTraining} disabled onChange={() => {}} />
               Auto-send a reminder automatically
               <span style={{ fontStyle: 'italic' }}>— needs an email/SMS service connected first (not set up yet); manual send below works now</span>
             </label>
+
+            <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>Message templates — press to select, then choose who to send it to</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 12 }}>
+              {mtTemplates.map((t, i) => (
+                mtEditingIdx === i ? (
+                  <div key={i} className="card" style={{ padding: 8, background: 'var(--bg-secondary)' }}>
+                    <input value={mtTemplateDraft.label} onChange={e => setMtTemplateDraft(d => ({ ...d, label: e.target.value }))}
+                      placeholder="Label" style={{ width: '100%', fontSize: 11, fontWeight: 600, marginBottom: 6, padding: '3px 6px' }} />
+                    <textarea value={mtTemplateDraft.body} onChange={e => setMtTemplateDraft(d => ({ ...d, body: e.target.value }))}
+                      placeholder="Message text — use {name} for the student's first name" rows={4}
+                      style={{ width: '100%', fontSize: 11, marginBottom: 6, resize: 'vertical' }} />
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px', flex: 1 }} disabled={mtSavingTemplate}
+                        onClick={() => saveMtTemplate(i)}>{mtSavingTemplate ? 'Saving…' : 'Save'}</button>
+                      <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }} onClick={() => setMtEditingIdx(null)}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div key={i}
+                    onClick={() => setMtSelectedTemplateIdx(mtSelectedTemplateIdx === i ? null : i)}
+                    style={{
+                      padding: 8, borderRadius: 'var(--radius)', cursor: 'pointer', position: 'relative',
+                      background: mtSelectedTemplateIdx === i ? '#378ADD20' : 'var(--bg-secondary)',
+                      border: mtSelectedTemplateIdx === i ? '2px solid #378ADD' : '1px solid var(--border)',
+                      minHeight: 92, display: 'flex', flexDirection: 'column',
+                    }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                      <span style={{ fontSize: 11, fontWeight: 600 }}>{t.label || `Template ${i + 1}`}</span>
+                      <button className="btn btn-sm" style={{ fontSize: 9, padding: '1px 6px' }}
+                        onClick={e => { e.stopPropagation(); setMtEditingIdx(i); setMtTemplateDraft(t) }}>Edit</button>
+                    </div>
+                    <p style={{ fontSize: 10, color: 'var(--text-tertiary)', lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical' }}>
+                      {t.body || 'No message set yet — click Edit'}
+                    </p>
+                  </div>
+                )
+              ))}
+            </div>
+
+            {mtSelectedTemplateIdx != null && (
+              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 10 }}>
+                <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>Send "{mtTemplates[mtSelectedTemplateIdx].label}" to:</p>
+                <input value={mtRecipientSearch} onChange={e => { setMtRecipientSearch(e.target.value); setMtRecipientId(null) }}
+                  placeholder="Search students missing training…" style={{ width: '100%', fontSize: 12, marginBottom: 6 }} />
+                {mtRecipientSearch && !mtRecipientId && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 160, overflowY: 'auto', marginBottom: 6 }}>
+                    {missedTraining.filter(r => studentFullName(r.student).toLowerCase().includes(mtRecipientSearch.toLowerCase())).slice(0, 8).map(r => (
+                      <div key={r.student.id} onClick={() => { setMtRecipientId(r.student.id); setMtRecipientSearch(studentFullName(r.student)) }}
+                        style={{ fontSize: 12, padding: '4px 8px', borderRadius: 'var(--radius)', cursor: 'pointer', background: 'var(--bg)' }}>
+                        {studentFullName(r.student)}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button className="btn btn-sm btn-primary" disabled={!mtRecipientId}
+                  onClick={() => {
+                    const recipient = missedTraining.find(r => r.student.id === mtRecipientId)?.student
+                    const text = (mtTemplates[mtSelectedTemplateIdx].body || '').replace(/\{name\}/gi, recipient?.members?.first_name || '')
+                    shareText(text)
+                  }}>
+                  📤 Share to {mtRecipientId ? studentFullName(missedTraining.find(r => r.student.id === mtRecipientId)?.student) : 'selected student'}
+                </button>
+              </div>
+            )}
           </div>
 
           {missedTrainingLoading ? (
@@ -1001,14 +1130,8 @@ export default function CRM() {
                           <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{r.lastDate ? new Date(r.lastDate).toLocaleDateString('en-GB') : 'Never'}</td>
                           <td style={{ fontSize: 13, fontWeight: 600, color: '#E24B4A' }}>{r.weeksMissed ?? '—'}</td>
                           <td>
-                            <div style={{ display: 'flex', gap: 6 }}>
-                              <a className="btn btn-sm" style={{ fontSize: 11 }} href={email ? `mailto:${email}?subject=We've%20missed%20you!&body=${smsBody}` : undefined}
-                                onClick={e => { if (!email) e.preventDefault() }}
-                                title={email || 'No real email on file'}>✉️</a>
-                              <a className="btn btn-sm" style={{ fontSize: 11 }} href={phone ? `sms:${phone.replace(/\s/g,'')}?body=${smsBody}` : undefined}
-                                onClick={e => { if (!phone) e.preventDefault() }}
-                                title={phone || 'No phone on file'}>📱</a>
-                            </div>
+                            <button className="btn btn-sm" style={{ fontSize: 11 }} title="Share reminder (text, WhatsApp, email...)"
+                              onClick={() => shareText(decodeURIComponent(smsBody))}>📤</button>
                           </td>
                         </tr>
                       )
@@ -1024,14 +1147,87 @@ export default function CRM() {
       {tab === 'birthdays' && (
         <div>
           <div className="card" style={{ marginBottom: 16 }}>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 10 }}>
-              Active students with a birthday in the next 4 weeks.
-            </p>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, opacity: 0.6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: showBirthdaysHelp ? 6 : 10 }}>
+              <h2 style={{ fontSize: 15, fontWeight: 600 }}>Birthdays</h2>
+              <button className="btn btn-sm" title="What does this do?" onClick={() => setShowBirthdaysHelp(v => !v)}
+                style={{ width: 20, height: 20, padding: 0, borderRadius: '50%', fontSize: 11, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                ?
+              </button>
+            </div>
+            {showBirthdaysHelp && (
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 10 }}>
+                Active students with a birthday in the next 4 weeks.
+              </p>
+            )}
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, opacity: 0.6, marginBottom: 14 }}>
               <input type="checkbox" checked={autoSendBirthdays} disabled onChange={() => {}} />
               Auto-send a birthday message on the morning of their birthday
               <span style={{ fontStyle: 'italic' }}>— needs an email/SMS service + a daily scheduled job (not set up yet); manual send below works now</span>
             </label>
+
+            <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>Message templates — press to select, then choose who to send it to</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 12 }}>
+              {bdTemplates.map((t, i) => (
+                bdEditingIdx === i ? (
+                  <div key={i} className="card" style={{ padding: 8, background: 'var(--bg-secondary)' }}>
+                    <input value={bdTemplateDraft.label} onChange={e => setBdTemplateDraft(d => ({ ...d, label: e.target.value }))}
+                      placeholder="Label" style={{ width: '100%', fontSize: 11, fontWeight: 600, marginBottom: 6, padding: '3px 6px' }} />
+                    <textarea value={bdTemplateDraft.body} onChange={e => setBdTemplateDraft(d => ({ ...d, body: e.target.value }))}
+                      placeholder="Message text — use {name} for the student's first name" rows={4}
+                      style={{ width: '100%', fontSize: 11, marginBottom: 6, resize: 'vertical' }} />
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px', flex: 1 }} disabled={bdSavingTemplate}
+                        onClick={() => saveBdTemplate(i)}>{bdSavingTemplate ? 'Saving…' : 'Save'}</button>
+                      <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }} onClick={() => setBdEditingIdx(null)}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div key={i}
+                    onClick={() => setBdSelectedTemplateIdx(bdSelectedTemplateIdx === i ? null : i)}
+                    style={{
+                      padding: 8, borderRadius: 'var(--radius)', cursor: 'pointer', position: 'relative',
+                      background: bdSelectedTemplateIdx === i ? '#378ADD20' : 'var(--bg-secondary)',
+                      border: bdSelectedTemplateIdx === i ? '2px solid #378ADD' : '1px solid var(--border)',
+                      minHeight: 92, display: 'flex', flexDirection: 'column',
+                    }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                      <span style={{ fontSize: 11, fontWeight: 600 }}>{t.label || `Template ${i + 1}`}</span>
+                      <button className="btn btn-sm" style={{ fontSize: 9, padding: '1px 6px' }}
+                        onClick={e => { e.stopPropagation(); setBdEditingIdx(i); setBdTemplateDraft(t) }}>Edit</button>
+                    </div>
+                    <p style={{ fontSize: 10, color: 'var(--text-tertiary)', lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical' }}>
+                      {t.body || 'No message set yet — click Edit'}
+                    </p>
+                  </div>
+                )
+              ))}
+            </div>
+
+            {bdSelectedTemplateIdx != null && (
+              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 10 }}>
+                <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>Send "{bdTemplates[bdSelectedTemplateIdx].label}" to:</p>
+                <input value={bdRecipientSearch} onChange={e => { setBdRecipientSearch(e.target.value); setBdRecipientId(null) }}
+                  placeholder="Search students with a birthday coming up…" style={{ width: '100%', fontSize: 12, marginBottom: 6 }} />
+                {bdRecipientSearch && !bdRecipientId && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 160, overflowY: 'auto', marginBottom: 6 }}>
+                    {birthdays.filter(r => studentFullName(r.student).toLowerCase().includes(bdRecipientSearch.toLowerCase())).slice(0, 8).map(r => (
+                      <div key={r.student.id} onClick={() => { setBdRecipientId(r.student.id); setBdRecipientSearch(studentFullName(r.student)) }}
+                        style={{ fontSize: 12, padding: '4px 8px', borderRadius: 'var(--radius)', cursor: 'pointer', background: 'var(--bg)' }}>
+                        {studentFullName(r.student)}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button className="btn btn-sm btn-primary" disabled={!bdRecipientId}
+                  onClick={() => {
+                    const recipient = birthdays.find(r => r.student.id === bdRecipientId)?.student
+                    const text = (bdTemplates[bdSelectedTemplateIdx].body || '').replace(/\{name\}/gi, recipient?.members?.first_name || '')
+                    shareText(text)
+                  }}>
+                  📤 Share to {bdRecipientId ? studentFullName(birthdays.find(r => r.student.id === bdRecipientId)?.student) : 'selected student'}
+                </button>
+              </div>
+            )}
           </div>
 
           {birthdays.length === 0 ? (
@@ -1090,14 +1286,8 @@ export default function CRM() {
                           </td>
                           <td style={{ fontSize: 13, fontWeight: 600, color: '#EF9F27' }}>{r.turningAge}</td>
                           <td>
-                            <div style={{ display: 'flex', gap: 6 }}>
-                              <a className="btn btn-sm" style={{ fontSize: 11 }} href={email ? `mailto:${email}?subject=Happy%20Birthday!&body=${msgBody}` : undefined}
-                                onClick={e => { if (!email) e.preventDefault() }}
-                                title={email || 'No real email on file'}>✉️</a>
-                              <a className="btn btn-sm" style={{ fontSize: 11 }} href={phone ? `sms:${phone.replace(/\s/g,'')}?body=${msgBody}` : undefined}
-                                onClick={e => { if (!phone) e.preventDefault() }}
-                                title={phone || 'No phone on file'}>📱</a>
-                            </div>
+                            <button className="btn btn-sm" style={{ fontSize: 11 }} title="Share birthday message (text, WhatsApp, email...)"
+                              onClick={() => shareText(decodeURIComponent(msgBody))}>📤</button>
                           </td>
                         </tr>
                       )
