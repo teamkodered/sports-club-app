@@ -3401,6 +3401,7 @@ export default function AthleteProfiles() {
   // Closes again on a second press, or on clicking anywhere outside
   // the card.
   const [profileInfoExpanded, setProfileInfoExpanded] = useState(false)
+  const [athleteInfoExpanded, setAthleteInfoExpanded] = useState(false)
   const profileHeaderRef = useRef(null)
   useEffect(() => {
     if (!profileInfoExpanded) return
@@ -7681,22 +7682,6 @@ export default function AthleteProfiles() {
 
                   {apData && (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-                      {(apData.favourite_technique || apData.training_music || apData.social_media || apData.sponsor_links) && (
-                        <div className="card">
-                          <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: colour }}>Athlete info</h3>
-                          {[
-                            ['Favourite technique', apData.favourite_technique],
-                            ['Training music', apData.training_music],
-                            ['Social media', apData.social_media],
-                            ['Sponsors', apData.sponsor_links],
-                          ].map(([l, v]) => v && (
-                            <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
-                              <span style={{ color: 'var(--text-secondary)' }}>{l}</span>
-                              <span style={{ fontWeight: 500, maxWidth: '55%', textAlign: 'right' }}>{v}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
                       {apData.top_achievements && (
                         <div className="card" style={{ gridColumn: '1/-1' }}>
                           <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: colour }}>🏆 Top achievements</h3>
@@ -7759,6 +7744,36 @@ export default function AthleteProfiles() {
                           )}
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {apData && (apData.favourite_technique || apData.training_music || apData.social_media || apData.sponsor_links) && (
+                    <div className="card" style={{ padding: 0, marginBottom: 14 }}>
+                      <div onClick={() => setAthleteInfoExpanded(v => !v)}
+                        style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: athleteInfoExpanded ? '1px solid var(--border)' : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
+                        <span style={{ color: colour }}>Athlete info</span>
+                        <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{athleteInfoExpanded ? '▲' : '▼'}</span>
+                      </div>
+                      <div style={{
+                        maxHeight: athleteInfoExpanded ? 2000 : 0,
+                        opacity: athleteInfoExpanded ? 1 : 0,
+                        overflow: 'hidden',
+                        transition: 'max-height 0.3s ease, opacity 0.25s ease',
+                      }}>
+                        <div style={{ padding: '4px 14px 10px' }}>
+                          {[
+                            ['Favourite technique', apData.favourite_technique],
+                            ['Training music', apData.training_music],
+                            ['Social media', apData.social_media],
+                            ['Sponsors', apData.sponsor_links],
+                          ].map(([l, v]) => v && (
+                            <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                              <span style={{ color: 'var(--text-secondary)' }}>{l}</span>
+                              <span style={{ fontWeight: 500, maxWidth: '55%', textAlign: 'right' }}>{v}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   )}
 
