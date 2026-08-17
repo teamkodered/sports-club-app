@@ -70,6 +70,39 @@ export default function CRM() {
   const [savingCourse, setSavingCourse] = useState(false)
   const [uploadingPoster, setUploadingPoster] = useState(false)
   const [expandedCourseId, setExpandedCourseId] = useState(null)
+  const [showUploadHelp, setShowUploadHelp] = useState(false)
+  const [templates, setTemplates] = useState([
+    { label: 'Template 1', body: '' },
+    { label: 'Template 2', body: '' },
+    { label: 'Template 3', body: '' },
+    { label: 'Template 4', body: '' },
+    { label: 'Template 5', body: '' },
+  ])
+  const [templatesLoaded, setTemplatesLoaded] = useState(false)
+  const [editingTemplateIdx, setEditingTemplateIdx] = useState(null) // index being edited, or null
+  const [templateDraft, setTemplateDraft] = useState({ label: '', body: '' })
+  const [savingTemplate, setSavingTemplate] = useState(false)
+  const [selectedTemplateIdx, setSelectedTemplateIdx] = useState(null)
+  const [templateRecipientId, setTemplateRecipientId] = useState(null) // student id chosen to send the selected template to
+  const [templateRecipientSearch, setTemplateRecipientSearch] = useState('')
+
+  useEffect(() => {
+    supabase.from('settings').select('value').eq('key', 'crm_payment_reminder_templates').single()
+      .then(({ data }) => {
+        if (Array.isArray(data?.value) && data.value.length === 5) setTemplates(data.value)
+        setTemplatesLoaded(true)
+      })
+  }, [])
+
+  async function saveTemplate(idx) {
+    setSavingTemplate(true)
+    const updated = templates.map((t, i) => i === idx ? { ...templateDraft } : t)
+    const { error } = await supabase.from('settings').upsert({ key: 'crm_payment_reminder_templates', value: updated }, { onConflict: 'key' })
+    setSavingTemplate(false)
+    if (error) { alert('Error saving template: ' + error.message); return }
+    setTemplates(updated)
+    setEditingTemplateIdx(null)
+  }
 
   async function loadCourses() {
     const { data } = await supabase.from('courses').select('*').order('start_date', { ascending: true })
@@ -182,10 +215,9 @@ export default function CRM() {
   }
 
   // Opens the device's native share sheet (Messages, WhatsApp, Email, etc.)
-  // pre-filled with the reminder text. Falls back to copying to clipboard
+  // pre-filled with the given text. Falls back to copying to clipboard
   // on browsers/desktops without Web Share support.
-  async function sharePaymentReminder(studentName, encodedMsgBody) {
-    const text = decodeURIComponent(encodedMsgBody)
+  async function shareText(text) {
     if (navigator.share) {
       try { await navigator.share({ text }) } catch (e) { /* user cancelled share sheet — ignore */ }
       return
@@ -197,6 +229,11 @@ export default function CRM() {
       alert(text)
     }
   }
+
+  async function sharePaymentReminder(studentName, encodedMsgBody) {
+    await shareText(decodeURIComponent(encodedMsgBody))
+  }
+
 
   async function loadData() {
     setLoading(true)
@@ -635,14 +672,87 @@ export default function CRM() {
           </div>
 
           <div className="card" style={{ marginBottom: 16 }}>
-            <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Upload payment list</h2>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>
-              Upload an Excel export of standing order/payment names. It's cross-checked against active students —
-              a match means paid. Names that don't match a student (e.g. a parent's name, or a typo in the bank
-              export) show up below so you can link them manually once; that link is remembered for every future
-              upload. One payment can also be linked to more than one student — use "+ Link another student" on
-              a paid student's card for payments that cover several siblings.
-            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: showUploadHelp ? 6 : 12, position: 'relative' }}>
+              <h2 style={{ fontSize: 15, fontWeight: 600 }}>Upload payment list</h2>
+              <button className="btn btn-sm" title="What does this do?" onClick={() => setShowUploadHelp(v => !v)}
+                style={{ width: 20, height: 20, padding: 0, borderRadius: '50%', fontSize: 11, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                ?
+              </button>
+            </div>
+            {showUploadHelp && (
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>
+                Upload an Excel export of standing order/payment names. It's cross-checked against active students —
+                a match means paid. Names that don't match a student (e.g. a parent's name, or a typo in the bank
+                export) show up below so you can link them manually once; that link is remembered for every future
+                upload. One payment can also be linked to more than one student — use "+ Link another student" on
+                a paid student's card for payments that cover several siblings.
+              </p>
+            )}
+
+            <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>Message templates — press to select, then choose who to send it to</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 12 }}>
+              {templates.map((t, i) => (
+                editingTemplateIdx === i ? (
+                  <div key={i} className="card" style={{ padding: 8, background: 'var(--bg-secondary)' }}>
+                    <input value={templateDraft.label} onChange={e => setTemplateDraft(d => ({ ...d, label: e.target.value }))}
+                      placeholder="Label" style={{ width: '100%', fontSize: 11, fontWeight: 600, marginBottom: 6, padding: '3px 6px' }} />
+                    <textarea value={templateDraft.body} onChange={e => setTemplateDraft(d => ({ ...d, body: e.target.value }))}
+                      placeholder="Message text — use {name} for the student's first name" rows={4}
+                      style={{ width: '100%', fontSize: 11, marginBottom: 6, resize: 'vertical' }} />
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px', flex: 1 }} disabled={savingTemplate}
+                        onClick={() => saveTemplate(i)}>{savingTemplate ? 'Saving…' : 'Save'}</button>
+                      <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }} onClick={() => setEditingTemplateIdx(null)}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div key={i}
+                    onClick={() => setSelectedTemplateIdx(selectedTemplateIdx === i ? null : i)}
+                    style={{
+                      padding: 8, borderRadius: 'var(--radius)', cursor: 'pointer', position: 'relative',
+                      background: selectedTemplateIdx === i ? '#378ADD20' : 'var(--bg-secondary)',
+                      border: selectedTemplateIdx === i ? '2px solid #378ADD' : '1px solid var(--border)',
+                      minHeight: 92, display: 'flex', flexDirection: 'column',
+                    }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                      <span style={{ fontSize: 11, fontWeight: 600 }}>{t.label || `Template ${i + 1}`}</span>
+                      <button className="btn btn-sm" style={{ fontSize: 9, padding: '1px 6px' }}
+                        onClick={e => { e.stopPropagation(); setEditingTemplateIdx(i); setTemplateDraft(t) }}>Edit</button>
+                    </div>
+                    <p style={{ fontSize: 10, color: 'var(--text-tertiary)', lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical' }}>
+                      {t.body || 'No message set yet — click Edit'}
+                    </p>
+                  </div>
+                )
+              ))}
+            </div>
+
+            {selectedTemplateIdx != null && (
+              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 10, marginBottom: 12 }}>
+                <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>Send "{templates[selectedTemplateIdx].label}" to:</p>
+                <input value={templateRecipientSearch} onChange={e => { setTemplateRecipientSearch(e.target.value); setTemplateRecipientId(null) }}
+                  placeholder="Search students…" style={{ width: '100%', fontSize: 12, marginBottom: 6 }} />
+                {templateRecipientSearch && !templateRecipientId && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 160, overflowY: 'auto', marginBottom: 6 }}>
+                    {students.filter(s => studentFullName(s).toLowerCase().includes(templateRecipientSearch.toLowerCase())).slice(0, 8).map(s => (
+                      <div key={s.id} onClick={() => { setTemplateRecipientId(s.id); setTemplateRecipientSearch(studentFullName(s)) }}
+                        style={{ fontSize: 12, padding: '4px 8px', borderRadius: 'var(--radius)', cursor: 'pointer', background: 'var(--bg)' }}>
+                        {studentFullName(s)}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button className="btn btn-sm btn-primary" disabled={!templateRecipientId}
+                  onClick={() => {
+                    const recipient = students.find(s => s.id === templateRecipientId)
+                    const text = (templates[selectedTemplateIdx].body || '').replace(/\{name\}/gi, recipient?.members?.first_name || '')
+                    shareText(text)
+                  }}>
+                  📤 Share to {templateRecipientId ? studentFullName(students.find(s => s.id === templateRecipientId)) : 'selected student'}
+                </button>
+              </div>
+            )}
+
             <input type="file" accept=".xlsx,.xls" onChange={handleFile} />
             {pastUploads.length > 0 && (
               <div style={{ marginTop: 12 }}>
