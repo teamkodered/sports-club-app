@@ -2998,26 +2998,40 @@ export default function AthleteProfiles() {
   function getCoachSectionProgressByPeriod(sectionKey) {
     const section = DASHBOARD_SECTIONS.find(sec => sec.key === sectionKey)
     if (!section) return { day: { done: 0, target: 0 }, week: { done: 0, target: 0 }, month: { done: 0, target: 0 } }
-    const slots = new Map()
+    const byPeriod = { day: { done: 0, target: 0 }, week: { done: 0, target: 0 }, month: { done: 0, target: 0 } }
+    // Group every target row for this section by question (blank key =
+    // a whole-section target). A single question can have more than one
+    // target at once (e.g. a daily AND a separate weekly target) -- each
+    // needs to be resolved and counted independently per period, the
+    // same way the per-question progress function does, otherwise a
+    // second target on the same question silently gets dropped from
+    // the section total instead of being added to it.
+    const byQuestion = {}
     teamTargets.filter(t => t.section_key === sectionKey).forEach(t => {
       const key = t.question_label || ''
-      const existing = slots.get(key)
-      if (!existing || (t.student_id === selected?.id && existing.student_id !== selected?.id)) {
-        if (!t.student_id || t.student_id === selected?.id) slots.set(key, t)
-      }
+      ;(byQuestion[key] ||= []).push(t)
     })
-    const byPeriod = { day: { done: 0, target: 0 }, week: { done: 0, target: 0 }, month: { done: 0, target: 0 } }
-    for (const [questionLabel, target] of slots) {
-      const freq = parseFrequencyTarget(target.target_value)
-      if (!freq || !byPeriod[freq.period]) continue
+    for (const [questionLabel, targetsForQuestion] of Object.entries(byQuestion)) {
       const subItems = questionLabel ? section.subItems.filter(sub => sub.label === questionLabel) : section.subItems
       if (!subItems.length) continue
-      const periodStartStr = periodStartFor(freq.period).toISOString().split('T')[0]
-      const entryCount = f2fData
-        .filter(s => s.session_date >= periodStartStr)
-        .reduce((sum, s) => sum + subItems.reduce((subSum, sub) => subSum + subItemCountInSession(sub, s), 0), 0)
-      byPeriod[freq.period].done += entryCount
-      byPeriod[freq.period].target += freq.targetNum
+      const resolvedByPeriod = {}
+      targetsForQuestion.forEach(t => {
+        const freq = parseFrequencyTarget(t.target_value)
+        if (!freq || !byPeriod[freq.period]) return
+        const existing = resolvedByPeriod[freq.period]
+        if (existing && existing.student_id === selected?.id) return // already have this athlete's own override for this period
+        if (t.student_id && t.student_id !== selected?.id) return // someone else's override -- not relevant
+        resolvedByPeriod[freq.period] = t
+      })
+      for (const [period, target] of Object.entries(resolvedByPeriod)) {
+        const freq = parseFrequencyTarget(target.target_value)
+        const periodStartStr = periodStartFor(freq.period).toISOString().split('T')[0]
+        const entryCount = f2fData
+          .filter(s => s.session_date >= periodStartStr)
+          .reduce((sum, s) => sum + subItems.reduce((subSum, sub) => subSum + subItemCountInSession(sub, s), 0), 0)
+        byPeriod[period].done += entryCount
+        byPeriod[period].target += freq.targetNum
+      }
     }
     return byPeriod
   }
@@ -3074,33 +3088,43 @@ export default function AthleteProfiles() {
   function getCoachSectionProgress(sectionKey) {
     const section = DASHBOARD_SECTIONS.find(sec => sec.key === sectionKey)
     if (!section) return null
-    // One target per (question_label) slot -- athlete-specific wins over
-    // team-wide for that same slot, matching how individual question
-    // cards already resolve which target applies.
-    const slots = new Map() // question_label (or '' for section-level) -> target row
+    // Group every target row for this section by question (blank key =
+    // a whole-section target). A question can have more than one target
+    // at once (e.g. daily AND weekly) -- each is resolved and counted
+    // independently per period, same as the per-question functions,
+    // otherwise a second target on the same question silently gets
+    // dropped from this combined total instead of being added to it.
+    const byQuestion = {}
     teamTargets.filter(t => t.section_key === sectionKey).forEach(t => {
       const key = t.question_label || ''
-      const existing = slots.get(key)
-      if (!existing || (t.student_id === selected?.id && existing.student_id !== selected?.id)) {
-        if (!t.student_id || t.student_id === selected?.id) slots.set(key, t)
-      }
+      ;(byQuestion[key] ||= []).push(t)
     })
-    if (slots.size === 0) return null
+    if (Object.keys(byQuestion).length === 0) return null
 
     let totalDone = 0, totalTarget = 0
     const periodsUsed = new Set()
-    for (const [questionLabel, target] of slots) {
-      const freq = parseFrequencyTarget(target.target_value)
-      if (!freq) continue
+    for (const [questionLabel, targetsForQuestion] of Object.entries(byQuestion)) {
       const subItems = questionLabel ? section.subItems.filter(sub => sub.label === questionLabel) : section.subItems
       if (!subItems.length) continue
-      const periodStartStr = periodStartFor(freq.period).toISOString().split('T')[0]
-      const entryCount = f2fData
-        .filter(s => s.session_date >= periodStartStr)
-        .reduce((sum, s) => sum + subItems.reduce((subSum, sub) => subSum + subItemCountInSession(sub, s), 0), 0)
-      totalDone += entryCount
-      totalTarget += freq.targetNum
-      periodsUsed.add(freq.period)
+      const resolvedByPeriod = {}
+      targetsForQuestion.forEach(t => {
+        const freq = parseFrequencyTarget(t.target_value)
+        if (!freq) return
+        const existing = resolvedByPeriod[freq.period]
+        if (existing && existing.student_id === selected?.id) return
+        if (t.student_id && t.student_id !== selected?.id) return
+        resolvedByPeriod[freq.period] = t
+      })
+      for (const target of Object.values(resolvedByPeriod)) {
+        const freq = parseFrequencyTarget(target.target_value)
+        const periodStartStr = periodStartFor(freq.period).toISOString().split('T')[0]
+        const entryCount = f2fData
+          .filter(s => s.session_date >= periodStartStr)
+          .reduce((sum, s) => sum + subItems.reduce((subSum, sub) => subSum + subItemCountInSession(sub, s), 0), 0)
+        totalDone += entryCount
+        totalTarget += freq.targetNum
+        periodsUsed.add(freq.period)
+      }
     }
     if (totalTarget === 0) return null
     // If every combined target shares the same period (the usual case),

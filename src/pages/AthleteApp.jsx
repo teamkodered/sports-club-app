@@ -2401,30 +2401,41 @@ export default function AthleteApp() {
     return questionLogged(sectionKey, questionLabel, s) ? 1 : 0
   }
   function getSectionProgress(sectionKey) {
-    // One target per (question_label) slot -- athlete-specific wins
-    // over team-wide for that same slot.
-    const slots = new Map() // question_label (or '' for section-level) -> target row
+    // Group every target row for this section by question (blank key =
+    // a whole-section target). A question can have more than one target
+    // at once (e.g. daily AND weekly) -- each is resolved and counted
+    // independently per period, same as the per-question functions,
+    // otherwise a second target on the same question silently gets
+    // dropped from this combined total instead of being added to it.
+    const byQuestion = {}
     sectionTargets.filter(t => t.section_key === sectionKey).forEach(t => {
       const key = t.question_label || ''
-      const existing = slots.get(key)
-      if (!existing || (t.student_id === student?.id && existing.student_id !== student?.id)) {
-        if (!t.student_id || t.student_id === student?.id) slots.set(key, t)
-      }
+      ;(byQuestion[key] ||= []).push(t)
     })
-    if (slots.size === 0) return null
+    if (Object.keys(byQuestion).length === 0) return null
 
     let totalDone = 0, totalTarget = 0
     const periodsUsed = new Set()
-    for (const [questionLabel, target] of slots) {
-      const freq = parseFrequencyTarget(target.target_value)
-      if (!freq) continue
-      const periodStartStr = periodStartFor(freq.period).toISOString().split('T')[0]
-      const entryCount = questionLabel
-        ? sessions.filter(s => s.session_date >= periodStartStr).reduce((sum, s) => sum + questionLoggedCount(sectionKey, questionLabel, s), 0)
-        : sessions.filter(s => s.session_date >= periodStartStr && SECTION_FIELD_CHECK[sectionKey]?.(s)).length
-      totalDone += entryCount
-      totalTarget += freq.targetNum
-      periodsUsed.add(freq.period)
+    for (const [questionLabel, targetsForQuestion] of Object.entries(byQuestion)) {
+      const resolvedByPeriod = {}
+      targetsForQuestion.forEach(t => {
+        const freq = parseFrequencyTarget(t.target_value)
+        if (!freq) return
+        const existing = resolvedByPeriod[freq.period]
+        if (existing && existing.student_id === student?.id) return
+        if (t.student_id && t.student_id !== student?.id) return
+        resolvedByPeriod[freq.period] = t
+      })
+      for (const target of Object.values(resolvedByPeriod)) {
+        const freq = parseFrequencyTarget(target.target_value)
+        const periodStartStr = periodStartFor(freq.period).toISOString().split('T')[0]
+        const entryCount = questionLabel
+          ? sessions.filter(s => s.session_date >= periodStartStr).reduce((sum, s) => sum + questionLoggedCount(sectionKey, questionLabel, s), 0)
+          : sessions.filter(s => s.session_date >= periodStartStr && SECTION_FIELD_CHECK[sectionKey]?.(s)).length
+        totalDone += entryCount
+        totalTarget += freq.targetNum
+        periodsUsed.add(freq.period)
+      }
     }
     if (totalTarget === 0) return null
     // If every combined target shares the same period (the usual case),
@@ -2439,24 +2450,38 @@ export default function AthleteApp() {
   // single "X/Y" badge. Targets set for "year" aren't shown here since
   // there are only 3 bars (D/W/M).
   function getSectionProgressByPeriod(sectionKey) {
-    const slots = new Map()
+    const byPeriod = { day: { done: 0, target: 0 }, week: { done: 0, target: 0 }, month: { done: 0, target: 0 } }
+    // Group every target row for this section by question (blank key =
+    // a whole-section target). A single question can have more than one
+    // target at once (e.g. a daily AND a separate weekly target) -- each
+    // needs to be resolved and counted independently per period, the
+    // same way the per-question progress function does, otherwise a
+    // second target on the same question silently gets dropped from
+    // the section total instead of being added to it.
+    const byQuestion = {}
     sectionTargets.filter(t => t.section_key === sectionKey).forEach(t => {
       const key = t.question_label || ''
-      const existing = slots.get(key)
-      if (!existing || (t.student_id === student?.id && existing.student_id !== student?.id)) {
-        if (!t.student_id || t.student_id === student?.id) slots.set(key, t)
-      }
+      ;(byQuestion[key] ||= []).push(t)
     })
-    const byPeriod = { day: { done: 0, target: 0 }, week: { done: 0, target: 0 }, month: { done: 0, target: 0 } }
-    for (const [questionLabel, target] of slots) {
-      const freq = parseFrequencyTarget(target.target_value)
-      if (!freq || !byPeriod[freq.period]) continue
-      const periodStartStr = periodStartFor(freq.period).toISOString().split('T')[0]
-      const entryCount = questionLabel
-        ? sessions.filter(s => s.session_date >= periodStartStr).reduce((sum, s) => sum + questionLoggedCount(sectionKey, questionLabel, s), 0)
-        : sessions.filter(s => s.session_date >= periodStartStr && SECTION_FIELD_CHECK[sectionKey]?.(s)).length
-      byPeriod[freq.period].done += entryCount
-      byPeriod[freq.period].target += freq.targetNum
+    for (const [questionLabel, targetsForQuestion] of Object.entries(byQuestion)) {
+      const resolvedByPeriod = {}
+      targetsForQuestion.forEach(t => {
+        const freq = parseFrequencyTarget(t.target_value)
+        if (!freq || !byPeriod[freq.period]) return
+        const existing = resolvedByPeriod[freq.period]
+        if (existing && existing.student_id === student?.id) return // already have this athlete's own override for this period
+        if (t.student_id && t.student_id !== student?.id) return // someone else's override -- not relevant
+        resolvedByPeriod[freq.period] = t
+      })
+      for (const [period, target] of Object.entries(resolvedByPeriod)) {
+        const freq = parseFrequencyTarget(target.target_value)
+        const periodStartStr = periodStartFor(freq.period).toISOString().split('T')[0]
+        const entryCount = questionLabel
+          ? sessions.filter(s => s.session_date >= periodStartStr).reduce((sum, s) => sum + questionLoggedCount(sectionKey, questionLabel, s), 0)
+          : sessions.filter(s => s.session_date >= periodStartStr && SECTION_FIELD_CHECK[sectionKey]?.(s)).length
+        byPeriod[period].done += entryCount
+        byPeriod[period].target += freq.targetNum
+      }
     }
     return byPeriod
   }
