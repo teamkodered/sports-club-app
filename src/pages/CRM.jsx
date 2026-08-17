@@ -742,6 +742,8 @@ export default function CRM() {
                 export) show up below so you can link them manually once; that link is remembered for every future
                 upload. One payment can also be linked to more than one student — use "+ Link another student" on
                 a paid student's card for payments that cover several siblings.
+                <br /><br />
+                <b>Template placeholders:</b> use <code>{'{name}'}</code> in a message template and it's automatically replaced with the student's first name when you share it.
               </p>
             )}
 
@@ -1002,6 +1004,8 @@ export default function CRM() {
             {showMissedTrainingHelp && (
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 10 }}>
                 Active students with an assigned class who haven't attended anything in 4+ weeks (28 days) — or have never attended at all.
+                <br /><br />
+                <b>Template placeholders:</b> use <code>{'{name}'}</code> for the student's first name and <code>{'{weeks}'}</code> for the number of weeks since their last session — both are filled in automatically when you share a template.
               </p>
             )}
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, opacity: 0.6, marginBottom: 14 }}>
@@ -1018,7 +1022,7 @@ export default function CRM() {
                     <input value={mtTemplateDraft.label} onChange={e => setMtTemplateDraft(d => ({ ...d, label: e.target.value }))}
                       placeholder="Label" style={{ width: '100%', fontSize: 11, fontWeight: 600, marginBottom: 6, padding: '3px 6px' }} />
                     <textarea value={mtTemplateDraft.body} onChange={e => setMtTemplateDraft(d => ({ ...d, body: e.target.value }))}
-                      placeholder="Message text — use {name} for the student's first name" rows={4}
+                      placeholder="Message text — use {name} for first name, {weeks} for weeks missed" rows={4}
                       style={{ width: '100%', fontSize: 11, marginBottom: 6, resize: 'vertical' }} />
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px', flex: 1 }} disabled={mtSavingTemplate}
@@ -1065,8 +1069,10 @@ export default function CRM() {
                 )}
                 <button className="btn btn-sm btn-primary" disabled={!mtRecipientId}
                   onClick={() => {
-                    const recipient = missedTraining.find(r => r.student.id === mtRecipientId)?.student
-                    const text = (mtTemplates[mtSelectedTemplateIdx].body || '').replace(/\{name\}/gi, recipient?.members?.first_name || '')
+                    const recipientRow = missedTraining.find(r => r.student.id === mtRecipientId)
+                    const text = (mtTemplates[mtSelectedTemplateIdx].body || '')
+                      .replace(/\{name\}/gi, recipientRow?.student?.members?.first_name || '')
+                      .replace(/\{weeks\}/gi, recipientRow?.weeksMissed ?? '')
                     shareText(text)
                   }}>
                   📤 Share to {mtRecipientId ? studentFullName(missedTraining.find(r => r.student.id === mtRecipientId)?.student) : 'selected student'}
@@ -1157,6 +1163,8 @@ export default function CRM() {
             {showBirthdaysHelp && (
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 10 }}>
                 Active students with a birthday in the next 4 weeks.
+                <br /><br />
+                <b>Template placeholders:</b> use <code>{'{name}'}</code> for the student's first name and <code>{'{age}'}</code> for the age they're turning — both are filled in automatically when you share a template.
               </p>
             )}
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, opacity: 0.6, marginBottom: 14 }}>
@@ -1173,7 +1181,7 @@ export default function CRM() {
                     <input value={bdTemplateDraft.label} onChange={e => setBdTemplateDraft(d => ({ ...d, label: e.target.value }))}
                       placeholder="Label" style={{ width: '100%', fontSize: 11, fontWeight: 600, marginBottom: 6, padding: '3px 6px' }} />
                     <textarea value={bdTemplateDraft.body} onChange={e => setBdTemplateDraft(d => ({ ...d, body: e.target.value }))}
-                      placeholder="Message text — use {name} for the student's first name" rows={4}
+                      placeholder="Message text — use {name} for first name, {age} for the age they're turning" rows={4}
                       style={{ width: '100%', fontSize: 11, marginBottom: 6, resize: 'vertical' }} />
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px', flex: 1 }} disabled={bdSavingTemplate}
@@ -1220,8 +1228,10 @@ export default function CRM() {
                 )}
                 <button className="btn btn-sm btn-primary" disabled={!bdRecipientId}
                   onClick={() => {
-                    const recipient = birthdays.find(r => r.student.id === bdRecipientId)?.student
-                    const text = (bdTemplates[bdSelectedTemplateIdx].body || '').replace(/\{name\}/gi, recipient?.members?.first_name || '')
+                    const recipientRow = birthdays.find(r => r.student.id === bdRecipientId)
+                    const text = (bdTemplates[bdSelectedTemplateIdx].body || '')
+                      .replace(/\{name\}/gi, recipientRow?.student?.members?.first_name || '')
+                      .replace(/\{age\}/gi, recipientRow?.turningAge ?? '')
                     shareText(text)
                   }}>
                   📤 Share to {bdRecipientId ? studentFullName(birthdays.find(r => r.student.id === bdRecipientId)?.student) : 'selected student'}
