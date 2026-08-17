@@ -3891,7 +3891,10 @@ export default function AthleteApp() {
                       <div style={{ display: 'flex', width: '100%' }}>
                         <img
                           src={student.discipline === 'KRBA' ? '/logos/technical-boxing.png' : student.is_kr ? '/logos/technical-kickboxing.png' : '/logos/icon-technical.png'}
-                          alt="Technique" style={{ width: '100%', height: 'auto', objectFit: 'contain' }}
+                          alt="Technique" style={{
+                            width: '100%', height: 'auto', objectFit: 'cover',
+                            aspectRatio: student.discipline === 'KRBA' ? '964 / 324' : student.is_kr ? '832 / 346' : undefined,
+                          }}
                         />
                       </div>
                       <SectionProgressBars sectionKey="technique" vertical />
@@ -4112,7 +4115,10 @@ export default function AthleteApp() {
                       <div style={{ display: 'flex', width: '100%' }}>
                         <img
                           src={student.discipline === 'KRBA' ? '/logos/mentality-boxing.png' : student.is_kr ? '/logos/mentality-kickboxing.png' : '/logos/icon-mentality.png'}
-                          alt="Mentality" style={{ width: '100%', height: 'auto', objectFit: 'contain' }}
+                          alt="Mentality" style={{
+                            width: '100%', height: 'auto', objectFit: 'cover',
+                            aspectRatio: student.discipline === 'KRBA' ? '966 / 284' : student.is_kr ? '988 / 327' : undefined,
+                          }}
                         />
                       </div>
                       <SectionProgressBars sectionKey="mentality" vertical />
@@ -4453,10 +4459,10 @@ export default function AthleteApp() {
                       textAlign: 'center', padding: '18px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
-                      <div style={{ display: 'flex', width: '100%' }}>
+                      <div style={{ display: 'flex', width: '100%', justifyContent: 'center' }}>
                         <img
                           src={student.discipline === 'KRBA' ? '/logos/foundation-boxing.png' : student.is_kr ? '/logos/foundation-kickboxing.png' : '/logos/icon-foundation.png'}
-                          alt="Foundation" style={{ width: '100%', height: 'auto', objectFit: 'contain' }}
+                          alt="Foundation" style={{ width: '55%', height: 'auto', objectFit: 'contain' }}
                         />
                       </div>
                       <SectionProgressBars sectionKey="wellbeing" vertical />
