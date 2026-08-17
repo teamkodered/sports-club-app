@@ -181,6 +181,23 @@ export default function CRM() {
     })
   }
 
+  // Opens the device's native share sheet (Messages, WhatsApp, Email, etc.)
+  // pre-filled with the reminder text. Falls back to copying to clipboard
+  // on browsers/desktops without Web Share support.
+  async function sharePaymentReminder(studentName, encodedMsgBody) {
+    const text = decodeURIComponent(encodedMsgBody)
+    if (navigator.share) {
+      try { await navigator.share({ text }) } catch (e) { /* user cancelled share sheet — ignore */ }
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(text)
+      alert('Share isn\'t supported on this browser — message copied to clipboard instead.')
+    } catch {
+      alert(text)
+    }
+  }
+
   async function loadData() {
     setLoading(true)
     const [{ data: s }, { data: pl }] = await Promise.all([
@@ -727,12 +744,8 @@ export default function CRM() {
                         <span style={{ fontSize: 11, color: 'var(--text-tertiary)', marginLeft: 8 }}>{s.student_ref}</span>
                       </span>
                       <span style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                        <a className="btn btn-sm" style={{ fontSize: 11 }} href={email ? `mailto:${email}?subject=Membership%20payment&body=${msgBody}` : undefined}
-                          onClick={e => { e.stopPropagation(); if (!email) e.preventDefault() }}
-                          title={email || 'No real email on file'}>✉️</a>
-                        <a className="btn btn-sm" style={{ fontSize: 11 }} href={phone ? `sms:${phone.replace(/\s/g,'')}?body=${msgBody}` : undefined}
-                          onClick={e => { e.stopPropagation(); if (!phone) e.preventDefault() }}
-                          title={phone || 'No phone on file'}>📱</a>
+                        <button className="btn btn-sm" style={{ fontSize: 11 }} title="Share payment reminder (text, WhatsApp, email...)"
+                          onClick={e => { e.stopPropagation(); sharePaymentReminder(s.members?.first_name, msgBody) }}>📤</button>
                         <button className="btn btn-sm" style={{ fontSize: 11 }} title="Add a note about this student"
                           onClick={e => { e.stopPropagation(); setAddingNoteForStudent(s); setQuickNoteDraft('') }}>📝</button>
                         <button className="btn btn-sm" style={{ fontSize: 11 }} title="Mark as sponsored -- moves to paid list, won't be chased for payment"
