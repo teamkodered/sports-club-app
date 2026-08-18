@@ -145,6 +145,30 @@ function OnOffInput({ onAdd }) {
   )
 }
 
+// A free-text field with an explicit Save button, for anywhere a
+// question/answer just needs "type something, then press Save" rather
+// than silently saving on blur (which gave no feedback that anything
+// had actually been saved). Uses an uncontrolled input + ref rather
+// than passing value/onChange, so the parent doesn't need its own
+// piece of draft state for every single field -- there are dozens of
+// these across the PDP.
+function SavableField({ defaultValue, placeholder, onSave, type = 'text', rows, style, inputStyle }) {
+  const ref = useRef(null)
+  return (
+    <div style={{ display: 'flex', gap: 4, alignItems: rows ? 'flex-start' : 'center', ...style }}>
+      {rows ? (
+        <textarea ref={ref} defaultValue={defaultValue || ''} placeholder={placeholder} rows={rows}
+          style={{ flex: 1, resize: 'vertical', ...inputStyle }} />
+      ) : (
+        <input ref={ref} type={type} defaultValue={defaultValue || ''} placeholder={placeholder}
+          style={{ flex: 1, ...inputStyle }} />
+      )}
+      <button type="button" className="btn btn-sm" style={{ fontSize: 11, flexShrink: 0 }}
+        onClick={() => onSave(ref.current?.value ?? '')}>Save</button>
+    </div>
+  )
+}
+
 function MacroPie({ carbs, fat, protein, size = 76 }) {
   const total = carbs + fat + protein || 1
   const r = size / 2 - 7
@@ -8060,7 +8084,7 @@ export default function AthleteProfiles() {
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: showPhysicalSection ? 10 : 6, width: '100%' }}>
-                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showPhysicalSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#c10806' }}>PHYSICAL</span>
+                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showPhysicalSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#8a0604' }}>PHYSICAL</span>
                       <img src="/logos/char-physical.png" alt="" style={{ height: showPhysicalSection ? 36 : 22, width: 'auto' }} />
                     </div>
                     <CoachSectionProgressBars sectionKey="physical" vertical />
@@ -8116,9 +8140,9 @@ export default function AthleteProfiles() {
                               <button key={t} type="button" onClick={() => upsert({ ...entry, test: t })}
                                 className="btn btn-sm" style={{ background: entry.test === t ? '#E24B4A20' : undefined, borderColor: entry.test === t ? '#E24B4A' : undefined }}>{t}</button>
                             ))}
-                            <input defaultValue={presets.includes(entry.test) ? '' : (entry.test || '')}
-                              onBlur={e => e.target.value && upsert({ ...entry, test: e.target.value })}
-                              placeholder="Other…" style={{ width: 90, flexShrink: 0 }} />
+                            <SavableField defaultValue={presets.includes(entry.test) ? '' : (entry.test || '')}
+                              onSave={val => { if (val) upsert({ ...entry, test: val }) }}
+                              placeholder="Other…" style={{ width: 'auto', flexShrink: 0 }} inputStyle={{ width: 90 }} />
                           </div>
                           {cat?.hasOnOffInput && (
                             <div style={{ marginTop: 8 }}>
@@ -8173,9 +8197,9 @@ export default function AthleteProfiles() {
                               <button key={m} type="button" onClick={() => upsert({ ...entry, interval_mode: m })}
                                 className="btn btn-sm" style={{ background: normalizeIntervalMode(entry.interval_mode) === m ? '#378ADD20' : undefined, borderColor: normalizeIntervalMode(entry.interval_mode) === m ? '#378ADD' : undefined }}>{m}</button>
                             ))}
-                            <input defaultValue={presets.includes(normalizeIntervalMode(entry.interval_mode)) ? '' : (entry.interval_mode || '')}
-                              onBlur={e => e.target.value && upsert({ ...entry, interval_mode: e.target.value })}
-                              placeholder="Other…" style={{ width: 90, flexShrink: 0 }} />
+                            <SavableField defaultValue={presets.includes(normalizeIntervalMode(entry.interval_mode)) ? '' : (entry.interval_mode || '')}
+                              onSave={val => { if (val) upsert({ ...entry, interval_mode: val }) }}
+                              placeholder="Other…" style={{ width: 'auto', flexShrink: 0 }} inputStyle={{ width: 90 }} />
                           </div>
                           <div style={{ marginTop: 8 }}>
                             <OnOffInput onAdd={val => upsert({ ...entry, interval_mode: val })} />
@@ -8370,8 +8394,8 @@ export default function AthleteProfiles() {
                             <button onClick={() => savePhysicalField('other_session', todaysOtherSession.filter((_, idx) => idx !== i), setTodaysOtherSession)}
                               style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14 }}>×</button>
                           </div>
-                          <input defaultValue={entry.description || ''}
-                            onBlur={e => { const next = [...todaysOtherSession]; next[i] = { ...next[i], description: e.target.value }; savePhysicalField('other_session', next, setTodaysOtherSession) }}
+                          <SavableField defaultValue={entry.description}
+                            onSave={val => { const next = [...todaysOtherSession]; next[i] = { ...next[i], description: val }; savePhysicalField('other_session', next, setTodaysOtherSession) }}
                             placeholder="Notes about this session" style={{ marginBottom: 6 }} />
                           <SetInput key={i} sets={entry.sets || []}
                             onChange={sets => { const next = [...todaysOtherSession]; next[i] = { ...next[i], sets }; savePhysicalField('other_session', next, setTodaysOtherSession) }}
@@ -8405,8 +8429,8 @@ export default function AthleteProfiles() {
                             <button onClick={() => savePhysicalField('snc', todaysSnc.filter((_, idx) => idx !== i), setTodaysSnc)}
                               style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14 }}>×</button>
                           </div>
-                          <input defaultValue={entry.description || ''}
-                            onBlur={e => { const next = [...todaysSnc]; next[i] = { ...next[i], description: e.target.value }; savePhysicalField('snc', next, setTodaysSnc) }}
+                          <SavableField defaultValue={entry.description}
+                            onSave={val => { const next = [...todaysSnc]; next[i] = { ...next[i], description: val }; savePhysicalField('snc', next, setTodaysSnc) }}
                             placeholder="What does this routine consist of?" style={{ marginBottom: 6 }} />
                           <SetInput key={i} sets={entry.sets || []}
                             onChange={sets => { const next = [...todaysSnc]; next[i] = { ...next[i], sets }; savePhysicalField('snc', next, setTodaysSnc) }}
@@ -8515,12 +8539,12 @@ export default function AthleteProfiles() {
                                       {technique}
                                     </label>
                                     {selected && (
-                                      <input defaultValue={entry.note || ''} placeholder="Add a note…"
-                                        onBlur={e => {
-                                          const next = todaysTechniques.map(t => (t.style === style && t.category === cat && t.technique === technique) ? { ...t, note: e.target.value } : t)
+                                      <SavableField defaultValue={entry.note} placeholder="Add a note…"
+                                        onSave={val => {
+                                          const next = todaysTechniques.map(t => (t.style === style && t.category === cat && t.technique === technique) ? { ...t, note: val } : t)
                                           savePhysicalField('techniques', next, setTodaysTechniques)
                                         }}
-                                        style={{ marginTop: 4, marginLeft: 24, width: 'calc(100% - 24px)', fontSize: 12 }} />
+                                        style={{ marginTop: 4, marginLeft: 24, width: 'calc(100% - 24px)' }} inputStyle={{ fontSize: 12 }} />
                                     )}
                                   </div>
                                 )
@@ -8627,12 +8651,12 @@ export default function AthleteProfiles() {
                                   {item}
                                 </label>
                                 {selected && (
-                                  <input defaultValue={entry.note || ''} placeholder="Add a note…"
-                                    onBlur={e => {
-                                      const next = todaysTactical.map(t => (t.category === cat && t.item === item) ? { ...t, note: e.target.value } : t)
+                                  <SavableField defaultValue={entry.note} placeholder="Add a note…"
+                                    onSave={val => {
+                                      const next = todaysTactical.map(t => (t.category === cat && t.item === item) ? { ...t, note: val } : t)
                                       savePhysicalField('tactical', next, setTodaysTactical)
                                     }}
-                                    style={{ marginTop: 4, marginLeft: 24, width: 'calc(100% - 24px)', fontSize: 12 }} />
+                                    style={{ marginTop: 4, marginLeft: 24, width: 'calc(100% - 24px)' }} inputStyle={{ fontSize: 12 }} />
                                 )}
                               </div>
                             )
@@ -8656,7 +8680,7 @@ export default function AthleteProfiles() {
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: showMentalitySection ? 10 : 6, width: '100%' }}>
-                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showMentalitySection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#602283' }}>MENTALITY</span>
+                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showMentalitySection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#43175c' }}>MENTALITY</span>
                       <img src="/logos/char-mentality.png" alt="" style={{ height: showMentalitySection ? 36 : 22, width: 'auto' }} />
                     </div>
                     <CoachSectionProgressBars sectionKey="mentality" vertical />
@@ -8890,7 +8914,7 @@ export default function AthleteProfiles() {
                                   style={{ background: (wb.moreOf || []).includes(o) ? colour + '20' : undefined, borderColor: (wb.moreOf || []).includes(o) ? colour : undefined }}>{o}</button>
                               ))}
                             </div>
-                            <input defaultValue={wb.moreOfOther || ''} placeholder="Other…" onBlur={e => saveAlterEgoWorkbook({ moreOfOther: e.target.value })} style={{ marginBottom: 12 }} />
+                            <SavableField defaultValue={wb.moreOfOther} placeholder="Other…" onSave={val => saveAlterEgoWorkbook({ moreOfOther: val })} style={{ marginBottom: 12 }} />
 
                             <p style={{ fontSize: 12, marginBottom: 6 }}>👉 What do I need LESS of in the ring?</p>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
@@ -8899,12 +8923,12 @@ export default function AthleteProfiles() {
                                   style={{ background: (wb.lessOf || []).includes(o) ? colour + '20' : undefined, borderColor: (wb.lessOf || []).includes(o) ? colour : undefined }}>{o}</button>
                               ))}
                             </div>
-                            <input defaultValue={wb.lessOfOther || ''} placeholder="Other…" onBlur={e => saveAlterEgoWorkbook({ lessOfOther: e.target.value })} style={{ marginBottom: 12 }} />
+                            <SavableField defaultValue={wb.lessOfOther} placeholder="Other…" onSave={val => saveAlterEgoWorkbook({ lessOfOther: val })} style={{ marginBottom: 12 }} />
 
                             <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>My Top 3 Traits for My Alter Ego:</p>
                             {[0,1,2].map(i => (
-                              <input key={i} defaultValue={wb.topTraits?.[i] || ''} placeholder={`Trait ${i+1}`}
-                                onBlur={e => { const arr = [...(wb.topTraits || [])]; arr[i] = e.target.value; saveAlterEgoWorkbook({ topTraits: arr }) }}
+                              <SavableField key={i} defaultValue={wb.topTraits?.[i]} placeholder={`Trait ${i+1}`}
+                                onSave={val => { const arr = [...(wb.topTraits || [])]; arr[i] = val; saveAlterEgoWorkbook({ topTraits: arr }) }}
                                 style={{ marginBottom: 6 }} />
                             ))}
 
@@ -8912,17 +8936,17 @@ export default function AthleteProfiles() {
 
                             <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Step 2: Build the Identity</p>
                             <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Possible Alter Ego Names:</p>
-                            <input defaultValue={wb.nameOption1 || ''} placeholder="Option 1" onBlur={e => saveAlterEgoWorkbook({ nameOption1: e.target.value })} style={{ marginBottom: 6 }} />
-                            <input defaultValue={wb.nameOption2 || ''} placeholder="Option 2" onBlur={e => saveAlterEgoWorkbook({ nameOption2: e.target.value })} style={{ marginBottom: 12 }} />
+                            <SavableField defaultValue={wb.nameOption1} placeholder="Option 1" onSave={val => saveAlterEgoWorkbook({ nameOption1: val })} style={{ marginBottom: 6 }} />
+                            <SavableField defaultValue={wb.nameOption2} placeholder="Option 2" onSave={val => saveAlterEgoWorkbook({ nameOption2: val })} style={{ marginBottom: 12 }} />
 
                             <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Look / Visuals:</p>
-                            <input defaultValue={wb.colours || ''} placeholder="Colors" onBlur={e => saveAlterEgoWorkbook({ colours: e.target.value })} style={{ marginBottom: 6 }} />
-                            <input defaultValue={wb.fightAttire || ''} placeholder="Fight attire" onBlur={e => saveAlterEgoWorkbook({ fightAttire: e.target.value })} style={{ marginBottom: 6 }} />
-                            <input defaultValue={wb.symbols || ''} placeholder="Symbols/Logos" onBlur={e => saveAlterEgoWorkbook({ symbols: e.target.value })} style={{ marginBottom: 12 }} />
+                            <SavableField defaultValue={wb.colours} placeholder="Colors" onSave={val => saveAlterEgoWorkbook({ colours: val })} style={{ marginBottom: 6 }} />
+                            <SavableField defaultValue={wb.fightAttire} placeholder="Fight attire" onSave={val => saveAlterEgoWorkbook({ fightAttire: val })} style={{ marginBottom: 6 }} />
+                            <SavableField defaultValue={wb.symbols} placeholder="Symbols/Logos" onSave={val => saveAlterEgoWorkbook({ symbols: val })} style={{ marginBottom: 12 }} />
 
                             <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Voice & Behavior:</p>
-                            <input defaultValue={wb.voiceStyle || ''} placeholder="How does my alter ego talk?" onBlur={e => saveAlterEgoWorkbook({ voiceStyle: e.target.value })} style={{ marginBottom: 6 }} />
-                            <input defaultValue={wb.bodyLanguage || ''} placeholder="How does my alter ego stare/walk/stand?" onBlur={e => saveAlterEgoWorkbook({ bodyLanguage: e.target.value })} style={{ marginBottom: 12 }} />
+                            <SavableField defaultValue={wb.voiceStyle} placeholder="How does my alter ego talk?" onSave={val => saveAlterEgoWorkbook({ voiceStyle: val })} style={{ marginBottom: 6 }} />
+                            <SavableField defaultValue={wb.bodyLanguage} placeholder="How does my alter ego stare/walk/stand?" onSave={val => saveAlterEgoWorkbook({ bodyLanguage: val })} style={{ marginBottom: 12 }} />
 
                             <hr style={{ margin: '14px 0', border: 'none', borderTop: '1px solid var(--border)' }} />
 
@@ -8936,15 +8960,15 @@ export default function AthleteProfiles() {
                                 </label>
                               ))}
                             </div>
-                            <input defaultValue={wb.ritualOther || ''} placeholder="Other…" onBlur={e => saveAlterEgoWorkbook({ ritualOther: e.target.value })} style={{ marginBottom: 8 }} />
-                            <input defaultValue={wb.myRitual || ''} placeholder="My Ritual Will Be…" onBlur={e => saveAlterEgoWorkbook({ myRitual: e.target.value })} style={{ marginBottom: 12 }} />
+                            <SavableField defaultValue={wb.ritualOther} placeholder="Other…" onSave={val => saveAlterEgoWorkbook({ ritualOther: val })} style={{ marginBottom: 8 }} />
+                            <SavableField defaultValue={wb.myRitual} placeholder="My Ritual Will Be…" onSave={val => saveAlterEgoWorkbook({ myRitual: val })} style={{ marginBottom: 12 }} />
 
                             <hr style={{ margin: '14px 0', border: 'none', borderTop: '1px solid var(--border)' }} />
 
                             <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Step 4: Balance the Persona</p>
                             <p style={{ fontSize: 12, marginBottom: 6 }}>"In the ring I am ____, outside I am ____."</p>
-                            <input defaultValue={wb.ringSelf || ''} placeholder="In the ring I am…" onBlur={e => saveAlterEgoWorkbook({ ringSelf: e.target.value })} style={{ marginBottom: 6 }} />
-                            <input defaultValue={wb.outsideSelf || ''} placeholder="Outside I am…" onBlur={e => saveAlterEgoWorkbook({ outsideSelf: e.target.value })} />
+                            <SavableField defaultValue={wb.ringSelf} placeholder="In the ring I am…" onSave={val => saveAlterEgoWorkbook({ ringSelf: val })} style={{ marginBottom: 6 }} />
+                            <SavableField defaultValue={wb.outsideSelf} placeholder="Outside I am…" onSave={val => saveAlterEgoWorkbook({ outsideSelf: val })} />
                           </div>
 
                           <div className="card">
@@ -9037,12 +9061,12 @@ export default function AthleteProfiles() {
                       {expandedHomeWb === 'sleep' && (
                         <>
                           <div className="field"><label>Hours slept</label>
-                            <input type="number" step="0.5" defaultValue={todaysWellbeing.sleep?.hours || ''}
-                              onBlur={e => saveWellbeingField('sleep', cur => ({ ...cur, hours: e.target.value }))} placeholder="e.g. 8" />
+                            <SavableField type="number" defaultValue={todaysWellbeing.sleep?.hours} placeholder="e.g. 8"
+                              onSave={val => saveWellbeingField('sleep', cur => ({ ...cur, hours: val }))} />
                           </div>
                           <div className="field" style={{ marginBottom: 0 }}><label>Whoop sleep % (target 70%+)</label>
-                            <input type="number" min="0" max="100" defaultValue={todaysWellbeing.sleep?.efficiency || ''}
-                              onBlur={e => saveWellbeingField('sleep', cur => ({ ...cur, efficiency: e.target.value }))} placeholder="e.g. 75" />
+                            <SavableField type="number" defaultValue={todaysWellbeing.sleep?.efficiency} placeholder="e.g. 75"
+                              onSave={val => saveWellbeingField('sleep', cur => ({ ...cur, efficiency: val }))} />
                           </div>
                         </>
                       )}
@@ -9080,9 +9104,9 @@ export default function AthleteProfiles() {
                             </div>
                           </div>
                           <div className="field" style={{ marginBottom: 0, marginTop: 12 }}><label>Notes</label>
-                            <textarea key={todaysWellbeing.nutrition ? 'loaded' : 'empty'} rows={2} defaultValue={todaysWellbeing.nutrition?.notes || ''}
-                              onBlur={e => { if (e.target.value !== (todaysWellbeing.nutrition?.notes || '')) saveWellbeingField('nutrition', cur => ({ ...cur, notes: e.target.value })) }}
-                              placeholder="Anything else about today's food…" style={{ resize: 'none', width: '100%' }} />
+                            <SavableField key={todaysWellbeing.nutrition ? 'loaded' : 'empty'} rows={2} defaultValue={todaysWellbeing.nutrition?.notes}
+                              onSave={val => saveWellbeingField('nutrition', cur => ({ ...cur, notes: val }))}
+                              placeholder="Anything else about today's food…" style={{ width: '100%' }} />
                           </div>
 
                           <hr style={{ margin: '16px 0', border: 'none', borderTop: '1px solid var(--border)' }} />
@@ -9184,8 +9208,8 @@ export default function AthleteProfiles() {
                             </div>
                           </div>
                           <div className="field" style={{ marginBottom: 0 }}><label>Or write your own</label>
-                            <input defaultValue={todaysWellbeing.screenFree?.custom || ''}
-                              onBlur={e => saveWellbeingField('screenFree', () => ({ hours: '', custom: e.target.value }))} placeholder="e.g. 18 hours" />
+                            <SavableField defaultValue={todaysWellbeing.screenFree?.custom} placeholder="e.g. 18 hours"
+                              onSave={val => saveWellbeingField('screenFree', () => ({ hours: '', custom: val }))} />
                           </div>
                         </>
                       )}
@@ -9219,8 +9243,8 @@ export default function AthleteProfiles() {
                                 onClick={() => { saveWellbeingField('creative', cur => ({ ...cur, count: (cur.count || 0) + parseInt(creativeCustomAdd || 0) })); setCreativeCustomAdd('') }}>Add</button>
                             </div>
                           </div>
-                          <input defaultValue={todaysWellbeing.creative?.notes || ''}
-                            onBlur={e => saveWellbeingField('creative', cur => ({ ...cur, notes: e.target.value }))} placeholder="Optional — what did you do?" />
+                          <SavableField defaultValue={todaysWellbeing.creative?.notes} placeholder="Optional — what did you do?"
+                            onSave={val => saveWellbeingField('creative', cur => ({ ...cur, notes: val }))} />
                         </>
                       )}
                       {expandedHomeWb === 'productivity' && (
@@ -9237,8 +9261,8 @@ export default function AthleteProfiles() {
                                 onClick={() => { saveWellbeingField('productivity', cur => ({ ...cur, count: (cur.count || 0) + parseInt(productivityCustomAdd || 0) })); setProductivityCustomAdd('') }}>Add</button>
                             </div>
                           </div>
-                          <input defaultValue={todaysWellbeing.productivity?.notes || ''}
-                            onBlur={e => saveWellbeingField('productivity', cur => ({ ...cur, notes: e.target.value }))} placeholder="Optional — what did you do?" />
+                          <SavableField defaultValue={todaysWellbeing.productivity?.notes} placeholder="Optional — what did you do?"
+                            onSave={val => saveWellbeingField('productivity', cur => ({ ...cur, notes: val }))} />
                         </>
                       )}
                       {savingWellbeing && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>Saving…</p>}
@@ -9305,8 +9329,8 @@ export default function AthleteProfiles() {
                                   </span>
                                 )}
                               </div>
-                              <input type="text" inputMode="decimal" defaultValue={todaysTest[t.name] ?? ''}
-                                onBlur={e => saveTestValue(t.name, e.target.value)}
+                              <SavableField type="text" defaultValue={todaysTest[t.name]}
+                                onSave={val => saveTestValue(t.name, val)}
                                 placeholder={`e.g. ${t.unit === 'sec' ? '32:15' : t.unit === 'level' ? '11.4' : '25'}`} />
                             </div>
                           )
