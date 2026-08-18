@@ -1119,16 +1119,29 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
 
 const PDP_SECTIONS = [
   { key: 'winning_ways',        label: '🏆 Winning ways',         colour: '#1D9E75' },
+  { key: 'what_to_do',          label: '📋 What to do (general)', colour: '#8B5CF6' },
   { key: 'maintain',            label: '✅ Maintain',              colour: '#378ADD' },
   { key: 'to_work_on',          label: '🎯 To work on',            colour: '#EF9F27' },
-  { key: 'psychology_maintain', label: '🧠 Psychology — maintain', colour: '#8B5CF6' },
-  { key: 'psychology_work_on',  label: '🧠 Psychology — work on',  colour: '#7C3AED' },
+  { key: 'psychology_notes',      label: '🧠 Psychology — notes',      colour: '#666666' },
+  { key: 'psychology_maintain',    label: '🧠 Psychology — maintain', colour: '#8B5CF6' },
+  { key: 'psychology_work_on',     label: '🧠 Psychology — work on',  colour: '#7C3AED' },
+  { key: 'psychology_what_to_do',  label: '🧠 Psychology — to do',    colour: '#E24B4A' },
+  { key: 'tech_notes',          label: '⚙️ Technical — notes',       colour: '#666666' },
   { key: 'tech_maintain',       label: '⚙️ Technical — maintain',  colour: '#378ADD' },
   { key: 'tech_work_on',        label: '⚙️ Technical — work on',   colour: '#EF9F27' },
+  { key: 'tech_what_to_do',     label: '⚙️ Technical — to do',     colour: '#E24B4A' },
+  { key: 'tact_notes',          label: '🎯 Tactical — notes',        colour: '#666666' },
   { key: 'tact_maintain',       label: '🎯 Tactical — maintain',   colour: '#1D9E75' },
   { key: 'tact_work_on',        label: '🎯 Tactical — work on',    colour: '#E24B4A' },
+  { key: 'tact_what_to_do',     label: '🎯 Tactical — to do',      colour: '#E24B4A' },
+  { key: 'physical_notes',      label: '💪 Physical — notes',        colour: '#666666' },
   { key: 'physical_maintain',   label: '💪 Physical — maintain',   colour: '#1D9E75' },
   { key: 'physical_work_on',    label: '💪 Physical — work on',    colour: '#059669' },
+  { key: 'physical_what_to_do', label: '💪 Physical — to do',      colour: '#E24B4A' },
+  { key: 'skill_notes',         label: '🧱 Skill — notes',           colour: '#666666' },
+  { key: 'skill_maintain',      label: '🧱 Skill — maintain',      colour: '#1D9E75' },
+  { key: 'skill_work_on',       label: '🧱 Skill — work on',       colour: '#EF9F27' },
+  { key: 'skill_what_to_do',    label: '🧱 Skill — to do',         colour: '#E24B4A' },
 ]
 
 // Module-scoped (not redefined on every render) so its internal text
@@ -5543,7 +5556,7 @@ export default function AthleteApp() {
           <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
           {!student ? <p style={{ color: 'var(--text-secondary)' }}>No student record linked.</p> : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {PDP_SECTIONS.map(section => {
+              {PDP_SECTIONS.filter(section => (shared[section.key] || []).length > 0 || section.key === 'winning_ways').map(section => {
                 const items = shared[section.key] || []
                 const canSchedule = PDP_TIMETABLE_SECTION_KEYS.includes(section.key)
                 return (

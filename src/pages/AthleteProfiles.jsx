@@ -1801,7 +1801,7 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
             <h3 style={{ fontSize: 13, fontWeight: 600, color: sectionColour, margin: 0, flex: 1 }}>
               {sectionLabel}
               {section.coachOnly && <span style={{ fontSize: 9, color: 'var(--text-tertiary)', marginLeft: 6, fontWeight: 400 }}>coach only</span>}
-              {isShared && !section.coachOnly && <span style={{ fontSize: 9, color: '#1d9e75', marginLeft: 6 }}>✓ shared</span>}
+              {isShared && <span style={{ fontSize: 9, color: '#1d9e75', marginLeft: 6 }}>✓ shared</span>}
             </h3>
             {isEditing && (
               <input type="color" value={sectionColour} onClick={e => e.stopPropagation()}
@@ -2107,10 +2107,10 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
                 <div key={section.key} style={{ marginBottom: 8, padding: '10px 12px', borderLeft: `3px solid ${sc}`, background: 'var(--bg-secondary)', borderRadius: '0 var(--radius) var(--radius) 0' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                     <span style={{ fontSize: 11, fontWeight: 600, color: sc }}>{sl}</span>
-                    {!section.coachOnly && <button style={{ fontSize: 10, padding: '2px 8px', background: isShared ? '#eaf3de' : 'var(--bg)', border: `1px solid ${isShared ? '#3b6d11' : 'var(--border)'}`, borderRadius: 20, cursor: 'pointer', color: isShared ? '#3b6d11' : 'var(--text-secondary)' }}
+                    <button style={{ fontSize: 10, padding: '2px 8px', background: isShared ? '#eaf3de' : 'var(--bg)', border: `1px solid ${isShared ? '#3b6d11' : 'var(--border)'}`, borderRadius: 20, cursor: 'pointer', color: isShared ? '#3b6d11' : 'var(--text-secondary)' }}
                       onClick={() => setSendModal(section.key)}>
                       {isShared ? '✓ Shared' : '→ Share'}
-                    </button>}
+                    </button>
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                     {items.map((item, i) => (
@@ -2126,7 +2126,15 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
           {/* Athlete side */}
           <div>
             <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>🎽 Athlete view</h3>
-            {[...PDP_SECTIONS, ...customSections].filter(s => !s.coachOnly).map(section => {
+            {/* coachOnly only controls who can ADD to the master list --
+                it doesn't mean the item can't be shared/sent, so it must
+                NOT be filtered out here. What actually gates visibility
+                is simply whether it's been shared (items.length check
+                below) -- this previously excluded every coachOnly
+                section outright, hiding anything sent from Psychology/
+                Technique/Tactical/Physical/Skill notes regardless of
+                whether the coach had explicitly shared it. */}
+            {[...PDP_SECTIONS, ...customSections].map(section => {
               const meta = pdp[`__meta_${section.key}`]
               const sc = meta?.colour || section.colour
               const sl = meta?.label || section.label
@@ -2162,7 +2170,7 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
               sent/shared items are visible here (the items.length
               check just below already hides anything with nothing
               actually shared). */}
-          {PDP_SECTIONS.filter(s => !(pdp.__hidden_sections || []).includes(s.key)).map(section => {
+          {[...PDP_SECTIONS, ...customSections].filter(s => !(pdp.__hidden_sections || []).includes(s.key)).map(section => {
             const items = shared[section.key] || []
             const sentAt = shared[`${section.key}_sent_at`]
             const canSchedule = PDP_TIMETABLE_SECTION_KEYS.includes(section.key)
