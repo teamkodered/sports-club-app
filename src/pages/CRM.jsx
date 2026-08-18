@@ -89,6 +89,20 @@ export default function CRM() {
   const [bdSelectedTemplateIdx, setBdSelectedTemplateIdx] = useState(null)
   const [bdRecipientId, setBdRecipientId] = useState(null)
   const [bdRecipientSearch, setBdRecipientSearch] = useState('')
+  const [showMessagesHelp, setShowMessagesHelp] = useState(false)
+  const [msgTemplates, setMsgTemplates] = useState([
+    { label: 'Template 1', body: '' },
+    { label: 'Template 2', body: '' },
+    { label: 'Template 3', body: '' },
+    { label: 'Template 4', body: '' },
+    { label: 'Template 5', body: '' },
+  ])
+  const [msgEditingIdx, setMsgEditingIdx] = useState(null)
+  const [msgTemplateDraft, setMsgTemplateDraft] = useState({ label: '', body: '' })
+  const [msgSavingTemplate, setMsgSavingTemplate] = useState(false)
+  const [msgSelectedTemplateIdx, setMsgSelectedTemplateIdx] = useState(null)
+  const [messagesSortKey, setMessagesSortKey] = useState('name')
+  const [messagesSortDir, setMessagesSortDir] = useState('asc')
   const [courses, setCourses] = useState([])
   const [coursesLoaded, setCoursesLoaded] = useState(false)
   const [editingCourse, setEditingCourse] = useState(null) // {} for new, or the course object
@@ -128,6 +142,10 @@ export default function CRM() {
       .then(({ data }) => {
         if (Array.isArray(data?.value) && data.value.length === 5) setBdTemplates(data.value)
       })
+    supabase.from('settings').select('value').eq('key', 'crm_general_message_templates').single()
+      .then(({ data }) => {
+        if (Array.isArray(data?.value) && data.value.length === 5) setMsgTemplates(data.value)
+      })
   }, [])
 
   async function saveTemplate(idx) {
@@ -158,6 +176,16 @@ export default function CRM() {
     if (error) { alert('Error saving template: ' + error.message); return }
     setBdTemplates(updated)
     setBdEditingIdx(null)
+  }
+
+  async function saveMsgTemplate(idx) {
+    setMsgSavingTemplate(true)
+    const updated = msgTemplates.map((t, i) => i === idx ? { ...msgTemplateDraft } : t)
+    const { error } = await supabase.from('settings').upsert({ key: 'crm_general_message_templates', value: updated }, { onConflict: 'key' })
+    setMsgSavingTemplate(false)
+    if (error) { alert('Error saving template: ' + error.message); return }
+    setMsgTemplates(updated)
+    setMsgEditingIdx(null)
   }
 
   async function loadCourses() {
@@ -294,7 +322,7 @@ export default function CRM() {
   async function loadData() {
     setLoading(true)
     const [{ data: s }, { data: pl }] = await Promise.all([
-      supabase.from('students').select('id, student_ref, discipline, class_schedule, sponsored, members(first_name, last_name, status, email, phone, date_of_birth)'),
+      supabase.from('students').select('id, student_ref, discipline, class_schedule, sponsored, guardian_name, pka_belt, krba_level, house_name, media_restriction, is_kr, is_pts, is_leader, is_coach, members(first_name, last_name, status, email, phone, date_of_birth, houses(name))'),
       supabase.from('payer_links').select('*'),
     ])
     setStudents((s || []).filter(x => x.members?.status === 'active'))
@@ -454,6 +482,47 @@ export default function CRM() {
 
   function studentFullName(s) {
     return `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.trim()
+  }
+
+  function studentAge(s) {
+    const dob = s.members?.date_of_birth
+    if (!dob) return null
+    const birth = new Date(dob + 'T00:00:00')
+    const today = new Date()
+    let age = today.getFullYear() - birth.getFullYear()
+    const hasHadBirthdayThisYear = (today.getMonth() > birth.getMonth()) || (today.getMonth() === birth.getMonth() && today.getDate() >= birth.getDate())
+    if (!hasHadBirthdayThisYear) age -= 1
+    return age
+  }
+
+  function studentGroupsLabel(s) {
+    return [s.is_kr && 'KR', s.is_pts && 'PTs', s.is_leader && 'Leader', s.is_coach && 'Coach'].filter(Boolean).join(', ')
+  }
+
+  function toggleMessagesSort(col) {
+    if (messagesSortKey === col) setMessagesSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setMessagesSortKey(col); setMessagesSortDir('asc') }
+  }
+
+  function sortedMessagesStudents() {
+    const withVals = students.map(s => ({
+      s,
+      student_ref: s.student_ref || '',
+      name: studentFullName(s),
+      age: studentAge(s) ?? -1,
+      house: s.house_name || s.members?.houses?.name || '',
+      grade: s.pka_belt || s.krba_level || '',
+      groups: studentGroupsLabel(s),
+      media: s.media_restriction || '',
+    }))
+    withVals.sort((a, b) => {
+      const av = a[messagesSortKey], bv = b[messagesSortKey]
+      if (typeof av === 'number' || typeof bv === 'number') {
+        return messagesSortDir === 'asc' ? av - bv : bv - av
+      }
+      return messagesSortDir === 'asc' ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av))
+    })
+    return withVals.map(x => x.s)
   }
 
   // Matching: payer_links (remembered) first -- a payer name can now
@@ -697,6 +766,12 @@ export default function CRM() {
           color: tab === 'birthdays' ? 'var(--text)' : 'var(--text-secondary)',
           fontWeight: tab === 'birthdays' ? 500 : 400,
         }}>Birthdays{birthdays.length > 0 ? ` (${birthdays.length})` : ''}</button>
+        <button onClick={() => setTab('messages')} style={{
+          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
+          borderBottom: `2px solid ${tab === 'messages' ? 'var(--text)' : 'transparent'}`,
+          color: tab === 'messages' ? 'var(--text)' : 'var(--text-secondary)',
+          fontWeight: tab === 'messages' ? 500 : 400,
+        }}>Messages</button>
         <button onClick={() => { setTab('courses'); if (!coursesLoaded) loadCourses() }} style={{
           padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
           borderBottom: `2px solid ${tab === 'courses' ? 'var(--text)' : 'transparent'}`,
@@ -743,7 +818,7 @@ export default function CRM() {
                 upload. One payment can also be linked to more than one student — use "+ Link another student" on
                 a paid student's card for payments that cover several siblings.
                 <br /><br />
-                <b>Template placeholders:</b> use <code>{'{name}'}</code> in a message template and it's automatically replaced with the student's first name when you share it.
+                <b>Template placeholders:</b> use <code>{'{name}'}</code> for the student's first name and <code>{'{parent_name}'}</code> for the parent/guardian's name — both are filled in automatically when you share it.
               </p>
             )}
 
@@ -755,7 +830,7 @@ export default function CRM() {
                     <input value={templateDraft.label} onChange={e => setTemplateDraft(d => ({ ...d, label: e.target.value }))}
                       placeholder="Label" style={{ width: '100%', fontSize: 11, fontWeight: 600, marginBottom: 6, padding: '3px 6px' }} />
                     <textarea value={templateDraft.body} onChange={e => setTemplateDraft(d => ({ ...d, body: e.target.value }))}
-                      placeholder="Message text — use {name} for the student's first name" rows={4}
+                      placeholder="Message text — use {name} for first name, {parent_name} for the parent/guardian's name" rows={4}
                       style={{ width: '100%', fontSize: 11, marginBottom: 6, resize: 'vertical' }} />
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px', flex: 1 }} disabled={savingTemplate}
@@ -803,7 +878,9 @@ export default function CRM() {
                 <button className="btn btn-sm btn-primary" disabled={!templateRecipientId}
                   onClick={() => {
                     const recipient = students.find(s => s.id === templateRecipientId)
-                    const text = (templates[selectedTemplateIdx].body || '').replace(/\{name\}/gi, recipient?.members?.first_name || '')
+                    const text = (templates[selectedTemplateIdx].body || '')
+                      .replace(/\{name\}/gi, recipient?.members?.first_name || '')
+                      .replace(/\{parent_name\}/gi, recipient?.guardian_name || '')
                     shareText(text)
                   }}>
                   📤 Share to {templateRecipientId ? studentFullName(students.find(s => s.id === templateRecipientId)) : 'selected student'}
@@ -1005,7 +1082,7 @@ export default function CRM() {
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 10 }}>
                 Active students with an assigned class who haven't attended anything in 4+ weeks (28 days) — or have never attended at all.
                 <br /><br />
-                <b>Template placeholders:</b> use <code>{'{name}'}</code> for the student's first name and <code>{'{weeks}'}</code> for the number of weeks since their last session — both are filled in automatically when you share a template.
+                <b>Template placeholders:</b> use <code>{'{name}'}</code> for the student's first name, <code>{'{weeks}'}</code> for the number of weeks since their last session, and <code>{'{parent_name}'}</code> for the parent/guardian's name — all filled in automatically when you share a template.
               </p>
             )}
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, opacity: 0.6, marginBottom: 14 }}>
@@ -1022,7 +1099,7 @@ export default function CRM() {
                     <input value={mtTemplateDraft.label} onChange={e => setMtTemplateDraft(d => ({ ...d, label: e.target.value }))}
                       placeholder="Label" style={{ width: '100%', fontSize: 11, fontWeight: 600, marginBottom: 6, padding: '3px 6px' }} />
                     <textarea value={mtTemplateDraft.body} onChange={e => setMtTemplateDraft(d => ({ ...d, body: e.target.value }))}
-                      placeholder="Message text — use {name} for first name, {weeks} for weeks missed" rows={4}
+                      placeholder="Message text — use {name} for first name, {weeks} for weeks missed, {parent_name} for the parent/guardian's name" rows={4}
                       style={{ width: '100%', fontSize: 11, marginBottom: 6, resize: 'vertical' }} />
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px', flex: 1 }} disabled={mtSavingTemplate}
@@ -1073,6 +1150,7 @@ export default function CRM() {
                     const text = (mtTemplates[mtSelectedTemplateIdx].body || '')
                       .replace(/\{name\}/gi, recipientRow?.student?.members?.first_name || '')
                       .replace(/\{weeks\}/gi, recipientRow?.weeksMissed ?? '')
+                      .replace(/\{parent_name\}/gi, recipientRow?.student?.guardian_name || '')
                     shareText(text)
                   }}>
                   📤 Share to {mtRecipientId ? studentFullName(missedTraining.find(r => r.student.id === mtRecipientId)?.student) : 'selected student'}
@@ -1164,7 +1242,7 @@ export default function CRM() {
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 10 }}>
                 Active students with a birthday in the next 4 weeks.
                 <br /><br />
-                <b>Template placeholders:</b> use <code>{'{name}'}</code> for the student's first name and <code>{'{age}'}</code> for the age they're turning — both are filled in automatically when you share a template.
+                <b>Template placeholders:</b> use <code>{'{name}'}</code> for the student's first name, <code>{'{age}'}</code> for the age they're turning, and <code>{'{parent_name}'}</code> for the parent/guardian's name — all filled in automatically when you share a template.
               </p>
             )}
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, opacity: 0.6, marginBottom: 14 }}>
@@ -1181,7 +1259,7 @@ export default function CRM() {
                     <input value={bdTemplateDraft.label} onChange={e => setBdTemplateDraft(d => ({ ...d, label: e.target.value }))}
                       placeholder="Label" style={{ width: '100%', fontSize: 11, fontWeight: 600, marginBottom: 6, padding: '3px 6px' }} />
                     <textarea value={bdTemplateDraft.body} onChange={e => setBdTemplateDraft(d => ({ ...d, body: e.target.value }))}
-                      placeholder="Message text — use {name} for first name, {age} for the age they're turning" rows={4}
+                      placeholder="Message text — use {name} for first name, {age} for the age they're turning, {parent_name} for the parent/guardian's name" rows={4}
                       style={{ width: '100%', fontSize: 11, marginBottom: 6, resize: 'vertical' }} />
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px', flex: 1 }} disabled={bdSavingTemplate}
@@ -1232,6 +1310,7 @@ export default function CRM() {
                     const text = (bdTemplates[bdSelectedTemplateIdx].body || '')
                       .replace(/\{name\}/gi, recipientRow?.student?.members?.first_name || '')
                       .replace(/\{age\}/gi, recipientRow?.turningAge ?? '')
+                      .replace(/\{parent_name\}/gi, recipientRow?.student?.guardian_name || '')
                     shareText(text)
                   }}>
                   📤 Share to {bdRecipientId ? studentFullName(birthdays.find(r => r.student.id === bdRecipientId)?.student) : 'selected student'}
@@ -1307,6 +1386,115 @@ export default function CRM() {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {tab === 'messages' && (
+        <div>
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: showMessagesHelp ? 6 : 10 }}>
+              <h2 style={{ fontSize: 15, fontWeight: 600 }}>Messages</h2>
+              <button className="btn btn-sm" title="What does this do?" onClick={() => setShowMessagesHelp(v => !v)}
+                style={{ width: 20, height: 20, padding: 0, borderRadius: '50%', fontSize: 11, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                ?
+              </button>
+            </div>
+            {showMessagesHelp && (
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 10 }}>
+                Every active student, so you can message anyone regardless of payments, attendance, or birthday.
+                <br /><br />
+                <b>Template placeholders:</b> use <code>{'{name}'}</code> for the student's first name and <code>{'{parent_name}'}</code> for the parent/guardian's name — both are filled in automatically when you share a template.
+              </p>
+            )}
+
+            <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>Message templates — press to select, then use the 📤 button on any student below</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 4 }}>
+              {msgTemplates.map((t, i) => (
+                msgEditingIdx === i ? (
+                  <div key={i} className="card" style={{ padding: 8, background: 'var(--bg-secondary)' }}>
+                    <input value={msgTemplateDraft.label} onChange={e => setMsgTemplateDraft(d => ({ ...d, label: e.target.value }))}
+                      placeholder="Label" style={{ width: '100%', fontSize: 11, fontWeight: 600, marginBottom: 6, padding: '3px 6px' }} />
+                    <textarea value={msgTemplateDraft.body} onChange={e => setMsgTemplateDraft(d => ({ ...d, body: e.target.value }))}
+                      placeholder="Message text — use {name} for first name, {parent_name} for the parent/guardian's name" rows={4}
+                      style={{ width: '100%', fontSize: 11, marginBottom: 6, resize: 'vertical' }} />
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px', flex: 1 }} disabled={msgSavingTemplate}
+                        onClick={() => saveMsgTemplate(i)}>{msgSavingTemplate ? 'Saving…' : 'Save'}</button>
+                      <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }} onClick={() => setMsgEditingIdx(null)}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div key={i}
+                    onClick={() => setMsgSelectedTemplateIdx(msgSelectedTemplateIdx === i ? null : i)}
+                    style={{
+                      padding: 8, borderRadius: 'var(--radius)', cursor: 'pointer', position: 'relative',
+                      background: msgSelectedTemplateIdx === i ? '#378ADD20' : 'var(--bg-secondary)',
+                      border: msgSelectedTemplateIdx === i ? '2px solid #378ADD' : '1px solid var(--border)',
+                      minHeight: 92, display: 'flex', flexDirection: 'column',
+                    }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                      <span style={{ fontSize: 11, fontWeight: 600 }}>{t.label || `Template ${i + 1}`}</span>
+                      <button className="btn btn-sm" style={{ fontSize: 9, padding: '1px 6px' }}
+                        onClick={e => { e.stopPropagation(); setMsgEditingIdx(i); setMsgTemplateDraft(t) }}>Edit</button>
+                    </div>
+                    <p style={{ fontSize: 10, color: 'var(--text-tertiary)', lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical' }}>
+                      {t.body || 'No message set yet — click Edit'}
+                    </p>
+                  </div>
+                )
+              ))}
+            </div>
+            {msgSelectedTemplateIdx == null && (
+              <p style={{ fontSize: 11, color: 'var(--text-tertiary)', fontStyle: 'italic', marginBottom: 4 }}>Select a template above to enable the send buttons below.</p>
+            )}
+          </div>
+
+          <div className="card" style={{ overflowX: 'auto' }}>
+            <table style={{ minWidth: 700 }}>
+              <thead>
+                <tr>
+                  {[
+                    ['student_ref', 'ID'], ['name', 'Name'], ['age', 'Age'], ['house', 'House'],
+                    ['grade', 'Grade'], ['groups', 'Groups'], ['media', 'Media'],
+                  ].map(([col, label]) => (
+                    <th key={col} onClick={() => toggleMessagesSort(col)} style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
+                      {label}{messagesSortKey === col ? (messagesSortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+                    </th>
+                  ))}
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedMessagesStudents().map(s => (
+                  <tr key={s.id}>
+                    <td style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{s.student_ref}</td>
+                    <td style={{ fontSize: 13, fontWeight: 500 }}>{studentFullName(s)}</td>
+                    <td style={{ fontSize: 13 }}>{studentAge(s) ?? '—'}</td>
+                    <td style={{ fontSize: 13 }}>{s.house_name || s.members?.houses?.name || '—'}</td>
+                    <td style={{ fontSize: 13 }}>{s.pka_belt || s.krba_level || '—'}</td>
+                    <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{studentGroupsLabel(s) || '—'}</td>
+                    <td>
+                      {s.media_restriction && (
+                        <span className={`badge ${s.media_restriction === 'No' ? 'badge-red' : s.media_restriction === 'Limited' ? 'badge-amber' : 'badge-green'}`} style={{ fontSize: 10 }}>
+                          {s.media_restriction === 'No' ? '⚠ No' : s.media_restriction === 'Limited' ? 'Limited' : 'OK'}
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      <button className="btn btn-sm" style={{ fontSize: 11 }} disabled={msgSelectedTemplateIdx == null}
+                        title={msgSelectedTemplateIdx == null ? 'Select a template first' : 'Share this template (text, WhatsApp, email...)'}
+                        onClick={() => {
+                          const text = (msgTemplates[msgSelectedTemplateIdx].body || '')
+                            .replace(/\{name\}/gi, s.members?.first_name || '')
+                            .replace(/\{parent_name\}/gi, s.guardian_name || '')
+                          shareText(text)
+                        }}>📤</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
