@@ -1180,7 +1180,7 @@ const PDP_MAINTAIN_FOR_CHECK = Object.fromEntries(
 // Checking off a Maintain item moves it to the Notes log as a completed PDP task
 const PDP_MAINTAIN_SECTIONS = new Set(PDP_CATEGORY_GROUPS.map(g => g.keys.find(k => k.endsWith('maintain'))).filter(Boolean))
 
-function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOpponentNote, onToggleOpponentNoteShared, onDeleteOpponentNote, newOpponentName, setNewOpponentName, expandedOpponent, setExpandedOpponent }) {
+function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOpponentNote, onToggleOpponentNoteShared, onDeleteOpponentNote, onUpdateOpponentNote, newOpponentName, setNewOpponentName, expandedOpponent, setExpandedOpponent, editingOpponentNoteId, setEditingOpponentNoteId, opponentNoteDraft, setOpponentNoteDraft }) {
   const [pdpView, setPdpView]       = useState('coach') // 'coach' | 'athlete' | 'split'
   // How many of each category's 4 columns (Notes/Maintain/Work on/To do)
   // show at once before needing to scroll -- 1, 2, or 3. Doesn't apply
@@ -1600,11 +1600,23 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
                                 {n.is_shared ? '✓ Shared' : 'Share'}
                               </button>
                             )}
+                            <button onClick={() => { setEditingOpponentNoteId(n.id); setOpponentNoteDraft(n.note_text) }} style={{ fontSize: 10, background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer' }}>✎ Edit</button>
                             <button onClick={() => onDeleteOpponentNote(n.id)} style={{ fontSize: 10, background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer' }}>✕</button>
                           </div>
                         )}
                       </div>
-                      <p style={{ fontSize: 12, margin: 0, whiteSpace: 'pre-line' }}>{n.note_text}</p>
+                      {editingOpponentNoteId === n.id ? (
+                        <div style={{ marginTop: 4 }}>
+                          <textarea value={opponentNoteDraft} onChange={e => setOpponentNoteDraft(e.target.value)}
+                            rows={3} style={{ width: '100%', fontSize: 12, resize: 'vertical', marginBottom: 4 }} />
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }} onClick={() => onUpdateOpponentNote(n.id, opponentNoteDraft)}>Save</button>
+                            <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }} onClick={() => setEditingOpponentNoteId(null)}>Cancel</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p style={{ fontSize: 12, margin: 0, whiteSpace: 'pre-line' }}>{n.note_text}</p>
+                      )}
                     </div>
                   ))}
                   {!restrictToShared && (
@@ -2923,6 +2935,8 @@ export default function AthleteProfiles() {
   const [newOpponentNoteText, setNewOpponentNoteText] = useState('')
   const [newOpponentNoteShared, setNewOpponentNoteShared] = useState(false)
   const [expandedOpponent, setExpandedOpponent] = useState(null)
+  const [editingOpponentNoteId, setEditingOpponentNoteId] = useState(null)
+  const [opponentNoteDraft, setOpponentNoteDraft] = useState('')
   const [holidays, setHolidays]     = useState([])
   const [showAddAthleteHoliday, setShowAddAthleteHoliday] = useState(false)
   const [athleteHolidayForm, setAthleteHolidayForm] = useState({ name: '', start_date: '', end_date: '' })
@@ -4608,6 +4622,14 @@ export default function AthleteProfiles() {
     const { error } = await supabase.from('opponent_notes').update({ is_shared: !note.is_shared }).eq('id', note.id)
     if (error) { alert('Error updating: ' + error.message); return }
     setOpponentNotes(prev => prev.map(n => n.id === note.id ? { ...n, is_shared: !n.is_shared } : n))
+  }
+
+  async function updateOpponentNote(noteId, newText) {
+    if (!newText.trim()) return
+    const { error } = await supabase.from('opponent_notes').update({ note_text: newText.trim() }).eq('id', noteId)
+    if (error) { alert('Error updating note: ' + error.message); return }
+    setOpponentNotes(prev => prev.map(n => n.id === noteId ? { ...n, note_text: newText.trim() } : n))
+    setEditingOpponentNoteId(null)
   }
 
   async function deleteOpponentNote(noteId) {
@@ -6448,8 +6470,9 @@ export default function AthleteProfiles() {
                       )}
                     </div>
                     <PDPTab apData={teamPdpApData} setApData={setTeamPdpApData} student={teamTemplateStudent} isAdmin={isAdmin}
-                      opponentNotes={[]} onAddOpponentNote={() => {}} onToggleOpponentNoteShared={() => {}} onDeleteOpponentNote={() => {}}
-                      newOpponentName="" setNewOpponentName={() => {}} expandedOpponent={null} setExpandedOpponent={() => {}} />
+                      opponentNotes={[]} onAddOpponentNote={() => {}} onToggleOpponentNoteShared={() => {}} onDeleteOpponentNote={() => {}} onUpdateOpponentNote={() => {}}
+                      newOpponentName="" setNewOpponentName={() => {}} expandedOpponent={null} setExpandedOpponent={() => {}}
+                      editingOpponentNoteId={null} setEditingOpponentNoteId={() => {}} opponentNoteDraft="" setOpponentNoteDraft={() => {}} />
                   </>
                 )}
               </div>
@@ -9408,11 +9431,23 @@ export default function AthleteProfiles() {
                                               {n.is_shared ? '✓ Shared' : 'Share'}
                                             </button>
                                           )}
+                                          <button onClick={() => { setEditingOpponentNoteId(n.id); setOpponentNoteDraft(n.note_text) }} style={{ fontSize: 10, background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer' }}>✎ Edit</button>
                                           <button onClick={() => deleteOpponentNote(n.id)} style={{ fontSize: 10, background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer' }}>✕</button>
                                         </div>
                                       )}
                                     </div>
-                                    <p style={{ fontSize: 12, margin: 0, whiteSpace: 'pre-line' }}>{n.note_text}</p>
+                                    {editingOpponentNoteId === n.id ? (
+                                      <div style={{ marginTop: 4 }}>
+                                        <textarea value={opponentNoteDraft} onChange={e => setOpponentNoteDraft(e.target.value)}
+                                          rows={3} style={{ width: '100%', fontSize: 12, resize: 'vertical', marginBottom: 4 }} />
+                                        <div style={{ display: 'flex', gap: 6 }}>
+                                          <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }} onClick={() => updateOpponentNote(n.id, opponentNoteDraft)}>Save</button>
+                                          <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }} onClick={() => setEditingOpponentNoteId(null)}>Cancel</button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <p style={{ fontSize: 12, margin: 0, whiteSpace: 'pre-line' }}>{n.note_text}</p>
+                                    )}
                                   </div>
                                 ))}
                                 <OpponentQuickNoteForm opponentName={name} onSave={(text, sharedFlag) => addOpponentNote(name, text, 'coach', sharedFlag)} showShareToggle />
@@ -10272,10 +10307,15 @@ export default function AthleteProfiles() {
                 onAddOpponentNote={addOpponentNote}
                 onToggleOpponentNoteShared={toggleOpponentNoteShared}
                 onDeleteOpponentNote={deleteOpponentNote}
+                onUpdateOpponentNote={updateOpponentNote}
                 newOpponentName={newOpponentName}
                 setNewOpponentName={setNewOpponentName}
                 expandedOpponent={expandedOpponent}
                 setExpandedOpponent={setExpandedOpponent}
+                editingOpponentNoteId={editingOpponentNoteId}
+                setEditingOpponentNoteId={setEditingOpponentNoteId}
+                opponentNoteDraft={opponentNoteDraft}
+                setOpponentNoteDraft={setOpponentNoteDraft}
               />
             )}
 

@@ -1233,6 +1233,8 @@ export default function AthleteApp() {
   const [opponentNotes, setOpponentNotes] = useState([])
   const [shedTasks, setShedTasks] = useState([])
   const [newOpponentName, setNewOpponentName] = useState('')
+  const [editingOpponentNoteId, setEditingOpponentNoteId] = useState(null)
+  const [opponentNoteDraft, setOpponentNoteDraft] = useState('')
   const [sectionTargets, setSectionTargets] = useState([])
   const [student, setStudent]   = useState(null)
   const [houses, setHouses] = useState([])
@@ -1875,6 +1877,14 @@ export default function AthleteApp() {
     }).select().single()
     if (error) { alert('Error saving note: ' + error.message); return }
     setOpponentNotes(prev => [...prev, data])
+  }
+
+  async function updateOwnOpponentNote(noteId, newText) {
+    if (!newText.trim()) return
+    const { error } = await supabase.from('opponent_notes').update({ note_text: newText.trim() }).eq('id', noteId)
+    if (error) { alert('Error updating note: ' + error.message); return }
+    setOpponentNotes(prev => prev.map(n => n.id === noteId ? { ...n, note_text: newText.trim() } : n))
+    setEditingOpponentNoteId(null)
   }
 
   useEffect(() => {
@@ -5726,10 +5736,26 @@ export default function AthleteApp() {
                     <p style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>{name}</p>
                     {notes.map(n => (
                       <div key={n.id} style={{ padding: '5px 0', borderTop: '1px solid var(--border)' }}>
-                        <span style={{ fontSize: 10, fontWeight: 600, color: n.author_role === 'coach' ? '#666' : '#185FA5' }}>
-                          {n.author_role === 'coach' ? '🧑‍🏫 Coach' : '🥋 You'} · {new Date(n.created_at).toLocaleDateString('en-GB')}
-                        </span>
-                        <p style={{ fontSize: 12, margin: '2px 0 0', whiteSpace: 'pre-line' }}>{n.note_text}</p>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: 10, fontWeight: 600, color: n.author_role === 'coach' ? '#666' : '#185FA5' }}>
+                            {n.author_role === 'coach' ? '🧑‍🏫 Coach' : '🥋 You'} · {new Date(n.created_at).toLocaleDateString('en-GB')}
+                          </span>
+                          {n.author_role === 'athlete' && (
+                            <button onClick={() => { setEditingOpponentNoteId(n.id); setOpponentNoteDraft(n.note_text) }} style={{ fontSize: 10, background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer' }}>✎ Edit</button>
+                          )}
+                        </div>
+                        {editingOpponentNoteId === n.id ? (
+                          <div style={{ marginTop: 4 }}>
+                            <textarea value={opponentNoteDraft} onChange={e => setOpponentNoteDraft(e.target.value)}
+                              rows={3} style={{ width: '100%', fontSize: 12, resize: 'vertical', marginBottom: 4 }} />
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }} onClick={() => updateOwnOpponentNote(n.id, opponentNoteDraft)}>Save</button>
+                              <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }} onClick={() => setEditingOpponentNoteId(null)}>Cancel</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <p style={{ fontSize: 12, margin: '2px 0 0', whiteSpace: 'pre-line' }}>{n.note_text}</p>
+                        )}
                       </div>
                     ))}
                   </div>
