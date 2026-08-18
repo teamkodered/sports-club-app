@@ -80,7 +80,7 @@ const REGISTER_TYPES = [
 function SortTh({ col, label, sortKey, sortDir, onSort, style = {} }) {
   const active = sortKey === col
   return (
-    <th onClick={() => onSort(col)} style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', ...style }}>
+    <th onClick={() => onSort(col)} style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', background: 'var(--bg)', ...style }}>
       {label}<span style={{ marginLeft: 4, fontSize: 9, opacity: active ? 1 : 0.35 }}>{active ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}</span>
     </th>
   )
@@ -1005,8 +1005,14 @@ export default function Registers() {
         </span>
       </div>
 
-      {/* Quick attendance + select row (moved above search, per Aug 2026 request) */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+      {/* Quick attendance + select row (moved above search, per Aug 2026 request).
+          Sticky so these stay reachable while scrolling through a long
+          student list -- picking students, then attendance/points,
+          without scrolling back up each time. */}
+      <div style={{
+        display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap', alignItems: 'center',
+        position: 'sticky', top: 0, zIndex: 15, background: 'var(--bg)', padding: '8px 0',
+      }}>
         <button className="btn btn-sm" style={{ background: selectedStudents.length ? '#e6f1fb' : 'var(--bg-tertiary)', color: selectedStudents.length ? '#185fa5' : 'var(--text-tertiary)', border: `1px solid ${selectedStudents.length ? '#185fa540' : 'var(--border)'}`, cursor: selectedStudents.length ? 'pointer' : 'not-allowed' }}
           onClick={() => markAttendance('attended')} disabled={!selectedStudents.length || saving}>
           ✓ Attended{selectedStudents.length ? ` (${selectedStudents.length})` : ''}
@@ -1107,15 +1113,15 @@ export default function Registers() {
             </div>
           )}
           <table style={{ minWidth: isKR ? 900 : 680 }}>
-            <thead>
+            <thead style={{ position: 'sticky', top: 46, zIndex: 12, background: 'var(--bg)' }}>
               <tr>
-                {visibleCols.includes('checkbox') && <th style={{ width: 32, paddingLeft: 12 }}></th>}
+                {visibleCols.includes('checkbox') && <th style={{ width: 32, paddingLeft: 12, background: 'var(--bg)' }}></th>}
                 {visibleCols.includes('student_ref') && <SortTh col="student_ref" label="ID" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
                 {visibleCols.includes('name')        && <SortTh col="first_name" label="Name" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
                 {visibleCols.includes('age')         && <SortTh col="age" label="Age" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
                 {visibleCols.includes('house')       && <SortTh col="house" label="House" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
                 {visibleCols.includes('grade')       && <SortTh col="grade" label="Grade" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
-                {visibleCols.includes('class_time')  && <th>Class time</th>}
+                {visibleCols.includes('class_time')  && <th style={{ background: 'var(--bg)' }}>Class time</th>}
                 {isKR && <>
                   <SortTh col="competition_team" label="Experience" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                   <SortTh col="discipline_codes" label="Discipline" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
@@ -1145,11 +1151,11 @@ export default function Registers() {
                       </div>
                     </>} />
                 )}
-                {regType === 'krba' && <th style={{ textAlign: 'center' }}>Weight (in → out)</th>}
-                {visibleCols.includes('champ')       && <th style={{ textAlign: 'center' }}>🏆</th>}
+                {regType === 'krba' && <th style={{ textAlign: 'center', background: 'var(--bg)' }}>Weight (in → out)</th>}
+                {visibleCols.includes('champ')       && <th style={{ textAlign: 'center', background: 'var(--bg)' }}>🏆</th>}
                 {visibleCols.includes('media')       && <SortTh col="media_restriction" label="Media" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} style={{ textAlign: 'center' }} />}
                 {visibleCols.includes('points')      && <SortTh col="house_points" label="Pts" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} style={{ textAlign: 'center' }} />}
-                {(isAdmin || isLeader) && <th></th>}
+                {(isAdmin || isLeader) && <th style={{ background: 'var(--bg)' }}></th>}
               </tr>
             </thead>
             <tbody>
@@ -1162,7 +1168,14 @@ export default function Registers() {
                 const age = calcAge(m?.date_of_birth)
                 const isSelected = selectedStudents.includes(s.id)
                 const attendState = attendance[s.id] || 'none'
-                const groups = [s.is_kr&&'KR', s.is_pts&&'PTs', s.is_leader&&'Leader', s.is_coach&&'Coach'].filter(Boolean)
+                const groups = [
+                  s.discipline === 'PKA' && 'PKA',
+                  s.is_kr && 'KR',
+                  s.is_pts && 'PTs',
+                  s.is_leader && 'Leader',
+                  s.is_coach && 'Coach',
+                  s.discipline === 'KRBA' && m?.status === 'active' && 'KRBA',
+                ].filter(Boolean)
 
                 return (
                   <tr key={s.id}
@@ -1245,7 +1258,15 @@ export default function Registers() {
                     {visibleCols.includes('groups') && <td onClick={e => e.stopPropagation()}>
                       <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
                         {groups.length > 0 ? groups.map(g => (
-                          <span key={g} className={`badge ${g==='KR'?'badge-purple':g==='PTs'?'badge-blue':g==='Leader'?'badge-green':'badge-amber'}`} style={{ fontSize: 9 }}>{g}</span>
+                          <span key={g}
+                            className={`badge ${g==='KR'?'badge-purple':g==='PTs'?'badge-blue':g==='Leader'?'badge-green':g==='Coach'?'badge-amber':g==='PKA'?'badge-gray':'badge-red'}`}
+                            style={{ fontSize: 9, cursor: 'pointer' }}
+                            title={g==='PKA' ? 'View membership profile' : g==='KR' || g==='KRBA' ? 'View athlete profile' : undefined}
+                            onClick={e => {
+                              e.stopPropagation()
+                              if (g === 'PKA') setContactModal(s)
+                              else if (g === 'KR' || g === 'KRBA') navigate(`/athletes?id=${s.id}`)
+                            }}>{g}</span>
                         )) : <span style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>—</span>}
                       </div>
                     </td>}
