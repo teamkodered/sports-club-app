@@ -1214,7 +1214,7 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
   // Technical/Tactical/Physical) -- when locked, scrolling any one of
   // them moves all the others to match, keeping the same column lined
   // up across every group; when unlocked, each scrolls independently.
-  const [pdpScrollLocked, setPdpScrollLocked] = useState(false)
+  const [pdpScrollLocked, setPdpScrollLocked] = useState(true)
   const pdpScrollRefs = useRef({}) // group.label -> scroll container element
   const pdpLastScrollLeft = useRef(0) // most recent scrollLeft, used to line everything up the moment lock turns on
   function handlePdpGroupScroll(groupLabel, e) {
