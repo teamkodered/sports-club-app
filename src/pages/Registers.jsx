@@ -1263,7 +1263,7 @@ export default function Registers() {
                             onClick={e => {
                               e.stopPropagation()
                               if (g === 'PKA') setContactModal(s)
-                              else if (g === 'KR' || g === 'KRBA') navigate(`/athletes?id=${s.id}`)
+                              else if (g === 'KR' || g === 'KRBA') navigate(`/athletes?id=${s.id}&from=register`)
                             }}>{g}</span>
                         )) : <span style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>—</span>}
                       </div>

@@ -7350,7 +7350,12 @@ export default function AthleteProfiles() {
               swipeStartX.current = null
             }}>
             <div className="swipe-zone" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <button className="btn btn-sm" onClick={goHome}>← Athlete Dashboard</button>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {searchParams.get('from') === 'register' && (
+                  <button className="btn btn-sm" onClick={() => navigate(-1)}>← Back to Register</button>
+                )}
+                <button className="btn btn-sm" onClick={goHome}>← Athlete Dashboard</button>
+              </div>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button className="btn btn-sm"
                   onClick={() => goToAdjacentAthlete(-1)} title="Previous athlete (or back to Dashboard)">← Prev</button>
