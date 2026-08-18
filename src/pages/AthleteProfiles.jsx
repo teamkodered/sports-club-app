@@ -8031,9 +8031,9 @@ export default function AthleteProfiles() {
                     textAlign: 'center', padding: '18px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, width: '100%' }}>
-                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: 28, letterSpacing: 0.5, lineHeight: 1, color: '#c10806' }}>PHYSICAL</span>
-                      <img src="/logos/char-physical.png" alt="" style={{ height: 36, width: 'auto' }} />
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: showPhysicalSection ? 10 : 6, width: '100%' }}>
+                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showPhysicalSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#c10806' }}>PHYSICAL</span>
+                      <img src="/logos/char-physical.png" alt="" style={{ height: showPhysicalSection ? 36 : 22, width: 'auto' }} />
                     </div>
                     <CoachSectionProgressBars sectionKey="physical" vertical />
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showPhysicalSection ? '▲' : '▼'}</span>
@@ -8413,9 +8413,9 @@ export default function AthleteProfiles() {
                     textAlign: 'center', padding: '18px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, width: '100%' }}>
-                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: 28, letterSpacing: 0.5, lineHeight: 1, color: '#cd8808' }}>TECHNICAL</span>
-                      <img src="/logos/char-technical.png" alt="" style={{ height: 36, width: 'auto' }} />
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: showTechniqueSection ? 10 : 6, width: '100%' }}>
+                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showTechniqueSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#cd8808' }}>TECHNICAL</span>
+                      <img src="/logos/char-technical.png" alt="" style={{ height: showTechniqueSection ? 36 : 22, width: 'auto' }} />
                     </div>
                     <CoachSectionProgressBars sectionKey="technique" vertical />
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showTechniqueSection ? '▲' : '▼'}</span>
@@ -8518,9 +8518,9 @@ export default function AthleteProfiles() {
                     textAlign: 'center', padding: '18px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, width: '100%' }}>
-                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: 28, letterSpacing: 0.5, lineHeight: 1, color: '#1a1a1a' }}>TACTICAL</span>
-                      <img src="/logos/char-tactical.png" alt="" style={{ height: 36, width: 'auto' }} />
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: showTacticalSection ? 10 : 6, width: '100%' }}>
+                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showTacticalSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#1a1a1a' }}>TACTICAL</span>
+                      <img src="/logos/char-tactical.png" alt="" style={{ height: showTacticalSection ? 36 : 22, width: 'auto' }} />
                     </div>
                     <CoachSectionProgressBars sectionKey="tactical" vertical />
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showTacticalSection ? '▲' : '▼'}</span>
@@ -8627,9 +8627,9 @@ export default function AthleteProfiles() {
                     textAlign: 'center', padding: '18px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, width: '100%' }}>
-                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: 28, letterSpacing: 0.5, lineHeight: 1, color: '#602283' }}>MENTALITY</span>
-                      <img src="/logos/char-mentality.png" alt="" style={{ height: 36, width: 'auto' }} />
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: showMentalitySection ? 10 : 6, width: '100%' }}>
+                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showMentalitySection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#602283' }}>MENTALITY</span>
+                      <img src="/logos/char-mentality.png" alt="" style={{ height: showMentalitySection ? 36 : 22, width: 'auto' }} />
                     </div>
                     <CoachSectionProgressBars sectionKey="mentality" vertical />
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showMentalitySection ? '▲' : '▼'}</span>
@@ -8968,9 +8968,9 @@ export default function AthleteProfiles() {
                     textAlign: 'center', padding: '18px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, width: '100%' }}>
-                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: 28, letterSpacing: 0.5, lineHeight: 1, color: '#c66013' }}>FOUNDATION</span>
-                      <img src="/logos/char-foundation.png" alt="" style={{ height: 36, width: 'auto' }} />
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: showWellbeingSection ? 10 : 6, width: '100%' }}>
+                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showWellbeingSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#c66013' }}>FOUNDATION</span>
+                      <img src="/logos/char-foundation.png" alt="" style={{ height: showWellbeingSection ? 36 : 22, width: 'auto' }} />
                     </div>
                     <CoachSectionProgressBars sectionKey="wellbeing" vertical />
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showWellbeingSection ? '▲' : '▼'}</span>
