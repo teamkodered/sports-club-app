@@ -300,10 +300,29 @@ export default function CRM() {
 
   // Opens the device's native share sheet (Messages, WhatsApp, Email, etc.)
   // pre-filled with the given text. Falls back to copying to clipboard
-  // on browsers/desktops without Web Share support.
+  // on browsers/desktops without Web Share support. Empty text is
+  // rejected up front -- navigator.share() throws for an empty/blank
+  // string (no valid share data), and that error was previously
+  // swallowed silently by the same catch used for "user cancelled",
+  // making an empty template look identical to a working share sheet
+  // that simply didn't open.
   async function shareText(text) {
+    if (!text || !text.trim()) {
+      alert("This message is empty — add some text to the template first.")
+      return
+    }
     if (navigator.share) {
-      try { await navigator.share({ text }) } catch (e) { /* user cancelled share sheet — ignore */ }
+      try {
+        await navigator.share({ text })
+      } catch (e) {
+        // AbortError = the person closed the share sheet themselves,
+        // nothing to report. Anything else is a real failure worth
+        // surfacing rather than silently swallowing.
+        if (e.name !== 'AbortError') {
+          console.error('Share failed:', e)
+          alert('Could not open the share sheet: ' + (e.message || e.name))
+        }
+      }
       return
     }
     try {
