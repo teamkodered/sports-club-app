@@ -2721,6 +2721,13 @@ export default function AthleteProfiles() {
   const [expandedHomeWb, setExpandedHomeWb] = useState(null) // which wellbeing question card is expanded on Home
   const [todaysWellbeing, setTodaysWellbeing] = useState({})
   const [savingWellbeing, setSavingWellbeing] = useState(false)
+  const [saveConfirmation, setSaveConfirmation] = useState(null)
+  const saveConfirmationTimer = useRef(null)
+  function flashSaved(msg = '✓ Saved') {
+    setSaveConfirmation(msg)
+    clearTimeout(saveConfirmationTimer.current)
+    saveConfirmationTimer.current = setTimeout(() => setSaveConfirmation(null), 1400)
+  }
   const [hydrationCustomAdd, setHydrationCustomAdd] = useState('')
   const [outdoorsCustomAdd, setOutdoorsCustomAdd] = useState('')
   const [talkCustomAdd, setTalkCustomAdd] = useState('')
@@ -4341,6 +4348,7 @@ export default function AthleteProfiles() {
       setF2fData(prev => prev.map(s => s.id === existing.id ? { ...s, wellbeing: newWellbeing } : s))
     }
     if (error) alert('Error saving: ' + error.message)
+    else flashSaved()
     setSavingWellbeing(false)
   }
 
@@ -4373,6 +4381,7 @@ export default function AthleteProfiles() {
     const { error } = await supabase.from('athlete_profiles')
       .upsert({ student_id: selected.id, alter_ego_workbook: next }, { onConflict: 'student_id' })
     if (error) alert('Error saving: ' + error.message)
+    else flashSaved()
     setApData(p => ({ ...(p || {}), alter_ego_workbook: next }))
     setSavingAlterEgo(false)
   }
@@ -4386,6 +4395,7 @@ export default function AthleteProfiles() {
     const { error } = await supabase.from('athlete_profiles')
       .upsert({ student_id: selected.id, alter_ego_workbook: next }, { onConflict: 'student_id' })
     if (error) alert('Error saving: ' + error.message)
+    else flashSaved()
     setApData(p => ({ ...(p || {}), alter_ego_workbook: next }))
     setNewReflectionText({ helped: '', fellShort: '', adjust: '', didItShowUp: null })
     setSavingAlterEgo(false)
@@ -4412,6 +4422,7 @@ export default function AthleteProfiles() {
       if (!error && data) setF2fData(prev => [data, ...prev])
     }
     if (error) alert('Error saving: ' + error.message)
+    else flashSaved()
     setSavingMentalityLog(false)
   }
 
@@ -4740,6 +4751,7 @@ export default function AthleteProfiles() {
       if (!error && data) setF2fData(prev => [data, ...prev])
     }
     if (error) alert('Error saving: ' + error.message)
+    else flashSaved()
     setSavingTest(false)
   }
 
@@ -4781,6 +4793,7 @@ export default function AthleteProfiles() {
       if (!error && data) setF2fData(prev => [data, ...prev])
     }
     if (error) alert('Error saving: ' + error.message)
+    else flashSaved()
     setSavingPhysical(false)
   }
 
@@ -5104,6 +5117,17 @@ export default function AthleteProfiles() {
 
   return (
     <div style={{ minHeight: 600 }}>
+
+      {saveConfirmation && (
+        <div style={{
+          position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 300,
+          background: '#1D9E75', color: '#fff', fontWeight: 600, fontSize: 13,
+          padding: '9px 18px', borderRadius: 20, boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
+          pointerEvents: 'none',
+        }}>
+          {saveConfirmation}
+        </div>
+      )}
 
       {/* ── Athlete Dashboard / profile detail ── */}
       <div style={{ minWidth: 0 }}>
@@ -8084,7 +8108,7 @@ export default function AthleteProfiles() {
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: showPhysicalSection ? 10 : 6, width: '100%' }}>
-                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showPhysicalSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#8a0604' }}>PHYSICAL</span>
+                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showPhysicalSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#5c0301' }}>PHYSICAL</span>
                       <img src="/logos/char-physical.png" alt="" style={{ height: showPhysicalSection ? 36 : 22, width: 'auto' }} />
                     </div>
                     <CoachSectionProgressBars sectionKey="physical" vertical />
@@ -8680,7 +8704,7 @@ export default function AthleteProfiles() {
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: showMentalitySection ? 10 : 6, width: '100%' }}>
-                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showMentalitySection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#43175c' }}>MENTALITY</span>
+                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showMentalitySection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#2b0a3d' }}>MENTALITY</span>
                       <img src="/logos/char-mentality.png" alt="" style={{ height: showMentalitySection ? 36 : 22, width: 'auto' }} />
                     </div>
                     <CoachSectionProgressBars sectionKey="mentality" vertical />

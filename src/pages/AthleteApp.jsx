@@ -1359,6 +1359,16 @@ export default function AthleteApp() {
   const [expandedHomeWb, setExpandedHomeWb] = useState(null)
   const [todaysWellbeing, setTodaysWellbeing] = useState({})
   const [savingWellbeing, setSavingWellbeing] = useState(false)
+  // Brief "✓ Saved" confirmation shown after any question interaction
+  // (checkbox, button, typed field) so it's always clear a tap actually
+  // registered -- not just for the explicit Save buttons.
+  const [saveConfirmation, setSaveConfirmation] = useState(null)
+  const saveConfirmationTimer = useRef(null)
+  function flashSaved(msg = '✓ Saved') {
+    setSaveConfirmation(msg)
+    clearTimeout(saveConfirmationTimer.current)
+    saveConfirmationTimer.current = setTimeout(() => setSaveConfirmation(null), 1400)
+  }
   const [hydrationCustomAdd, setHydrationCustomAdd] = useState('')
   const [outdoorsCustomAdd, setOutdoorsCustomAdd] = useState('')
   const [talkCustomAdd, setTalkCustomAdd] = useState('')
@@ -1740,6 +1750,7 @@ export default function AthleteApp() {
     const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: updated }, { onConflict: 'student_id' })
     if (error) { alert('Error saving: ' + error.message); return }
     setApData(a => ({ ...a, pdp_notes: updated }))
+    flashSaved()
   }
 
   function ScheduleWizardPanel() {
@@ -2147,6 +2158,7 @@ export default function AthleteApp() {
       if (!error && data) setSessions(prev => [data, ...prev])
     }
     if (error) alert('Error saving: ' + error.message)
+    else flashSaved()
     setSavingWellbeing(false)
   }
 
@@ -2179,6 +2191,7 @@ export default function AthleteApp() {
     const { error } = await supabase.from('athlete_profiles')
       .upsert({ student_id: student.id, alter_ego_workbook: next }, { onConflict: 'student_id' })
     if (error) alert('Error saving: ' + error.message)
+    else flashSaved()
     setApData(p => ({ ...(p || {}), alter_ego_workbook: next }))
     setSavingAlterEgo(false)
   }
@@ -2192,6 +2205,7 @@ export default function AthleteApp() {
     const { error } = await supabase.from('athlete_profiles')
       .upsert({ student_id: student.id, alter_ego_workbook: next }, { onConflict: 'student_id' })
     if (error) alert('Error saving: ' + error.message)
+    else flashSaved()
     setApData(p => ({ ...(p || {}), alter_ego_workbook: next }))
     setNewReflectionText({ helped: '', fellShort: '', adjust: '', didItShowUp: null })
     setSavingAlterEgo(false)
@@ -2219,6 +2233,7 @@ export default function AthleteApp() {
       if (!error && data) setSessions(prev => [data, ...prev])
     }
     if (error) alert('Error saving: ' + error.message)
+    else flashSaved()
     setSavingMentalityLog(false)
   }
 
@@ -2261,6 +2276,7 @@ export default function AthleteApp() {
       if (!error && data) setSessions(prev => [data, ...prev])
     }
     if (error) alert('Error saving: ' + error.message)
+    else flashSaved()
     setSavingTest(false)
   }
 
@@ -2304,6 +2320,7 @@ export default function AthleteApp() {
       if (!error && data) setSessions(prev => [data, ...prev])
     }
     if (error) alert('Error saving: ' + error.message)
+    else flashSaved()
     setSavingPhysical(false)
   }
 
@@ -3140,6 +3157,17 @@ export default function AthleteApp() {
   return (
     <div style={{ maxWidth: 640, margin: '0 auto', padding: '20px 16px', minHeight: '100vh' }}>
 
+      {saveConfirmation && (
+        <div style={{
+          position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 300,
+          background: '#1D9E75', color: '#fff', fontWeight: 600, fontSize: 13,
+          padding: '9px 18px', borderRadius: 20, boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
+          pointerEvents: 'none',
+        }}>
+          {saveConfirmation}
+        </div>
+      )}
+
       {needsTermsAgreement && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div className="card" style={{ width: '100%', maxWidth: 520, maxHeight: '85vh', display: 'flex', flexDirection: 'column', padding: 0 }}>
@@ -3591,7 +3619,7 @@ export default function AthleteApp() {
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: showPhysicalSection ? 10 : 6, width: '100%' }}>
-                        <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showPhysicalSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#8a0604' }}>PHYSICAL</span>
+                        <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showPhysicalSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#5c0301' }}>PHYSICAL</span>
                         <img src="/logos/char-physical.png" alt="" style={{ height: showPhysicalSection ? 36 : 22, width: 'auto' }} />
                       </div>
                       <SectionProgressBars sectionKey="physical" vertical />
@@ -4181,7 +4209,7 @@ export default function AthleteApp() {
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: showMentalitySection ? 10 : 6, width: '100%' }}>
-                        <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showMentalitySection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#43175c' }}>MENTALITY</span>
+                        <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showMentalitySection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#2b0a3d' }}>MENTALITY</span>
                         <img src="/logos/char-mentality.png" alt="" style={{ height: showMentalitySection ? 36 : 22, width: 'auto' }} />
                       </div>
                       <SectionProgressBars sectionKey="mentality" vertical />
