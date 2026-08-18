@@ -1608,7 +1608,7 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
                       {editingOpponentNoteId === n.id ? (
                         <div style={{ marginTop: 4 }}>
                           <textarea value={opponentNoteDraft} onChange={e => setOpponentNoteDraft(e.target.value)}
-                            rows={3} style={{ width: '100%', fontSize: 12, resize: 'vertical', marginBottom: 4 }} />
+                            rows={6} style={{ width: '100%', fontSize: 15, padding: '10px 12px', resize: 'vertical', marginBottom: 4 }} />
                           <div style={{ display: 'flex', gap: 6 }}>
                             <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }} onClick={() => onUpdateOpponentNote(n.id, opponentNoteDraft)}>Save</button>
                             <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }} onClick={() => setEditingOpponentNoteId(null)}>Cancel</button>
@@ -2448,8 +2448,8 @@ function OpponentQuickNoteForm({ onSave, showShareToggle, disabled }) {
   const [sharedFlag, setSharedFlag] = useState(false)
   return (
     <div style={{ marginTop: 8 }}>
-      <textarea value={text} onChange={e => setText(e.target.value)} rows={2} placeholder="Add a note…"
-        style={{ width: '100%', fontSize: 12, padding: '6px 8px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 6 }} />
+      <textarea value={text} onChange={e => setText(e.target.value)} rows={5} placeholder="Add a note…"
+        style={{ width: '100%', fontSize: 15, padding: '10px 12px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 6 }} />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         {showShareToggle ? (
           <label style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
@@ -9439,7 +9439,7 @@ export default function AthleteProfiles() {
                                     {editingOpponentNoteId === n.id ? (
                                       <div style={{ marginTop: 4 }}>
                                         <textarea value={opponentNoteDraft} onChange={e => setOpponentNoteDraft(e.target.value)}
-                                          rows={3} style={{ width: '100%', fontSize: 12, resize: 'vertical', marginBottom: 4 }} />
+                                          rows={6} style={{ width: '100%', fontSize: 15, padding: '10px 12px', resize: 'vertical', marginBottom: 4 }} />
                                         <div style={{ display: 'flex', gap: 6 }}>
                                           <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }} onClick={() => updateOpponentNote(n.id, opponentNoteDraft)}>Save</button>
                                           <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }} onClick={() => setEditingOpponentNoteId(null)}>Cancel</button>
@@ -11537,8 +11537,8 @@ export default function AthleteProfiles() {
                 <div className="card" style={{ marginBottom: 12 }}>
                   <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>Log a note</h2>
                   <textarea value={newNoteText} onChange={e => setNewNoteText(e.target.value)}
-                    placeholder="Write a note about this athlete…" rows={3}
-                    style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
+                    placeholder="Write a note about this athlete…" rows={6}
+                    style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 15, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
                   <button className="btn btn-primary btn-sm" disabled={!newNoteText.trim() || savingNote} onClick={addNote}>
                     {savingNote ? 'Saving…' : '+ Log note'}
                   </button>

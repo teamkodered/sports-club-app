@@ -1151,8 +1151,8 @@ function OpponentQuickNoteForm({ onSave, showShareToggle, disabled }) {
   const [sharedFlag, setSharedFlag] = useState(false)
   return (
     <div style={{ marginTop: 8 }}>
-      <textarea value={text} onChange={e => setText(e.target.value)} rows={2} placeholder="Add a note…"
-        style={{ width: '100%', fontSize: 12, padding: '6px 8px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 6 }} />
+      <textarea value={text} onChange={e => setText(e.target.value)} rows={5} placeholder="Add a note…"
+        style={{ width: '100%', fontSize: 15, padding: '10px 12px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 6 }} />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         {showShareToggle ? (
           <label style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
@@ -5729,7 +5729,7 @@ export default function AthleteApp() {
                         {editingOpponentNoteId === n.id ? (
                           <div style={{ marginTop: 4 }}>
                             <textarea value={opponentNoteDraft} onChange={e => setOpponentNoteDraft(e.target.value)}
-                              rows={3} style={{ width: '100%', fontSize: 12, resize: 'vertical', marginBottom: 4 }} />
+                              rows={6} style={{ width: '100%', fontSize: 15, padding: '10px 12px', resize: 'vertical', marginBottom: 4 }} />
                             <div style={{ display: 'flex', gap: 6 }}>
                               <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }} onClick={() => updateOwnOpponentNote(n.id, opponentNoteDraft)}>Save</button>
                               <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }} onClick={() => setEditingOpponentNoteId(null)}>Cancel</button>

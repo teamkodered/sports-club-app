@@ -849,8 +849,8 @@ export default function CRM() {
                     <input value={templateDraft.label} onChange={e => setTemplateDraft(d => ({ ...d, label: e.target.value }))}
                       placeholder="Label" style={{ width: '100%', fontSize: 11, fontWeight: 600, marginBottom: 6, padding: '3px 6px' }} />
                     <textarea value={templateDraft.body} onChange={e => setTemplateDraft(d => ({ ...d, body: e.target.value }))}
-                      placeholder="Message text — use {name} for first name, {parent_name} for the parent/guardian's name" rows={4}
-                      style={{ width: '100%', fontSize: 11, marginBottom: 6, resize: 'vertical' }} />
+                      placeholder="Message text — use {name} for first name, {parent_name} for the parent/guardian's name" rows={7}
+                      style={{ width: '100%', fontSize: 15, padding: '10px 12px', marginBottom: 6, resize: 'vertical' }} />
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px', flex: 1 }} disabled={savingTemplate}
                         onClick={() => saveTemplate(i)}>{savingTemplate ? 'Saving…' : 'Save'}</button>
@@ -1118,8 +1118,8 @@ export default function CRM() {
                     <input value={mtTemplateDraft.label} onChange={e => setMtTemplateDraft(d => ({ ...d, label: e.target.value }))}
                       placeholder="Label" style={{ width: '100%', fontSize: 11, fontWeight: 600, marginBottom: 6, padding: '3px 6px' }} />
                     <textarea value={mtTemplateDraft.body} onChange={e => setMtTemplateDraft(d => ({ ...d, body: e.target.value }))}
-                      placeholder="Message text — use {name} for first name, {weeks} for weeks missed, {parent_name} for the parent/guardian's name" rows={4}
-                      style={{ width: '100%', fontSize: 11, marginBottom: 6, resize: 'vertical' }} />
+                      placeholder="Message text — use {name} for first name, {weeks} for weeks missed, {parent_name} for the parent/guardian's name" rows={7}
+                      style={{ width: '100%', fontSize: 15, padding: '10px 12px', marginBottom: 6, resize: 'vertical' }} />
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px', flex: 1 }} disabled={mtSavingTemplate}
                         onClick={() => saveMtTemplate(i)}>{mtSavingTemplate ? 'Saving…' : 'Save'}</button>
@@ -1278,8 +1278,8 @@ export default function CRM() {
                     <input value={bdTemplateDraft.label} onChange={e => setBdTemplateDraft(d => ({ ...d, label: e.target.value }))}
                       placeholder="Label" style={{ width: '100%', fontSize: 11, fontWeight: 600, marginBottom: 6, padding: '3px 6px' }} />
                     <textarea value={bdTemplateDraft.body} onChange={e => setBdTemplateDraft(d => ({ ...d, body: e.target.value }))}
-                      placeholder="Message text — use {name} for first name, {age} for the age they're turning, {parent_name} for the parent/guardian's name" rows={4}
-                      style={{ width: '100%', fontSize: 11, marginBottom: 6, resize: 'vertical' }} />
+                      placeholder="Message text — use {name} for first name, {age} for the age they're turning, {parent_name} for the parent/guardian's name" rows={7}
+                      style={{ width: '100%', fontSize: 15, padding: '10px 12px', marginBottom: 6, resize: 'vertical' }} />
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px', flex: 1 }} disabled={bdSavingTemplate}
                         onClick={() => saveBdTemplate(i)}>{bdSavingTemplate ? 'Saving…' : 'Save'}</button>
@@ -1434,8 +1434,8 @@ export default function CRM() {
                     <input value={msgTemplateDraft.label} onChange={e => setMsgTemplateDraft(d => ({ ...d, label: e.target.value }))}
                       placeholder="Label" style={{ width: '100%', fontSize: 11, fontWeight: 600, marginBottom: 6, padding: '3px 6px' }} />
                     <textarea value={msgTemplateDraft.body} onChange={e => setMsgTemplateDraft(d => ({ ...d, body: e.target.value }))}
-                      placeholder="Message text — use {name} for first name, {parent_name} for the parent/guardian's name" rows={4}
-                      style={{ width: '100%', fontSize: 11, marginBottom: 6, resize: 'vertical' }} />
+                      placeholder="Message text — use {name} for first name, {parent_name} for the parent/guardian's name" rows={7}
+                      style={{ width: '100%', fontSize: 15, padding: '10px 12px', marginBottom: 6, resize: 'vertical' }} />
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px', flex: 1 }} disabled={msgSavingTemplate}
                         onClick={() => saveMsgTemplate(i)}>{msgSavingTemplate ? 'Saving…' : 'Save'}</button>
@@ -1685,11 +1685,11 @@ export default function CRM() {
       {addingNoteForStudent && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
           onClick={() => setAddingNoteForStudent(null)}>
-          <div className="card" style={{ width: '100%', maxWidth: 380 }} onClick={e => e.stopPropagation()}>
+          <div className="card" style={{ width: '100%', maxWidth: 480 }} onClick={e => e.stopPropagation()}>
             <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 10 }}>📝 Note for {studentFullName(addingNoteForStudent)}</h3>
-            <textarea value={quickNoteDraft} onChange={e => setQuickNoteDraft(e.target.value)} rows={4} autoFocus
+            <textarea value={quickNoteDraft} onChange={e => setQuickNoteDraft(e.target.value)} rows={7} autoFocus
               placeholder="e.g. Spoke to parent, payment coming next week…"
-              style={{ width: '100%', marginBottom: 12, resize: 'none' }} />
+              style={{ width: '100%', fontSize: 15, padding: '10px 12px', marginBottom: 12, resize: 'vertical' }} />
             <div style={{ display: 'flex', gap: 8 }}>
               <button className="btn btn-primary" disabled={!quickNoteDraft.trim() || savingQuickNote} onClick={saveQuickNote}>
                 {savingQuickNote ? 'Saving…' : 'Save note'}
