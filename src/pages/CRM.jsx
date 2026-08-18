@@ -45,6 +45,7 @@ export default function CRM() {
   const [unpaidSearch, setUnpaidSearch] = useState('')
   const [paidSearch, setPaidSearch] = useState('')
   const [addingNoteForStudent, setAddingNoteForStudent] = useState(null) // student object, or null
+  const [athleteNotesByStudent, setAthleteNotesByStudent] = useState({}) // student_id -> [{id, note_text, created_at}], newest first
   const [quickNoteDraft, setQuickNoteDraft] = useState('')
   const [savingQuickNote, setSavingQuickNote] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -275,12 +276,15 @@ export default function CRM() {
   async function saveQuickNote() {
     if (!addingNoteForStudent || !quickNoteDraft.trim()) return
     setSavingQuickNote(true)
-    const { error } = await supabase.from('athlete_notes_log').insert({
+    const { data, error } = await supabase.from('athlete_notes_log').insert({
       student_id: addingNoteForStudent.id, note_text: quickNoteDraft.trim(),
-    })
+    }).select().single()
     setSavingQuickNote(false)
     if (error) { alert('Error saving note: ' + error.message); return }
-    setAddingNoteForStudent(null)
+    setAthleteNotesByStudent(prev => ({
+      ...prev,
+      [addingNoteForStudent.id]: [data, ...(prev[addingNoteForStudent.id] || [])],
+    }))
     setQuickNoteDraft('')
   }
 
@@ -340,12 +344,16 @@ export default function CRM() {
 
   async function loadData() {
     setLoading(true)
-    const [{ data: s }, { data: pl }] = await Promise.all([
+    const [{ data: s }, { data: pl }, { data: notes }] = await Promise.all([
       supabase.from('students').select('id, student_ref, discipline, class_schedule, sponsored, guardian_name, pka_belt, krba_level, house_name, media_restriction, is_kr, is_pts, is_leader, is_coach, members(first_name, last_name, status, email, phone, date_of_birth, houses(name))'),
       supabase.from('payer_links').select('*'),
+      supabase.from('athlete_notes_log').select('id, student_id, note_text, created_at').order('created_at', { ascending: false }),
     ])
     setStudents((s || []).filter(x => x.members?.status === 'active'))
     setPayerLinks(pl || [])
+    const grouped = {}
+    ;(notes || []).forEach(n => { (grouped[n.student_id] ||= []).push(n) })
+    setAthleteNotesByStudent(grouped)
     setLoading(false)
   }
 
@@ -991,6 +999,7 @@ export default function CRM() {
                     const email = s.members?.email && !s.members.email.includes('@kr-centre.placeholder') ? s.members.email : null
                     const phone = s.members?.phone
                     const msgBody = encodeURIComponent(`Hi ${s.members?.first_name}, just checking in about your membership payment — let us know if there's anything we can help with. Thanks, KR Centre`)
+                    const hasNotes = (athleteNotesByStudent[s.id] || []).length > 0
                     return (
                     <div key={s.id}
                       onDragOver={e => { e.preventDefault(); setDragOverStudentId(s.id) }}
@@ -1000,8 +1009,8 @@ export default function CRM() {
                       style={{
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
                         padding: '8px 10px', borderRadius: 'var(--radius)', cursor: selectedPaymentIdx != null ? 'pointer' : 'default',
-                        background: dragOverStudentId === s.id ? '#1D9E7520' : 'var(--bg-secondary)',
-                        border: dragOverStudentId === s.id ? '2px solid #1D9E75' : '1px solid transparent',
+                        background: dragOverStudentId === s.id ? '#1D9E7520' : hasNotes ? '#EF9F2720' : 'var(--bg-secondary)',
+                        border: dragOverStudentId === s.id ? '2px solid #1D9E75' : hasNotes ? '1px solid #EF9F27' : '1px solid transparent',
                       }}>
                       <span style={{ minWidth: 0 }}>
                         <span style={{ fontSize: 13, fontWeight: 600 }}>{studentFullName(s)}</span>
@@ -1010,8 +1019,9 @@ export default function CRM() {
                       <span style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                         <button className="btn btn-sm" style={{ fontSize: 11 }} title="Share payment reminder (text, WhatsApp, email...)"
                           onClick={e => { e.stopPropagation(); sharePaymentReminder(s.members?.first_name, msgBody) }}>📤</button>
-                        <button className="btn btn-sm" style={{ fontSize: 11 }} title="Add a note about this student"
-                          onClick={e => { e.stopPropagation(); setAddingNoteForStudent(s); setQuickNoteDraft('') }}>📝</button>
+                        <button className="btn btn-sm" style={{ fontSize: 11, background: hasNotes ? '#EF9F2730' : undefined, borderColor: hasNotes ? '#EF9F27' : undefined }}
+                          title={hasNotes ? `${athleteNotesByStudent[s.id].length} note(s) — click to view/add` : 'Add a note about this student'}
+                          onClick={e => { e.stopPropagation(); setAddingNoteForStudent(s); setQuickNoteDraft('') }}>📝{hasNotes ? ` ${athleteNotesByStudent[s.id].length}` : ''}</button>
                         <button className="btn btn-sm" style={{ fontSize: 11 }} title="Mark as sponsored -- moves to paid list, won't be chased for payment"
                           onClick={e => { e.stopPropagation(); markSponsored(s.id, true) }}>🎗️ Sponsored</button>
                       </span>
@@ -1685,8 +1695,21 @@ export default function CRM() {
       {addingNoteForStudent && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
           onClick={() => setAddingNoteForStudent(null)}>
-          <div className="card" style={{ width: '100%', maxWidth: 480 }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 10 }}>📝 Note for {studentFullName(addingNoteForStudent)}</h3>
+          <div className="card" style={{ width: '100%', maxWidth: 480, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 10 }}>📝 Notes for {studentFullName(addingNoteForStudent)}</h3>
+            {(athleteNotesByStudent[addingNoteForStudent.id] || []).length > 0 && (
+              <div style={{ overflowY: 'auto', marginBottom: 12, paddingRight: 4 }}>
+                <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>Previous notes</p>
+                {athleteNotesByStudent[addingNoteForStudent.id].map(n => (
+                  <div key={n.id} style={{ padding: '8px 0', borderTop: '1px solid var(--border)' }}>
+                    <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>
+                      {new Date(n.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} at {new Date(n.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    <p style={{ fontSize: 13, margin: '2px 0 0', whiteSpace: 'pre-line' }}>{n.note_text}</p>
+                  </div>
+                ))}
+              </div>
+            )}
             <textarea value={quickNoteDraft} onChange={e => setQuickNoteDraft(e.target.value)} rows={7} autoFocus
               placeholder="e.g. Spoke to parent, payment coming next week…"
               style={{ width: '100%', fontSize: 15, padding: '10px 12px', marginBottom: 12, resize: 'vertical' }} />
@@ -1694,7 +1717,7 @@ export default function CRM() {
               <button className="btn btn-primary" disabled={!quickNoteDraft.trim() || savingQuickNote} onClick={saveQuickNote}>
                 {savingQuickNote ? 'Saving…' : 'Save note'}
               </button>
-              <button className="btn" onClick={() => setAddingNoteForStudent(null)}>Cancel</button>
+              <button className="btn" onClick={() => setAddingNoteForStudent(null)}>Close</button>
             </div>
           </div>
         </div>
