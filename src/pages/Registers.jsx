@@ -61,7 +61,6 @@ import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
-import { studentProfileLink } from '../lib/studentLinks.js'
 
 const HOUSE_COLOURS = {
   'Dragon House': '#E24B4A', 'Super House': '#378ADD',
@@ -1195,12 +1194,11 @@ export default function Registers() {
                         {s.student_ref || '—'}
                       </span>
                     </td>}
-                    {visibleCols.includes('name') && <td onClick={e => e.stopPropagation()}>
+                    {visibleCols.includes('name') && <td>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <a href={studentProfileLink(s)}
-                          style={{ color: 'var(--text)', fontWeight: 500, fontSize: 13, textDecoration: 'none', cursor: 'pointer' }}>
+                        <span style={{ color: 'var(--text)', fontWeight: 500, fontSize: 13 }}>
                           {m?.first_name} {m?.last_name}
-                        </a>
+                        </span>
                         {(() => {
                           const bday = getBirthdayInfo(m?.date_of_birth)
                           if (!bday) return null
