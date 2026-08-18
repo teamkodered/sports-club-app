@@ -1226,6 +1226,11 @@ export default function AthleteApp() {
   const [showWeightCheckPrompt, setShowWeightCheckPrompt] = useState(null) // 'in' | 'out' | null
   const [weightCheckValue, setWeightCheckValue] = useState('')
   const [fullKitChecked, setFullKitChecked] = useState(false)
+  const [showMissedWeighIn, setShowMissedWeighIn] = useState(false)
+  const [missedWeighInRecordId, setMissedWeighInRecordId] = useState(null)
+  const [missedWeighInBefore, setMissedWeighInBefore] = useState('')
+  const [missedWeighInAfter, setMissedWeighInAfter] = useState('')
+  const [savingMissedWeighIn, setSavingMissedWeighIn] = useState(false)
   // Cycles the Sessions calendar between three views: the normal
   // attendance calendar, a Fit II Fight completed-actions-per-day
   // count, and a PDP completed-actions-per-day count.
@@ -2295,9 +2300,13 @@ export default function AthleteApp() {
   }
 
   // Detects whether there's an existing check-in for today that's
-  // still "open" (not checked out, and within 1 hour of the relevant
-  // class's start time) -- so refreshing the page still shows the
-  // Check out button rather than losing that state.
+  // still "open" (not checked out) -- so refreshing the page still
+  // shows the Check out button rather than losing that state. Stays
+  // available for the rest of the day it happened (previously cut off
+  // just 1 hour after the class's start time, which was often too
+  // tight -- e.g. training ran long, or the athlete simply didn't open
+  // the app again until later). For anything older than today, use
+  // "Log a missed weigh-in" instead, which works regardless of timing.
   useEffect(() => {
     if (!student || !attendanceData.length) { setActiveCheckIn(null); return }
     const todayStr = new Date().toISOString().split('T')[0]
@@ -2308,30 +2317,9 @@ export default function AthleteApp() {
     const todaysOpenEntries = attendanceData.filter(a => a.session_date === todayStr && !a.checked_out_at && a.self_checked_in)
     if (!todaysOpenEntries.length) { setActiveCheckIn(null); return }
     const mostRecent = todaysOpenEntries.sort((a, b) => new Date(b.attended_at) - new Date(a.attended_at))[0]
-
-    // Find today's assigned class closest to (at or before) the
-    // check-in time, to know when this session's 1-hour window ends
-    const jsDay = new Date().getDay()
-    const todaysClasses = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay))
-    const checkInTime = new Date(mostRecent.attended_at)
-    let expiresAt
-    if (todaysClasses.length) {
-      const closest = todaysClasses.reduce((best, a) => {
-        if (!a.classes?.start_time) return best
-        const [h, m] = a.classes.start_time.split(':').map(Number)
-        const classStart = new Date(checkInTime); classStart.setHours(h, m, 0, 0)
-        if (classStart > checkInTime) return best // hasn't started yet, not this one
-        if (!best || classStart > best.classStart) return { classStart, a }
-        return best
-      }, null)
-      expiresAt = closest ? new Date(closest.classStart.getTime() + 60 * 60 * 1000) : new Date(checkInTime.getTime() + 60 * 60 * 1000)
-    } else {
-      expiresAt = new Date(checkInTime.getTime() + 60 * 60 * 1000)
-    }
-
-    if (new Date() > expiresAt) setActiveCheckIn(null)
-    else setActiveCheckIn(mostRecent)
+    setActiveCheckIn(mostRecent)
   }, [student, attendanceData, assignedClasses])
+
 
   // Section header progress badge ("1/3") -- picks the athlete-specific
   // target for a section if one's been set, otherwise falls back to
@@ -3076,6 +3064,49 @@ export default function AthleteApp() {
     setShowWeightCheckPrompt(null)
     setCheckingIn(false)
     setFullKitChecked(false)
+  }
+
+  // Lets an athlete log (or fix) a weight against a past self-checked-in
+  // session regardless of how long ago it was -- the live check-in/out
+  // flow above only stays open for the day it happened, so this is the
+  // fallback for "I forgot" or "it wouldn't let me at the time".
+  async function submitMissedWeighIn() {
+    if (!missedWeighInRecordId) return
+    setSavingMissedWeighIn(true)
+    const updates = {}
+    if (missedWeighInBefore.trim()) updates.weight_before = parseFloat(missedWeighInBefore)
+    if (missedWeighInAfter.trim()) updates.weight_after = parseFloat(missedWeighInAfter)
+    if (!Object.keys(updates).length) { setSavingMissedWeighIn(false); return }
+
+    const { data, error } = await supabase.from('attendance').update(updates).eq('id', missedWeighInRecordId).select()
+    if (error) {
+      alert('Error saving: ' + error.message)
+    } else if (!data?.length) {
+      alert("Couldn't save this — ask a coach to add it for you if this keeps happening.")
+    } else {
+      const record = data[0]
+      const latestField = updates.weight_after != null ? 'weight_after' : 'weight_before'
+      await supabase.from('students').update({ weight_kg: updates[latestField] }).eq('id', student.id)
+
+      const existingSession = sessions.find(s => s.session_date === record.session_date)
+      if (existingSession) {
+        await supabase.from('fit2fight_sessions').update(updates).eq('id', existingSession.id)
+        setSessions(prev => prev.map(s => s.id === existingSession.id ? { ...s, ...updates } : s))
+      } else {
+        const { data: newSession } = await supabase.from('fit2fight_sessions')
+          .insert({ student_id: student.id, session_date: record.session_date, ...updates })
+          .select().single()
+        if (newSession) setSessions(prev => [newSession, ...prev])
+      }
+      setAttendanceData(prev => prev.map(a => a.id === missedWeighInRecordId ? { ...a, ...updates } : a))
+      setCheckedInMsg('✓ Weigh-in saved!')
+      setTimeout(() => setCheckedInMsg(null), 3000)
+      setShowMissedWeighIn(false)
+      setMissedWeighInRecordId(null)
+      setMissedWeighInBefore('')
+      setMissedWeighInAfter('')
+    }
+    setSavingMissedWeighIn(false)
   }
 
   if (loading) return <div className="loading">Loading…</div>
@@ -5519,6 +5550,10 @@ export default function AthleteApp() {
                       </button>
                       {!activeCheckIn && <p style={{ fontSize: 10, color: 'var(--text-tertiary)', textAlign: 'center', marginTop: 2 }}>Check in first to log a weight after</p>}
                     </div>
+                    <button className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginTop: 10 }}
+                      onClick={() => { setShowMissedWeighIn(true); setCheckInDrawerOpen(false) }}>
+                      🕐 Log a missed weigh-in
+                    </button>
                   </div>
                 </div>
               </div>
@@ -5554,6 +5589,75 @@ export default function AthleteApp() {
               <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => submitWeightCheck(true)} disabled={checkingIn}>Skip</button>
               <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => submitWeightCheck(false)} disabled={checkingIn}>
                 {checkingIn ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showMissedWeighIn && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 16 }}>
+          <div className="card" style={{ width: 340, maxWidth: '100%', padding: 20 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>🕐 Log a missed weigh-in</h2>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>
+              Pick a recent session to add or fix a weight against — this works no matter how long ago it was.
+            </p>
+            {(() => {
+              const recentSelfCheckIns = attendanceData
+                .filter(a => a.self_checked_in)
+                .sort((a, b) => new Date(b.attended_at) - new Date(a.attended_at))
+                .slice(0, 20)
+              if (!recentSelfCheckIns.length) {
+                return <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 14 }}>No recent self check-ins found.</p>
+              }
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14, maxHeight: 220, overflowY: 'auto' }}>
+                  {recentSelfCheckIns.map(a => (
+                    <button key={a.id} onClick={() => {
+                      setMissedWeighInRecordId(a.id)
+                      setMissedWeighInBefore(a.weight_before?.toString() || '')
+                      setMissedWeighInAfter(a.weight_after?.toString() || '')
+                    }} style={{
+                      textAlign: 'left', padding: '8px 10px', borderRadius: 'var(--radius)', cursor: 'pointer',
+                      background: missedWeighInRecordId === a.id ? '#378ADD20' : 'var(--bg-secondary)',
+                      border: missedWeighInRecordId === a.id ? '2px solid #378ADD' : '1px solid var(--border)',
+                      fontFamily: 'var(--font-sans)',
+                    }}>
+                      <span style={{ display: 'block', fontSize: 12, fontWeight: 600 }}>
+                        {new Date(a.session_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
+                      </span>
+                      <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>
+                        {a.weight_before != null || a.weight_after != null
+                          ? `Before: ${a.weight_before ?? '—'}kg · After: ${a.weight_after ?? '—'}kg`
+                          : 'No weight logged yet'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )
+            })()}
+            {missedWeighInRecordId && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Weight before (kg)</label>
+                  <input type="number" step="0.1" value={missedWeighInBefore} onChange={e => setMissedWeighInBefore(e.target.value)}
+                    style={{ width: '100%' }} placeholder="e.g. 54.2" />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Weight after (kg)</label>
+                  <input type="number" step="0.1" value={missedWeighInAfter} onChange={e => setMissedWeighInAfter(e.target.value)}
+                    style={{ width: '100%' }} placeholder="e.g. 53.8" />
+                </div>
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn" style={{ flex: 1, justifyContent: 'center' }}
+                onClick={() => { setShowMissedWeighIn(false); setMissedWeighInRecordId(null); setMissedWeighInBefore(''); setMissedWeighInAfter('') }}>
+                Cancel
+              </button>
+              <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}
+                onClick={submitMissedWeighIn} disabled={!missedWeighInRecordId || savingMissedWeighIn}>
+                {savingMissedWeighIn ? 'Saving…' : 'Save'}
               </button>
             </div>
           </div>
