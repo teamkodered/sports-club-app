@@ -254,26 +254,35 @@ export default function Registers() {
     // an earlier class today doesn't bleed into this class's checkboxes.
     // "All classes" has no single class to scope to, so it keeps showing
     // the day-level picture as before.
+    await syncLiveData()
+
+    setLoading(false)
+  }
+
+  // Re-fetches just the "live" per-day data (attendance, points, weights)
+  // for the currently selected date/class, WITHOUT touching students,
+  // classes, or any local UI state (selection, search, sort, filters).
+  // Used both by loadStudents() on first load and by the auto-refresh
+  // below, so that if another coach has this same register open on a
+  // different device/PC and checks someone in, this device converges
+  // to match within a few seconds -- instead of both coaches working
+  // from stale local state and risking a duplicate check-in.
+  async function syncLiveData() {
     try {
       let attQuery = supabase.from('attendance').select('student_id, attendance_type').eq('session_date', date)
       if (classFilter && classFilter !== 'all') attQuery = attQuery.eq('class_id', classFilter)
       const { data: todayAtt } = await attQuery
-      if (todayAtt?.length) {
-        const attMap = {}
-        todayAtt.forEach(a => {
-          if (a.attendance_type === 'full_kit') attMap[a.student_id] = 'full_kit'
-          else if (a.attendance_type === 'attended') attMap[a.student_id] = 'attended'
-          // any other/stale value is treated as not attended, rather than
-          // silently defaulting to 'attended'
-        })
-        setAttendance(attMap)
-      } else {
-        setAttendance({})
-      }
-    } catch(e) { console.error('Attendance load error:', e) }
+      const attMap = {}
+      ;(todayAtt || []).forEach(a => {
+        if (a.attendance_type === 'full_kit') attMap[a.student_id] = 'full_kit'
+        else if (a.attendance_type === 'attended') attMap[a.student_id] = 'attended'
+        // any other/stale value is treated as not attended, rather than
+        // silently defaulting to 'attended'
+      })
+      setAttendance(attMap)
+    } catch(e) { console.error('Attendance sync error:', e) }
 
     // Load points awarded on this specific date, grouped by student
-    setPointsByStudent({})
     try {
       const dayStart = `${date}T00:00:00.000Z`
       const dayEnd   = `${date}T23:59:59.999Z`
@@ -281,31 +290,47 @@ export default function Registers() {
         .from('points_log')
         .select('id, student_id, point_type, points_awarded, point_scope, note, awarded_at')
         .gte('awarded_at', dayStart).lte('awarded_at', dayEnd)
-      if (dayPoints?.length) {
-        const map = {}
-        dayPoints.forEach(p => { (map[p.student_id] ||= []).push(p) })
-        setPointsByStudent(map)
-      }
-    } catch (e) { console.error('Points load error:', e) }
+      const map = {}
+      ;(dayPoints || []).forEach(p => { (map[p.student_id] ||= []).push(p) })
+      setPointsByStudent(map)
+    } catch (e) { console.error('Points sync error:', e) }
 
     // Load weigh-in/out for this specific date (KRBA register), grouped by student
-    setWeightByStudent({})
     if (regType === 'krba') {
       try {
         const { data: dayWeights } = await supabase
           .from('fit2fight_sessions')
           .select('student_id, weight_before, weight_after')
           .eq('session_date', date)
-        if (dayWeights?.length) {
-          const wMap = {}
-          dayWeights.forEach(w => { wMap[w.student_id] = w })
-          setWeightByStudent(wMap)
-        }
-      } catch (e) { console.error('Weight load error:', e) }
+        const wMap = {}
+        ;(dayWeights || []).forEach(w => { wMap[w.student_id] = w })
+        setWeightByStudent(wMap)
+      } catch (e) { console.error('Weight sync error:', e) }
     }
-
-    setLoading(false)
   }
+
+  // Auto-refresh so two coaches on different devices don't work from
+  // stale state and risk double-checking someone in. Two layers:
+  // Realtime (near-instant when Supabase's realtime replication is
+  // enabled for these tables) and a polling fallback every 15s in case
+  // it isn't -- realtime is opt-in per table in Supabase and easy to
+  // forget to enable, so the poll guarantees this still converges
+  // either way.
+  useEffect(() => {
+    if (regType === 'adhoc') return // no date-scoped live data to sync for the adhoc register
+    const channel = supabase
+      .channel(`register-live-${date}-${classFilter}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance', filter: `session_date=eq.${date}` }, () => syncLiveData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'points_log' }, () => syncLiveData())
+      .subscribe()
+
+    const interval = setInterval(() => syncLiveData(), 15000)
+
+    return () => {
+      supabase.removeChannel(channel)
+      clearInterval(interval)
+    }
+  }, [date, classFilter, regType])
 
   function toggleSort(key) {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
