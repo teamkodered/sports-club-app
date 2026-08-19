@@ -287,7 +287,6 @@ export default function Layout() {
       <main className="app-main" style={{
         flex: 1,
         padding: '24px 28px',
-        overflowY: 'auto',
         minWidth: 0,
         marginLeft: sidebarW,
         transition: 'margin-left 0.2s ease',
