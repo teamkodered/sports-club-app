@@ -1,5 +1,11 @@
 // Netlify serverless function to send Supabase invite
 // Uses SUPABASE_SERVICE_ROLE_KEY env var (set in Netlify dashboard)
+//
+// Requires the caller to be an authenticated admin/coach/leader --
+// previously this had NO auth check at all, meaning anyone who found
+// the endpoint URL could trigger invite emails to arbitrary addresses
+// and silently link an auth account to any member record matching
+// that email, entirely bypassing the app's UI and permissions.
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method not allowed' }
@@ -8,7 +14,11 @@ exports.handler = async (event) => {
   const { email, name } = JSON.parse(event.body || '{}')
   if (!email) return { statusCode: 400, body: JSON.stringify({ error: 'Email required' }) }
 
+  const authHeader = event.headers.authorization || event.headers.Authorization
+  if (!authHeader) return { statusCode: 401, body: JSON.stringify({ error: 'Missing session' }) }
+
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
+  const anonKey     = process.env.VITE_SUPABASE_ANON_KEY
   const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY
 
   if (!serviceKey) {
@@ -16,6 +26,23 @@ exports.handler = async (event) => {
   }
 
   try {
+    // Identify the caller from their own access token (never trust a
+    // client-supplied identity), then confirm they're actually staff
+    // before doing anything with the service key.
+    const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: { apikey: anonKey, Authorization: authHeader },
+    })
+    if (!userRes.ok) return { statusCode: 401, body: JSON.stringify({ error: 'Invalid or expired session' }) }
+    const user = await userRes.json()
+
+    const callerRes = await fetch(`${supabaseUrl}/rest/v1/members?auth_id=eq.${user.id}&select=role`, {
+      headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+    })
+    const callerRows = await callerRes.json()
+    const callerRole = callerRows?.[0]?.role
+    const isStaff = callerRole === 'admin' || callerRole === 'captain' || callerRole === 'coach' || callerRole === 'leader'
+    if (!isStaff) return { statusCode: 403, body: JSON.stringify({ error: 'Not authorised to send invites' }) }
+
     const res = await fetch(`${supabaseUrl}/auth/v1/invite`, {
       method: 'POST',
       headers: {

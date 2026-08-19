@@ -4272,9 +4272,11 @@ export default function AthleteProfiles() {
     if (!confirm(`Send login invite to ${rawEmail}?`)) return
     setInvitingId(s.id)
     try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData?.session?.access_token
       const res = await fetch('/.netlify/functions/invite-user', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify({ email: rawEmail, name: `${s.members?.first_name} ${s.members?.last_name}` }),
       })
       const data = await res.json()

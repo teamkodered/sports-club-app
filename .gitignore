@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Environment variables / secrets -- never commit real values.
+# .env.example is intentionally NOT ignored (it only holds placeholders).
+.env
+.env.local
+.env.*.local
+
+# Editor/OS cruft
+.DS_Store
+.vscode/
+.idea/
+*.log
+npm-debug.log*
+
+# Netlify
+.netlify/

@@ -29,8 +29,12 @@ export default function JoinKRBA() {
   async function submit() {
     setSubmitting(true)
     try {
-      const { data: existing } = await supabase.from('members').select('id').ilike('email', form.email).maybeSingle()
-      if (existing) throw new Error('An account with this email already exists. Please contact us if you need help accessing it, rather than submitting a new form.')
+      // Uses the same SECURITY DEFINER RPC as the "welcome back" lookup
+      // -- this needs to work anonymously (before the person has an
+      // account), so it can't rely on a raw table read once that's
+      // locked down to authenticated-only.
+      const { data: existingRows } = await supabase.rpc('lookup_member_by_email', { p_email: form.email })
+      if (existingRows && existingRows.length && existingRows[0].member_exists) throw new Error('An account with this email already exists. Please contact us if you need help accessing it, rather than submitting a new form.')
 
       const parts = form.full_name.trim().split(' ')
       const first_name = parts[0]

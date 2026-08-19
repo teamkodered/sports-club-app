@@ -39,35 +39,24 @@ export function useReturningPerson() {
     debounceTimer.current = setTimeout(async () => {
       lastCheckedEmail.current = trimmed
       setChecking(true)
-      // members/students is the reliable source for contact details --
-      // membership_forms only stores form-specific answers (goals,
-      // medical, waiver etc), not necessarily address/phone. But it
-      // does hold emergency contact details, which aren't stored on
-      // members/students at all -- so fetch that too, from this
-      // person's most recent form submission, for household/sibling
-      // linking (e.g. reusing the same emergency contact for a
-      // second child in the same family).
-      const { data } = await supabase
-        .from('members')
-        .select('*, students(*)')
-        .ilike('email', trimmed)
-        .order('joined_date', { ascending: false })
-        .limit(1)
-      let emergencyContact = null
-      if (data && data.length) {
-        const { data: forms } = await supabase
-          .from('membership_forms')
-          .select('emergency_contact_name, emergency_contact_phone')
-          .eq('member_id', data[0].id)
-          .order('submitted_at', { ascending: false })
-          .limit(1)
-        if (forms && forms.length && (forms[0].emergency_contact_name || forms[0].emergency_contact_phone)) {
-          emergencyContact = forms[0]
-        }
-      }
+      // Uses a SECURITY DEFINER RPC (lookup_member_by_email) rather than
+      // a raw table read -- this runs anonymously, before the person
+      // has an account/session, so it can't rely on RLS auth checks.
+      // The RPC deliberately returns only these few contact-prefill
+      // fields, never the full members/students row (medical info,
+      // DOB, etc never leave the database this way).
+      const { data, error } = await supabase.rpc('lookup_member_by_email', { p_email: trimmed })
       setChecking(false)
-      if (data && data.length) {
-        setMatch({ ...data[0], emergencyContact })
+      const row = data && data.length ? data[0] : null
+      if (!error && row && row.member_exists) {
+        setMatch({
+          address_line1: row.address_line1,
+          phone: row.phone,
+          students: [{ guardian_name: row.guardian_name }],
+          emergencyContact: (row.ec_name || row.ec_phone)
+            ? { emergency_contact_name: row.ec_name, emergency_contact_phone: row.ec_phone }
+            : null,
+        })
         setDismissed(false)
       } else {
         setMatch(null)
