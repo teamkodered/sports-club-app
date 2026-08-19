@@ -44,43 +44,62 @@ exports.handler = async (event) => {
     })
     const callerRows = await callerRes.json()
     const callerRole = callerRows?.[0]?.role
-    const isStaff = callerRole === 'admin' || callerRole === 'captain' || callerRole === 'coach' || callerRole === 'leader'
+    // Deliberately excludes 'leader' -- CRM/Email access is
+    // admin/coach only, matching the app's route-level restriction.
+    const isStaff = callerRole === 'admin' || callerRole === 'captain' || callerRole === 'coach'
     if (!isStaff) return { statusCode: 403, body: JSON.stringify({ error: 'Not authorised to view the inbox' }) }
 
-    const client = new ImapFlow({
-      host: IMAP_HOST,
-      port: IMAP_PORT,
-      secure: true,
-      auth: { user: CLUB_EMAIL_ADDRESS, pass: emailPassword },
-      logger: false,
-    })
+    let client
+    try {
+      client = new ImapFlow({
+        host: IMAP_HOST,
+        port: IMAP_PORT,
+        secure: true,
+        auth: { user: CLUB_EMAIL_ADDRESS, pass: emailPassword },
+        logger: false,
+      })
+      await client.connect()
+    } catch (err) {
+      return { statusCode: 500, body: JSON.stringify({ error: `IMAP connect/login failed: ${err.message}` }) }
+    }
 
-    await client.connect()
     const messages = []
     try {
-      const lock = await client.getMailboxLock('INBOX')
+      let lock
       try {
-        const status = await client.status('INBOX', { messages: true, unseen: true })
-        // Most recent 30 messages, newest first. Envelope-only fetch
-        // (from/subject/date), never the full body -- keeps this fast
-        // and avoids downloading attachments just to show a list.
-        const total = status.messages
-        const start = Math.max(1, total - 29)
-        for await (const msg of client.fetch(`${start}:${total}`, { envelope: true, flags: true }, { uid: false })) {
-          messages.push({
-            uid: msg.uid,
-            from: msg.envelope?.from?.[0]?.address || 'unknown',
-            fromName: msg.envelope?.from?.[0]?.name || '',
-            subject: msg.envelope?.subject || '(no subject)',
-            date: msg.envelope?.date,
-            seen: (msg.flags || new Set()).has('\\Seen'),
-          })
+        lock = await client.getMailboxLock('INBOX')
+      } catch (err) {
+        throw new Error(`Opening INBOX failed: ${err.message}`)
+      }
+      try {
+        // client.mailbox is populated by the SELECT that
+        // getMailboxLock just did -- .exists is the message count,
+        // avoiding a separate STATUS command (one less thing that can
+        // fail, and some servers are fussy about STATUS on an already-
+        // selected mailbox).
+        const total = client.mailbox?.exists || 0
+        if (total > 0) {
+          const start = Math.max(1, total - 29)
+          try {
+            for await (const msg of client.fetch(`${start}:${total}`, { envelope: true, flags: true }, { uid: false })) {
+              messages.push({
+                uid: msg.uid,
+                from: msg.envelope?.from?.[0]?.address || 'unknown',
+                fromName: msg.envelope?.from?.[0]?.name || '',
+                subject: msg.envelope?.subject || '(no subject)',
+                date: msg.envelope?.date,
+                seen: (msg.flags || new Set()).has('\\Seen'),
+              })
+            }
+          } catch (err) {
+            throw new Error(`Fetching messages failed: ${err.message}`)
+          }
         }
       } finally {
         lock.release()
       }
     } finally {
-      await client.logout()
+      await client.logout().catch(() => {})
     }
 
     messages.sort((a, b) => new Date(b.date) - new Date(a.date))

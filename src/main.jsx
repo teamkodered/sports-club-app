@@ -46,8 +46,8 @@ import CourseInterest from './pages/forms/CourseInterest.jsx'
 import WhoopDisplayBoard from './pages/WhoopDisplayBoard.jsx'
 import Layout from './components/shared/Layout.jsx'
 
-function ProtectedRoute({ children, adminOnly = false, staffOnly = false }) {
-  const { session, profile, profileError, isAdmin, isStaff, loading } = useAuth()
+function ProtectedRoute({ children, adminOnly = false, staffOnly = false, excludeLeader = false }) {
+  const { session, profile, profileError, isAdmin, isStaff, isLeader, loading } = useAuth()
   if (loading) return <div className="loading">Loading…</div>
   if (!session) return <Navigate to="/login" replace />
   if (!profile) return (
@@ -65,6 +65,13 @@ function ProtectedRoute({ children, adminOnly = false, staffOnly = false }) {
   )
   if (adminOnly && !isAdmin) return <Navigate to="/dashboard" replace />
   if (staffOnly && !isStaff) return <Navigate to="/athlete-app" replace />
+  // Leaders count as "staff" for most areas (registers, attendance,
+  // points etc), but not for CRM/Email -- this is member payment,
+  // contact, and mailbox access, which stays admin/coach only. The
+  // sidebar already hides the CRM link from leaders (see Layout.jsx's
+  // roles list), but that alone doesn't stop direct URL access -- this
+  // closes that gap.
+  if (excludeLeader && isLeader) return <Navigate to="/dashboard" replace />
   return children
 }
 
@@ -100,7 +107,7 @@ function App() {
             <Route path="members"         element={<ProtectedRoute staffOnly><Members /></ProtectedRoute>} />
             <Route path="fixtures"        element={<Fixtures />} />
             <Route path="calendar"        element={<ProtectedRoute staffOnly><CalendarPage /></ProtectedRoute>} />
-            <Route path="crm"             element={<ProtectedRoute staffOnly><CRM /></ProtectedRoute>} />
+            <Route path="crm"             element={<ProtectedRoute staffOnly excludeLeader><CRM /></ProtectedRoute>} />
             <Route path="classes"         element={<ProtectedRoute staffOnly><Classes /></ProtectedRoute>} />
             <Route path="league"          element={<LeagueViews />} />
             <Route path="forms"           element={<Forms />} />

@@ -49,7 +49,9 @@ exports.handler = async (event) => {
     })
     const callerRows = await callerRes.json()
     const callerRole = callerRows?.[0]?.role
-    const isStaff = callerRole === 'admin' || callerRole === 'captain' || callerRole === 'coach' || callerRole === 'leader'
+    // Deliberately excludes 'leader' -- CRM/Email access is
+    // admin/coach only, matching the app's route-level restriction.
+    const isStaff = callerRole === 'admin' || callerRole === 'captain' || callerRole === 'coach'
     if (!isStaff) return { statusCode: 403, body: JSON.stringify({ error: 'Not authorised to send emails' }) }
 
     const transporter = nodemailer.createTransport({
