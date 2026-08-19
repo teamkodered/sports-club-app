@@ -105,6 +105,11 @@ export default function CRM() {
   const [messagesSortKey, setMessagesSortKey] = useState('name')
   const [messagesGroupFilter, setMessagesGroupFilter] = useState('')
   const [messagesGroupFilterOpen, setMessagesGroupFilterOpen] = useState(false)
+  const [inboxLoaded, setInboxLoaded] = useState(false)
+  const [inboxLoading, setInboxLoading] = useState(false)
+  const [inboxMessages, setInboxMessages] = useState([])
+  const [inboxError, setInboxError] = useState(null)
+  const [testEmailStatus, setTestEmailStatus] = useState(null) // null | 'sending' | 'sent' | 'error'
   const [messagesSortDir, setMessagesSortDir] = useState('asc')
   const [courses, setCourses] = useState([])
   const [coursesLoaded, setCoursesLoaded] = useState(false)
@@ -347,7 +352,46 @@ export default function CRM() {
     }
   }
 
-  // Sends a real email from the club's own mailbox (info@derbykickboxing.org.uk)
+  // Loads the club mailbox's recent inbox via IMAP (list-inbox.js) --
+  // also doubles as a straightforward way to check the mailbox
+  // credentials are actually working, since a failure here surfaces a
+  // clear error (e.g. wrong password) rather than needing to guess.
+  async function loadInbox() {
+    setInboxLoading(true)
+    setInboxError(null)
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData?.session?.access_token
+      const res = await fetch('/.netlify/functions/list-inbox', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
+      const result = await res.json()
+      if (!res.ok || result.error) {
+        setInboxError(result.error || res.statusText)
+      } else {
+        setInboxMessages(result.messages || [])
+      }
+    } catch (e) {
+      setInboxError(e.message)
+    }
+    setInboxLoaded(true)
+    setInboxLoading(false)
+  }
+
+  // Sends a real test email to the club's own address -- a quick,
+  // unambiguous way to confirm the SMTP side (sending) is working,
+  // separate from the IMAP side (reading) that loadInbox checks.
+  async function sendTestEmail() {
+    setTestEmailStatus('sending')
+    const ok = await sendRealEmail(
+      'info@derbykickboxing.org.uk',
+      'Test email from the app',
+      `This is a test email sent from the CRM's Email tab at ${new Date().toLocaleString('en-GB')}, to confirm sending is working correctly.`
+    )
+    setTestEmailStatus(ok ? 'sent' : 'error')
+  }
+
+
   // via the send-email Netlify function -- an actual email that lands in the
   // recipient's inbox, not a mailto:/share-sheet handoff the person has to
   // action themselves.
@@ -836,6 +880,12 @@ export default function CRM() {
           color: tab === 'messages' ? 'var(--text)' : 'var(--text-secondary)',
           fontWeight: tab === 'messages' ? 500 : 400,
         }}>Messages</button>
+        <button onClick={() => { setTab('email'); if (!inboxLoaded) loadInbox() }} style={{
+          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
+          borderBottom: `2px solid ${tab === 'email' ? 'var(--text)' : 'transparent'}`,
+          color: tab === 'email' ? 'var(--text)' : 'var(--text-secondary)',
+          fontWeight: tab === 'email' ? 500 : 400,
+        }}>Email</button>
         <button onClick={() => { setTab('courses'); if (!coursesLoaded) loadCourses() }} style={{
           padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
           borderBottom: `2px solid ${tab === 'courses' ? 'var(--text)' : 'transparent'}`,
@@ -1657,6 +1707,67 @@ export default function CRM() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {tab === 'email' && (
+        <div>
+          <div className="card" style={{ marginBottom: 16 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 10 }}>📧 Email — info@derbykickboxing.org.uk</h2>
+            <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+              <div>
+                <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Inbox connection (IMAP)</p>
+                {inboxLoading ? (
+                  <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Checking…</span>
+                ) : inboxError ? (
+                  <span style={{ fontSize: 13, color: '#a32d2d' }}>✕ {inboxError}</span>
+                ) : inboxLoaded ? (
+                  <span style={{ fontSize: 13, color: '#1D9E75' }}>✓ Connected — {inboxMessages.length} recent message{inboxMessages.length === 1 ? '' : 's'}</span>
+                ) : (
+                  <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Not checked yet</span>
+                )}
+              </div>
+              <div>
+                <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Sending (SMTP)</p>
+                <button className="btn btn-sm" onClick={sendTestEmail} disabled={testEmailStatus === 'sending'}>
+                  {testEmailStatus === 'sending' ? 'Sending…' : '📤 Send test email'}
+                </button>
+                {testEmailStatus === 'sent' && <span style={{ fontSize: 13, color: '#1D9E75', marginLeft: 8 }}>✓ Sent — check the inbox below</span>}
+                {testEmailStatus === 'error' && <span style={{ fontSize: 13, color: '#a32d2d', marginLeft: 8 }}>✕ Failed to send</span>}
+              </div>
+              <button className="btn btn-sm" onClick={loadInbox} disabled={inboxLoading} style={{ alignSelf: 'flex-end', marginLeft: 'auto' }}>
+                ↻ Refresh inbox
+              </button>
+            </div>
+          </div>
+
+          <div className="card" style={{ padding: 0 }}>
+            {inboxLoading ? (
+              <div className="loading">Loading inbox…</div>
+            ) : inboxError ? (
+              <p style={{ fontSize: 13, color: 'var(--text-tertiary)', padding: 20, textAlign: 'center' }}>
+                Couldn't load the inbox — see the error above. This usually means CLUB_EMAIL_PASSWORD isn't set correctly in Netlify's environment variables yet.
+              </p>
+            ) : inboxMessages.length === 0 ? (
+              <p style={{ fontSize: 13, color: 'var(--text-tertiary)', padding: 20, textAlign: 'center' }}>No messages found.</p>
+            ) : (
+              inboxMessages.map(m => (
+                <div key={m.uid} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '10px 14px', borderTop: '1px solid var(--border)' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {!m.seen && <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#378ADD', flexShrink: 0 }} />}
+                      <span style={{ fontSize: 13, fontWeight: m.seen ? 400 : 600 }}>{m.fromName || m.from}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{m.from}</span>
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: m.seen ? 400 : 600, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.subject}</div>
+                  </div>
+                  <span style={{ fontSize: 11, color: 'var(--text-tertiary)', flexShrink: 0 }}>
+                    {m.date ? new Date(m.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''}
+                  </span>
+                </div>
+              ))
+            )}
           </div>
         </div>
       )}
