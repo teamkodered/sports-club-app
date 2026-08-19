@@ -70,6 +70,7 @@ exports.handler = async (event) => {
 
     return { statusCode: 200, body: JSON.stringify({ success: true }) }
   } catch (err) {
-    return { statusCode: 500, body: JSON.stringify({ error: err.message }) }
+    const detail = [err.message, err.response, err.responseCode ? `(code ${err.responseCode})` : null].filter(Boolean).join(' — ')
+    return { statusCode: 500, body: JSON.stringify({ error: detail || 'Unknown send error' }) }
   }
 }

@@ -60,7 +60,14 @@ exports.handler = async (event) => {
       })
       await client.connect()
     } catch (err) {
-      return { statusCode: 500, body: JSON.stringify({ error: `IMAP connect/login failed: ${err.message}` }) }
+      // ImapFlow's err.message is ALWAYS the generic literal string
+      // "Command failed" -- the actual server-provided reason (e.g.
+      // "Authentication failed", "Login disabled", etc.) lives in
+      // err.responseText / err.response, which the plain .message
+      // discards. Surface those too so the real cause is visible
+      // instead of a meaningless generic string.
+      const detail = err.responseText || err.response?.attributes?.map(a => a.value).join(' ') || null
+      return { statusCode: 500, body: JSON.stringify({ error: `IMAP connect/login failed: ${detail || err.message}` }) }
     }
 
     const messages = []
@@ -69,7 +76,8 @@ exports.handler = async (event) => {
       try {
         lock = await client.getMailboxLock('INBOX')
       } catch (err) {
-        throw new Error(`Opening INBOX failed: ${err.message}`)
+        const detail = err.responseText || err.response?.attributes?.map(a => a.value).join(' ') || null
+        throw new Error(`Opening INBOX failed: ${detail || err.message}`)
       }
       try {
         // client.mailbox is populated by the SELECT that
@@ -92,7 +100,8 @@ exports.handler = async (event) => {
               })
             }
           } catch (err) {
-            throw new Error(`Fetching messages failed: ${err.message}`)
+            const detail = err.responseText || err.response?.attributes?.map(a => a.value).join(' ') || null
+            throw new Error(`Fetching messages failed: ${detail || err.message}`)
           }
         }
       } finally {
