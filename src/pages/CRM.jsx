@@ -312,6 +312,14 @@ export default function CRM() {
   // swallowed silently by the same catch used for "user cancelled",
   // making an empty template look identical to a working share sheet
   // that simply didn't open.
+  // Opens the device's native share sheet (Messages, WhatsApp, Email, etc.)
+  // pre-filled with the given text. Falls back to copying to clipboard
+  // on browsers/desktops without Web Share support. Empty text is
+  // rejected up front -- navigator.share() throws for an empty/blank
+  // string (no valid share data), and that error was previously
+  // swallowed silently by the same catch used for "user cancelled",
+  // making an empty template look identical to a working share sheet
+  // that simply didn't open.
   async function shareText(text) {
     if (!text || !text.trim()) {
       alert("This message is empty — add some text to the template first.")
@@ -338,6 +346,31 @@ export default function CRM() {
       alert(text)
     }
   }
+
+  // Sends a real email from the club's own mailbox (info@derbykickboxing.org.uk)
+  // via the send-email Netlify function -- an actual email that lands in the
+  // recipient's inbox, not a mailto:/share-sheet handoff the person has to
+  // action themselves.
+  async function sendRealEmail(to, subject, text) {
+    if (!to) { alert('No email address on file for this person.'); return false }
+    if (!text || !text.trim()) { alert('This message is empty — add some text to the template first.'); return false }
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData?.session?.access_token
+      const res = await fetch('/.netlify/functions/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ to, subject, text }),
+      })
+      const result = await res.json()
+      if (!res.ok || result.error) { alert('Could not send email: ' + (result.error || res.statusText)); return false }
+      return true
+    } catch (e) {
+      alert('Could not send email: ' + e.message)
+      return false
+    }
+  }
+
 
   async function sharePaymentReminder(studentName, encodedMsgBody) {
     await shareText(decodeURIComponent(encodedMsgBody))
@@ -906,16 +939,32 @@ export default function CRM() {
                     ))}
                   </div>
                 )}
-                <button className="btn btn-sm btn-primary" disabled={!templateRecipientId}
-                  onClick={() => {
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn btn-sm btn-primary" disabled={!templateRecipientId}
+                    onClick={() => {
+                      const recipient = students.find(s => s.id === templateRecipientId)
+                      const text = (templates[selectedTemplateIdx].body || '')
+                        .replace(/\{name\}/gi, recipient?.members?.first_name || '')
+                        .replace(/\{parent_name\}/gi, recipient?.guardian_name || '')
+                      shareText(text)
+                    }}>
+                    📤 Share to {templateRecipientId ? studentFullName(students.find(s => s.id === templateRecipientId)) : 'selected student'}
+                  </button>
+                  {(() => {
                     const recipient = students.find(s => s.id === templateRecipientId)
-                    const text = (templates[selectedTemplateIdx].body || '')
-                      .replace(/\{name\}/gi, recipient?.members?.first_name || '')
-                      .replace(/\{parent_name\}/gi, recipient?.guardian_name || '')
-                    shareText(text)
-                  }}>
-                  📤 Share to {templateRecipientId ? studentFullName(students.find(s => s.id === templateRecipientId)) : 'selected student'}
-                </button>
+                    const email = recipient?.members?.email && !recipient.members.email.includes('@kr-centre.placeholder') ? recipient.members.email : null
+                    if (!templateRecipientId || !email) return null
+                    return (
+                      <button className="btn btn-sm" title={`Send a real email to ${email}`}
+                        onClick={() => {
+                          const text = (templates[selectedTemplateIdx].body || '')
+                            .replace(/\{name\}/gi, recipient?.members?.first_name || '')
+                            .replace(/\{parent_name\}/gi, recipient?.guardian_name || '')
+                          sendRealEmail(email, templates[selectedTemplateIdx].label || 'Message from KR Centre', text)
+                        }}>✉️ Email</button>
+                    )
+                  })()}
+                </div>
               </div>
             )}
 
@@ -1002,7 +1051,8 @@ export default function CRM() {
                   ) : unpaidStudents.filter(s => !unpaidSearch || studentFullName(s).toLowerCase().includes(unpaidSearch.toLowerCase())).map(s => {
                     const email = s.members?.email && !s.members.email.includes('@kr-centre.placeholder') ? s.members.email : null
                     const phone = s.members?.phone
-                    const msgBody = encodeURIComponent(`Hi ${s.members?.first_name}, just checking in about your membership payment — let us know if there's anything we can help with. Thanks, KR Centre`)
+                    const msgText = `Hi ${s.members?.first_name}, just checking in about your membership payment — let us know if there's anything we can help with. Thanks, KR Centre`
+                    const msgBody = encodeURIComponent(msgText)
                     const hasNotes = (athleteNotesByStudent[s.id] || []).length > 0
                     return (
                     <div key={s.id}
@@ -1023,6 +1073,10 @@ export default function CRM() {
                       <span style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                         <button className="btn btn-sm" style={{ fontSize: 11 }} title="Share payment reminder (text, WhatsApp, email...)"
                           onClick={e => { e.stopPropagation(); sharePaymentReminder(s.members?.first_name, msgBody) }}>📤</button>
+                        {email && (
+                          <button className="btn btn-sm" style={{ fontSize: 11 }} title={`Send a real email to ${email}`}
+                            onClick={e => { e.stopPropagation(); sendRealEmail(email, 'Membership payment', msgText) }}>✉️</button>
+                        )}
                         <button className="btn btn-sm" style={{ fontSize: 11, background: hasNotes ? '#EF9F2730' : undefined, borderColor: hasNotes ? '#EF9F27' : undefined }}
                           title={hasNotes ? `${athleteNotesByStudent[s.id].length} note(s) — click to view/add` : 'Add a note about this student'}
                           onClick={e => { e.stopPropagation(); setAddingNoteForStudent(s); setQuickNoteDraft('') }}>📝{hasNotes ? ` ${athleteNotesByStudent[s.id].length}` : ''}</button>
@@ -1177,17 +1231,34 @@ export default function CRM() {
                     ))}
                   </div>
                 )}
-                <button className="btn btn-sm btn-primary" disabled={!mtRecipientId}
-                  onClick={() => {
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn btn-sm btn-primary" disabled={!mtRecipientId}
+                    onClick={() => {
+                      const recipientRow = missedTraining.find(r => r.student.id === mtRecipientId)
+                      const text = (mtTemplates[mtSelectedTemplateIdx].body || '')
+                        .replace(/\{name\}/gi, recipientRow?.student?.members?.first_name || '')
+                        .replace(/\{weeks\}/gi, recipientRow?.weeksMissed ?? '')
+                        .replace(/\{parent_name\}/gi, recipientRow?.student?.guardian_name || '')
+                      shareText(text)
+                    }}>
+                    📤 Share to {mtRecipientId ? studentFullName(missedTraining.find(r => r.student.id === mtRecipientId)?.student) : 'selected student'}
+                  </button>
+                  {(() => {
                     const recipientRow = missedTraining.find(r => r.student.id === mtRecipientId)
-                    const text = (mtTemplates[mtSelectedTemplateIdx].body || '')
-                      .replace(/\{name\}/gi, recipientRow?.student?.members?.first_name || '')
-                      .replace(/\{weeks\}/gi, recipientRow?.weeksMissed ?? '')
-                      .replace(/\{parent_name\}/gi, recipientRow?.student?.guardian_name || '')
-                    shareText(text)
-                  }}>
-                  📤 Share to {mtRecipientId ? studentFullName(missedTraining.find(r => r.student.id === mtRecipientId)?.student) : 'selected student'}
-                </button>
+                    const email = recipientRow?.student?.members?.email && !recipientRow.student.members.email.includes('@kr-centre.placeholder') ? recipientRow.student.members.email : null
+                    if (!mtRecipientId || !email) return null
+                    return (
+                      <button className="btn btn-sm" title={`Send a real email to ${email}`}
+                        onClick={() => {
+                          const text = (mtTemplates[mtSelectedTemplateIdx].body || '')
+                            .replace(/\{name\}/gi, recipientRow?.student?.members?.first_name || '')
+                            .replace(/\{weeks\}/gi, recipientRow?.weeksMissed ?? '')
+                            .replace(/\{parent_name\}/gi, recipientRow?.student?.guardian_name || '')
+                          sendRealEmail(email, mtTemplates[mtSelectedTemplateIdx].label || 'Message from KR Centre', text)
+                        }}>✉️ Email</button>
+                    )
+                  })()}
+                </div>
               </div>
             )}
           </div>
@@ -1337,17 +1408,34 @@ export default function CRM() {
                     ))}
                   </div>
                 )}
-                <button className="btn btn-sm btn-primary" disabled={!bdRecipientId}
-                  onClick={() => {
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn btn-sm btn-primary" disabled={!bdRecipientId}
+                    onClick={() => {
+                      const recipientRow = birthdays.find(r => r.student.id === bdRecipientId)
+                      const text = (bdTemplates[bdSelectedTemplateIdx].body || '')
+                        .replace(/\{name\}/gi, recipientRow?.student?.members?.first_name || '')
+                        .replace(/\{age\}/gi, recipientRow?.turningAge ?? '')
+                        .replace(/\{parent_name\}/gi, recipientRow?.student?.guardian_name || '')
+                      shareText(text)
+                    }}>
+                    📤 Share to {bdRecipientId ? studentFullName(birthdays.find(r => r.student.id === bdRecipientId)?.student) : 'selected student'}
+                  </button>
+                  {(() => {
                     const recipientRow = birthdays.find(r => r.student.id === bdRecipientId)
-                    const text = (bdTemplates[bdSelectedTemplateIdx].body || '')
-                      .replace(/\{name\}/gi, recipientRow?.student?.members?.first_name || '')
-                      .replace(/\{age\}/gi, recipientRow?.turningAge ?? '')
-                      .replace(/\{parent_name\}/gi, recipientRow?.student?.guardian_name || '')
-                    shareText(text)
-                  }}>
-                  📤 Share to {bdRecipientId ? studentFullName(birthdays.find(r => r.student.id === bdRecipientId)?.student) : 'selected student'}
-                </button>
+                    const email = recipientRow?.student?.members?.email && !recipientRow.student.members.email.includes('@kr-centre.placeholder') ? recipientRow.student.members.email : null
+                    if (!bdRecipientId || !email) return null
+                    return (
+                      <button className="btn btn-sm" title={`Send a real email to ${email}`}
+                        onClick={() => {
+                          const text = (bdTemplates[bdSelectedTemplateIdx].body || '')
+                            .replace(/\{name\}/gi, recipientRow?.student?.members?.first_name || '')
+                            .replace(/\{age\}/gi, recipientRow?.turningAge ?? '')
+                            .replace(/\{parent_name\}/gi, recipientRow?.student?.guardian_name || '')
+                          sendRealEmail(email, bdTemplates[bdSelectedTemplateIdx].label || 'Message from KR Centre', text)
+                        }}>✉️ Email</button>
+                    )
+                  })()}
+                </div>
               </div>
             )}
           </div>
@@ -1550,6 +1638,20 @@ export default function CRM() {
                             .replace(/\{parent_name\}/gi, s.guardian_name || '')
                           shareText(text)
                         }}>📤</button>
+                      {(() => {
+                        const email = s.members?.email && !s.members.email.includes('@kr-centre.placeholder') ? s.members.email : null
+                        if (!email) return null
+                        return (
+                          <button className="btn btn-sm" style={{ fontSize: 11, marginLeft: 4 }} disabled={msgSelectedTemplateIdx == null}
+                            title={msgSelectedTemplateIdx == null ? 'Select a template first' : `Send a real email to ${email}`}
+                            onClick={() => {
+                              const text = (msgTemplates[msgSelectedTemplateIdx].body || '')
+                                .replace(/\{name\}/gi, s.members?.first_name || '')
+                                .replace(/\{parent_name\}/gi, s.guardian_name || '')
+                              sendRealEmail(email, msgTemplates[msgSelectedTemplateIdx].label || 'Message from KR Centre', text)
+                            }}>✉️</button>
+                        )
+                      })()}
                     </td>
                   </tr>
                 ))}
