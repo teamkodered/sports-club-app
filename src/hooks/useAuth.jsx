@@ -73,6 +73,31 @@ export function AuthProvider({ children }) {
         }
       }
       console.error('No members row found for auth_id', userId)
+      // Last resort before giving up: this may be an existing member
+      // signing in for the first time via a NEW login method (e.g.
+      // just-added Google sign-in creates a brand new auth identity,
+      // not a reuse of whatever login they had before) -- try to
+      // auto-link by matching email against an existing members row,
+      // the same way the pending-claim-ref path above does for a
+      // different scenario.
+      if (accessToken) {
+        try {
+          const res = await fetch('/.netlify/functions/link-by-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+          })
+          const linkResult = await res.json()
+          if (linkResult.success) return fetchProfile(userId, accessToken) // re-fetch now that the link exists
+          if (linkResult.error && linkResult.error !== 'not_found') {
+            setProfileError(linkResult.message || linkResult.error)
+            setProfile(null)
+            setLoading(false)
+            return
+          }
+        } catch (e) {
+          console.error('Auto-link by email failed:', e)
+        }
+      }
       setProfileError('no_member_record')
       setProfile(null)
       setLoading(false)

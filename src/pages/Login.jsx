@@ -5,7 +5,7 @@ import { useAuth } from '../hooks/useAuth.jsx'
 
 export default function Login() {
   const navigate = useNavigate()
-  const { session, profile, isStaff } = useAuth()
+  const { session, profile, profileError, isStaff } = useAuth()
   const [tab, setTab]             = useState('login')
   const [email, setEmail]         = useState('')
   const [password, setPassword]   = useState('')
@@ -23,6 +23,12 @@ export default function Login() {
   useEffect(() => {
     if (session && profile) navigate(isStaff ? '/dashboard' : '/athlete-app')
   }, [session, profile])
+
+  // If a session exists but no profile could be matched (even after
+  // the automatic email-linking attempt in useAuth), surface that
+  // clearly instead of silently sitting on this page forever looking
+  // like nothing happened.
+  const stuckWithNoProfile = session && !profile && profileError
 
   async function handleGoogleSignIn() {
     setError('')
@@ -86,6 +92,21 @@ export default function Login() {
         </div>
 
         <div className="card">
+          {stuckWithNoProfile ? (
+            <div style={{ textAlign: 'center', padding: '8px 0' }}>
+              <div style={{ fontSize: 36, marginBottom: 10 }}>🔗</div>
+              <p style={{ fontSize: 14, fontWeight: 500, marginBottom: 6 }}>Couldn't match this to an existing profile</p>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 14 }}>
+                {profileError === 'no_member_record'
+                  ? "We signed you in, but couldn't find a member record with a matching email. If you're already a member, make sure you're using the same email address as on file — or ask an admin to check it."
+                  : profileError}
+              </p>
+              <button className="btn btn-sm" onClick={async () => { await supabase.auth.signOut(); window.location.reload() }}>
+                Sign out and try again
+              </button>
+            </div>
+          ) : (
+          <>
           {/* Tabs */}
           <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 20 }}>
             {[['login','Sign in'],['reset','Reset password'],['create','Create login']].map(([key, label]) => (
@@ -171,6 +192,8 @@ export default function Login() {
               </p>
               <button className="btn btn-sm btn-primary" onClick={() => { setTab('login'); setCreateSent(false) }}>Go to sign in</button>
             </div>
+          )}
+          </>
           )}
         </div>
 
