@@ -34,7 +34,15 @@ export default function Login() {
     setError('')
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/login` },
+      options: {
+        redirectTo: `${window.location.origin}/login`,
+        // Without this, Google silently reuses whatever account is
+        // already signed into the browser and skips the picker
+        // entirely -- easy to end up signed in with the wrong Google
+        // account (e.g. a personal Gmail) with no chance to notice or
+        // choose differently.
+        queryParams: { prompt: 'select_account' },
+      },
     })
     if (error) setError(error.message)
   }

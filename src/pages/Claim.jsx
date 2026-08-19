@@ -143,7 +143,13 @@ export default function Claim() {
     try { window.localStorage.setItem('pending_claim_ref', ref) } catch {}
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/claim?ref=${encodeURIComponent(ref)}` },
+      options: {
+        redirectTo: `${window.location.origin}/claim?ref=${encodeURIComponent(ref)}`,
+        // Force the account picker rather than silently reusing
+        // whatever Google account is already active in the browser --
+        // easy to end up signed in with the wrong one otherwise.
+        queryParams: { prompt: 'select_account' },
+      },
     })
     if (error) setLinkError(error.message)
   }
