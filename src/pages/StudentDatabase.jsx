@@ -43,6 +43,43 @@ function SortTh({ col, label, sortKey, sortDir, onSort, style = {} }) {
   )
 }
 
+// Groups column header: arrow keeps the normal sort-toggle behaviour,
+// clicking the word opens a dropdown to filter down to one group
+// instead (reuses the same groupFilter state as the toolbar dropdown
+// above the table).
+const GROUP_FILTER_OPTIONS = [['kr', 'KR'], ['pts', 'PTs'], ['leader', 'Leader'], ['coach', 'Coach']]
+function GroupFilterTh({ sortKey, sortDir, onSort, groupFilter, setGroupFilter, filterOpen, setFilterOpen }) {
+  const active = sortKey === 'groups'
+  const activeLabel = GROUP_FILTER_OPTIONS.find(([v]) => v === groupFilter)?.[1]
+  return (
+    <th style={{ whiteSpace: 'nowrap', position: 'relative' }}>
+      <span onClick={e => { e.stopPropagation(); setFilterOpen(v => !v) }}
+        style={{ cursor: 'pointer', userSelect: 'none', textDecoration: activeLabel ? 'underline' : 'none' }}>
+        {activeLabel ? `Groups: ${activeLabel}` : 'Groups'}
+      </span>
+      <span onClick={e => { e.stopPropagation(); onSort('groups') }}
+        style={{ marginLeft: 4, fontSize: 9, opacity: active ? 1 : 0.35, cursor: 'pointer', padding: '4px 2px' }}>
+        {active ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
+      </span>
+      {filterOpen && (
+        <div className="card" onClick={e => e.stopPropagation()}
+          style={{ position: 'absolute', top: '100%', left: 0, zIndex: 25, padding: 6, minWidth: 130, marginTop: 2 }}>
+          <button onClick={() => { setGroupFilter(''); setFilterOpen(false) }}
+            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '5px 8px', borderRadius: 6, fontSize: 12, background: !groupFilter ? 'var(--bg-secondary)' : 'none', border: 'none', cursor: 'pointer', fontWeight: !groupFilter ? 600 : 400, fontFamily: 'var(--font-sans)', color: 'var(--text)' }}>
+            All groups
+          </button>
+          {GROUP_FILTER_OPTIONS.map(([val, label]) => (
+            <button key={val} onClick={() => { setGroupFilter(val); setFilterOpen(false) }}
+              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '5px 8px', borderRadius: 6, fontSize: 12, background: groupFilter === val ? 'var(--bg-secondary)' : 'none', border: 'none', cursor: 'pointer', fontWeight: groupFilter === val ? 600 : 400, fontFamily: 'var(--font-sans)', color: 'var(--text)' }}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+    </th>
+  )
+}
+
 export default function StudentDatabase() {
   const { isAdmin, profile } = useAuth()
   const navigate = useNavigate()
@@ -54,6 +91,7 @@ export default function StudentDatabase() {
   const [tab, setTab]                 = useState('PKA')
   const [houseFilter, setHouseFilter] = useState('')
   const [groupFilter, setGroupFilter] = useState('')
+  const [groupFilterOpen, setGroupFilterOpen] = useState(false)
   const [statusFilter, setStatusFilter] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
   const [selected, setSelected]       = useState(null)
@@ -404,6 +442,10 @@ export default function StudentDatabase() {
                   const outCount = relevant.length - inCount
                   return <SortTh key={c.key} col={c.key} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}
                     label={<>In comp<div style={{ fontSize: 9, fontWeight: 400, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>{inCount} in · {outCount} out</div></>} />
+                }
+                if (c.key === 'groups') {
+                  return <GroupFilterTh key={c.key} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}
+                    groupFilter={groupFilter} setGroupFilter={setGroupFilter} filterOpen={groupFilterOpen} setFilterOpen={setGroupFilterOpen} />
                 }
                 return c.sortable
                   ? <SortTh key={c.key} col={c.key} label={c.label} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />

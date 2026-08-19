@@ -85,6 +85,42 @@ function SortTh({ col, label, sortKey, sortDir, onSort, style = {} }) {
   )
 }
 
+// Groups column header: the arrow keeps the normal sort-toggle
+// behaviour, but clicking the word itself opens a dropdown to filter
+// the list down to just one group (KR/PTs/Leader/Coach/PKA/KRBA)
+// instead. Click elsewhere in the header row to close the dropdown.
+const GROUP_FILTER_OPTIONS = ['KR', 'PTs', 'Leader', 'Coach', 'PKA', 'KRBA']
+function GroupFilterTh({ sortKey, sortDir, onSort, groupFilter, setGroupFilter, filterOpen, setFilterOpen }) {
+  const active = sortKey === 'groups'
+  return (
+    <th style={{ whiteSpace: 'nowrap', background: 'var(--bg)', position: 'relative' }}>
+      <span onClick={e => { e.stopPropagation(); setFilterOpen(v => !v) }}
+        style={{ cursor: 'pointer', userSelect: 'none', textDecoration: groupFilter ? 'underline' : 'none', textDecorationColor: groupFilter ? 'var(--text)' : undefined }}>
+        {groupFilter ? `Groups: ${groupFilter}` : 'Groups'}
+      </span>
+      <span onClick={e => { e.stopPropagation(); onSort('groups') }}
+        style={{ marginLeft: 4, fontSize: 9, opacity: active ? 1 : 0.35, cursor: 'pointer', padding: '4px 2px' }}>
+        {active ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
+      </span>
+      {filterOpen && (
+        <div className="card" onClick={e => e.stopPropagation()}
+          style={{ position: 'absolute', top: '100%', left: 0, zIndex: 25, padding: 6, minWidth: 130, marginTop: 2 }}>
+          <button onClick={() => { setGroupFilter(''); setFilterOpen(false) }}
+            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '5px 8px', borderRadius: 6, fontSize: 12, background: !groupFilter ? 'var(--bg-secondary)' : 'none', border: 'none', cursor: 'pointer', fontWeight: !groupFilter ? 600 : 400, fontFamily: 'var(--font-sans)', color: 'var(--text)' }}>
+            All groups
+          </button>
+          {GROUP_FILTER_OPTIONS.map(g => (
+            <button key={g} onClick={() => { setGroupFilter(g); setFilterOpen(false) }}
+              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '5px 8px', borderRadius: 6, fontSize: 12, background: groupFilter === g ? 'var(--bg-secondary)' : 'none', border: 'none', cursor: 'pointer', fontWeight: groupFilter === g ? 600 : 400, fontFamily: 'var(--font-sans)', color: 'var(--text)' }}>
+              {g}
+            </button>
+          ))}
+        </div>
+      )}
+    </th>
+  )
+}
+
 // Confirmed double-session pairs -- same cohort, split across two
 // back-to-back slots (usually for capacity). When a student is marked
 // present for the FIRST class in a pair, and they're already assigned
@@ -137,6 +173,8 @@ export default function Registers() {
   const [search, setSearch]             = useState('')
   const [sortKey, setSortKey]           = useState('first_name')
   const [sortDir, setSortDir]           = useState('asc')
+  const [groupFilter, setGroupFilter]   = useState('') // '' = all groups; else 'KR'|'PTs'|'Leader'|'Coach'|'PKA'|'KRBA'
+  const [groupFilterOpen, setGroupFilterOpen] = useState(false)
   // Adhoc register
   const [adhocSearch, setAdhocSearch]   = useState('')
   const [adhocResults, setAdhocResults] = useState([])
@@ -369,8 +407,20 @@ export default function Registers() {
   const _isMonFri = _dow === 'Mon' || _dow === 'Fri'
   const _isTueThu = _dow === 'Tue' || _dow === 'Thu'
 
+  function studentGroups(s, m) {
+    return [
+      s.discipline === 'PKA' && 'PKA',
+      s.is_kr && 'KR',
+      s.is_pts && 'PTs',
+      s.is_leader && 'Leader',
+      s.is_coach && 'Coach',
+      s.discipline === 'KRBA' && m?.status === 'active' && 'KRBA',
+    ].filter(Boolean)
+  }
+
   const displayStudents = (regType === 'adhoc' ? adhocPills.map(p => students.find(s => s.id === p.id)).filter(Boolean) : students)
     .filter(s => !showOnlyAttended || (attendance[s.id] && attendance[s.id] !== 'none'))
+    .filter(s => !groupFilter || studentGroups(s, s.members).includes(groupFilter))
     .filter(s => {
       if (classFilter === 'all') return true
 
@@ -832,6 +882,7 @@ export default function Registers() {
     <div onClick={e => {
       if (!e.target.closest('tr') && !e.target.closest('button') && !e.target.closest('input') && !e.target.closest('select'))
         setSelectedStudents([])
+      if (groupFilterOpen) setGroupFilterOpen(false)
     }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
@@ -1139,7 +1190,7 @@ export default function Registers() {
                   )
                 })()}
                 {(regType === 'kr' || regType === 'krba') && <SortTh col="wins" label="Record" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} style={{ textAlign: 'center' }} />}
-                {visibleCols.includes('groups')      && <SortTh col="groups" label="Groups" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
+                {visibleCols.includes('groups')      && <GroupFilterTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} groupFilter={groupFilter} setGroupFilter={setGroupFilter} filterOpen={groupFilterOpen} setFilterOpen={setGroupFilterOpen} />}
                 {visibleCols.includes('attendance')  && (
                   <SortTh col="attendance" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} style={{ textAlign: 'center' }}
                     label={<>
@@ -1167,14 +1218,7 @@ export default function Registers() {
                 const age = calcAge(m?.date_of_birth)
                 const isSelected = selectedStudents.includes(s.id)
                 const attendState = attendance[s.id] || 'none'
-                const groups = [
-                  s.discipline === 'PKA' && 'PKA',
-                  s.is_kr && 'KR',
-                  s.is_pts && 'PTs',
-                  s.is_leader && 'Leader',
-                  s.is_coach && 'Coach',
-                  s.discipline === 'KRBA' && m?.status === 'active' && 'KRBA',
-                ].filter(Boolean)
+                const groups = studentGroups(s, m)
 
                 return (
                   <tr key={s.id}

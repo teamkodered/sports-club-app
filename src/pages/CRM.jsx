@@ -103,6 +103,8 @@ export default function CRM() {
   const [msgSavingTemplate, setMsgSavingTemplate] = useState(false)
   const [msgSelectedTemplateIdx, setMsgSelectedTemplateIdx] = useState(null)
   const [messagesSortKey, setMessagesSortKey] = useState('name')
+  const [messagesGroupFilter, setMessagesGroupFilter] = useState('')
+  const [messagesGroupFilterOpen, setMessagesGroupFilterOpen] = useState(false)
   const [messagesSortDir, setMessagesSortDir] = useState('asc')
   const [courses, setCourses] = useState([])
   const [coursesLoaded, setCoursesLoaded] = useState(false)
@@ -532,7 +534,9 @@ export default function CRM() {
   }
 
   function sortedMessagesStudents() {
-    const withVals = students.map(s => ({
+    const withVals = students
+      .filter(s => !messagesGroupFilter || s[messagesGroupFilter])
+      .map(s => ({
       s,
       student_ref: s.student_ref || '',
       name: studentFullName(s),
@@ -1484,12 +1488,40 @@ export default function CRM() {
                 <tr>
                   {[
                     ['student_ref', 'ID'], ['name', 'Name'], ['age', 'Age'], ['house', 'House'],
-                    ['grade', 'Grade'], ['groups', 'Groups'], ['media', 'Media'],
+                    ['grade', 'Grade'],
                   ].map(([col, label]) => (
                     <th key={col} onClick={() => toggleMessagesSort(col)} style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
                       {label}{messagesSortKey === col ? (messagesSortDir === 'asc' ? ' ▲' : ' ▼') : ''}
                     </th>
                   ))}
+                  <th style={{ whiteSpace: 'nowrap', position: 'relative' }}>
+                    <span onClick={e => { e.stopPropagation(); setMessagesGroupFilterOpen(v => !v) }}
+                      style={{ cursor: 'pointer', userSelect: 'none', textDecoration: messagesGroupFilter ? 'underline' : 'none' }}>
+                      {messagesGroupFilter ? `Groups: ${{ is_kr: 'KR', is_pts: 'PTs', is_leader: 'Leader', is_coach: 'Coach' }[messagesGroupFilter]}` : 'Groups'}
+                    </span>
+                    <span onClick={e => { e.stopPropagation(); toggleMessagesSort('groups') }}
+                      style={{ marginLeft: 4, fontSize: 9, cursor: 'pointer', padding: '4px 2px' }}>
+                      {messagesSortKey === 'groups' ? (messagesSortDir === 'asc' ? '▲' : '▼') : '↕'}
+                    </span>
+                    {messagesGroupFilterOpen && (
+                      <div className="card" onClick={e => e.stopPropagation()}
+                        style={{ position: 'absolute', top: '100%', left: 0, zIndex: 25, padding: 6, minWidth: 130, marginTop: 2 }}>
+                        <button onClick={() => { setMessagesGroupFilter(''); setMessagesGroupFilterOpen(false) }}
+                          style={{ display: 'block', width: '100%', textAlign: 'left', padding: '5px 8px', borderRadius: 6, fontSize: 12, background: !messagesGroupFilter ? 'var(--bg-secondary)' : 'none', border: 'none', cursor: 'pointer', fontWeight: !messagesGroupFilter ? 600 : 400, fontFamily: 'var(--font-sans)', color: 'var(--text)' }}>
+                          All groups
+                        </button>
+                        {[['is_kr', 'KR'], ['is_pts', 'PTs'], ['is_leader', 'Leader'], ['is_coach', 'Coach']].map(([val, label]) => (
+                          <button key={val} onClick={() => { setMessagesGroupFilter(val); setMessagesGroupFilterOpen(false) }}
+                            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '5px 8px', borderRadius: 6, fontSize: 12, background: messagesGroupFilter === val ? 'var(--bg-secondary)' : 'none', border: 'none', cursor: 'pointer', fontWeight: messagesGroupFilter === val ? 600 : 400, fontFamily: 'var(--font-sans)', color: 'var(--text)' }}>
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </th>
+                  <th key="media" onClick={() => toggleMessagesSort('media')} style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
+                    Media{messagesSortKey === 'media' ? (messagesSortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+                  </th>
                   <th></th>
                 </tr>
               </thead>
