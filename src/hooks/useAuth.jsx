@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
 const AuthContext = createContext(null)
@@ -25,9 +25,9 @@ export function AuthProvider({ children }) {
   }, [])
 
   const [profileError, setProfileError] = useState(null)
+  const attemptedAutoLinkFor = useRef(null)
 
   async function fetchProfile(userId, accessToken) {
-    setProfileError(null)
     const { data, error } = await supabase
       .from('members')
       .select('*, houses(id, name, colour)')
@@ -72,7 +72,6 @@ export function AuthProvider({ children }) {
           console.error('Auto-completing pending profile link failed:', e)
         }
       }
-      console.error('No members row found for auth_id', userId)
       // Last resort before giving up: this may be an existing member
       // signing in for the first time via a NEW login method (e.g.
       // just-added Google sign-in creates a brand new auth identity,
@@ -80,7 +79,15 @@ export function AuthProvider({ children }) {
       // auto-link by matching email against an existing members row,
       // the same way the pending-claim-ref path above does for a
       // different scenario.
-      if (accessToken) {
+      //
+      // Only attempt this ONCE per userId per page load -- Supabase's
+      // client re-fires onAuthStateChange periodically (token refresh,
+      // tab focus, etc.), and without this guard every single re-fire
+      // would re-hit this endpoint and (since nothing changed) fail
+      // again identically, which visually looked like the error
+      // message repeatedly flashing/resetting rather than staying put.
+      if (accessToken && attemptedAutoLinkFor.current !== userId) {
+        attemptedAutoLinkFor.current = userId
         try {
           const res = await fetch('/.netlify/functions/link-by-email', {
             method: 'POST',
@@ -98,6 +105,7 @@ export function AuthProvider({ children }) {
           console.error('Auto-link by email failed:', e)
         }
       }
+      console.error('No members row found for auth_id', userId)
       setProfileError('no_member_record')
       setProfile(null)
       setLoading(false)
@@ -109,6 +117,7 @@ export function AuthProvider({ children }) {
       .select('id, discipline, is_kr, is_pts, is_leader, student_ref, pka_belt, krba_level')
       .eq('member_id', data.id)
       .limit(1)
+    setProfileError(null)
     setProfile({ ...data, student: studentRows?.[0] || null })
     setLoading(false)
   }
