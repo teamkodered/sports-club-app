@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
+import { useAuth } from '../hooks/useAuth.jsx'
 
 export default function Login() {
   const navigate = useNavigate()
+  const { session, profile, isStaff } = useAuth()
   const [tab, setTab]             = useState('login')
   const [email, setEmail]         = useState('')
   const [password, setPassword]   = useState('')
@@ -11,6 +13,25 @@ export default function Login() {
   const [loading, setLoading]     = useState(false)
   const [resetSent, setResetSent] = useState(false)
   const [createSent, setCreateSent] = useState(false)
+
+  // Google sign-in redirects the whole page away and back rather than
+  // resolving inline like the email/password form, so there's no
+  // submit handler to navigate() from directly. Once a session +
+  // profile appear (from ANY sign-in method, including landing back
+  // here after Google), route to the right place the same way
+  // handleLogin's success path already does.
+  useEffect(() => {
+    if (session && profile) navigate(isStaff ? '/dashboard' : '/athlete-app')
+  }, [session, profile])
+
+  async function handleGoogleSignIn() {
+    setError('')
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/login` },
+    })
+    if (error) setError(error.message)
+  }
 
   async function handleLogin(e) {
     e.preventDefault()
@@ -78,18 +99,27 @@ export default function Login() {
           </div>
 
           {tab === 'login' && (
-            <form onSubmit={handleLogin}>
-              <div className="field"><label>Email</label>
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" autoFocus required />
-              </div>
-              <div className="field"><label>Password</label>
-                <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Your password" required />
-              </div>
-              {error && <p style={{ fontSize: 12, color: '#e24b4a', marginBottom: 10 }}>{error}</p>}
-              <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={loading}>
-                {loading ? 'Signing in…' : 'Sign in'}
+            <>
+              <button type="button" onClick={handleGoogleSignIn} className="btn" style={{ width: '100%', justifyContent: 'center', gap: 8, marginBottom: 14 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M23.52 12.27c0-.85-.08-1.67-.22-2.45H12v4.64h6.47c-.28 1.5-1.13 2.78-2.4 3.63v3.02h3.89c2.28-2.1 3.56-5.2 3.56-8.84z"/><path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.9l-3.89-3.02c-1.08.72-2.45 1.15-4.04 1.15-3.11 0-5.74-2.1-6.68-4.92H1.3v3.09C3.26 21.3 7.31 24 12 24z"/><path fill="#FBBC05" d="M5.32 14.31A7.2 7.2 0 0 1 4.93 12c0-.8.14-1.58.39-2.31V6.6H1.3A11.98 11.98 0 0 0 0 12c0 1.94.46 3.77 1.3 5.4l4.02-3.09z"/><path fill="#EA4335" d="M12 4.77c1.76 0 3.34.6 4.58 1.79l3.44-3.44C17.94 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.3 6.6l4.02 3.09C6.26 6.87 8.89 4.77 12 4.77z"/></svg>
+                Continue with Google
               </button>
-            </form>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0 16px', color: 'var(--text-tertiary)', fontSize: 12 }}>
+                <div style={{ flex: 1, height: 1, background: 'var(--border)' }} /> or <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+              </div>
+              <form onSubmit={handleLogin}>
+                <div className="field"><label>Email</label>
+                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" autoFocus required />
+                </div>
+                <div className="field"><label>Password</label>
+                  <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Your password" required />
+                </div>
+                {error && <p style={{ fontSize: 12, color: '#e24b4a', marginBottom: 10 }}>{error}</p>}
+                <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={loading}>
+                  {loading ? 'Signing in…' : 'Sign in'}
+                </button>
+              </form>
+            </>
           )}
 
           {tab === 'reset' && !resetSent && (

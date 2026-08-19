@@ -132,6 +132,22 @@ export default function Claim() {
     setCreating(false)
   }
 
+  async function handleGoogleSignIn() {
+    setLinkError('')
+    // Same reason as the email path above: if this needs an extra
+    // hop (Google's consent screen) the browser leaves this page
+    // entirely and comes back later, so remember which ref this was
+    // for -- the existing auto-link effect (above) picks this up the
+    // moment a session appears matching it, completing the link
+    // without a second manual click.
+    try { window.localStorage.setItem('pending_claim_ref', ref) } catch {}
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/claim?ref=${encodeURIComponent(ref)}` },
+    })
+    if (error) setLinkError(error.message)
+  }
+
   if (loading || session === undefined) return <div className="loading">Loading…</div>
 
   const m = student?.members
@@ -204,6 +220,13 @@ export default function Claim() {
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', textAlign: 'center', marginBottom: 14 }}>
                 Set up your login to link {m?.first_name}'s profile
               </p>
+              <button type="button" onClick={handleGoogleSignIn} className="btn" style={{ width: '100%', justifyContent: 'center', gap: 8, marginBottom: 14 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M23.52 12.27c0-.85-.08-1.67-.22-2.45H12v4.64h6.47c-.28 1.5-1.13 2.78-2.4 3.63v3.02h3.89c2.28-2.1 3.56-5.2 3.56-8.84z"/><path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.9l-3.89-3.02c-1.08.72-2.45 1.15-4.04 1.15-3.11 0-5.74-2.1-6.68-4.92H1.3v3.09C3.26 21.3 7.31 24 12 24z"/><path fill="#FBBC05" d="M5.32 14.31A7.2 7.2 0 0 1 4.93 12c0-.8.14-1.58.39-2.31V6.6H1.3A11.98 11.98 0 0 0 0 12c0 1.94.46 3.77 1.3 5.4l4.02-3.09z"/><path fill="#EA4335" d="M12 4.77c1.76 0 3.34.6 4.58 1.79l3.44-3.44C17.94 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.3 6.6l4.02 3.09C6.26 6.87 8.89 4.77 12 4.77z"/></svg>
+                Continue with Google
+              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0 16px', color: 'var(--text-tertiary)', fontSize: 12 }}>
+                <div style={{ flex: 1, height: 1, background: 'var(--border)' }} /> or <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+              </div>
               <div className="field"><label>Email</label>
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" />
               </div>
