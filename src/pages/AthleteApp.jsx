@@ -16,9 +16,9 @@ const HOUSE_TEXT_LOGOS = {
   'Dragon House': '/logos/text-dragon.png', 'Super House': '/logos/text-super.png',
   'Ice House': '/logos/text-ice.png', 'Jet House': '/logos/text-jet.png',
 }
-// Matches AthleteProfiles.jsx's TTP_BENCHMARK_FIELDS exactly -- the two
+// Matches AthleteProfiles.jsx's MTP_BENCHMARK_FIELDS exactly -- the two
 // must stay in sync since they describe the same benchmark records.
-const TTP_BENCHMARK_FIELDS = [
+const MTP_BENCHMARK_FIELDS = [
   'shapes','punch_quality','footwork','defence','counters','attack','combinations',
   'change_of_tempo','use_of_phases','distance','flow','self_expression',
   'foot_speed','limb_speed','combination_speed','reaction','punching_power',
@@ -28,9 +28,9 @@ const TTP_BENCHMARK_FIELDS = [
   'read_opponent','tempo_rhythm','tactical_intelligence','ring_awareness',
   'know_strengths_weaknesses','heart_grit','concentration','timing',
 ]
-// Kickboxing TTP fields -- matches KickboxingTPT.jsx and
-// AthleteProfiles.jsx's KB_TTP_FIELDS exactly (all 3 must stay in sync).
-const KB_TTP_FIELDS = [
+// Kickboxing MTP fields -- matches KickboxingTPT.jsx and
+// AthleteProfiles.jsx's KB_MTP_FIELDS exactly (all 3 must stay in sync).
+const KB_MTP_FIELDS = [
   'weight_kg','height_cm','arm_span_cm','leg_reach_cm',
   'straight_punches','round_kicks_floor_left','round_kicks_floor_right','round_kicks_air_left','round_kicks_air_right',
   'resting_hr','session_peak_hr','run_20min_distance','run_20min_peak_hr','bleep_test_level','bleep_test_peak_hr',
@@ -1668,8 +1668,8 @@ export default function AthleteApp() {
         supabase.from('tpt_boxing').select('*').eq('student_id', s.id).order('assessed_at', { ascending: false }).limit(2)
           .then(({ data, error }) => { if (!error) setTptData(prev => ({ ...prev, boxing: data || [] })) })
 
-        // TTP benchmark only currently exists for boxing (KRBA) --
-        // there's no equivalent for kickboxing yet, so the TTP radar
+        // MTP benchmark only currently exists for boxing (KRBA) --
+        // there's no equivalent for kickboxing yet, so the MTP radar
         // axis is only meaningful for KRBA athletes for now.
         supabase.from('ttp_benchmarks').select('*').eq('discipline', 'boxing')
           .order('set_at', { ascending: false }).limit(1)
@@ -4913,7 +4913,7 @@ export default function AthleteApp() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8 }}>
                 {[
                   { label: 'Whoop', icon: '⌚', colour: '#1D9E75', tab: 'whoop' },
-                  { label: 'TTP', icon: '📊', colour: '#E24B4A', tab: 'tpt' },
+                  { label: 'MTP', icon: '📊', colour: '#E24B4A', tab: 'tpt' },
                 ].map(l => (
                   <button key={l.label} onClick={() => l.tab && setTab(l.tab)} style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
@@ -5969,12 +5969,12 @@ export default function AthleteApp() {
         )
       })()}
 
-      {/* ── TTP (read-only summary — dedicated form will be integrated better later) ── */}
+      {/* ── MTP (read-only summary — dedicated form will be integrated better later) ── */}
       {tab === 'tpt' && (
         <div>
           <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
           {tptData.kickboxing.length === 0 && tptData.boxing.length === 0 ? (
-            <div className="empty-state"><h3>No TTP assessments yet</h3><p>Your coach will log these after each assessment</p></div>
+            <div className="empty-state"><h3>No MTP assessments yet</h3><p>Your coach will log these after each assessment</p></div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {tptData.kickboxing[0] && (
@@ -6112,7 +6112,7 @@ export default function AthleteApp() {
                           </div>
                         )}
                         {(d.tptBox?.[0] || d.tptKb?.[0]) && (
-                          <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>TTP assessments are included in this report's underlying data — view your TTP tab on the admin profile page for the full breakdown.</p>
+                          <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>MTP assessments are included in this report's underlying data — view your MTP tab on the admin profile page for the full breakdown.</p>
                         )}
                       </div>
                     )}
@@ -6176,7 +6176,7 @@ export default function AthleteApp() {
             const pdpCompleted = pdpEntriesInRange.filter(e => e.completed)
             const pdpPct = pdpEntriesInRange.length ? Math.round((pdpCompleted.length / pdpEntriesInRange.length) * 100) : null
 
-            // TTP % -- athlete's latest assessment vs the coach-set team
+            // MTP % -- athlete's latest assessment vs the coach-set team
             // benchmark. Boxing (KRBA) and kickboxing (KR) each have their
             // own benchmark and field set, with direction-aware ratios
             // (some kickboxing fields like run times are "lower is
@@ -6186,7 +6186,7 @@ export default function AthleteApp() {
             if (student.discipline === 'KRBA' && ttpBenchmark) {
               const latest = tptData.boxing?.[0]
               if (latest) {
-                const ratios = TTP_BENCHMARK_FIELDS
+                const ratios = MTP_BENCHMARK_FIELDS
                   .filter(f => latest[f] != null && ttpBenchmark[f] != null && ttpBenchmark[f] > 0)
                   .map(f => latest[f] / ttpBenchmark[f])
                 if (ratios.length) ttpPct = Math.round((ratios.reduce((a, b) => a + b, 0) / ratios.length) * 100)
@@ -6194,7 +6194,7 @@ export default function AthleteApp() {
             } else if (student.is_kr && ttpBenchmarkKB) {
               const latest = tptData.kickboxing?.[0]
               if (latest) {
-                const ratios = KB_TTP_FIELDS
+                const ratios = KB_MTP_FIELDS
                   .filter(f => latest[f] != null && ttpBenchmarkKB[f] != null && ttpBenchmarkKB[f] > 0 && latest[f] > 0)
                   .map(f => KB_LOWER_IS_BETTER.includes(f) ? ttpBenchmarkKB[f] / latest[f] : latest[f] / ttpBenchmarkKB[f])
                 if (ratios.length) ttpPct = Math.round((ratios.reduce((a, b) => a + b, 0) / ratios.length) * 100)
@@ -6205,7 +6205,7 @@ export default function AthleteApp() {
               { label: 'Attendance', value: attendancePct, colour: '#378ADD' },
               { label: 'F2F Results', value: f2fPct, colour: '#EF9F27' },
               { label: 'PDP', value: pdpPct, colour: '#1D9E75' },
-              ...(student.discipline === 'KRBA' || student.is_kr ? [{ label: 'TTP', value: ttpPct, colour: '#E24B4A' }] : []),
+              ...(student.discipline === 'KRBA' || student.is_kr ? [{ label: 'MTP', value: ttpPct, colour: '#E24B4A' }] : []),
             ]
 
             // Breakdown data for each axis, shown when that axis is clicked.
@@ -6220,13 +6220,13 @@ export default function AthleteApp() {
             let ttpBreakdown = []
             if (student.discipline === 'KRBA' && ttpBenchmark && tptData.boxing?.[0]) {
               const latest = tptData.boxing[0]
-              ttpBreakdown = TTP_BENCHMARK_FIELDS
+              ttpBreakdown = MTP_BENCHMARK_FIELDS
                 .filter(f => latest[f] != null && ttpBenchmark[f] != null && ttpBenchmark[f] > 0)
                 .map(f => ({ key: f, label: f.replace(/_/g, ' '), value: latest[f], target: ttpBenchmark[f], pct: Math.round((latest[f] / ttpBenchmark[f]) * 100) }))
                 .sort((a, b) => a.pct - b.pct)
             } else if (student.is_kr && ttpBenchmarkKB && tptData.kickboxing?.[0]) {
               const latest = tptData.kickboxing[0]
-              ttpBreakdown = KB_TTP_FIELDS
+              ttpBreakdown = KB_MTP_FIELDS
                 .filter(f => latest[f] != null && ttpBenchmarkKB[f] != null && ttpBenchmarkKB[f] > 0 && latest[f] > 0)
                 .map(f => ({
                   key: f, label: f.replace(/_/g, ' '), value: latest[f], target: ttpBenchmarkKB[f],
@@ -6303,14 +6303,14 @@ export default function AthleteApp() {
                   </div>
                 )}
 
-                {radarDrilldown === 'TTP' && (
+                {radarDrilldown === 'MTP' && (
                   <div style={{ marginTop: 8, marginBottom: 8 }}>
-                    <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>TTP by field vs benchmark</p>
+                    <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>MTP by field vs benchmark</p>
                     {ttpBreakdown.length === 0 ? (
                       <div>
-                        <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 8 }}>No TTP data yet.</p>
+                        <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 8 }}>No MTP data yet.</p>
                         <a href={`/${student.is_kr ? 'kickboxing' : 'boxing'}-tpt`} className="btn btn-sm btn-primary">
-                          📋 Complete TTP form
+                          📋 Complete MTP form
                         </a>
                       </div>
                     ) : (
@@ -6332,7 +6332,7 @@ export default function AthleteApp() {
                     <li><strong>Attendance</strong>: sessions attended ÷ sessions scheduled in this date range{attendancePct == null && ' — no scheduled classes found in this range'}.</li>
                     <li><strong>F2F Results</strong>: combined progress across every target set for you (all sections), same as the badges shown on each section{f2fPct == null && ' — no targets set yet'}.</li>
                     <li><strong>PDP</strong>: % of your scheduled PDP timetable items your coach has ticked off as done{pdpPct == null && ' — no PDP timetable items in this range'}.</li>
-                    <li><strong>TTP</strong>: your latest assessment vs the coach-set team benchmark{!ttpBenchmark && !ttpBenchmarkKB ? ' — no benchmark has been set yet for your discipline' : ttpPct == null ? ' — no benchmark set yet for your discipline, or no TTP assessment logged' : ''}.</li>
+                    <li><strong>MTP</strong>: your latest assessment vs the coach-set team benchmark{!ttpBenchmark && !ttpBenchmarkKB ? ' — no benchmark has been set yet for your discipline' : ttpPct == null ? ' — no benchmark set yet for your discipline, or no MTP assessment logged' : ''}.</li>
                   </ul>
                 </details>
               </div>

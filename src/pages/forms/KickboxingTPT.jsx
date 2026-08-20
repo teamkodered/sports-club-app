@@ -4,11 +4,21 @@ import { supabase } from '../../lib/supabase.js'
 import { useAuth } from '../../hooks/useAuth.jsx'
 import FormLogo from '../../components/shared/FormLogo.jsx'
 
-// ── Category definitions -- same layout/paradigm as Boxing TTP (0-10
+// ── Category definitions -- same layout/paradigm as Boxing MTP (0-10
 // subjective scoring across Technical/Physical/Mental), with
 // kickboxing-specific additions (kicks, hand-to-leg/leg-to-hand
 // combinations, kicking power, ring/tatami awareness). ──
 const CATEGORIES = {
+  Mental: [
+    { key: 'read_opponent',             label: 'Ability to read opponent' },
+    { key: 'tempo_rhythm',              label: 'Tempo / rhythm control' },
+    { key: 'tactical_intelligence',     label: 'Tactical / strategic intelligence' },
+    { key: 'ring_tatami_awareness',     label: 'Ring/tatami awareness' },
+    { key: 'know_strengths_weaknesses', label: 'Know own strengths & weaknesses' },
+    { key: 'heart_grit',                label: 'Heart / grit / mental toughness' },
+    { key: 'concentration',             label: 'Concentration / thinking speed' },
+    { key: 'timing',                    label: 'Timing' },
+  ],
   Technical: [
     { key: 'punch_quality',            label: 'Punch quality & repertoire' },
     { key: 'kick_quality',             label: 'Kick quality & repertoire' },
@@ -42,16 +52,6 @@ const CATEGORIES = {
     { key: 'suppleness_lower',   label: 'Suppleness — lower body' },
     { key: 'recovery',           label: 'Recovery' },
     { key: 'health',             label: 'Health' },
-  ],
-  Mental: [
-    { key: 'read_opponent',             label: 'Ability to read opponent' },
-    { key: 'tempo_rhythm',              label: 'Tempo / rhythm control' },
-    { key: 'tactical_intelligence',     label: 'Tactical / strategic intelligence' },
-    { key: 'ring_tatami_awareness',     label: 'Ring/tatami awareness' },
-    { key: 'know_strengths_weaknesses', label: 'Know own strengths & weaknesses' },
-    { key: 'heart_grit',                label: 'Heart / grit / mental toughness' },
-    { key: 'concentration',             label: 'Concentration / thinking speed' },
-    { key: 'timing',                    label: 'Timing' },
   ],
 }
 
@@ -179,7 +179,7 @@ export default function KickboxingTPT() {
   const [loadingHistory, setLoadingHistory] = useState(false)
   const [compareId, setCompareId] = useState(null)
   const [students, setStudents] = useState([])
-  const [activeGroup, setActiveGroup] = useState('Technical')
+  const [activeGroup, setActiveGroup] = useState('Mental')
 
   useEffect(() => {
     if (mode === 'history') loadHistory()
@@ -269,7 +269,7 @@ export default function KickboxingTPT() {
         <div style={{ maxWidth: 560, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 20 }}>
             <FormLogo formKey="kickboxing_tpt" fallbackEmoji="🥋" />
-            <h1 style={{ fontSize: 20, fontWeight: 600 }}>TTP Analysis saved</h1>
+            <h1 style={{ fontSize: 20, fontWeight: 600 }}>MTP Analysis saved</h1>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{student.first_name} {student.last_name}</p>
           </div>
           <div className="card" style={{ marginBottom: 14 }}>
@@ -307,8 +307,8 @@ export default function KickboxingTPT() {
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <div>
-            <h1 style={{ fontSize: 20, fontWeight: 600 }}>🥋 Kickboxing TTP analysis</h1>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Technical, Physical & Mental assessment</p>
+            <h1 style={{ fontSize: 20, fontWeight: 600 }}>🥋 Kickboxing MTP analysis</h1>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Mental, Technical and Physical assessment</p>
           </div>
           <div style={{ display: 'flex', gap: 4 }}>
             {isStaff && ['form', 'history'].map(m => (
@@ -403,7 +403,7 @@ export default function KickboxingTPT() {
 
             <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '11px' }}
               onClick={submit} disabled={submitting || !student.first_name}>
-              {submitting ? 'Saving…' : 'Save TTP analysis'}
+              {submitting ? 'Saving…' : 'Save MTP analysis'}
             </button>
           </>
         )}
@@ -428,9 +428,9 @@ export default function KickboxingTPT() {
                       <thead>
                         <tr>
                           <th>Date</th><th>Student</th>
+                          <th style={{ textAlign: 'center' }}>Mental</th>
                           <th style={{ textAlign: 'center' }}>Tech</th>
                           <th style={{ textAlign: 'center' }}>Phys</th>
-                          <th style={{ textAlign: 'center' }}>Mental</th>
                           <th style={{ textAlign: 'center', fontWeight: 700 }}>Total</th>
                           <th></th>
                         </tr>
@@ -448,9 +448,9 @@ export default function KickboxingTPT() {
                                 {new Date(h.assessed_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })}
                               </td>
                               <td style={{ fontWeight: 500 }}>{h.first_name} {h.last_name}</td>
+                              <td style={{ textAlign: 'center', color: GROUP_COLOURS.Mental, fontWeight: 600 }}>{mentAvg}</td>
                               <td style={{ textAlign: 'center', color: GROUP_COLOURS.Technical, fontWeight: 600 }}>{techAvg}</td>
                               <td style={{ textAlign: 'center', color: GROUP_COLOURS.Physical, fontWeight: 600 }}>{physAvg}</td>
-                              <td style={{ textAlign: 'center', color: GROUP_COLOURS.Mental, fontWeight: 600 }}>{mentAvg}</td>
                               <td style={{ textAlign: 'center', fontWeight: 700 }}>{total}</td>
                               <td>
                                 <button className="btn btn-sm" onClick={() => setCompareId(isCompare ? null : h.id)}>

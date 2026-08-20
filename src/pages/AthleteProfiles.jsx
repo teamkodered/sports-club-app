@@ -781,8 +781,8 @@ const MENTALITY_VALUE_EXTRACTORS = {
   gratitude:   { get: m => parseFloat(m?.gratitude?.count), unit: 'count' },
 }
 
-// Boxing TTP field -> display label, shared between the Coach
-// Dashboard's benchmark form and an athlete's own TTP tab.
+// Boxing MTP field -> display label, shared between the Coach
+// Dashboard's benchmark form and an athlete's own MTP tab.
 const BOX_LABELS = {
   shapes:'Shape(s)', punch_quality:'Punch quality', footwork:'Footwork', defence:'Defence',
   counters:'Counters', attack:'Attack', combinations:'Combinations', change_of_tempo:'Change of tempo',
@@ -3570,7 +3570,7 @@ export default function AthleteProfiles() {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Field', 'Value'], ...data.profile]), 'Profile')
     if (data.attendance.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.attendance), 'Attendance')
     if (data.f2fSessions.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.f2fSessions), 'F2F Results')
-    if (data.ttp.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.ttp), 'TTP')
+    if (data.ttp.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.ttp), 'MTP')
     if (data.notes.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.notes), 'Notes')
     if (data.points.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.points), 'Points')
     if (data.classes.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.classes), 'Classes')
@@ -3593,7 +3593,7 @@ export default function AthleteProfiles() {
         </table>
         ${section('Attendance', data.attendance, ['Date', 'Type', 'Attended at', 'Note'])}
         ${section('F2F Results', data.f2fSessions, ['Date', 'Weight before', 'Weight after', 'Running', 'Watt bike', 'Bodyweight', 'Techniques', 'Test'])}
-        ${section('TTP Assessments', data.ttp, ['Discipline', 'Date'])}
+        ${section('MTP Assessments', data.ttp, ['Discipline', 'Date'])}
         ${section('Notes', data.notes, ['Date', 'Note'])}
         ${section('Points', data.points, ['Date', 'Type', 'Points', 'Note'])}
         ${section('Assigned classes', data.classes, ['Class', 'Day', 'Time'])}
@@ -3782,10 +3782,10 @@ export default function AthleteProfiles() {
       .then(({ data }) => setTtpBenchmarkKB(data?.[0] || null))
   }, [])
 
-  // Kickboxing TTP fields -- matches KickboxingTPT.jsx's own SECTIONS
+  // Kickboxing MTP fields -- matches KickboxingTPT.jsx's own SECTIONS
   // exactly, since the benchmark must be set on the same fields
   // athletes are actually assessed against.
-  const KB_TTP_SECTIONS = [
+  const KB_MTP_SECTIONS = [
     { label: 'Body measurements', fields: [
       { key: 'weight_kg', label: 'Weight', unit: 'kg' }, { key: 'height_cm', label: 'Height', unit: 'cm' },
       { key: 'arm_span_cm', label: 'Arm span', unit: 'cm' }, { key: 'leg_reach_cm', label: 'Leg reach', unit: 'cm' },
@@ -3826,7 +3826,7 @@ export default function AthleteProfiles() {
       { key: 'vertical_jump', label: 'Vertical jump', unit: 'cm' }, { key: 'long_jump', label: 'Long jump', unit: 'cm' },
     ]},
   ]
-  const KB_TTP_FIELDS = KB_TTP_SECTIONS.flatMap(s => s.fields.map(f => f.key))
+  const KB_MTP_FIELDS = KB_MTP_SECTIONS.flatMap(s => s.fields.map(f => f.key))
   // Matches KickboxingTPT.jsx's own "improved" convention exactly --
   // these are the only fields where a LOWER number is the better one
   // (times and resting/weight measurements); everything else is
@@ -3836,7 +3836,7 @@ export default function AthleteProfiles() {
   async function saveNewBenchmarkKB() {
     setSavingBenchmarkKB(true)
     const payload = { discipline: 'kickboxing', notes: benchmarkNotesKB.trim() || null }
-    KB_TTP_FIELDS.forEach(f => { payload[f] = benchmarkScoresKB[f] ? Number(benchmarkScoresKB[f]) : null })
+    KB_MTP_FIELDS.forEach(f => { payload[f] = benchmarkScoresKB[f] ? Number(benchmarkScoresKB[f]) : null })
     const { data, error } = await supabase.from('ttp_benchmarks').insert(payload).select('*').single()
     if (error) { alert('Error saving benchmark: ' + error.message); setSavingBenchmarkKB(false); return }
     setTtpBenchmarkKB(data)
@@ -3846,7 +3846,7 @@ export default function AthleteProfiles() {
     setSavingBenchmarkKB(false)
   }
 
-  const TTP_BENCHMARK_FIELDS = [
+  const MTP_BENCHMARK_FIELDS = [
     'shapes','punch_quality','footwork','defence','counters','attack','combinations',
     'change_of_tempo','use_of_phases','distance','flow','self_expression',
     'foot_speed','limb_speed','combination_speed','reaction','punching_power',
@@ -3860,7 +3860,7 @@ export default function AthleteProfiles() {
   async function saveNewBenchmark() {
     setSavingBenchmark(true)
     const payload = { discipline: 'boxing', notes: benchmarkNotes.trim() || null }
-    TTP_BENCHMARK_FIELDS.forEach(f => { payload[f] = benchmarkScores[f] ? Number(benchmarkScores[f]) : null })
+    MTP_BENCHMARK_FIELDS.forEach(f => { payload[f] = benchmarkScores[f] ? Number(benchmarkScores[f]) : null })
     const { data, error } = await supabase.from('ttp_benchmarks').insert(payload).select('*').single()
     if (error) { alert('Error saving benchmark: ' + error.message); setSavingBenchmark(false); return }
     setTtpBenchmark(data)
@@ -4827,7 +4827,7 @@ export default function AthleteProfiles() {
     supabase.from('fit2fight_sessions').select('*').eq('student_id', s.id)
       .order('session_date', { ascending: false })
       .then(({ data }) => { if (selectingIdRef.current === s.id) setF2fData(data || []) })
-    // Load TTP data -- latest 2, to show side by side for comparison
+    // Load MTP data -- latest 2, to show side by side for comparison
     supabase.from('tpt_kickboxing').select('*').eq('student_id', s.id)
       .order('assessed_at', { ascending: false }).limit(2)
       .then(({ data }) => { if (selectingIdRef.current === s.id) setTptData(prev => ({ ...prev, kickboxing: data || [] })) })
@@ -4904,7 +4904,7 @@ export default function AthleteProfiles() {
 
   // Keeps students.weight_kg in sync with whichever weigh-in is most
   // recent across the known sources (Fit2Fight session weight checks,
-  // TTP kickboxing assessments), rather than relying on it being
+  // MTP kickboxing assessments), rather than relying on it being
   // manually kept up to date.
   async function syncStudentWeightFromLatest(studentId) {
     const [{ data: f2fRows }, { data: tptRows }] = await Promise.all([
@@ -6810,7 +6810,7 @@ export default function AthleteProfiles() {
               })
             })()}
 
-            {/* Media/Notes/TTP/Check in -- stay at the bottom, laid out two by two */}
+            {/* Media/Notes/MTP/Check in -- stay at the bottom, laid out two by two */}
             {(() => {
               const teamAthletes = students.filter(s => s.is_kr || s.is_pts || s.discipline === 'KRBA')
               const teamCount = teamAthletes.length || 1
@@ -6839,7 +6839,7 @@ export default function AthleteProfiles() {
               const cards = [
                 { key: 'media', icon: '🖼', label: 'Media', ...media },
                 { key: 'notes', icon: '📝', label: 'Notes', ...notes },
-                { key: 'ttp', icon: '📊', label: 'TTP', ...ttp },
+                { key: 'ttp', icon: '📊', label: 'MTP', ...ttp },
                 { key: 'check_in', icon: '✅', label: 'Check in', ...checkIn },
               ]
 
@@ -6901,12 +6901,12 @@ export default function AthleteProfiles() {
               </button>
             </div>
 
-            {/* TTP Benchmark */}
+            {/* MTP Benchmark */}
             <div className="card" style={{ padding: 0, marginBottom: 14 }}>
               <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h2 style={{ fontSize: 14, fontWeight: 600 }}>🎯 TTP Benchmark</h2>
+                <h2 style={{ fontSize: 14, fontWeight: 600 }}>🎯 MTP Benchmark</h2>
                 <button className="btn btn-sm" onClick={() => {
-                  if (!showSetBenchmark) setBenchmarkScores(ttpBenchmark ? Object.fromEntries(TTP_BENCHMARK_FIELDS.map(f => [f, ttpBenchmark[f] ?? ''])) : {})
+                  if (!showSetBenchmark) setBenchmarkScores(ttpBenchmark ? Object.fromEntries(MTP_BENCHMARK_FIELDS.map(f => [f, ttpBenchmark[f] ?? ''])) : {})
                   setShowSetBenchmark(v => !v)
                 }}>{showSetBenchmark ? 'Cancel' : '+ Set new benchmark'}</button>
               </div>
@@ -6914,7 +6914,7 @@ export default function AthleteProfiles() {
                 {ttpBenchmark ? (
                   <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: showSetBenchmark ? 14 : 0 }}>
                     Current benchmark set {new Date(ttpBenchmark.set_at).toLocaleDateString('en-GB')}
-                    {ttpBenchmark.notes ? ` — ${ttpBenchmark.notes}` : ''}. Shown for comparison on every athlete's TTP page.
+                    {ttpBenchmark.notes ? ` — ${ttpBenchmark.notes}` : ''}. Shown for comparison on every athlete's MTP page.
                   </p>
                 ) : (
                   <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: showSetBenchmark ? 14 : 0 }}>No benchmark set yet.</p>
@@ -6922,7 +6922,7 @@ export default function AthleteProfiles() {
 
                 {showSetBenchmark && (
                   <div style={{ borderTop: ttpBenchmark ? '1px solid var(--border)' : 'none', paddingTop: ttpBenchmark ? 14 : 0 }}>
-                    <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Complete a TTP form to set this as the new team benchmark</p>
+                    <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Complete a MTP form to set this as the new team benchmark</p>
                     {[
                       { label: 'Technical', fields: ['shapes','punch_quality','footwork','defence','counters','attack','combinations','change_of_tempo','use_of_phases','distance','flow','self_expression'] },
                       { label: 'Tactical', fields: ['read_opponent','tempo_rhythm','tactical_intelligence','ring_awareness','know_strengths_weaknesses','heart_grit','concentration','timing'] },
@@ -6952,12 +6952,12 @@ export default function AthleteProfiles() {
               </div>
             </div>
 
-            {/* Kickboxing TTP Benchmark */}
+            {/* Kickboxing MTP Benchmark */}
             <div className="card" style={{ padding: 0, marginBottom: 14 }}>
               <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h2 style={{ fontSize: 14, fontWeight: 600 }}>🎯 TTP Benchmark (Kickboxing)</h2>
+                <h2 style={{ fontSize: 14, fontWeight: 600 }}>🎯 MTP Benchmark (Kickboxing)</h2>
                 <button className="btn btn-sm" onClick={() => {
-                  if (!showSetBenchmarkKB) setBenchmarkScoresKB(ttpBenchmarkKB ? Object.fromEntries(KB_TTP_FIELDS.map(f => [f, ttpBenchmarkKB[f] ?? ''])) : {})
+                  if (!showSetBenchmarkKB) setBenchmarkScoresKB(ttpBenchmarkKB ? Object.fromEntries(KB_MTP_FIELDS.map(f => [f, ttpBenchmarkKB[f] ?? ''])) : {})
                   setShowSetBenchmarkKB(v => !v)
                 }}>{showSetBenchmarkKB ? 'Cancel' : '+ Set new benchmark'}</button>
               </div>
@@ -6965,7 +6965,7 @@ export default function AthleteProfiles() {
                 {ttpBenchmarkKB ? (
                   <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: showSetBenchmarkKB ? 14 : 0 }}>
                     Current benchmark set {new Date(ttpBenchmarkKB.set_at).toLocaleDateString('en-GB')}
-                    {ttpBenchmarkKB.notes ? ` — ${ttpBenchmarkKB.notes}` : ''}. Shown for comparison on every kickboxing athlete's TTP page.
+                    {ttpBenchmarkKB.notes ? ` — ${ttpBenchmarkKB.notes}` : ''}. Shown for comparison on every kickboxing athlete's MTP page.
                   </p>
                 ) : (
                   <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: showSetBenchmarkKB ? 14 : 0 }}>No benchmark set yet.</p>
@@ -6973,8 +6973,8 @@ export default function AthleteProfiles() {
 
                 {showSetBenchmarkKB && (
                   <div style={{ borderTop: ttpBenchmarkKB ? '1px solid var(--border)' : 'none', paddingTop: ttpBenchmarkKB ? 14 : 0 }}>
-                    <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Complete a Kickboxing TTP form to set this as the new team benchmark</p>
-                    {KB_TTP_SECTIONS.map(group => (
+                    <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Complete a Kickboxing MTP form to set this as the new team benchmark</p>
+                    {KB_MTP_SECTIONS.map(group => (
                       <div key={group.label} style={{ marginBottom: 14 }}>
                         <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, textTransform: 'uppercase' }}>{group.label}</p>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 8 }}>
@@ -7921,7 +7921,7 @@ export default function AthleteProfiles() {
                   borderBottom: `2px solid ${tab === t ? 'var(--text)' : 'transparent'}`,
                   color: tab === t ? 'var(--text)' : 'var(--text-secondary)',
                   fontWeight: tab === t ? 500 : 400, textTransform: 'capitalize', whiteSpace: 'nowrap', flexShrink: 0,
-                }}>{t === 'tpt' ? 'TTP' : t === 'whoop' ? 'Whoop' : t === 'sessions' ? 'Attendance' : t === 'fit2fight' ? 'Fit II Fight' : t === 'sweep' ? 'Sweep the Sheds' : t}</button>
+                }}>{t === 'tpt' ? 'MTP' : t === 'whoop' ? 'Whoop' : t === 'sessions' ? 'Attendance' : t === 'fit2fight' ? 'Fit II Fight' : t === 'sweep' ? 'Sweep the Sheds' : t}</button>
               ))}
             </div>
 
@@ -9400,7 +9400,7 @@ export default function AthleteProfiles() {
                       const completedPdpCount = completedPdpNotes.length
                       return [
                         { label: 'PDP', icon: '🎯', colour: '#1D9E75', tab: 'pdp', badge: completedPdpCount > 0 ? `${completedPdpCount} completed → Notes` : null, diagNotes: completedPdpNotes },
-                        { label: 'TTP', icon: '📊', colour: '#E24B4A', tab: 'tpt', badge: null, diagNotes: null },
+                        { label: 'MTP', icon: '📊', colour: '#E24B4A', tab: 'tpt', badge: null, diagNotes: null },
                       ].map(l => (
                         <div key={l.label} style={{ position: 'relative' }}>
                           <button onClick={() => setTab(l.tab)} style={{
@@ -10613,7 +10613,7 @@ export default function AthleteProfiles() {
                   if (selected.discipline === 'KRBA' && ttpBenchmark) {
                     const latest = tptData.boxing?.[0]
                     if (latest) {
-                      const ratios = TTP_BENCHMARK_FIELDS
+                      const ratios = MTP_BENCHMARK_FIELDS
                         .filter(f => latest[f] != null && ttpBenchmark[f] != null && ttpBenchmark[f] > 0)
                         .map(f => latest[f] / ttpBenchmark[f])
                       if (ratios.length) ttpPct = Math.round((ratios.reduce((a, b) => a + b, 0) / ratios.length) * 100)
@@ -10621,7 +10621,7 @@ export default function AthleteProfiles() {
                   } else if (selected.is_kr && ttpBenchmarkKB) {
                     const latest = tptData.kickboxing?.[0]
                     if (latest) {
-                      const ratios = KB_TTP_FIELDS
+                      const ratios = KB_MTP_FIELDS
                         .filter(f => latest[f] != null && ttpBenchmarkKB[f] != null && ttpBenchmarkKB[f] > 0 && latest[f] > 0)
                         .map(f => KB_LOWER_IS_BETTER.includes(f) ? ttpBenchmarkKB[f] / latest[f] : latest[f] / ttpBenchmarkKB[f])
                       if (ratios.length) ttpPct = Math.round((ratios.reduce((a, b) => a + b, 0) / ratios.length) * 100)
@@ -10632,7 +10632,7 @@ export default function AthleteProfiles() {
                     { label: 'Attendance', value: attendancePct, colour: '#378ADD' },
                     { label: 'F2F Results', value: f2fPct, colour: '#EF9F27' },
                     { label: 'PDP', value: pdpPct, colour: '#1D9E75' },
-                    ...(selected.discipline === 'KRBA' || selected.is_kr ? [{ label: 'TTP', value: ttpPct, colour: '#E24B4A' }] : []),
+                    ...(selected.discipline === 'KRBA' || selected.is_kr ? [{ label: 'MTP', value: ttpPct, colour: '#E24B4A' }] : []),
                   ]
 
                   // Breakdown data for each axis, shown when that axis is clicked.
@@ -10647,13 +10647,13 @@ export default function AthleteProfiles() {
                   let ttpBreakdown = []
                   if (selected.discipline === 'KRBA' && ttpBenchmark && tptData.boxing?.[0]) {
                     const latest = tptData.boxing[0]
-                    ttpBreakdown = TTP_BENCHMARK_FIELDS
+                    ttpBreakdown = MTP_BENCHMARK_FIELDS
                       .filter(f => latest[f] != null && ttpBenchmark[f] != null && ttpBenchmark[f] > 0)
                       .map(f => ({ key: f, label: f.replace(/_/g, ' '), value: latest[f], target: ttpBenchmark[f], pct: Math.round((latest[f] / ttpBenchmark[f]) * 100) }))
                       .sort((a, b) => a.pct - b.pct)
                   } else if (selected.is_kr && ttpBenchmarkKB && tptData.kickboxing?.[0]) {
                     const latest = tptData.kickboxing[0]
-                    ttpBreakdown = KB_TTP_FIELDS
+                    ttpBreakdown = KB_MTP_FIELDS
                       .filter(f => latest[f] != null && ttpBenchmarkKB[f] != null && ttpBenchmarkKB[f] > 0 && latest[f] > 0)
                       .map(f => ({
                         key: f, label: f.replace(/_/g, ' '), value: latest[f], target: ttpBenchmarkKB[f],
@@ -10730,14 +10730,14 @@ export default function AthleteProfiles() {
                         </div>
                       )}
 
-                      {radarDrilldown === 'TTP' && (
+                      {radarDrilldown === 'MTP' && (
                         <div style={{ marginTop: 8, marginBottom: 8 }}>
-                          <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>TTP by field vs benchmark</p>
+                          <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>MTP by field vs benchmark</p>
                           {ttpBreakdown.length === 0 ? (
                             <div>
-                              <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 8 }}>No TTP data to break down.</p>
+                              <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 8 }}>No MTP data to break down.</p>
                               <a href={`/${selected.is_kr ? 'kickboxing' : 'boxing'}-tpt?student_id=${selected.id}`} className="btn btn-sm btn-primary">
-                                📋 Complete TTP form
+                                📋 Complete MTP form
                               </a>
                             </div>
                           ) : (
@@ -10759,7 +10759,7 @@ export default function AthleteProfiles() {
                           <li><strong>Attendance</strong>: sessions attended ÷ sessions scheduled in this date range{attendancePct == null && ' — no scheduled classes found in this range'}.</li>
                           <li><strong>F2F Results</strong>: combined progress across every target set for this athlete (all sections){f2fPct == null && ' — no targets set yet'}.</li>
                           <li><strong>PDP</strong>: % of scheduled PDP timetable items ticked off as done in the Weekly Timetable{pdpPct == null && ' — no PDP timetable items in this range'}.</li>
-                          <li><strong>TTP</strong>: latest assessment vs the coach-set team benchmark{!ttpBenchmark && !ttpBenchmarkKB ? ' — no benchmark has been set yet for this discipline' : ttpPct == null ? ' — no benchmark set yet for this discipline, or no TTP assessment logged' : ''}.</li>
+                          <li><strong>MTP</strong>: latest assessment vs the coach-set team benchmark{!ttpBenchmark && !ttpBenchmarkKB ? ' — no benchmark has been set yet for this discipline' : ttpPct == null ? ' — no benchmark set yet for this discipline, or no MTP assessment logged' : ''}.</li>
                         </ul>
                       </details>
                     </div>
@@ -11255,7 +11255,7 @@ export default function AthleteProfiles() {
               )
             })()}
 
-            {/* ── TTP tab ── */}
+            {/* ── MTP tab ── */}
                         {tab === 'tpt' && (() => {
               const BOXING_GROUPS = [
                 { label: '🥊 Technical', colour: '#E24B4A', keys: ['shapes','punch_quality','footwork','defence','counters','attack','combinations','change_of_tempo','use_of_phases','distance','flow','self_expression'] },
@@ -11295,21 +11295,21 @@ export default function AthleteProfiles() {
               return (
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                    <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Technical Tactical Physical (TTP)</h3>
+                    <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Mental, Technical and Physical (MTP)</h3>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <a href={`/boxing-tpt?student_id=${selected?.id}`} className="btn btn-sm" style={{ fontSize: 11 }}>+ Boxing TTP</a>
-                      <a href={`/kickboxing-tpt?student_id=${selected?.id}`} className="btn btn-sm" style={{ fontSize: 11 }}>+ Kickboxing TTP</a>
+                      <a href={`/boxing-tpt?student_id=${selected?.id}`} className="btn btn-sm" style={{ fontSize: 11 }}>+ Boxing MTP</a>
+                      <a href={`/kickboxing-tpt?student_id=${selected?.id}`} className="btn btn-sm" style={{ fontSize: 11 }}>+ Kickboxing MTP</a>
                     </div>
                   </div>
                   {!b && !kb ? (
-                    <div className="empty-state"><p>No TTP data recorded yet.</p></div>
+                    <div className="empty-state"><p>No MTP data recorded yet.</p></div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-                      {/* Boxing TTP */}
+                      {/* Boxing MTP */}
                       {b && <>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <h4 style={{ fontSize: 13, fontWeight: 600, color: '#E24B4A', margin: 0 }}>🥊 Boxing TTP</h4>
+                          <h4 style={{ fontSize: 13, fontWeight: 600, color: '#E24B4A', margin: 0 }}>🥊 Boxing MTP</h4>
                           <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
                             {b.assessed_at ? new Date(b.assessed_at).toLocaleDateString('en-GB') : ''}
                           </span>
@@ -11367,10 +11367,10 @@ export default function AthleteProfiles() {
                         {b.notes && <div className="card" style={{ fontSize: 12 }}><strong>Notes:</strong> {b.notes}</div>}
                       </>}
 
-                      {/* Kickboxing TTP */}
+                      {/* Kickboxing MTP */}
                       {kb && <>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: b ? 8 : 0 }}>
-                          <h4 style={{ fontSize: 13, fontWeight: 600, color: '#378ADD', margin: 0 }}>🥋 Kickboxing TTP</h4>
+                          <h4 style={{ fontSize: 13, fontWeight: 600, color: '#378ADD', margin: 0 }}>🥋 Kickboxing MTP</h4>
                           <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
                             {kb.assessed_at ? new Date(kb.assessed_at).toLocaleDateString('en-GB') : ''}
                           </span>
@@ -11761,13 +11761,13 @@ export default function AthleteProfiles() {
                       </div>
                     )}
 
-                    {/* TTP snapshots */}
+                    {/* MTP snapshots */}
                     {(reportData.tptKb.length > 0 || reportData.tptBox.length > 0) && (
                       <div className="card" style={{ marginBottom: 12 }}>
-                        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Latest TTP assessments</h3>
+                        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Latest MTP assessments</h3>
                         {reportData.tptKb[0] && (
                           <div style={{ marginBottom: 10 }}>
-                            <div style={{ fontSize: 12, fontWeight: 600, color: '#378ADD', marginBottom: 6 }}>Kickboxing TTP — {new Date(reportData.tptKb[0].assessed_at).toLocaleDateString('en-GB')}</div>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: '#378ADD', marginBottom: 6 }}>Kickboxing MTP — {new Date(reportData.tptKb[0].assessed_at).toLocaleDateString('en-GB')}</div>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
                               {[
                                 ['Weight', `${reportData.tptKb[0].weight_kg}kg`],
@@ -11787,7 +11787,7 @@ export default function AthleteProfiles() {
                         )}
                         {reportData.tptBox[0] && (
                           <div>
-                            <div style={{ fontSize: 12, fontWeight: 600, color: '#E24B4A', marginBottom: 6 }}>Boxing TTP — {new Date(reportData.tptBox[0].assessed_at).toLocaleDateString('en-GB')}</div>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: '#E24B4A', marginBottom: 6 }}>Boxing MTP — {new Date(reportData.tptBox[0].assessed_at).toLocaleDateString('en-GB')}</div>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
                               {[['Shape', reportData.tptBox[0].shapes], ['Punch quality', reportData.tptBox[0].punch_quality], ['Footwork', reportData.tptBox[0].footwork], ['Defence', reportData.tptBox[0].defence], ['Heart/grit', reportData.tptBox[0].heart_grit]].map(([l, v]) => (
                                 <div key={l} style={{ background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', padding: '7px 10px' }}>
@@ -11854,7 +11854,7 @@ export default function AthleteProfiles() {
                     <button onClick={() => setShowExportModal(false)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
                   </div>
                   <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16 }}>
-                    Includes profile, attendance, F2F results, TTP assessments, notes, points, and assigned classes.
+                    Includes profile, attendance, F2F results, MTP assessments, notes, points, and assigned classes.
                   </p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <button className="btn btn-primary" style={{ justifyContent: 'flex-start' }} disabled={exporting}

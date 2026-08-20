@@ -6,6 +6,16 @@ import FormLogo from '../../components/shared/FormLogo.jsx'
 
 // ── Category definitions matching the exact sheet ──
 const CATEGORIES = {
+  Mental: [
+    { key: 'read_opponent',             label: 'Ability to read opponent' },
+    { key: 'tempo_rhythm',              label: 'Tempo / rhythm control' },
+    { key: 'tactical_intelligence',     label: 'Tactical / strategic intelligence' },
+    { key: 'ring_awareness',            label: 'Ring awareness' },
+    { key: 'know_strengths_weaknesses', label: 'Know own strengths & weaknesses' },
+    { key: 'heart_grit',                label: 'Heart / grit / mental toughness' },
+    { key: 'concentration',             label: 'Concentration / thinking speed' },
+    { key: 'timing',                    label: 'Timing' },
+  ],
   Technical: [
     { key: 'shapes',           label: 'Shape(s)' },
     { key: 'punch_quality',    label: 'Punch quality & repertoire' },
@@ -19,16 +29,6 @@ const CATEGORIES = {
     { key: 'distance',         label: 'Distance' },
     { key: 'flow',             label: 'Flow' },
     { key: 'self_expression',  label: 'Self expression' },
-  ],
-  Mental: [
-    { key: 'read_opponent',             label: 'Ability to read opponent' },
-    { key: 'tempo_rhythm',              label: 'Tempo / rhythm control' },
-    { key: 'tactical_intelligence',     label: 'Tactical / strategic intelligence' },
-    { key: 'ring_awareness',            label: 'Ring awareness' },
-    { key: 'know_strengths_weaknesses', label: 'Know own strengths & weaknesses' },
-    { key: 'heart_grit',                label: 'Heart / grit / mental toughness' },
-    { key: 'concentration',             label: 'Concentration / thinking speed' },
-    { key: 'timing',                    label: 'Timing' },
   ],
   Physical: [
     { key: 'foot_speed',         label: 'Foot speed' },
@@ -172,7 +172,7 @@ export default function BoxingTPT() {
   const [loadingHistory, setLoadingHistory] = useState(false)
   const [compareId, setCompareId] = useState(null)
   const [students, setStudents] = useState([])
-  const [activeGroup, setActiveGroup] = useState('Technical')
+  const [activeGroup, setActiveGroup] = useState('Mental')
 
   useEffect(() => {
     if (mode === 'history') loadHistory()
@@ -259,7 +259,7 @@ export default function BoxingTPT() {
         <div style={{ maxWidth: 560, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 20 }}>
             <FormLogo formKey="boxing_tpt" fallbackEmoji="🥊" />
-            <h1 style={{ fontSize: 20, fontWeight: 600 }}>TTP Analysis saved</h1>
+            <h1 style={{ fontSize: 20, fontWeight: 600 }}>MTP Analysis saved</h1>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{student.first_name} {student.last_name}</p>
           </div>
           <div className="card" style={{ marginBottom: 14 }}>
@@ -297,8 +297,8 @@ export default function BoxingTPT() {
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <div>
-            <h1 style={{ fontSize: 20, fontWeight: 600 }}>🥊 Boxing TTP analysis</h1>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Technical, Physical & Mental assessment</p>
+            <h1 style={{ fontSize: 20, fontWeight: 600 }}>🥊 Boxing MTP analysis</h1>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Mental, Technical and Physical assessment</p>
           </div>
           <div style={{ display: 'flex', gap: 4 }}>
             {isStaff && ['form','history'].map(m => (
@@ -393,7 +393,7 @@ export default function BoxingTPT() {
 
             <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '11px' }}
               onClick={submit} disabled={submitting || !student.first_name}>
-              {submitting ? 'Saving…' : 'Save TTP analysis'}
+              {submitting ? 'Saving…' : 'Save MTP analysis'}
             </button>
           </>
         )}
@@ -418,9 +418,9 @@ export default function BoxingTPT() {
                       <thead>
                         <tr>
                           <th>Date</th><th>Student</th>
+                          <th style={{ textAlign: 'center' }}>Mental</th>
                           <th style={{ textAlign: 'center' }}>Tech</th>
                           <th style={{ textAlign: 'center' }}>Phys</th>
-                          <th style={{ textAlign: 'center' }}>Mental</th>
                           <th style={{ textAlign: 'center', fontWeight: 700 }}>Total</th>
                           <th></th>
                         </tr>
@@ -438,9 +438,9 @@ export default function BoxingTPT() {
                                 {new Date(h.assessed_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })}
                               </td>
                               <td style={{ fontWeight: 500 }}>{h.first_name} {h.last_name}</td>
+                              <td style={{ textAlign: 'center', color: GROUP_COLOURS.Mental, fontWeight: 600 }}>{mentAvg}</td>
                               <td style={{ textAlign: 'center', color: GROUP_COLOURS.Technical, fontWeight: 600 }}>{techAvg}</td>
                               <td style={{ textAlign: 'center', color: GROUP_COLOURS.Physical, fontWeight: 600 }}>{physAvg}</td>
-                              <td style={{ textAlign: 'center', color: GROUP_COLOURS.Mental, fontWeight: 600 }}>{mentAvg}</td>
                               <td style={{ textAlign: 'center', fontWeight: 700 }}>{total}</td>
                               <td>
                                 <button className="btn btn-sm" onClick={() => setCompareId(isCompare ? null : h.id)}>

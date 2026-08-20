@@ -61,8 +61,8 @@ const FORMS = [
   },
   {
     key: 'boxing_tpt',
-    label: 'Boxing TTP Analysis',
-    desc: 'Technical, Physical & Mental assessment for boxing.',
+    label: 'Boxing MTP Analysis',
+    desc: 'Mental, Technical and Physical assessment for boxing.',
     icon: '📊',
     path: '/boxing-tpt',
     colour: '#E24B4A',
@@ -70,7 +70,7 @@ const FORMS = [
   },
   {
     key: 'kb_tpt',
-    label: 'Kickboxing TTP Analysis',
+    label: 'Kickboxing MTP Analysis',
     desc: 'Kode Red physical performance assessment.',
     icon: '📊',
     path: '/kickboxing-tpt',
