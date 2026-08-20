@@ -138,7 +138,12 @@ function ShareModal({ form, onClose }) {
 
   const hasNativeShare = typeof navigator !== 'undefined' && !!navigator.share
   async function nativeShare() {
-    try { await navigator.share({ text: msg }) } catch (e) { /* user cancelled — ignore */ }
+    // Passing url as its own field (rather than only embedded inside
+    // text) is what lets the receiving app -- WhatsApp etc -- reliably
+    // recognise this as a link and pull in its preview card/logo.
+    // Some share targets showed no preview when the link was only
+    // ever a substring of the text field.
+    try { await navigator.share({ text: `Hi! Please use this link to complete your ${form.label} form:`, url }) } catch (e) { /* user cancelled — ignore */ }
   }
 
   return (
