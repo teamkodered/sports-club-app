@@ -4760,6 +4760,11 @@ export default function AthleteProfiles() {
   async function clearTestCategory(catKey) {
     const cat = TEST_CATEGORIES.find(c => c.key === catKey)
     if (!cat) return
+    // This wipes EVERY result in the category (not just one field), and
+    // previously fired on a single click with no confirmation -- easy
+    // to trigger by accident (e.g. reaching for another button nearby)
+    // and lose results that were just saved moments earlier.
+    if (!window.confirm(`Clear all ${cat.label} results for today? This can't be undone.`)) return
     setSavingTest(true)
     const newTest = { ...todaysTest }
     cat.tests.forEach(t => delete newTest[t.name])

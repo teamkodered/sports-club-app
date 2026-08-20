@@ -2284,6 +2284,7 @@ export default function AthleteApp() {
     if (!student) return
     const cat = TEST_CATEGORIES.find(c => c.key === catKey)
     if (!cat) return
+    if (!window.confirm(`Clear all ${cat.label} results for today? This can't be undone.`)) return
     setSavingTest(true)
     const newTest = { ...todaysTest }
     cat.tests.forEach(t => delete newTest[t.name])
