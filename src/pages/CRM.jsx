@@ -395,6 +395,32 @@ export default function CRM() {
   // via the send-email Netlify function -- an actual email that lands in the
   // recipient's inbox, not a mailto:/share-sheet handoff the person has to
   // action themselves.
+  // Shares the ACTUAL poster image file (not just a link to it) via
+  // the OS share sheet -- mailto:/sms:/wa.me links can never attach a
+  // real file, only text and URLs, so this is the only way to send
+  // the poster itself rather than a link to it.
+  async function sharePosterFile(course) {
+    if (!course.poster_url) { alert('This course has no poster image set.'); return }
+    try {
+      const res = await fetch(course.poster_url)
+      const blob = await res.blob()
+      const ext = (course.poster_url.split('.').pop() || 'jpg').split('?')[0]
+      const file = new File([blob], `${course.title.replace(/[^a-z0-9]/gi, '-')}-poster.${ext}`, { type: blob.type || 'image/jpeg' })
+
+      const interestUrl = `${window.location.origin}/course-interest?course_id=${course.id}`
+      const caption = `${course.message_text || `Check out our upcoming course: ${course.title}`}\n\nExpress your interest here: ${interestUrl}`
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: course.title, text: caption })
+      } else {
+        alert("This browser/device can't attach the actual image to a share — falling back to sharing the link instead.")
+        await shareText(`${caption}\n${course.poster_url}`)
+      }
+    } catch (e) {
+      if (e.name !== 'AbortError') alert('Could not share the poster: ' + e.message)
+    }
+  }
+
   async function sendRealEmail(to, subject, text) {
     if (!to) { alert('No email address on file for this person.'); return false }
     if (!text || !text.trim()) { alert('This message is empty — add some text to the template first.'); return false }
@@ -1824,9 +1850,21 @@ export default function CRM() {
                           const posterLine = c.poster_url ? `\n${c.poster_url}` : ''
                           const messageBody = `${c.message_text || `Check out our upcoming course: ${c.title}`}${posterLine}\n\nExpress your interest here: ${interestUrl}`
                           const encodedBody = encodeURIComponent(messageBody)
+                          const hasNativeFileShare = typeof navigator !== 'undefined' && !!navigator.canShare
                           return (
                             <div className="card" style={{ background: 'var(--bg-secondary)', marginBottom: 14 }}>
                               <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>📢 Send details</p>
+                              {c.poster_url && hasNativeFileShare && (
+                                <>
+                                  <button className="btn btn-sm btn-primary" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
+                                    onClick={() => sharePosterFile(c)}>
+                                    🖼️ Send poster image
+                                  </button>
+                                  <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 10 }}>
+                                    Attaches the actual poster picture via your phone's share menu, instead of just a link to it.
+                                  </p>
+                                </>
+                              )}
                               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
                                 <a className="btn btn-sm" href={`mailto:?subject=${encodeURIComponent(c.title)}&body=${encodedBody}`}>✉️ Email</a>
                                 <a className="btn btn-sm" href={`sms:?body=${encodedBody}`}>📱 Text</a>
@@ -1834,7 +1872,7 @@ export default function CRM() {
                                 <button className="btn btn-sm" onClick={() => { navigator.clipboard?.writeText(interestUrl); alert('Interest form link copied!') }}>🔗 Copy interest link</button>
                               </div>
                               <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
-                                Sends the saved message plus the poster image link and a link to the expression of interest form. Edit the course to change the message.
+                                These send the saved message plus a link to the poster (not the image itself — text links can't attach files) and a link to the expression of interest form. Edit the course to change the message.
                               </p>
                             </div>
                           )
