@@ -411,7 +411,16 @@ export default function CRM() {
       const caption = `${course.message_text || `Check out our upcoming course: ${course.title}`}\n\nExpress your interest here: ${interestUrl}`
 
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        // Many share targets (WhatsApp in particular) silently drop the
+        // accompanying text/caption when a file is attached via the Web
+        // Share API, keeping only the image -- a real platform
+        // limitation, not something this code can force around. As a
+        // reliable fallback, also copy the message onto the clipboard
+        // so it can just be pasted into the same chat right after the
+        // poster lands, even on a share target that dropped it.
+        try { await navigator.clipboard.writeText(caption) } catch {}
         await navigator.share({ files: [file], title: course.title, text: caption })
+        alert('Poster shared! Some apps drop the message text when sharing an image — it\'s been copied to your clipboard too, so just paste it into the same chat if it didn\'t come through.')
       } else {
         alert("This browser/device can't attach the actual image to a share — falling back to sharing the link instead.")
         await shareText(`${caption}\n${course.poster_url}`)
