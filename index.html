@@ -5,6 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>KR Centre</title>
     <link rel="icon" type="image/png" href="/icon-192.png" />
+
+    <!-- Open Graph / link-preview tags -- these are read by WhatsApp,
+         iMessage, Facebook etc. directly from the raw HTML (their
+         crawlers don't run JavaScript), so they need to be static
+         here rather than set from within the React app. Without an
+         explicit og:image, sharers were falling back to the PWA
+         favicon (icon-192.png), which is Fit II Fight's "FF" monogram
+         -- wrong for PKA/KRBA/general club links. og-image.png is the
+         general KR Centre logo instead, appropriate site-wide since a
+         single static HTML file can't have a different preview per
+         form/page without server-side rendering. -->
+    <meta property="og:title" content="KR Centre" />
+    <meta property="og:description" content="KR Centre Sports Club" />
+    <meta property="og:image" content="https://klasschamp.netlify.app/og-image.png" />
+    <meta property="og:url" content="https://klasschamp.netlify.app" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Anton&display=swap" rel="stylesheet" />
