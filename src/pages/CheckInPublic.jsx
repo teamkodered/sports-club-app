@@ -28,19 +28,12 @@ export default function CheckInPublic() {
   useEffect(() => {
     if (search.length < 3) { setResults([]); return }
     const t = setTimeout(async () => {
-      const { data: memberData } = await supabase
-        .from('members')
-        .select('id, first_name, last_name, houses(name)')
-        .or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%`)
-        .neq('status', 'stopped')
-        .neq('status', 'not_started')
-        .limit(8)
-      if (!memberData?.length) { setResults([]); return }
-      const memberIds = memberData.map(m => m.id)
-      const { data: studentData } = await supabase
-        .from('students').select('id, student_ref, house_name, member_id').in('member_id', memberIds)
-      const merged = (studentData || []).map(s => ({ ...s, members: memberData.find(m => m.id === s.member_id) }))
-      setResults(merged)
+      // Uses a SECURITY DEFINER RPC rather than raw table reads -- this
+      // kiosk has no logged-in user at all, and members/students also
+      // hold medical/guardian data that must stay locked down from
+      // anonymous access. The function only ever returns name + house.
+      const { data } = await supabase.rpc('kiosk_search_students', { p_query: search })
+      setResults(data || [])
     }, 200)
     return () => clearTimeout(t)
   }, [search])
@@ -50,44 +43,22 @@ export default function CheckInPublic() {
     setSaving(true)
     if (attendMode === 'weight_after') {
       if (weightOut) {
-        if (todaysSession) {
-          await supabase.from('fit2fight_sessions').update({ weight_after: parseFloat(weightOut) }).eq('id', todaysSession.id)
-        } else {
-          await supabase.from('fit2fight_sessions').insert({
-            student_id: checking.id,
-            session_date: new Date().toISOString().split('T')[0],
-            weight_after: parseFloat(weightOut),
-          })
-        }
-        await supabase.from('students').update({ weight_kg: parseFloat(weightOut) }).eq('id', checking.id)
+        const { error } = await supabase.rpc('kiosk_check_out', { p_student_id: checking.id, p_weight_after: parseFloat(weightOut) })
+        if (error) { alert('Could not save: ' + error.message); setSaving(false); return }
       }
-      setConfirmed({ name: `${checking.members?.first_name} ${checking.members?.last_name}`, mode: attendMode, weight: weightOut })
+      setConfirmed({ name: `${checking.first_name} ${checking.last_name}`, mode: attendMode, weight: weightOut })
       setChecking(null); setWeight(''); setWeightOut(''); setSearch(''); setResults([])
       setSaving(false)
       setTimeout(() => { setConfirmed(null); inputRef.current?.focus() }, 3000)
       return
     }
-    await supabase.from('attendance').insert({
-      student_id: checking.id,
-      present: true,
-      late: false,
-      attendance_type: attendMode,
-      session_date: new Date().toISOString().split('T')[0],
-      attended_at: new Date().toISOString(),
+    const { error } = await supabase.rpc('kiosk_check_in', {
+      p_student_id: checking.id,
+      p_attendance_type: attendMode,
+      p_weight_before: (attendMode === 'weight' && weight) ? parseFloat(weight) : null,
     })
-    if (attendMode === 'weight' && weight) {
-      if (todaysSession) {
-        await supabase.from('fit2fight_sessions').update({ weight_before: parseFloat(weight) }).eq('id', todaysSession.id)
-      } else {
-        await supabase.from('fit2fight_sessions').insert({
-          student_id: checking.id,
-          session_date: new Date().toISOString().split('T')[0],
-          weight_before: parseFloat(weight),
-        })
-      }
-      await supabase.from('students').update({ weight_kg: parseFloat(weight) }).eq('id', checking.id)
-    }
-    setConfirmed({ name: `${checking.members?.first_name} ${checking.members?.last_name}`, mode: attendMode, weight })
+    if (error) { alert('Could not check in: ' + error.message); setSaving(false); return }
+    setConfirmed({ name: `${checking.first_name} ${checking.last_name}`, mode: attendMode, weight })
     setChecking(null); setWeight(''); setWeightOut(''); setSearch(''); setResults([])
     setSaving(false)
     setTimeout(() => { setConfirmed(null); inputRef.current?.focus() }, 3000)
@@ -120,15 +91,12 @@ export default function CheckInPublic() {
               <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 8 }}>{3 - search.length} more letter{3 - search.length > 1 ? 's' : ''} needed…</p>
             )}
             {results.map(s => {
-              const m = s.members
-              const colour = HOUSE_COLOURS[m?.houses?.name] || '#888'
+              const colour = HOUSE_COLOURS[s.house_name] || '#888'
               return (
                 <button key={s.id} onClick={() => {
                   setChecking(s); setMode('attended'); setSheetTab('checkin')
                   setTodaysSession(null)
-                  supabase.from('fit2fight_sessions').select('id, weight_before, weight_after')
-                    .eq('student_id', s.id).eq('session_date', new Date().toISOString().split('T')[0])
-                    .order('created_at', { ascending: false }).limit(1)
+                  supabase.rpc('kiosk_todays_session', { p_student_id: s.id })
                     .then(({ data }) => setTodaysSession(data?.[0] || null))
                 }} style={{
                   display: 'flex', alignItems: 'center', gap: 10, width: '100%',
@@ -136,11 +104,11 @@ export default function CheckInPublic() {
                   background: 'var(--bg)', cursor: 'pointer', marginBottom: 6, textAlign: 'left', fontFamily: 'var(--font-sans)',
                 }}>
                   <div style={{ width: 40, height: 40, borderRadius: '50%', background: colour + '20', color: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700 }}>
-                    {m?.first_name?.[0]}{m?.last_name?.[0]}
+                    {s.first_name?.[0]}{s.last_name?.[0]}
                   </div>
                   <div>
-                    <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--text)' }}>{m?.first_name} {m?.last_name}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{m?.houses?.name || 'No house'}</div>
+                    <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--text)' }}>{s.first_name} {s.last_name}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{s.house_name || 'No house'}</div>
                   </div>
                 </button>
               )
@@ -153,7 +121,7 @@ export default function CheckInPublic() {
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 50, padding: 16, overflowY: 'auto' }}>
             <div style={{ background: 'var(--bg)', borderRadius: '0 0 16px 16px', width: '100%', maxWidth: 440, padding: 24, marginTop: 0 }}>
               <h2 style={{ fontSize: 17, fontWeight: 600, textAlign: 'center', marginBottom: 4 }}>
-                {checking.members?.first_name} {checking.members?.last_name}
+                {checking.first_name} {checking.last_name}
               </h2>
               <p style={{ fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center', marginBottom: 16 }}>How are you checking in?</p>
 

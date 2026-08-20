@@ -55,17 +55,20 @@ export default function LeaguePublic() {
         supabase.from('points_log')
           .select('points_awarded, point_scope, student_id')
           .gte('awarded_at', resolvedFrom).lte('awarded_at', resolvedTo + 'T23:59:59'),
-        supabase.from('students').select('id, house_name, member_id, members(first_name, last_name, houses(name))'),
+        // Uses a SECURITY DEFINER RPC rather than a raw table read --
+        // students also holds medical/guardian data that must stay
+        // locked down from anonymous public access, so this function
+        // deliberately returns only name + house, nothing else.
+        supabase.rpc('public_league_students'),
       ])
 
       // Build student lookup map (separate query avoids unreliable nested joins)
       const studentMap = {}
       for (const s of (studentsData || [])) {
-        const m = s.members
         studentMap[s.id] = {
-          first: m?.first_name || '',
-          last:  m?.last_name  || '',
-          house: m?.houses?.name || s.house_name || '',
+          first: s.first_name || '',
+          last:  s.last_name  || '',
+          house: s.house_name || '',
         }
       }
 
