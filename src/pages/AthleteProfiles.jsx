@@ -1155,7 +1155,7 @@ const PDP_COLUMN_COLOURS = { notes: '#666666', maintain: '#1D9E75', work_on: '#E
 
 const PDP_SECTIONS = [
   { key: 'winning_ways',          label: '🏆 Winning ways',             colour: '#1D9E75', coachOnly: false },
-  { key: 'what_to_do',            label: '📋 What to do (general)',      colour: '#8B5CF6', coachOnly: false },
+  { key: 'what_to_do',            label: '📋 What to do (general)',      colour: PDP_COLUMN_COLOURS.what_to_do, coachOnly: false },
   { key: 'psychology_notes',      label: 'Notes',        colour: PDP_COLUMN_COLOURS.notes,      coachOnly: true },
   { key: 'psychology_maintain',   label: 'Maintain',     colour: PDP_COLUMN_COLOURS.maintain,   coachOnly: true },
   { key: 'psychology_work_on',    label: 'Work on',      colour: PDP_COLUMN_COLOURS.work_on,    coachOnly: true },
@@ -2700,6 +2700,8 @@ export default function AthleteProfiles() {
   const [newEventSendAll, setNewEventSendAll] = useState(true)
   const [savingEvent, setSavingEvent] = useState(false)
   const [notesLog, setNotesLog] = useState([])
+  const [pendingNoteDelete, setPendingNoteDelete] = useState(null) // note object while its undo window is open, or null
+  const pendingNoteDeleteRef = useRef(null)
   const [newNoteText, setNewNoteText] = useState('')
   const [editingNoteId, setEditingNoteId] = useState(null) // athlete_notes_log.id being edited, or null
   const [editingNoteText, setEditingNoteText] = useState('')
@@ -4702,10 +4704,33 @@ export default function AthleteProfiles() {
   }
 
   async function deleteNote(noteId) {
-    if (!confirm('Delete this note?')) return
-    const { error } = await supabase.from('athlete_notes_log').delete().eq('id', noteId)
-    if (error) return alert('Error deleting note: ' + error.message)
+    // Soft-delete with an undo window instead of an immediate,
+    // irreversible delete: the note disappears from the list right
+    // away, but the actual database delete is held off for a few
+    // seconds in case of a mis-tap, with an "Undo" toast to restore it.
+    const note = notesLog.find(n => n.id === noteId)
+    if (!note) return
     setNotesLog(prev => prev.filter(n => n.id !== noteId))
+    clearTimeout(pendingNoteDeleteRef.current?.timer)
+    const timer = setTimeout(async () => {
+      const { error } = await supabase.from('athlete_notes_log').delete().eq('id', noteId)
+      if (error) {
+        alert('Error deleting note: ' + error.message)
+        setNotesLog(prev => [note, ...prev].sort((a, b) => new Date(b.logged_at) - new Date(a.logged_at)))
+      }
+      setPendingNoteDelete(null)
+      pendingNoteDeleteRef.current = null
+    }, 5000)
+    pendingNoteDeleteRef.current = { note, timer }
+    setPendingNoteDelete(note)
+  }
+
+  function undoDeleteNote() {
+    if (!pendingNoteDeleteRef.current) return
+    clearTimeout(pendingNoteDeleteRef.current.timer)
+    setNotesLog(prev => [pendingNoteDeleteRef.current.note, ...prev].sort((a, b) => new Date(b.logged_at) - new Date(a.logged_at)))
+    pendingNoteDeleteRef.current = null
+    setPendingNoteDelete(null)
   }
 
   async function updateNote(noteId, newText) {
@@ -11594,6 +11619,19 @@ export default function AthleteProfiles() {
             {/* ── Notes tab ── */}
             {tab === 'notes' && (
               <div>
+                {pendingNoteDelete && (
+                  <div style={{
+                    position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 300,
+                    background: 'var(--text)', color: 'var(--bg)', fontSize: 13,
+                    padding: '9px 10px 9px 18px', borderRadius: 20, boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
+                    display: 'flex', alignItems: 'center', gap: 12,
+                  }}>
+                    Note deleted
+                    <button onClick={undoDeleteNote} style={{ background: 'none', border: 'none', color: 'var(--bg)', fontWeight: 700, cursor: 'pointer', fontSize: 13, padding: '4px 10px' }}>
+                      Undo
+                    </button>
+                  </div>
+                )}
                 <div className="card" style={{ marginBottom: 12 }}>
                   <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>Log a note</h2>
                   <textarea value={newNoteText} onChange={e => setNewNoteText(e.target.value)}

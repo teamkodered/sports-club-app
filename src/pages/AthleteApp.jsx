@@ -357,7 +357,24 @@ function timeToTimelinePercent(timeStr) {
 // must match this file's own PDP_SECTIONS keys (the coach's file has a
 // separate, richer 4-column-per-category schema with its own matching
 // constant, not shared with this one).
-const PDP_TIMETABLE_SECTION_KEYS = ['to_work_on', 'psychology_work_on', 'tech_work_on', 'tact_work_on', 'physical_work_on']
+// Groups the flat PDP_SECTIONS list into scopes (general + each PDP
+// column) so "Maintain"/"To work on" items can reveal their matching
+// "To do" section for that same scope, rather than every section
+// always being shown as its own separate, always-visible card.
+const PDP_SCOPES = [
+  { key: 'general',    notes: null,               maintain: 'maintain',            work_on: 'to_work_on',            to_do: 'what_to_do' },
+  { key: 'psychology', notes: 'psychology_notes',  maintain: 'psychology_maintain', work_on: 'psychology_work_on',    to_do: 'psychology_what_to_do' },
+  { key: 'tech',       notes: 'tech_notes',        maintain: 'tech_maintain',       work_on: 'tech_work_on',          to_do: 'tech_what_to_do' },
+  { key: 'tact',       notes: 'tact_notes',        maintain: 'tact_maintain',       work_on: 'tact_work_on',          to_do: 'tact_what_to_do' },
+  { key: 'physical',   notes: 'physical_notes',    maintain: 'physical_maintain',   work_on: 'physical_work_on',      to_do: 'physical_what_to_do' },
+  { key: 'skill',      notes: 'skill_notes',       maintain: 'skill_maintain',      work_on: 'skill_work_on',         to_do: 'skill_what_to_do' },
+]
+
+// Which sections support scheduling onto the Weekly Timetable via
+// "Add to calendar" -- moved to the "to do" sections (previously
+// "work_on"), since to-dos are the actionable items that make sense
+// to put a date/time against.
+const PDP_TIMETABLE_SECTION_KEYS = ['what_to_do', 'psychology_what_to_do', 'tech_what_to_do', 'tact_what_to_do', 'physical_what_to_do', 'skill_what_to_do']
 
 // Tactical development presets -- multi-select per category, note
 // added once selected (same pattern as Techniques).
@@ -1143,24 +1160,24 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
 
 const PDP_SECTIONS = [
   { key: 'winning_ways',        label: '🏆 Winning ways',         colour: '#1D9E75' },
-  { key: 'what_to_do',          label: '📋 What to do (general)', colour: '#8B5CF6' },
-  { key: 'maintain',            label: '✅ Maintain',              colour: '#378ADD' },
+  { key: 'what_to_do',          label: '📋 What to do (general)', colour: '#E24B4A' },
+  { key: 'maintain',            label: '✅ Maintain',              colour: '#1D9E75' },
   { key: 'to_work_on',          label: '🎯 To work on',            colour: '#EF9F27' },
   { key: 'psychology_notes',      label: '🧠 Psychology — notes',      colour: '#666666' },
-  { key: 'psychology_maintain',    label: '🧠 Psychology — maintain', colour: '#8B5CF6' },
-  { key: 'psychology_work_on',     label: '🧠 Psychology — work on',  colour: '#7C3AED' },
+  { key: 'psychology_maintain',    label: '🧠 Psychology — maintain', colour: '#1D9E75' },
+  { key: 'psychology_work_on',     label: '🧠 Psychology — work on',  colour: '#EF9F27' },
   { key: 'psychology_what_to_do',  label: '🧠 Psychology — to do',    colour: '#E24B4A' },
   { key: 'tech_notes',          label: '⚙️ Technical — notes',       colour: '#666666' },
-  { key: 'tech_maintain',       label: '⚙️ Technical — maintain',  colour: '#378ADD' },
+  { key: 'tech_maintain',       label: '⚙️ Technical — maintain',  colour: '#1D9E75' },
   { key: 'tech_work_on',        label: '⚙️ Technical — work on',   colour: '#EF9F27' },
   { key: 'tech_what_to_do',     label: '⚙️ Technical — to do',     colour: '#E24B4A' },
   { key: 'tact_notes',          label: '🎯 Tactical — notes',        colour: '#666666' },
   { key: 'tact_maintain',       label: '🎯 Tactical — maintain',   colour: '#1D9E75' },
-  { key: 'tact_work_on',        label: '🎯 Tactical — work on',    colour: '#E24B4A' },
+  { key: 'tact_work_on',        label: '🎯 Tactical — work on',    colour: '#EF9F27' },
   { key: 'tact_what_to_do',     label: '🎯 Tactical — to do',      colour: '#E24B4A' },
   { key: 'physical_notes',      label: '💪 Physical — notes',        colour: '#666666' },
   { key: 'physical_maintain',   label: '💪 Physical — maintain',   colour: '#1D9E75' },
-  { key: 'physical_work_on',    label: '💪 Physical — work on',    colour: '#059669' },
+  { key: 'physical_work_on',    label: '💪 Physical — work on',    colour: '#EF9F27' },
   { key: 'physical_what_to_do', label: '💪 Physical — to do',      colour: '#E24B4A' },
   { key: 'skill_notes',         label: '🧱 Skill — notes',           colour: '#666666' },
   { key: 'skill_maintain',      label: '🧱 Skill — maintain',      colour: '#1D9E75' },
@@ -1292,6 +1309,8 @@ export default function AthleteApp() {
   const [myProfileExpanded, setMyProfileExpanded] = useState(false)
   const [recentPointsExpanded, setRecentPointsExpanded] = useState(false)
   const [myNotesLog, setMyNotesLog] = useState([])
+  const [pendingNoteDelete, setPendingNoteDelete] = useState(null)
+  const pendingNoteDeleteRef = useRef(null)
   const [tptData, setTptData] = useState({ kickboxing: [], boxing: [] })
   const [ttpBenchmark, setTtpBenchmark] = useState(null)
   const [ttpBenchmarkKB, setTtpBenchmarkKB] = useState(null)
@@ -1303,6 +1322,7 @@ export default function AthleteApp() {
   const [radarDateTo, setRadarDateTo] = useState(() => new Date().toISOString().split('T')[0])
   const [radarDrilldown, setRadarDrilldown] = useState(null) // which axis label is expanded, or null
   const [athleteTimetableModal, setAthleteTimetableModal] = useState(null) // { sectionKey, item } or null
+  const [expandedToDoScopes, setExpandedToDoScopes] = useState(() => new Set()) // scope keys whose "To do" section is currently revealed
   const [schedWizardStep, setSchedWizardStep] = useState('days') // 'days' -> 'metric' -> 'value' -> 'submetric' -> 'subvalue'
   const [schedWizardDays, setSchedWizardDays] = useState([]) // recurring days of week, e.g. ['Monday', 'Wednesday']
   const [schedWizardTime, setSchedWizardTime] = useState('') // optional time of day
@@ -1995,10 +2015,29 @@ export default function AthleteApp() {
   }
 
   async function deleteNote(noteId) {
-    if (!confirm('Delete this note?')) return
-    const { error } = await supabase.from('athlete_notes_log').delete().eq('id', noteId)
-    if (error) { alert('Error deleting note: ' + error.message); return }
+    const note = myNotesLog.find(n => n.id === noteId)
+    if (!note) return
     setMyNotesLog(prev => prev.filter(n => n.id !== noteId))
+    clearTimeout(pendingNoteDeleteRef.current?.timer)
+    const timer = setTimeout(async () => {
+      const { error } = await supabase.from('athlete_notes_log').delete().eq('id', noteId)
+      if (error) {
+        alert('Error deleting note: ' + error.message)
+        setMyNotesLog(prev => [note, ...prev].sort((a, b) => new Date(b.logged_at) - new Date(a.logged_at)))
+      }
+      setPendingNoteDelete(null)
+      pendingNoteDeleteRef.current = null
+    }, 5000)
+    pendingNoteDeleteRef.current = { note, timer }
+    setPendingNoteDelete(note)
+  }
+
+  function undoDeleteNote() {
+    if (!pendingNoteDeleteRef.current) return
+    clearTimeout(pendingNoteDeleteRef.current.timer)
+    setMyNotesLog(prev => [pendingNoteDeleteRef.current.note, ...prev].sort((a, b) => new Date(b.logged_at) - new Date(a.logged_at)))
+    pendingNoteDeleteRef.current = null
+    setPendingNoteDelete(null)
   }
 
   async function updateNote(noteId, text) {
@@ -5624,78 +5663,139 @@ export default function AthleteApp() {
           <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
           {!student ? <p style={{ color: 'var(--text-secondary)' }}>No student record linked.</p> : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {PDP_SECTIONS.filter(section => (shared[section.key] || []).length > 0 || section.key === 'winning_ways').map(section => {
-                const items = shared[section.key] || []
-                const canSchedule = PDP_TIMETABLE_SECTION_KEYS.includes(section.key)
+              {(() => {
+                const wwSection = PDP_SECTIONS.find(s => s.key === 'winning_ways')
+                const wwItems = shared[wwSection.key] || []
                 return (
-                  <div key={section.key} className="card" style={{ borderLeft: `3px solid ${section.colour}` }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <h3 style={{ fontSize: 13, fontWeight: 600, color: section.colour, margin: 0 }}>{section.label}</h3>
-                    </div>
+                  <div className="card" style={{ borderLeft: `3px solid ${wwSection.colour}` }}>
+                    <h3 style={{ fontSize: 13, fontWeight: 600, color: wwSection.colour, margin: '0 0 8px' }}>{wwSection.label}</h3>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {items.length === 0 && (
+                      {wwItems.length === 0 && (
                         <p style={{ fontSize: 11, color: 'var(--text-tertiary)', fontStyle: 'italic', margin: 0 }}>Nothing here yet</p>
                       )}
-                      {items.map((item, i) => {
-                        const existing = timetableEntry(section.key, item)
-                        const isActive = athleteTimetableModal?.sectionKey === section.key && athleteTimetableModal?.item === item
-                        return (
-                          <div key={i} style={{ background: section.colour + '15', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '6px 10px' }}>
-                              <span style={{ color: section.colour, fontSize: 12 }}>{item}</span>
-                              {canSchedule && (
-                                existing?.days?.length ? (
-                                  <button onClick={() => setAthleteTimetableModal(isActive ? null : { sectionKey: section.key, item })}
-                                    style={{ fontSize: 10, background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontWeight: 600, flexShrink: 0, textAlign: 'right', fontFamily: 'var(--font-sans)' }}>
-                                    📅 {existing.days.map(d => d.slice(0, 3)).join('/')}{existing.time ? ` ${existing.time}` : ''}
-                                    {formatScheduleMetric(existing.metric) && <><br />{formatScheduleMetric(existing.metric)}</>}
-                                  </button>
-                                ) : (
-                                  <button onClick={() => setAthleteTimetableModal(isActive ? null : { sectionKey: section.key, item })}
-                                    style={{ fontSize: 10, background: 'none', border: 'none', color: section.colour, cursor: 'pointer', fontWeight: 600, flexShrink: 0, fontFamily: 'var(--font-sans)' }}>
-                                    📅 Add to calendar
-                                  </button>
-                                )
-                              )}
-                            </div>
-                            {canSchedule && (
-                              <div style={{ overflow: 'hidden', transition: 'max-height 0.3s ease, opacity 0.2s ease', maxHeight: isActive ? 500 : 0, opacity: isActive ? 1 : 0 }}>
-                                <div style={{ padding: '4px 10px 12px' }}>
-                                  {ScheduleWizardPanel()}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
+                      {wwItems.map((item, i) => (
+                        <div key={i} style={{ background: wwSection.colour + '15', borderRadius: 'var(--radius)', padding: '6px 10px' }}>
+                          <span style={{ color: wwSection.colour, fontSize: 12 }}>{item}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )
-              })}
+              })()}
 
-              {/* Weekly Timetable -- shows every item scheduled via the
-                  "Add to calendar" wizard above, grouped by the day(s)
-                  of the week it repeats on, across every PDP section. */}
-              <div className="card">
-                <h3 style={{ fontSize: 13, fontWeight: 600, margin: '0 0 10px' }}>📅 Weekly Timetable</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
-                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => {
-                    const items = getScheduledItemsForDay(day)
-                    return (
-                      <div key={day} style={{ background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', padding: '8px 4px', minHeight: 60 }}>
-                        <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 5, textAlign: 'center' }}>{day.slice(0, 3)}</div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                          {items.map((it, i) => (
-                            <div key={i} style={{ fontSize: 9, background: it.colour + '15', borderRadius: 6, padding: '3px 4px', color: it.colour, border: `1px solid ${it.colour}30`, lineHeight: 1.3, textDecoration: it.completed ? 'line-through' : 'none' }}>
-                              {it.time && <span style={{ fontWeight: 700 }}>{it.time} </span>}{it.text}
+              {PDP_SCOPES.map(scope => {
+                const notesSection = scope.notes ? PDP_SECTIONS.find(s => s.key === scope.notes) : null
+                const maintainSection = PDP_SECTIONS.find(s => s.key === scope.maintain)
+                const workOnSection = PDP_SECTIONS.find(s => s.key === scope.work_on)
+                const toDoSection = PDP_SECTIONS.find(s => s.key === scope.to_do)
+                const notesItems = notesSection ? (shared[notesSection.key] || []) : []
+                const maintainItems = shared[maintainSection.key] || []
+                const workOnItems = shared[workOnSection.key] || []
+                const toDoItems = shared[toDoSection.key] || []
+                const isExpanded = expandedToDoScopes.has(scope.key)
+                if (!notesItems.length && !maintainItems.length && !workOnItems.length && !toDoItems.length) return null
+
+                function toggleToDo() {
+                  if (!toDoItems.length) return
+                  setExpandedToDoScopes(prev => {
+                    const next = new Set(prev)
+                    if (next.has(scope.key)) next.delete(scope.key)
+                    else next.add(scope.key)
+                    return next
+                  })
+                }
+
+                return (
+                  <div key={scope.key} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {notesItems.length > 0 && (
+                      <div className="card" style={{ borderLeft: `3px solid ${notesSection.colour}` }}>
+                        <h3 style={{ fontSize: 13, fontWeight: 600, color: notesSection.colour, margin: '0 0 8px' }}>{notesSection.label}</h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {notesItems.map((item, i) => (
+                            <div key={i} style={{ background: notesSection.colour + '15', borderRadius: 'var(--radius)', padding: '6px 10px' }}>
+                              <span style={{ color: notesSection.colour, fontSize: 12 }}>{item}</span>
                             </div>
                           ))}
                         </div>
                       </div>
-                    )
-                  })}
-                </div>
-              </div>
+                    )}
+
+                    {maintainItems.length > 0 && (
+                      <div className="card" style={{ borderLeft: `3px solid ${maintainSection.colour}` }}>
+                        <h3 style={{ fontSize: 13, fontWeight: 600, color: maintainSection.colour, margin: '0 0 8px' }}>{maintainSection.label}</h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {maintainItems.map((item, i) => (
+                            <div key={i} onClick={toggleToDo}
+                              style={{ background: maintainSection.colour + '15', borderRadius: 'var(--radius)', padding: '6px 10px', cursor: toDoItems.length ? 'pointer' : 'default' }}>
+                              <span style={{ color: maintainSection.colour, fontSize: 12 }}>{item}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {workOnItems.length > 0 && (
+                      <div className="card" style={{ borderLeft: `3px solid ${workOnSection.colour}` }}>
+                        <h3 style={{ fontSize: 13, fontWeight: 600, color: workOnSection.colour, margin: '0 0 8px' }}>{workOnSection.label}</h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {workOnItems.map((item, i) => (
+                            <div key={i} onClick={toggleToDo}
+                              style={{ background: workOnSection.colour + '15', borderRadius: 'var(--radius)', padding: '6px 10px', cursor: toDoItems.length ? 'pointer' : 'default' }}>
+                              <span style={{ color: workOnSection.colour, fontSize: 12 }}>{item}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* "To do" -- collapsed by default, slides down when a
+                        Maintain or To-work-on item above is tapped.
+                        "Add to calendar" now lives here (moved from
+                        Maintain/To-work-on) since to-dos are the
+                        actionable items worth scheduling. */}
+                    {toDoItems.length > 0 && (
+                      <div style={{ overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease', maxHeight: isExpanded ? 3000 : 0, opacity: isExpanded ? 1 : 0 }}>
+                        <div className="card" style={{ borderLeft: `3px solid ${toDoSection.colour}` }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                            <h3 style={{ fontSize: 13, fontWeight: 600, color: toDoSection.colour, margin: 0 }}>{toDoSection.label}</h3>
+                            <button onClick={toggleToDo} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 12, fontFamily: 'var(--font-sans)' }}>✕ Close</button>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {toDoItems.map((item, i) => {
+                              const existing = timetableEntry(toDoSection.key, item)
+                              const isActive = athleteTimetableModal?.sectionKey === toDoSection.key && athleteTimetableModal?.item === item
+                              return (
+                                <div key={i} style={{ background: toDoSection.colour + '15', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '6px 10px' }}>
+                                    <span style={{ color: toDoSection.colour, fontSize: 12 }}>{item}</span>
+                                    {existing?.days?.length ? (
+                                      <button onClick={() => setAthleteTimetableModal(isActive ? null : { sectionKey: toDoSection.key, item })}
+                                        style={{ fontSize: 10, background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontWeight: 600, flexShrink: 0, textAlign: 'right', fontFamily: 'var(--font-sans)' }}>
+                                        📅 {existing.days.map(d => d.slice(0, 3)).join('/')}{existing.time ? ` ${existing.time}` : ''}
+                                        {formatScheduleMetric(existing.metric) && <><br />{formatScheduleMetric(existing.metric)}</>}
+                                      </button>
+                                    ) : (
+                                      <button onClick={() => setAthleteTimetableModal(isActive ? null : { sectionKey: toDoSection.key, item })}
+                                        style={{ fontSize: 10, background: 'none', border: 'none', color: toDoSection.colour, cursor: 'pointer', fontWeight: 600, flexShrink: 0, fontFamily: 'var(--font-sans)' }}>
+                                        📅 Add to calendar
+                                      </button>
+                                    )}
+                                  </div>
+                                  <div style={{ overflow: 'hidden', transition: 'max-height 0.3s ease, opacity 0.2s ease', maxHeight: isActive ? 500 : 0, opacity: isActive ? 1 : 0 }}>
+                                    <div style={{ padding: '4px 10px 12px' }}>
+                                      {ScheduleWizardPanel()}
+                                    </div>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
 
               {/* Ready -- athlete's own competition-prep notes, written
                   by the athlete (coach can also view/edit from their
@@ -5886,6 +5986,19 @@ export default function AthleteApp() {
       {/* ── Notes ── */}
       {tab === 'notes' && (
         <div>
+          {pendingNoteDelete && (
+            <div style={{
+              position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 300,
+              background: 'var(--text)', color: 'var(--bg)', fontSize: 13,
+              padding: '9px 10px 9px 18px', borderRadius: 20, boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
+              display: 'flex', alignItems: 'center', gap: 12,
+            }}>
+              Note deleted
+              <button onClick={undoDeleteNote} style={{ background: 'none', border: 'none', color: 'var(--bg)', fontWeight: 700, cursor: 'pointer', fontSize: 13, padding: '4px 10px' }}>
+                Undo
+              </button>
+            </div>
+          )}
           <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
           <div className="card" style={{ marginBottom: 12 }}>
             <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>Log a note</h2>
