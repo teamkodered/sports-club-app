@@ -136,6 +136,11 @@ function ShareModal({ form, onClose }) {
     },
   ]
 
+  const hasNativeShare = typeof navigator !== 'undefined' && !!navigator.share
+  async function nativeShare() {
+    try { await navigator.share({ text: msg }) } catch (e) { /* user cancelled — ignore */ }
+  }
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
       <div className="card" style={{ width: '100%', maxWidth: 420 }}>
@@ -153,6 +158,17 @@ function ShareModal({ form, onClose }) {
             style={{ flex: 1, padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 12, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'monospace' }} />
           <button className="btn btn-primary" onClick={copyLink}>{copied ? '✓ Copied!' : 'Copy'}</button>
         </div>
+
+        {hasNativeShare && (
+          <>
+            <button onClick={nativeShare} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginBottom: 6 }}>
+              📤 Share…
+            </button>
+            <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 14 }}>
+              Recommended — opens your phone's own share menu with a clean message each time. The WhatsApp button below can sometimes glue two messages together if a previous share is still sitting unsent in WhatsApp's compose box.
+            </p>
+          </>
+        )}
 
         {/* Share buttons */}
         <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 10, color: 'var(--text-secondary)' }}>Share via</p>
