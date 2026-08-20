@@ -20,6 +20,8 @@ exports.handler = async (event) => {
     return { statusCode: 405, body: 'Method not allowed' }
   }
 
+  const uid = event.queryStringParameters?.uid
+
   const authHeader = event.headers.authorization || event.headers.Authorization
   if (!authHeader) return { statusCode: 401, body: JSON.stringify({ error: 'Missing session' }) }
 
@@ -60,17 +62,10 @@ exports.handler = async (event) => {
       })
       await client.connect()
     } catch (err) {
-      // ImapFlow's err.message is ALWAYS the generic literal string
-      // "Command failed" -- the actual server-provided reason (e.g.
-      // "Authentication failed", "Login disabled", etc.) lives in
-      // err.responseText / err.response, which the plain .message
-      // discards. Surface those too so the real cause is visible
-      // instead of a meaningless generic string.
       const detail = err.responseText || err.response?.attributes?.map(a => a.value).join(' ') || null
       return { statusCode: 500, body: JSON.stringify({ error: `IMAP connect/login failed: ${detail || err.message}` }) }
     }
 
-    const messages = []
     try {
       let lock
       try {
@@ -79,7 +74,80 @@ exports.handler = async (event) => {
         const detail = err.responseText || err.response?.attributes?.map(a => a.value).join(' ') || null
         throw new Error(`Opening INBOX failed: ${detail || err.message}`)
       }
+
       try {
+        if (uid) {
+          // Single-message fetch, for opening/reading one email.
+          // Finds the text/plain (falling back to text/html) MIME part
+          // via bodyStructure and downloads just that part -- imapflow
+          // handles the content-transfer-encoding decoding itself, so
+          // no separate MIME-parsing library is needed just to read a
+          // message body (avoids mailparser's dependency chain, which
+          // pulls in a high-severity stack-exhaustion vulnerability in
+          // its HTML-to-text conversion -- a real risk here since
+          // incoming email content is attacker-controllable input).
+          let full
+          try {
+            full = await client.fetchOne(uid, { envelope: true, bodyStructure: true }, { uid: true })
+          } catch (err) {
+            const detail = err.responseText || err.response?.attributes?.map(a => a.value).join(' ') || null
+            throw new Error(`Fetching message failed: ${detail || err.message}`)
+          }
+          if (!full) throw new Error('Message not found (it may have been deleted or moved).')
+
+          function findTextPart(node, wantType) {
+            if (!node) return null
+            if (node.type === wantType) return node
+            for (const child of node.childNodes || []) {
+              const found = findTextPart(child, wantType)
+              if (found) return found
+            }
+            return null
+          }
+          const plainPart = findTextPart(full.bodyStructure, 'text/plain')
+          const htmlPart = findTextPart(full.bodyStructure, 'text/html')
+          const part = plainPart || htmlPart
+          let bodyText = '(No readable message body found.)'
+          if (part) {
+            try {
+              const { content } = await client.download(uid, part.part, { uid: true })
+              const chunks = []
+              for await (const chunk of content) chunks.push(chunk)
+              bodyText = Buffer.concat(chunks).toString('utf8')
+              if (!plainPart && htmlPart) {
+                // Very basic HTML stripping -- deliberately simple
+                // rather than a full HTML-to-text library, for the
+                // same untrusted-input-safety reason noted above.
+                bodyText = bodyText
+                  .replace(/<style[\s\S]*?<\/style>/gi, '')
+                  .replace(/<script[\s\S]*?<\/script>/gi, '')
+                  .replace(/<br\s*\/?>/gi, '\n')
+                  .replace(/<\/p>/gi, '\n\n')
+                  .replace(/<[^>]+>/g, '')
+                  .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'").replace(/&quot;/g, '"')
+                  .replace(/\n{3,}/g, '\n\n')
+                  .trim()
+              }
+            } catch (err) {
+              const detail = err.responseText || err.response?.attributes?.map(a => a.value).join(' ') || null
+              throw new Error(`Downloading message body failed: ${detail || err.message}`)
+            }
+          }
+
+          const message = {
+            uid: full.uid,
+            from: full.envelope?.from?.[0]?.address || 'unknown',
+            fromName: full.envelope?.from?.[0]?.name || '',
+            to: (full.envelope?.to || []).map(t => t.address).filter(Boolean),
+            subject: full.envelope?.subject || '(no subject)',
+            date: full.envelope?.date,
+            body: bodyText,
+          }
+          return { statusCode: 200, body: JSON.stringify({ success: true, message }) }
+        }
+
+        // No uid given -- list mode (unchanged from before).
+        const messages = []
         // client.mailbox is populated by the SELECT that
         // getMailboxLock just did -- .exists is the message count,
         // avoiding a separate STATUS command (one less thing that can
@@ -104,15 +172,14 @@ exports.handler = async (event) => {
             throw new Error(`Fetching messages failed: ${detail || err.message}`)
           }
         }
+        messages.sort((a, b) => new Date(b.date) - new Date(a.date))
+        return { statusCode: 200, body: JSON.stringify({ success: true, messages }) }
       } finally {
         lock.release()
       }
     } finally {
       await client.logout().catch(() => {})
     }
-
-    messages.sort((a, b) => new Date(b.date) - new Date(a.date))
-    return { statusCode: 200, body: JSON.stringify({ success: true, messages }) }
   } catch (err) {
     return { statusCode: 500, body: JSON.stringify({ error: err.message }) }
   }

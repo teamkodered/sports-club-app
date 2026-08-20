@@ -110,6 +110,11 @@ export default function CRM() {
   const [inboxMessages, setInboxMessages] = useState([])
   const [inboxError, setInboxError] = useState(null)
   const [testEmailStatus, setTestEmailStatus] = useState(null) // null | 'sending' | 'sent' | 'error'
+  const [openMessage, setOpenMessage] = useState(null) // full message detail once loaded, or null
+  const [openMessageLoading, setOpenMessageLoading] = useState(false)
+  const [openMessageError, setOpenMessageError] = useState(null)
+  const [replyDraft, setReplyDraft] = useState(null) // { to, subject, body } while composing, or null
+  const [replySending, setReplySending] = useState(false)
   const [messagesSortDir, setMessagesSortDir] = useState('asc')
   const [courses, setCourses] = useState([])
   const [coursesLoaded, setCoursesLoaded] = useState(false)
@@ -389,6 +394,42 @@ export default function CRM() {
       `This is a test email sent from the CRM's Email tab at ${new Date().toLocaleString('en-GB')}, to confirm sending is working correctly.`
     )
     setTestEmailStatus(ok ? 'sent' : 'error')
+  }
+
+  // Opens a single inbox message, fetching its full body on demand
+  // (the list view only ever loads headers, to keep it fast).
+  async function openInboxMessage(uid) {
+    setOpenMessage({ uid }) // shows the modal immediately with a loading state
+    setOpenMessageLoading(true)
+    setOpenMessageError(null)
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData?.session?.access_token
+      const res = await fetch(`/.netlify/functions/list-inbox?uid=${uid}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
+      const result = await res.json()
+      if (!res.ok || result.error) {
+        setOpenMessageError(result.error || res.statusText)
+      } else {
+        setOpenMessage(result.message)
+      }
+    } catch (e) {
+      setOpenMessageError(e.message)
+    }
+    setOpenMessageLoading(false)
+  }
+
+  async function sendReply() {
+    if (!replyDraft) return
+    setReplySending(true)
+    const ok = await sendRealEmail(replyDraft.to, replyDraft.subject, replyDraft.body)
+    setReplySending(false)
+    if (ok) {
+      alert(`✓ Reply sent to ${replyDraft.to}`)
+      setReplyDraft(null)
+      setOpenMessage(null)
+    }
   }
 
 
@@ -1788,7 +1829,8 @@ export default function CRM() {
               <p style={{ fontSize: 13, color: 'var(--text-tertiary)', padding: 20, textAlign: 'center' }}>No messages found.</p>
             ) : (
               inboxMessages.map(m => (
-                <div key={m.uid} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '10px 14px', borderTop: '1px solid var(--border)' }}>
+                <div key={m.uid} onClick={() => openInboxMessage(m.uid)}
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '10px 14px', borderTop: '1px solid var(--border)', cursor: 'pointer' }}>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       {!m.seen && <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#378ADD', flexShrink: 0 }} />}
@@ -1804,6 +1846,58 @@ export default function CRM() {
               ))
             )}
           </div>
+
+          {/* Message detail / reply modal */}
+          {openMessage && (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
+              onClick={() => { setOpenMessage(null); setReplyDraft(null) }}>
+              <div className="card" style={{ width: '100%', maxWidth: 560, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+                {openMessageLoading ? (
+                  <div className="loading">Loading message…</div>
+                ) : openMessageError ? (
+                  <p style={{ fontSize: 13, color: '#a32d2d' }}>Couldn't load this message: {openMessageError}</p>
+                ) : (
+                  <>
+                    <div style={{ marginBottom: 12 }}>
+                      <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{openMessage.subject}</h3>
+                      <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                        From {openMessage.fromName ? `${openMessage.fromName} <${openMessage.from}>` : openMessage.from}
+                        {openMessage.date && ` · ${new Date(openMessage.date).toLocaleString('en-GB')}`}
+                      </p>
+                    </div>
+                    <div style={{ overflowY: 'auto', flex: 1, marginBottom: 14, whiteSpace: 'pre-line', fontSize: 13, lineHeight: 1.5, padding: '10px 12px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)' }}>
+                      {openMessage.body}
+                    </div>
+
+                    {replyDraft ? (
+                      <div>
+                        <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 6 }}>Replying to {replyDraft.to}</p>
+                        <textarea value={replyDraft.body} onChange={e => setReplyDraft(d => ({ ...d, body: e.target.value }))}
+                          rows={6} style={{ width: '100%', fontSize: 14, padding: '10px 12px', marginBottom: 10, resize: 'vertical' }} />
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button className="btn btn-primary" disabled={replySending || !replyDraft.body.trim()} onClick={sendReply}>
+                            {replySending ? 'Sending…' : '✉️ Send reply'}
+                          </button>
+                          <button className="btn" onClick={() => setReplyDraft(null)}>Cancel</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button className="btn btn-primary" onClick={() => setReplyDraft({
+                          to: openMessage.from,
+                          subject: openMessage.subject?.toLowerCase().startsWith('re:') ? openMessage.subject : `Re: ${openMessage.subject}`,
+                          body: `\n\n---\nOn ${openMessage.date ? new Date(openMessage.date).toLocaleString('en-GB') : ''}, ${openMessage.fromName || openMessage.from} wrote:\n${openMessage.body}`,
+                        })}>
+                          ↩️ Reply
+                        </button>
+                        <button className="btn" onClick={() => setOpenMessage(null)}>Close</button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
