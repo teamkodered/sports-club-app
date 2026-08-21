@@ -1323,6 +1323,7 @@ export default function AthleteApp() {
   const [radarDrilldown, setRadarDrilldown] = useState(null) // which axis label is expanded, or null
   const [athleteTimetableModal, setAthleteTimetableModal] = useState(null) // { sectionKey, item } or null
   const [expandedToDoScopes, setExpandedToDoScopes] = useState(() => new Set()) // scope keys whose "To do" section is currently revealed
+  const [newToDoDrafts, setNewToDoDrafts] = useState({}) // scope key -> draft text for the athlete's own new to-do note
   const [schedWizardStep, setSchedWizardStep] = useState('days') // 'days' -> 'metric' -> 'value' -> 'submetric' -> 'subvalue'
   const [schedWizardDays, setSchedWizardDays] = useState([]) // recurring days of week, e.g. ['Monday', 'Wednesday']
   const [schedWizardTime, setSchedWizardTime] = useState('') // optional time of day
@@ -1910,6 +1911,20 @@ export default function AthleteApp() {
   }
   function timetableEntry(sectionKey, item) {
     return ((apData?.pdp_notes || {})[`__timetable_${sectionKey}`] || {})[item] || null
+  }
+
+  // Lets the athlete add their own "to do" item directly -- writes to
+  // the SAME pdp_notes field the coach's view reads/writes, so it's
+  // immediately visible to the coach too, no separate "send" step
+  // (matching how the coach's to-do items are already always visible
+  // to the athlete).
+  async function addAthleteToDoItem(toDoKey, text) {
+    if (!text.trim() || !student) return
+    const currentNotes = apData?.pdp_notes || {}
+    const updated = { ...currentNotes, [toDoKey]: [...(currentNotes[toDoKey] || []), text.trim()] }
+    const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: updated }, { onConflict: 'student_id' })
+    if (error) { alert('Error adding note: ' + error.message); return }
+    setApData(a => ({ ...a, pdp_notes: updated }))
   }
   // Short "3 rounds x 30 sec" style summary of a scheduled item's metric.
   function formatScheduleMetric(metric) {
@@ -5707,7 +5722,6 @@ export default function AthleteApp() {
                 if (!notesItems.length && !maintainItems.length && !workOnItems.length && !toDoItems.length) return null
 
                 function toggleToDo() {
-                  if (!toDoItems.length) return
                   setExpandedToDoScopes(prev => {
                     const next = new Set(prev)
                     if (next.has(scope.key)) next.delete(scope.key)
@@ -5737,7 +5751,7 @@ export default function AthleteApp() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                           {maintainItems.map((item, i) => (
                             <div key={i} onClick={toggleToDo}
-                              style={{ background: maintainSection.colour + '15', borderRadius: 'var(--radius)', padding: '6px 10px', cursor: toDoItems.length ? 'pointer' : 'default' }}>
+                              style={{ background: maintainSection.colour + '15', borderRadius: 'var(--radius)', padding: '6px 10px', cursor: 'pointer' }}>
                               <span style={{ color: maintainSection.colour, fontSize: 12 }}>{item}</span>
                             </div>
                           ))}
@@ -5751,7 +5765,7 @@ export default function AthleteApp() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                           {workOnItems.map((item, i) => (
                             <div key={i} onClick={toggleToDo}
-                              style={{ background: workOnSection.colour + '15', borderRadius: 'var(--radius)', padding: '6px 10px', cursor: toDoItems.length ? 'pointer' : 'default' }}>
+                              style={{ background: workOnSection.colour + '15', borderRadius: 'var(--radius)', padding: '6px 10px', cursor: 'pointer' }}>
                               <span style={{ color: workOnSection.colour, fontSize: 12 }}>{item}</span>
                             </div>
                           ))}
@@ -5763,15 +5777,22 @@ export default function AthleteApp() {
                         Maintain or To-work-on item above is tapped.
                         "Add to calendar" now lives here (moved from
                         Maintain/To-work-on) since to-dos are the
-                        actionable items worth scheduling. */}
-                    {toDoItems.length > 0 && (
+                        actionable items worth scheduling. The athlete
+                        can also add their own to-do notes here --
+                        written straight to the same pdp_notes the
+                        coach uses, so it's visible on both sides
+                        immediately, no send step either direction. */}
+                    {(maintainItems.length > 0 || workOnItems.length > 0 || toDoItems.length > 0) && (
                       <div style={{ overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease', maxHeight: isExpanded ? 3000 : 0, opacity: isExpanded ? 1 : 0 }}>
                         <div className="card" style={{ borderLeft: `3px solid ${toDoSection.colour}` }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                             <h3 style={{ fontSize: 13, fontWeight: 600, color: toDoSection.colour, margin: 0 }}>{toDoSection.label}</h3>
                             <button onClick={toggleToDo} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 12, fontFamily: 'var(--font-sans)' }}>✕ Close</button>
                           </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {toDoItems.length === 0 && (
+                            <p style={{ fontSize: 12, color: 'var(--text-tertiary)', fontStyle: 'italic', margin: '0 0 8px' }}>Nothing here yet — add one below.</p>
+                          )}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
                             {toDoItems.map((item, i) => {
                               const existing = timetableEntry(toDoSection.key, item)
                               const isActive = athleteTimetableModal?.sectionKey === toDoSection.key && athleteTimetableModal?.item === item
@@ -5800,6 +5821,22 @@ export default function AthleteApp() {
                                 </div>
                               )
                             })}
+                          </div>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <input value={newToDoDrafts[scope.key] || ''} placeholder="Add your own to do…"
+                              onChange={e => setNewToDoDrafts(d => ({ ...d, [scope.key]: e.target.value }))}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' && newToDoDrafts[scope.key]?.trim()) {
+                                  addAthleteToDoItem(toDoSection.key, newToDoDrafts[scope.key])
+                                  setNewToDoDrafts(d => ({ ...d, [scope.key]: '' }))
+                                }
+                              }}
+                              style={{ flex: 1, fontSize: 13 }} />
+                            <button className="btn btn-sm" disabled={!newToDoDrafts[scope.key]?.trim()}
+                              onClick={() => {
+                                addAthleteToDoItem(toDoSection.key, newToDoDrafts[scope.key])
+                                setNewToDoDrafts(d => ({ ...d, [scope.key]: '' }))
+                              }}>Add</button>
                           </div>
                         </div>
                       </div>
