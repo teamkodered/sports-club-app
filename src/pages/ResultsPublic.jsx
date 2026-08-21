@@ -61,6 +61,29 @@ const CATEGORIES = [
     key: 'circuit', label: '⭕ Fixed Load Circuit', unit: '', colour: '#DC2626', lowerIsBetter: true,
     extract: r => Object.entries(r.test || {}).filter(([k]) => k.toLowerCase().includes('fixed load circuit')).map(([, v]) => ({ value: parseFloat(v) || 0, sub: 'Fixed Load Circuit' })),
   },
+  {
+    // "Most Physical responses" -- an activity-count league, not a
+    // performance one: every entry logged under Physical (running,
+    // watt bike, bodyweight, S&C, other sessions) counts, summed
+    // across all of an athlete's sessions.
+    key: 'physical_activity', label: '💪 Most Physical Responses', unit: ' entries', colour: '#5c0301', aggregate: 'sum', sumLabel: 'Physical',
+    extract: r => [{
+      value: toEntries(r.running).length + toEntries(r.watt_bike).length + toEntries(r.bodyweight).length + toEntries(r.snc).length + toEntries(r.other_session).length,
+    }],
+  },
+  {
+    key: 'tactical_activity', label: '🎯 Most Tactical Completed', unit: ' entries', colour: '#1D9E75', aggregate: 'sum', sumLabel: 'Tactical',
+    extract: r => [{ value: toEntries(r.tactical).length }],
+  },
+  {
+    // "Most Foundation" -- how many Foundation/Skill tests an athlete
+    // has completed overall (Bleep, Grip, Circuit, Breath hold,
+    // Vertical Jump etc all live in the same `test` object) -- a
+    // quantity league, distinct from the Bleep/Grip/Circuit categories
+    // above which each rank a specific performance value.
+    key: 'foundation_activity', label: '🧱 Most Foundation Completed', unit: ' tests', colour: '#EF9F27', aggregate: 'sum', sumLabel: 'Foundation',
+    extract: r => [{ value: Object.values(r.test || {}).filter(v => v !== null && v !== '').length }],
+  },
 ]
 
 const AUTO_SCROLL_SECONDS = 8
@@ -68,12 +91,22 @@ const AUTO_SCROLL_SECONDS = 8
 // Best value per athlete for a category, plus the final ranking order --
 // both respect lowerIsBetter (e.g. a faster running/circuit time is the
 // "best" value to keep per athlete, and ranks first, not last).
+//
+// Categories with aggregate: 'sum' work differently -- these are
+// activity-count leagues ("most Physical responses logged" etc), so
+// every row's count is added together per athlete instead of just
+// keeping their single best row.
 function buildLeaderboard(cat, rows) {
   const perAthlete = {}
   rows.forEach(r => {
     const name = maskName(r.first_name, r.last_name)
     cat.extract(r).forEach(({ value, sub }) => {
       if (!value) return
+      if (cat.aggregate === 'sum') {
+        if (!perAthlete[name]) perAthlete[name] = { name, value: 0, sub: cat.sumLabel || '' }
+        perAthlete[name].value += value
+        return
+      }
       const better = cat.lowerIsBetter ? value < perAthlete[name]?.value : value > perAthlete[name]?.value
       if (!perAthlete[name] || better) perAthlete[name] = { name, value, sub }
     })
@@ -85,6 +118,7 @@ function buildLeaderboard(cat, rows) {
 
 export default function ResultsPublic() {
   const [rows, setRows] = useState([])
+  const [notesRows, setNotesRows] = useState([])
   const [clubName, setClubName] = useState('KR Centre')
   const [clubEmoji, setClubEmoji] = useState('🔥')
   const [loading, setLoading] = useState(true)
@@ -93,23 +127,36 @@ export default function ResultsPublic() {
 
   useEffect(() => {
     async function load() {
-      const [{ data: settings }, { data: leaderboardRows }] = await Promise.all([
+      const [{ data: settings }, { data: leaderboardRows }, { data: notesData }] = await Promise.all([
         supabase.from('settings').select('key,value').in('key', ['club_name', 'club_emoji']),
         supabase.from('public_results_leaderboard').select('*'),
+        // "Notes" doesn't fit the row-per-session shape the rest of
+        // this page uses -- a note can be logged on a day with no
+        // session at all, so it comes from its own RPC instead of the
+        // fit2fight_sessions-based view.
+        supabase.rpc('public_notes_leaderboard'),
       ])
       const sm = Object.fromEntries((settings || []).map(r => [r.key, r.value]))
       if (sm.club_name) setClubName(sm.club_name)
       if (sm.club_emoji) setClubEmoji(sm.club_emoji)
       setRows(leaderboardRows || [])
+      setNotesRows(notesData || [])
       setLoading(false)
     }
     load()
   }, [])
 
+  const notesLeaderboard = notesRows
+    .map(r => ({ name: maskName(r.first_name, r.last_name), value: r.notes_count, sub: '' }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 10)
+  const NOTES_CATEGORY = { key: 'notes', label: '📝 Most Notes', unit: ' notes', colour: '#666666', isNotes: true }
+  const ALL_CATEGORIES = [...CATEGORIES, NOTES_CATEGORY]
+
   // Only categories with at least one real result are shown at all --
   // an empty "No results logged yet" page would just be dead air on an
   // unattended display.
-  const categoriesWithData = CATEGORIES.filter(cat => buildLeaderboard(cat, rows).length > 0)
+  const categoriesWithData = ALL_CATEGORIES.filter(cat => (cat.isNotes ? notesLeaderboard : buildLeaderboard(cat, rows)).length > 0)
 
   // Auto-scroll through each category leaderboard in turn, pausing
   // while the visitor is actively interacting with it -- meant to run
@@ -136,7 +183,7 @@ export default function ResultsPublic() {
 
   const safeIdx = activeIdx % categoriesWithData.length
   const cat = categoriesWithData[safeIdx]
-  const leaderboard = buildLeaderboard(cat, rows)
+  const leaderboard = cat.isNotes ? notesLeaderboard : buildLeaderboard(cat, rows)
   const MEDALS = ['🥇', '🥈', '🥉', '🎖️']
 
   return (
