@@ -1185,6 +1185,13 @@ const PDP_SECTIONS = [
 // separate, simpler schema with its own matching constant).
 const PDP_TIMETABLE_SECTION_KEYS = ['psychology_what_to_do', 'tech_what_to_do', 'tact_what_to_do', 'physical_what_to_do', 'skill_what_to_do']
 
+// "To do" sections (the general one plus every category's) are always
+// visible to the athlete live -- no explicit "send to athlete" step,
+// unlike Notes/Maintain/Work-on which still require one.
+function isToDoSectionKey(key) {
+  return key === 'what_to_do' || PDP_TIMETABLE_SECTION_KEYS.includes(key)
+}
+
 // Groups of 4 sections (Notes / Maintain / To work on / Check) shown
 // as a horizontally-scrollable row for each category, 3 visible at a
 // time, coach view.
@@ -1579,7 +1586,10 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
     return () => document.removeEventListener('mousedown', handleClick)
   }, [editSection, editItems, editSectionMeta])
 
-  const shared = apData?.pdp_shared || {} // items shared to athlete view
+  // "To do" is always visible to the athlete live (see AthleteApp.jsx),
+  // so this only matters for Notes/Maintain/Work-on, which still
+  // require an explicit send.
+  const shared = apData?.pdp_shared || {}
 
   // Sections visible to athlete: non-coachOnly + any shared coach items
   const athleteSections = PDP_SECTIONS.filter(s => !s.coachOnly)
@@ -1756,7 +1766,9 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
   }
 
   async function sendToAthlete(sectionKey) {
-    // Copy items from coach section to shared/athlete-visible section
+    // Copy items from coach section to shared/athlete-visible section.
+    // Not used for "to do" sections -- those are always visible to the
+    // athlete live, read directly from pdp_notes on their side.
     const items = pdp[sectionKey] || []
     const currentShared = apData?.pdp_shared || {}
     const updatedShared = {
@@ -1847,7 +1859,7 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
             )}
           </div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
-            {items.length > 0 && (
+            {items.length > 0 && !isToDoSectionKey(section.key) && (
               <button className="btn btn-sm" style={{ fontSize: 10, background: '#eaf3de', color: '#3b6d11', border: '1px solid #3b6d1140' }}
                 onClick={() => setSendModal(section.key)}>
                 → Send to athlete
@@ -2138,15 +2150,19 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
               const sl = meta?.label || section.label
               const items = pdp[section.key] || []
               if (!items.length) return null
-              const isShared = !!(shared[section.key]?.length)
+              const isShared = isToDoSectionKey(section.key) || !!(shared[section.key]?.length)
               return (
                 <div key={section.key} style={{ marginBottom: 8, padding: '10px 12px', borderLeft: `3px solid ${sc}`, background: 'var(--bg-secondary)', borderRadius: '0 var(--radius) var(--radius) 0' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                     <span style={{ fontSize: 11, fontWeight: 600, color: sc }}>{sl}</span>
-                    <button style={{ fontSize: 10, padding: '2px 8px', background: isShared ? '#eaf3de' : 'var(--bg)', border: `1px solid ${isShared ? '#3b6d11' : 'var(--border)'}`, borderRadius: 20, cursor: 'pointer', color: isShared ? '#3b6d11' : 'var(--text-secondary)' }}
-                      onClick={() => setSendModal(section.key)}>
-                      {isShared ? '✓ Shared' : '→ Share'}
-                    </button>
+                    {isToDoSectionKey(section.key) ? (
+                      <span style={{ fontSize: 10, padding: '2px 8px', background: '#eaf3de', border: '1px solid #3b6d11', borderRadius: 20, color: '#3b6d11' }}>✓ Always visible</span>
+                    ) : (
+                      <button style={{ fontSize: 10, padding: '2px 8px', background: isShared ? '#eaf3de' : 'var(--bg)', border: `1px solid ${isShared ? '#3b6d11' : 'var(--border)'}`, borderRadius: 20, cursor: 'pointer', color: isShared ? '#3b6d11' : 'var(--text-secondary)' }}
+                        onClick={() => setSendModal(section.key)}>
+                        {isShared ? '✓ Shared' : '→ Share'}
+                      </button>
+                    )}
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                     {items.map((item, i) => (
@@ -2461,6 +2477,7 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
           </div>
         </div>
       )}
+
     </div>
   )
 }

@@ -3159,7 +3159,18 @@ export default function AthleteApp() {
   const initials  = m ? `${m.first_name?.[0] || ''}${m.last_name?.[0] || ''}`.toUpperCase() : '?'
   const age       = m?.date_of_birth ? Math.floor((Date.now() - new Date(m.date_of_birth)) / (365.25*24*60*60*1000)) : null
   const totalPts  = Array.isArray(points) ? points.reduce((s, p) => s + (p?.points_awarded || 0), 0) : 0
-  const shared    = apData?.pdp_shared || {}
+  // "To do" sections are always visible live (read directly from the
+  // coach's pdp_notes) -- everything else (Notes/Maintain/Work-on)
+  // still requires the coach to explicitly "send" it, read from
+  // pdp_shared as before.
+  const shared = (() => {
+    const merged = { ...(apData?.pdp_shared || {}) }
+    const notesRaw = apData?.pdp_notes || {}
+    Object.keys(notesRaw).forEach(key => {
+      if (key === 'what_to_do' || key.endsWith('_what_to_do')) merged[key] = notesRaw[key]
+    })
+    return merged
+  })()
   const pdp       = apData?.pdp_notes || {}
 
   let houseRank = null, houseTotalPoints = null, contributionPct = null, positionInHouse = null, overallPosition = null, individualPointsPct = null
