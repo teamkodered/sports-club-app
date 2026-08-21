@@ -38,7 +38,21 @@ const HOUSE_BG = {
   'Jet House':    '#faeeda',
 }
 
-const TABS = ['House league', 'Individual', 'Student house', 'Score check', 'Points log']
+const TABS = ['House league', 'Individual', 'Activity', 'Student house', 'Score check', 'Points log']
+
+// Each PDP section's "activity" league counts total individual entries
+// logged in that section's fit2fight_sessions column, summed across
+// every session -- not just days logged, so a busy day scores higher.
+// Notes counts rows in athlete_notes_log instead.
+const ACTIVITY_SECTIONS = [
+  { key: 'physical', label: 'Physical', colour: '#5c0301', fields: ['running', 'snc', 'other_session'] },
+  { key: 'technical', label: 'Technical', colour: '#378ADD', fields: ['techniques'] },
+  { key: 'tactical', label: 'Tactical', colour: '#1D9E75', fields: ['tactical'] },
+  { key: 'mentality', label: 'Mentality', colour: '#2b0a3d', fields: ['mentality_log'] },
+  { key: 'foundation', label: 'Foundation', colour: '#EF9F27', fields: ['test'] },
+  { key: 'notes', label: 'Notes', colour: '#666666', fields: [] }, // handled separately via athlete_notes_log
+]
+
 
 export default function LeagueViews() {
   const { isAdmin } = useAuth()
@@ -59,6 +73,8 @@ export default function LeagueViews() {
   const [editingHouse, setEditingHouse] = useState(null)
   const [savingHouse, setSavingHouse] = useState(false)
   const [individualRankings, setIndividualRankings] = useState([])
+  const [activitySection, setActivitySection] = useState('physical')
+  const [activityRankings, setActivityRankings] = useState({}) // section key -> ranked array
   const [houses, setHouses] = useState([])
   const [pointsLog, setPointsLog] = useState([])
   const [indivSortKey, setIndivSortKey] = useState('total')
@@ -131,7 +147,7 @@ export default function LeagueViews() {
     setLoading(true)
     const { data: houseData } = await supabase.from('houses').select('*').order('points', { ascending: false })
     setHouses(houseData || [])
-    await Promise.all([loadHouseStandings(), loadIndividual(), loadPointsLog()])
+    await Promise.all([loadHouseStandings(), loadIndividual(), loadPointsLog(), loadActivityLeague()])
     setLoading(false)
   }
 
@@ -240,6 +256,74 @@ export default function LeagueViews() {
       .map((s, i) => ({ ...s, rank: i + 1 }))
 
     setIndividualRankings(ranked)
+  }
+
+  // Counts total individual entries for one section's fields on a
+  // single session row -- not just "did they log something today",
+  // so a busy day with several entries counts more than a quiet one.
+  function countFieldEntries(value) {
+    if (value == null) return 0
+    if (Array.isArray(value)) return value.length
+    if (typeof value === 'number') return value
+    if (typeof value === 'object') {
+      // Objects come in two shapes here: a flat map of test-name ->
+      // value (Foundation tests), or a map of activity-name -> either
+      // a number (simple counters like chess games) or an
+      // { entries: [...] } session log (meditation, visualisation etc).
+      return Object.values(value).reduce((sum, v) => {
+        if (v == null || v === '') return sum
+        if (typeof v === 'number') return sum + v
+        if (Array.isArray(v)) return sum + v.length
+        if (typeof v === 'object' && Array.isArray(v.entries)) return sum + v.entries.length
+        return sum + 1 // any other non-empty scalar (e.g. a filled-in test result) counts as one entry
+      }, 0)
+    }
+    return value ? 1 : 0
+  }
+
+  async function loadActivityLeague() {
+    const [{ data: sessionsData }, { data: notesData }, { data: studentsData }] = await Promise.all([
+      supabase.from('fit2fight_sessions')
+        .select('student_id, session_date, running, snc, other_session, techniques, tactical, mentality_log, test')
+        .gte('session_date', dateFrom).lte('session_date', dateTo),
+      supabase.from('athlete_notes_log')
+        .select('student_id, logged_at')
+        .gte('logged_at', dateFrom).lte('logged_at', dateTo + 'T23:59:59'),
+      supabase.from('students')
+        .select('id, student_ref, house_name, member_id, members(first_name, last_name, houses(name))'),
+    ])
+
+    const studentMap = {}
+    for (const s of (studentsData || [])) {
+      const m = s.members
+      studentMap[s.id] = {
+        ref: s.student_ref,
+        name: `${m?.first_name || ''} ${m?.last_name || ''}`.trim(),
+        house: m?.houses?.name || s.house_name || '',
+      }
+    }
+
+    const results = {}
+    for (const section of ACTIVITY_SECTIONS) {
+      const counts = {} // student_id -> total count
+      if (section.key === 'notes') {
+        for (const row of (notesData || [])) {
+          counts[row.student_id] = (counts[row.student_id] || 0) + 1
+        }
+      } else {
+        for (const row of (sessionsData || [])) {
+          const total = section.fields.reduce((sum, f) => sum + countFieldEntries(row[f]), 0)
+          if (total > 0) counts[row.student_id] = (counts[row.student_id] || 0) + total
+        }
+      }
+      const ranked = Object.entries(counts)
+        .map(([sid, count]) => ({ id: sid, count, ...(studentMap[sid] || { ref: '', name: '', house: '' }) }))
+        .filter(s => s.name) // drop counts for students no longer in the active roster
+        .sort((a, b) => b.count - a.count)
+        .map((s, i) => ({ ...s, rank: i + 1 }))
+      results[section.key] = ranked
+    }
+    setActivityRankings(results)
   }
 
   async function loadPointsLog() {
@@ -634,6 +718,69 @@ export default function LeagueViews() {
           </div>
         </div>
       )}
+
+      {/* ── ACTIVITY LEAGUES (Physical/Technical/Tactical/Mentality/Foundation/Notes) ── */}
+      {!loading && tab === 'Activity' && (() => {
+        const ranked = activityRankings[activitySection] || []
+        const currentSection = ACTIVITY_SECTIONS.find(s => s.key === activitySection)
+        return (
+          <div>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+              {ACTIVITY_SECTIONS.map(s => (
+                <button key={s.key} onClick={() => setActivitySection(s.key)} style={{
+                  padding: '6px 14px', borderRadius: 20, fontSize: 12, cursor: 'pointer',
+                  border: `1px solid ${activitySection === s.key ? s.colour : 'var(--border-strong)'}`,
+                  background: activitySection === s.key ? s.colour + '15' : 'var(--bg)',
+                  color: activitySection === s.key ? s.colour : 'var(--text-secondary)',
+                  fontWeight: activitySection === s.key ? 600 : 400,
+                }}>{s.label}</button>
+              ))}
+            </div>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>
+              Most {currentSection.label.toLowerCase()} {activitySection === 'notes' ? 'notes' : 'entries'} logged — {ranked.length} student{ranked.length === 1 ? '' : 's'} with activity in this date range
+            </p>
+            <div className="card" style={{ padding: 0 }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th style={{ width: 40 }}>#</th>
+                    <th>Student</th>
+                    <th>House</th>
+                    <th style={{ textAlign: 'center', fontWeight: 700 }}>{currentSection.label} count</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ranked.length === 0
+                    ? <tr><td colSpan={4} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>No {currentSection.label.toLowerCase()} activity logged in this date range</td></tr>
+                    : ranked.map((s, i) => {
+                      const colour = HOUSE_COLOURS[s.house] || '#888'
+                      const isTop3 = i < 3
+                      return (
+                        <tr key={s.id} style={isTop3 ? { background: 'var(--bg-secondary)' } : {}}>
+                          <td style={{ fontSize: 16, textAlign: 'center' }}>
+                            {RANK_MEDAL[i] || <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>{i + 1}</span>}
+                          </td>
+                          <td>
+                            <Link to={studentProfileLink(s)} style={{ fontWeight: 500, color: 'var(--text)', textDecoration: 'underline' }}>{s.name}</Link>
+                            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono, monospace)' }}>{s.ref}</div>
+                          </td>
+                          <td>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13 }}>
+                              <span style={{ width: 8, height: 8, borderRadius: '50%', background: colour, display: 'inline-block' }} />
+                              {s.house || '—'}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'center', fontSize: 15, fontWeight: 700, color: currentSection.colour }}>{s.count}</td>
+                        </tr>
+                      )
+                    })
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ── SCORE CHECK ── */}
       {/* ── Student House view ── */}
