@@ -54,6 +54,9 @@ export default function CRM() {
   const [selectedPaymentIdx, setSelectedPaymentIdx] = useState(null) // click-to-select alternative to drag & drop
   const [venueFilter, setVenueFilter] = useState('all') // all | krcentre_pka | derbymoore | moorways | krba
   const [missedTraining, setMissedTraining] = useState([]) // computed list, loaded on first visit to that tab
+  const [holidayModalFor, setHolidayModalFor] = useState(null) // { id, name } of the student currently being given a holiday, or null
+  const [holidayForm, setHolidayForm] = useState({ name: '', start_date: '', end_date: '' })
+  const [savingHoliday, setSavingHoliday] = useState(false)
   const [missedTrainingLoaded, setMissedTrainingLoaded] = useState(false)
   const [missedTrainingLoading, setMissedTrainingLoading] = useState(false)
   const [selectedMissed, setSelectedMissed] = useState(new Set())
@@ -541,6 +544,23 @@ export default function CRM() {
   // for 28+ days. Loaded on first visit to the tab, not on every page
   // load, since it's a heavier set of queries than the standing orders
   // check.
+  async function saveStudentHoliday() {
+    if (!holidayModalFor) return
+    if (!holidayForm.start_date || !holidayForm.end_date) { alert('Please set both a From and To date.'); return }
+    if (holidayForm.end_date < holidayForm.start_date) { alert('The To date must be on or after the From date.'); return }
+    setSavingHoliday(true)
+    const { error } = await supabase.from('holidays').insert({
+      name: holidayForm.name.trim() || 'Holiday',
+      start_date: holidayForm.start_date,
+      end_date: holidayForm.end_date,
+      student_id: holidayModalFor.id,
+    })
+    setSavingHoliday(false)
+    if (error) { alert('Error saving holiday: ' + error.message); return }
+    alert(`Holiday saved for ${holidayModalFor.name}.`)
+    setHolidayModalFor(null)
+  }
+
   async function loadMissedTraining() {
     setMissedTrainingLoading(true)
     const [{ data: assignments }, { data: attendance }] = await Promise.all([
@@ -1448,6 +1468,7 @@ export default function CRM() {
                     <th>Last attended</th>
                     <th>Weeks missed</th>
                     <th>Contact</th>
+                    <th>Holiday</th>
                   </tr></thead>
                   <tbody>
                     {missedTraining.map(r => {
@@ -1470,6 +1491,12 @@ export default function CRM() {
                             <button className="btn btn-sm" style={{ fontSize: 11 }} title="Share reminder (text, WhatsApp, email...)"
                               onClick={() => shareText(decodeURIComponent(smsBody))}>📤</button>
                           </td>
+                          <td>
+                            <button className="btn btn-sm" style={{ fontSize: 11 }} title="Set a holiday period for this student — excludes them from missed-training/attendance tracking while away"
+                              onClick={() => { setHolidayForm({ name: '', start_date: '', end_date: '' }); setHolidayModalFor({ id: r.student.id, name: `${m?.first_name || ''} ${m?.last_name || ''}`.trim() }) }}>
+                              🏖️ Holiday
+                            </button>
+                          </td>
                         </tr>
                       )
                     })}
@@ -1478,6 +1505,49 @@ export default function CRM() {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* Set an individual holiday for a student, from the Missed
+          Training list -- same underlying holidays table (student_id)
+          used on the main Calendar page, so it's excluded from
+          attendance/missed-training tracking consistently everywhere. */}
+      {holidayModalFor && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
+          onClick={() => setHolidayModalFor(null)}>
+          <div className="card" style={{ width: '100%', maxWidth: 380 }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <h2 style={{ fontSize: 15, fontWeight: 600 }}>🏖️ Set holiday — {holidayModalFor.name}</h2>
+              <button onClick={() => setHolidayModalFor(null)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-secondary)' }}>✕</button>
+            </div>
+            <div className="field"><label>Holiday name (optional)</label>
+              <input value={holidayForm.name} onChange={e => setHolidayForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Family holiday" />
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+              <div className="field" style={{ flex: 1, marginBottom: 0 }}><label>From</label>
+                <input type="date" value={holidayForm.start_date} onChange={e => setHolidayForm(f => ({ ...f, start_date: e.target.value }))} />
+              </div>
+              <div className="field" style={{ flex: 1, marginBottom: 0 }}><label>To</label>
+                <input type="date" value={holidayForm.end_date} onChange={e => setHolidayForm(f => ({ ...f, end_date: e.target.value }))} />
+              </div>
+            </div>
+            <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 6 }}>Quick add — from today:</p>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
+              {[1, 2, 3, 4].map(weeks => (
+                <button key={weeks} className="btn btn-sm" onClick={() => {
+                  const today = new Date()
+                  const to = new Date(today); to.setDate(to.getDate() + weeks * 7)
+                  setHolidayForm(f => ({ ...f, start_date: today.toISOString().split('T')[0], end_date: to.toISOString().split('T')[0] }))
+                }}>+{weeks} week{weeks > 1 ? 's' : ''}</button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn" onClick={() => setHolidayModalFor(null)}>Cancel</button>
+              <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={saveStudentHoliday} disabled={savingHoliday}>
+                {savingHoliday ? 'Saving…' : '✓ Save holiday'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
