@@ -8206,8 +8206,14 @@ export default function AthleteProfiles() {
                           // always visible without needing to be sent
                           // (see the PDP tab's own logic), so those are
                           // counted from pdp_notes directly instead.
+                          // Computed locally here since this card lives
+                          // in the main component, not the separate
+                          // PDPTab component where shared/pdp normally
+                          // live as local variables.
+                          const pdpNotesLocal = apData?.pdp_notes || {}
+                          const pdpSharedLocal = apData?.pdp_shared || {}
                           const totalSent = PDP_SECTIONS.reduce((sum, s) =>
-                            sum + (isToDoSectionKey(s.key) ? (pdp[s.key] || []).length : (shared[s.key] || []).length), 0)
+                            sum + (isToDoSectionKey(s.key) ? (pdpNotesLocal[s.key] || []).length : (pdpSharedLocal[s.key] || []).length), 0)
                           return totalSent > 0 ? `${completedCount}/${totalSent}` : completedCount
                         })()}
                       </div>
