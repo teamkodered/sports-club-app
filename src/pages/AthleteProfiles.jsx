@@ -46,7 +46,7 @@ function SetInput({ sets, onChange, placeholder = 'e.g. 12.3', inputType = 'text
   // the `sets` prop again on a fast second edit (before the previous
   // save round-trips) would use a stale snapshot missing what was
   // just typed, silently losing it.
-  const [localSets, setLocalSets] = useState(sets)
+  const [localSets, setLocalSets] = useState(() => sets.length ? sets : [''])
 
   function update(i, val) {
     const next = [...localSets]
@@ -85,7 +85,7 @@ function SetInput({ sets, onChange, placeholder = 'e.g. 12.3', inputType = 'text
 // its own appropriately-formatted input
 function DualSetInput({ sets, onChange, fields }) {
   // Same local-state fix as SetInput above.
-  const [localSets, setLocalSets] = useState(sets)
+  const [localSets, setLocalSets] = useState(() => sets.length ? sets : [Object.fromEntries(fields.map(f => [f.key, '']))])
 
   function update(i, field, val) {
     const next = [...localSets]

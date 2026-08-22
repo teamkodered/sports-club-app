@@ -74,7 +74,11 @@ function SetInput({ sets, onChange, placeholder = 'e.g. 12.3', inputType = 'text
   // would use a stale snapshot missing what was just typed, silently
   // losing it. Building on local state means every edit builds on
   // the latest value typed, not on whatever the parent has saved yet.
-  const [localSets, setLocalSets] = useState(sets)
+  // Defaults to one empty box when there's nothing saved yet, rather
+  // than requiring "+ Add set" just to get started -- purely a local
+  // UI default, nothing is actually saved until something's typed
+  // into it (onChange never fires for an untouched box).
+  const [localSets, setLocalSets] = useState(() => sets.length ? sets : [''])
 
   function update(i, val) {
     const next = [...localSets]
@@ -194,7 +198,7 @@ function DualSetInput({ sets, onChange, fields }) {
   // on local state instead means every edit always builds on the
   // very latest value typed, not on whatever the parent has caught
   // up to saving yet.
-  const [localSets, setLocalSets] = useState(sets)
+  const [localSets, setLocalSets] = useState(() => sets.length ? sets : [Object.fromEntries(fields.map(f => [f.key, '']))])
 
   function update(i, field, val) {
     const next = [...localSets]
