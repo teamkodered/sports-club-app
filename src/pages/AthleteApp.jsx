@@ -3704,11 +3704,24 @@ export default function AthleteApp() {
                               ? sessions.filter(s => s.session_date >= coachF2fDateSettings.from && s.session_date <= coachF2fDateSettings.to)
                               : sessions
                             const f2fCount = dateScoped.filter(sessionHasGenuineActivity).length
-                            // "Out of target" -- own target if this
-                            // athlete has one set, else the team-wide one.
-                            const f2fTarget = sectionTargets.find(t => t.section_key === 'f2f_sessions' && !t.question_label && t.student_id === student?.id)
-                              || sectionTargets.find(t => t.section_key === 'f2f_sessions' && !t.question_label && !t.student_id)
-                            return f2fTarget ? `${f2fCount}/${f2fTarget.target_value}` : f2fCount
+                            // "Out of target" -- F2F targets are set per
+                            // individual question (Running, Watt Bike,
+                            // Boxing, etc), not as one single
+                            // "f2f_sessions" target -- so the denominator
+                            // sums every question-level target that
+                            // applies to this athlete, preferring an
+                            // individual target over a team-wide one for
+                            // the same question where both exist.
+                            const F2F_TARGET_SECTIONS = ['physical', 'technique', 'tactical', 'mentality', 'wellbeing', 'test']
+                            const parseNum = v => { if (!v) return null; const m = String(v).match(/(\d+(\.\d+)?)/); return m ? parseFloat(m[1]) : null }
+                            const relevantTargets = sectionTargets.filter(t => F2F_TARGET_SECTIONS.includes(t.section_key) && t.question_label)
+                            const byQuestion = {}
+                            relevantTargets.forEach(t => {
+                              const k = `${t.section_key}::${t.question_label}`
+                              if (!byQuestion[k] || (t.student_id === student?.id && byQuestion[k].student_id !== student?.id)) byQuestion[k] = t
+                            })
+                            const f2fTargetTotal = Object.values(byQuestion).reduce((sum, t) => sum + (parseNum(t.target_value) || 0), 0)
+                            return f2fTargetTotal > 0 ? `${f2fCount}/${f2fTargetTotal}` : f2fCount
                           })()}
                         </div>
                         <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Results</div>
