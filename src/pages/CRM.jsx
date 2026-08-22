@@ -436,6 +436,29 @@ export default function CRM() {
   // via the send-email Netlify function -- an actual email that lands in the
   // recipient's inbox, not a mailto:/share-sheet handoff the person has to
   // action themselves.
+  // Downloads the poster as its original, unmodified file -- a direct
+  // blob transfer of the exact bytes stored, so there's zero quality
+  // loss (no re-encoding/compression) when someone wants to edit and
+  // re-upload an updated version.
+  async function downloadPosterImage(course) {
+    if (!course.poster_url) { alert('This course has no poster image set.'); return }
+    try {
+      const res = await fetch(course.poster_url)
+      const blob = await res.blob()
+      const ext = (course.poster_url.split('.').pop() || 'jpg').split('?')[0]
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${course.title.replace(/[^a-z0-9]/gi, '-')}-poster.${ext}`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      alert('Could not download the image: ' + e.message)
+    }
+  }
+
   // Shares the ACTUAL poster image file (not just a link to it) via
   // the OS share sheet -- mailto:/sms:/wa.me links can never attach a
   // real file, only text and URLs, so this is the only way to send
@@ -1938,7 +1961,16 @@ export default function CRM() {
                     </button>
                     {isOpen && (
                       <div style={{ padding: '0 12px 12px' }}>
-                        {c.poster_url && <img src={c.poster_url} alt="" style={{ width: '100%', maxWidth: 320, borderRadius: 8, marginBottom: 10, display: 'block' }} />}
+                        {c.poster_url && (
+                          <div style={{ marginBottom: 10 }}>
+                            <img src={c.poster_url} alt="" style={{ width: '100%', maxWidth: 320, borderRadius: 8, marginBottom: 6, display: 'block' }} />
+                            {isAdmin && (
+                              <button className="btn btn-sm" onClick={() => downloadPosterImage(c)} title="Downloads the original file, full quality, for editing/updating">
+                                ⬇️ Download image
+                              </button>
+                            )}
+                          </div>
+                        )}
                         {c.description && <p style={{ fontSize: 13, whiteSpace: 'pre-line', marginBottom: 10 }}>{c.description}</p>}
                         {c.price && <p style={{ fontSize: 13, marginBottom: 10 }}><strong>Price:</strong> {c.price}</p>}
                         {isAdmin && (
@@ -2035,7 +2067,14 @@ export default function CRM() {
                   placeholder="e.g. Kickboxing Level 1 Grading" style={{ width: '100%', marginBottom: 10 }} />
 
                 <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Poster</label>
-                {courseForm.poster_url && <img src={courseForm.poster_url} alt="" style={{ width: 120, borderRadius: 8, marginBottom: 8, display: 'block' }} />}
+                {courseForm.poster_url && (
+                  <div style={{ marginBottom: 8 }}>
+                    <img src={courseForm.poster_url} alt="" style={{ width: 120, borderRadius: 8, marginBottom: 6, display: 'block' }} />
+                    <button className="btn btn-sm" onClick={() => downloadPosterImage({ title: courseForm.title || 'course', poster_url: courseForm.poster_url })} title="Downloads the original file, full quality, for editing/updating">
+                      ⬇️ Download image
+                    </button>
+                  </div>
+                )}
                 <input type="file" accept="image/*" style={{ marginBottom: 10 }} disabled={uploadingPoster}
                   onChange={e => { const f = e.target.files?.[0]; if (f) uploadCoursePoster(f) }} />
                 {uploadingPoster && <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Uploading…</p>}
