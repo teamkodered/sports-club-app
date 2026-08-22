@@ -2510,8 +2510,17 @@ export default function AthleteProfiles() {
   const navigate = useNavigate()
   const flameHoldTimer = useRef(null)
   const [showQuickLoggerPicker, setShowQuickLoggerPicker] = useState(false)
-  const [radarDateFrom, setRadarDateFrom] = useState(() => { const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split('T')[0] })
-  const [radarDateTo, setRadarDateTo] = useState(() => new Date().toISOString().split('T')[0])
+  // Remembers the last-entered date range across visits (per browser) --
+  // defaults to the last 30 days only the very first time, before
+  // anything's been saved.
+  const [radarDateFrom, setRadarDateFrom] = useState(() => {
+    try { const saved = localStorage.getItem('perfOverview_dateFrom'); if (saved) return saved } catch {}
+    const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split('T')[0]
+  })
+  const [radarDateTo, setRadarDateTo] = useState(() => {
+    try { const saved = localStorage.getItem('perfOverview_dateTo'); if (saved) return saved } catch {}
+    return new Date().toISOString().split('T')[0]
+  })
   const [radarDrilldown, setRadarDrilldown] = useState(null)
   // Sweep the Sheds -- coach assigns a task to any number of athletes
   // at once, independent of whichever athlete is currently selected.
@@ -5390,6 +5399,7 @@ export default function AthleteProfiles() {
                             </span>
                           ))}
                           <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => {
+                            if (showAddTarget && newTargetSection === c.key && newTargetQuestion === '') { setShowAddTarget(false); return }
                             setNewTargetSection(c.key); setNewTargetQuestion(''); setShowAddTarget(true)
                           }}>{targets.length ? '+ Add another target' : '+ Target'}</button>
                           <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => setShowSetDatePopup(c.key)}>📅 Set date</button>
@@ -6724,6 +6734,7 @@ export default function AthleteProfiles() {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                           <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Tap a card for more insight & to set a target</p>
                           <button className="btn btn-sm" onClick={() => {
+                            if (showAddTarget && newTargetSection === section.key && newTargetQuestion === '') { setShowAddTarget(false); return }
                             setNewTargetSection(section.key); setNewTargetQuestion(''); setShowAddTarget(true)
                           }}>+ Section target</button>
                         </div>
@@ -6780,6 +6791,7 @@ export default function AthleteProfiles() {
                                 <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8 }}>No target set for {sub.label} yet.</p>
                               )}
                               <button className="btn btn-sm" onClick={() => {
+                                if (showAddTarget && newTargetSection === section.key && newTargetQuestion === sub.label) { setShowAddTarget(false); return }
                                 setNewTargetSection(section.key); setNewTargetQuestion(sub.label); setShowAddTarget(true)
                               }}>{targets.length ? '+ Add another target' : '+ Set target'}</button>
                               {showAddTarget && newTargetSection === section.key && newTargetQuestion === sub.label && renderInlineTargetForm()}
@@ -6930,6 +6942,7 @@ export default function AthleteProfiles() {
                             <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{c.count}/{teamCount}</span>
                           </span>
                           <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => {
+                            if (showAddTarget && newTargetSection === c.key && newTargetQuestion === '') { setShowAddTarget(false); return }
                             setNewTargetSection(c.key); setNewTargetQuestion(''); setShowAddTarget(true)
                           }}>{targets.length ? '+ Add' : '+ Target'}</button>
                         </span>
@@ -8156,7 +8169,15 @@ export default function AthleteProfiles() {
                           // and keeps its own independent date filter.
                           const f2fSettings = cardDateSettings.f2f_sessions
                           const dateScoped = f2fData.filter(s => s.session_date >= f2fSettings.from && s.session_date <= f2fSettings.to)
-                          return dateScoped.filter(sessionHasGenuineActivity).length
+                          const f2fCount = dateScoped.filter(sessionHasGenuineActivity).length
+                          // "Out of target" -- an individual target for
+                          // this athlete if one's been set, else the
+                          // team-wide one, matching the same
+                          // own-then-team-wide pattern used elsewhere
+                          // (e.g. per-question targets).
+                          const f2fTarget = teamTargets.find(t => t.section_key === 'f2f_sessions' && !t.question_label && t.student_id === selected?.id)
+                            || teamTargets.find(t => t.section_key === 'f2f_sessions' && !t.question_label && !t.student_id)
+                          return f2fTarget ? `${f2fCount}/${f2fTarget.target_value}` : f2fCount
                         })()}
                       </div>
                       <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Results</div>
@@ -8164,7 +8185,18 @@ export default function AthleteProfiles() {
                     <button onClick={() => setTab('pdp')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none' }} title="View PDP">
                       <div style={{ fontSize: 22, marginBottom: 4 }}>🎯</div>
                       <div style={{ fontSize: 22, fontWeight: 700, color: '#EF9F27' }}>
-                        {notesLog.filter(n => n.note_text?.startsWith('Completed PDP task') && !/weigh/i.test(n.note_text)).length}
+                        {(() => {
+                          const completedCount = notesLog.filter(n => n.note_text?.startsWith('Completed PDP task') && !/weigh/i.test(n.note_text)).length
+                          // "Out of PDPs sent to athlete" -- for most
+                          // sections that's whatever's been explicitly
+                          // sent (pdp_shared), but "to do" sections are
+                          // always visible without needing to be sent
+                          // (see the PDP tab's own logic), so those are
+                          // counted from pdp_notes directly instead.
+                          const totalSent = PDP_SECTIONS.reduce((sum, s) =>
+                            sum + (isToDoSectionKey(s.key) ? (pdp[s.key] || []).length : (shared[s.key] || []).length), 0)
+                          return totalSent > 0 ? `${completedCount}/${totalSent}` : completedCount
+                        })()}
                       </div>
                       <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>PDP</div>
                     </button>
@@ -10750,9 +10782,9 @@ export default function AthleteProfiles() {
                       <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>🕸️ Performance Overview</h2>
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}>
                         <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>From</label>
-                        <input type="date" value={radarDateFrom} onChange={e => setRadarDateFrom(e.target.value)} style={{ fontSize: 12 }} />
+                        <input type="date" value={radarDateFrom} onChange={e => { setRadarDateFrom(e.target.value); try { localStorage.setItem('perfOverview_dateFrom', e.target.value) } catch {} }} style={{ fontSize: 12 }} />
                         <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>To</label>
-                        <input type="date" value={radarDateTo} onChange={e => setRadarDateTo(e.target.value)} style={{ fontSize: 12 }} />
+                        <input type="date" value={radarDateTo} onChange={e => { setRadarDateTo(e.target.value); try { localStorage.setItem('perfOverview_dateTo', e.target.value) } catch {} }} style={{ fontSize: 12 }} />
                       </div>
                       <RadarChart axes={axes} onAxisClick={label => setRadarDrilldown(d => d === label ? null : label)} activeLabel={radarDrilldown} />
                       <p style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center', marginTop: -4, marginBottom: 8 }}>Tap an axis label to see the numbers behind it</p>
@@ -10900,11 +10932,40 @@ export default function AthleteProfiles() {
                   )
                 })()}
                 {resultsGraphSection === 0 && (
-                  <div className="card" style={{ marginBottom: 12 }}>
-                    <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
-                      📋 Every entry logged in this date range, regardless of category — useful when you're not sure which category something was filed under. Use the ◀▶ arrows to jump to a specific category instead.
-                    </p>
-                  </div>
+                  (() => {
+                    // Counts how many distinct sections were genuinely
+                    // completed on a given day (not just whether
+                    // anything at all was logged), using the same
+                    // completion checks as the Results summary card.
+                    const hasContent = v => Array.isArray(v) ? v.length > 0 : (v && typeof v === 'object' ? Object.keys(v).length > 0 : !!v)
+                    function countGenuineEntries(s) {
+                      let n = 0
+                      ;['running', 'watt_bike', 'bodyweight', 'stretch_flows', 'snc', 'other_session'].forEach(f => { if (hasContent(s[f])) n++ })
+                      if (Array.isArray(s.techniques) ? s.techniques.length > 0 : hasContent(s.techniques)) n++
+                      if (Array.isArray(s.tactical) ? s.tactical.length > 0 : hasContent(s.tactical)) n++
+                      if (WELLBEING_QUESTIONS.some(q => isWellbeingQComplete(q.key, s.wellbeing))) n++
+                      if (MENTALITY_QUESTIONS.some(q => isMentalityQComplete(q.key, s.mentality_log))) n++
+                      if (s.test && Object.values(s.test).some(v => v !== '' && v != null)) n++
+                      return n
+                    }
+                    const entryData = [...filtered]
+                      .sort((a, b) => a.session_date.localeCompare(b.session_date))
+                      .map(s => ({ id: s.id, session_date: s.session_date, entries: countGenuineEntries(s) }))
+                    const totalEntries = entryData.reduce((sum, d) => sum + d.entries, 0)
+                    return (
+                      <div className="card" style={{ marginBottom: 12, position: 'relative' }}>
+                        <a href={`/fit2fight?student_id=${selected?.id}`} className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, zIndex: 1 }}>+ Log</a>
+                        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10, marginTop: 0 }}>
+                          📋 How many sections were completed each day — {totalEntries} total {totalEntries === 1 ? 'entry' : 'entries'} in this date range. Use the ◀▶ arrows to jump to a specific category instead.
+                        </p>
+                        {entryData.length > 1 ? (
+                          <LineChart data={entryData} lines={[{ key: 'entries', label: 'Entries', colour: '#378ADD' }]} title="Entries completed per day" unit="" />
+                        ) : (
+                          <p style={{ fontSize: 12, color: 'var(--text-tertiary)', textAlign: 'center', padding: 16, margin: 0 }}>Not enough data yet — log a few sessions to see this graph fill in</p>
+                        )}
+                      </div>
+                    )
+                  })()
                 )}
                 {resultsGraphSection === 1 && (weightData.length > 1 ? (
                   <div className="card" style={{ marginBottom: 12, position: 'relative' }}>

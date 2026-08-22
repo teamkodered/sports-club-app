@@ -375,6 +375,9 @@ const PDP_SCOPES = [
 // "work_on"), since to-dos are the actionable items that make sense
 // to put a date/time against.
 const PDP_TIMETABLE_SECTION_KEYS = ['what_to_do', 'psychology_what_to_do', 'tech_what_to_do', 'tact_what_to_do', 'physical_what_to_do', 'skill_what_to_do']
+function isToDoSectionKey(key) {
+  return PDP_TIMETABLE_SECTION_KEYS.includes(key)
+}
 
 // Tactical development presets -- multi-select per category, note
 // added once selected (same pattern as Techniques).
@@ -1319,8 +1322,17 @@ export default function AthleteApp() {
   // for Performance/Attendance reporting, so the radar's date range
   // never goes earlier than this, regardless of the "last 30 days" default.
   const SOFT_LAUNCH_DATE = '2026-08-01'
-  const [radarDateFrom, setRadarDateFrom] = useState(() => { const d = new Date(); d.setDate(d.getDate() - 30); const iso = d.toISOString().split('T')[0]; return iso < SOFT_LAUNCH_DATE ? SOFT_LAUNCH_DATE : iso })
-  const [radarDateTo, setRadarDateTo] = useState(() => new Date().toISOString().split('T')[0])
+  // Remembers the last-entered date range across visits (per browser) --
+  // defaults to the last 30 days only the very first time, before
+  // anything's been saved.
+  const [radarDateFrom, setRadarDateFrom] = useState(() => {
+    try { const saved = localStorage.getItem('perfOverview_dateFrom'); if (saved) return saved } catch {}
+    const d = new Date(); d.setDate(d.getDate() - 30); const iso = d.toISOString().split('T')[0]; return iso < SOFT_LAUNCH_DATE ? SOFT_LAUNCH_DATE : iso
+  })
+  const [radarDateTo, setRadarDateTo] = useState(() => {
+    try { const saved = localStorage.getItem('perfOverview_dateTo'); if (saved) return saved } catch {}
+    return new Date().toISOString().split('T')[0]
+  })
   const [radarDrilldown, setRadarDrilldown] = useState(null) // which axis label is expanded, or null
   const [athleteTimetableModal, setAthleteTimetableModal] = useState(null) // { sectionKey, item } or null
   const [expandedToDoScopes, setExpandedToDoScopes] = useState(() => new Set()) // scope keys whose "To do" section is currently revealed
@@ -3685,7 +3697,12 @@ export default function AthleteApp() {
                             const dateScoped = coachF2fDateSettings
                               ? sessions.filter(s => s.session_date >= coachF2fDateSettings.from && s.session_date <= coachF2fDateSettings.to)
                               : sessions
-                            return dateScoped.filter(sessionHasGenuineActivity).length
+                            const f2fCount = dateScoped.filter(sessionHasGenuineActivity).length
+                            // "Out of target" -- own target if this
+                            // athlete has one set, else the team-wide one.
+                            const f2fTarget = sectionTargets.find(t => t.section_key === 'f2f_sessions' && !t.question_label && t.student_id === student?.id)
+                              || sectionTargets.find(t => t.section_key === 'f2f_sessions' && !t.question_label && !t.student_id)
+                            return f2fTarget ? `${f2fCount}/${f2fTarget.target_value}` : f2fCount
                           })()}
                         </div>
                         <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Results</div>
@@ -3698,7 +3715,17 @@ export default function AthleteApp() {
                       <button onClick={() => setTab('pdp')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none' }}>
                         <div style={{ fontSize: 22, marginBottom: 4 }}>🎯</div>
                         <div style={{ fontSize: 22, fontWeight: 700, color: '#EF9F27' }}>
-                          {myNotesLog.filter(n => n.note_text?.startsWith('Completed PDP task') && !/weigh/i.test(n.note_text)).length}
+                          {(() => {
+                            const completedCount = myNotesLog.filter(n => n.note_text?.startsWith('Completed PDP task') && !/weigh/i.test(n.note_text)).length
+                            // "Out of PDPs sent to athlete" -- for most
+                            // sections that's whatever's been explicitly
+                            // sent (pdp_shared), but "to do" sections are
+                            // always visible without needing to be sent,
+                            // so those are counted from pdp_notes directly.
+                            const totalSent = PDP_SECTIONS.reduce((sum, s) =>
+                              sum + (isToDoSectionKey(s.key) ? (pdp[s.key] || []).length : (shared[s.key] || []).length), 0)
+                            return totalSent > 0 ? `${completedCount}/${totalSent}` : completedCount
+                          })()}
                         </div>
                         <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>PDP</div>
                       </button>
@@ -6463,9 +6490,12 @@ export default function AthleteApp() {
                 <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>🕸️ Performance Overview</h2>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}>
                   <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>From</label>
-                  <input type="date" value={radarDateFrom} min={SOFT_LAUNCH_DATE} onChange={e => setRadarDateFrom(e.target.value < SOFT_LAUNCH_DATE ? SOFT_LAUNCH_DATE : e.target.value)} style={{ fontSize: 12 }} />
+                  <input type="date" value={radarDateFrom} min={SOFT_LAUNCH_DATE} onChange={e => {
+                    const v = e.target.value < SOFT_LAUNCH_DATE ? SOFT_LAUNCH_DATE : e.target.value
+                    setRadarDateFrom(v); try { localStorage.setItem('perfOverview_dateFrom', v) } catch {}
+                  }} style={{ fontSize: 12 }} />
                   <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>To</label>
-                  <input type="date" value={radarDateTo} onChange={e => setRadarDateTo(e.target.value)} style={{ fontSize: 12 }} />
+                  <input type="date" value={radarDateTo} onChange={e => { setRadarDateTo(e.target.value); try { localStorage.setItem('perfOverview_dateTo', e.target.value) } catch {} }} style={{ fontSize: 12 }} />
                 </div>
                 <RadarChart axes={axes} onAxisClick={label => setRadarDrilldown(d => d === label ? null : label)} activeLabel={radarDrilldown} />
                 <p style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center', marginTop: -4, marginBottom: 8 }}>Tap an axis label to see the numbers behind it</p>
