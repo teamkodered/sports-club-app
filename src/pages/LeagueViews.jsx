@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
@@ -39,6 +39,34 @@ const HOUSE_BG = {
 }
 
 const TABS = ['House league', 'Individual', 'Student house', 'Score check', 'Points log']
+
+// Press-and-hold a name to open a quick profile popup, instead of a
+// normal tap navigating straight to the student's profile page --
+// keeps the coach/admin on whatever League tab they're currently
+// looking at. Uses the same onPointerDown/onPointerUp + timer pattern
+// already established elsewhere in the app for hold gestures (works
+// for both mouse and touch via Pointer Events).
+function HoldableName({ student, name, onHold, style }) {
+  const holdTimer = useRef(null)
+  const heldRef = useRef(false)
+  return (
+    <span
+      onPointerDown={() => {
+        heldRef.current = false
+        holdTimer.current = setTimeout(() => {
+          heldRef.current = true
+          onHold(student)
+        }, 500)
+      }}
+      onPointerUp={() => clearTimeout(holdTimer.current)}
+      onPointerLeave={() => clearTimeout(holdTimer.current)}
+      onClick={e => { e.preventDefault(); heldRef.current = false }}
+      style={{ cursor: 'pointer', userSelect: 'none', ...style }}
+    >
+      {name || student.name}
+    </span>
+  )
+}
 
 export default function LeagueViews() {
   const { isAdmin } = useAuth()
@@ -81,6 +109,8 @@ export default function LeagueViews() {
 
   // Edit points
   const [editingPoint, setEditingPoint] = useState(null)
+  const [scoreHistoryOpen, setScoreHistoryOpen] = useState(false) // shows the score-history popup using searchResults, without switching to Score check tab
+  const [profilePopupFor, setProfilePopupFor] = useState(null) // student object for the hold-triggered quick-profile popup
   const [editVal, setEditVal] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -350,6 +380,23 @@ export default function LeagueViews() {
       }))
 
     setPointsLog(enriched)
+  }
+
+  // Opens the same results the Score check tab shows, in a popup on
+  // top of whatever tab is currently active -- avoids needing to
+  // switch tabs and re-search to see a student's score history.
+  async function openScoreHistoryFor(studentId) {
+    setSearching(true)
+    setScoreHistoryOpen(true)
+    const { data: pts } = await supabase
+      .from('points_log')
+      .select('*, students(student_ref, members(first_name, last_name, houses(name)))')
+      .eq('student_id', studentId)
+      .gte('awarded_at', dateFrom)
+      .lte('awarded_at', dateTo + 'T23:59:59')
+      .order('awarded_at', { ascending: false })
+    setSearchResults(pts || [])
+    setSearching(false)
   }
 
   async function searchStudent() {
@@ -633,9 +680,9 @@ export default function LeagueViews() {
                     : houseMembers.map((s, i) => (
                       <div key={s.id} style={{ display: 'flex', alignItems: 'center', padding: '7px 14px', borderBottom: i < houseMembers.length - 1 ? '1px solid var(--border)' : 'none' }}>
                         <span style={{ fontSize: 11, color: 'var(--text-tertiary)', width: 20, flexShrink: 0 }}>{i + 1}</span>
-                        <Link to={studentProfileLink(s)} style={{ fontSize: 13, flex: 1, color: 'var(--text)', textDecoration: 'underline' }}>{s.name}</Link>
+                        <HoldableName student={s} onHold={setProfilePopupFor} style={{ fontSize: 13, flex: 1, color: 'var(--text)', textDecoration: 'underline' }} />
                         {s.champCount > 0 && <span style={{ fontSize: 10, marginRight: 4 }}>🏆{s.champCount}</span>}
-                        <span style={{ fontSize: 13, fontWeight: 700, color: colour }}>{s.total}</span>
+                        <span onClick={() => openScoreHistoryFor(s.id)} style={{ fontSize: 13, fontWeight: 700, color: colour, cursor: 'pointer', textDecoration: 'underline dotted' }}>{s.total}</span>
                       </div>
                     ))
                   }
@@ -690,7 +737,7 @@ export default function LeagueViews() {
                           {RANK_MEDAL[i] || <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>{i + 1}</span>}
                         </td>
                         <td>
-                          <Link to={studentProfileLink(s)} style={{ fontWeight: 500, color: 'var(--text)', textDecoration: 'underline' }}>{s.name}</Link>
+                          <HoldableName student={s} onHold={setProfilePopupFor} style={{ fontWeight: 500, color: 'var(--text)', textDecoration: 'underline' }} />
                           <div style={{ fontSize: 11, color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono, monospace)' }}>{s.ref}</div>
                         </td>
                         <td>
@@ -705,7 +752,7 @@ export default function LeagueViews() {
                         </td>
                         <td style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-secondary)' }}>{s.housePoints}</td>
                         <td style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-secondary)' }}>{s.individualPoints}</td>
-                        <td style={{ textAlign: 'center', fontSize: 15, fontWeight: 700, color: colour }}>{s.total}</td>
+                        <td onClick={() => openScoreHistoryFor(s.id)} style={{ textAlign: 'center', fontSize: 15, fontWeight: 700, color: colour, cursor: 'pointer', textDecoration: 'underline dotted' }}>{s.total}</td>
                       </tr>
                     )
                   })
@@ -746,8 +793,8 @@ export default function LeagueViews() {
                       ) : houseStudents.slice(0, 10).map((s, i) => (
                         <tr key={i} style={i < 3 ? { background: colour + '08' } : {}}>
                           <td style={{ width: 28, textAlign: 'center', fontSize: 14 }}>{MEDALS[i] || <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{i+1}</span>}</td>
-                          <td style={{ fontSize: 12, fontWeight: i < 3 ? 600 : 400 }}><Link to={studentProfileLink(s)} style={{ color: 'var(--text)', textDecoration: 'underline' }}>{s.name}</Link></td>
-                          <td style={{ textAlign: 'right', fontSize: 13, fontWeight: 700, color: colour, paddingRight: 12 }}>{s.total}</td>
+                          <td style={{ fontSize: 12, fontWeight: i < 3 ? 600 : 400 }}><HoldableName student={s} onHold={setProfilePopupFor} style={{ color: 'var(--text)', textDecoration: 'underline' }} /></td>
+                          <td onClick={() => openScoreHistoryFor(s.id)} style={{ textAlign: 'right', fontSize: 13, fontWeight: 700, color: colour, paddingRight: 12, cursor: 'pointer', textDecoration: 'underline dotted' }}>{s.total}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -876,7 +923,7 @@ export default function LeagueViews() {
                           {new Date(r.awarded_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })}
                         </td>
                         <td>
-                          <Link to={studentProfileLink(r.students)} style={{ fontWeight: 500, fontSize: 13, color: 'var(--text)', textDecoration: 'underline' }}>{name}</Link>
+                          <HoldableName name={name} student={{ id: r.student_id, name, house, ref: r.students?.student_ref }} onHold={setProfilePopupFor} style={{ fontWeight: 500, fontSize: 13, color: 'var(--text)', textDecoration: 'underline' }} />
                           <div style={{ fontSize: 10, color: 'var(--text-tertiary)', fontFamily: 'monospace' }}>{r.students?.student_ref}</div>
                         </td>
                         <td>
@@ -958,6 +1005,105 @@ export default function LeagueViews() {
                 {saving ? 'Saving…' : 'Save changes'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Score history popup -- same content as the Score check tab,
+          without switching tabs or losing whatever's currently on screen. */}
+      {scoreHistoryOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 16 }}
+          onClick={() => setScoreHistoryOpen(false)}>
+          <div className="card" style={{ width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4 }}>
+              <button onClick={() => setScoreHistoryOpen(false)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-secondary)' }}>✕</button>
+            </div>
+            {searching ? (
+              <div className="loading">Loading…</div>
+            ) : searchResults.length === 0 ? (
+              <p style={{ fontSize: 13, color: 'var(--text-tertiary)', textAlign: 'center', padding: 20 }}>No points found in this date range.</p>
+            ) : (
+              <>
+                {(() => {
+                  const total = searchResults.reduce((s, r) => s + (r.points_awarded || 0), 0)
+                  const first = searchResults[0]
+                  const name = `${first.students?.members?.first_name || ''} ${first.students?.members?.last_name || ''}`.trim()
+                  const house = first.students?.members?.houses?.name
+                  const colour = HOUSE_COLOURS[house] || '#888'
+                  return (
+                    <div style={{ marginBottom: 14, display: 'flex', alignItems: 'center', gap: 16 }}>
+                      <div style={{ width: 44, height: 44, borderRadius: '50%', background: colour + '22', color: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700, flexShrink: 0 }}>
+                        {name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 16, fontWeight: 600 }}>{name}</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{first.students?.student_ref} · {house}</div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 26, fontWeight: 700, color: colour }}>{total}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>total pts · {searchResults.length} entries</div>
+                      </div>
+                    </div>
+                  )
+                })()}
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Date</th><th>Point type</th><th>Scope</th><th style={{ textAlign: 'right' }}>Points</th>
+                      {isAdmin && <th></th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {searchResults.map(r => (
+                      <tr key={r.id}>
+                        <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{new Date(r.awarded_at).toLocaleDateString('en-GB')}</td>
+                        <td style={{ fontWeight: 500 }}>{r.point_type}</td>
+                        <td><span className={`badge ${r.point_scope === 'both' ? 'badge-green' : r.point_scope === 'house' ? 'badge-blue' : 'badge-purple'}`} style={{ fontSize: 10 }}>{r.point_scope}</span></td>
+                        <td style={{ textAlign: 'right', fontWeight: 700, color: r.points_awarded < 0 ? '#a32d2d' : 'var(--success, #1d9e75)' }}>
+                          {r.points_awarded > 0 ? '+' : ''}{r.points_awarded}
+                        </td>
+                        {isAdmin && (
+                          <td style={{ display: 'flex', gap: 4 }}>
+                            <button className="btn btn-sm" onClick={() => { setEditingPoint(r); setEditVal(String(r.points_awarded)) }}>Edit</button>
+                            <button className="btn btn-sm btn-danger" onClick={() => deletePoint(r.id, r)}>Del</button>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Quick profile popup -- triggered by holding a name, instead of
+          a normal tap navigating away to the student's profile page. */}
+      {profilePopupFor && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 16 }}
+          onClick={() => setProfilePopupFor(null)}>
+          <div className="card" style={{ width: '100%', maxWidth: 340 }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4 }}>
+              <button onClick={() => setProfilePopupFor(null)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-secondary)' }}>✕</button>
+            </div>
+            {(() => {
+              const colour = HOUSE_COLOURS[profilePopupFor.house] || '#888'
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
+                  <div style={{ width: 48, height: 48, borderRadius: '50%', background: colour + '22', color: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, fontWeight: 700, flexShrink: 0 }}>
+                    {profilePopupFor.name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 16, fontWeight: 600 }}>{profilePopupFor.name}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{profilePopupFor.ref} · {profilePopupFor.house || '—'}</div>
+                  </div>
+                </div>
+              )
+            })()}
+            <Link to={studentProfileLink(profilePopupFor)} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
+              View full profile →
+            </Link>
           </div>
         </div>
       )}
