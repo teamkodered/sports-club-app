@@ -1225,6 +1225,21 @@ const PDP_MAINTAIN_FOR_CHECK = Object.fromEntries(
 const PDP_MAINTAIN_SECTIONS = new Set(PDP_CATEGORY_GROUPS.map(g => g.keys.find(k => k.endsWith('maintain'))).filter(Boolean))
 
 function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOpponentNote, onToggleOpponentNoteShared, onDeleteOpponentNote, onUpdateOpponentNote, newOpponentName, setNewOpponentName, expandedOpponent, setExpandedOpponent, editingOpponentNoteId, setEditingOpponentNoteId, opponentNoteDraft, setOpponentNoteDraft }) {
+  // "Add to calendar" scheduling wizard state -- local to this
+  // component (previously referenced the same-named state from the
+  // separate main AthleteProfiles component, which this component has
+  // no access to at all -- a pre-existing bug that crashed this tab
+  // with "athleteTimetableModal is not defined" any time it rendered
+  // a To Do item, since PDPTab is used from two places in the parent
+  // and neither ever passed these down as props).
+  const [athleteTimetableModal, setAthleteTimetableModal] = useState(null) // { sectionKey, item } or null
+  const [schedWizardStep, setSchedWizardStep] = useState('days') // 'days' | 'metric' | 'value' | 'submetric' | 'subvalue'
+  const [schedWizardDays, setSchedWizardDays] = useState([])
+  const [schedWizardTime, setSchedWizardTime] = useState('')
+  const [schedWizardMetricType, setSchedWizardMetricType] = useState(null)
+  const [schedWizardValue, setSchedWizardValue] = useState('')
+  const [schedWizardSubType, setSchedWizardSubType] = useState(null)
+  const [schedWizardSubValue, setSchedWizardSubValue] = useState('')
   const [pdpView, setPdpView]       = useState('coach') // 'coach' | 'athlete' | 'split'
   // How many of each category's 4 columns (Notes/Maintain/Work on/To do)
   // show at once before needing to scroll -- 1, 2, or 3. Doesn't apply
