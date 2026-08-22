@@ -2730,6 +2730,7 @@ export default function AthleteProfiles() {
   const [pendingNoteDelete, setPendingNoteDelete] = useState(null) // note object while its undo window is open, or null
   const pendingNoteDeleteRef = useRef(null)
   const [newNoteText, setNewNoteText] = useState('')
+  const [newNoteTitle, setNewNoteTitle] = useState('')
   const [editingNoteId, setEditingNoteId] = useState(null) // athlete_notes_log.id being edited, or null
   const [editingNoteText, setEditingNoteText] = useState('')
   const [savingNote, setSavingNote] = useState(false)
@@ -4665,12 +4666,16 @@ export default function AthleteProfiles() {
   async function addNote() {
     if (!newNoteText.trim()) return
     setSavingNote(true)
+    // No dedicated title column on athlete_notes_log -- prepended as a
+    // clear first line instead, rather than needing a schema change.
+    const fullText = newNoteTitle.trim() ? `${newNoteTitle.trim()}\n${newNoteText.trim()}` : newNoteText.trim()
     const { data, error } = await supabase.from('athlete_notes_log')
-      .insert({ student_id: selected.id, note_text: newNoteText.trim() })
+      .insert({ student_id: selected.id, note_text: fullText })
       .select('*').single()
     if (error) { alert('Error saving note: ' + error.message); setSavingNote(false); return }
     setNotesLog(prev => [data, ...prev])
     setNewNoteText('')
+    setNewNoteTitle('')
     setSavingNote(false)
   }
 
@@ -11752,13 +11757,18 @@ export default function AthleteProfiles() {
                   </div>
                 )}
                 <div className="card" style={{ marginBottom: 12 }}>
-                  <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>Log a note</h2>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8 }}>
+                    <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Log a note</h2>
+                    <button className="btn btn-primary btn-sm" disabled={!newNoteText.trim() || savingNote} onClick={addNote}>
+                      {savingNote ? 'Saving…' : '+ Log note'}
+                    </button>
+                  </div>
+                  <input value={newNoteTitle} onChange={e => setNewNoteTitle(e.target.value)}
+                    placeholder="Title (optional)"
+                    style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 14, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', marginBottom: 8 }} />
                   <textarea value={newNoteText} onChange={e => setNewNoteText(e.target.value)}
                     placeholder="Write a note about this athlete…" rows={6}
-                    style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 15, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
-                  <button className="btn btn-primary btn-sm" disabled={!newNoteText.trim() || savingNote} onClick={addNote}>
-                    {savingNote ? 'Saving…' : '+ Log note'}
-                  </button>
+                    style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 15, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical' }} />
                 </div>
 
                 {notesLog.length === 0 ? (

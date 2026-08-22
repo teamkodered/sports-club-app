@@ -865,7 +865,7 @@ export default function LeagueViews() {
                 <table>
                   <thead>
                     <tr>
-                      <th>Date</th><th>Point type</th><th>Scope</th><th style={{ textAlign: 'right' }}>Points</th>
+                      <th>Date</th><th>Point type</th><th style={{ textAlign: 'right' }}>Points</th>
                       {isAdmin && <th></th>}
                     </tr>
                   </thead>
@@ -874,7 +874,6 @@ export default function LeagueViews() {
                       <tr key={r.id}>
                         <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{new Date(r.awarded_at).toLocaleDateString('en-GB')}</td>
                         <td style={{ fontWeight: 500 }}>{r.point_type}</td>
-                        <td><span className={`badge ${r.point_scope === 'both' ? 'badge-green' : r.point_scope === 'house' ? 'badge-blue' : 'badge-purple'}`} style={{ fontSize: 10 }}>{r.point_scope}</span></td>
                         <td style={{ textAlign: 'right', fontWeight: 700, color: r.points_awarded < 0 ? '#a32d2d' : 'var(--success, #1d9e75)' }}>
                           {r.points_awarded > 0 ? '+' : ''}{r.points_awarded}
                         </td>
@@ -922,7 +921,6 @@ export default function LeagueViews() {
                   <th>Student</th>
                   <SortTh col="house" sortKey={logSortKey} sortDir={logSortDir} onSort={toggleLog}>House</SortTh>
                   <SortTh col="point_type" sortKey={logSortKey} sortDir={logSortDir} onSort={toggleLog}>Point type</SortTh>
-                  <th>Scope</th>
                   <SortTh col="points_awarded" sortKey={logSortKey} sortDir={logSortDir} onSort={toggleLog} style={{ textAlign: 'right' }}>Pts</SortTh>
                   {isAdmin && <th></th>}
                 </tr>
@@ -950,11 +948,6 @@ export default function LeagueViews() {
                           </span>
                         </td>
                         <td style={{ fontSize: 13 }}>{r.point_type}</td>
-                        <td>
-                          <span className={`badge ${r.point_scope === 'both' ? 'badge-green' : r.point_scope === 'house' ? 'badge-blue' : 'badge-purple'}`} style={{ fontSize: 10 }}>
-                            {r.point_scope}
-                          </span>
-                        </td>
                         <td style={{ textAlign: 'right', fontWeight: 700, fontSize: 13, color: r.points_awarded < 0 ? '#a32d2d' : 'var(--success, #1d9e75)' }}>
                           {r.points_awarded > 0 ? '+' : ''}{r.points_awarded}
                         </td>
@@ -1066,7 +1059,7 @@ export default function LeagueViews() {
                 <table>
                   <thead>
                     <tr>
-                      <th>Date</th><th>Point type</th><th>Scope</th><th style={{ textAlign: 'right' }}>Points</th>
+                      <th>Date</th><th>Point type</th><th style={{ textAlign: 'right' }}>Points</th>
                       {isAdmin && <th></th>}
                     </tr>
                   </thead>
@@ -1075,7 +1068,6 @@ export default function LeagueViews() {
                       <tr key={r.id}>
                         <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{new Date(r.awarded_at).toLocaleDateString('en-GB')}</td>
                         <td style={{ fontWeight: 500 }}>{r.point_type}</td>
-                        <td><span className={`badge ${r.point_scope === 'both' ? 'badge-green' : r.point_scope === 'house' ? 'badge-blue' : 'badge-purple'}`} style={{ fontSize: 10 }}>{r.point_scope}</span></td>
                         <td style={{ textAlign: 'right', fontWeight: 700, color: r.points_awarded < 0 ? '#a32d2d' : 'var(--success, #1d9e75)' }}>
                           {r.points_awarded > 0 ? '+' : ''}{r.points_awarded}
                         </td>
