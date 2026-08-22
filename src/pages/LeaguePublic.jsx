@@ -1,6 +1,25 @@
 import { useEffect, useState } from 'react'
 import { supabasePublic as supabase } from '../lib/supabasePublic.js'
 
+// Supabase/PostgREST caps any query with no explicit range at 1000
+// rows -- a date range spanning a long period (or a growing club) can
+// easily exceed that, silently dropping rows past the cutoff with no
+// error. Fetches every matching page until exhausted, so point totals
+// are always computed from the complete data set.
+async function fetchAllRows(buildQuery) {
+  const pageSize = 1000
+  let allRows = []
+  let from = 0
+  while (true) {
+    const { data, error } = await buildQuery().range(from, from + pageSize - 1)
+    if (error) { console.error('Pagination fetch error:', error); break }
+    allRows = allRows.concat(data || [])
+    if (!data || data.length < pageSize) break
+    from += pageSize
+  }
+  return allRows
+}
+
 const HOUSE_COLOURS = {
   'Dragon House': '#E24B4A', 'Super House': '#378ADD',
   'Ice House': '#1D9E75', 'Jet House': '#EF9F27',
@@ -50,11 +69,11 @@ export default function LeaguePublic() {
       if (sm.league_date_from) setDateFrom(sm.league_date_from)
       if (sm.league_date_to) setDateTo(sm.league_date_to)
 
-      const [{ data: h }, { data: pts }, { data: studentsData }] = await Promise.all([
+      const [{ data: h }, pts, { data: studentsData }] = await Promise.all([
         supabase.from('houses').select('*'),
-        supabase.from('points_log')
+        fetchAllRows(() => supabase.from('points_log')
           .select('points_awarded, point_scope, student_id')
-          .gte('awarded_at', resolvedFrom).lte('awarded_at', resolvedTo + 'T23:59:59'),
+          .gte('awarded_at', resolvedFrom).lte('awarded_at', resolvedTo + 'T23:59:59')),
         // Uses a SECURITY DEFINER RPC rather than a raw table read --
         // students also holds medical/guardian data that must stay
         // locked down from anonymous public access, so this function

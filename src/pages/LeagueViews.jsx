@@ -146,15 +146,36 @@ export default function LeagueViews() {
     setSavingHouse(false)
   }
 
+  // Supabase/PostgREST caps any query with no explicit range at 1000
+  // rows -- fine for small clubs, but a date range spanning a year (or
+  // a growing student roster) can easily exceed that, silently
+  // dropping rows past the cutoff with no error and no warning. This
+  // fetches every matching page until exhausted, so aggregates (house/
+  // individual point totals) are always computed from the complete
+  // data set regardless of how large it's grown.
+  async function fetchAllRows(buildQuery) {
+    const pageSize = 1000
+    let allRows = []
+    let from = 0
+    while (true) {
+      const { data, error } = await buildQuery().range(from, from + pageSize - 1)
+      if (error) { console.error('Pagination fetch error:', error); break }
+      allRows = allRows.concat(data || [])
+      if (!data || data.length < pageSize) break
+      from += pageSize
+    }
+    return allRows
+  }
+
   async function loadHouseStandings() {
     // Fetch points_log, students, and members SEPARATELY to avoid unreliable nested joins
-    const [{ data: ptsData }, { data: studentsData }, { data: housesData }] = await Promise.all([
-      supabase.from('points_log')
+    const [ptsData, studentsData, { data: housesData }] = await Promise.all([
+      fetchAllRows(() => supabase.from('points_log')
         .select('points_awarded, point_scope, student_id')
         .gte('awarded_at', dateFrom)
         .lte('awarded_at', dateTo + 'T23:59:59')
-        .in('point_scope', ['house', 'both']),
-      supabase.from('students').select('id, house_name, member_id, members(houses(name))'),
+        .in('point_scope', ['house', 'both'])),
+      fetchAllRows(() => supabase.from('students').select('id, house_name, member_id, members(houses(name))')),
       supabase.from('houses').select('id, name, points, wins, draws, losses, members(count)'),
     ])
 
@@ -184,13 +205,13 @@ export default function LeagueViews() {
   }
 
   async function loadIndividual() {
-    const [{ data: ptsData }, { data: studentsData }] = await Promise.all([
-      supabase.from('points_log')
+    const [ptsData, studentsData] = await Promise.all([
+      fetchAllRows(() => supabase.from('points_log')
         .select('points_awarded, point_scope, point_type, student_id')
         .gte('awarded_at', dateFrom)
-        .lte('awarded_at', dateTo + 'T23:59:59'),
-      supabase.from('students')
-        .select('id, student_ref, class_champion_count, house_name, member_id, is_kr, is_pts, discipline, members(first_name, last_name, date_of_birth, houses(name))'),
+        .lte('awarded_at', dateTo + 'T23:59:59')),
+      fetchAllRows(() => supabase.from('students')
+        .select('id, student_ref, class_champion_count, house_name, member_id, is_kr, is_pts, discipline, members(first_name, last_name, date_of_birth, houses(name))')),
     ])
     if (!ptsData) return
 
@@ -243,15 +264,15 @@ export default function LeagueViews() {
   }
 
   async function loadPointsLog() {
-    const [{ data: logData }, { data: studentsData }] = await Promise.all([
+    const [{ data: logData }, studentsData] = await Promise.all([
       supabase.from('points_log')
         .select('*')
         .gte('awarded_at', dateFrom)
         .lte('awarded_at', dateTo + 'T23:59:59')
         .order('awarded_at', { ascending: false })
         .limit(100),
-      supabase.from('students')
-        .select('id, student_ref, house_name, member_id, is_kr, is_pts, discipline, members(first_name, last_name, houses(name))'),
+      fetchAllRows(() => supabase.from('students')
+        .select('id, student_ref, house_name, member_id, is_kr, is_pts, discipline, members(first_name, last_name, houses(name))')),
     ])
 
     // Build student lookup
