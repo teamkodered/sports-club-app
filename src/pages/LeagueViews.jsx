@@ -524,7 +524,7 @@ export default function LeagueViews() {
           {/* Top scorers per house */}
           <div style={{ display: 'flex', gap: 6, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Show top:</span>
-            {[5, 8, 10, 15, 20].map(n => (
+            {[5, 8, 10, 15, 20, 30, 50].map(n => (
               <button key={n} onClick={() => updateHouseTopN(n)} style={{
                 padding: '4px 10px', borderRadius: 20, fontSize: 11, cursor: 'pointer',
                 border: `1px solid ${houseTopN === n ? 'var(--text)' : 'var(--border-strong)'}`,
