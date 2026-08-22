@@ -859,6 +859,18 @@ function normalizeIntervalMode(raw) {
   return s.replace(/\s*-\s*(Output \(wattage\)|Distance \(km\))\s*$/i, '').trim()
 }
 
+// Display-only compact form of an interval label -- "30 seconds on 30
+// seconds off" shows as "30-30" instead. The underlying stored/matched
+// value (normalizeIntervalMode above) is untouched, so existing data
+// and preset matching both keep working exactly as before; this only
+// changes what's rendered on screen.
+function formatIntervalLabel(raw) {
+  if (!raw) return raw
+  const s = String(raw).trim()
+  const m = s.match(/^(\d+)\s*seconds?\s*on\s*(\d+)\s*seconds?\s*(?:on|off|jog track distance)?/i)
+  return m ? `${m[1]}-${m[2]}` : s
+}
+
 // Running/Watt bike/Bodyweight now support multiple entries per
 // session (like Test does), but existing historic data was saved as a
 // single object rather than an array. This normalizes both shapes to
@@ -3919,7 +3931,7 @@ export default function AthleteApp() {
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
                               {presets.map(m => (
                                 <button key={m} type="button" onClick={() => upsert({ ...entry, interval_mode: m })}
-                                  className="btn btn-sm" style={{ background: normalizeIntervalMode(entry.interval_mode) === m ? '#378ADD20' : undefined, borderColor: normalizeIntervalMode(entry.interval_mode) === m ? '#378ADD' : undefined }}>{m}</button>
+                                  className="btn btn-sm" style={{ background: normalizeIntervalMode(entry.interval_mode) === m ? '#378ADD20' : undefined, borderColor: normalizeIntervalMode(entry.interval_mode) === m ? '#378ADD' : undefined }}>{formatIntervalLabel(m)}</button>
                               ))}
                               <input ref={wattIntervalOtherRef} defaultValue={presets.includes(normalizeIntervalMode(entry.interval_mode)) ? '' : (entry.interval_mode || '')}
                                 placeholder="Other…" style={{ width: 90, flexShrink: 0 }} />
@@ -6859,7 +6871,7 @@ export default function AthleteApp() {
                               <label style={{ fontSize: 11 }}>Show</label>
                               <select value={wattChartFilter} onChange={e => setWattChartFilter(e.target.value)} style={{ fontSize: 12, padding: '5px 8px' }}>
                                 <option value="all">All types</option>
-                                {wattTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                                {wattTypes.map(t => <option key={t} value={t}>{formatIntervalLabel(t)}</option>)}
                               </select>
                             </div>
                           )}
@@ -7063,7 +7075,7 @@ export default function AthleteApp() {
                               ))}
                               {s.watt_bike && toEntries(s.watt_bike).map((e, ei) => (
                                 <p key={ei} style={{ fontSize: 12, margin: '4px 0' }}>
-                                  🚴 {normalizeIntervalMode(e.interval_mode || e.type) || 'Watt bike'}{(e.sets?.length) ? `: ${e.sets.map(v => (v && typeof v === 'object') ? v.wattage : v).join(', ')}W` : ' logged'}
+                                  🚴 {formatIntervalLabel(normalizeIntervalMode(e.interval_mode || e.type)) || 'Watt bike'}{(e.sets?.length) ? `: ${e.sets.map(v => (v && typeof v === 'object') ? v.wattage : v).join(', ')}W` : ' logged'}
                                 </p>
                               ))}
                               {s.bodyweight && toEntries(s.bodyweight).map((e, ei) => (
