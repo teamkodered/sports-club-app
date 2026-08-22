@@ -292,7 +292,7 @@ export default function CRM() {
     if (!addingNoteForStudent || !quickNoteDraft.trim()) return
     setSavingQuickNote(true)
     const { data, error } = await supabase.from('athlete_notes_log').insert({
-      student_id: addingNoteForStudent.id, note_text: quickNoteDraft.trim(),
+      student_id: addingNoteForStudent.id, note_text: quickNoteDraft.trim(), author_role: 'coach', visible_to_athlete: false,
     }).select().single()
     setSavingQuickNote(false)
     if (error) { alert('Error saving note: ' + error.message); return }

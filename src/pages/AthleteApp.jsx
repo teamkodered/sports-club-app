@@ -1698,7 +1698,13 @@ export default function AthleteApp() {
           .or(`student_id.is.null,student_id.eq.${s.id}`)
           .then(({ data, error }) => { if (!error) setSectionTargets(data || []) })
 
-        supabase.from('athlete_notes_log').select('*').eq('student_id', s.id).order('logged_at', { ascending: false })
+        // Coach notes are private by default now (only visible if
+        // explicitly shared) -- the athlete's own notes, and a few
+        // coach actions that represent the athlete's own activity
+        // (e.g. completing a PDP task), stay visible regardless.
+        supabase.from('athlete_notes_log').select('*').eq('student_id', s.id)
+          .or('author_role.eq.athlete,visible_to_athlete.eq.true')
+          .order('logged_at', { ascending: false })
           .then(({ data, error }) => { if (!error) setMyNotesLog(data || []) })
 
         supabase.from('tpt_kickboxing').select('*').eq('student_id', s.id).order('assessed_at', { ascending: false }).limit(2)
@@ -2038,7 +2044,7 @@ export default function AthleteApp() {
     if (!newNoteText.trim() || !student) return
     setSavingNote(true)
     const { data, error } = await supabase.from('athlete_notes_log')
-      .insert({ student_id: student.id, note_text: newNoteText.trim(), logged_at: new Date().toISOString() })
+      .insert({ student_id: student.id, note_text: newNoteText.trim(), logged_at: new Date().toISOString(), author_role: 'athlete', visible_to_athlete: true })
       .select().single()
     if (error) { alert('Error saving note: ' + error.message); setSavingNote(false); return }
     setMyNotesLog(prev => [data, ...prev])
@@ -5636,7 +5642,7 @@ export default function AthleteApp() {
                 const header = `${classDetailPanel.classInfo?.name} — ${new Date(classDetailPanel.dateStr + 'T12:00:00').toLocaleDateString('en-GB')}`
                 const fullText = `${header}\n${classNoteText.trim()}`
                 const { data, error } = await supabase.from('athlete_notes_log')
-                  .insert({ student_id: student.id, note_text: fullText, logged_at: new Date().toISOString() })
+                  .insert({ student_id: student.id, note_text: fullText, logged_at: new Date().toISOString(), author_role: 'athlete', visible_to_athlete: true })
                   .select().single()
                 if (error) { alert('Error saving note: ' + error.message) } else {
                   setMyNotesLog(prev => [data, ...prev])

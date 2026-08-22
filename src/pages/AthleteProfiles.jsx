@@ -1320,7 +1320,7 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
     const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: updated }, { onConflict: 'student_id' })
     if (error) { alert('Error updating maintain list: ' + error.message); return }
     const { error: err2 } = await supabase.from('athlete_notes_log').insert({
-      student_id: student.id, note_text: `Completed PDP task: ${item}`,
+      student_id: student.id, note_text: `Completed PDP task: ${item}`, author_role: 'coach', visible_to_athlete: true,
     })
     if (err2) { alert('Error logging completed task: ' + err2.message); return }
     setApData(a => ({ ...a, pdp_notes: updated }))
@@ -2731,6 +2731,7 @@ export default function AthleteProfiles() {
   const pendingNoteDeleteRef = useRef(null)
   const [newNoteText, setNewNoteText] = useState('')
   const [newNoteTitle, setNewNoteTitle] = useState('')
+  const [newNoteShared, setNewNoteShared] = useState(false)
   const [editingNoteId, setEditingNoteId] = useState(null) // athlete_notes_log.id being edited, or null
   const [editingNoteText, setEditingNoteText] = useState('')
   const [savingNote, setSavingNote] = useState(false)
@@ -4084,7 +4085,7 @@ export default function AthleteProfiles() {
   }
 
   async function sendNoteToAthlete(note, student) {
-    const { error } = await supabase.from('athlete_notes_log').insert({ student_id: student.id, note_text: note.note_text })
+    const { error } = await supabase.from('athlete_notes_log').insert({ student_id: student.id, note_text: note.note_text, author_role: 'coach', visible_to_athlete: true })
     if (error) return alert(`Error sending to ${student.members?.first_name}: ` + error.message)
     const updatedIds = [...new Set([...(note.sent_to_student_ids || []), student.id])]
     const { error: err2 } = await supabase.from('team_notes').update({ sent_to_student_ids: updatedIds }).eq('id', note.id)
@@ -4097,7 +4098,7 @@ export default function AthleteProfiles() {
     if (!studentIds.length) return
     const targets = students.filter(s => studentIds.includes(s.id))
     for (const s of targets) {
-      await supabase.from('athlete_notes_log').insert({ student_id: s.id, note_text: note.note_text })
+      await supabase.from('athlete_notes_log').insert({ student_id: s.id, note_text: note.note_text, author_role: 'coach', visible_to_athlete: true })
     }
     const updatedIds = [...new Set([...(note.sent_to_student_ids || []), ...studentIds])]
     const { error } = await supabase.from('team_notes').update({ sent_to_student_ids: updatedIds }).eq('id', note.id)
@@ -4670,13 +4671,20 @@ export default function AthleteProfiles() {
     // clear first line instead, rather than needing a schema change.
     const fullText = newNoteTitle.trim() ? `${newNoteTitle.trim()}\n${newNoteText.trim()}` : newNoteText.trim()
     const { data, error } = await supabase.from('athlete_notes_log')
-      .insert({ student_id: selected.id, note_text: fullText })
+      .insert({ student_id: selected.id, note_text: fullText, author_role: 'coach', visible_to_athlete: newNoteShared })
       .select('*').single()
     if (error) { alert('Error saving note: ' + error.message); setSavingNote(false); return }
     setNotesLog(prev => [data, ...prev])
     setNewNoteText('')
     setNewNoteTitle('')
+    setNewNoteShared(false)
     setSavingNote(false)
+  }
+
+  async function toggleNoteShared(note) {
+    const { error } = await supabase.from('athlete_notes_log').update({ visible_to_athlete: !note.visible_to_athlete }).eq('id', note.id)
+    if (error) { alert('Error updating note: ' + error.message); return }
+    setNotesLog(prev => prev.map(n => n.id === note.id ? { ...n, visible_to_athlete: !n.visible_to_athlete } : n))
   }
 
   async function addOpponentNote(opponentName, noteText, authorRole, shared = false) {
@@ -11768,7 +11776,11 @@ export default function AthleteProfiles() {
                     style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 14, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', marginBottom: 8 }} />
                   <textarea value={newNoteText} onChange={e => setNewNoteText(e.target.value)}
                     placeholder="Write a note about this athlete…" rows={6}
-                    style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 15, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical' }} />
+                    style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 15, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={newNoteShared} onChange={e => setNewNoteShared(e.target.checked)} style={{ width: 14, height: 14 }} />
+                    Share with athlete (private/coach-only by default)
+                  </label>
                 </div>
 
                 {notesLog.length === 0 ? (
@@ -11788,6 +11800,12 @@ export default function AthleteProfiles() {
                             style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 16, flexShrink: 0 }}>×</button>
                         </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                          <button onClick={e => { e.stopPropagation(); toggleNoteShared(note) }}
+                            className="btn btn-sm"
+                            style={{ fontSize: 10, background: note.visible_to_athlete ? '#1D9E7515' : undefined, borderColor: note.visible_to_athlete ? '#1D9E75' : undefined, color: note.visible_to_athlete ? '#1D9E75' : undefined }}
+                            title={note.visible_to_athlete ? 'Visible to athlete — click to make private' : 'Private (coach-only) — click to share with athlete'}>
+                            {note.visible_to_athlete ? '👁 Shared' : '🔒 Private'}
+                          </button>
                           <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Send to:</span>
                           {Object.keys(NOTE_PDP_TARGETS).map(label => {
                             const sent = (note.sent_to || []).includes(label)
