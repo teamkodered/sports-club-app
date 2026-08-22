@@ -1656,6 +1656,10 @@ export default function AthleteApp() {
         setPoints(pts || [])
         setSessions(sess || [])
         setAttendanceData(myAtt || [])
+        // Reset the tracked "today's session row" ref on a fresh load --
+        // stale from a previous load, this could otherwise cause saves
+        // to target the wrong row (or the wrong day) after a reload.
+        todaysSessionIdRef.current = (sess || []).find(s2 => s2.session_date === new Date().toISOString().split('T')[0])?.id ?? null
 
         const { data: allAtt } = await supabase.from('attendance')
           .select('student_id, session_date, attendance_type, students(discipline, class_schedule, class_time)')
@@ -2358,25 +2362,56 @@ export default function AthleteApp() {
   // Generic save for Running/Watt bike/Bodyweight/Stretch flows -- these
   // are single-object fields (not flat multi-value maps like Test), so
   // saving means writing the whole updated object/array for that field.
+  // Two related race conditions fixed here:
+  // 1. Each save sends the FULL current value (not a partial diff), so
+  //    if two taps happen in quick succession (e.g. logging two
+  //    stretch flows one after another -- a completely normal thing to
+  //    do), their two network requests can complete OUT OF ORDER on a
+  //    slow/flaky connection. Whichever response arrives at the client
+  //    LAST simply overwrites the row with whatever snapshot IT was
+  //    given -- if that's the earlier, less-complete one, the later
+  //    (correct, more complete) save gets silently undone. This
+  //    doesn't require any mistake on the athlete's part, just two
+  //    genuine actions close together.
+  // 2. Whether to insert vs. update also depends on "does today's row
+  //    already exist", checked via the `sessions` state closure --
+  //    which may not yet reflect a row that a slightly-earlier queued
+  //    save is in the middle of creating, risking a duplicate insert
+  //    for the same day.
+  // Fixed by serialising all saves through one queue (so they always
+  // apply in the order they were started, not the order their network
+  // responses happen to arrive) and tracking today's row id in a ref
+  // that's updated the moment it's known, rather than re-deriving it
+  // from `sessions` on every call.
+  const physicalSaveQueueRef = useRef(Promise.resolve())
+  const todaysSessionIdRef = useRef(null)
+
   async function savePhysicalField(dbField, newValue, localSetter) {
     if (!student) return
+    localSetter(newValue) // optimistic local update, applies immediately regardless of queue position
     setSavingPhysical(true)
-    localSetter(newValue)
-    const todaysDate = new Date().toISOString().split('T')[0]
-    const existing = sessions.find(s => s.session_date === todaysDate)
-    let error
-    if (existing) {
-      ;({ error } = await supabase.from('fit2fight_sessions').update({ [dbField]: newValue }).eq('id', existing.id))
-      if (!error) setSessions(prev => prev.map(s => s.id === existing.id ? { ...s, [dbField]: newValue } : s))
-    } else {
-      const { data, error: insertErr } = await supabase.from('fit2fight_sessions')
-        .insert({ student_id: student.id, session_date: todaysDate, [dbField]: newValue })
-        .select().single()
-      error = insertErr
-      if (!error && data) setSessions(prev => [data, ...prev])
+    const runSave = async () => {
+      const todaysDate = new Date().toISOString().split('T')[0]
+      if (todaysSessionIdRef.current == null) {
+        const existing = sessions.find(s => s.session_date === todaysDate)
+        if (existing) todaysSessionIdRef.current = existing.id
+      }
+      let error
+      if (todaysSessionIdRef.current != null) {
+        ;({ error } = await supabase.from('fit2fight_sessions').update({ [dbField]: newValue }).eq('id', todaysSessionIdRef.current))
+        if (!error) setSessions(prev => prev.map(s => s.id === todaysSessionIdRef.current ? { ...s, [dbField]: newValue } : s))
+      } else {
+        const { data, error: insertErr } = await supabase.from('fit2fight_sessions')
+          .insert({ student_id: student.id, session_date: todaysDate, [dbField]: newValue })
+          .select().single()
+        error = insertErr
+        if (!error && data) { todaysSessionIdRef.current = data.id; setSessions(prev => [data, ...prev]) }
+      }
+      if (error) alert('Error saving: ' + error.message)
+      else flashSaved()
     }
-    if (error) alert('Error saving: ' + error.message)
-    else flashSaved()
+    physicalSaveQueueRef.current = physicalSaveQueueRef.current.then(runSave, runSave)
+    await physicalSaveQueueRef.current
     setSavingPhysical(false)
   }
 
@@ -3961,7 +3996,22 @@ export default function AthleteApp() {
                         const complete = !!todaysStretches[i]
                         return (
                           <button key={i} type="button"
-                            onClick={() => { const next = [...todaysStretches]; next[i] = complete ? '' : flow.label; savePhysicalField('stretch_flows', next, setTodaysStretches) }}
+                            onClick={() => {
+                              // Marking complete is a plain tap, but
+                              // un-marking an already-completed flow
+                              // needs a deliberate confirmation --
+                              // previously a second tap on the same
+                              // spot silently undid it, which is an
+                              // easy accidental double-tap away
+                              // (especially with any save delay before
+                              // the ✓ shows), and looked identical to
+                              // "it never saved" to anyone checking
+                              // later.
+                              if (complete) {
+                                if (!window.confirm(`Mark "${flow.label}" as not done? This removes today's entry.`)) return
+                              }
+                              const next = [...todaysStretches]; next[i] = complete ? '' : flow.label; savePhysicalField('stretch_flows', next, setTodaysStretches)
+                            }}
                             style={{
                               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 8px',
                               borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',

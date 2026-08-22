@@ -4826,24 +4826,39 @@ export default function AthleteProfiles() {
   // Generic save for Running/Watt bike/Bodyweight/Stretch flows -- these
   // are single-object fields (not flat multi-value maps like Test), so
   // saving means writing the whole updated object/array for that field.
+  // Same race-condition fix as the athlete's own view (AthleteApp.jsx)
+  // -- see the comment there for the full explanation. Two rapid
+  // saves (e.g. a coach ticking two techniques one after another) can
+  // have their network responses arrive out of order, letting the
+  // earlier, less-complete save silently overwrite the later one.
+  const physicalSaveQueueRef = useRef(Promise.resolve())
+  const todaysSessionIdRef = useRef(null)
+
   async function savePhysicalField(dbField, newValue, localSetter) {
-    setSavingPhysical(true)
     localSetter(newValue)
-    const todaysDate = new Date().toISOString().split('T')[0]
-    const existing = f2fData.find(s => s.session_date === todaysDate)
-    let error
-    if (existing) {
-      ;({ error } = await supabase.from('fit2fight_sessions').update({ [dbField]: newValue }).eq('id', existing.id))
-      if (!error) setF2fData(prev => prev.map(s => s.id === existing.id ? { ...s, [dbField]: newValue } : s))
-    } else {
-      const { data, error: insertErr } = await supabase.from('fit2fight_sessions')
-        .insert({ student_id: selected.id, session_date: todaysDate, [dbField]: newValue })
-        .select().single()
-      error = insertErr
-      if (!error && data) setF2fData(prev => [data, ...prev])
+    setSavingPhysical(true)
+    const runSave = async () => {
+      const todaysDate = new Date().toISOString().split('T')[0]
+      if (todaysSessionIdRef.current == null) {
+        const existing = f2fData.find(s => s.session_date === todaysDate)
+        if (existing) todaysSessionIdRef.current = existing.id
+      }
+      let error
+      if (todaysSessionIdRef.current != null) {
+        ;({ error } = await supabase.from('fit2fight_sessions').update({ [dbField]: newValue }).eq('id', todaysSessionIdRef.current))
+        if (!error) setF2fData(prev => prev.map(s => s.id === todaysSessionIdRef.current ? { ...s, [dbField]: newValue } : s))
+      } else {
+        const { data, error: insertErr } = await supabase.from('fit2fight_sessions')
+          .insert({ student_id: selected.id, session_date: todaysDate, [dbField]: newValue })
+          .select().single()
+        error = insertErr
+        if (!error && data) { todaysSessionIdRef.current = data.id; setF2fData(prev => [data, ...prev]) }
+      }
+      if (error) alert('Error saving: ' + error.message)
+      else flashSaved()
     }
-    if (error) alert('Error saving: ' + error.message)
-    else flashSaved()
+    physicalSaveQueueRef.current = physicalSaveQueueRef.current.then(runSave, runSave)
+    await physicalSaveQueueRef.current
     setSavingPhysical(false)
   }
 
@@ -4866,10 +4881,19 @@ export default function AthleteProfiles() {
     setAttendanceData([])
     setSessionPoints([])
     setOpenSession(null)
+    // Reset the tracked "today's session row" ref when switching to a
+    // different student -- stale from the previous athlete, this could
+    // otherwise cause a save to target the wrong student's row.
+    todaysSessionIdRef.current = null
     // Load F2F sessions
     supabase.from('fit2fight_sessions').select('*').eq('student_id', s.id)
       .order('session_date', { ascending: false })
-      .then(({ data }) => { if (selectingIdRef.current === s.id) setF2fData(data || []) })
+      .then(({ data }) => {
+        if (selectingIdRef.current === s.id) {
+          setF2fData(data || [])
+          todaysSessionIdRef.current = (data || []).find(s2 => s2.session_date === new Date().toISOString().split('T')[0])?.id ?? null
+        }
+      })
     // Load MTP data -- latest 2, to show side by side for comparison
     supabase.from('tpt_kickboxing').select('*').eq('student_id', s.id)
       .order('assessed_at', { ascending: false }).limit(2)
@@ -8395,7 +8419,12 @@ export default function AthleteProfiles() {
                       const complete = !!todaysStretches[i]
                       return (
                         <button key={i} type="button"
-                          onClick={() => { const next = [...todaysStretches]; next[i] = complete ? '' : flow.label; savePhysicalField('stretch_flows', next, setTodaysStretches) }}
+                          onClick={() => {
+                            if (complete) {
+                              if (!window.confirm(`Mark "${flow.label}" as not done? This removes today's entry.`)) return
+                            }
+                            const next = [...todaysStretches]; next[i] = complete ? '' : flow.label; savePhysicalField('stretch_flows', next, setTodaysStretches)
+                          }}
                           style={{
                             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 8px',
                             borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
