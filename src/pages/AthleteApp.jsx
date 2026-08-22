@@ -3757,7 +3757,7 @@ export default function AthleteApp() {
                             // sent (pdp_shared), but "to do" sections are
                             // always visible without needing to be sent,
                             // so those are counted from pdp_notes directly.
-                            const totalSent = PDP_SECTIONS.reduce((sum, s) =>
+                            const totalSent = PDP_SECTIONS.filter(s => s.key !== 'winning_ways').reduce((sum, s) =>
                               sum + (isToDoSectionKey(s.key) ? (pdp[s.key] || []).length : (shared[s.key] || []).length), 0)
                             return totalSent > 0 ? `${completedCount}/${totalSent}` : completedCount
                           })()}

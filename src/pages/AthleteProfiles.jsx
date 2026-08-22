@@ -8250,7 +8250,7 @@ export default function AthleteProfiles() {
                           // live as local variables.
                           const pdpNotesLocal = apData?.pdp_notes || {}
                           const pdpSharedLocal = apData?.pdp_shared || {}
-                          const totalSent = PDP_SECTIONS.reduce((sum, s) =>
+                          const totalSent = PDP_SECTIONS.filter(s => s.key !== 'winning_ways').reduce((sum, s) =>
                             sum + (isToDoSectionKey(s.key) ? (pdpNotesLocal[s.key] || []).length : (pdpSharedLocal[s.key] || []).length), 0)
                           return totalSent > 0 ? `${completedCount}/${totalSent}` : completedCount
                         })()}
