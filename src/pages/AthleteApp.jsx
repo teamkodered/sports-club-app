@@ -540,6 +540,7 @@ const WATT_BIKE_GROUPS = [
 const BODYWEIGHT_GROUPS = [
   { key: 'circuit', label: 'Fixed load circuit', icon: '🔴', exercises: ['Red', 'Yellow', 'Green', 'Blue', 'Black'], metric: 'time', durations: null },
   { key: 'compounds', label: 'Compounds', icon: '💪', exercises: ['Dips', 'Push-ups', 'Pull-ups', 'Squats'], metric: 'reps', durations: ['10 seconds', '30 seconds', '1 minute'] },
+  { key: 'compound_lifts', label: 'Compound Lifts (Weights)', icon: '🏋️', exercises: ['Bench Press', 'Deadlift', 'Shoulder Press', 'Squat'], metric: 'weight_reps', durations: null },
   { key: 'isometrics', label: 'Isometrics', icon: '🧘', exercises: ['Flat plank', 'Side Plank - Right side up', 'Side Plank - Left side up', 'Bridge', 'Wall sit', 'Half push'], metric: 'time', durations: ['1 min', '2 min', '3 min', '5 min'] },
   { key: 'abs', label: 'Abs circuit', icon: '🔥', exercises: ['Crunches', 'Full sit-ups', 'Side crunch', 'Dorsal raises'], metric: 'reps', durations: ['1 min', '2 min', '3 min', '5 min'] },
 ]
@@ -579,23 +580,15 @@ const STRETCH_FLOWS = [
 ]
 
 const TEST_CATEGORIES = [
+  { key: 'jumps', label: 'Jumps', icon: '🦘', tests: [
+    { name: 'Vertical Jump (distance)', unit: 'cm' },
+    { name: 'Long Jump (distance)', unit: 'cm' },
+  ]},
   { key: 'bleep', label: 'Bleep test', icon: '🏃', tests: [
     { name: 'Bleep test', unit: 'level' },
   ]},
   { key: 'vo2max', label: 'VO2 Max', icon: '🫁', tests: [
     { name: 'VO2 Max', unit: 'ml/kg/min' },
-  ]},
-  { key: 'stretches', label: 'Stretches', icon: '🤸', tests: [
-    { name: 'Hamstring Stretch (range)', unit: 'cm' },
-    { name: 'Box Splits Stretch (range)', unit: 'cm' },
-    { name: 'Front Splits - Left in front (range)', unit: 'cm' },
-    { name: 'Front Splits - Right in front (range)', unit: 'cm' },
-    { name: 'Shoulder flex - Right hand up (range)', unit: 'cm' },
-    { name: 'Shoulder flex - Left hand up (range)', unit: 'cm' },
-  ]},
-  { key: 'jumps', label: 'Jumps', icon: '🦘', tests: [
-    { name: 'Vertical Jump (distance)', unit: 'cm' },
-    { name: 'Long Jump (distance)', unit: 'cm' },
   ]},
   { key: 'grip', label: 'Grip', icon: '✊', tests: [
     { name: 'Left Grip Test (kg)', unit: 'kg' },
@@ -622,6 +615,14 @@ const TEST_CATEGORIES = [
     { name: 'Fixed load circuit - Green', unit: 'sec' },
     { name: 'Fixed load circuit - Blue', unit: 'sec' },
     { name: 'Fixed load circuit - Black', unit: 'sec' },
+  ]},
+  { key: 'stretches', label: 'Stretches', icon: '🤸', tests: [
+    { name: 'Hamstring Stretch (range)', unit: 'cm' },
+    { name: 'Box Splits Stretch (range)', unit: 'cm' },
+    { name: 'Front Splits - Left in front (range)', unit: 'cm' },
+    { name: 'Front Splits - Right in front (range)', unit: 'cm' },
+    { name: 'Shoulder flex - Right hand up (range)', unit: 'cm' },
+    { name: 'Shoulder flex - Left hand up (range)', unit: 'cm' },
   ]},
   { key: 'timedrun', label: 'Timed Run', icon: '🏃', tests: [
     { name: '200m sprint', unit: 'sec' },
@@ -3927,9 +3928,20 @@ export default function AthleteApp() {
                                         ))}
                                       </div>
                                     )}
-                                    <SetInput key={ex} sets={entry.sets || []} onChange={sets => upsertExercise(ex, cur => ({ ...cur, sets }))}
-                                      inputType={grp.metric === 'reps' ? 'number' : 'text'}
-                                      placeholder={grp.metric === 'reps' ? 'e.g. 20' : 'e.g. 1:30'} />
+                                    {grp.metric === 'weight_reps' ? (
+                                      <DualSetInput
+                                        key={ex}
+                                        sets={(entry.sets || []).map(s => (s && typeof s === 'object') ? s : { weight: '', reps: s })}
+                                        onChange={sets => upsertExercise(ex, cur => ({ ...cur, sets }))}
+                                        fields={[
+                                          { key: 'weight', type: 'number', placeholder: 'Weight kg' },
+                                          { key: 'reps', type: 'number', placeholder: 'Reps' },
+                                        ]} />
+                                    ) : (
+                                      <SetInput key={ex} sets={entry.sets || []} onChange={sets => upsertExercise(ex, cur => ({ ...cur, sets }))}
+                                        inputType={grp.metric === 'reps' ? 'number' : 'text'}
+                                        placeholder={grp.metric === 'reps' ? 'e.g. 20' : 'e.g. 1:30'} />
+                                    )}
                                   </div>
                                 )}
                               </div>
