@@ -111,6 +111,8 @@ export default function LeagueViews() {
   const [editingPoint, setEditingPoint] = useState(null)
   const [scoreHistoryOpen, setScoreHistoryOpen] = useState(false) // shows the score-history popup using searchResults, without switching to Score check tab
   const [profilePopupFor, setProfilePopupFor] = useState(null) // student object for the hold-triggered quick-profile popup
+  const [fullProfileModal, setFullProfileModal] = useState(null) // richer profile fetched on demand, shown as a second same-page popup (never navigates away)
+  const [loadingFullProfile, setLoadingFullProfile] = useState(false)
   const [editVal, setEditVal] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -380,6 +382,21 @@ export default function LeagueViews() {
       }))
 
     setPointsLog(enriched)
+  }
+
+  // Fetches a fuller profile (phone/email/DOB/grade/class/groups) on
+  // demand for the "View full profile" popup -- same fields/layout as
+  // the Register page's own contact popup, so this stays a same-page
+  // popup rather than navigating away like it used to.
+  async function openFullProfile(studentId) {
+    setLoadingFullProfile(true)
+    setFullProfileModal({ id: studentId })
+    const { data } = await supabase
+      .from('students')
+      .select('*, members(first_name, last_name, phone, email, date_of_birth, houses(name))')
+      .eq('id', studentId).maybeSingle()
+    setFullProfileModal(data)
+    setLoadingFullProfile(false)
   }
 
   // Opens the same results the Score check tab shows, in a popup on
@@ -1101,9 +1118,53 @@ export default function LeagueViews() {
                 </div>
               )
             })()}
-            <Link to={studentProfileLink(profilePopupFor)} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
+            <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}
+              onClick={() => { const id = profilePopupFor.id; setProfilePopupFor(null); openFullProfile(id) }}>
               View full profile →
-            </Link>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Full profile popup -- fetched on demand, same fields/layout as
+          the Register page's own contact popup. Stays on this same
+          page (no navigation) -- previously this was a Link that took
+          you away to a separate Students/Athletes page entirely. */}
+      {fullProfileModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 70, padding: 16 }}
+          onClick={() => setFullProfileModal(null)}>
+          <div className="card" style={{ width: '100%', maxWidth: 380 }} onClick={e => e.stopPropagation()}>
+            {loadingFullProfile ? (
+              <div className="loading">Loading…</div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
+                  <h2 style={{ fontSize: 15, fontWeight: 600 }}>{fullProfileModal.members?.first_name} {fullProfileModal.members?.last_name}</h2>
+                  <button onClick={() => setFullProfileModal(null)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
+                </div>
+                {[
+                  ['Student ID', fullProfileModal.student_ref],
+                  ['Phone', fullProfileModal.members?.phone || '—'],
+                  ['Email', fullProfileModal.members?.email || '—'],
+                  ['DOB', fullProfileModal.members?.date_of_birth || '—'],
+                  ['House', fullProfileModal.house_name || fullProfileModal.members?.houses?.name || '—'],
+                  ['Grade', fullProfileModal.pka_belt || fullProfileModal.krba_level || '—'],
+                  ['Class', `${fullProfileModal.class_schedule || '—'} ${fullProfileModal.class_time || ''}`],
+                  ['Groups', [fullProfileModal.is_kr && 'KR', fullProfileModal.is_pts && 'PTs', fullProfileModal.is_leader && 'Leader'].filter(Boolean).join(', ') || 'None'],
+                ].map(([label, val]) => (
+                  <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
+                    <span style={{ fontWeight: 500 }}>{val}</span>
+                  </div>
+                ))}
+                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                  {fullProfileModal.members?.phone && <a href={`tel:${fullProfileModal.members.phone}`} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>📞 Call</a>}
+                  <Link to={studentProfileLink(fullProfileModal)} className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setFullProfileModal(null)}>
+                    Open full page →
+                  </Link>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

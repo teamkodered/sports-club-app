@@ -61,6 +61,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
+import { studentProfileLink } from '../lib/studentLinks.js'
 
 const HOUSE_COLOURS = {
   'Dragon House': '#E24B4A', 'Super House': '#378ADD',
@@ -1419,7 +1420,7 @@ export default function Registers() {
             ))}
             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
               {contactModal.members?.phone && <a href={`tel:${contactModal.members.phone}`} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>📞 Call</a>}
-              <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => { setContactModal(null); navigate(`/students?id=${contactModal.id}`) }}>View profile →</button>
+              <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => { setContactModal(null); navigate(studentProfileLink(contactModal)) }}>View profile →</button>
             </div>
           </div>
         </div>
