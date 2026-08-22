@@ -83,6 +83,22 @@ export default function LeagueViews() {
 
   const CLASS_OPTIONS = ['All', 'Class', 'PTs', 'KR', 'Leader', 'KRBA']
 
+  // classFilter was fully wired up in the UI (dropdown + triggers a
+  // reload) but never actually used to filter anything -- selecting an
+  // option just reloaded the same unfiltered data every time. This
+  // checks a student against the selected filter; "Class" means a
+  // regular PKA-discipline student who isn't specifically KR/PTs/
+  // Leader (matches the same Groups convention used in Registers.jsx).
+  function studentMatchesClassFilter(s) {
+    if (classFilter === 'All') return true
+    if (classFilter === 'KR') return !!s.is_kr
+    if (classFilter === 'PTs') return !!s.is_pts
+    if (classFilter === 'Leader') return !!s.is_leader
+    if (classFilter === 'KRBA') return s.discipline === 'KRBA'
+    if (classFilter === 'Class') return s.discipline !== 'KRBA' && !s.is_kr && !s.is_pts && !s.is_leader
+    return true
+  }
+
   useEffect(() => { loadAll() }, [dateFrom, dateTo, classFilter])
 
   // Load saved "show top" selections and date range so the public
@@ -175,13 +191,14 @@ export default function LeagueViews() {
         .gte('awarded_at', dateFrom)
         .lte('awarded_at', dateTo + 'T23:59:59')
         .in('point_scope', ['house', 'both'])),
-      fetchAllRows(() => supabase.from('students').select('id, house_name, member_id, members(houses(name))')),
+      fetchAllRows(() => supabase.from('students').select('id, house_name, member_id, is_kr, is_pts, is_leader, discipline, members(houses(name))')),
       supabase.from('houses').select('id, name, points, wins, draws, losses, members(count)'),
     ])
 
-    // Build student → house lookup
+    // Build student → house lookup, respecting the class/group filter
     const studentHouseMap = {}
     for (const s of (studentsData || [])) {
+      if (!studentMatchesClassFilter(s)) continue
       studentHouseMap[s.id] = s.members?.houses?.name || s.house_name || null
     }
 
@@ -211,13 +228,14 @@ export default function LeagueViews() {
         .gte('awarded_at', dateFrom)
         .lte('awarded_at', dateTo + 'T23:59:59')),
       fetchAllRows(() => supabase.from('students')
-        .select('id, student_ref, class_champion_count, house_name, member_id, is_kr, is_pts, discipline, members(first_name, last_name, date_of_birth, houses(name))')),
+        .select('id, student_ref, class_champion_count, house_name, member_id, is_kr, is_pts, is_leader, discipline, members(first_name, last_name, date_of_birth, houses(name))')),
     ])
     if (!ptsData) return
 
-    // Build student lookup
+    // Build student lookup, respecting the class/group filter
     const studentMap = {}
     for (const s of (studentsData || [])) {
+      if (!studentMatchesClassFilter(s)) continue
       const m = s.members
       studentMap[s.id] = {
         ref: s.student_ref,
@@ -234,7 +252,8 @@ export default function LeagueViews() {
     for (const row of ptsData) {
       const sid = row.student_id
       if (!sid) continue
-      const info = studentMap[sid] || { ref: '', name: '', house: '', champCount: 0, dob: null, is_kr: false, is_pts: false, discipline: '' }
+      const info = studentMap[sid]
+      if (!info) continue // filtered out by classFilter, or no matching student record
       if (!map[sid]) {
         map[sid] = {
           id: sid,
@@ -272,7 +291,7 @@ export default function LeagueViews() {
         .order('awarded_at', { ascending: false })
         .limit(100),
       fetchAllRows(() => supabase.from('students')
-        .select('id, student_ref, house_name, member_id, is_kr, is_pts, discipline, members(first_name, last_name, houses(name))')),
+        .select('id, student_ref, house_name, member_id, is_kr, is_pts, is_leader, discipline, members(first_name, last_name, houses(name))')),
     ])
 
     // Build student lookup
@@ -282,7 +301,7 @@ export default function LeagueViews() {
       studentMap[s.id] = {
         id: s.id,
         student_ref: s.student_ref,
-        is_kr: s.is_kr, is_pts: s.is_pts, discipline: s.discipline,
+        is_kr: s.is_kr, is_pts: s.is_pts, is_leader: s.is_leader, discipline: s.discipline,
         members: {
           first_name: m?.first_name || '',
           last_name: m?.last_name || '',
@@ -292,11 +311,14 @@ export default function LeagueViews() {
     }
 
     // Attach student info to each log row in the SAME shape as before (students.members.houses.name)
-    // so existing rendering code keeps working without further changes
-    const enriched = (logData || []).map(row => ({
-      ...row,
-      students: studentMap[row.student_id] || { id: row.student_id, student_ref: '', is_kr: false, is_pts: false, discipline: '', members: { first_name: '', last_name: '', houses: { name: '' } } },
-    }))
+    // so existing rendering code keeps working without further changes. Rows for a student who
+    // doesn't match the selected class/group filter are dropped entirely, same as the ranking tabs.
+    const enriched = (logData || [])
+      .filter(row => classFilter === 'All' || studentMatchesClassFilter(studentMap[row.student_id] || {}))
+      .map(row => ({
+        ...row,
+        students: studentMap[row.student_id] || { id: row.student_id, student_ref: '', is_kr: false, is_pts: false, discipline: '', members: { first_name: '', last_name: '', houses: { name: '' } } },
+      }))
 
     setPointsLog(enriched)
   }
