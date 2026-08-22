@@ -26,7 +26,12 @@ export default function CalendarPage() {
   const [settingHolidays, setSettingHolidays] = useState(false)
   const [holidaySelected, setHolidaySelected] = useState(new Set()) // date strings, shown in orange
   const [holidayName, setHolidayName] = useState('')
+  const [holidayScope, setHolidayScope] = useState('club') // 'club' | 'class' | 'student'
   const [holidayClassId, setHolidayClassId] = useState('')
+  const [holidayStudentId, setHolidayStudentId] = useState('')
+  const [holidayStudentLabel, setHolidayStudentLabel] = useState('') // display name once picked
+  const [studentSearch, setStudentSearch] = useState('')
+  const [studentSearchResults, setStudentSearchResults] = useState([])
   const [savingHoliday, setSavingHoliday] = useState(false)
   const dragStateRef = useRef({ dragging: false, mode: 'add' }) // mode: whether this drag is adding or removing
 
@@ -35,7 +40,7 @@ export default function CalendarPage() {
   async function load() {
     const [{ data: c }, { data: h }, { data: f }, { data: co }] = await Promise.all([
       supabase.from('classes').select('*').eq('active', true).eq('is_custom', false).order('start_time'),
-      supabase.from('holidays').select('*, classes(name)').order('start_date', { ascending: false }),
+      supabase.from('holidays').select('*, classes(name), students(student_ref, members(first_name, last_name))').order('start_date', { ascending: false }),
       supabase.from('fixtures').select('*, home_house:houses!home_house_id(name), away_house:houses!away_house_id(name)').order('date'),
       supabase.from('courses').select('*').order('start_date'),
     ])
@@ -74,6 +79,7 @@ export default function CalendarPage() {
   const selectedClasses = selectedDate ? classesForDate(selectedDate) : []
   const selectedHoliday = selectedDate ? holidayCoveringDate(selectedDate) : null
   const selectedPerClassHolidays = selectedDate ? holidays.filter(h => h.class_id && h.start_date <= selectedDate && h.end_date >= selectedDate) : []
+  const selectedStudentHolidays = selectedDate ? holidays.filter(h => h.student_id && h.start_date <= selectedDate && h.end_date >= selectedDate) : []
   const selectedFixtures = selectedDate ? fixturesForDate(selectedDate) : []
   const selectedCourses = selectedDate ? coursesForDate(selectedDate) : []
 
@@ -126,7 +132,12 @@ export default function CalendarPage() {
     setSettingHolidays(true)
     setHolidaySelected(new Set())
     setHolidayName('')
+    setHolidayScope('club')
     setHolidayClassId('')
+    setHolidayStudentId('')
+    setHolidayStudentLabel('')
+    setStudentSearch('')
+    setStudentSearchResults([])
     setSelectedDate(null)
   }
   function cancelSettingHolidays() {
@@ -134,9 +145,32 @@ export default function CalendarPage() {
     setHolidaySelected(new Set())
   }
 
+  // Live search as the admin types, matching the same name-search
+  // pattern used on the League page's Score check tab.
+  async function searchStudentsForHoliday(q) {
+    setStudentSearch(q)
+    setHolidayStudentId('')
+    setHolidayStudentLabel('')
+    if (!q.trim()) { setStudentSearchResults([]); return }
+    const { data } = await supabase
+      .from('members')
+      .select('id, first_name, last_name, students(id, student_ref)')
+      .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%`)
+      .neq('status', 'stopped').neq('status', 'not_started')
+      .limit(8)
+    const results = []
+    for (const m of (data || [])) {
+      for (const s of (m.students || [])) {
+        results.push({ studentId: s.id, name: `${m.first_name} ${m.last_name}`, ref: s.student_ref })
+      }
+    }
+    setStudentSearchResults(results)
+  }
+
   async function saveHolidaySelection() {
     if (!holidayName.trim()) { alert('Please give this holiday a name.'); return }
     if (holidaySelected.size === 0) { alert('Select at least one day on the calendar, or set a From/To range.'); return }
+    if (holidayScope === 'student' && !holidayStudentId) { alert('Search for and select a student first.'); return }
     setSavingHoliday(true)
 
     // Group the selected (possibly non-contiguous) dates into
@@ -157,7 +191,13 @@ export default function CalendarPage() {
       prev = cur
     }
 
-    const rows = blocks.map(b => ({ name: holidayName.trim(), start_date: b.start_date, end_date: b.end_date, class_id: holidayClassId || null }))
+    const rows = blocks.map(b => ({
+      name: holidayName.trim(),
+      start_date: b.start_date,
+      end_date: b.end_date,
+      class_id: holidayScope === 'class' ? (holidayClassId || null) : null,
+      student_id: holidayScope === 'student' ? holidayStudentId : null,
+    }))
     const { data, error } = await supabase.from('holidays').insert(rows).select('*, classes(name)')
     setSavingHoliday(false)
     if (error) { alert('Error saving holiday: ' + error.message); return }
@@ -195,11 +235,51 @@ export default function CalendarPage() {
           </p>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
             <input value={holidayName} onChange={e => setHolidayName(e.target.value)} placeholder="Holiday name, e.g. Christmas break" style={{ flex: '1 1 200px' }} />
-            <select value={holidayClassId} onChange={e => setHolidayClassId(e.target.value)} style={{ flex: '1 1 180px' }}>
-              <option value="">All classes (club-wide closure)</option>
+          </div>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+            {[['club', 'Club-wide'], ['class', 'Specific class'], ['student', '👤 Individual student']].map(([key, label]) => (
+              <button key={key} className="btn btn-sm" onClick={() => setHolidayScope(key)}
+                style={{
+                  background: holidayScope === key ? 'var(--text)' : 'var(--bg)',
+                  color: holidayScope === key ? 'var(--bg)' : 'var(--text-secondary)',
+                  borderColor: holidayScope === key ? 'var(--text)' : 'var(--border-strong)',
+                }}>{label}</button>
+            ))}
+          </div>
+          {holidayScope === 'class' && (
+            <select value={holidayClassId} onChange={e => setHolidayClassId(e.target.value)} style={{ width: '100%', marginBottom: 10 }}>
+              <option value="">Select a class…</option>
               {classes.map(c => <option key={c.id} value={c.id}>{c.name} — {c.day_of_week} {c.start_time?.slice(0,5)}</option>)}
             </select>
-          </div>
+          )}
+          {holidayScope === 'student' && (
+            <div style={{ marginBottom: 10, position: 'relative' }}>
+              {holidayStudentId ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', border: '1px solid var(--border-strong)' }}>
+                  <span style={{ fontSize: 13, fontWeight: 500, flex: 1 }}>{holidayStudentLabel}</span>
+                  <button className="btn btn-sm" onClick={() => { setHolidayStudentId(''); setHolidayStudentLabel(''); setStudentSearch('') }}>Change</button>
+                </div>
+              ) : (
+                <>
+                  <input value={studentSearch} onChange={e => searchStudentsForHoliday(e.target.value)}
+                    placeholder="Search student by name…" style={{ width: '100%' }} />
+                  {studentSearchResults.length > 0 && (
+                    <div className="card" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20, padding: 6, marginTop: 2, maxHeight: 220, overflowY: 'auto' }}>
+                      {studentSearchResults.map(r => (
+                        <button key={r.studentId} onClick={() => {
+                          setHolidayStudentId(r.studentId)
+                          setHolidayStudentLabel(`${r.name} (${r.ref})`)
+                          setStudentSearchResults([])
+                        }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', borderRadius: 6, fontSize: 13, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', color: 'var(--text)' }}>
+                          {r.name} <span style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>{r.ref}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
             <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>From</label>
             <input type="date" value={holidayFrom} onChange={e => setRangeFromInputs(e.target.value, holidayTo || e.target.value)} style={{ flex: '0 0 160px' }} />
@@ -304,6 +384,26 @@ export default function CalendarPage() {
                       })}
                     </div>
                   )}
+                </>
+              )}
+
+              {selectedStudentHolidays.length > 0 && (
+                <>
+                  <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>👤 Individual holidays</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+                    {selectedStudentHolidays.map(h => {
+                      const m = h.students?.members
+                      return (
+                        <div key={h.id} style={{ padding: '6px 10px', background: '#EF9F2712', borderRadius: 'var(--radius)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: 12, fontWeight: 600 }}>{m ? `${m.first_name} ${m.last_name}` : 'Unknown student'}</span>
+                            <button className="btn btn-sm" onClick={() => deleteHoliday(h.id)}>Remove</button>
+                          </div>
+                          <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{h.name}{h.students?.student_ref ? ` · ${h.students.student_ref}` : ''}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </>
               )}
 
