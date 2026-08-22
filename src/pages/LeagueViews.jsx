@@ -53,6 +53,9 @@ export default function LeagueViews() {
   })
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
   const [classFilter, setClassFilter] = useState('All')
+  const [selectedClassId, setSelectedClassId] = useState('')
+  const [timetableClasses, setTimetableClasses] = useState([])
+  const [studentClassMap, setStudentClassMap] = useState({}) // student_id -> Set of class_ids they're assigned to
 
   // Data
   const [houseStandings, setHouseStandings] = useState([])
@@ -83,23 +86,49 @@ export default function LeagueViews() {
 
   const CLASS_OPTIONS = ['All', 'Class', 'PTs', 'KR', 'Leader', 'KRBA']
 
+  // Real classes from the timetable, for the "Class" option's sub-list
+  // -- "GB ..." sessions (GB Boxing/GB S&C/GB Training) are deliberately
+  // excluded, matched by name prefix since is_custom isn't consistent
+  // across them (some are flagged individual sessions, some aren't).
+  useEffect(() => {
+    async function loadTimetableClasses() {
+      const [{ data: classesData }, assignmentsData] = await Promise.all([
+        supabase.from('classes').select('id, name, day_of_week, start_time')
+          .eq('active', true).order('day_of_week').order('start_time'),
+        fetchAllRows(() => supabase.from('student_class_assignments').select('student_id, class_id')),
+      ])
+      setTimetableClasses((classesData || []).filter(c => !c.name?.toUpperCase().startsWith('GB')))
+      const map = {}
+      for (const a of assignmentsData) {
+        (map[a.student_id] ||= new Set()).add(a.class_id)
+      }
+      setStudentClassMap(map)
+    }
+    loadTimetableClasses()
+  }, [])
+
   // classFilter was fully wired up in the UI (dropdown + triggers a
   // reload) but never actually used to filter anything -- selecting an
   // option just reloaded the same unfiltered data every time. This
   // checks a student against the selected filter; "Class" means a
   // regular PKA-discipline student who isn't specifically KR/PTs/
-  // Leader (matches the same Groups convention used in Registers.jsx).
+  // Leader (matches the same Groups convention used in Registers.jsx)
+  // UNLESS a specific timetable class has been picked from the
+  // sub-list, in which case it checks actual class assignment instead.
   function studentMatchesClassFilter(s) {
     if (classFilter === 'All') return true
     if (classFilter === 'KR') return !!s.is_kr
     if (classFilter === 'PTs') return !!s.is_pts
     if (classFilter === 'Leader') return !!s.is_leader
     if (classFilter === 'KRBA') return s.discipline === 'KRBA'
-    if (classFilter === 'Class') return s.discipline !== 'KRBA' && !s.is_kr && !s.is_pts && !s.is_leader
+    if (classFilter === 'Class') {
+      if (selectedClassId) return !!studentClassMap[s.id]?.has(selectedClassId)
+      return s.discipline !== 'KRBA' && !s.is_kr && !s.is_pts && !s.is_leader
+    }
     return true
   }
 
-  useEffect(() => { loadAll() }, [dateFrom, dateTo, classFilter])
+  useEffect(() => { loadAll() }, [dateFrom, dateTo, classFilter, selectedClassId])
 
   // Load saved "show top" selections and date range so the public
   // league display can mirror whatever is currently set here, without
@@ -482,10 +511,19 @@ export default function LeagueViews() {
           <input type="date" value={dateTo} onChange={e => updateDateRange(dateFrom, e.target.value)}
             style={{ border: 'none', background: 'transparent', fontSize: 13, color: 'var(--text)', outline: 'none' }} />
         </div>
-        <select value={classFilter} onChange={e => setClassFilter(e.target.value)}
+        <select value={classFilter} onChange={e => { setClassFilter(e.target.value); setSelectedClassId('') }}
           style={{ padding: '7px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', background: 'var(--bg)', fontSize: 13, color: 'var(--text)' }}>
           {CLASS_OPTIONS.map(c => <option key={c}>{c}</option>)}
         </select>
+        {classFilter === 'Class' && (
+          <select value={selectedClassId} onChange={e => setSelectedClassId(e.target.value)}
+            style={{ padding: '7px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', background: 'var(--bg)', fontSize: 13, color: 'var(--text)' }}>
+            <option value="">Any regular class</option>
+            {timetableClasses.map(c => (
+              <option key={c.id} value={c.id}>{c.name} — {c.day_of_week} {c.start_time?.slice(0, 5)}</option>
+            ))}
+          </select>
+        )}
         {/* Quick range buttons */}
         {[
           { label: 'This week',  days: 7 },
