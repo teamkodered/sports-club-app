@@ -160,6 +160,21 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
     setSaving(false)
   }
 
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+
+  async function uploadStudentPhoto(file) {
+    if (!file) return
+    setUploadingPhoto(true)
+    const path = `student-photos/${localStudent.id}-${Date.now()}-${file.name}`
+    const { error } = await supabase.storage.from('athlete-media').upload(path, file)
+    if (error) { alert('Error uploading photo: ' + error.message); setUploadingPhoto(false); return }
+    const { data: urlData } = supabase.storage.from('athlete-media').getPublicUrl(path)
+    const { error: updateError } = await supabase.from('students').update({ photo_url: urlData.publicUrl }).eq('id', localStudent.id)
+    if (updateError) { alert('Photo uploaded but saving it to the profile failed: ' + updateError.message); setUploadingPhoto(false); return }
+    setLocalStudent(s => ({ ...s, photo_url: urlData.publicUrl }))
+    setUploadingPhoto(false)
+  }
+
   const age = calcAge(m?.date_of_birth)
   const initials = `${m?.first_name?.[0] || ''}${m?.last_name?.[0] || ''}`.toUpperCase()
   const currentBelt = localStudent.discipline === 'KRBA' ? localStudent.krba_level : localStudent.pka_belt
@@ -174,7 +189,46 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
 
         {/* Header */}
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 44, height: 44, borderRadius: '50%', background: colour + '22', color: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700, flexShrink: 0 }}>{initials}</div>
+          {localStudent.photo_url ? (
+            <div style={{ position: 'relative', width: 44, height: 44, flexShrink: 0 }}>
+              <img src={localStudent.photo_url} alt="" style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', display: 'block' }} />
+              {isAdmin && (
+                <>
+                  <input type="file" accept="image/*" style={{ display: 'none' }} id="student-photo-replace"
+                    onChange={e => uploadStudentPhoto(e.target.files?.[0])} />
+                  <label htmlFor="student-photo-replace" title="Replace photo" style={{
+                    position: 'absolute', bottom: -2, right: -2, width: 16, height: 16, borderRadius: '50%',
+                    background: 'var(--text)', color: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 9, cursor: 'pointer', border: '2px solid var(--bg)',
+                  }}>✎</label>
+                </>
+              )}
+            </div>
+          ) : isAdmin ? (
+            <div style={{ position: 'relative', width: 44, height: 44, flexShrink: 0 }}>
+              <div style={{ width: 44, height: 44, borderRadius: '50%', background: colour + '22', color: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700 }}>
+                {uploadingPhoto ? '…' : initials}
+              </div>
+              {!uploadingPhoto && (
+                <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', display: 'flex' }}>
+                  <input type="file" accept="image/*" style={{ display: 'none' }} id="student-photo-upload"
+                    onChange={e => uploadStudentPhoto(e.target.files?.[0])} />
+                  <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} id="student-photo-camera"
+                    onChange={e => uploadStudentPhoto(e.target.files?.[0])} />
+                  <label htmlFor="student-photo-upload" title="Upload a photo" style={{
+                    flex: 1, cursor: 'pointer', background: 'rgba(0,0,0,0.35)', color: '#fff', fontSize: 12,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50% 0 0 50%',
+                  }}>📁</label>
+                  <label htmlFor="student-photo-camera" title="Take a photo" style={{
+                    flex: 1, cursor: 'pointer', background: 'rgba(0,0,0,0.35)', color: '#fff', fontSize: 12,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '0 50% 50% 0',
+                  }}>📷</label>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ width: 44, height: 44, borderRadius: '50%', background: colour + '22', color: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700, flexShrink: 0 }}>{initials}</div>
+          )}
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 16, fontWeight: 600 }}>{m?.first_name} {m?.last_name}</div>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 1 }}>
