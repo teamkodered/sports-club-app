@@ -258,10 +258,75 @@ export default function CRM() {
     setCourses(prev => prev.filter(c => c.id !== id))
   }
 
+  const [gradingRequests, setGradingRequests] = useState([])
+  const [gradingLoaded, setGradingLoaded] = useState(false)
+  const [gradingLoading, setGradingLoading] = useState(false)
+  const [approvingGradingId, setApprovingGradingId] = useState(null)
+
+  async function loadGradingRequests() {
+    setGradingLoading(true)
+    const cutoff = new Date()
+    cutoff.setMonth(cutoff.getMonth() - 3)
+    const cutoffStr = cutoff.toISOString().split('T')[0]
+
+    const { data, error } = await supabase
+      .from('grading_expressions')
+      .select('*, students(id, discipline, pka_belt, krba_level, members(first_name, last_name))')
+      .order('created_at', { ascending: false })
+    if (error) { alert('Error loading grading requests: ' + error.message); setGradingLoading(false); return }
+
+    const enriched = await Promise.all((data || []).map(async (r) => {
+      if (!r.student_id) return { ...r, attendanceCount: null }
+      const { count } = await supabase.from('attendance').select('*', { count: 'exact', head: true })
+        .eq('student_id', r.student_id).gte('session_date', cutoffStr)
+      return { ...r, attendanceCount: count ?? 0 }
+    }))
+
+    setGradingRequests(enriched)
+    setGradingLoaded(true)
+    setGradingLoading(false)
+  }
+
+  async function approveGrading(id) {
+    setApprovingGradingId(id)
+    const { error } = await supabase.from('grading_expressions').update({ coach_approved: true }).eq('id', id)
+    setApprovingGradingId(null)
+    if (error) { alert('Error approving: ' + error.message); return }
+    setGradingRequests(prev => prev.map(r => r.id === id ? { ...r, coach_approved: true } : r))
+  }
+
   async function loadCourseInterest(courseId) {
     setLoadingInterestFor(courseId)
     const { data } = await supabase.from('course_interest').select('*').eq('course_id', courseId).order('submitted_at', { ascending: false })
-    setCourseInterest(prev => ({ ...prev, [courseId]: data || [] }))
+    const rows = data || []
+
+    // Try to match each respondent to an existing student (this form is
+    // open/anonymous -- just a name + email/phone typed in -- so there's
+    // no guaranteed link). Email match first, then phone. If exactly one
+    // member matches, pull their attendance for the last 3 months.
+    const cutoff = new Date()
+    cutoff.setMonth(cutoff.getMonth() - 3)
+    const cutoffStr = cutoff.toISOString().split('T')[0]
+
+    const enriched = await Promise.all(rows.map(async (r) => {
+      let matches = []
+      if (r.email) {
+        const { data: m } = await supabase.from('members').select('id, first_name, last_name, students(id)').ilike('email', r.email)
+        matches = m || []
+      }
+      if (matches.length === 0 && r.phone) {
+        const { data: m } = await supabase.from('members').select('id, first_name, last_name, students(id)').eq('phone', r.phone)
+        matches = m || []
+      }
+      if (matches.length !== 1) return { ...r, attendanceCount: null } // no match, or ambiguous -- treat as not an existing student
+      const studentIds = (matches[0].students || []).map(s => s.id)
+      if (studentIds.length === 0) return { ...r, attendanceCount: 0 }
+      const { count } = await supabase.from('attendance').select('*', { count: 'exact', head: true })
+        .in('student_id', studentIds).gte('session_date', cutoffStr)
+      return { ...r, attendanceCount: count ?? 0 }
+    }))
+
+    setCourseInterest(prev => ({ ...prev, [courseId]: enriched }))
     setLoadingInterestFor(null)
   }
 
@@ -1020,6 +1085,12 @@ export default function CRM() {
           color: tab === 'stopped_training' ? 'var(--text)' : 'var(--text-secondary)',
           fontWeight: tab === 'stopped_training' ? 500 : 400,
         }}>Stopped training{stoppedStudents.length > 0 ? ` (${stoppedStudents.length})` : ''}</button>
+        <button onClick={() => { setTab('grading_requests'); if (!gradingLoaded) loadGradingRequests() }} style={{
+          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
+          borderBottom: `2px solid ${tab === 'grading_requests' ? 'var(--text)' : 'transparent'}`,
+          color: tab === 'grading_requests' ? 'var(--text)' : 'var(--text-secondary)',
+          fontWeight: tab === 'grading_requests' ? 500 : 400,
+        }}>Grading requests{gradingRequests.filter(r => !r.coach_approved).length > 0 ? ` (${gradingRequests.filter(r => !r.coach_approved).length})` : ''}</button>
         <button onClick={() => { setTab('birthdays'); if (!birthdaysLoaded) loadBirthdays() }} style={{
           padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
           borderBottom: `2px solid ${tab === 'birthdays' ? 'var(--text)' : 'transparent'}`,
@@ -1636,6 +1707,76 @@ export default function CRM() {
         </div>
       )}
 
+      {/* Grading requests -- review screen for grading_expressions, which
+          previously had a student-facing submit form but nothing for a
+          coach to actually see and approve them. Shows the student's
+          self-reported classes attended alongside their ACTUAL attendance
+          from the last 3 months (pulled from the attendance table), so a
+          coach can spot a mismatch between what's claimed and what
+          actually happened before approving. */}
+      {tab === 'grading_requests' && (
+        <div>
+          {gradingLoading ? (
+            <div className="loading">Loading…</div>
+          ) : gradingRequests.length === 0 ? (
+            <div className="empty-state"><h3>No grading requests</h3><p>Nobody has submitted a grading expression of interest yet.</p></div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {gradingRequests.map(r => {
+                const m = r.students?.members
+                let extra = {}
+                try { extra = JSON.parse(r.notes || '{}') } catch { /* ignore malformed notes */ }
+                return (
+                  <div key={r.id} className="card" style={{ padding: 14, background: r.coach_approved ? '#1D9E7512' : undefined }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
+                      <div>
+                        <p style={{ fontSize: 14, fontWeight: 700 }}>{m ? `${m.first_name} ${m.last_name}` : 'Unknown student'}</p>
+                        <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                          {r.discipline} · {r.current_belt || '—'} → <strong>{r.grading_for}</strong>
+                        </p>
+                        <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                          Submitted {r.created_at ? new Date(r.created_at).toLocaleDateString('en-GB') : '—'}
+                        </p>
+                      </div>
+                      {r.coach_approved ? (
+                        <span style={{ fontSize: 12, fontWeight: 600, color: '#1D9E75', flexShrink: 0 }}>✓ Approved</span>
+                      ) : (
+                        <button className="btn btn-sm btn-primary" style={{ flexShrink: 0 }} disabled={approvingGradingId === r.id}
+                          onClick={() => approveGrading(r.id)}>
+                          {approvingGradingId === r.id ? 'Approving…' : 'Approve grading'}
+                        </button>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 16, marginTop: 10, flexWrap: 'wrap' }}>
+                      <div style={{ fontSize: 12 }}>
+                        <span style={{ color: 'var(--text-tertiary)' }}>Self-reported classes attended: </span>
+                        <strong>{extra.classes_attended || '—'}</strong>
+                      </div>
+                      <div style={{ fontSize: 12 }}>
+                        <span style={{ color: 'var(--text-tertiary)' }}>Actual attendance (last 3 months): </span>
+                        <strong style={{ color: r.attendanceCount === 0 ? '#E24B4A' : undefined }}>
+                          {r.attendanceCount === null ? 'No student record linked' : `${r.attendanceCount} session${r.attendanceCount === 1 ? '' : 's'}`}
+                        </strong>
+                      </div>
+                    </div>
+
+                    {(extra.competition_history || extra.fitness_comments || extra.coach_name || extra.student_notes) && (
+                      <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {extra.competition_history && <p style={{ fontSize: 12 }}><span style={{ color: 'var(--text-tertiary)' }}>Competition history: </span>{extra.competition_history}</p>}
+                        {extra.fitness_comments && <p style={{ fontSize: 12 }}><span style={{ color: 'var(--text-tertiary)' }}>Fitness/technique comments: </span>{extra.fitness_comments}</p>}
+                        {extra.coach_name && <p style={{ fontSize: 12 }}><span style={{ color: 'var(--text-tertiary)' }}>Coach named: </span>{extra.coach_name}</p>}
+                        {extra.student_notes && <p style={{ fontSize: 12 }}><span style={{ color: 'var(--text-tertiary)' }}>Student notes: </span>{extra.student_notes}</p>}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Set an individual holiday for a student, from the Missed
           Training list -- same underlying holidays table (student_id)
           used on the main Calendar page, so it's excluded from
@@ -2232,6 +2373,15 @@ export default function CRM() {
                                       <span style={{ fontSize: 13, fontWeight: 600 }}>{r.name}</span>
                                       <span style={{ fontSize: 11, color: 'var(--text-tertiary)', marginLeft: 8 }}>
                                         {r.email || r.phone || ''}
+                                      </span>
+                                      <span style={{ display: 'block', fontSize: 11, marginTop: 2 }}>
+                                        {r.attendanceCount === null ? (
+                                          <span style={{ color: 'var(--text-tertiary)', fontStyle: 'italic' }}>Not an existing student</span>
+                                        ) : (
+                                          <span style={{ color: r.attendanceCount === 0 ? '#E24B4A' : 'var(--text-secondary)' }}>
+                                            {r.attendanceCount} session{r.attendanceCount === 1 ? '' : 's'} in the last 3 months
+                                          </span>
+                                        )}
                                       </span>
                                       {r.notes && <span style={{ display: 'block', fontSize: 11, color: 'var(--text-secondary)' }}>{r.notes}</span>}
                                     </span>
