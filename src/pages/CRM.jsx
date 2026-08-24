@@ -54,6 +54,11 @@ export default function CRM() {
   const [selectedPaymentIdx, setSelectedPaymentIdx] = useState(null) // click-to-select alternative to drag & drop
   const [venueFilter, setVenueFilter] = useState('all') // all | krcentre_pka | derbymoore | moorways | krba
   const [missedTraining, setMissedTraining] = useState([]) // computed list, loaded on first visit to that tab
+  const [stoppedStudents, setStoppedStudents] = useState([])
+  const [stoppedLoaded, setStoppedLoaded] = useState(false)
+  const [stoppedLoading, setStoppedLoading] = useState(false)
+  const [selectedStopped, setSelectedStopped] = useState(new Set())
+  const [stoppedSearch, setStoppedSearch] = useState('')
   const [holidayModalFor, setHolidayModalFor] = useState(null) // { id, name } of the student currently being given a holiday, or null
   const [holidayForm, setHolidayForm] = useState({ name: '', start_date: '', end_date: '' })
   const [savingHoliday, setSavingHoliday] = useState(false)
@@ -526,7 +531,7 @@ export default function CRM() {
   async function loadData() {
     setLoading(true)
     const [{ data: s }, { data: pl }, { data: notes }] = await Promise.all([
-      supabase.from('students').select('id, student_ref, discipline, class_schedule, sponsored, guardian_name, pka_belt, krba_level, house_name, media_restriction, is_kr, is_pts, is_leader, is_coach, members(first_name, last_name, status, email, phone, date_of_birth, houses(name))'),
+      supabase.from('students').select('id, student_ref, discipline, class_schedule, sponsored, guardian_name, pka_belt, krba_level, house_name, media_restriction, is_kr, is_pts, is_leader, is_coach, members(first_name, last_name, status, email, phone, date_of_birth, do_not_contact, houses(name))'),
       supabase.from('payer_links').select('*'),
       supabase.from('athlete_notes_log').select('id, student_id, note_text, created_at').order('created_at', { ascending: false }),
     ])
@@ -559,6 +564,28 @@ export default function CRM() {
     if (error) { alert('Error saving holiday: ' + error.message); return }
     alert(`Holiday saved for ${holidayModalFor.name}.`)
     setHolidayModalFor(null)
+  }
+
+  async function loadStoppedStudents() {
+    setStoppedLoading(true)
+    const { data, error } = await supabase
+      .from('students')
+      .select('*, members!inner(first_name, last_name, email, phone, do_not_contact, status)')
+      .eq('members.status', 'stopped')
+      .order('members(last_name)')
+    if (error) { alert('Error loading stopped students: ' + error.message); setStoppedLoading(false); return }
+    setStoppedStudents(data || [])
+    setStoppedLoaded(true)
+    setStoppedLoading(false)
+  }
+
+  async function toggleDoNotContact(student) {
+    const newValue = !student.members?.do_not_contact
+    const { error } = await supabase.from('members').update({ do_not_contact: newValue }).eq('id', student.member_id)
+    if (error) { alert('Error updating: ' + error.message); return }
+    setStoppedStudents(prev => prev.map(s => s.id === student.id ? { ...s, members: { ...s.members, do_not_contact: newValue } } : s))
+    // A do-not-contact person should never stay selected for a bulk send
+    if (newValue) setSelectedStopped(prev => { const next = new Set(prev); next.delete(student.id); return next })
   }
 
   async function loadMissedTraining() {
@@ -987,6 +1014,12 @@ export default function CRM() {
           color: tab === 'missed_training' ? 'var(--text)' : 'var(--text-secondary)',
           fontWeight: tab === 'missed_training' ? 500 : 400,
         }}>Missed training{missedTraining.length > 0 ? ` (${missedTraining.length})` : ''}</button>
+        <button onClick={() => { setTab('stopped_training'); if (!stoppedLoaded) loadStoppedStudents() }} style={{
+          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
+          borderBottom: `2px solid ${tab === 'stopped_training' ? 'var(--text)' : 'transparent'}`,
+          color: tab === 'stopped_training' ? 'var(--text)' : 'var(--text-secondary)',
+          fontWeight: tab === 'stopped_training' ? 500 : 400,
+        }}>Stopped training{stoppedStudents.length > 0 ? ` (${stoppedStudents.length})` : ''}</button>
         <button onClick={() => { setTab('birthdays'); if (!birthdaysLoaded) loadBirthdays() }} style={{
           padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
           borderBottom: `2px solid ${tab === 'birthdays' ? 'var(--text)' : 'transparent'}`,
@@ -1446,7 +1479,7 @@ export default function CRM() {
                 </button>
                 {selectedMissed.size > 0 && (() => {
                   const selectedRows = missedTraining.filter(r => selectedMissed.has(r.student.id))
-                  const emails = selectedRows.map(r => r.student.members?.email).filter(e => e && !e.includes('@kr-centre.placeholder'))
+                  const emails = selectedRows.map(r => r.student.members?.email).filter((e, i) => e && !e.includes('@kr-centre.placeholder') && !selectedRows[i].student.members?.do_not_contact)
                   const subject = encodeURIComponent("We've missed you at training!")
                   const body = encodeURIComponent("Hi,\n\nWe noticed it's been a few weeks since your last session — we'd love to see you back on the mats/in the ring soon!\n\nLet us know if there's anything stopping you from training, we're happy to help.\n\nSee you soon,\nKR Centre")
                   return (
@@ -1473,18 +1506,19 @@ export default function CRM() {
                   <tbody>
                     {missedTraining.map(r => {
                       const m = r.student.members
+                      const dnc = !!m?.do_not_contact
                       const email = m?.email && !m.email.includes('@kr-centre.placeholder') ? m.email : null
                       const phone = m?.phone
                       const smsBody = encodeURIComponent(`Hi ${m?.first_name}, we've missed you at training — it's been a few weeks since your last session. Hope to see you back soon! - KR Centre`)
                       return (
-                        <tr key={r.student.id}>
-                          <td><input type="checkbox" checked={selectedMissed.has(r.student.id)}
+                        <tr key={r.student.id} style={dnc ? { opacity: 0.5 } : undefined}>
+                          <td><input type="checkbox" checked={selectedMissed.has(r.student.id)} disabled={dnc}
                             onChange={() => setSelectedMissed(prev => {
                               const next = new Set(prev)
                               next.has(r.student.id) ? next.delete(r.student.id) : next.add(r.student.id)
                               return next
                             })} /></td>
-                          <td style={{ fontSize: 13 }}>{m?.first_name} {m?.last_name}</td>
+                          <td style={{ fontSize: 13 }}>{m?.first_name} {m?.last_name}{dnc ? ' 🚫' : ''}</td>
                           <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{r.lastDate ? new Date(r.lastDate).toLocaleDateString('en-GB') : 'Never'}</td>
                           <td style={{ fontSize: 13, fontWeight: 600, color: '#E24B4A' }}>{r.weeksMissed ?? '—'}</td>
                           <td>
@@ -1505,6 +1539,100 @@ export default function CRM() {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* Stopped training -- lists everyone with status='stopped', with
+          the same search/select/select-all/bulk-message pattern as
+          Missed training, plus a Do Not Contact flag that permanently
+          excludes someone from bulk sends (and removes them from any
+          current selection the moment it's turned on). */}
+      {tab === 'stopped_training' && (
+        <div>
+          {stoppedLoading ? (
+            <div className="loading">Loading…</div>
+          ) : stoppedStudents.length === 0 ? (
+            <div className="empty-state"><h3>No stopped students</h3><p>Nobody currently has a "stopped" status.</p></div>
+          ) : (() => {
+            const filtered = stoppedStudents.filter(s => {
+              const name = `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.toLowerCase()
+              return name.includes(stoppedSearch.toLowerCase())
+            })
+            const contactable = filtered.filter(s => !s.members?.do_not_contact)
+            return (
+              <>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <input value={stoppedSearch} onChange={e => setStoppedSearch(e.target.value)}
+                    placeholder="Search by name…" style={{ maxWidth: 240 }} />
+                  <button className="btn btn-sm" onClick={() => setSelectedStopped(
+                    selectedStopped.size === contactable.length ? new Set() : new Set(contactable.map(s => s.id))
+                  )}>
+                    {selectedStopped.size === contactable.length && contactable.length > 0 ? 'Deselect all' : 'Select all'}
+                  </button>
+                  {selectedStopped.size > 0 && (() => {
+                    const selectedRows = filtered.filter(s => selectedStopped.has(s.id))
+                    const emails = selectedRows.map(s => s.members?.email).filter(e => e && !e.includes('@kr-centre.placeholder'))
+                    const subject = encodeURIComponent("We'd love to have you back!")
+                    const body = encodeURIComponent("Hi,\n\nIt's been a while since you trained with us and we wanted to reach out — the door's always open if you'd like to come back.\n\nLet us know if you have any questions.\n\nKR Centre")
+                    return (
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <span style={{ fontSize: 12, color: 'var(--text-tertiary)', alignSelf: 'center' }}>{selectedStopped.size} selected</span>
+                        <a className="btn btn-sm btn-primary" href={emails.length ? `mailto:?bcc=${emails.join(',')}&subject=${subject}&body=${body}` : undefined}
+                          onClick={e => { if (!emails.length) { e.preventDefault(); alert('None of the selected people have a real email on file.') } }}>
+                          ✉️ Email selected ({emails.length})
+                        </a>
+                      </div>
+                    )
+                  })()}
+                </div>
+                <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+                  <table>
+                    <thead><tr>
+                      <th style={{ width: 30 }}></th>
+                      <th>Student</th>
+                      <th>Contact</th>
+                      <th>Message</th>
+                      <th>Do not contact</th>
+                    </tr></thead>
+                    <tbody>
+                      {filtered.map(s => {
+                        const m = s.members
+                        const dnc = !!m?.do_not_contact
+                        const email = m?.email && !m.email.includes('@kr-centre.placeholder') ? m.email : null
+                        const smsBody = encodeURIComponent(`Hi ${m?.first_name}, it's been a while since you trained with us — we'd love to have you back if you're interested! - KR Centre`)
+                        return (
+                          <tr key={s.id} style={dnc ? { opacity: 0.5 } : undefined}>
+                            <td>
+                              <input type="checkbox" checked={selectedStopped.has(s.id)} disabled={dnc}
+                                onChange={() => setSelectedStopped(prev => {
+                                  const next = new Set(prev)
+                                  next.has(s.id) ? next.delete(s.id) : next.add(s.id)
+                                  return next
+                                })} />
+                            </td>
+                            <td style={{ fontSize: 13 }}>{m?.first_name} {m?.last_name}</td>
+                            <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{email || m?.phone || '—'}</td>
+                            <td>
+                              <button className="btn btn-sm" style={{ fontSize: 11 }} disabled={dnc}
+                                title={dnc ? 'This person has opted out of contact' : 'Share a message (text, WhatsApp, email...)'}
+                                onClick={() => shareText(decodeURIComponent(smsBody))}>📤</button>
+                            </td>
+                            <td>
+                              <button className="btn btn-sm" style={{ fontSize: 11, background: dnc ? '#E24B4A15' : undefined, borderColor: dnc ? '#E24B4A' : undefined, color: dnc ? '#E24B4A' : undefined }}
+                                title={dnc ? 'Currently opted out — click to allow contact again' : 'Mark as do not contact — excludes from all messaging, especially bulk sends'}
+                                onClick={() => toggleDoNotContact(s)}>
+                                {dnc ? '🚫 Opted out' : 'Do not contact'}
+                              </button>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )
+          })()}
         </div>
       )}
 
