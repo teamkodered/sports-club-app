@@ -204,19 +204,33 @@ export default function ResultsPublic() {
             <p style={{ textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 13, padding: '20px 0' }}>No results logged yet</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {leaderboard.map((row, i) => (
-                <div key={row.name + i} style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  padding: '8px 12px', borderRadius: 8, background: i === 0 ? cat.colour + '15' : 'var(--bg-secondary)',
-                }}>
-                  <span style={{ fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ width: 24, textAlign: 'center' }}>{MEDALS[i] || i + 1}</span>
-                    {row.name}
-                    <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{row.sub}</span>
-                  </span>
-                  <span style={{ fontSize: 15, fontWeight: 700, color: cat.colour }}>{row.value}{cat.unit}</span>
-                </div>
-              ))}
+              {Array.from({ length: 10 }).map((_, i) => {
+                const row = leaderboard[i]
+                if (!row) return (
+                  <div key={'empty' + i} style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '8px 12px', borderRadius: 8, background: 'var(--bg-secondary)', opacity: 0.4,
+                  }}>
+                    <span style={{ fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ width: 24, textAlign: 'center' }}>{MEDALS[i] || i + 1}</span>
+                      <span style={{ color: 'var(--text-tertiary)' }}>—</span>
+                    </span>
+                  </div>
+                )
+                return (
+                  <div key={row.name + i} style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '8px 12px', borderRadius: 8, background: i === 0 ? cat.colour + '15' : 'var(--bg-secondary)',
+                  }}>
+                    <span style={{ fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ width: 24, textAlign: 'center' }}>{MEDALS[i] || i + 1}</span>
+                      {row.name}
+                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{row.sub}</span>
+                    </span>
+                    <span style={{ fontSize: 15, fontWeight: 700, color: cat.colour }}>{row.value}{cat.unit}</span>
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>
