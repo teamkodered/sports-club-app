@@ -1400,7 +1400,16 @@ export default function Registers() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
           <div className="card" style={{ width: '100%', maxWidth: 380 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
-              <h2 style={{ fontSize: 15, fontWeight: 600 }}>{contactModal.members?.first_name} {contactModal.members?.last_name}</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {contactModal.photo_url ? (
+                  <img src={contactModal.photo_url} alt="" style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                ) : (
+                  <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>
+                    {(contactModal.members?.first_name?.[0] || '')}{(contactModal.members?.last_name?.[0] || '')}
+                  </div>
+                )}
+                <h2 style={{ fontSize: 15, fontWeight: 600 }}>{contactModal.members?.first_name} {contactModal.members?.last_name}</h2>
+              </div>
               <button onClick={() => setContactModal(null)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
             </div>
             {[
