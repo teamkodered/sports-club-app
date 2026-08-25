@@ -134,9 +134,19 @@ export default function Classes() {
   async function save() {
     if (!form.name) return
     setSaving(true)
+    // start_time/end_time are Postgres `time` columns -- they accept a
+    // real time or null, but reject an empty string outright with a
+    // syntax error. A blank End time (very common -- lots of classes
+    // are open-ended) was silently failing every save for that class,
+    // not just the is_custom checkbox.
+    const payload = {
+      ...form,
+      start_time: form.start_time || null,
+      end_time: form.end_time || null,
+    }
     const { error } = editing
-      ? await supabase.from('classes').update(form).eq('id', editing.id)
-      : await supabase.from('classes').insert(form)
+      ? await supabase.from('classes').update(payload).eq('id', editing.id)
+      : await supabase.from('classes').insert(payload)
     if (error) {
       alert('Error saving class: ' + error.message)
       setSaving(false)
@@ -421,7 +431,7 @@ export default function Classes() {
       {/* Membership card popup for a student in the class roster --
           same layout/fields as the PKA-pill contact modal on Register. */}
       {rosterContactModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 16 }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 150, padding: 16 }}>
           <div className="card" style={{ width: '100%', maxWidth: 380 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
