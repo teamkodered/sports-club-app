@@ -399,6 +399,23 @@ export default function LeagueViews() {
     setLoadingFullProfile(false)
   }
 
+  // The quick hold-triggered popup opens instantly with whatever
+  // lightweight {id, name, ref, house} object the list already has --
+  // it was never built to carry a photo. Rather than threading
+  // photo_url through every list query that can trigger this popup,
+  // just fetch it the moment the popup opens and merge it in -- name/
+  // ref/house show immediately as before, the photo fills in a beat
+  // later once it arrives.
+  useEffect(() => {
+    if (!profilePopupFor?.id || profilePopupFor.photo_url !== undefined) return
+    let cancelled = false
+    supabase.from('students').select('photo_url').eq('id', profilePopupFor.id).maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setProfilePopupFor(prev => prev && prev.id === profilePopupFor.id ? { ...prev, photo_url: data?.photo_url || null } : prev)
+      })
+    return () => { cancelled = true }
+  }, [profilePopupFor?.id])
+
   // Opens the same results the Score check tab shows, in a popup on
   // top of whatever tab is currently active -- avoids needing to
   // switch tabs and re-search to see a student's score history.
@@ -1100,9 +1117,13 @@ export default function LeagueViews() {
               const colour = HOUSE_COLOURS[profilePopupFor.house] || '#888'
               return (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
-                  <div style={{ width: 48, height: 48, borderRadius: '50%', background: colour + '22', color: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, fontWeight: 700, flexShrink: 0 }}>
-                    {profilePopupFor.name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                  </div>
+                  {profilePopupFor.photo_url ? (
+                    <img src={profilePopupFor.photo_url} alt="" style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                  ) : (
+                    <div style={{ width: 48, height: 48, borderRadius: '50%', background: colour + '22', color: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, fontWeight: 700, flexShrink: 0 }}>
+                      {profilePopupFor.name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                    </div>
+                  )}
                   <div>
                     <div style={{ fontSize: 16, fontWeight: 600 }}>{profilePopupFor.name}</div>
                     <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{profilePopupFor.ref} · {profilePopupFor.house || '—'}</div>
@@ -1131,7 +1152,16 @@ export default function LeagueViews() {
             ) : (
               <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
-                  <h2 style={{ fontSize: 15, fontWeight: 600 }}>{fullProfileModal.members?.first_name} {fullProfileModal.members?.last_name}</h2>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {fullProfileModal.photo_url ? (
+                      <img src={fullProfileModal.photo_url} alt="" style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                    ) : (
+                      <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>
+                        {(fullProfileModal.members?.first_name?.[0] || '')}{(fullProfileModal.members?.last_name?.[0] || '')}
+                      </div>
+                    )}
+                    <h2 style={{ fontSize: 15, fontWeight: 600 }}>{fullProfileModal.members?.first_name} {fullProfileModal.members?.last_name}</h2>
+                  </div>
                   <button onClick={() => setFullProfileModal(null)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
                 </div>
                 {[
