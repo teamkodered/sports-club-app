@@ -1,13 +1,16 @@
 import { useState, useEffect, useRef } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
+import { studentProfileLink } from '../lib/studentLinks.js'
 
 const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday','Mon/Fri','Tue/Thu','Derby Moore','Moorways']
 
 export default function Classes() {
   const { isAdmin } = useAuth()
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
+  const [rosterContactModal, setRosterContactModal] = useState(null)
   const [classes, setClasses]   = useState([])
   const [teams, setTeams]       = useState([]) // dynamic from settings
   const [loading, setLoading]   = useState(true)
@@ -50,7 +53,7 @@ export default function Classes() {
     setViewingClass(cls)
     setAddStudentSearch('')
     const { data } = await supabase.from('student_class_assignments')
-      .select('id, student_id, students(id, student_ref, members(first_name, last_name))')
+      .select('id, student_id, students(id, student_ref, photo_url, house_name, pka_belt, krba_level, class_schedule, is_kr, is_pts, is_leader, members(first_name, last_name, phone, email, date_of_birth, houses(name)))')
       .eq('class_id', cls.id)
     setClassStudents(data || [])
     if (!allStudents.length) {
@@ -62,7 +65,7 @@ export default function Classes() {
   async function addStudentToClass(studentId) {
     const { data, error } = await supabase.from('student_class_assignments')
       .insert({ student_id: studentId, class_id: viewingClass.id })
-      .select('id, student_id, students(id, student_ref, members(first_name, last_name))').single()
+      .select('id, student_id, students(id, student_ref, photo_url, house_name, pka_belt, krba_level, class_schedule, is_kr, is_pts, is_leader, members(first_name, last_name, phone, email, date_of_birth, houses(name)))').single()
     if (error) { alert('Error adding student: ' + error.message); return }
     setClassStudents(prev => [...prev, data])
     setAddStudentSearch('')
@@ -131,10 +134,13 @@ export default function Classes() {
   async function save() {
     if (!form.name) return
     setSaving(true)
-    if (editing) {
-      await supabase.from('classes').update(form).eq('id', editing.id)
-    } else {
-      await supabase.from('classes').insert(form)
+    const { error } = editing
+      ? await supabase.from('classes').update(form).eq('id', editing.id)
+      : await supabase.from('classes').insert(form)
+    if (error) {
+      alert('Error saving class: ' + error.message)
+      setSaving(false)
+      return
     }
     await load()
     setAdding(false)
@@ -399,12 +405,56 @@ export default function Classes() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {classStudents.map(a => (
                   <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: 13 }}>
-                    <span>{a.students?.members?.first_name} {a.students?.members?.last_name}</span>
+                    <span style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' }}
+                      onClick={() => setRosterContactModal(a.students)}>
+                      {a.students?.members?.first_name} {a.students?.members?.last_name}
+                    </span>
                     <button className="btn btn-sm" onClick={() => removeStudentFromClass(a.id)}>Remove</button>
                   </div>
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Membership card popup for a student in the class roster --
+          same layout/fields as the PKA-pill contact modal on Register. */}
+      {rosterContactModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 16 }}>
+          <div className="card" style={{ width: '100%', maxWidth: 380 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {rosterContactModal.photo_url ? (
+                  <img src={rosterContactModal.photo_url} alt="" style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                ) : (
+                  <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>
+                    {(rosterContactModal.members?.first_name?.[0] || '')}{(rosterContactModal.members?.last_name?.[0] || '')}
+                  </div>
+                )}
+                <h2 style={{ fontSize: 15, fontWeight: 600 }}>{rosterContactModal.members?.first_name} {rosterContactModal.members?.last_name}</h2>
+              </div>
+              <button onClick={() => setRosterContactModal(null)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
+            </div>
+            {[
+              ['Student ID', rosterContactModal.student_ref],
+              ['Phone', rosterContactModal.members?.phone || '—'],
+              ['Email', rosterContactModal.members?.email || '—'],
+              ['DOB', rosterContactModal.members?.date_of_birth || '—'],
+              ['House', rosterContactModal.house_name || rosterContactModal.members?.houses?.name || '—'],
+              ['Grade', rosterContactModal.pka_belt || rosterContactModal.krba_level || '—'],
+              ['Class', rosterContactModal.class_schedule || '—'],
+              ['Groups', [rosterContactModal.is_kr&&'KR', rosterContactModal.is_pts&&'PTs', rosterContactModal.is_leader&&'Leader'].filter(Boolean).join(', ') || 'None'],
+            ].map(([label, val]) => (
+              <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
+                <span style={{ fontWeight: 500 }}>{val}</span>
+              </div>
+            ))}
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              {rosterContactModal.members?.phone && <a href={`tel:${rosterContactModal.members.phone}`} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>📞 Call</a>}
+              <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => { setRosterContactModal(null); navigate(studentProfileLink(rosterContactModal)) }}>View profile →</button>
+            </div>
           </div>
         </div>
       )}
