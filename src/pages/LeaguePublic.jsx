@@ -61,13 +61,23 @@ export default function LeaguePublic() {
       // and only apply the real range too late to matter, which is
       // exactly what caused this page to show different totals than
       // the internal League page.
+      //
+      // league_date_to is deliberately NOT read from settings here --
+      // it's only kept fresh there by the internal /league page
+      // overwriting it every time someone opens that page, so if a few
+      // days pass with nobody visiting it, this public display would
+      // silently freeze on that stale cutoff and show a shorter, older
+      // date range than "today" -- which is exactly what happened
+      // (this page still showing 22 Aug while the internal page,
+      // computing "today" live, correctly showed 25 Aug). dateTo stays
+      // as this component's own live "today" default instead, same
+      // fix already applied to the internal page for the same reason.
       const { data: settings } = await supabase.from('settings').select('key,value')
-        .in('key', ['club_name','club_emoji','league_topn_individual','league_topn_house','league_date_from','league_date_to'])
+        .in('key', ['club_name','club_emoji','league_topn_individual','league_topn_house','league_date_from'])
       const sm = Object.fromEntries((settings || []).map(r => [r.key, r.value]))
       const resolvedFrom = sm.league_date_from || dateFrom
-      const resolvedTo = sm.league_date_to || dateTo
+      const resolvedTo = dateTo
       if (sm.league_date_from) setDateFrom(sm.league_date_from)
-      if (sm.league_date_to) setDateTo(sm.league_date_to)
 
       const [{ data: h }, pts, { data: studentsData }] = await Promise.all([
         supabase.from('houses').select('*'),
