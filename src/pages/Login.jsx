@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
+import { useBackableTab } from '../hooks/useBackableTab.js'
 
 export default function Login() {
   const navigate = useNavigate()
   const { session, profile, profileError, isStaff } = useAuth()
-  const [tab, setTab]             = useState('login')
+  const [tab, setTab]             = useBackableTab('login')
   const [email, setEmail]         = useState('')
   const [password, setPassword]   = useState('')
   const [error, setError]         = useState('')

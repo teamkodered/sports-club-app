@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
+import { useBackableTab } from '../hooks/useBackableTab.js'
 import StudentProfile from '../components/students/StudentProfile.jsx'
 import { studentProfileLink } from '../lib/studentLinks.js'
 
@@ -88,7 +89,7 @@ export default function StudentDatabase() {
   const [filtered, setFiltered]       = useState([])
   const [loading, setLoading]         = useState(true)
   const [search, setSearch]           = useState('')
-  const [tab, setTab]                 = useState('PKA')
+  const [tab, setTab]                 = useBackableTab('PKA')
   const [houseFilter, setHouseFilter] = useState('')
   const [groupFilter, setGroupFilter] = useState('')
   const [groupFilterOpen, setGroupFilterOpen] = useState(false)

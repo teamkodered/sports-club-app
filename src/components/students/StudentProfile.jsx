@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useBackableTab } from '../../hooks/useBackableTab.js'
 import { supabase } from '../../lib/supabase.js'
 
 const HOUSE_COLOURS = { Phoenix: '#e24b4a', Titan: '#378add', Viper: '#1d9e75', Storm: '#ef9f27' }
 
 export default function StudentProfile({ student, onClose, isAdmin, embedded = false }) {
   const navigate = useNavigate()
-  const [tab, setTab] = useState('profile')
+  const [tab, setTab] = useBackableTab('profile')
   const [pointTypes, setPointTypes] = useState([])
   const [pointsLog, setPointsLog] = useState([])
   const [awardForm, setAwardForm] = useState({ point_type: '', scope: 'both', note: '' })

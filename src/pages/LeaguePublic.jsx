@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useBackableTab } from '../hooks/useBackableTab.js'
 import { supabasePublic as supabase } from '../lib/supabasePublic.js'
 
 // Supabase/PostgREST caps any query with no explicit range at 1000
@@ -45,7 +46,7 @@ export default function LeaguePublic() {
   const [clubName, setClubName] = useState('KR Centre')
   const [clubEmoji, setClubEmoji] = useState('🔥')
   const [loading, setLoading]   = useState(true)
-  const [tab, setTab]           = useState('houses')
+  const [tab, setTab]           = useBackableTab('houses')
   const [topN, setTopN]         = useState(50)
   const [houseTopN, setHouseTopN] = useState(8)
   const [showMedals, setShowMedals] = useState(true)

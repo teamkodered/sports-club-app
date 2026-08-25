@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
+import { useBackableTab } from '../hooks/useBackableTab.js'
 
 function SortTh({ children, col, sortKey, sortDir, onSort, style = {} }) {
   const active = sortKey === col
@@ -13,7 +14,7 @@ function SortTh({ children, col, sortKey, sortDir, onSort, style = {} }) {
 
 export default function Fixtures() {
   const { isAdmin } = useAuth()
-  const [tab, setTab]         = useState('upcoming')
+  const [tab, setTab]         = useBackableTab('upcoming')
   const [fixtures, setFixtures] = useState([])
   const [houses, setHouses]   = useState([])
   const [loading, setLoading] = useState(true)

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
+import { useBackableTab } from '../hooks/useBackableTab.js'
 import * as XLSX from 'xlsx'
 
 // Loosely finds the "name" and "amount" columns in an uploaded
@@ -34,7 +35,7 @@ function wordsOf(s) {
 
 export default function CRM() {
   const { isAdmin } = useAuth()
-  const [tab, setTab] = useState('standing_orders')
+  const [tab, setTab] = useBackableTab('standing_orders')
   const [students, setStudents] = useState([])
   const [payerLinks, setPayerLinks] = useState([])
   const [payments, setPayments] = useState([]) // parsed from the uploaded file: [{ name, amount, raw }]

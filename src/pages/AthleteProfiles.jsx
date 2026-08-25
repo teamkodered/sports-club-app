@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, Fragment } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
+import { useBackableTab } from '../hooks/useBackableTab.js'
 import StudentProfile from '../components/students/StudentProfile.jsx'
 import * as XLSX from 'xlsx'
 
@@ -3033,7 +3034,7 @@ export default function AthleteProfiles() {
   const [loading, setLoading]       = useState(true)
   const [searchParams, setSearchParams] = useSearchParams()
   const [saving, setSaving]         = useState(false)
-  const [tab, setTab]               = useState('profile')
+  const [tab, setTab]               = useBackableTab('profile')
   const [search, setSearch]         = useState('')
   const [editing, setEditing]       = useState(false)
   const editProfileRef = useRef(null)

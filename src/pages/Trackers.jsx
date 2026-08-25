@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useBackableTab } from '../hooks/useBackableTab.js'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { studentProfileLink } from '../lib/studentLinks.js'
@@ -67,7 +68,7 @@ function Sparkline({ data, colour = '#378ADD', width = 110, height = 32, onClick
 }
 
 export default function Trackers() {
-  const [tab, setTab]               = useState('dashboard')
+  const [tab, setTab]               = useBackableTab('dashboard')
   const [attendance, setAttendance]   = useState([])
   const [attFilter, setAttFilter]     = useState('all')
   const [attDateFrom, setAttDateFrom] = useState('')

@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
+import { useBackableTab } from '../hooks/useBackableTab.js'
 import { studentProfileLink } from '../lib/studentLinks.js'
 
 function SortTh({ children, col, sortKey, sortDir, onSort, style = {} }) {
@@ -71,7 +72,7 @@ function HoldableName({ student, name, onHold, style }) {
 export default function LeagueViews() {
   const { isAdmin } = useAuth()
   const navigate = useNavigate()
-  const [tab, setTab] = useState('House league')
+  const [tab, setTab] = useBackableTab('House league')
   const [showMedals, setShowMedals] = useState(true)
 
   // Date filter — default current season

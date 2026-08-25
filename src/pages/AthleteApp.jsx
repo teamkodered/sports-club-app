@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { supabasePublic } from '../lib/supabasePublic.js'
 import { useAuth } from '../hooks/useAuth.jsx'
+import { useBackableTab } from '../hooks/useBackableTab.js'
 
 const HOUSE_COLOURS = {
   'Dragon House': '#E24B4A', 'Super House': '#378ADD',
@@ -1246,7 +1247,7 @@ const MENTALITY_KEYS_FOR_CHECK = ['videoAnalysis', 'meditation', 'visualisation'
 export default function AthleteApp() {
   const { profile, isStaff } = useAuth()
   const navigate = useNavigate()
-  const [tab, setTab]           = useState('home')
+  const [tab, setTab]           = useBackableTab('home')
   const [termsChecked, setTermsChecked] = useState(false) // the checkbox inside the modal
   const [acceptingTerms, setAcceptingTerms] = useState(false)
   const [termsDismissedLocally, setTermsDismissedLocally] = useState(false) // avoids waiting on a full profile refetch after accepting
