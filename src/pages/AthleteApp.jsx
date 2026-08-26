@@ -3002,32 +3002,43 @@ export default function AthleteApp() {
   }
 
   // Save a note tied to one specific session (a specific class on a
-  // specific date), opened from the calendar's day-detail popup --
-  // reuses the same attendance.note field the coach's own session
-  // notes already use, so a note written here shows up there too.
-  // Works even if the athlete never checks in for that session -- if
-  // no attendance row exists yet, one is created purely to hold the
-  // note, marked "excused" (present: false) so it's never counted as
-  // an actual attendance anywhere else in the app.
-  async function saveSessionNoteForModal() {
-    if (!sessionNoteModal) return
+  // specific date) -- reuses the same attendance.note field the
+  // coach's own session notes already use, so a note written here
+  // shows up there too. Works even if the athlete never checks in for
+  // that session -- if no attendance row exists yet, one is created
+  // purely to hold the note, marked "excused" (present: false) so it's
+  // never counted as an actual attendance anywhere else in the app.
+  // Takes explicit params rather than reading from one specific popup's
+  // state, so both the calendar's day-detail popup and the Weekly
+  // Timetable's own session popup can share this same function.
+  async function saveSessionNote({ attendanceId, dateStr, classId, noteText, onSaved }) {
     setSavingSessionNote(true)
-    if (sessionNoteModal.attendanceId) {
-      const { error } = await supabase.from('attendance').update({ note: sessionNoteDraft }).eq('id', sessionNoteModal.attendanceId)
+    if (attendanceId) {
+      const { error } = await supabase.from('attendance').update({ note: noteText }).eq('id', attendanceId)
       setSavingSessionNote(false)
       if (error) { alert('Error saving note: ' + error.message); return }
-      setAttendanceData(prev => prev.map(a => a.id === sessionNoteModal.attendanceId ? { ...a, note: sessionNoteDraft } : a))
+      setAttendanceData(prev => prev.map(a => a.id === attendanceId ? { ...a, note: noteText } : a))
+      onSaved?.(attendanceId)
     } else {
       const { data, error } = await supabase.from('attendance').insert({
         student_id: student.id, present: false, attendance_type: 'excused',
-        session_date: sessionNoteModal.dateStr, attended_at: new Date().toISOString(),
-        class_id: sessionNoteModal.classId, note: sessionNoteDraft,
+        session_date: dateStr, attended_at: new Date().toISOString(),
+        class_id: classId, note: noteText,
       }).select().single()
       setSavingSessionNote(false)
       if (error) { alert('Error saving note: ' + error.message); return }
       setAttendanceData(prev => [...prev, data])
-      setSessionNoteModal(m => ({ ...m, attendanceId: data.id }))
+      onSaved?.(data.id)
     }
+  }
+
+  async function saveSessionNoteForModal() {
+    if (!sessionNoteModal) return
+    saveSessionNote({
+      attendanceId: sessionNoteModal.attendanceId, dateStr: sessionNoteModal.dateStr, classId: sessionNoteModal.classId,
+      noteText: sessionNoteDraft,
+      onSaved: id => setSessionNoteModal(m => ({ ...m, attendanceId: id })),
+    })
   }
 
   // Checking in directly from the day-detail/session-note panel --
@@ -5616,7 +5627,12 @@ export default function AthleteApp() {
                           if (pct == null) return null
                           return (
                             <div key={ci} title={`${a.classes?.name} ${a.classes?.start_time?.slice(0,5)}`}
-                              onClick={() => { setClassDetailPanel({ classInfo: a.classes, dateStr }); setClassNoteText('') }}
+                              onClick={() => {
+                                const existingAttendance = attendanceData.find(att => att.class_id === a.class_id && att.session_date === dateStr)
+                                setClassDetailPanel({ classInfo: a.classes, classId: a.class_id, dateStr, attendanceId: existingAttendance?.id || null })
+                                setClassNoteText('')
+                                setSessionNoteDraft(existingAttendance?.note || '')
+                              }}
                               style={{ position: 'absolute', left: 2, right: 2, top: `${pct}%`, background: '#378ADD22', border: '1px solid #378ADD', borderRadius: 3, padding: '1px 3px', fontSize: 8, color: '#378ADD', lineHeight: 1.3, zIndex: 1, cursor: 'pointer' }}>
                               {a.classes?.start_time?.slice(0,5)} {a.classes?.name}
                             </div>
@@ -5691,23 +5707,62 @@ export default function AthleteApp() {
               <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 14, lineHeight: 1.4 }}>{classDetailPanel.classInfo.description}</p>
             )}
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, marginTop: classDetailPanel.classInfo?.description ? 0 : 10 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Add a note about this class</label>
+              {(() => {
+                const header = `${classDetailPanel.classInfo?.name} — ${new Date(classDetailPanel.dateStr + 'T12:00:00').toLocaleDateString('en-GB')}`
+                const generalNotes = myNotesLog.filter(n => n.note_text?.startsWith(header))
+                const sessionNote = attendanceData.find(a => a.id === classDetailPanel.attendanceId)?.note
+                if (!generalNotes.length && !sessionNote) return null
+                return (
+                  <div style={{ marginBottom: 14 }}>
+                    <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Notes for this session</label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {sessionNote && (
+                        <div style={{ padding: '6px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', fontSize: 12 }}>
+                          <span style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 600 }}>SESSION NOTE</span>
+                          <p style={{ marginTop: 2 }}>{sessionNote}</p>
+                        </div>
+                      )}
+                      {generalNotes.map(n => (
+                        <div key={n.id} style={{ padding: '6px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', fontSize: 12 }}>
+                          <span style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 600 }}>NOTE</span>
+                          <p style={{ marginTop: 2 }}>{n.note_text.slice(header.length).replace(/^\n/, '')}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
+              <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Add a note…</label>
               <textarea value={classNoteText} onChange={e => setClassNoteText(e.target.value)} rows={3}
                 placeholder="Write a note…"
                 style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
-              <button className="btn btn-primary btn-sm" disabled={!classNoteText.trim() || savingClassNote} onClick={async () => {
-                setSavingClassNote(true)
-                const header = `${classDetailPanel.classInfo?.name} — ${new Date(classDetailPanel.dateStr + 'T12:00:00').toLocaleDateString('en-GB')}`
-                const fullText = `${header}\n${classNoteText.trim()}`
-                const { data, error } = await supabase.from('athlete_notes_log')
-                  .insert({ student_id: student.id, note_text: fullText, logged_at: new Date().toISOString(), author_role: 'athlete', visible_to_athlete: true })
-                  .select().single()
-                if (error) { alert('Error saving note: ' + error.message) } else {
-                  setMyNotesLog(prev => [data, ...prev])
-                  setClassDetailPanel(null)
-                }
-                setSavingClassNote(false)
-              }}>{savingClassNote ? 'Saving…' : 'Save note'}</button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn btn-sm" style={{ flex: 1, justifyContent: 'center' }} disabled={!classNoteText.trim() || savingClassNote} onClick={async () => {
+                  setSavingClassNote(true)
+                  const header = `${classDetailPanel.classInfo?.name} — ${new Date(classDetailPanel.dateStr + 'T12:00:00').toLocaleDateString('en-GB')}`
+                  const fullText = `${header}\n${classNoteText.trim()}`
+                  const { data, error } = await supabase.from('athlete_notes_log')
+                    .insert({ student_id: student.id, note_text: fullText, logged_at: new Date().toISOString(), author_role: 'athlete', visible_to_athlete: true })
+                    .select().single()
+                  if (error) { alert('Error saving note: ' + error.message) } else {
+                    setMyNotesLog(prev => [data, ...prev])
+                    setClassDetailPanel(null)
+                  }
+                  setSavingClassNote(false)
+                }} title="Saves as a general note, visible in your notes list">
+                  {savingClassNote ? 'Saving…' : '💾 Save to notes'}
+                </button>
+                <button className="btn btn-primary btn-sm" style={{ flex: 1, justifyContent: 'center' }} disabled={!classNoteText.trim() || savingSessionNote} onClick={() => {
+                  saveSessionNote({
+                    attendanceId: classDetailPanel.attendanceId, dateStr: classDetailPanel.dateStr, classId: classDetailPanel.classId,
+                    noteText: classNoteText.trim(),
+                    onSaved: id => setClassDetailPanel(p => ({ ...p, attendanceId: id })),
+                  })
+                  setClassNoteText('')
+                }} title="Attaches this note to this specific session — same note field your coach can see there too">
+                  {savingSessionNote ? 'Saving…' : '📅 Save to session'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

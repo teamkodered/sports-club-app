@@ -3508,6 +3508,11 @@ export default function AthleteProfiles() {
   const [openSession, setOpenSession]       = useState(null)
   const [sessionNoteDraft, setSessionNoteDraft] = useState('')
   const [savingSessionNote, setSavingSessionNote] = useState(false)
+  const [classDetailPanel, setClassDetailPanel] = useState(null) // Weekly Timetable "press a session" popup (coach side)
+  const [classNoteText, setClassNoteText] = useState('')
+  const [savingClassNote, setSavingClassNote] = useState(false)
+  const [classPanelSessionNoteDraft, setClassPanelSessionNoteDraft] = useState('')
+  const [savingClassPanelSessionNote, setSavingClassPanelSessionNote] = useState(false)
   const [reportLoading, setReportLoading] = useState(false)
   const [reportFrom, setReportFrom] = useState(() => { const d = new Date(); d.setMonth(d.getMonth()-3); return d.toISOString().split('T')[0] })
   const [reportTo, setReportTo]     = useState(new Date().toISOString().split('T')[0])
@@ -5114,6 +5119,47 @@ export default function AthleteProfiles() {
       setOpenSession(s => ({ ...s, note: sessionNoteDraft }))
     }
     setSavingSessionNote(false)
+  }
+
+  // For the Weekly Timetable's "press a session" popup -- same
+  // save-to-notes/save-to-session choice as the athlete's own view.
+  // Works even with no existing attendance row for that date -- one
+  // gets created purely to hold the note, marked "excused" so it's
+  // never counted as an actual attendance.
+  async function saveClassPanelNote(destination) {
+    if (!classDetailPanel) return
+    const text = classNoteText.trim()
+    if (!text) return
+    if (destination === 'notes') {
+      setSavingClassNote(true)
+      const header = `${classDetailPanel.classInfo?.name} — ${new Date(classDetailPanel.dateStr + 'T12:00:00').toLocaleDateString('en-GB')}`
+      const { data, error } = await supabase.from('athlete_notes_log')
+        .insert({ student_id: selected.id, note_text: `${header}\n${text}`, author_role: 'coach', visible_to_athlete: true })
+        .select().single()
+      setSavingClassNote(false)
+      if (error) { alert('Error saving note: ' + error.message); return }
+      setNotesLog(prev => [data, ...prev])
+      setClassDetailPanel(null)
+    } else {
+      setSavingClassPanelSessionNote(true)
+      if (classDetailPanel.attendanceId) {
+        const { error } = await supabase.from('attendance').update({ note: text }).eq('id', classDetailPanel.attendanceId)
+        setSavingClassPanelSessionNote(false)
+        if (error) { alert('Error saving note: ' + error.message); return }
+        setAttendanceData(prev => prev.map(a => a.id === classDetailPanel.attendanceId ? { ...a, note: text } : a))
+      } else {
+        const { data, error } = await supabase.from('attendance').insert({
+          student_id: selected.id, present: false, attendance_type: 'excused',
+          session_date: classDetailPanel.dateStr, attended_at: new Date().toISOString(),
+          class_id: classDetailPanel.classId, note: text,
+        }).select().single()
+        setSavingClassPanelSessionNote(false)
+        if (error) { alert('Error saving note: ' + error.message); return }
+        setAttendanceData(prev => [...prev, data])
+        setClassDetailPanel(p => ({ ...p, attendanceId: data.id }))
+      }
+      setClassNoteText('')
+    }
   }
 
   async function saveProfile() {
@@ -10161,7 +10207,12 @@ export default function AthleteProfiles() {
                                       if (pct == null) return null
                                       return (
                                         <div key={ci} title={`${a.classes?.name} ${a.classes?.start_time?.slice(0,5)}`}
-                                          style={{ position: 'absolute', left: 2, right: 2, top: `${pct}%`, background: '#378ADD22', border: '1px solid #378ADD', borderRadius: 3, padding: '1px 3px', fontSize: 8, color: '#378ADD', lineHeight: 1.3, zIndex: 1 }}>
+                                          onClick={() => {
+                                            const existingAttendance = attendanceData.find(att => att.class_id === a.class_id && att.session_date === dateStr)
+                                            setClassDetailPanel({ classInfo: a.classes, classId: a.class_id, dateStr, attendanceId: existingAttendance?.id || null })
+                                            setClassNoteText('')
+                                          }}
+                                          style={{ position: 'absolute', left: 2, right: 2, top: `${pct}%`, background: '#378ADD22', border: '1px solid #378ADD', borderRadius: 3, padding: '1px 3px', fontSize: 8, color: '#378ADD', lineHeight: 1.3, zIndex: 1, cursor: 'pointer' }}>
                                           {a.classes?.start_time?.slice(0,5)} {a.classes?.name}
                                         </div>
                                       )
@@ -10527,6 +10578,73 @@ export default function AthleteProfiles() {
                               {savingSessionNote ? 'Saving…' : 'Save note'}
                             </button>
                           )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Weekly Timetable "press a session" popup -- same
+                      save-to-notes/save-to-session choice as the
+                      athlete's own view, now available from the
+                      coach's side too. */}
+                  {classDetailPanel && (
+                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}
+                      onClick={() => setClassDetailPanel(null)}>
+                      <div className="card" style={{ width: 340, padding: 20 }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                          <h2 style={{ fontSize: 15, fontWeight: 600 }}>{classDetailPanel.classInfo?.name}</h2>
+                          <button onClick={() => setClassDetailPanel(null)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
+                        </div>
+                        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                          {new Date(classDetailPanel.dateStr + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} · {classDetailPanel.classInfo?.start_time?.slice(0,5)}
+                          {classDetailPanel.classInfo?.end_time ? `–${classDetailPanel.classInfo.end_time.slice(0,5)}` : ''}
+                        </p>
+                        {classDetailPanel.classInfo?.instructor && (
+                          <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>👤 {classDetailPanel.classInfo.instructor}</p>
+                        )}
+                        {classDetailPanel.classInfo?.description && (
+                          <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 14, lineHeight: 1.4 }}>{classDetailPanel.classInfo.description}</p>
+                        )}
+                        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, marginTop: classDetailPanel.classInfo?.description ? 0 : 10 }}>
+                          {(() => {
+                            const header = `${classDetailPanel.classInfo?.name} — ${new Date(classDetailPanel.dateStr + 'T12:00:00').toLocaleDateString('en-GB')}`
+                            const generalNotes = notesLog.filter(n => n.note_text?.startsWith(header))
+                            const sessionNote = attendanceData.find(a => a.id === classDetailPanel.attendanceId)?.note
+                            if (!generalNotes.length && !sessionNote) return null
+                            return (
+                              <div style={{ marginBottom: 14 }}>
+                                <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Notes for this session</label>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                  {sessionNote && (
+                                    <div style={{ padding: '6px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', fontSize: 12 }}>
+                                      <span style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 600 }}>SESSION NOTE</span>
+                                      <p style={{ marginTop: 2 }}>{sessionNote}</p>
+                                    </div>
+                                  )}
+                                  {generalNotes.map(n => (
+                                    <div key={n.id} style={{ padding: '6px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', fontSize: 12 }}>
+                                      <span style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 600 }}>{n.author_role === 'athlete' ? 'ATHLETE NOTE' : 'NOTE'}</span>
+                                      <p style={{ marginTop: 2 }}>{n.note_text.slice(header.length).replace(/^\n/, '')}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )
+                          })()}
+                          <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Add a note…</label>
+                          <textarea value={classNoteText} onChange={e => setClassNoteText(e.target.value)} rows={3}
+                            placeholder="Write a note…"
+                            style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button className="btn btn-sm" style={{ flex: 1, justifyContent: 'center' }} disabled={!classNoteText.trim() || savingClassNote}
+                              onClick={() => saveClassPanelNote('notes')} title="Saves as a general note, shared with the athlete">
+                              {savingClassNote ? 'Saving…' : '💾 Save to notes'}
+                            </button>
+                            <button className="btn btn-primary btn-sm" style={{ flex: 1, justifyContent: 'center' }} disabled={!classNoteText.trim() || savingClassPanelSessionNote}
+                              onClick={() => saveClassPanelNote('session')} title="Attaches this note to this specific session">
+                              {savingClassPanelSessionNote ? 'Saving…' : '📅 Save to session'}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
