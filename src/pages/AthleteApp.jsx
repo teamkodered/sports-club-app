@@ -3695,11 +3695,6 @@ export default function AthleteApp() {
                             : `${attendedDayCount}/${possibleSessions || attendedDayCount}`}
                         </div>
                         <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>Sessions</div>
-                        {coachAttendanceDateSettings && (
-                          <div style={{ fontSize: 8, color: 'var(--text-tertiary)' }}>
-                            {new Date(earliestDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – {new Date(coachAttendanceDateSettings.to).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                          </div>
-                        )}
                       </div>
                       <button onClick={() => setTab('fit2fight')}
                         className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none' }}>
