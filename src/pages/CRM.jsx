@@ -115,6 +115,8 @@ export default function CRM() {
   const [selectedStopped, setSelectedStopped] = useState(new Set())
   const [stoppedSearch, setStoppedSearch] = useState('')
   const [holidayModalFor, setHolidayModalFor] = useState(null) // { id, name } of the student currently being given a holiday, or null
+  const [confirmStopFor, setConfirmStopFor] = useState(null) // { memberId, studentId, name } currently confirming a "mark as stopped" action, or null
+  const [stoppingInProgress, setStoppingInProgress] = useState(false)
   const [holidayForm, setHolidayForm] = useState({ name: '', start_date: '', end_date: '' })
   const [savingHoliday, setSavingHoliday] = useState(false)
   const [missedTrainingLoaded, setMissedTrainingLoaded] = useState(false)
@@ -651,7 +653,7 @@ export default function CRM() {
   async function loadData() {
     setLoading(true)
     const [{ data: s }, { data: pl }, { data: notes }] = await Promise.all([
-      supabase.from('students').select('id, student_ref, discipline, class_schedule, sponsored, guardian_name, pka_belt, krba_level, house_name, media_restriction, is_kr, is_pts, is_leader, is_coach, members(first_name, last_name, status, email, phone, date_of_birth, do_not_contact, houses(name))'),
+      supabase.from('students').select('id, student_ref, discipline, class_schedule, sponsored, guardian_name, pka_belt, krba_level, house_name, media_restriction, is_kr, is_pts, is_leader, is_coach, member_id, members(first_name, last_name, status, email, phone, date_of_birth, do_not_contact, houses(name))'),
       supabase.from('payer_links').select('*'),
       supabase.from('athlete_notes_log').select('id, student_id, note_text, created_at').order('created_at', { ascending: false }),
     ])
@@ -706,6 +708,20 @@ export default function CRM() {
     setStoppedStudents(prev => prev.map(s => s.id === student.id ? { ...s, members: { ...s.members, do_not_contact: newValue } } : s))
     // A do-not-contact person should never stay selected for a bulk send
     if (newValue) setSelectedStopped(prev => { const next = new Set(prev); next.delete(student.id); return next })
+  }
+
+  async function markAsStopped() {
+    if (!confirmStopFor) return
+    setStoppingInProgress(true)
+    const { error } = await supabase.from('members').update({ status: 'stopped' }).eq('id', confirmStopFor.memberId)
+    setStoppingInProgress(false)
+    if (error) { alert('Error updating status: ' + error.message); return }
+    // Remove them from the Missed Training list immediately -- they're
+    // no longer "missing", they've actually stopped, which is a
+    // different tab (Stopped training) entirely now.
+    setMissedTraining(prev => prev.filter(r => r.student.id !== confirmStopFor.studentId))
+    setConfirmStopFor(null)
+    setStoppedLoaded(false) // force a fresh load next time that tab is opened, so this student shows up there
   }
 
   async function loadMissedTraining() {
@@ -1631,6 +1647,7 @@ export default function CRM() {
                     <th>Weeks missed</th>
                     <th>Contact</th>
                     <th>Holiday</th>
+                    <th>Stop</th>
                   </tr></thead>
                   <tbody>
                     {missedTraining.map(r => {
@@ -1658,6 +1675,12 @@ export default function CRM() {
                             <button className="btn btn-sm" style={{ fontSize: 11 }} title="Set a holiday period for this student — excludes them from missed-training/attendance tracking while away"
                               onClick={() => { setHolidayForm({ name: '', start_date: '', end_date: '' }); setHolidayModalFor({ id: r.student.id, name: `${m?.first_name || ''} ${m?.last_name || ''}`.trim() }) }}>
                               🏖️ Holiday
+                            </button>
+                          </td>
+                          <td>
+                            <button className="btn btn-sm" style={{ fontSize: 11, color: '#E24B4A', borderColor: '#E24B4A' }} title="Mark this student as stopped training"
+                              onClick={() => setConfirmStopFor({ memberId: r.student.member_id, studentId: r.student.id, name: `${m?.first_name || ''} ${m?.last_name || ''}`.trim() })}>
+                              🛑 Stop
                             </button>
                           </td>
                         </tr>
@@ -1833,6 +1856,29 @@ export default function CRM() {
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Confirmation before marking a student as stopped, from the
+          Missed Training list -- a status change worth double-checking
+          before committing, since it moves them to the Stopped
+          training tab and out of active tracking. */}
+      {confirmStopFor && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
+          onClick={() => !stoppingInProgress && setConfirmStopFor(null)}>
+          <div className="card" style={{ width: '100%', maxWidth: 360 }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 10 }}>Mark as stopped?</h2>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
+              This will mark <strong>{confirmStopFor.name}</strong> as stopped training. They'll move to the
+              "Stopped training" tab and drop out of Missed Training and attendance tracking.
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn" style={{ flex: 1, justifyContent: 'center' }} disabled={stoppingInProgress} onClick={() => setConfirmStopFor(null)}>Cancel</button>
+              <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', background: '#E24B4A', borderColor: '#E24B4A' }} disabled={stoppingInProgress} onClick={markAsStopped}>
+                {stoppingInProgress ? 'Marking…' : '🛑 Yes, mark as stopped'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
