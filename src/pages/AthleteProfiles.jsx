@@ -8374,7 +8374,7 @@ export default function AthleteProfiles() {
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: showPhysicalSection ? 6 : 4, width: '100%' }}>
-                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showPhysicalSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#378ADD' }}>PHYSICAL</span>
+                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showPhysicalSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#EF9F27' }}>PHYSICAL</span>
                       <img src="/logos/char-physical.png" alt="" style={{ height: showPhysicalSection ? 36 : 22, width: 'auto' }} />
                     </div>
                     <CoachSectionProgressBars sectionKey="physical" vertical />
