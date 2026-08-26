@@ -34,15 +34,22 @@ export default function Claim() {
 
   useEffect(() => {
     if (!ref) { setLoading(false); setNotFound(true); return }
+    // students_read requires an existing session (auth.uid() IS NOT
+    // NULL), which a brand new visitor to this link doesn't have yet --
+    // that's the whole point of this page. Uses a narrow RPC instead of
+    // a direct table select, so this works before any login exists,
+    // without opening up public read access to the whole table.
     supabasePublic
-      .from('students')
-      .select('id, student_ref, discipline, pka_belt, krba_level, house_name, member_id, members(first_name, last_name, houses(name))')
-      .eq('student_ref', ref)
-      .limit(1)
-      .then(({ data }) => {
-        const s = data?.[0]
-        if (!s) setNotFound(true)
-        else setStudent(s)
+      .rpc('get_student_by_ref', { ref_param: ref })
+      .then(({ data, error }) => {
+        const row = data?.[0]
+        if (error || !row) { setNotFound(true); setLoading(false); return }
+        setStudent({
+          id: row.id, student_ref: row.student_ref, discipline: row.discipline,
+          pka_belt: row.pka_belt, krba_level: row.krba_level, house_name: row.house_name,
+          member_id: row.member_id,
+          members: { first_name: row.first_name, last_name: row.last_name, houses: { name: row.house_name_via_member } },
+        })
         setLoading(false)
       })
   }, [ref])
