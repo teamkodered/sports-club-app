@@ -1352,7 +1352,7 @@ export default function AthleteApp() {
   })
   const [radarDrilldown, setRadarDrilldown] = useState(null) // which axis label is expanded, or null
   const [athleteTimetableModal, setAthleteTimetableModal] = useState(null) // { sectionKey, item } or null
-  const [expandedToDoScopes, setExpandedToDoScopes] = useState(() => new Set()) // scope keys whose "To do" section is currently revealed
+  const [expandedToDoItems, setExpandedToDoItems] = useState(() => new Set()) // composite "scope:type:index" keys whose own "To do" panel is currently revealed
   const [newToDoDrafts, setNewToDoDrafts] = useState({}) // scope key -> draft text for the athlete's own new to-do note
   const [schedWizardStep, setSchedWizardStep] = useState('days') // 'days' -> 'metric' -> 'value' -> 'submetric' -> 'subvalue'
   const [schedWizardDays, setSchedWizardDays] = useState([]) // recurring days of week, e.g. ['Monday', 'Wednesday']
@@ -5843,16 +5843,86 @@ export default function AthleteApp() {
                 const maintainItems = shared[maintainSection.key] || []
                 const workOnItems = shared[workOnSection.key] || []
                 const toDoItems = shared[toDoSection.key] || []
-                const isExpanded = expandedToDoScopes.has(scope.key)
                 if (!notesItems.length && !maintainItems.length && !workOnItems.length && !toDoItems.length) return null
 
-                function toggleToDo() {
-                  setExpandedToDoScopes(prev => {
+                function toggleToDo(itemKey) {
+                  setExpandedToDoItems(prev => {
                     const next = new Set(prev)
-                    if (next.has(scope.key)) next.delete(scope.key)
-                    else next.add(scope.key)
+                    if (next.has(itemKey)) next.delete(itemKey)
+                    else next.add(itemKey)
                     return next
                   })
+                }
+
+                // Shared "To do" panel content -- same list of to-do
+                // items regardless of which specific Maintain/Work-on
+                // note was pressed (there's no data link tying a
+                // specific to-do to a specific note), but now it
+                // renders inline directly beneath whichever note was
+                // actually pressed, and toggles independently per note,
+                // instead of one single panel shared/fixed for the
+                // whole scope.
+                function ToDoPanel({ itemKey }) {
+                  const isActive = expandedToDoItems.has(itemKey)
+                  return (
+                    <div style={{ overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease', maxHeight: isActive ? 3000 : 0, opacity: isActive ? 1 : 0 }}>
+                      <div className="card" style={{ borderLeft: `3px solid ${toDoSection.colour}`, marginTop: 6 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                          <h3 style={{ fontSize: 13, fontWeight: 600, color: toDoSection.colour, margin: 0 }}>{toDoSection.label}</h3>
+                          <button onClick={() => toggleToDo(itemKey)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 12, fontFamily: 'var(--font-sans)' }}>✕ Close</button>
+                        </div>
+                        {toDoItems.length === 0 && (
+                          <p style={{ fontSize: 12, color: 'var(--text-tertiary)', fontStyle: 'italic', margin: '0 0 8px' }}>Nothing here yet — add one below.</p>
+                        )}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+                          {toDoItems.map((item, i) => {
+                            const existing = timetableEntry(toDoSection.key, item)
+                            const isTimetableActive = athleteTimetableModal?.sectionKey === toDoSection.key && athleteTimetableModal?.item === item
+                            return (
+                              <div key={i} style={{ background: toDoSection.colour + '15', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '6px 10px' }}>
+                                  <span style={{ color: toDoSection.colour, fontSize: 12 }}>{item}</span>
+                                  {existing?.days?.length ? (
+                                    <button onClick={() => setAthleteTimetableModal(isTimetableActive ? null : { sectionKey: toDoSection.key, item })}
+                                      style={{ fontSize: 10, background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontWeight: 600, flexShrink: 0, textAlign: 'right', fontFamily: 'var(--font-sans)' }}>
+                                      📅 {existing.days.map(d => d.slice(0, 3)).join('/')}{existing.time ? ` ${existing.time}` : ''}
+                                      {formatScheduleMetric(existing.metric) && <><br />{formatScheduleMetric(existing.metric)}</>}
+                                    </button>
+                                  ) : (
+                                    <button onClick={() => setAthleteTimetableModal(isTimetableActive ? null : { sectionKey: toDoSection.key, item })}
+                                      style={{ fontSize: 10, background: 'none', border: 'none', color: toDoSection.colour, cursor: 'pointer', fontWeight: 600, flexShrink: 0, fontFamily: 'var(--font-sans)' }}>
+                                      📅 Add to calendar
+                                    </button>
+                                  )}
+                                </div>
+                                <div style={{ overflow: 'hidden', transition: 'max-height 0.3s ease, opacity 0.2s ease', maxHeight: isTimetableActive ? 500 : 0, opacity: isTimetableActive ? 1 : 0 }}>
+                                  <div style={{ padding: '4px 10px 12px' }}>
+                                    {ScheduleWizardPanel()}
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <input value={newToDoDrafts[scope.key] || ''} placeholder="Add your own to do…"
+                            onChange={e => setNewToDoDrafts(d => ({ ...d, [scope.key]: e.target.value }))}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter' && newToDoDrafts[scope.key]?.trim()) {
+                                addAthleteToDoItem(toDoSection.key, newToDoDrafts[scope.key])
+                                setNewToDoDrafts(d => ({ ...d, [scope.key]: '' }))
+                              }
+                            }}
+                            style={{ flex: 1, fontSize: 13 }} />
+                          <button className="btn btn-sm" disabled={!newToDoDrafts[scope.key]?.trim()}
+                            onClick={() => {
+                              addAthleteToDoItem(toDoSection.key, newToDoDrafts[scope.key])
+                              setNewToDoDrafts(d => ({ ...d, [scope.key]: '' }))
+                            }}>Add</button>
+                        </div>
+                      </div>
+                    </div>
+                  )
                 }
 
                 return (
@@ -5874,12 +5944,18 @@ export default function AthleteApp() {
                       <div className="card" style={{ borderLeft: `3px solid ${maintainSection.colour}` }}>
                         <h3 style={{ fontSize: 13, fontWeight: 600, color: maintainSection.colour, margin: '0 0 8px' }}>{maintainSection.label}</h3>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                          {maintainItems.map((item, i) => (
-                            <div key={i} onClick={toggleToDo}
-                              style={{ background: maintainSection.colour + '15', borderRadius: 'var(--radius)', padding: '6px 10px', cursor: 'pointer' }}>
-                              <span style={{ color: maintainSection.colour, fontSize: 12 }}>{item}</span>
-                            </div>
-                          ))}
+                          {maintainItems.map((item, i) => {
+                            const itemKey = `${scope.key}:maintain:${i}`
+                            return (
+                              <div key={i}>
+                                <div onClick={() => toggleToDo(itemKey)}
+                                  style={{ background: maintainSection.colour + '15', borderRadius: 'var(--radius)', padding: '6px 10px', cursor: 'pointer' }}>
+                                  <span style={{ color: maintainSection.colour, fontSize: 12 }}>{item}</span>
+                                </div>
+                                <ToDoPanel itemKey={itemKey} />
+                              </div>
+                            )
+                          })}
                         </div>
                       </div>
                     )}
@@ -5888,81 +5964,18 @@ export default function AthleteApp() {
                       <div className="card" style={{ borderLeft: `3px solid ${workOnSection.colour}` }}>
                         <h3 style={{ fontSize: 13, fontWeight: 600, color: workOnSection.colour, margin: '0 0 8px' }}>{workOnSection.label}</h3>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                          {workOnItems.map((item, i) => (
-                            <div key={i} onClick={toggleToDo}
-                              style={{ background: workOnSection.colour + '15', borderRadius: 'var(--radius)', padding: '6px 10px', cursor: 'pointer' }}>
-                              <span style={{ color: workOnSection.colour, fontSize: 12 }}>{item}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* "To do" -- collapsed by default, slides down when a
-                        Maintain or To-work-on item above is tapped.
-                        "Add to calendar" now lives here (moved from
-                        Maintain/To-work-on) since to-dos are the
-                        actionable items worth scheduling. The athlete
-                        can also add their own to-do notes here --
-                        written straight to the same pdp_notes the
-                        coach uses, so it's visible on both sides
-                        immediately, no send step either direction. */}
-                    {(maintainItems.length > 0 || workOnItems.length > 0 || toDoItems.length > 0) && (
-                      <div style={{ overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease', maxHeight: isExpanded ? 3000 : 0, opacity: isExpanded ? 1 : 0 }}>
-                        <div className="card" style={{ borderLeft: `3px solid ${toDoSection.colour}` }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                            <h3 style={{ fontSize: 13, fontWeight: 600, color: toDoSection.colour, margin: 0 }}>{toDoSection.label}</h3>
-                            <button onClick={toggleToDo} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 12, fontFamily: 'var(--font-sans)' }}>✕ Close</button>
-                          </div>
-                          {toDoItems.length === 0 && (
-                            <p style={{ fontSize: 12, color: 'var(--text-tertiary)', fontStyle: 'italic', margin: '0 0 8px' }}>Nothing here yet — add one below.</p>
-                          )}
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
-                            {toDoItems.map((item, i) => {
-                              const existing = timetableEntry(toDoSection.key, item)
-                              const isActive = athleteTimetableModal?.sectionKey === toDoSection.key && athleteTimetableModal?.item === item
-                              return (
-                                <div key={i} style={{ background: toDoSection.colour + '15', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '6px 10px' }}>
-                                    <span style={{ color: toDoSection.colour, fontSize: 12 }}>{item}</span>
-                                    {existing?.days?.length ? (
-                                      <button onClick={() => setAthleteTimetableModal(isActive ? null : { sectionKey: toDoSection.key, item })}
-                                        style={{ fontSize: 10, background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontWeight: 600, flexShrink: 0, textAlign: 'right', fontFamily: 'var(--font-sans)' }}>
-                                        📅 {existing.days.map(d => d.slice(0, 3)).join('/')}{existing.time ? ` ${existing.time}` : ''}
-                                        {formatScheduleMetric(existing.metric) && <><br />{formatScheduleMetric(existing.metric)}</>}
-                                      </button>
-                                    ) : (
-                                      <button onClick={() => setAthleteTimetableModal(isActive ? null : { sectionKey: toDoSection.key, item })}
-                                        style={{ fontSize: 10, background: 'none', border: 'none', color: toDoSection.colour, cursor: 'pointer', fontWeight: 600, flexShrink: 0, fontFamily: 'var(--font-sans)' }}>
-                                        📅 Add to calendar
-                                      </button>
-                                    )}
-                                  </div>
-                                  <div style={{ overflow: 'hidden', transition: 'max-height 0.3s ease, opacity 0.2s ease', maxHeight: isActive ? 500 : 0, opacity: isActive ? 1 : 0 }}>
-                                    <div style={{ padding: '4px 10px 12px' }}>
-                                      {ScheduleWizardPanel()}
-                                    </div>
-                                  </div>
+                          {workOnItems.map((item, i) => {
+                            const itemKey = `${scope.key}:workon:${i}`
+                            return (
+                              <div key={i}>
+                                <div onClick={() => toggleToDo(itemKey)}
+                                  style={{ background: workOnSection.colour + '15', borderRadius: 'var(--radius)', padding: '6px 10px', cursor: 'pointer' }}>
+                                  <span style={{ color: workOnSection.colour, fontSize: 12 }}>{item}</span>
                                 </div>
-                              )
-                            })}
-                          </div>
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            <input value={newToDoDrafts[scope.key] || ''} placeholder="Add your own to do…"
-                              onChange={e => setNewToDoDrafts(d => ({ ...d, [scope.key]: e.target.value }))}
-                              onKeyDown={e => {
-                                if (e.key === 'Enter' && newToDoDrafts[scope.key]?.trim()) {
-                                  addAthleteToDoItem(toDoSection.key, newToDoDrafts[scope.key])
-                                  setNewToDoDrafts(d => ({ ...d, [scope.key]: '' }))
-                                }
-                              }}
-                              style={{ flex: 1, fontSize: 13 }} />
-                            <button className="btn btn-sm" disabled={!newToDoDrafts[scope.key]?.trim()}
-                              onClick={() => {
-                                addAthleteToDoItem(toDoSection.key, newToDoDrafts[scope.key])
-                                setNewToDoDrafts(d => ({ ...d, [scope.key]: '' }))
-                              }}>Add</button>
-                          </div>
+                                <ToDoPanel itemKey={itemKey} />
+                              </div>
+                            )
+                          })}
                         </div>
                       </div>
                     )}
