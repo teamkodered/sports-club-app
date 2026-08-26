@@ -1244,6 +1244,41 @@ const TERMS_VERSION = 'v1-2026-08-10'
 const WELLBEING_KEYS_FOR_CHECK = ['sleep', 'nutrition', 'hydration', 'outdoors', 'talk', 'screenFree', 'journal', 'creative', 'productivity']
 const MENTALITY_KEYS_FOR_CHECK = ['videoAnalysis', 'meditation', 'visualisation', 'chess', 'reading', 'gaming', 'eyeTracking', 'coldWater', 'activeRecovery', 'gratitude', 'coachability']
 
+// Press-and-hold wrapper -- shows a delete confirmation after ~500ms
+// of holding, instead of a permanently-visible delete button. Defined
+// at module scope (not nested inside a render function) so it keeps a
+// stable identity across re-renders -- the same lesson as the
+// ToDoPanel keyboard-closing bug elsewhere in this file: a component
+// redefined on every render gets remounted by React on every state
+// change, which would cancel an in-progress hold immediately.
+function HoldToDelete({ onDelete, children }) {
+  const [confirming, setConfirming] = useState(false)
+  const timerRef = useRef(null)
+  const startHold = () => { timerRef.current = setTimeout(() => setConfirming(true), 500) }
+  const cancelHold = () => { if (timerRef.current) clearTimeout(timerRef.current) }
+  return (
+    <div style={{ position: 'relative' }}
+      onMouseDown={startHold} onMouseUp={cancelHold} onMouseLeave={cancelHold}
+      onTouchStart={startHold} onTouchEnd={cancelHold}>
+      {children}
+      {confirming && (
+        <div onClick={e => e.stopPropagation()} style={{
+          position: 'absolute', inset: 0, background: 'var(--bg)', display: 'flex', alignItems: 'center',
+          justifyContent: 'space-between', padding: '6px 10px', borderRadius: 'var(--radius)', zIndex: 5,
+          border: '1px solid #E24B4A',
+        }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#E24B4A' }}>Delete this?</span>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button className="btn btn-sm" onClick={() => setConfirming(false)}>Cancel</button>
+            <button className="btn btn-sm" style={{ background: '#E24B4A20', borderColor: '#E24B4A', color: '#E24B4A' }}
+              onClick={() => { onDelete(); setConfirming(false) }}>Delete</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function AthleteApp() {
   const { profile, isStaff } = useAuth()
   const navigate = useNavigate()
@@ -1815,6 +1850,42 @@ export default function AthleteApp() {
     flashSaved()
   }
 
+  // Next upcoming date (including today) for a given weekday name --
+  // used to attach a note to a specific real session occurrence rather
+  // than just a recurring day-of-week pattern.
+  function nextDateForDayOfWeek(dayName) {
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+    const targetIdx = days.indexOf(dayName)
+    if (targetIdx === -1) return null
+    const d = new Date()
+    const diff = (targetIdx - d.getDay() + 7) % 7
+    d.setDate(d.getDate() + diff)
+    return d.toISOString().split('T')[0]
+  }
+
+  const [addedToSessionConfirm, setAddedToSessionConfirm] = useState(null) // class_id just confirmed, briefly shown
+
+  // Attaches the current PDP item's text as a session note (same
+  // attendance.note field/mechanism as the Weekly Timetable) to the
+  // next real upcoming occurrence of a specific assigned class --
+  // separate from the recurring day/time reminder below, this ties the
+  // note to one actual session so it shows up when that session is
+  // pressed in the Weekly Timetable.
+  async function addNoteToSpecificSession(classInfo, classId) {
+    if (!athleteTimetableModal) return
+    const dateStr = nextDateForDayOfWeek(classInfo.day_of_week)
+    if (!dateStr) return
+    const existingAttendance = attendanceData.find(a => a.class_id === classId && a.session_date === dateStr)
+    await saveSessionNote({
+      attendanceId: existingAttendance?.id || null, dateStr, classId,
+      noteText: athleteTimetableModal.item,
+      onSaved: () => {
+        setAddedToSessionConfirm(classId)
+        setTimeout(() => setAddedToSessionConfirm(null), 2000)
+      },
+    })
+  }
+
   function ScheduleWizardPanel() {
     const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
     return (
@@ -1830,6 +1901,30 @@ export default function AthleteApp() {
                 </button>
               ))}
             </div>
+
+            {/* Actual assigned classes on the selected day(s) -- picking
+                one attaches this note directly to that upcoming session
+                (separate from the recurring reminder below), viewable
+                from the Weekly Timetable when that session is pressed. */}
+            {schedWizardDays.length > 0 && (() => {
+              const classesOnSelectedDays = assignedClasses.filter(a => schedWizardDays.includes(a.classes?.day_of_week))
+              if (!classesOnSelectedDays.length) return null
+              return (
+                <div style={{ marginBottom: 14, padding: 10, background: 'var(--bg-secondary)', borderRadius: 'var(--radius)' }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Or attach to one of your actual sessions:</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {classesOnSelectedDays.map(a => (
+                      <button key={a.id} type="button" className="btn btn-sm" style={{ justifyContent: 'space-between' }}
+                        onClick={() => addNoteToSpecificSession(a.classes, a.class_id)}>
+                        <span>{a.classes?.name} — {a.classes?.day_of_week} {a.classes?.start_time?.slice(0, 5)}</span>
+                        {addedToSessionConfirm === a.class_id && <span style={{ color: '#1D9E75', fontWeight: 600 }}>✓ Added to session</span>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
+
             <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Time (optional)</label>
             <input type="time" value={schedWizardTime} onChange={e => setSchedWizardTime(e.target.value)} style={{ width: '100%', marginBottom: 14 }} />
             <div style={{ display: 'flex', gap: 8 }}>
@@ -1965,6 +2060,21 @@ export default function AthleteApp() {
     const updated = { ...currentNotes, [toDoKey]: [...(currentNotes[toDoKey] || []), text.trim()] }
     const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: updated }, { onConflict: 'student_id' })
     if (error) { alert('Error adding note: ' + error.message); return }
+    setApData(a => ({ ...a, pdp_notes: updated }))
+  }
+  // Removes one specific item (by its text) from a PDP section array
+  // (Maintain/Work-on/To-do/Notes) -- these are plain string arrays,
+  // not rows with their own ids, so matched and removed by exact text.
+  async function removeAthletePdpItem(sectionKey, itemText) {
+    if (!student) return
+    const currentNotes = apData?.pdp_notes || {}
+    const current = currentNotes[sectionKey] || []
+    const idx = current.indexOf(itemText)
+    if (idx === -1) return
+    const updatedArray = [...current.slice(0, idx), ...current.slice(idx + 1)]
+    const updated = { ...currentNotes, [sectionKey]: updatedArray }
+    const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: updated }, { onConflict: 'student_id' })
+    if (error) { alert('Error deleting note: ' + error.message); return }
     setApData(a => ({ ...a, pdp_notes: updated }))
   }
   // Short "3 rounds x 30 sec" style summary of a scheduled item's metric.
@@ -5962,28 +6072,30 @@ export default function AthleteApp() {
                             const existing = timetableEntry(toDoSection.key, item)
                             const isTimetableActive = athleteTimetableModal?.sectionKey === toDoSection.key && athleteTimetableModal?.item === item
                             return (
-                              <div key={i} style={{ background: toDoSection.colour + '15', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '6px 10px' }}>
-                                  <span style={{ color: toDoSection.colour, fontSize: 12 }}>{item}</span>
-                                  {existing?.days?.length ? (
-                                    <button onClick={() => setAthleteTimetableModal(isTimetableActive ? null : { sectionKey: toDoSection.key, item })}
-                                      style={{ fontSize: 10, background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontWeight: 600, flexShrink: 0, textAlign: 'right', fontFamily: 'var(--font-sans)' }}>
-                                      📅 {existing.days.map(d => d.slice(0, 3)).join('/')}{existing.time ? ` ${existing.time}` : ''}
-                                      {formatScheduleMetric(existing.metric) && <><br />{formatScheduleMetric(existing.metric)}</>}
-                                    </button>
-                                  ) : (
-                                    <button onClick={() => setAthleteTimetableModal(isTimetableActive ? null : { sectionKey: toDoSection.key, item })}
-                                      style={{ fontSize: 10, background: 'none', border: 'none', color: toDoSection.colour, cursor: 'pointer', fontWeight: 600, flexShrink: 0, fontFamily: 'var(--font-sans)' }}>
-                                      📅 Add to calendar
-                                    </button>
-                                  )}
-                                </div>
-                                <div style={{ overflow: 'hidden', transition: 'max-height 0.3s ease, opacity 0.2s ease', maxHeight: isTimetableActive ? 500 : 0, opacity: isTimetableActive ? 1 : 0 }}>
-                                  <div style={{ padding: '4px 10px 12px' }}>
-                                    {ScheduleWizardPanel()}
+                              <HoldToDelete key={i} onDelete={() => removeAthletePdpItem(toDoSection.key, item)}>
+                                <div style={{ background: toDoSection.colour + '15', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '6px 10px' }}>
+                                    <span style={{ color: toDoSection.colour, fontSize: 12 }}>{item}</span>
+                                    {existing?.days?.length ? (
+                                      <button onClick={() => setAthleteTimetableModal(isTimetableActive ? null : { sectionKey: toDoSection.key, item })}
+                                        style={{ fontSize: 10, background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontWeight: 600, flexShrink: 0, textAlign: 'right', fontFamily: 'var(--font-sans)' }}>
+                                        📅 {existing.days.map(d => d.slice(0, 3)).join('/')}{existing.time ? ` ${existing.time}` : ''}
+                                        {formatScheduleMetric(existing.metric) && <><br />{formatScheduleMetric(existing.metric)}</>}
+                                      </button>
+                                    ) : (
+                                      <button onClick={() => setAthleteTimetableModal(isTimetableActive ? null : { sectionKey: toDoSection.key, item })}
+                                        style={{ fontSize: 10, background: 'none', border: 'none', color: toDoSection.colour, cursor: 'pointer', fontWeight: 600, flexShrink: 0, fontFamily: 'var(--font-sans)' }}>
+                                        📅 Add to calendar
+                                      </button>
+                                    )}
+                                  </div>
+                                  <div style={{ overflow: 'hidden', transition: 'max-height 0.3s ease, opacity 0.2s ease', maxHeight: isTimetableActive ? 500 : 0, opacity: isTimetableActive ? 1 : 0 }}>
+                                    <div style={{ padding: '4px 10px 12px' }}>
+                                      {ScheduleWizardPanel()}
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
+                              </HoldToDelete>
                             )
                           })}
                         </div>
@@ -6015,9 +6127,11 @@ export default function AthleteApp() {
                         <h3 style={{ fontSize: 13, fontWeight: 600, color: notesSection.colour, margin: '0 0 8px' }}>{notesSection.label}</h3>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                           {notesItems.map((item, i) => (
-                            <div key={i} style={{ background: notesSection.colour + '15', borderRadius: 'var(--radius)', padding: '6px 10px' }}>
-                              <span style={{ color: notesSection.colour, fontSize: 12 }}>{item}</span>
-                            </div>
+                            <HoldToDelete key={i} onDelete={() => removeAthletePdpItem(notesSection.key, item)}>
+                              <div style={{ background: notesSection.colour + '15', borderRadius: 'var(--radius)', padding: '6px 10px' }}>
+                                <span style={{ color: notesSection.colour, fontSize: 12 }}>{item}</span>
+                              </div>
+                            </HoldToDelete>
                           ))}
                         </div>
                       </div>
@@ -6031,11 +6145,13 @@ export default function AthleteApp() {
                             const itemKey = `${scope.key}:maintain:${i}`
                             return (
                               <div key={i}>
-                                <div onClick={() => toggleToDo(itemKey)}
-                                  style={{ background: maintainSection.colour + '15', borderRadius: 'var(--radius)', padding: '6px 10px', cursor: 'pointer' }}>
-                                  <span style={{ color: maintainSection.colour, fontSize: 12 }}>{item}</span>
-                                </div>
-                                <ToDoPanel itemKey={itemKey} />
+                                <HoldToDelete onDelete={() => removeAthletePdpItem(maintainSection.key, item)}>
+                                  <div onClick={() => toggleToDo(itemKey)}
+                                    style={{ background: maintainSection.colour + '15', borderRadius: 'var(--radius)', padding: '6px 10px', cursor: 'pointer' }}>
+                                    <span style={{ color: maintainSection.colour, fontSize: 12 }}>{item}</span>
+                                  </div>
+                                </HoldToDelete>
+                                {ToDoPanel({ itemKey })}
                               </div>
                             )
                           })}
@@ -6051,11 +6167,13 @@ export default function AthleteApp() {
                             const itemKey = `${scope.key}:workon:${i}`
                             return (
                               <div key={i}>
-                                <div onClick={() => toggleToDo(itemKey)}
-                                  style={{ background: workOnSection.colour + '15', borderRadius: 'var(--radius)', padding: '6px 10px', cursor: 'pointer' }}>
-                                  <span style={{ color: workOnSection.colour, fontSize: 12 }}>{item}</span>
-                                </div>
-                                <ToDoPanel itemKey={itemKey} />
+                                <HoldToDelete onDelete={() => removeAthletePdpItem(workOnSection.key, item)}>
+                                  <div onClick={() => toggleToDo(itemKey)}
+                                    style={{ background: workOnSection.colour + '15', borderRadius: 'var(--radius)', padding: '6px 10px', cursor: 'pointer' }}>
+                                    <span style={{ color: workOnSection.colour, fontSize: 12 }}>{item}</span>
+                                  </div>
+                                </HoldToDelete>
+                                {ToDoPanel({ itemKey })}
                               </div>
                             )
                           })}
