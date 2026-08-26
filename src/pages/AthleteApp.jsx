@@ -1409,6 +1409,7 @@ export default function AthleteApp() {
   const [attendanceDisplayPct, setAttendanceDisplayPct] = useState(false)
   const [expandedHomeWb, setExpandedHomeWb] = useState(null)
   const [todaysWellbeing, setTodaysWellbeing] = useState({})
+  const [lastWellbeing, setLastWellbeing] = useState({}) // most recent prior day's wellbeing, for pre-filling only
   const [savingWellbeing, setSavingWellbeing] = useState(false)
   // Brief "✓ Saved" confirmation shown after any question interaction
   // (checkbox, button, typed field) so it's always clear a tap actually
@@ -2010,6 +2011,19 @@ export default function AthleteApp() {
     const todaysDate = new Date().toISOString().split('T')[0]
     const todaysSession = sessions.find(s => s.session_date === todaysDate)
     setTodaysWellbeing(todaysSession?.wellbeing || {})
+    // Most recent PRIOR day with any wellbeing logged -- used purely as
+    // a convenience pre-fill (sleep hours, nutrition choice, etc. tend
+    // to repeat day to day), never written to today's record until the
+    // athlete actually taps Save/selects it themselves. Deliberately
+    // NOT used for the running-total fields (hydration/outdoors/talk
+    // counts) -- those reset to 0 every day by design, and pre-filling
+    // them with yesterday's final total would misleadingly suggest
+    // today's total already includes water/time/conversations that
+    // haven't actually happened yet.
+    const priorWithWellbeing = sessions
+      .filter(s => s.session_date < todaysDate && s.wellbeing && Object.keys(s.wellbeing).length > 0)
+      .sort((a, b) => b.session_date.localeCompare(a.session_date))[0]
+    setLastWellbeing(priorWithWellbeing?.wellbeing || {})
     setTodaysMentalityLog(todaysSession?.mentality_log || {})
     setTodaysTest(todaysSession?.test || {})
     setTodaysRunning(toEntries(todaysSession?.running))
@@ -4777,11 +4791,11 @@ export default function AthleteApp() {
                         {expandedHomeWb === 'sleep' && (
                           <>
                             <div className="field"><label>Hours slept</label>
-                              <SavableField type="number" defaultValue={todaysWellbeing.sleep?.hours} placeholder="e.g. 8"
+                              <SavableField key={todaysWellbeing.sleep ? 'loaded' : 'empty'} type="number" defaultValue={todaysWellbeing.sleep?.hours ?? lastWellbeing.sleep?.hours} placeholder="e.g. 8"
                                 onSave={val => saveWellbeingField('sleep', cur => ({ ...cur, hours: val }))} />
                             </div>
                             <div className="field" style={{ marginBottom: 0 }}><label>Whoop sleep % (target 70%+)</label>
-                              <SavableField type="number" defaultValue={todaysWellbeing.sleep?.efficiency} placeholder="e.g. 75"
+                              <SavableField key={todaysWellbeing.sleep ? 'loaded' : 'empty'} type="number" defaultValue={todaysWellbeing.sleep?.efficiency ?? lastWellbeing.sleep?.efficiency} placeholder="e.g. 75"
                                 onSave={val => saveWellbeingField('sleep', cur => ({ ...cur, efficiency: val }))} />
                             </div>
                           </>
@@ -4794,18 +4808,21 @@ export default function AthleteApp() {
                               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                                 {NUTRITION_MACRO_PRESETS.map(preset => {
                                   const active = todaysWellbeing.nutrition?.targetPreset === preset.key
+                                  const suggested = !todaysWellbeing.nutrition?.targetPreset && lastWellbeing.nutrition?.targetPreset === preset.key
                                   return (
                                     <button key={preset.key} type="button"
                                       onClick={() => saveWellbeingField('nutrition', cur => ({ ...cur, targetPreset: preset.key }))}
                                       style={{
                                         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: 8,
                                         borderRadius: 'var(--radius)', cursor: 'pointer',
-                                        border: `1px solid ${active ? '#0E9F6E' : 'var(--border-strong)'}`,
+                                        border: `1px solid ${active ? '#0E9F6E' : suggested ? '#0E9F6E90' : 'var(--border-strong)'}`,
+                                        borderStyle: suggested && !active ? 'dashed' : 'solid',
                                         background: active ? '#0E9F6E18' : 'var(--bg-secondary)',
                                       }}>
                                       <MacroPie carbs={preset.carbs} fat={preset.fat} protein={preset.protein} size={64} />
                                       <span style={{ fontSize: 11, fontWeight: 600 }}>{active ? '✓ ' : ''}{preset.label}</span>
                                       <span style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>{preset.carbs}/{preset.fat}/{preset.protein}</span>
+                                      {suggested && !active && <span style={{ fontSize: 8, color: '#0E9F6E' }}>Same as last time</span>}
                                     </button>
                                   )
                                 })}
@@ -4813,14 +4830,22 @@ export default function AthleteApp() {
                             </div>
                             <div className="field" style={{ marginBottom: 0 }}><label>Quality</label>
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                {NUTRITION_QUALITY_OPTIONS.map(v => (
-                                  <button key={v} type="button" onClick={() => saveWellbeingField('nutrition', cur => ({ ...cur, quality: v }))}
-                                    className="btn btn-sm" style={{ background: todaysWellbeing.nutrition?.quality === v ? '#0E9F6E20' : undefined, borderColor: todaysWellbeing.nutrition?.quality === v ? '#0E9F6E' : undefined }}>{v}</button>
-                                ))}
+                                {NUTRITION_QUALITY_OPTIONS.map(v => {
+                                  const active = todaysWellbeing.nutrition?.quality === v
+                                  const suggested = !todaysWellbeing.nutrition?.quality && lastWellbeing.nutrition?.quality === v
+                                  return (
+                                    <button key={v} type="button" onClick={() => saveWellbeingField('nutrition', cur => ({ ...cur, quality: v }))}
+                                      className="btn btn-sm" style={{
+                                        background: active ? '#0E9F6E20' : undefined,
+                                        borderColor: active ? '#0E9F6E' : suggested ? '#0E9F6E90' : undefined,
+                                        borderStyle: suggested && !active ? 'dashed' : undefined,
+                                      }}>{v}{suggested && !active ? ' (last time)' : ''}</button>
+                                  )
+                                })}
                               </div>
                             </div>
                             <div className="field" style={{ marginBottom: 0, marginTop: 12 }}><label>Notes</label>
-                              <SavableField key={todaysWellbeing.nutrition ? 'loaded' : 'empty'} rows={2} defaultValue={todaysWellbeing.nutrition?.notes}
+                              <SavableField key={todaysWellbeing.nutrition ? 'loaded' : 'empty'} rows={2} defaultValue={todaysWellbeing.nutrition?.notes ?? lastWellbeing.nutrition?.notes}
                                 onSave={val => saveWellbeingField('nutrition', cur => ({ ...cur, notes: val }))}
                                 placeholder="Anything else about today's food…" style={{ width: '100%' }} />
                             </div>
@@ -4917,14 +4942,22 @@ export default function AthleteApp() {
                           <>
                             <div className="field"><label>Time off screen</label>
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                {SCREEN_FREE_OPTIONS.map(v => (
-                                  <button key={v} type="button" onClick={() => saveWellbeingField('screenFree', () => ({ hours: v, custom: '' }))}
-                                    className="btn btn-sm" style={{ background: todaysWellbeing.screenFree?.hours === v ? '#0E9F6E20' : undefined, borderColor: todaysWellbeing.screenFree?.hours === v ? '#0E9F6E' : undefined }}>{v}</button>
-                                ))}
+                                {SCREEN_FREE_OPTIONS.map(v => {
+                                  const active = todaysWellbeing.screenFree?.hours === v
+                                  const suggested = !todaysWellbeing.screenFree?.hours && lastWellbeing.screenFree?.hours === v
+                                  return (
+                                    <button key={v} type="button" onClick={() => saveWellbeingField('screenFree', () => ({ hours: v, custom: '' }))}
+                                      className="btn btn-sm" style={{
+                                        background: active ? '#0E9F6E20' : undefined,
+                                        borderColor: active ? '#0E9F6E' : suggested ? '#0E9F6E90' : undefined,
+                                        borderStyle: suggested && !active ? 'dashed' : undefined,
+                                      }}>{v}{suggested && !active ? ' (last time)' : ''}</button>
+                                  )
+                                })}
                               </div>
                             </div>
                             <div className="field" style={{ marginBottom: 0 }}><label>Or write your own</label>
-                              <SavableField defaultValue={todaysWellbeing.screenFree?.custom} placeholder="e.g. 18 hours"
+                              <SavableField key={todaysWellbeing.screenFree ? 'loaded' : 'empty'} defaultValue={todaysWellbeing.screenFree?.custom ?? lastWellbeing.screenFree?.custom} placeholder="e.g. 18 hours"
                                 onSave={val => saveWellbeingField('screenFree', () => ({ hours: '', custom: val }))} />
                             </div>
                           </>
@@ -4939,7 +4972,12 @@ export default function AthleteApp() {
                               onClick={() => { saveWellbeingField('journal', cur => ({ ...cur, count: (cur.count || 0) + 1, notes: journalDraft })); setJournalDraft('') }}>
                               Save journal entry
                             </button>
-                            <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', background: todaysWellbeing.journal?.privateJournal ? '#0E9F6E20' : undefined, borderColor: todaysWellbeing.journal?.privateJournal ? '#0E9F6E' : undefined }}
+                            <button type="button" className="btn btn-sm" style={{
+                              width: '100%', justifyContent: 'center',
+                              background: todaysWellbeing.journal?.privateJournal ? '#0E9F6E20' : undefined,
+                              borderColor: todaysWellbeing.journal?.privateJournal ? '#0E9F6E' : (!('privateJournal' in (todaysWellbeing.journal || {})) && lastWellbeing.journal?.privateJournal) ? '#0E9F6E90' : undefined,
+                              borderStyle: (!('privateJournal' in (todaysWellbeing.journal || {})) && lastWellbeing.journal?.privateJournal) ? 'dashed' : undefined,
+                            }}
                               onClick={() => saveWellbeingField('journal', cur => ({ ...cur, privateJournal: !cur.privateJournal }))}>
                               {todaysWellbeing.journal?.privateJournal ? '✓ Journaled privately away from this app' : 'I journaled privately, away from this app'}
                             </button>
@@ -4959,7 +4997,7 @@ export default function AthleteApp() {
                                   onClick={() => { saveWellbeingField('creative', cur => ({ ...cur, count: (cur.count || 0) + parseInt(creativeCustomAdd || 0) })); setCreativeCustomAdd('') }}>Add</button>
                               </div>
                             </div>
-                            <SavableField defaultValue={todaysWellbeing.creative?.notes} placeholder="Optional — what did you do?"
+                            <SavableField key={todaysWellbeing.creative ? 'loaded' : 'empty'} defaultValue={todaysWellbeing.creative?.notes ?? lastWellbeing.creative?.notes} placeholder="Optional — what did you do?"
                               onSave={val => saveWellbeingField('creative', cur => ({ ...cur, notes: val }))} />
                           </>
                         )}
@@ -4977,7 +5015,7 @@ export default function AthleteApp() {
                                   onClick={() => { saveWellbeingField('productivity', cur => ({ ...cur, count: (cur.count || 0) + parseInt(productivityCustomAdd || 0) })); setProductivityCustomAdd('') }}>Add</button>
                               </div>
                             </div>
-                            <SavableField defaultValue={todaysWellbeing.productivity?.notes} placeholder="Optional — what did you do?"
+                            <SavableField key={todaysWellbeing.productivity ? 'loaded' : 'empty'} defaultValue={todaysWellbeing.productivity?.notes ?? lastWellbeing.productivity?.notes} placeholder="Optional — what did you do?"
                               onSave={val => saveWellbeingField('productivity', cur => ({ ...cur, notes: val }))} />
                           </>
                         )}
