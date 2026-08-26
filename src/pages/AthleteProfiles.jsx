@@ -2484,6 +2484,12 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
         </div>
       )}
 
+      {/* Opponents card -- was fully built (renderOpponentsCard, all
+          the props already wired through) but never actually called
+          anywhere, so it silently never appeared in the coach view at
+          all despite existing in the athlete's own view. */}
+      {pdpView === 'coach' && isAdmin && renderOpponentsCard(false)}
+
       {/* Send to athlete confirmation */}
       {sendModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
