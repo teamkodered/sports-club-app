@@ -3742,11 +3742,6 @@ export default function AthleteApp() {
                           })()}
                         </div>
                         <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Results</div>
-                        {coachF2fDateSettings && (
-                          <div style={{ fontSize: 8, color: 'var(--text-tertiary)' }}>
-                            {new Date(coachF2fDateSettings.from).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – {new Date(coachF2fDateSettings.to).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                          </div>
-                        )}
                       </button>
                       <button onClick={() => setTab('pdp')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none' }}>
                         <div style={{ fontSize: 22, marginBottom: 4 }}>🎯</div>
