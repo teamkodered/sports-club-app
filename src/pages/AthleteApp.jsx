@@ -1244,6 +1244,15 @@ const TERMS_VERSION = 'v1-2026-08-10'
 const WELLBEING_KEYS_FOR_CHECK = ['sleep', 'nutrition', 'hydration', 'outdoors', 'talk', 'screenFree', 'journal', 'creative', 'productivity']
 const MENTALITY_KEYS_FOR_CHECK = ['videoAnalysis', 'meditation', 'visualisation', 'chess', 'reading', 'gaming', 'eyeTracking', 'coldWater', 'activeRecovery', 'gratitude', 'coachability']
 
+// Matches each PDP section's header text colour -- used for progress
+// bars and question/selection highlights within that section, instead
+// of everything sharing one single (house-based) accent colour
+// regardless of which section it's in.
+const SECTION_ACCENT_COLOURS = {
+  physical: '#EF9F27', technique: '#378ADD', tactical: '#E24B4A',
+  mentality: '#8B5CF6', wellbeing: '#1D9E75',
+}
+
 // Press-and-hold wrapper -- shows a delete confirmation after ~500ms
 // of holding, instead of a permanently-visible delete button. Defined
 // at module scope (not nested inside a render function) so it keeps a
@@ -2796,6 +2805,7 @@ export default function AthleteApp() {
   // that particular period.
   function SectionProgressBars({ sectionKey, compact = false, vertical = false }) {
     const byPeriod = getSectionProgressByPeriod(sectionKey)
+    const accent = SECTION_ACCENT_COLOURS[sectionKey] || '#1D9E75'
     const periods = [['day', 'D'], ['week', 'W'], ['month', 'M']]
     if (vertical) {
       return (
@@ -2807,11 +2817,11 @@ export default function AthleteApp() {
             const hit = hasTarget && done >= target
             return (
               <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, width: 34, flexShrink: 0, textAlign: 'left', color: hasTarget ? (hit ? '#1D9E75' : 'var(--text-tertiary)') : 'var(--border)' }}>
+                <span style={{ fontSize: 11, fontWeight: 700, width: 34, flexShrink: 0, textAlign: 'left', color: hasTarget ? accent : 'var(--border)' }}>
                   {letter} {hasTarget ? `${done}/${target}` : ''}
                 </span>
                 <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'var(--border)', overflow: 'hidden' }}>
-                  {hasTarget && <div style={{ width: `${pct}%`, height: '100%', background: hit ? '#1D9E75' : '#E24B4A', borderRadius: 3 }} />}
+                  {hasTarget && <div style={{ width: `${pct}%`, height: '100%', background: accent, opacity: hit ? 1 : 0.55, borderRadius: 3 }} />}
                 </div>
               </div>
             )
@@ -2829,9 +2839,9 @@ export default function AthleteApp() {
           return (
             <div key={key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
               <div style={{ width: '100%', height: compact ? 4 : 5, borderRadius: 3, background: 'var(--border)', overflow: 'hidden' }}>
-                {hasTarget && <div style={{ width: `${pct}%`, height: '100%', background: hit ? '#1D9E75' : '#E24B4A', borderRadius: 3, transition: 'width 0.3s' }} />}
+                {hasTarget && <div style={{ width: `${pct}%`, height: '100%', background: accent, opacity: hit ? 1 : 0.55, borderRadius: 3, transition: 'width 0.3s' }} />}
               </div>
-              <span style={{ fontSize: 8, fontWeight: 700, color: hasTarget ? (hit ? '#1D9E75' : 'var(--text-tertiary)') : 'var(--border)' }}>
+              <span style={{ fontSize: 8, fontWeight: 700, color: hasTarget ? accent : 'var(--border)' }}>
                 {letter}{(hasTarget && !compact) ? ` ${done}/${target}` : ''}
               </span>
             </div>
@@ -3922,10 +3932,10 @@ export default function AthleteApp() {
                     }}>
                     <div style={{ display: 'grid', gridTemplateColumns: activePhysicalCategory && (activePhysicalCategory === 'running' || activePhysicalCategory === 'watt_bike') ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 8 }}>
                       {(!activePhysicalCategory || activePhysicalCategory === 'running') && (
-                        <ModuleButton b={modules[0]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setResultsGraphSection={setResultsGraphSection} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'running'} questionProgressByPeriod={getQuestionProgressByPeriod('physical', 'Running')} />
+                        <ModuleButton b={modules[0]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={SECTION_ACCENT_COLOURS.physical} setTab={setTab} setResultsGraphSection={setResultsGraphSection} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'running'} questionProgressByPeriod={getQuestionProgressByPeriod('physical', 'Running')} />
                       )}
                       {(!activePhysicalCategory || activePhysicalCategory === 'watt_bike') && (
-                        <ModuleButton b={modules[1]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setResultsGraphSection={setResultsGraphSection} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'watt_bike'} questionProgressByPeriod={getQuestionProgressByPeriod('physical', 'Watt Bike')} />
+                        <ModuleButton b={modules[1]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={SECTION_ACCENT_COLOURS.physical} setTab={setTab} setResultsGraphSection={setResultsGraphSection} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'watt_bike'} questionProgressByPeriod={getQuestionProgressByPeriod('physical', 'Watt Bike')} />
                       )}
                     </div>
                     {showRunCards && (
@@ -3938,7 +3948,7 @@ export default function AthleteApp() {
                           <button key={cat.key} type="button" onClick={() => openOnlyPhysicalPanel('run', active ? null : cat.key)} style={{
                             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 8px',
                             borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                            border: `2px solid ${active ? colour : complete ? '#E24B4A' : 'var(--border)'}`,
+                            border: `2px solid ${active ? SECTION_ACCENT_COLOURS.physical : complete ? '#E24B4A' : 'var(--border)'}`,
                             background: complete ? '#E24B4A12' : 'var(--bg-secondary)',
                           }}>
                             <span style={{ fontSize: 22 }}>{cat.icon}</span>
@@ -4033,7 +4043,7 @@ export default function AthleteApp() {
                           <button key={grp.key} type="button" onClick={() => openOnlyPhysicalPanel('watt', active ? null : grp.key)} style={{
                             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 8px',
                             borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                            border: `2px solid ${active ? colour : complete ? '#378ADD' : 'var(--border)'}`,
+                            border: `2px solid ${active ? SECTION_ACCENT_COLOURS.physical : complete ? '#378ADD' : 'var(--border)'}`,
                             background: complete ? '#378ADD12' : 'var(--bg-secondary)',
                           }}>
                             <span style={{ fontSize: 22 }}>{grp.icon}</span>
@@ -4087,10 +4097,10 @@ export default function AthleteApp() {
 
                     <div style={{ display: 'grid', gridTemplateColumns: activePhysicalCategory && (activePhysicalCategory === 'bodyweight' || activePhysicalCategory === 'stretch') ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 8 }}>
                       {(!activePhysicalCategory || activePhysicalCategory === 'bodyweight') && (
-                        <ModuleButton b={modules[2]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setResultsGraphSection={setResultsGraphSection} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'bodyweight'} questionProgressByPeriod={getQuestionProgressByPeriod('physical', 'Bodyweight')} />
+                        <ModuleButton b={modules[2]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={SECTION_ACCENT_COLOURS.physical} setTab={setTab} setResultsGraphSection={setResultsGraphSection} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'bodyweight'} questionProgressByPeriod={getQuestionProgressByPeriod('physical', 'Bodyweight')} />
                       )}
                       {(!activePhysicalCategory || activePhysicalCategory === 'stretch') && (
-                        <ModuleButton b={modules[3]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={colour} setTab={setTab} setResultsGraphSection={setResultsGraphSection} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'stretch'} questionProgressByPeriod={getQuestionProgressByPeriod('physical', 'Stretch flows')} />
+                        <ModuleButton b={modules[3]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={SECTION_ACCENT_COLOURS.physical} setTab={setTab} setResultsGraphSection={setResultsGraphSection} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'stretch'} questionProgressByPeriod={getQuestionProgressByPeriod('physical', 'Stretch flows')} />
                       )}
                     </div>
                     {showBodyweightCards && (
@@ -4103,7 +4113,7 @@ export default function AthleteApp() {
                           <button key={grp.key} type="button" onClick={() => openOnlyPhysicalPanel('bodyweight', active ? null : grp.key)} style={{
                             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 8px',
                             borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                            border: `2px solid ${active ? colour : complete ? '#1D9E75' : 'var(--border)'}`,
+                            border: `2px solid ${active ? SECTION_ACCENT_COLOURS.physical : complete ? '#1D9E75' : 'var(--border)'}`,
                             background: complete ? '#1D9E7512' : 'var(--bg-secondary)',
                           }}>
                             <span style={{ fontSize: 22 }}>{grp.icon}</span>
@@ -4544,7 +4554,7 @@ export default function AthleteApp() {
                           <button key={q.key} type="button" onClick={() => q.key === 'alterEgo' ? setShowAlterEgoModal(true) : setExpandedHomeMentality(active ? null : q.key)} style={{
                             display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '20px 14px' : '18px 14px',
                             borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                            border: `2px solid ${active ? colour : complete ? '#6D28D9' : 'var(--border)'}`,
+                            border: `2px solid ${active ? SECTION_ACCENT_COLOURS.mentality : complete ? '#6D28D9' : 'var(--border)'}`,
                             background: complete ? '#6D28D912' : 'var(--bg-secondary)',
                           }}>
                             <QuestionProgressBarsVertical sectionKey="mentality" questionLabel={q.label} />
@@ -4757,7 +4767,7 @@ export default function AthleteApp() {
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
                                 {MORE_OF_OPTIONS.map(o => (
                                   <button key={o} className="btn btn-sm" onClick={() => toggleInList('moreOf', o)}
-                                    style={{ background: (wb.moreOf || []).includes(o) ? colour + '20' : undefined, borderColor: (wb.moreOf || []).includes(o) ? colour : undefined }}>{o}</button>
+                                    style={{ background: (wb.moreOf || []).includes(o) ? SECTION_ACCENT_COLOURS.mentality + '20' : undefined, borderColor: (wb.moreOf || []).includes(o) ? SECTION_ACCENT_COLOURS.mentality : undefined }}>{o}</button>
                                 ))}
                               </div>
                               <SavableField defaultValue={wb.moreOfOther} placeholder="Other…" onSave={val => saveAlterEgoWorkbook({ moreOfOther: val })} style={{ marginBottom: 12 }} />
@@ -4766,7 +4776,7 @@ export default function AthleteApp() {
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
                                 {LESS_OF_OPTIONS.map(o => (
                                   <button key={o} className="btn btn-sm" onClick={() => toggleInList('lessOf', o)}
-                                    style={{ background: (wb.lessOf || []).includes(o) ? colour + '20' : undefined, borderColor: (wb.lessOf || []).includes(o) ? colour : undefined }}>{o}</button>
+                                    style={{ background: (wb.lessOf || []).includes(o) ? SECTION_ACCENT_COLOURS.mentality + '20' : undefined, borderColor: (wb.lessOf || []).includes(o) ? SECTION_ACCENT_COLOURS.mentality : undefined }}>{o}</button>
                                 ))}
                               </div>
                               <SavableField defaultValue={wb.lessOfOther} placeholder="Other…" onSave={val => saveAlterEgoWorkbook({ lessOfOther: val })} style={{ marginBottom: 12 }} />
@@ -4886,7 +4896,7 @@ export default function AthleteApp() {
                           <button key={q.key} type="button" onClick={() => setExpandedHomeWb(active ? null : q.key)} style={{
                             display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '20px 14px' : '18px 14px',
                             borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                            border: `2px solid ${active ? colour : complete ? '#0E9F6E' : 'var(--border)'}`,
+                            border: `2px solid ${active ? SECTION_ACCENT_COLOURS.wellbeing : complete ? '#0E9F6E' : 'var(--border)'}`,
                             background: complete ? '#0E9F6E12' : 'var(--bg-secondary)',
                           }}>
                             <QuestionProgressBarsVertical sectionKey="wellbeing" questionLabel={q.label} />
