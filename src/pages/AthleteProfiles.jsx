@@ -2143,6 +2143,55 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
     )
   }
 
+  // View-only summary of every Notes/Maintain/Work-on/To-do item
+  // currently on this athlete's PDP -- reads pdp_notes directly (not
+  // the "shared" subset), since coaches should see everything that
+  // exists regardless of whether it's been explicitly sent to the
+  // athlete yet. This was a genuine gap -- the coach's PDPTab had a
+  // "push template content" mechanism but no way at all to see what
+  // an athlete's Maintain/Work-on/To-do items currently actually are.
+  function renderNotesAndToDoCard() {
+    const pdpNotesRaw = apData?.pdp_notes || {}
+    const groups = [
+      { label: 'General', keys: { notes: null, maintain: 'maintain', work_on: 'to_work_on', to_do: 'what_to_do' } },
+      ...PDP_CATEGORY_GROUPS.map(g => ({
+        label: g.label,
+        keys: { notes: g.keys[0], maintain: g.keys[1], work_on: g.keys[2], to_do: g.keys[3] },
+      })),
+    ]
+    const hasAnything = groups.some(g => Object.values(g.keys).some(k => k && (pdpNotesRaw[k] || []).length > 0))
+    return (
+      <div className="card" style={{ borderLeft: '3px solid #666', marginBottom: 10 }}>
+        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>📝 Notes & To-dos</h3>
+        {!hasAnything && <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Nothing logged yet.</p>}
+        {groups.map(g => {
+          const rows = [
+            ['Notes', g.keys.notes],
+            ['Maintain', g.keys.maintain],
+            ['Work on', g.keys.work_on],
+            ['To do', g.keys.to_do],
+          ].filter(([, key]) => key && (pdpNotesRaw[key] || []).length > 0)
+          if (!rows.length) return null
+          return (
+            <div key={g.label} style={{ marginBottom: 10 }}>
+              <p style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>{g.label}</p>
+              {rows.map(([rowLabel, key]) => (
+                <div key={key} style={{ marginBottom: 4 }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 600 }}>{rowLabel.toUpperCase()}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 2 }}>
+                    {(pdpNotesRaw[key] || []).map((item, i) => (
+                      <div key={i} style={{ fontSize: 12, padding: '4px 8px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)' }}>{item}</div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
   return (
     <div>
       {/* View toggle */}
@@ -2488,6 +2537,7 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
           the props already wired through) but never actually called
           anywhere, so it silently never appeared in the coach view at
           all despite existing in the athlete's own view. */}
+      {pdpView === 'coach' && isAdmin && renderNotesAndToDoCard()}
       {pdpView === 'coach' && isAdmin && renderOpponentsCard(false)}
 
       {/* Send to athlete confirmation */}
