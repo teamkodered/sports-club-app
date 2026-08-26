@@ -144,11 +144,23 @@ export default function Classes() {
       start_time: form.start_time || null,
       end_time: form.end_time || null,
     }
-    const { error } = editing
-      ? await supabase.from('classes').update(payload).eq('id', editing.id)
-      : await supabase.from('classes').insert(payload)
+    const { data, error } = editing
+      ? await supabase.from('classes').update(payload).eq('id', editing.id).select()
+      : await supabase.from('classes').insert(payload).select()
     if (error) {
       alert('Error saving class: ' + error.message)
+      setSaving(false)
+      return
+    }
+    // A Postgres/RLS policy can block a write silently -- the request
+    // itself succeeds with error === null, but zero rows actually
+    // change if a "with check" policy rejects the resulting row. This
+    // is exactly what made the is_custom checkbox look like it saved
+    // (no error shown) while the class stayed in the same list even
+    // after a full page reload. Requesting .select() back lets us
+    // actually confirm a row came back, and say so plainly if not.
+    if (!data || data.length === 0) {
+      alert('Save didn\'t take effect — the class wasn\'t actually updated (likely a permissions rule blocking this specific change). Nothing was saved.')
       setSaving(false)
       return
     }
