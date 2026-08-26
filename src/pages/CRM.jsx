@@ -33,6 +33,60 @@ function wordsOf(s) {
   return normalizeName(s).split(' ').filter(w => w && !TITLE_WORDS.has(w))
 }
 
+// Bulk-send options for a set of selected people -- Email (true BCC,
+// one message, everyone included) and Text/SMS (comma-joined numbers,
+// works well on iOS and most Android browsers as a group text) both
+// genuinely support addressing everyone at once. WhatsApp does NOT --
+// there's no bulk/broadcast mechanism via a simple link, wa.me only
+// ever opens a chat with exactly one number -- so instead of pretending
+// otherwise, this shows a small list letting the sender quickly click
+// through each person in turn, with the message already pre-filled
+// for each one (saves searching for each contact + retyping the
+// message, even though it's still one tap per person).
+function BulkSendOptions({ people, subjectText, bodyText, noun = 'people' }) {
+  const [showWhatsapp, setShowWhatsapp] = useState(false)
+  const emailPeople = people.filter(p => p.email)
+  const phonePeople = people.filter(p => p.phone)
+  const subject = encodeURIComponent(subjectText)
+  const body = encodeURIComponent(bodyText)
+  // UK-centric default: wa.me needs full international digits with no
+  // leading 0/+ -- converts a local "07..." number to "447...".
+  const toWhatsappNumber = phone => {
+    const digits = phone.replace(/[^0-9]/g, '')
+    return digits.startsWith('0') ? '44' + digits.slice(1) : digits
+  }
+  return (
+    <div style={{ display: 'flex', gap: 8, position: 'relative' }}>
+      <a className="btn btn-sm btn-primary"
+        href={emailPeople.length ? `mailto:?bcc=${emailPeople.map(p => p.email).join(',')}&subject=${subject}&body=${body}` : undefined}
+        onClick={e => { if (!emailPeople.length) { e.preventDefault(); alert(`None of the selected ${noun} have a real email on file.`) } }}>
+        ✉️ Email ({emailPeople.length})
+      </a>
+      <a className="btn btn-sm"
+        href={phonePeople.length ? `sms:${phonePeople.map(p => p.phone).join(',')}?body=${body}` : undefined}
+        onClick={e => { if (!phonePeople.length) { e.preventDefault(); alert(`None of the selected ${noun} have a phone number on file.`) } }}>
+        📱 Text ({phonePeople.length})
+      </a>
+      <button type="button" className="btn btn-sm" disabled={!phonePeople.length} onClick={() => setShowWhatsapp(v => !v)}>
+        💬 WhatsApp ({phonePeople.length})
+      </button>
+      {showWhatsapp && (
+        <div className="card" style={{ position: 'absolute', top: '110%', right: 0, zIndex: 20, width: 260, maxHeight: 280, overflowY: 'auto', padding: 10 }}>
+          <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8 }}>
+            WhatsApp can't send to everyone in one go — tap a name to open a chat with them, message already filled in.
+          </p>
+          {phonePeople.map((p, i) => (
+            <a key={i} href={`https://wa.me/${toWhatsappNumber(p.phone)}?text=${body}`} target="_blank" rel="noreferrer"
+              style={{ display: 'block', padding: '6px 2px', fontSize: 12, borderBottom: i < phonePeople.length - 1 ? '1px solid var(--border)' : 'none' }}>
+              💬 {p.name}
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function CRM() {
   const { isAdmin } = useAuth()
   const [tab, setTab] = useBackableTab('standing_orders')
@@ -1551,16 +1605,19 @@ export default function CRM() {
                 </button>
                 {selectedMissed.size > 0 && (() => {
                   const selectedRows = missedTraining.filter(r => selectedMissed.has(r.student.id))
-                  const emails = selectedRows.map(r => r.student.members?.email).filter((e, i) => e && !e.includes('@kr-centre.placeholder') && !selectedRows[i].student.members?.do_not_contact)
-                  const subject = encodeURIComponent("We've missed you at training!")
-                  const body = encodeURIComponent("Hi,\n\nWe noticed it's been a few weeks since your last session — we'd love to see you back on the mats/in the ring soon!\n\nLet us know if there's anything stopping you from training, we're happy to help.\n\nSee you soon,\nKR Centre")
+                  const people = selectedRows
+                    .filter(r => !r.student.members?.do_not_contact)
+                    .map(r => ({
+                      name: `${r.student.members?.first_name || ''} ${r.student.members?.last_name || ''}`.trim(),
+                      email: r.student.members?.email && !r.student.members.email.includes('@kr-centre.placeholder') ? r.student.members.email : null,
+                      phone: r.student.members?.phone || null,
+                    }))
                   return (
                     <div style={{ display: 'flex', gap: 8 }}>
                       <span style={{ fontSize: 12, color: 'var(--text-tertiary)', alignSelf: 'center' }}>{selectedMissed.size} selected</span>
-                      <a className="btn btn-sm btn-primary" href={emails.length ? `mailto:?bcc=${emails.join(',')}&subject=${subject}&body=${body}` : undefined}
-                        onClick={e => { if (!emails.length) { e.preventDefault(); alert('None of the selected students have a real email on file.') } }}>
-                        ✉️ Email selected ({emails.length})
-                      </a>
+                      <BulkSendOptions people={people} noun="students"
+                        subjectText="We've missed you at training!"
+                        bodyText={"Hi,\n\nWe noticed it's been a few weeks since your last session — we'd love to see you back on the mats/in the ring soon!\n\nLet us know if there's anything stopping you from training, we're happy to help.\n\nSee you soon,\nKR Centre"} />
                     </div>
                   )
                 })()}
@@ -1643,16 +1700,17 @@ export default function CRM() {
                   </button>
                   {selectedStopped.size > 0 && (() => {
                     const selectedRows = filtered.filter(s => selectedStopped.has(s.id))
-                    const emails = selectedRows.map(s => s.members?.email).filter(e => e && !e.includes('@kr-centre.placeholder'))
-                    const subject = encodeURIComponent("We'd love to have you back!")
-                    const body = encodeURIComponent("Hi,\n\nIt's been a while since you trained with us and we wanted to reach out — the door's always open if you'd like to come back.\n\nLet us know if you have any questions.\n\nKR Centre")
+                    const people = selectedRows.map(s => ({
+                      name: `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.trim(),
+                      email: s.members?.email && !s.members.email.includes('@kr-centre.placeholder') ? s.members.email : null,
+                      phone: s.members?.phone || null,
+                    }))
                     return (
                       <div style={{ display: 'flex', gap: 8 }}>
                         <span style={{ fontSize: 12, color: 'var(--text-tertiary)', alignSelf: 'center' }}>{selectedStopped.size} selected</span>
-                        <a className="btn btn-sm btn-primary" href={emails.length ? `mailto:?bcc=${emails.join(',')}&subject=${subject}&body=${body}` : undefined}
-                          onClick={e => { if (!emails.length) { e.preventDefault(); alert('None of the selected people have a real email on file.') } }}>
-                          ✉️ Email selected ({emails.length})
-                        </a>
+                        <BulkSendOptions people={people} noun="people"
+                          subjectText="We'd love to have you back!"
+                          bodyText={"Hi,\n\nIt's been a while since you trained with us and we wanted to reach out — the door's always open if you'd like to come back.\n\nLet us know if you have any questions.\n\nKR Centre"} />
                       </div>
                     )
                   })()}
@@ -1941,16 +1999,17 @@ export default function CRM() {
                 </button>
                 {selectedBirthdays.size > 0 && (() => {
                   const selectedRows = birthdays.filter(r => selectedBirthdays.has(r.student.id))
-                  const emails = selectedRows.map(r => r.student.members?.email).filter(e => e && !e.includes('@kr-centre.placeholder'))
-                  const subject = encodeURIComponent('Happy Birthday!')
-                  const body = encodeURIComponent("Hi,\n\nWishing you a very happy birthday from everyone at KR Centre! Hope you have a great day.\n\nSee you at training soon,\nKR Centre")
+                  const people = selectedRows.map(r => ({
+                    name: `${r.student.members?.first_name || ''} ${r.student.members?.last_name || ''}`.trim(),
+                    email: r.student.members?.email && !r.student.members.email.includes('@kr-centre.placeholder') ? r.student.members.email : null,
+                    phone: r.student.members?.phone || null,
+                  }))
                   return (
                     <div style={{ display: 'flex', gap: 8 }}>
                       <span style={{ fontSize: 12, color: 'var(--text-tertiary)', alignSelf: 'center' }}>{selectedBirthdays.size} selected</span>
-                      <a className="btn btn-sm btn-primary" href={emails.length ? `mailto:?bcc=${emails.join(',')}&subject=${subject}&body=${body}` : undefined}
-                        onClick={e => { if (!emails.length) { e.preventDefault(); alert('None of the selected students have a real email on file.') } }}>
-                        ✉️ Email selected ({emails.length})
-                      </a>
+                      <BulkSendOptions people={people} noun="students"
+                        subjectText="Happy Birthday!"
+                        bodyText={"Hi,\n\nWishing you a very happy birthday from everyone at KR Centre! Hope you have a great day.\n\nSee you at training soon,\nKR Centre"} />
                     </div>
                   )
                 })()}
