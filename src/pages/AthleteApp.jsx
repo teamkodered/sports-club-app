@@ -1453,6 +1453,45 @@ export default function AthleteApp() {
   const [attendanceDisplayPct, setAttendanceDisplayPct] = useState(false)
   const [expandedHomeWb, setExpandedHomeWb] = useState(null)
   const [todaysWellbeing, setTodaysWellbeing] = useState({})
+  const [pushPermission, setPushPermission] = useState(() => (typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'))
+  const [subscribingPush, setSubscribingPush] = useState(false)
+
+  function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+    const rawData = window.atob(base64)
+    return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)))
+  }
+
+  // Requests permission and subscribes this device to push
+  // notifications, saving the subscription against this student's
+  // member record so the server knows where to send future
+  // notifications (coach logged something, moved on the ladder, etc).
+  async function enablePushNotifications() {
+    if (typeof Notification === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+      alert('Push notifications aren\'t supported on this browser/device.')
+      return
+    }
+    setSubscribingPush(true)
+    try {
+      const permission = await Notification.requestPermission()
+      setPushPermission(permission)
+      if (permission !== 'granted') { setSubscribingPush(false); return }
+      const registration = await navigator.serviceWorker.ready
+      const VAPID_PUBLIC_KEY = 'BIa6vh2GIhxCWQz3xYsZNfsOdky5NTp3RMlepDb5Ni0mzJyul2nZpRruig-fvgJVZ-vOO9RfMpSKtGduPmC1cYU'
+      const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey })
+      const json = subscription.toJSON()
+      const { error } = await supabase.from('push_subscriptions').upsert({
+        member_id: student.member_id, endpoint: json.endpoint,
+        p256dh: json.keys.p256dh, auth: json.keys.auth,
+      }, { onConflict: 'endpoint' })
+      if (error) alert('Error saving subscription: ' + error.message)
+    } catch (err) {
+      alert('Error enabling notifications: ' + err.message)
+    }
+    setSubscribingPush(false)
+  }
   const [lastWellbeing, setLastWellbeing] = useState({}) // most recent prior day's wellbeing, for pre-filling only
   const [savingWellbeing, setSavingWellbeing] = useState(false)
   // Brief "✓ Saved" confirmation shown after any question interaction
@@ -3684,6 +3723,14 @@ export default function AthleteApp() {
         <div>
           {student ? (
             <>
+              {pushPermission === 'default' && (
+                <div className="card" style={{ marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 12 }}>🔔 Get notified when your coach logs something, or you move on the league ladder.</span>
+                  <button className="btn btn-sm btn-primary" disabled={subscribingPush} onClick={enablePushNotifications}>
+                    {subscribingPush ? 'Enabling…' : 'Enable notifications'}
+                  </button>
+                </div>
+              )}
               {(() => {
                try {
                 const sorted = [...sessions].sort((a,b) => new Date(a.session_date) - new Date(b.session_date))
