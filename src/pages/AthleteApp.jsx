@@ -3918,12 +3918,11 @@ export default function AthleteApp() {
                       textAlign: 'center', padding: '18px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: showPhysicalSection ? 6 : 4, width: '100%' }}>
+                      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, width: '100%' }}>
                         <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showPhysicalSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#EF9F27' }}>PHYSICAL</span>
-                        <img src="/logos/char-physical.png" alt="" style={{ height: showPhysicalSection ? 36 : 22, width: 'auto' }} />
+                        <img src="/logos/char-physical.png" alt="" style={{ height: showPhysicalSection ? 64 : 42, width: 'auto', flexShrink: 0 }} />
                       </div>
                       <SectionProgressBars sectionKey="physical" vertical />
-                      <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showPhysicalSection ? '▲' : '▼'}</span>
                     </button>
 
                     <div style={{
@@ -4308,12 +4307,11 @@ export default function AthleteApp() {
                       textAlign: 'center', padding: '18px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: showTechniqueSection ? 6 : 4, width: '100%' }}>
+                      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, width: '100%' }}>
                         <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showTechniqueSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#378ADD' }}>TECHNICAL</span>
-                        <img src="/logos/char-technical.png" alt="" style={{ height: showTechniqueSection ? 36 : 22, width: 'auto' }} />
+                        <img src="/logos/char-technical.png" alt="" style={{ height: showTechniqueSection ? 64 : 42, width: 'auto', flexShrink: 0 }} />
                       </div>
                       <SectionProgressBars sectionKey="technique" vertical />
-                      <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showTechniqueSection ? '▲' : '▼'}</span>
                     </button>
 
                     <div style={{
@@ -4419,12 +4417,11 @@ export default function AthleteApp() {
                       textAlign: 'center', padding: '18px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: showTacticalSection ? 6 : 4, width: '100%' }}>
+                      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, width: '100%' }}>
                         <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showTacticalSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#E24B4A' }}>TACTICAL</span>
-                        <img src="/logos/char-tactical.png" alt="" style={{ height: showTacticalSection ? 36 : 22, width: 'auto' }} />
+                        <img src="/logos/char-tactical.png" alt="" style={{ height: showTacticalSection ? 64 : 42, width: 'auto', flexShrink: 0 }} />
                       </div>
                       <SectionProgressBars sectionKey="tactical" vertical />
-                      <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showTacticalSection ? '▲' : '▼'}</span>
                     </button>
 
                     <div style={{
@@ -4534,12 +4531,11 @@ export default function AthleteApp() {
                       textAlign: 'center', padding: '18px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: showMentalitySection ? 6 : 4, width: '100%' }}>
+                      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, width: '100%' }}>
                         <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showMentalitySection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#8B5CF6' }}>MENTALITY</span>
-                        <img src="/logos/char-mentality.png" alt="" style={{ height: showMentalitySection ? 36 : 22, width: 'auto' }} />
+                        <img src="/logos/char-mentality.png" alt="" style={{ height: showMentalitySection ? 64 : 42, width: 'auto', flexShrink: 0 }} />
                       </div>
                       <SectionProgressBars sectionKey="mentality" vertical />
-                      <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showMentalitySection ? '▲' : '▼'}</span>
                     </button>
 
                     <div style={{
@@ -4876,12 +4872,11 @@ export default function AthleteApp() {
                       textAlign: 'center', padding: '18px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: showWellbeingSection ? 6 : 4, width: '100%' }}>
+                      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, width: '100%' }}>
                         <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showWellbeingSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#1D9E75' }}>FOUNDATION</span>
-                        <img src="/logos/char-foundation.png" alt="" style={{ height: showWellbeingSection ? 36 : 22, width: 'auto' }} />
+                        <img src="/logos/char-foundation.png" alt="" style={{ height: showWellbeingSection ? 64 : 42, width: 'auto', flexShrink: 0 }} />
                       </div>
                       <SectionProgressBars sectionKey="wellbeing" vertical />
-                      <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showWellbeingSection ? '▲' : '▼'}</span>
                     </button>
 
                     <div style={{
@@ -5306,7 +5301,6 @@ export default function AthleteApp() {
                       <SectionProgressBars sectionKey="test" vertical />
                       <span style={{ flex: 1, fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Test</span>
                       <span style={{ fontSize: 24, flexShrink: 0 }}>📋</span>
-                      <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showTestSection ? '▲' : '▼'}</span>
                     </button>
 
                     <div style={{
@@ -6151,20 +6145,13 @@ export default function AthleteApp() {
                       <div className="card" style={{ borderLeft: `3px solid ${maintainSection.colour}` }}>
                         <h3 style={{ fontSize: 13, fontWeight: 600, color: maintainSection.colour, margin: '0 0 8px' }}>{maintainSection.label}</h3>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                          {maintainItems.map((item, i) => {
-                            const itemKey = `${scope.key}:maintain:${i}`
-                            return (
-                              <div key={i}>
-                                <HoldToDelete onDelete={() => removeAthletePdpItem(maintainSection.key, item)}>
-                                  <div onClick={() => toggleToDo(itemKey)}
-                                    style={{ background: maintainSection.colour + '15', borderRadius: 'var(--radius)', padding: '6px 10px', cursor: 'pointer' }}>
-                                    <span style={{ color: maintainSection.colour, fontSize: 12 }}>{item}</span>
-                                  </div>
-                                </HoldToDelete>
-                                {ToDoPanel({ itemKey })}
+                          {maintainItems.map((item, i) => (
+                            <HoldToDelete key={i} onDelete={() => removeAthletePdpItem(maintainSection.key, item)}>
+                              <div style={{ background: maintainSection.colour + '15', borderRadius: 'var(--radius)', padding: '6px 10px' }}>
+                                <span style={{ color: maintainSection.colour, fontSize: 12 }}>{item}</span>
                               </div>
-                            )
-                          })}
+                            </HoldToDelete>
+                          ))}
                         </div>
                       </div>
                     )}
