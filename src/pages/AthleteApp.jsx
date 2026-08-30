@@ -1020,6 +1020,40 @@ function computeLastLogged(sorted, key) {
 // Defined at module scope (not inside the page component's render) so
 // React treats it as a stable component across renders, rather than
 // unmounting/remounting it every time the parent re-renders.
+// Tap navigates to the linked tab; holding (~500ms) instead toggles
+// between the raw x/x count and a percentage, without navigating.
+// Shared by the Sessions/Results/PDP cards at the top of Home on both
+// the athlete and coach views, so the two stay identical in feel.
+function TopStatCard({ onNavigate, icon, iconImg, value, pctValue, hasPct, label, colour, title }) {
+  const heldRef = useRef(false)
+  const holdTimer = useRef(null)
+  const [showPct, setShowPct] = useState(false)
+  return (
+    <button
+      onPointerDown={() => {
+        heldRef.current = false
+        holdTimer.current = setTimeout(() => {
+          heldRef.current = true
+          if (hasPct) setShowPct(v => !v)
+        }, 500)
+      }}
+      onPointerUp={() => clearTimeout(holdTimer.current)}
+      onPointerLeave={() => clearTimeout(holdTimer.current)}
+      onClick={() => {
+        if (heldRef.current) { heldRef.current = false; return }
+        onNavigate()
+      }}
+      title={title || (hasPct ? 'Tap to view — hold to toggle %' : 'Tap to view')}
+      className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none' }}>
+      {iconImg ? <img src={iconImg} alt="" style={{ height: 22, width: 'auto', marginBottom: 4, objectFit: 'contain' }} /> : <div style={{ fontSize: 22, marginBottom: 4 }}>{icon}</div>}
+      <div style={{ fontSize: 22, fontWeight: 700, color: colour }}>
+        {hasPct && showPct ? pctValue : value}
+      </div>
+      <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{label}</div>
+    </button>
+  )
+}
+
 function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setTab, setResultsGraphSection, studentId, onToggleLog, onQuickLog, large, questionProgressByPeriod }) {
   const subTypeOptions = getSubTypeOptions(sorted, b.key)
   const currentSubType = moduleSubType[b.key] ?? subTypeOptions[0] ?? null
@@ -1451,7 +1485,6 @@ export default function AthleteApp() {
   const [attendanceData, setAttendanceData] = useState([])
   const [allAttendance, setAllAttendance] = useState([])
   const [f2fStatsScope, setF2fStatsScope] = useState(0)
-  const [attendanceDisplayPct, setAttendanceDisplayPct] = useState(false)
   const [expandedHomeWb, setExpandedHomeWb] = useState(null)
   const [todaysWellbeing, setTodaysWellbeing] = useState({})
   const [pushPermission, setPushPermission] = useState(() => (typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'))
@@ -3929,93 +3962,56 @@ export default function AthleteApp() {
                   })
                 }
 
+                // Sessions card values
+                const sessionsPct = possibleSessions ? Math.round((attendedDayCount / possibleSessions) * 100) : 0
+                const sessionsValue = `${attendedDayCount}/${possibleSessions || attendedDayCount}`
+
+                // Results (F2F) card values
+                const hasContent = v => Array.isArray(v) ? v.length > 0 : (v && typeof v === 'object' ? Object.keys(v).length > 0 : !!v)
+                const sessionHasGenuineActivity = s => {
+                  const plainFields = ['running', 'watt_bike', 'bodyweight', 'stretch_flows', 'snc', 'other_session']
+                  if (plainFields.some(f => hasContent(s[f]))) return true
+                  if (Array.isArray(s.techniques) ? s.techniques.length > 0 : hasContent(s.techniques)) return true
+                  if (Array.isArray(s.tactical) ? s.tactical.length > 0 : hasContent(s.tactical)) return true
+                  if (WELLBEING_KEYS_FOR_CHECK.some(k => isWellbeingQComplete(k, s.wellbeing))) return true
+                  if (MENTALITY_KEYS_FOR_CHECK.some(k => isMentalityQComplete(k, s.mentality_log))) return true
+                  if (s.test && Object.values(s.test).some(v => v !== '' && v != null)) return true
+                  return false
+                }
+                const dateScoped = coachF2fDateSettings
+                  ? sessions.filter(s => s.session_date >= coachF2fDateSettings.from && s.session_date <= coachF2fDateSettings.to)
+                  : sessions
+                const f2fCount = dateScoped.filter(sessionHasGenuineActivity).length
+                const F2F_TARGET_SECTIONS = ['physical', 'technique', 'tactical', 'mentality', 'wellbeing', 'test']
+                const parseNum = v => { if (!v) return null; const m = String(v).match(/(\d+(\.\d+)?)/); return m ? parseFloat(m[1]) : null }
+                const relevantTargets = sectionTargets.filter(t => F2F_TARGET_SECTIONS.includes(t.section_key) && t.question_label)
+                const byQuestion = {}
+                relevantTargets.forEach(t => {
+                  const k = `${t.section_key}::${t.question_label}`
+                  if (!byQuestion[k] || (t.student_id === student?.id && byQuestion[k].student_id !== student?.id)) byQuestion[k] = t
+                })
+                const f2fTargetTotal = Object.values(byQuestion).reduce((sum, t) => sum + (parseNum(t.target_value) || 0), 0)
+                const f2fHasPct = f2fTargetTotal > 0
+                const f2fValue = f2fHasPct ? `${f2fCount}/${f2fTargetTotal}` : f2fCount
+                const f2fPct = f2fHasPct ? `${Math.round((f2fCount / f2fTargetTotal) * 100)}%` : f2fValue
+
+                // PDP card values
+                const completedCount = myNotesLog.filter(n => n.note_text?.startsWith('Completed PDP task') && !/weigh/i.test(n.note_text)).length
+                const totalSent = PDP_SECTIONS.filter(s => s.key !== 'winning_ways').reduce((sum, s) =>
+                  sum + (isToDoSectionKey(s.key) ? (pdp[s.key] || []).length : (shared[s.key] || []).length), 0)
+                const pdpHasPct = totalSent > 0
+                const pdpValue = pdpHasPct ? `${completedCount}/${totalSent}` : completedCount
+                const pdpPct = pdpHasPct ? `${Math.round((completedCount / totalSent) * 100)}%` : pdpValue
+
                 return (
                   <>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 8 }}>
-                      <div className="card" style={{ textAlign: 'center', padding: '10px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, background: 'var(--bg-secondary)' }}>
-                        <button onClick={() => setTab('sessions')} title="View Sessions tab"
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, marginBottom: 2, padding: 0, fontFamily: 'var(--font-sans)', appearance: 'none', WebkitAppearance: 'none' }}>📅</button>
-                        <div onClick={() => setAttendanceDisplayPct(v => !v)} title="Tap to toggle percentage/numbers"
-                          style={{ fontSize: 19, fontWeight: 700, color: colour, cursor: 'pointer' }}>
-                          {attendanceDisplayPct
-                            ? `${possibleSessions ? Math.round((attendedDayCount / possibleSessions) * 100) : 0}%`
-                            : `${attendedDayCount}/${possibleSessions || attendedDayCount}`}
-                        </div>
-                        <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>Sessions</div>
-                      </div>
-                      <button onClick={() => setTab('fit2fight')}
-                        className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none' }}>
-                        <img src="/logos/f2f-logo-red.png" alt="Fit II Fight" style={{ height: 22, width: 'auto', marginBottom: 4, objectFit: 'contain' }} />
-                        <div style={{ fontSize: 22, fontWeight: 700, color: '#378ADD' }}>
-                          {(() => {
-                            // Checking "does this field have any keys" isn't
-                            // enough for Wellbeing/Mentality -- their values
-                            // are nested objects that still have keys even
-                            // when every value inside is blank (e.g. opening
-                            // the Sleep card and closing it without entering
-                            // anything still saves {sleep:{hours:'',efficiency:''}}).
-                            // Uses the same genuine-completion checks as the
-                            // section progress badges, so an empty touch
-                            // doesn't get counted as a real logged result.
-                            const hasContent = v => Array.isArray(v) ? v.length > 0 : (v && typeof v === 'object' ? Object.keys(v).length > 0 : !!v)
-                            const sessionHasGenuineActivity = s => {
-                              const plainFields = ['running', 'watt_bike', 'bodyweight', 'stretch_flows', 'snc', 'other_session']
-                              if (plainFields.some(f => hasContent(s[f]))) return true
-                              if (Array.isArray(s.techniques) ? s.techniques.length > 0 : hasContent(s.techniques)) return true
-                              if (Array.isArray(s.tactical) ? s.tactical.length > 0 : hasContent(s.tactical)) return true
-                              if (WELLBEING_KEYS_FOR_CHECK.some(k => isWellbeingQComplete(k, s.wellbeing))) return true
-                              if (MENTALITY_KEYS_FOR_CHECK.some(k => isMentalityQComplete(k, s.mentality_log))) return true
-                              if (s.test && Object.values(s.test).some(v => v !== '' && v != null)) return true
-                              return false
-                            }
-                            // This count follows the coach's configured
-                            // date range for this card (when set to
-                            // include athletes) -- but the actual Results
-                            // page below is completely unaffected by it
-                            // and keeps its own independent date filter.
-                            const dateScoped = coachF2fDateSettings
-                              ? sessions.filter(s => s.session_date >= coachF2fDateSettings.from && s.session_date <= coachF2fDateSettings.to)
-                              : sessions
-                            const f2fCount = dateScoped.filter(sessionHasGenuineActivity).length
-                            // "Out of target" -- F2F targets are set per
-                            // individual question (Running, Watt Bike,
-                            // Boxing, etc), not as one single
-                            // "f2f_sessions" target -- so the denominator
-                            // sums every question-level target that
-                            // applies to this athlete, preferring an
-                            // individual target over a team-wide one for
-                            // the same question where both exist.
-                            const F2F_TARGET_SECTIONS = ['physical', 'technique', 'tactical', 'mentality', 'wellbeing', 'test']
-                            const parseNum = v => { if (!v) return null; const m = String(v).match(/(\d+(\.\d+)?)/); return m ? parseFloat(m[1]) : null }
-                            const relevantTargets = sectionTargets.filter(t => F2F_TARGET_SECTIONS.includes(t.section_key) && t.question_label)
-                            const byQuestion = {}
-                            relevantTargets.forEach(t => {
-                              const k = `${t.section_key}::${t.question_label}`
-                              if (!byQuestion[k] || (t.student_id === student?.id && byQuestion[k].student_id !== student?.id)) byQuestion[k] = t
-                            })
-                            const f2fTargetTotal = Object.values(byQuestion).reduce((sum, t) => sum + (parseNum(t.target_value) || 0), 0)
-                            return f2fTargetTotal > 0 ? `${f2fCount}/${f2fTargetTotal}` : f2fCount
-                          })()}
-                        </div>
-                        <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Results</div>
-                      </button>
-                      <button onClick={() => setTab('pdp')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none' }}>
-                        <div style={{ fontSize: 22, marginBottom: 4 }}>🎯</div>
-                        <div style={{ fontSize: 22, fontWeight: 700, color: '#EF9F27' }}>
-                          {(() => {
-                            const completedCount = myNotesLog.filter(n => n.note_text?.startsWith('Completed PDP task') && !/weigh/i.test(n.note_text)).length
-                            // "Out of PDPs sent to athlete" -- for most
-                            // sections that's whatever's been explicitly
-                            // sent (pdp_shared), but "to do" sections are
-                            // always visible without needing to be sent,
-                            // so those are counted from pdp_notes directly.
-                            const totalSent = PDP_SECTIONS.filter(s => s.key !== 'winning_ways').reduce((sum, s) =>
-                              sum + (isToDoSectionKey(s.key) ? (pdp[s.key] || []).length : (shared[s.key] || []).length), 0)
-                            return totalSent > 0 ? `${completedCount}/${totalSent}` : completedCount
-                          })()}
-                        </div>
-                        <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>PDP</div>
-                      </button>
+                      <TopStatCard onNavigate={() => setTab('sessions')} icon="📅" value={sessionsValue} pctValue={`${sessionsPct}%`}
+                        hasPct={possibleSessions > 0} label="Sessions" colour={colour} />
+                      <TopStatCard onNavigate={() => setTab('fit2fight')} iconImg="/logos/f2f-logo-red.png" value={f2fValue} pctValue={f2fPct}
+                        hasPct={f2fHasPct} label="Results" colour="#378ADD" />
+                      <TopStatCard onNavigate={() => setTab('pdp')} icon="🎯" value={pdpValue} pctValue={pdpPct}
+                        hasPct={pdpHasPct} label="PDP" colour="#EF9F27" />
                     </div>
 
                     {/* Physical/Technique/Tactical/Mentality reordered visually

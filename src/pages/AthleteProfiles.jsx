@@ -153,6 +153,61 @@ function OnOffInput({ onAdd }) {
 // than passing value/onChange, so the parent doesn't need its own
 // piece of draft state for every single field -- there are dozens of
 // these across the PDP.
+// Inner Sessions segment for the coach view's top card, which wraps it
+// in its own scope-cycling ◀▶ buttons (unlike the athlete view, where
+// the whole card is this element). Tap navigates, hold toggles %.
+function SessionsMiniCard({ onNavigate, attended, possible, colour, label }) {
+  const heldRef = useRef(false)
+  const holdTimer = useRef(null)
+  const [showPct, setShowPct] = useState(false)
+  const hasPct = possible > 0
+  return (
+    <div
+      onPointerDown={() => {
+        heldRef.current = false
+        holdTimer.current = setTimeout(() => { heldRef.current = true; if (hasPct) setShowPct(v => !v) }, 500)
+      }}
+      onPointerUp={() => clearTimeout(holdTimer.current)}
+      onPointerLeave={() => clearTimeout(holdTimer.current)}
+      onClick={() => { if (heldRef.current) { heldRef.current = false; return } onNavigate() }}
+      title={hasPct ? 'Tap to view — hold to toggle %' : 'Tap to view'}
+      style={{ flex: 1, cursor: 'pointer' }}>
+      <div style={{ fontSize: 20, marginBottom: 2 }}>📅</div>
+      <div style={{ fontSize: 19, fontWeight: 700, color: colour }}>
+        {hasPct && showPct ? `${Math.round((attended / possible) * 100)}%` : `${attended}/${possible || attended}`}
+      </div>
+      <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>{label}</div>
+    </div>
+  )
+}
+
+// Coach view's PDP card -- tap navigates, hold toggles between the
+// raw x/x count and a percentage.
+function PdpMiniCard({ onNavigate, completedCount, totalSent }) {
+  const heldRef = useRef(false)
+  const holdTimer = useRef(null)
+  const [showPct, setShowPct] = useState(false)
+  const hasPct = totalSent > 0
+  return (
+    <button
+      onPointerDown={() => {
+        heldRef.current = false
+        holdTimer.current = setTimeout(() => { heldRef.current = true; if (hasPct) setShowPct(v => !v) }, 500)
+      }}
+      onPointerUp={() => clearTimeout(holdTimer.current)}
+      onPointerLeave={() => clearTimeout(holdTimer.current)}
+      onClick={() => { if (heldRef.current) { heldRef.current = false; return } onNavigate() }}
+      className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none' }}
+      title={hasPct ? 'Tap to view — hold to toggle %' : 'Tap to view'}>
+      <div style={{ fontSize: 22, marginBottom: 4 }}>🎯</div>
+      <div style={{ fontSize: 22, fontWeight: 700, color: '#EF9F27' }}>
+        {hasPct && showPct ? `${Math.round((completedCount / totalSent) * 100)}%` : (hasPct ? `${completedCount}/${totalSent}` : completedCount)}
+      </div>
+      <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>PDP</div>
+    </button>
+  )
+}
+
 function SavableField({ defaultValue, placeholder, onSave, type = 'text', rows, style, inputStyle }) {
   const ref = useRef(null)
   return (
@@ -2838,7 +2893,6 @@ export default function AthleteProfiles() {
   const [sessionsBreakdownRange, setSessionsBreakdownRange] = useState('month')
   const [breakdownExcluded, setBreakdownExcluded] = useState(new Set()) // assignment ids unchecked from the total (default: none, i.e. all included)
   const [f2fStatsScope, setF2fStatsScope] = useState(0) // cycles through scope options
-  const [attendanceDisplayPct, setAttendanceDisplayPct] = useState(false)
   const [f2fModule, setF2fModule] = useState(null) // 'watt_bike' | '10k' | 'circuit' | 'bleep' | 'grip'
   const [moduleSubType, setModuleSubType] = useState({}) // key -> currently selected sub-type per module
   const [expandedHomeWb, setExpandedHomeWb] = useState(null) // which wellbeing question card is expanded on Home
@@ -8307,17 +8361,7 @@ export default function AthleteProfiles() {
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 8 }}>
                     <div className="card" style={{ textAlign: 'center', padding: '10px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, background: 'var(--bg-secondary)' }}>
                       <button onClick={() => setF2fStatsScope(v => v - 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4, appearance: 'none', WebkitAppearance: 'none', fontFamily: 'var(--font-sans)' }}>◀</button>
-                      <div style={{ flex: 1 }}>
-                        <button onClick={() => setTab('sessions')} title="View Sessions tab"
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, marginBottom: 2, padding: 0, fontFamily: 'var(--font-sans)', appearance: 'none', WebkitAppearance: 'none' }}>📅</button>
-                        <div onClick={() => setAttendanceDisplayPct(v => !v)} title="Click to toggle percentage/numbers"
-                          style={{ fontSize: 19, fontWeight: 700, color: colour, cursor: 'pointer' }}>
-                          {attendanceDisplayPct
-                            ? `${possibleSessions ? Math.round((scopedAttendedDayCount / possibleSessions) * 100) : 0}%`
-                            : `${scopedAttendedDayCount}/${possibleSessions || scopedAttendedDayCount}`}
-                        </div>
-                        <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>{scopeLabel}</div>
-                      </div>
+                      <SessionsMiniCard onNavigate={() => setTab('sessions')} attended={scopedAttendedDayCount} possible={possibleSessions} colour={colour} label={scopeLabel} />
                       <button onClick={() => setF2fStatsScope(v => v + 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4, appearance: 'none', WebkitAppearance: 'none', fontFamily: 'var(--font-sans)' }}>▶</button>
                     </div>
                     <button onClick={() => setTab('fit2fight')}
@@ -8380,30 +8424,10 @@ export default function AthleteProfiles() {
                       </div>
                       <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Results</div>
                     </button>
-                    <button onClick={() => setTab('pdp')} className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none' }} title="View PDP">
-                      <div style={{ fontSize: 22, marginBottom: 4 }}>🎯</div>
-                      <div style={{ fontSize: 22, fontWeight: 700, color: '#EF9F27' }}>
-                        {(() => {
-                          const completedCount = notesLog.filter(n => n.note_text?.startsWith('Completed PDP task') && !/weigh/i.test(n.note_text)).length
-                          // "Out of PDPs sent to athlete" -- for most
-                          // sections that's whatever's been explicitly
-                          // sent (pdp_shared), but "to do" sections are
-                          // always visible without needing to be sent
-                          // (see the PDP tab's own logic), so those are
-                          // counted from pdp_notes directly instead.
-                          // Computed locally here since this card lives
-                          // in the main component, not the separate
-                          // PDPTab component where shared/pdp normally
-                          // live as local variables.
-                          const pdpNotesLocal = apData?.pdp_notes || {}
-                          const pdpSharedLocal = apData?.pdp_shared || {}
-                          const totalSent = PDP_SECTIONS.filter(s => s.key !== 'winning_ways').reduce((sum, s) =>
-                            sum + (isToDoSectionKey(s.key) ? (pdpNotesLocal[s.key] || []).length : (pdpSharedLocal[s.key] || []).length), 0)
-                          return totalSent > 0 ? `${completedCount}/${totalSent}` : completedCount
-                        })()}
-                      </div>
-                      <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>PDP</div>
-                    </button>
+                    <PdpMiniCard onNavigate={() => setTab('pdp')}
+                      completedCount={notesLog.filter(n => n.note_text?.startsWith('Completed PDP task') && !/weigh/i.test(n.note_text)).length}
+                      totalSent={PDP_SECTIONS.filter(s => s.key !== 'winning_ways').reduce((sum, s) =>
+                        sum + (isToDoSectionKey(s.key) ? (apData?.pdp_notes?.[s.key] || []).length : (apData?.pdp_shared?.[s.key] || []).length), 0)} />
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, alignItems: 'start', width: '100%' }}>
