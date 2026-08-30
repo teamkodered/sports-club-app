@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useBackableTab } from '../hooks/useBackableTab.js'
@@ -85,6 +85,41 @@ function BulkSendOptions({ people, subjectText, bodyText, noun = 'people' }) {
       )}
     </div>
   )
+}
+
+// Same age-banded PKA grade order used on the Grading expression form --
+// duplicated here (not imported) to match the existing pattern in this
+// codebase of small constant tables being local to each file that needs
+// them (see TEST_CATEGORIES in AthleteApp.jsx/AthleteProfiles.jsx).
+const PKA_GRADE_ORDERS = {
+  'Tiny Tots (3-5 years)': ['Red', 'Yellow', 'Yellow tag', 'Orange', 'Orange tag', 'Green', 'Green tag', 'Blue', 'Blue tag', 'Purple', 'Purple tag', 'Brown', 'Brown tag', 'Black'],
+  'Small Soldiers (6-8 years)': ['Red', 'Yellow', 'Orange', 'Green', 'Blue', 'Blue tag', 'Purple', 'Purple tag', 'Brown', 'Brown tag', 'Black'],
+  'Junior Jedi (9-13 years)': ['Red', 'Yellow', 'Orange', 'Green', 'Blue', 'Purple', 'Purple tag', 'Brown', 'Brown tag', 'Black'],
+  'Adults (14+)': ['Red', 'Yellow', 'Orange', 'Green', 'Blue', 'Purple', 'Brown', 'Black'],
+}
+const PKA_BAND_ORDER = ['Tiny Tots (3-5 years)', 'Small Soldiers (6-8 years)', 'Junior Jedi (9-13 years)', 'Adults (14+)', 'KRBA']
+
+function ageFromDOB(dob) {
+  if (!dob) return null
+  return Math.floor((Date.now() - new Date(dob)) / (365.25 * 24 * 60 * 60 * 1000))
+}
+function ageBandFor(dob) {
+  const age = ageFromDOB(dob)
+  if (age == null) return 'Adults (14+)'
+  if (age <= 5) return 'Tiny Tots (3-5 years)'
+  if (age <= 8) return 'Small Soldiers (6-8 years)'
+  if (age <= 13) return 'Junior Jedi (9-13 years)'
+  return 'Adults (14+)'
+}
+function beltOrderIndex(discipline, ageBand, beltName, krbaLevels) {
+  const order = discipline === 'PKA' ? (PKA_GRADE_ORDERS[ageBand] || []) : (krbaLevels || [])
+  const idx = order.indexOf(beltName)
+  return idx === -1 ? 999 : idx
+}
+function beltSizeFor(dob, rule) {
+  const age = ageFromDOB(dob)
+  if (age == null) return rule.over_size
+  return age < rule.threshold_age ? rule.under_size : rule.over_size
 }
 
 export default function CRM() {
@@ -347,6 +382,17 @@ export default function CRM() {
   const [gradingLoaded, setGradingLoaded] = useState(false)
   const [gradingLoading, setGradingLoading] = useState(false)
   const [approvingGradingId, setApprovingGradingId] = useState(null)
+  const [gradingView, setGradingView] = useState('requests') // 'requests' | 'list'
+  const [gradingDisciplineFilter, setGradingDisciplineFilter] = useState('all')
+  const [gradingApprovedOnly, setGradingApprovedOnly] = useState(false)
+  const [gradingSelected, setGradingSelected] = useState({}) // id -> bool, defaults to selected
+  const [krbaLevelsForGrading, setKrbaLevelsForGrading] = useState([])
+  const [beltSizeRule, setBeltSizeRule] = useState({ threshold_age: 10, under_size: '240', over_size: '280' })
+  const [editingBeltSizeRule, setEditingBeltSizeRule] = useState(false)
+  const [beltStock, setBeltStock] = useState([]) // [{ size, belt, qty }]
+  const [savingBeltSettings, setSavingBeltSettings] = useState(false)
+  const [showBeltStock, setShowBeltStock] = useState(false)
+  const [showOrderForm, setShowOrderForm] = useState(false)
 
   async function loadGradingRequests() {
     setGradingLoading(true)
@@ -354,11 +400,19 @@ export default function CRM() {
     cutoff.setMonth(cutoff.getMonth() - 3)
     const cutoffStr = cutoff.toISOString().split('T')[0]
 
-    const { data, error } = await supabase
-      .from('grading_expressions')
-      .select('*, students(id, discipline, pka_belt, krba_level, members(first_name, last_name))')
-      .order('created_at', { ascending: false })
+    const [{ data, error }, { data: settingsRows }] = await Promise.all([
+      supabase
+        .from('grading_expressions')
+        .select('*, students(id, discipline, pka_belt, krba_level, members(first_name, last_name, date_of_birth))')
+        .order('created_at', { ascending: false }),
+      supabase.from('settings').select('key,value').in('key', ['krba_levels', 'grading_belt_size_rule', 'grading_belt_stock']),
+    ])
     if (error) { alert('Error loading grading requests: ' + error.message); setGradingLoading(false); return }
+
+    const sm = Object.fromEntries((settingsRows || []).map(r => [r.key, r.value]))
+    setKrbaLevelsForGrading(sm.krba_levels || [])
+    if (sm.grading_belt_size_rule) setBeltSizeRule(sm.grading_belt_size_rule)
+    setBeltStock(sm.grading_belt_stock || [])
 
     const enriched = await Promise.all((data || []).map(async (r) => {
       if (!r.student_id) return { ...r, attendanceCount: null }
@@ -368,9 +422,124 @@ export default function CRM() {
     }))
 
     setGradingRequests(enriched)
+    setGradingSelected(Object.fromEntries(enriched.map(r => [r.id, true])))
     setGradingLoaded(true)
     setGradingLoading(false)
   }
+
+  async function saveBeltSizeRule(rule) {
+    setSavingBeltSettings(true)
+    const { error } = await supabase.from('settings').upsert({ key: 'grading_belt_size_rule', value: rule }, { onConflict: 'key' })
+    setSavingBeltSettings(false)
+    if (error) { alert('Error saving: ' + error.message); return }
+    setBeltSizeRule(rule)
+    setEditingBeltSizeRule(false)
+  }
+
+  async function saveBeltStock(stock) {
+    setSavingBeltSettings(true)
+    const { error } = await supabase.from('settings').upsert({ key: 'grading_belt_stock', value: stock }, { onConflict: 'key' })
+    setSavingBeltSettings(false)
+    if (error) { alert('Error saving: ' + error.message); return }
+    setBeltStock(stock)
+  }
+
+  // Builds the flat, sortable/groupable row list the Grading list view,
+  // exports and printouts all share -- one place computing name/age/
+  // band/belt-order/size so every output stays consistent with the others.
+  function computeGradingRows() {
+    return gradingRequests
+      .filter(r => gradingDisciplineFilter === 'all' || r.discipline === gradingDisciplineFilter)
+      .filter(r => !gradingApprovedOnly || r.coach_approved)
+      .map(r => {
+        const m = r.students?.members
+        const dob = m?.date_of_birth
+        const band = r.discipline === 'PKA' ? ageBandFor(dob) : 'KRBA'
+        const orderIdx = beltOrderIndex(r.discipline, band, r.grading_for, krbaLevelsForGrading)
+        return {
+          ...r,
+          name: m ? `${m.first_name} ${m.last_name}` : 'Unknown student',
+          age: ageFromDOB(dob),
+          band,
+          orderIdx,
+          size: beltSizeFor(dob, beltSizeRule),
+        }
+      })
+      .sort((a, b) => {
+        const bandDiff = PKA_BAND_ORDER.indexOf(a.band) - PKA_BAND_ORDER.indexOf(b.band)
+        if (bandDiff !== 0) return bandDiff
+        return a.orderIdx - b.orderIdx
+      })
+  }
+
+  function computeBeltTally(rows) {
+    const tally = {}
+    rows.forEach(r => {
+      const key = `${r.size}__${r.grading_for}`
+      if (!tally[key]) tally[key] = { size: r.size, belt: r.grading_for, qty: 0 }
+      tally[key].qty++
+    })
+    return Object.values(tally).sort((a, b) => a.size.localeCompare(b.size) || a.belt.localeCompare(b.belt))
+  }
+
+  function exportGradingList(rows) {
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.json_to_sheet(rows.map(r => ({
+      Name: r.name, Age: r.age ?? '', 'Age group': r.band, Discipline: r.discipline,
+      'Current belt': r.current_belt || '', 'Grading for': r.grading_for, 'Belt size': r.size,
+      Approved: r.coach_approved ? 'Yes' : 'No',
+    })))
+    XLSX.utils.book_append_sheet(wb, ws, 'Grading list')
+    XLSX.writeFile(wb, `grading_list_${new Date().toISOString().split('T')[0]}.xlsx`)
+  }
+
+  function exportOrderForm(rows) {
+    const tally = computeBeltTally(rows)
+    const stockMap = Object.fromEntries(beltStock.map(s => [`${s.size}__${s.belt}`, s.qty]))
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.json_to_sheet(tally.map(t => {
+      const inStock = stockMap[`${t.size}__${t.belt}`] || 0
+      return { Size: t.size, Belt: t.belt, Needed: t.qty, 'In stock': inStock, 'To order': Math.max(0, t.qty - inStock) }
+    }))
+    XLSX.utils.book_append_sheet(wb, ws, 'Belt order form')
+    XLSX.writeFile(wb, `belt_order_form_${new Date().toISOString().split('T')[0]}.xlsx`)
+  }
+
+  function printGradingWindow(title, bodyHtml) {
+    const win = window.open('', '_blank')
+    if (!win) { alert('Please allow pop-ups to print.'); return }
+    win.document.write(`<html><head><title>${title}</title><style>
+      body{font-family:sans-serif;padding:24px;color:#111;}
+      h1{font-size:18px;margin-bottom:4px;} h2{font-size:14px;margin-top:24px;border-bottom:1px solid #ccc;padding-bottom:4px;}
+      table{width:100%;border-collapse:collapse;margin-top:8px;}
+      th,td{border:1px solid #ccc;padding:6px 8px;text-align:left;font-size:12px;}
+      th{background:#f0f0f0;}
+    </style></head><body>${bodyHtml}</body></html>`)
+    win.document.close()
+    win.focus()
+    setTimeout(() => win.print(), 300)
+  }
+
+  function printExaminersForm(rows) {
+    const bandsPresent = [...new Set(rows.map(r => r.band))]
+    let html = `<h1>Grading examiners form</h1><p style="font-size:12px;color:#666;">${new Date().toLocaleDateString('en-GB')}</p>`
+    bandsPresent.forEach(band => {
+      html += `<h2>${band}</h2><table><thead><tr><th>Name</th><th>Age</th><th>Current belt</th><th>Grading for</th><th>Result</th></tr></thead><tbody>`
+      rows.filter(r => r.band === band).forEach(r => {
+        html += `<tr><td>${r.name}</td><td>${r.age ?? ''}</td><td>${r.current_belt || ''}</td><td>${r.grading_for}</td><td>PASS&nbsp;&nbsp;/&nbsp;&nbsp;REFER&nbsp;&nbsp;/&nbsp;&nbsp;FAIL</td></tr>`
+      })
+      html += `</tbody></table>`
+    })
+    printGradingWindow('Examiners form', html)
+  }
+
+  function printCertificateList(rows) {
+    let html = `<h1>Certificates to print</h1><table><thead><tr><th>Name</th><th>New belt</th></tr></thead><tbody>`
+    rows.forEach(r => { html += `<tr><td>${r.name}</td><td>${r.grading_for}</td></tr>` })
+    html += `</tbody></table>`
+    printGradingWindow('Certificate list', html)
+  }
+
 
   async function approveGrading(id) {
     setApprovingGradingId(id)
@@ -1924,11 +2093,16 @@ export default function CRM() {
           actually happened before approving. */}
       {tab === 'grading_requests' && (
         <div>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+            <button className={gradingView === 'requests' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setGradingView('requests')}>Requests</button>
+            <button className={gradingView === 'list' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setGradingView('list')}>Grading list</button>
+          </div>
+
           {gradingLoading ? (
             <div className="loading">Loading…</div>
           ) : gradingRequests.length === 0 ? (
             <div className="empty-state"><h3>No grading requests</h3><p>Nobody has submitted a grading expression of interest yet.</p></div>
-          ) : (
+          ) : gradingView === 'requests' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {gradingRequests.map(r => {
                 const m = r.students?.members
@@ -1958,8 +2132,8 @@ export default function CRM() {
 
                     <div style={{ display: 'flex', gap: 16, marginTop: 10, flexWrap: 'wrap' }}>
                       <div style={{ fontSize: 12 }}>
-                        <span style={{ color: 'var(--text-tertiary)' }}>Self-reported classes attended: </span>
-                        <strong>{extra.classes_attended || '—'}</strong>
+                        <span style={{ color: 'var(--text-tertiary)' }}>Self-reported sessions: </span>
+                        <strong>{extra.sessions_attended != null ? `${extra.sessions_attended} of ${extra.sessions_possible ?? '?'}` : '—'}</strong>
                       </div>
                       <div style={{ fontSize: 12 }}>
                         <span style={{ color: 'var(--text-tertiary)' }}>Actual attendance (last 3 months): </span>
@@ -1967,11 +2141,16 @@ export default function CRM() {
                           {r.attendanceCount === null ? 'No student record linked' : `${r.attendanceCount} session${r.attendanceCount === 1 ? '' : 's'}`}
                         </strong>
                       </div>
+                      {extra.contact_phone && (
+                        <div style={{ fontSize: 12 }}>
+                          <span style={{ color: 'var(--text-tertiary)' }}>Contact: </span>
+                          <strong>{extra.contact_phone}</strong>
+                        </div>
+                      )}
                     </div>
 
-                    {(extra.competition_history || extra.fitness_comments || extra.coach_name || extra.student_notes) && (
+                    {(extra.fitness_comments || extra.coach_name || extra.student_notes) && (
                       <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        {extra.competition_history && <p style={{ fontSize: 12 }}><span style={{ color: 'var(--text-tertiary)' }}>Competition history: </span>{extra.competition_history}</p>}
                         {extra.fitness_comments && <p style={{ fontSize: 12 }}><span style={{ color: 'var(--text-tertiary)' }}>Fitness/technique comments: </span>{extra.fitness_comments}</p>}
                         {extra.coach_name && <p style={{ fontSize: 12 }}><span style={{ color: 'var(--text-tertiary)' }}>Coach named: </span>{extra.coach_name}</p>}
                         {extra.student_notes && <p style={{ fontSize: 12 }}><span style={{ color: 'var(--text-tertiary)' }}>Student notes: </span>{extra.student_notes}</p>}
@@ -1981,7 +2160,163 @@ export default function CRM() {
                 )
               })}
             </div>
-          )}
+          ) : (() => {
+            const allRows = computeGradingRows()
+            const selectedRows = allRows.filter(r => gradingSelected[r.id])
+            const tally = computeBeltTally(selectedRows)
+            let currentBand = null
+            return (
+              <div>
+                {/* Filters */}
+                <div className="card" style={{ padding: 12, marginBottom: 12, display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <div className="field" style={{ marginBottom: 0 }}>
+                    <label style={{ fontSize: 11 }}>Discipline</label>
+                    <select value={gradingDisciplineFilter} onChange={e => setGradingDisciplineFilter(e.target.value)}>
+                      <option value="all">All</option>
+                      <option value="PKA">PKA</option>
+                      <option value="KRBA">KRBA</option>
+                    </select>
+                  </div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={gradingApprovedOnly} onChange={e => setGradingApprovedOnly(e.target.checked)} />
+                    Approved only
+                  </label>
+                  <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                    <button className="btn btn-sm" onClick={() => setGradingSelected(Object.fromEntries(allRows.map(r => [r.id, true])))}>Select all</button>
+                    <button className="btn btn-sm" onClick={() => setGradingSelected(Object.fromEntries(allRows.map(r => [r.id, false])))}>Deselect all</button>
+                  </div>
+                </div>
+
+                {/* Belt size rule */}
+                <div className="card" style={{ padding: 12, marginBottom: 12 }}>
+                  {editingBeltSizeRule ? (
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                      <div className="field" style={{ marginBottom: 0 }}><label style={{ fontSize: 11 }}>Under this age (yo)</label>
+                        <input type="number" style={{ width: 70 }} value={beltSizeRule.threshold_age}
+                          onChange={e => setBeltSizeRule(r => ({ ...r, threshold_age: parseInt(e.target.value) || 0 }))} />
+                      </div>
+                      <div className="field" style={{ marginBottom: 0 }}><label style={{ fontSize: 11 }}>Size under threshold</label>
+                        <input style={{ width: 80 }} value={beltSizeRule.under_size}
+                          onChange={e => setBeltSizeRule(r => ({ ...r, under_size: e.target.value }))} />
+                      </div>
+                      <div className="field" style={{ marginBottom: 0 }}><label style={{ fontSize: 11 }}>Size at/above threshold</label>
+                        <input style={{ width: 80 }} value={beltSizeRule.over_size}
+                          onChange={e => setBeltSizeRule(r => ({ ...r, over_size: e.target.value }))} />
+                      </div>
+                      <button className="btn btn-sm btn-primary" disabled={savingBeltSettings} onClick={() => saveBeltSizeRule(beltSizeRule)}>
+                        {savingBeltSettings ? 'Saving…' : 'Save'}
+                      </button>
+                      <button className="btn btn-sm" onClick={() => setEditingBeltSizeRule(false)}>Cancel</button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                        Belt size rule: under <strong>{beltSizeRule.threshold_age}yo</strong> → <strong>{beltSizeRule.under_size}</strong>,
+                        {' '}{beltSizeRule.threshold_age}+ → <strong>{beltSizeRule.over_size}</strong>
+                      </p>
+                      <button className="btn btn-sm" onClick={() => setEditingBeltSizeRule(true)}>Edit</button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+                  <button className="btn btn-sm btn-primary" onClick={() => exportGradingList(selectedRows)}>⬇ Export list (Excel)</button>
+                  <button className="btn btn-sm" onClick={() => setShowOrderForm(v => !v)}>📋 Generate belt order form</button>
+                  <button className="btn btn-sm" onClick={() => printExaminersForm(selectedRows)}>🖨️ Print examiners form</button>
+                  <button className="btn btn-sm" onClick={() => printCertificateList(selectedRows)}>🖨️ Print certificate list</button>
+                  <button className="btn btn-sm" onClick={() => setShowBeltStock(v => !v)}>📦 Stock list of belts</button>
+                </div>
+
+                {/* Belt order form (tally) */}
+                {showOrderForm && (
+                  <div className="card" style={{ padding: 14, marginBottom: 14 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                      <h3 style={{ fontSize: 14, fontWeight: 600 }}>Belt order form ({selectedRows.length} selected)</h3>
+                      <button className="btn btn-sm btn-primary" onClick={() => exportOrderForm(selectedRows)}>⬇ Export order form (Excel)</button>
+                    </div>
+                    {tally.length === 0 ? <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Nothing selected.</p> : (
+                      <table style={{ width: '100%', fontSize: 12 }}>
+                        <thead><tr><th style={{ textAlign: 'left' }}>Size</th><th style={{ textAlign: 'left' }}>Belt</th><th style={{ textAlign: 'right' }}>Needed</th></tr></thead>
+                        <tbody>
+                          {tally.map(t => (
+                            <tr key={t.size + t.belt}><td>{t.size}</td><td>{t.belt}</td><td style={{ textAlign: 'right' }}>{t.qty}</td></tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                )}
+
+                {/* Stock list */}
+                {showBeltStock && (
+                  <div className="card" style={{ padding: 14, marginBottom: 14 }}>
+                    <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>Stock list of belts</h3>
+                    {beltStock.map((s, i) => (
+                      <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'center' }}>
+                        <input style={{ width: 70 }} placeholder="Size" value={s.size}
+                          onChange={e => setBeltStock(prev => prev.map((row, ri) => ri === i ? { ...row, size: e.target.value } : row))} />
+                        <input style={{ flex: 1 }} placeholder="Belt" value={s.belt}
+                          onChange={e => setBeltStock(prev => prev.map((row, ri) => ri === i ? { ...row, belt: e.target.value } : row))} />
+                        <input type="number" style={{ width: 80 }} placeholder="Qty" value={s.qty}
+                          onChange={e => setBeltStock(prev => prev.map((row, ri) => ri === i ? { ...row, qty: parseInt(e.target.value) || 0 } : row))} />
+                        <button className="btn btn-sm" onClick={() => setBeltStock(prev => prev.filter((_, ri) => ri !== i))}>✕</button>
+                      </div>
+                    ))}
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                      <button className="btn btn-sm" onClick={() => setBeltStock(prev => [...prev, { size: '', belt: '', qty: 0 }])}>+ Add row</button>
+                      <button className="btn btn-sm btn-primary" disabled={savingBeltSettings} onClick={() => saveBeltStock(beltStock)}>
+                        {savingBeltSettings ? 'Saving…' : 'Save stock list'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Main table, grouped by age group then belt order */}
+                <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                  <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: 'var(--bg-secondary)' }}>
+                        <th style={{ padding: 8, textAlign: 'left' }}></th>
+                        <th style={{ padding: 8, textAlign: 'left' }}>Name</th>
+                        <th style={{ padding: 8, textAlign: 'left' }}>Age</th>
+                        <th style={{ padding: 8, textAlign: 'left' }}>Belt size</th>
+                        <th style={{ padding: 8, textAlign: 'left' }}>Current belt</th>
+                        <th style={{ padding: 8, textAlign: 'left' }}>Grading for</th>
+                        <th style={{ padding: 8, textAlign: 'left' }}>Approved</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {allRows.map(r => {
+                        const showBandHeader = r.band !== currentBand
+                        currentBand = r.band
+                        return (
+                          <Fragment key={r.id}>
+                            {showBandHeader && (
+                              <tr key={r.band + '-header'} style={{ background: 'var(--bg-tertiary)' }}>
+                                <td colSpan={7} style={{ padding: '6px 8px', fontWeight: 700, fontSize: 12 }}>{r.band}</td>
+                              </tr>
+                            )}
+                            <tr style={{ borderTop: '1px solid var(--border)' }}>
+                              <td style={{ padding: 8 }}><input type="checkbox" checked={!!gradingSelected[r.id]}
+                                onChange={e => setGradingSelected(prev => ({ ...prev, [r.id]: e.target.checked }))} /></td>
+                              <td style={{ padding: 8, fontWeight: 500 }}>{r.name}</td>
+                              <td style={{ padding: 8 }}>{r.age ?? '—'}</td>
+                              <td style={{ padding: 8 }}>{r.size}</td>
+                              <td style={{ padding: 8 }}>{r.current_belt || '—'}</td>
+                              <td style={{ padding: 8, fontWeight: 600 }}>{r.grading_for}</td>
+                              <td style={{ padding: 8 }}>{r.coach_approved ? <span style={{ color: '#1D9E75' }}>✓</span> : '—'}</td>
+                            </tr>
+                          </Fragment>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                  {allRows.length === 0 && <p style={{ padding: 14, fontSize: 12, color: 'var(--text-tertiary)', textAlign: 'center' }}>No rows match the current filters.</p>}
+                </div>
+              </div>
+            )
+          })()}
         </div>
       )}
 
