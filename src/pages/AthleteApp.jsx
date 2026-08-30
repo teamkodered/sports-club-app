@@ -1478,7 +1478,7 @@ export default function AthleteApp() {
       setPushPermission(permission)
       if (permission !== 'granted') { setSubscribingPush(false); return }
       const registration = await navigator.serviceWorker.ready
-      const VAPID_PUBLIC_KEY = 'BIa6vh2GIhxCWQz3xYsZNfsOdky5NTp3RMlepDb5Ni0mzJyul2nZpRruig-fvgJVZ-vOO9RfMpSKtGduPmC1cYU'
+      const VAPID_PUBLIC_KEY = 'BFx43dN_KrP2jDPB0X8YL3hhRoFiocwTaEKFYGwaUmFcRUnF6kFNTyFs3r61t0o6r3prkVOQQ2WMmDpE4yaqgRI'
       const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
       const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey })
       const json = subscription.toJSON()
