@@ -1351,6 +1351,7 @@ export default function AthleteApp() {
   // Top detail card: 0 = Name/Club/Age/Level, 1 = House info. Swipe
   // left/right on the card to switch.
   const [headerCardView, setHeaderCardView] = useState(0)
+  const [housePointsExpanded, setHousePointsExpanded] = useState(false)
   const headerSwipeStartX = useRef(null)
   const headerWasSwipe = useRef(false) // suppresses the card's own "tap to go Home" after a genuine swipe
   const [showOverallPos, setShowOverallPos] = useState(false)
@@ -3588,7 +3589,7 @@ export default function AthleteApp() {
         onClick={() => {
           if (headerWasSwipe.current) { headerWasSwipe.current = false; return }
           if (!student) return
-          if (headerCardView === 1) { setTab('points'); return }
+          if (headerCardView === 1) { setHousePointsExpanded(v => !v); return }
           setMyProfileExpanded(v => !v)
         }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -3622,7 +3623,7 @@ export default function AthleteApp() {
                     )}
                     {houseTotalPoints != null && <span style={{ color: 'var(--text-tertiary)' }}>({houseTotalPoints} pts)</span>}
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>Tap to view your points</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>{housePointsExpanded ? 'Tap to hide your points' : 'Tap to view your points'}</div>
                 </>
               )
             ) : (
@@ -3636,7 +3637,7 @@ export default function AthleteApp() {
             <span style={{ fontSize: 12, color: 'var(--text-tertiary)', flexShrink: 0, alignSelf: 'flex-start', marginTop: 4 }}>{myProfileExpanded ? '▲' : '▼'}</span>
           )}
           {student && headerCardView === 1 && (
-            <span style={{ fontSize: 12, color: 'var(--text-tertiary)', flexShrink: 0, alignSelf: 'flex-start', marginTop: 4 }}>→</span>
+            <span style={{ fontSize: 12, color: 'var(--text-tertiary)', flexShrink: 0, alignSelf: 'flex-start', marginTop: 4 }}>{housePointsExpanded ? '▲' : '▼'}</span>
           )}
         </div>
         {student && (
@@ -3645,6 +3646,47 @@ export default function AthleteApp() {
               <button key={v} onClick={e => { e.stopPropagation(); setHeaderCardView(v) }}
                 style={{ width: 6, height: 6, borderRadius: '50%', border: 'none', cursor: 'pointer', padding: 0, background: headerCardView === v ? colour : 'var(--border-strong)' }} />
             ))}
+          </div>
+        )}
+
+        {/* Points detail, shown inline in-place when the house view is
+            tapped -- toggles open/closed on the same tap rather than
+            navigating to a separate Points screen, so there's nothing
+            to "go back" from and no separate back button needed. */}
+        {student && headerCardView === 1 && housePointsExpanded && (
+          <div onClick={e => e.stopPropagation()} style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+              <button onClick={() => setShowOverallPos(v => !v)} className="card" style={{ flex: 1, textAlign: 'center', cursor: 'pointer', border: 'none', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)' }}
+                title={showOverallPos ? 'Showing overall position — tap for position in house' : 'Showing position in house — tap for overall position'}>
+                <div style={{ fontSize: 24, fontWeight: 700, color: colour }}>{showOverallPos ? `#${overallPosition || '—'}` : `#${positionInHouse || '—'}`}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{showOverallPos ? 'Overall position' : 'Position in house'}</div>
+              </button>
+              <button onClick={() => setShowIndividualPct(v => !v)} className="card" style={{ flex: 1, textAlign: 'center', cursor: 'pointer', border: 'none', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)' }}
+                title={showIndividualPct ? 'Showing % of all individual points — tap to show points' : 'Showing individual points — tap to show % of total'}>
+                <div style={{ fontSize: 24, fontWeight: 700, color: '#1d9e75' }}>{showIndividualPct ? `${individualPointsPct ?? 0}%` : (student?.individual_points || 0)}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{showIndividualPct ? '% of total individual points' : 'Individual points'}</div>
+              </button>
+            </div>
+            <div className="card" style={{ padding: 0 }}>
+              {points.length === 0 ? (
+                <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 13 }}>No points yet</div>
+              ) : (
+                <table>
+                  <thead><tr><th>Date</th><th>Reason</th><th style={{ textAlign: 'right' }}>Points</th></tr></thead>
+                  <tbody>
+                    {points.map((p, i) => (
+                      <tr key={i}>
+                        <td style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{new Date(p.awarded_at).toLocaleDateString('en-GB')}</td>
+                        <td style={{ fontSize: 13 }}>{p.point_type}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 700, fontSize: 13, color: p.points_awarded < 0 ? '#a32d2d' : '#1d9e75' }}>
+                          {p.points_awarded > 0 ? '+' : ''}{p.points_awarded}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
         )}
 
