@@ -24,13 +24,13 @@ Deno.serve(async () => {
 
     const { data: pointsLog, error: plError } = await supabase
       .from('points_log')
-      .select('student_id, points')
+      .select('student_id, points_awarded')
       .gte('awarded_at', dateFrom)
     if (plError) return new Response(JSON.stringify({ error: plError.message }), { status: 500 })
 
     const totals = {}
     for (const row of pointsLog || []) {
-      totals[row.student_id] = (totals[row.student_id] || 0) + (row.points || 0)
+      totals[row.student_id] = (totals[row.student_id] || 0) + (row.points_awarded || 0)
     }
     const ranked = Object.entries(totals)
       .sort((a, b) => b[1] - a[1])
