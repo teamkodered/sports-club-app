@@ -169,7 +169,10 @@ function TopStatCard({ onNavigate, icon, iconImg, value, pctValue, hasPct, label
         heldRef.current = false
         holdTimer.current = setTimeout(() => {
           heldRef.current = true
-          if (hasPct) setShowPct(v => !v)
+          if (hasPct) {
+            setShowPct(v => !v)
+            try { navigator.vibrate?.(35) } catch {}
+          }
         }, 500)
       }}
       onPointerUp={() => clearTimeout(holdTimer.current)}
@@ -203,7 +206,13 @@ function SessionsMiniCard({ onNavigate, attended, possible, colour, label }) {
     <div
       onPointerDown={() => {
         heldRef.current = false
-        holdTimer.current = setTimeout(() => { heldRef.current = true; if (hasPct) setShowPct(v => !v) }, 500)
+        holdTimer.current = setTimeout(() => {
+          heldRef.current = true
+          if (hasPct) {
+            setShowPct(v => !v)
+            try { navigator.vibrate?.(35) } catch {}
+          }
+        }, 500)
       }}
       onPointerUp={() => clearTimeout(holdTimer.current)}
       onPointerLeave={() => clearTimeout(holdTimer.current)}
@@ -232,7 +241,13 @@ function PdpMiniCard({ onNavigate, completedCount, totalSent }) {
     <button
       onPointerDown={() => {
         heldRef.current = false
-        holdTimer.current = setTimeout(() => { heldRef.current = true; if (hasPct) setShowPct(v => !v) }, 500)
+        holdTimer.current = setTimeout(() => {
+          heldRef.current = true
+          if (hasPct) {
+            setShowPct(v => !v)
+            try { navigator.vibrate?.(35) } catch {}
+          }
+        }, 500)
       }}
       onPointerUp={() => clearTimeout(holdTimer.current)}
       onPointerLeave={() => clearTimeout(holdTimer.current)}

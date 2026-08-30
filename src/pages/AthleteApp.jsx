@@ -1034,7 +1034,10 @@ function TopStatCard({ onNavigate, icon, iconImg, value, pctValue, hasPct, label
         heldRef.current = false
         holdTimer.current = setTimeout(() => {
           heldRef.current = true
-          if (hasPct) setShowPct(v => !v)
+          if (hasPct) {
+            setShowPct(v => !v)
+            try { navigator.vibrate?.(35) } catch {}
+          }
         }, 500)
       }}
       onPointerUp={() => clearTimeout(holdTimer.current)}
