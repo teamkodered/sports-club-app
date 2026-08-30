@@ -174,12 +174,14 @@ function TopStatCard({ onNavigate, icon, iconImg, value, pctValue, hasPct, label
       }}
       onPointerUp={() => clearTimeout(holdTimer.current)}
       onPointerLeave={() => clearTimeout(holdTimer.current)}
+      onPointerCancel={() => clearTimeout(holdTimer.current)}
+      onContextMenu={e => e.preventDefault()}
       onClick={() => {
         if (heldRef.current) { heldRef.current = false; return }
         onNavigate()
       }}
       title={title || (hasPct ? 'Tap to view — hold to toggle %' : 'Tap to view')}
-      className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none' }}>
+      className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'manipulation' }}>
       {iconImg ? <img src={iconImg} alt="" style={{ height: 22, width: 'auto', marginBottom: 4, objectFit: 'contain' }} /> : <div style={{ fontSize: 22, marginBottom: 4 }}>{icon}</div>}
       <div style={{ fontSize: 22, fontWeight: 700, color: colour }}>
         {hasPct && showPct ? pctValue : value}
@@ -205,9 +207,11 @@ function SessionsMiniCard({ onNavigate, attended, possible, colour, label }) {
       }}
       onPointerUp={() => clearTimeout(holdTimer.current)}
       onPointerLeave={() => clearTimeout(holdTimer.current)}
+      onPointerCancel={() => clearTimeout(holdTimer.current)}
+      onContextMenu={e => e.preventDefault()}
       onClick={() => { if (heldRef.current) { heldRef.current = false; return } onNavigate() }}
       title={hasPct ? 'Tap to view — hold to toggle %' : 'Tap to view'}
-      style={{ flex: 1, cursor: 'pointer' }}>
+      style={{ flex: 1, cursor: 'pointer', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'manipulation' }}>
       <div style={{ fontSize: 20, marginBottom: 2 }}>📅</div>
       <div style={{ fontSize: 19, fontWeight: 700, color: colour }}>
         {hasPct && showPct ? `${Math.round((attended / possible) * 100)}%` : `${attended}/${possible || attended}`}
@@ -232,8 +236,10 @@ function PdpMiniCard({ onNavigate, completedCount, totalSent }) {
       }}
       onPointerUp={() => clearTimeout(holdTimer.current)}
       onPointerLeave={() => clearTimeout(holdTimer.current)}
+      onPointerCancel={() => clearTimeout(holdTimer.current)}
+      onContextMenu={e => e.preventDefault()}
       onClick={() => { if (heldRef.current) { heldRef.current = false; return } onNavigate() }}
-      className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none' }}
+      className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'manipulation' }}
       title={hasPct ? 'Tap to view — hold to toggle %' : 'Tap to view'}>
       <div style={{ fontSize: 22, marginBottom: 4 }}>🎯</div>
       <div style={{ fontSize: 22, fontWeight: 700, color: '#EF9F27' }}>
