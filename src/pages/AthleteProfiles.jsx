@@ -2884,7 +2884,6 @@ export default function AthleteProfiles() {
   const [expandedLoggerHowTo, setExpandedLoggerHowTo] = useState({})
   const [coldWaterCustomAdd, setColdWaterCustomAdd] = useState('')
   const [gratitudeDraft, setGratitudeDraft] = useState('')
-  const [expandedHomeTestCategory, setExpandedHomeTestCategory] = useState(null)
   const [todaysTest, setTodaysTest] = useState({})
   const [savingTest, setSavingTest] = useState(false)
   const [runCategoryTests, setRunCategoryTests] = useState({})
@@ -2893,8 +2892,6 @@ export default function AthleteProfiles() {
   const [stretchOptionsList, setStretchOptionsList] = useState([])
   const [expandedHomeRun, setExpandedHomeRun] = useState(null)
   const [showPhysicalSection, setShowPhysicalSection] = useState(false)
-  const [showTestSection, setShowTestSection] = useState(false)
-  const testSectionRef = useRef(null)
   const [showTechniqueSection, setShowTechniqueSection] = useState(false)
   const techniqueSectionRef = useRef(null)
   const [expandedTechniqueCategory, setExpandedTechniqueCategory] = useState(null)
@@ -2940,18 +2937,6 @@ export default function AthleteProfiles() {
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [showPhysicalSection])
-
-  useEffect(() => {
-    if (!showTestSection) return
-    function handleClick(e) {
-      if (testSectionRef.current && !testSectionRef.current.contains(e.target)) {
-        setShowTestSection(false)
-        setExpandedHomeTestCategory(null)
-      }
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [showTestSection])
 
   useEffect(() => {
     if (!showTechniqueSection) return
@@ -5118,6 +5103,13 @@ export default function AthleteProfiles() {
   async function saveFit2FightSession() {
     if (!selected) return
     setSavingSession(true)
+    // VO2 Max still lives in the same test:{} map as everything else that
+    // used to be under the old Test tab -- merge it in rather than
+    // overwrite, so any other test values already on this row survive.
+    const existingRow = f2fData.find(s => s.id === sessionForm.id)
+    const mergedTest = { ...(existingRow?.test || {}) }
+    if (sessionForm.vo2max === '' || sessionForm.vo2max == null) delete mergedTest['VO2 Max']
+    else mergedTest['VO2 Max'] = sessionForm.vo2max
     const payload = {
       student_id: selected.id,
       session_date: sessionForm.session_date,
@@ -5126,6 +5118,7 @@ export default function AthleteProfiles() {
       height_cm: sessionForm.height_cm === '' ? null : sessionForm.height_cm,
       reach_cm: sessionForm.reach_cm === '' ? null : sessionForm.reach_cm,
       notes: sessionForm.notes || null,
+      test: Object.keys(mergedTest).length ? mergedTest : null,
     }
     let error
     if (sessionForm.id) {
@@ -8162,6 +8155,47 @@ export default function AthleteProfiles() {
             {tab === 'home' && (() => {
               const totalPts = sessionPoints.reduce((s, p) => s + (p.points_awarded || 0), 0)
               const sorted = [...f2fData].sort((a,b) => new Date(a.session_date) - new Date(b.session_date))
+              // Renders the moved-from-Test result fields for a given set of
+              // TEST_CATEGORIES keys, right inside whichever module section
+              // they now belong to. Storage is unchanged (still session.test[name])
+              // -- this only relocates where each result is shown/entered, so
+              // nothing already logged is lost or orphaned.
+              const renderMovedTest = (catKeys) => {
+                const cats = TEST_CATEGORIES.filter(c => catKeys.includes(c.key))
+                if (!cats.length) return null
+                return cats.map(cat => (
+                  <div key={cat.key} className="card" style={{ marginBottom: 8 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>{cat.icon} {cat.key === 'stretches' ? 'Ranges' : cat.label}</span>
+                      <button type="button" className="btn btn-sm" onClick={() => clearTestCategory(cat.key)} style={{ fontSize: 11 }}>✕ Clear</button>
+                    </div>
+                    {cat.tests.map(t => {
+                      const allValues = sorted.map(s => parseFloat(s.test?.[t.name])).filter(v => !isNaN(v))
+                      const mostRecentSession = [...sorted].reverse().find(s => s.test?.[t.name] != null && s.test[t.name] !== '')
+                      const mostRecent = mostRecentSession ? mostRecentSession.test[t.name] : null
+                      const isTimeBased = t.unit === 'sec'
+                      const pb = allValues.length ? (isTimeBased ? Math.min(...allValues) : Math.max(...allValues)) : null
+                      return (
+                        <div className="field" key={t.name}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                            <label>{t.name}{t.unit ? ` (${t.unit})` : ''}</label>
+                            {(mostRecent != null || pb != null) && (
+                              <span style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                                {mostRecent != null && <span style={{ fontSize: 15, fontWeight: 700 }}>{mostRecent}{t.unit}</span>}
+                                {pb != null && <span style={{ fontSize: 10, fontWeight: 600 }}>🏅 {pb}{t.unit}</span>}
+                              </span>
+                            )}
+                          </div>
+                          <SavableField type="text" defaultValue={todaysTest[t.name]}
+                            onSave={val => saveTestValue(t.name, val)}
+                            placeholder={`e.g. ${t.unit === 'sec' ? '32:15' : t.unit === 'level' ? '11.4' : '25'}`} />
+                        </div>
+                      )
+                    })}
+                    {savingTest && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>Saving…</p>}
+                  </div>
+                ))
+              }
 
               const attSettings = cardDateSettings.all_sessions
               const useAthleteRange = attSettings.scope === 'athletes' || attSettings.scope === 'both'
@@ -8234,7 +8268,8 @@ export default function AthleteProfiles() {
                 { key: 'watt_bike',  label: 'Watt bike',     icon: '🚴' },
                 { key: 'bodyweight', label: 'Bodyweight',    icon: '💪' },
                 { key: 'stretch',    label: 'Stretch flows', icon: '🤸' },
-                { key: 'test',       label: 'Test',          icon: '📋' },
+                // 'test' removed -- its results now live inside Running, Watt bike,
+                // Bodyweight, SnC, Stretch flows (Ranges) and Check-in instead.
               ]
               const modules2 = [
                 // { key: 'techniques', label: 'Techniques', icon: '🥋' }, // removed for now, kept for possible future use
@@ -8457,6 +8492,8 @@ export default function AthleteProfiles() {
                       </div>
                     )
                   })()}
+                  {/* Bleep test + Timed run results, moved here from the old Test tab */}
+                  {renderMovedTest(['bleep', 'timedrun'])}
                   </div>
                   )}
 
@@ -8518,6 +8555,8 @@ export default function AthleteProfiles() {
                       </div>
                     )
                   })()}
+                  {/* Watt bike results, moved here from the old Test tab */}
+                  {renderMovedTest(['wattbike'])}
                   </div>
                   )}
 
@@ -8610,6 +8649,8 @@ export default function AthleteProfiles() {
                       </div>
                     )
                   })()}
+                  {/* Jumps, Grip and Fixed load circuit results, moved here from the old Test tab */}
+                  {renderMovedTest(['jumps', 'grip', 'fixedload'])}
                   </div>
                   )}
 
@@ -8645,6 +8686,8 @@ export default function AthleteProfiles() {
                     })}
                   </div>
                   {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8 }}>Saving…</p>}
+                  {/* Stretches, moved here from the old Test tab and relabelled Ranges */}
+                  {renderMovedTest(['stretches'])}
                   </div>
                   )}
 
@@ -8764,6 +8807,8 @@ export default function AthleteProfiles() {
                         </div>
                       </div>
                       {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>Saving…</p>}
+                      {/* Max lifts, moved here from the old Test tab */}
+                      {renderMovedTest(['maxlifts'])}
                     </div>
                   )}
 
@@ -9585,79 +9630,6 @@ export default function AthleteProfiles() {
                   )}
                   </div>
                   </div>
-                  <div ref={testSectionRef}>
-                  <button type="button" onClick={() => { setShowTestSection(v => { if (v) setExpandedHomeTestCategory(null); return !v }) }} style={{
-                    width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8,
-                    textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
-                    background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
-                  }}>
-                    <CoachSectionProgressBars sectionKey="test" vertical />
-                    <span style={{ flex: 1, fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Test</span>
-                    <span style={{ fontSize: 24, flexShrink: 0 }}>📋</span>
-                    <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showTestSection ? '▲' : '▼'}</span>
-                  </button>
-
-                  <div style={{
-                    overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
-                    maxHeight: showTestSection ? 4000 : 0, opacity: showTestSection ? 1 : 0,
-                  }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: expandedHomeTestCategory ? '1fr' : 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeTestCategory ? 10 : 8 }}>
-                    {TEST_CATEGORIES.filter(cat => !expandedHomeTestCategory || expandedHomeTestCategory === cat.key).map(cat => {
-                      const complete = cat.tests.some(t => todaysTest[t.name] != null && todaysTest[t.name] !== '')
-                      const active = expandedHomeTestCategory === cat.key
-                      return (
-                        <button key={cat.key} type="button" onClick={() => setExpandedHomeTestCategory(active ? null : cat.key)} style={{
-                          display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '20px 14px' : '18px 14px',
-                          borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                          border: `2px solid ${active ? colour : complete ? '#8B5CF6' : 'var(--border)'}`,
-                          background: complete ? '#8B5CF612' : 'var(--bg-secondary)',
-                        }}>
-                          <CoachQuestionProgressBarsVertical sectionKey="test" questionLabel={cat.label} />
-                          <span style={{ flex: 1, fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat.label}</span>
-                          <span style={{ fontSize: active ? 26 : 20, flexShrink: 0 }}>{cat.icon}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-
-                  {expandedHomeTestCategory && (() => {
-                    const cat = TEST_CATEGORIES.find(c => c.key === expandedHomeTestCategory)
-                    return (
-                      <div className="card" style={{ marginBottom: 8 }}>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-                          <button type="button" className="btn btn-sm" onClick={() => clearTestCategory(cat.key)} style={{ fontSize: 11 }}>✕ Clear</button>
-                        </div>
-                        {cat.tests.map(t => {
-                          const allValues = sorted.map(s => parseFloat(s.test?.[t.name])).filter(v => !isNaN(v))
-                          const mostRecentSession = [...sorted].reverse().find(s => s.test?.[t.name] != null && s.test[t.name] !== '')
-                          const mostRecent = mostRecentSession ? mostRecentSession.test[t.name] : null
-                          const isTimeBased = t.unit === 'sec'
-                          const pb = allValues.length ? (isTimeBased ? Math.min(...allValues) : Math.max(...allValues)) : null
-                          return (
-                            <div className="field" key={t.name}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                                <label>{t.name}{t.unit ? ` (${t.unit})` : ''}</label>
-                                {(mostRecent != null || pb != null) && (
-                                  <span style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                                    {mostRecent != null && <span style={{ fontSize: 15, fontWeight: 700 }}>{mostRecent}{t.unit}</span>}
-                                    {pb != null && <span style={{ fontSize: 10, color: colour, fontWeight: 600 }}>🏅 {pb}{t.unit}</span>}
-                                  </span>
-                                )}
-                              </div>
-                              <SavableField type="text" defaultValue={todaysTest[t.name]}
-                                onSave={val => saveTestValue(t.name, val)}
-                                placeholder={`e.g. ${t.unit === 'sec' ? '32:15' : t.unit === 'level' ? '11.4' : '25'}`} />
-                            </div>
-                          )
-                        })}
-                        {savingTest && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>Saving…</p>}
-                      </div>
-                    )
-                  })()}
-                  </div>
-                  </div>
-
-
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 8 }}>
                     {[
@@ -11535,6 +11507,7 @@ export default function AthleteProfiles() {
                                       id: s.id, session_date: s.session_date,
                                       weight_before: s.weight_before ?? '', weight_after: s.weight_after ?? '',
                                       height_cm: s.height_cm ?? '', reach_cm: s.reach_cm ?? '', notes: s.notes ?? '',
+                                      vo2max: s.test?.['VO2 Max'] ?? '',
                                     }); setEditingSession(s) }}
                                     style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>
                                     Edit
@@ -11619,6 +11592,10 @@ export default function AthleteProfiles() {
                       <div className="field-row">
                         <div className="field"><label>Height (cm)</label><input type="number" value={sessionForm.height_cm ?? ''} onChange={e => setSessionForm(f => ({ ...f, height_cm: e.target.value }))} /></div>
                         <div className="field"><label>Reach (cm)</label><input type="number" value={sessionForm.reach_cm ?? ''} onChange={e => setSessionForm(f => ({ ...f, reach_cm: e.target.value }))} /></div>
+                      </div>
+                      <div className="field">
+                        <label>🫁 VO2 Max (ml/kg/min)</label>
+                        <input type="number" step="0.1" value={sessionForm.vo2max ?? ''} onChange={e => setSessionForm(f => ({ ...f, vo2max: e.target.value }))} />
                       </div>
                       <div className="field">
                         <label>Notes</label>
