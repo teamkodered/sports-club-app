@@ -7019,7 +7019,7 @@ export default function AthleteApp() {
                             <div key={s.key}>
                               <div onClick={() => setF2fQuickLogSection(v => v === s.key ? null : s.key)}
                                 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, padding: '6px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', cursor: questionLabels.length ? 'pointer' : 'default' }}>
-                                <span>{expanded ? '▾' : '▸'} {s.label}</span>
+                                <span>{s.label}</span>
                                 <span style={{ fontWeight: 600, color: '#EF9F27' }}>{s.done}/{s.target} ({s.pct}%)</span>
                               </div>
                               {expanded && questionLabels.length > 0 && (
@@ -7033,9 +7033,9 @@ export default function AthleteApp() {
                                     return (
                                       <div key={label}>
                                         <div onClick={() => setF2fQuickLogQuestion(v => v === `${s.key}::${label}` ? null : `${s.key}::${label}`)}
-                                          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, padding: '5px 8px', cursor: 'pointer', color: loggedToday ? '#1D9E75' : 'var(--text)' }}>
-                                          <span>{qExpanded ? '▾' : '▸'} {label}</span>
-                                          {loggedToday && <span style={{ fontWeight: 600 }}>✓ Logged today</span>}
+                                          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, padding: '5px 8px', cursor: 'pointer' }}>
+                                          <span>{label}</span>
+                                          {loggedToday && <span style={{ fontWeight: 600, color: '#1D9E75' }}>✓ Logged today</span>}
                                         </div>
                                         {qExpanded && (
                                           <div style={{ padding: '6px 8px 10px 16px', display: 'flex', gap: 8, alignItems: 'center' }}>
