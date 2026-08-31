@@ -64,8 +64,17 @@ Deno.serve(async (req) => {
     const expiresIn = 3600 // 1 hour -- long enough to watch a full ~1hr clip without it expiring mid-playback
     // X-Amz-Expires has to be part of the URL *before* signing (it's
     // included in what gets signed) -- adding it afterward would
-    // invalidate the signature.
-    const urlToSign = `${objectUrl}?X-Amz-Expires=${expiresIn}`
+    // invalidate the signature. response-content-type/-disposition
+    // override what the browser is told about this file regardless of
+    // what's actually stored on the R2 object -- the sync script never
+    // set a content-type on upload, so without this override browsers
+    // treat every clip as an anonymous binary blob and try to download
+    // the whole ~1GB file instead of streaming it, which is exactly
+    // the "downloads a corrupt file" symptom this fixes.
+    const responseParams = download
+      ? `response-content-disposition=${encodeURIComponent(`attachment; filename="${storage_path.split('/').pop()}"`)}`
+      : `response-content-type=video%2Fmp4&response-content-disposition=inline`
+    const urlToSign = `${objectUrl}?X-Amz-Expires=${expiresIn}&${responseParams}`
     const signed = await r2.sign(urlToSign, { aws: { signQuery: true } })
     const url = signed.url.toString()
 
