@@ -14,7 +14,7 @@ export default function Layout() {
   // meant to be used as a focused, standalone screen -- the mobile
   // hamburger (which opens the full site's sidebar/menu) doesn't belong
   // there and was competing with that Back button in the same corner.
-  const hideMobileMenuButton = location.pathname.startsWith('/fit2fight')
+  const hideMobileMenuButton = location.pathname.startsWith('/fit2fight') || location.pathname.startsWith('/boxing-tpt') || location.pathname.startsWith('/kickboxing-tpt')
   const [mobileOpen, setMobileOpen]   = useState(false)
   const [collapsed, setCollapsed]     = useState(false)
   const [profileMenu, setProfileMenu] = useState(false)

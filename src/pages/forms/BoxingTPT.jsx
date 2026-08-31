@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase.js'
 import { useAuth } from '../../hooks/useAuth.jsx'
 import FormLogo from '../../components/shared/FormLogo.jsx'
@@ -162,6 +162,7 @@ function GroupAvg({ group, scores }) {
 export default function BoxingTPT() {
   const { profile, isAdmin, isStaff } = useAuth()
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   const [mode, setMode] = useState('form') // 'form' | 'history'
   const [scores, setScores] = useState(emptyScores)
   const [student, setStudent] = useState({ first_name: '', last_name: '' })
@@ -297,6 +298,7 @@ export default function BoxingTPT() {
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <div>
+            <button onClick={() => navigate(-1)} className="btn btn-sm" style={{ marginBottom: 8 }}>← Back</button>
             <h1 style={{ fontSize: 20, fontWeight: 600 }}>🥊 Boxing MTP analysis</h1>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Mental, Technical and Physical assessment</p>
           </div>
