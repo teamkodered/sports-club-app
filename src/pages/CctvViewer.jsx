@@ -177,7 +177,10 @@ export default function CctvViewer() {
               ) : playbackError ? (
                 <p style={{ fontSize: 13, color: '#E24B4A' }}>Couldn't load this clip: {playbackError}</p>
               ) : playbackUrl ? (
-                <video src={playbackUrl} controls style={{ width: '100%', borderRadius: 8, background: '#000' }} />
+                <>
+                  <video src={playbackUrl} controls style={{ width: '100%', borderRadius: 8, background: '#000' }} />
+                  <a href={playbackUrl} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: 'var(--text-tertiary)', display: 'block', marginTop: 6 }}>Open clip directly (for troubleshooting)</a>
+                </>
               ) : null}
               <div style={{ fontSize: 13, fontWeight: 500, marginTop: 10 }}>
                 {selectedClip.camera_name} — {new Date(selectedClip.recorded_at).toLocaleString('en-GB')}
