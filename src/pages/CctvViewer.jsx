@@ -25,6 +25,7 @@ export default function CctvViewer() {
   const [playbackUrl, setPlaybackUrl] = useState(null)
   const [playbackLoading, setPlaybackLoading] = useState(false)
   const [playbackError, setPlaybackError] = useState(null)
+  const [debugResult, setDebugResult] = useState(null)
   const [students, setStudents] = useState([])
   const [taggedIds, setTaggedIds] = useState([])
   const [studentSearch, setStudentSearch] = useState('')
@@ -121,6 +122,17 @@ export default function CctvViewer() {
     window.open(data.url, '_blank')
   }
 
+  async function runDebugProbe() {
+    if (!selectedClip) return
+    setDebugResult('Checking…')
+    const { data: { session } } = await supabase.auth.getSession()
+    const { data, error } = await supabase.functions.invoke('cctv-presigned-url', {
+      body: { storage_path: selectedClip.storage_path, debug: true },
+      headers: { Authorization: `Bearer ${session?.access_token}` },
+    })
+    setDebugResult(JSON.stringify(error ? { error: error.message } : data, null, 2))
+  }
+
   const filteredStudents = students.filter(s => s.name.toLowerCase().includes(studentSearch.toLowerCase()))
 
   return (
@@ -182,6 +194,8 @@ export default function CctvViewer() {
                   <a href={playbackUrl} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: 'var(--text-tertiary)', display: 'block', marginTop: 6 }}>Open clip directly (for troubleshooting)</a>
                 </>
               ) : null}
+              <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={runDebugProbe}>🔍 Run diagnostic check</button>
+              {debugResult && <pre style={{ fontSize: 10, background: 'var(--bg-secondary)', padding: 10, borderRadius: 6, marginTop: 8, overflowX: 'auto', whiteSpace: 'pre-wrap' }}>{debugResult}</pre>}
               <div style={{ fontSize: 13, fontWeight: 500, marginTop: 10 }}>
                 {selectedClip.camera_name} — {new Date(selectedClip.recorded_at).toLocaleString('en-GB')}
               </div>

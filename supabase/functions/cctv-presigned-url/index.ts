@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
     const { data: userData, error: authError } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''))
     if (authError || !userData?.user) return new Response(JSON.stringify({ error: 'Not authenticated' }), { status: 401, headers: corsHeaders })
 
-    const { storage_path, download } = await req.json()
+    const { storage_path, download, debug } = await req.json()
     if (!storage_path) return new Response(JSON.stringify({ error: 'storage_path is required' }), { status: 400, headers: corsHeaders })
 
     // Confirm this path actually belongs to a real, catalogued clip
@@ -68,6 +68,26 @@ Deno.serve(async (req) => {
     const urlToSign = `${objectUrl}?X-Amz-Expires=${expiresIn}`
     const signed = await r2.sign(urlToSign, { aws: { signQuery: true } })
     const url = signed.url.toString()
+
+    // Debug mode: rather than handing back a URL and hoping the
+    // browser tells us what went wrong, fetch it here on the server
+    // and report exactly what R2 said -- status code, headers, and
+    // a safe text snippet of the body (R2 error responses are small
+    // XML, so this is readable; real video data just won't decode as
+    // text and shows as [binary]).
+    if (debug) {
+      const probe = await fetch(url, { method: 'GET', headers: { Range: 'bytes=0-2047' } })
+      const buf = await probe.arrayBuffer()
+      const isLikelyText = probe.headers.get('content-type')?.includes('xml') || probe.headers.get('content-type')?.includes('text')
+      const bodySnippet = isLikelyText ? new TextDecoder().decode(buf) : `[binary, ${buf.byteLength} bytes received]`
+      return new Response(JSON.stringify({
+        signed_url_used: url,
+        status: probe.status,
+        statusText: probe.statusText,
+        headers: Object.fromEntries(probe.headers.entries()),
+        bodySnippet,
+      }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
 
     return new Response(JSON.stringify({ url, expires_in: expiresIn }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   } catch (err) {
