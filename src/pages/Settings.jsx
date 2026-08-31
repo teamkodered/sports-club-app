@@ -118,6 +118,51 @@ export default function Settings() {
     )
   }
 
+  function AthleteHousePointsEditor() {
+    const defaults = { f2f_question: 1, checkin: 1, pdp_complete: 1, pdp_calendar: 1 }
+    const stored = { ...defaults, ...(settings.athlete_house_points || {}) }
+    const [local, setLocal] = useState(stored)
+    const [ahpSaving, setAhpSaving] = useState(false)
+    const [ahpSaved, setAhpSaved] = useState(false)
+
+    useEffect(() => { setLocal({ ...defaults, ...(settings.athlete_house_points || {}) }) }, [settings.athlete_house_points])
+
+    async function saveAhp() {
+      setAhpSaving(true)
+      await supabase.from('settings').upsert({ key: 'athlete_house_points', value: local }, { onConflict: 'key' })
+      setSettings(s => ({ ...s, athlete_house_points: local }))
+      setAhpSaving(false)
+      setAhpSaved(true)
+      setTimeout(() => setAhpSaved(false), 2000)
+    }
+
+    const rows = [
+      { key: 'f2f_question', label: 'F2F target question logged (via quick-log)' },
+      { key: 'checkin', label: 'Self check-in via the app' },
+      { key: 'pdp_complete', label: 'PDP task marked completed' },
+      { key: 'pdp_calendar', label: 'PDP note sent to calendar' },
+    ]
+
+    return (
+      <div className="card" style={{ marginBottom: 10 }}>
+        <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 2 }}>Athlete self-service house points</div>
+        <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 14 }}>Points automatically awarded for these in-app actions. Set to 0 to turn one off.</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {rows.map(r => (
+            <div key={r.key} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <input type="number" value={local[r.key]} onChange={e => setLocal(v => ({ ...v, [r.key]: e.target.value === '' ? '' : Number(e.target.value) }))}
+                style={{ width: 60, fontSize: 13 }} />
+              <span style={{ fontSize: 13, flex: 1 }}>{r.label}</span>
+            </div>
+          ))}
+        </div>
+        <button className="btn btn-sm btn-primary" style={{ marginTop: 12 }} onClick={saveAhp} disabled={ahpSaving}>
+          {ahpSaved ? '✓ Saved' : ahpSaving ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+    )
+  }
+
   function PointTypesEditor() {
     const pointTypes = settings.point_types || []
     const [localPts, setLocalPts] = useState(pointTypes)
@@ -317,6 +362,7 @@ export default function Settings() {
 
       {SECTION('Points System')}
       <PointTypesEditor />
+      <AthleteHousePointsEditor />
 
       {SECTION('Fit II Fight Options')}
       <ListSetting label="Running categories & tests" settingKey="f2f_run_categories"

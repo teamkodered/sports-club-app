@@ -1435,6 +1435,11 @@ export default function AthleteApp() {
     return new Date().toISOString().split('T')[0]
   })
   const [radarDrilldown, setRadarDrilldown] = useState(null) // which axis label is expanded, or null
+  const [f2fQuickLogSection, setF2fQuickLogSection] = useState(null) // which F2F section header is expanded to show its target questions
+  const [f2fQuickLogQuestion, setF2fQuickLogQuestion] = useState(null) // which question within that section is expanded to show the log control
+  const [f2fQuickLogTestValue, setF2fQuickLogTestValue] = useState('')
+  const [f2fQuickLogSaving, setF2fQuickLogSaving] = useState(false)
+  const [athleteHousePoints, setAthleteHousePoints] = useState({ f2f_question: 1, checkin: 1, pdp_complete: 1, pdp_calendar: 1 })
   const [athleteTimetableModal, setAthleteTimetableModal] = useState(null) // { sectionKey, item } or null
   const [expandedToDoItems, setExpandedToDoItems] = useState(() => new Set()) // composite "scope:type:index" keys whose own "To do" panel is currently revealed
   const [newToDoDrafts, setNewToDoDrafts] = useState({}) // scope key -> draft text for the athlete's own new to-do note
@@ -2091,6 +2096,7 @@ export default function AthleteApp() {
     const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: updated }, { onConflict: 'student_id' })
     if (error) { alert('Error adding to calendar: ' + error.message); return }
     setApData(a => ({ ...a, pdp_notes: updated }))
+    awardHousePoints('pdp_calendar')
     setAthleteTimetableModal(null)
     setSchedWizardStep('days'); setSchedWizardDays([]); setSchedWizardTime('')
     setSchedWizardMetricType(null); setSchedWizardValue(''); setSchedWizardSubType(null); setSchedWizardSubValue('')
@@ -2218,15 +2224,34 @@ export default function AthleteApp() {
   }, [sessions])
 
   useEffect(() => {
-    supabase.from('settings').select('key,value').in('key', ['f2f_run_categories', 'f2f_interval_modes', 'f2f_bodyweight_types', 'f2f_stretch_options'])
+    supabase.from('settings').select('key,value').in('key', ['f2f_run_categories', 'f2f_interval_modes', 'f2f_bodyweight_types', 'f2f_stretch_options', 'athlete_house_points'])
       .then(({ data }) => {
         const map = Object.fromEntries((data || []).map(r => [r.key, r.value]))
         setRunCategoryTests(map.f2f_run_categories || {})
         setIntervalModes(map.f2f_interval_modes || ['20 seconds on 20 seconds off', '30 seconds on 30 seconds off', '40 seconds on 20 seconds off'])
         setBodyweightTypeOptions(map.f2f_bodyweight_types || ['Push-ups', 'Pull-ups', 'Squats', 'Dips', 'Sit-ups', 'Burpees', 'Other'])
         setStretchOptionsList(map.f2f_stretch_options || ['Other'])
+        setAthleteHousePoints({ f2f_question: 1, checkin: 1, pdp_complete: 1, pdp_calendar: 1, ...(map.athlete_house_points || {}) })
       })
   }, [])
+
+  // Awards house + individual points for an athlete's own in-app action
+  // (F2F quick-log, self check-in, sending a PDP note to calendar) --
+  // mirrors the exact same students/adjust_house_points update pattern
+  // staff-side pages (CheckIn.jsx etc.) already use, so totals/
+  // leaderboards stay consistent regardless of who/what awarded them.
+  async function awardHousePoints(reasonKey) {
+    const amount = athleteHousePoints[reasonKey]
+    if (!student || !amount) return
+    const { data: s } = await supabase.from('students').select('house_points, individual_points, members(houses(name))').eq('id', student.id).single()
+    if (!s) return
+    const newHouse = (s.house_points || 0) + amount
+    const newIndividual = (s.individual_points || 0) + amount
+    await supabase.from('students').update({ house_points: newHouse, individual_points: newIndividual }).eq('id', student.id)
+    const houseName = s.members?.houses?.name
+    if (houseName) await supabase.rpc('adjust_house_points', { p_house_name: houseName, p_delta: amount })
+    setStudent(prev => prev ? { ...prev, house_points: newHouse, individual_points: newIndividual } : prev)
+  }
 
   // Hold-to-quick-log: marks a card as "done today" without requiring
   // specific values yet -- appends a lightweight marker entry that
@@ -2433,6 +2458,8 @@ export default function AthleteApp() {
     const current = todaysWellbeing[field] || {}
     const updatedField = updater(current)
     const newWellbeing = { ...todaysWellbeing, [field]: updatedField }
+    const q = WELLBEING_QUESTIONS.find(q => q.key === field)
+    if (q) checkF2fQuestionPoints({ wellbeing: { [field]: current } }, { wellbeing: { [field]: updatedField } }, [{ sectionKey: 'wellbeing', questionLabel: q.label }])
     setTodaysWellbeing(newWellbeing) // optimistic local update
 
     const existing = sessions.find(s => s.session_date === todaysDate)
@@ -2508,6 +2535,8 @@ export default function AthleteApp() {
     const current = todaysMentalityLog[field] || {}
     const updatedField = updater(current)
     const newLog = { ...todaysMentalityLog, [field]: updatedField }
+    const q = MENTALITY_QUESTIONS.find(q => q.key === field)
+    if (q) checkF2fQuestionPoints({ mentality_log: { [field]: current } }, { mentality_log: { [field]: updatedField } }, [{ sectionKey: 'mentality', questionLabel: q.label }])
     setTodaysMentalityLog(newLog)
 
     const existing = sessions.find(s => s.session_date === todaysDate)
@@ -2617,8 +2646,52 @@ export default function AthleteApp() {
   const physicalSaveQueueRef = useRef(Promise.resolve())
   const todaysSessionIdRef = useRef(null)
 
+  // Works out which target-tracked question(s), if any, a physical-field
+  // save affects -- e.g. saving 'techniques' with a new entry whose
+  // style is "Jab" affects the Technique section's "Jab" question. Used
+  // to award a house point only when a targeted question newly becomes
+  // "logged" (not on every edit/keystroke), regardless of whether the
+  // save came from the full F2F form or the diamond's quick-log.
+  function questionsAffectedByPhysicalSave(dbField, newValue) {
+    if (dbField === 'techniques') return [...new Set(toEntries(newValue).map(t => t.style).filter(Boolean))].map(style => ({ sectionKey: 'technique', questionLabel: style }))
+    if (dbField === 'tactical') return [...new Set(toEntries(newValue).map(t => t.category).filter(Boolean))].map(category => ({ sectionKey: 'tactical', questionLabel: category }))
+    if (dbField === 'test') return TEST_CATEGORIES.map(cat => ({ sectionKey: 'test', questionLabel: cat.label }))
+    if (dbField === 'running') {
+      const labels = new Set(['Running'])
+      toEntries(newValue).forEach(e => {
+        const found = Object.entries(RUN_CATEGORY_TARGET_LABELS).find(([, v]) => v === e.category)
+        if (found) labels.add(found[0])
+      })
+      return [...labels].map(l => ({ sectionKey: 'physical', questionLabel: l }))
+    }
+    if (dbField === 'watt_bike') return [{ sectionKey: 'physical', questionLabel: 'Watt Bike' }]
+    if (dbField === 'bodyweight') return [{ sectionKey: 'physical', questionLabel: 'Bodyweight' }]
+    if (dbField === 'stretch_flows') return [{ sectionKey: 'physical', questionLabel: 'Stretch flows' }]
+    if (dbField === 'snc') return [{ sectionKey: 'physical', questionLabel: 'SnC' }]
+    return []
+  }
+
+  // Awards a house point for any targeted question that just flipped
+  // from "not logged" to "logged" as a result of this save -- fires
+  // identically whether the save came from the full F2F form or the
+  // diamond's quick-log, since both funnel through these same three
+  // save functions.
+  function checkF2fQuestionPoints(oldSessionLike, newSessionLike, affected) {
+    affected.forEach(({ sectionKey, questionLabel }) => {
+      const isTargeted = sectionTargets.some(t => t.section_key === sectionKey && t.question_label === questionLabel)
+      if (!isTargeted) return
+      const wasLogged = questionLogged(sectionKey, questionLabel, oldSessionLike)
+      const isLoggedNow = questionLogged(sectionKey, questionLabel, newSessionLike)
+      if (!wasLogged && isLoggedNow) awardHousePoints('f2f_question')
+    })
+  }
+
   async function savePhysicalField(dbField, newValue, localSetter) {
     if (!student) return
+    const todaysDateForCheck = new Date().toISOString().split('T')[0]
+    const existingForCheck = sessions.find(s => s.session_date === todaysDateForCheck)
+    const oldValue = existingForCheck?.[dbField]
+    checkF2fQuestionPoints({ [dbField]: oldValue }, { [dbField]: newValue }, questionsAffectedByPhysicalSave(dbField, newValue))
     localSetter(newValue) // optimistic local update, applies immediately regardless of queue position
     setSavingPhysical(true)
     const runSave = async () => {
@@ -2644,6 +2717,92 @@ export default function AthleteApp() {
     physicalSaveQueueRef.current = physicalSaveQueueRef.current.then(runSave, runSave)
     await physicalSaveQueueRef.current
     setSavingPhysical(false)
+  }
+
+  // Quick-log: a fast, one-tap way to log a result for a specific
+  // targeted question, launched from the diamond graph's F2F drilldown,
+  // as an alternative to opening the full F2F log form. Reuses the
+  // exact same save functions/DB fields the full form uses, so
+  // whatever's logged here shows up identically in session history and
+  // counts toward the same targets. Most question types get a sensible
+  // one-tap default (matching the simplest "did you do this" case);
+  // Test questions need a real number so those get a tiny inline input
+  // instead (see the Test-specific UI, not this function).
+  async function quickLogTargetQuestion(sectionKey, questionLabel) {
+    if (!student) return
+    setF2fQuickLogSaving(true)
+    try {
+      if (sectionKey === 'technique') {
+        await savePhysicalField('techniques', [...todaysTechniques, { style: questionLabel, category: 'Quick log', technique: 'Quick log', note: '', quickLogged: true }], setTodaysTechniques)
+      } else if (sectionKey === 'tactical') {
+        await savePhysicalField('tactical', [...todaysTactical, { category: questionLabel, item: 'Quick log', note: '', quickLogged: true }], setTodaysTactical)
+      } else if (sectionKey === 'physical') {
+        if (RUN_CATEGORY_TARGET_LABELS[questionLabel]) {
+          await savePhysicalField('running', [...todaysRunning, { category: RUN_CATEGORY_TARGET_LABELS[questionLabel], sets: [], quickLogged: true }], setTodaysRunning)
+        } else {
+          const field = PHYSICAL_FIELD_TARGET_LABELS[questionLabel]
+          if (field === 'running') await savePhysicalField('running', [...todaysRunning, { sets: [], quickLogged: true }], setTodaysRunning)
+          else if (field === 'watt_bike') await savePhysicalField('watt_bike', [...todaysWattBike, { sets: [], quickLogged: true }], setTodaysWattBike)
+          else if (field === 'bodyweight') await savePhysicalField('bodyweight', [...todaysBodyweight, { sets: [], quickLogged: true }], setTodaysBodyweight)
+          else if (field === 'stretch_flows') {
+            const next = [...todaysStretches]
+            const emptyIdx = next.findIndex(v => !v)
+            const label = (stretchOptionsList && stretchOptionsList[0]) || 'Other'
+            if (emptyIdx !== -1) next[emptyIdx] = label; else next[0] = label
+            await savePhysicalField('stretch_flows', next, setTodaysStretches)
+          } else if (field === 'snc') {
+            await savePhysicalField('snc', [...todaysSnc, { routine: SNC_ROUTINE_PRESETS[0], description: '', sets: [], quickLogged: true }], setTodaysSnc)
+          }
+        }
+      } else if (sectionKey === 'wellbeing') {
+        const q = WELLBEING_QUESTIONS.find(q => q.label === questionLabel)
+        const defaults = {
+          sleep: w => ({ ...w, hours: w.hours || 8 }),
+          nutrition: w => ({ ...w, quality: w.quality || 'Good' }),
+          hydration: w => ({ ...w, total: (w.total || 0) + HYDRATION_ADD_OPTIONS[0] }),
+          outdoors: w => ({ ...w, totalMinutes: (w.totalMinutes || 0) + OUTDOORS_ADD_OPTIONS[0] }),
+          talk: w => ({ ...w, count: (w.count || 0) + 1 }),
+          screenFree: w => ({ ...w, hours: w.hours || SCREEN_FREE_OPTIONS[0] }),
+          journal: w => ({ ...w, count: (w.count || 0) + 1 }),
+          creative: w => ({ ...w, count: (w.count || 0) + 1 }),
+          productivity: w => ({ ...w, count: (w.count || 0) + 1 }),
+        }
+        if (q && defaults[q.key]) await saveWellbeingField(q.key, defaults[q.key])
+      } else if (sectionKey === 'mentality') {
+        const q = MENTALITY_QUESTIONS.find(q => q.label === questionLabel)
+        const defaults = {
+          meditation: m => ({ ...m, entries: [...(m.entries || []), { category: 'general', type: MEDITATION_TYPE_OPTIONS[0], quickLogged: true }] }),
+          visualisation: m => ({ ...m, entries: [...(m.entries || []), { type: VISUALISATION_OPTIONS[0], quickLogged: true }] }),
+          chess: m => ({ ...m, count: (m.count || 0) + 1 }),
+          reading: m => ({ ...m, count: (m.count || 0) + 1 }),
+          gaming: m => ({ ...m, count: (m.count || 0) + 1 }),
+          eyeTracking: m => ({ ...m, count: (m.count || 0) + 1 }),
+          coldWater: m => ({ ...m, count: (m.count || 0) + 1 }),
+          activeRecovery: m => ({ ...m, entries: [...(m.entries || []), { quickLogged: true }] }),
+          gratitude: m => ({ ...m, count: (m.count || 0) + 1 }),
+          coachability: m => ({ ...m, quickLogged: true }),
+        }
+        if (q && defaults[q.key]) await saveMentalityField(q.key, defaults[q.key])
+      }
+    } finally {
+      setF2fQuickLogSaving(false)
+      setF2fQuickLogQuestion(null)
+    }
+  }
+
+  // Test questions genuinely need a real number (it's an athletic
+  // result, not a "did you do it" tick), so this writes one specific
+  // test's value into today's test object rather than using a default.
+  async function quickLogTestValue(testName, value) {
+    if (!student || value === '' || value == null) return
+    setF2fQuickLogSaving(true)
+    try {
+      await savePhysicalField('test', { ...todaysTest, [testName]: value }, setTodaysTest)
+    } finally {
+      setF2fQuickLogSaving(false)
+      setF2fQuickLogQuestion(null)
+      setF2fQuickLogTestValue('')
+    }
   }
 
   async function addClassAssignment() {
@@ -3175,6 +3334,7 @@ export default function AthleteApp() {
       setActiveCheckIn(data)
       setShowWeightCheckPrompt('in')
       setWeightCheckValue('')
+      awardHousePoints('checkin')
     }
     setCheckingIn(false)
   }
@@ -5576,10 +5736,11 @@ export default function AthleteApp() {
                     const count = sessionsCalendarView === 'f2f' ? (f2fActionsByDate[dateStr] || 0) : (pdpActionsByDate[dateStr] || 0)
                     const vc = sessionsCalendarView === 'f2f' ? '#378ADD' : '#8B5CF6'
                     return (
-                      <div key={i} title={`${count} action${count === 1 ? '' : 's'} completed`}
+                      <div key={i} onClick={() => setTab(sessionsCalendarView === 'f2f' ? 'fit2fight' : 'pdp')}
+                        title={`${count} action${count === 1 ? '' : 's'} completed`}
                         style={{
                           aspectRatio: '0.85', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                          borderRadius: 6, fontFamily: 'var(--font-sans)',
+                          borderRadius: 6, fontFamily: 'var(--font-sans)', cursor: 'pointer',
                           background: count > 0 ? vc + '18' : 'transparent',
                           border: `1px solid ${count > 0 ? vc + '55' : 'var(--border)'}`,
                         }}>
@@ -6831,17 +6992,63 @@ export default function AthleteApp() {
 
                 {radarDrilldown === 'F2F Results' && (
                   <div style={{ marginTop: 8, marginBottom: 8 }}>
-                    <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>F2F Results by section</p>
+                    <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>F2F Results by section</p>
+                    <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8 }}>Tap a section to see its target questions — tap a question for a quick way to log it, right here.</p>
                     {f2fBreakdown.length === 0 ? (
                       <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No targets set in any section yet.</p>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {f2fBreakdown.map(s => (
-                          <div key={s.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, padding: '6px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)' }}>
-                            <span>{s.label}</span>
-                            <span style={{ fontWeight: 600, color: '#EF9F27' }}>{s.done}/{s.target} ({s.pct}%)</span>
-                          </div>
-                        ))}
+                        {f2fBreakdown.map(s => {
+                          const questionLabels = [...new Set(sectionTargets.filter(t => t.section_key === s.key && t.question_label).map(t => t.question_label))]
+                          const expanded = f2fQuickLogSection === s.key
+                          const todaysDateStr = new Date().toISOString().split('T')[0]
+                          const todaysSessionRow = sessions.find(sn => sn.session_date === todaysDateStr)
+                          return (
+                            <div key={s.key}>
+                              <div onClick={() => setF2fQuickLogSection(v => v === s.key ? null : s.key)}
+                                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, padding: '6px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', cursor: questionLabels.length ? 'pointer' : 'default' }}>
+                                <span>{expanded ? '▾' : '▸'} {s.label}</span>
+                                <span style={{ fontWeight: 600, color: '#EF9F27' }}>{s.done}/{s.target} ({s.pct}%)</span>
+                              </div>
+                              {expanded && questionLabels.length > 0 && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4, marginLeft: 10, paddingLeft: 8, borderLeft: '2px solid var(--border)' }}>
+                                  {questionLabels.map(label => {
+                                    const loggedToday = todaysSessionRow ? questionLogged(s.key, label, todaysSessionRow) : false
+                                    const qExpanded = f2fQuickLogQuestion === `${s.key}::${label}`
+                                    const isTest = s.key === 'test'
+                                    const testCat = isTest ? TEST_CATEGORIES.find(c => c.label === label) : null
+                                    const firstTestName = testCat?.tests?.[0]?.name
+                                    return (
+                                      <div key={label}>
+                                        <div onClick={() => setF2fQuickLogQuestion(v => v === `${s.key}::${label}` ? null : `${s.key}::${label}`)}
+                                          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, padding: '5px 8px', cursor: 'pointer', color: loggedToday ? '#1D9E75' : 'var(--text)' }}>
+                                          <span>{qExpanded ? '▾' : '▸'} {label}</span>
+                                          {loggedToday && <span style={{ fontWeight: 600 }}>✓ Logged today</span>}
+                                        </div>
+                                        {qExpanded && (
+                                          <div style={{ padding: '6px 8px 10px 16px', display: 'flex', gap: 8, alignItems: 'center' }}>
+                                            {isTest ? (
+                                              <>
+                                                <input type="text" inputMode="decimal" placeholder={firstTestName ? `${firstTestName} (${testCat.tests[0].unit})` : 'Value'}
+                                                  value={f2fQuickLogTestValue} onChange={e => setF2fQuickLogTestValue(e.target.value)}
+                                                  style={{ fontSize: 12, flex: 1 }} />
+                                                <button className="btn btn-sm btn-primary" disabled={f2fQuickLogSaving || !f2fQuickLogTestValue}
+                                                  onClick={() => firstTestName && quickLogTestValue(firstTestName, f2fQuickLogTestValue)}>Save</button>
+                                              </>
+                                            ) : (
+                                              <button className="btn btn-sm btn-primary" disabled={f2fQuickLogSaving}
+                                                onClick={() => quickLogTargetQuestion(s.key, label)}>✓ Log now</button>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
                       </div>
                     )}
                   </div>
@@ -6849,13 +7056,25 @@ export default function AthleteApp() {
 
                 {radarDrilldown === 'PDP' && (
                   <div style={{ marginTop: 8, marginBottom: 8 }}>
-                    <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>PDP timetable items in this range</p>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <p style={{ fontSize: 12, fontWeight: 600 }}>PDP timetable items in this range</p>
+                      <button className="btn btn-sm" onClick={() => setF2fQuickLogQuestion(v => v === 'pdp-add-note' ? null : 'pdp-add-note')}>
+                        {f2fQuickLogQuestion === 'pdp-add-note' ? 'Cancel' : '+ Add note'}
+                      </button>
+                    </div>
+                    {f2fQuickLogQuestion === 'pdp-add-note' && (
+                      <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+                        <input type="text" value={newNoteText} onChange={e => setNewNoteText(e.target.value)} placeholder="Quick note…" style={{ fontSize: 12, flex: 1 }} />
+                        <button className="btn btn-sm btn-primary" disabled={!newNoteText.trim() || savingNote}
+                          onClick={() => addNote().then(() => setF2fQuickLogQuestion(null))}>{savingNote ? 'Saving…' : 'Save'}</button>
+                      </div>
+                    )}
                     {pdpEntriesInRange.length === 0 ? (
                       <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No PDP timetable items scheduled in this range.</p>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         {[...pdpEntriesInRange].sort((a, b) => a.date.localeCompare(b.date)).map((e, i) => (
-                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, padding: '6px 10px', background: e.completed ? '#1D9E7512' : 'var(--bg-secondary)', borderRadius: 'var(--radius)' }}>
+                          <div key={i} onClick={() => setTab('pdp')} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, padding: '6px 10px', background: e.completed ? '#1D9E7512' : 'var(--bg-secondary)', borderRadius: 'var(--radius)', cursor: 'pointer' }}>
                             <span style={{ textDecoration: e.completed ? 'line-through' : 'none', color: e.completed ? 'var(--text-tertiary)' : 'var(--text)' }}>
                               {new Date(e.date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} — {e.item}
                             </span>

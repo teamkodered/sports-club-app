@@ -1345,7 +1345,7 @@ const PDP_MAINTAIN_FOR_CHECK = Object.fromEntries(
 // Checking off a Maintain item moves it to the Notes log as a completed PDP task
 const PDP_MAINTAIN_SECTIONS = new Set(PDP_CATEGORY_GROUPS.map(g => g.keys.find(k => k.endsWith('maintain'))).filter(Boolean))
 
-function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOpponentNote, onToggleOpponentNoteShared, onDeleteOpponentNote, onUpdateOpponentNote, newOpponentName, setNewOpponentName, expandedOpponent, setExpandedOpponent, editingOpponentNoteId, setEditingOpponentNoteId, opponentNoteDraft, setOpponentNoteDraft }) {
+function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOpponentNote, onToggleOpponentNoteShared, onDeleteOpponentNote, onUpdateOpponentNote, newOpponentName, setNewOpponentName, expandedOpponent, setExpandedOpponent, editingOpponentNoteId, setEditingOpponentNoteId, opponentNoteDraft, setOpponentNoteDraft, onAwardHousePoints }) {
   // "Add to calendar" scheduling wizard state -- local to this
   // component (previously referenced the same-named state from the
   // separate main AthleteProfiles component, which this component has
@@ -1472,6 +1472,7 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
     })
     if (err2) { alert('Error logging completed task: ' + err2.message); return }
     setApData(a => ({ ...a, pdp_notes: updated }))
+    onAwardHousePoints?.('pdp_complete')
   }
 
   // "What to do" (Check) notes can be sent to the athlete's timetable/
@@ -3003,6 +3004,24 @@ export default function AthleteProfiles() {
   const [todaysTest, setTodaysTest] = useState({})
   const [savingTest, setSavingTest] = useState(false)
   const [runCategoryTests, setRunCategoryTests] = useState({})
+  const [athleteHousePoints, setAthleteHousePoints] = useState({ f2f_question: 1, checkin: 1, pdp_complete: 1, pdp_calendar: 1 })
+
+  // Awards house + individual points for an athlete's own in-app action
+  // (mirrors AthleteApp.jsx's identical helper and the same students/
+  // adjust_house_points update pattern staff pages use, so totals stay
+  // consistent regardless of who/what awarded them).
+  async function awardHousePoints(reasonKey) {
+    const amount = athleteHousePoints[reasonKey]
+    if (!selected?.id || !amount) return
+    const { data: s } = await supabase.from('students').select('house_points, individual_points, members(houses(name))').eq('id', selected.id).single()
+    if (!s) return
+    const newHouse = (s.house_points || 0) + amount
+    const newIndividual = (s.individual_points || 0) + amount
+    await supabase.from('students').update({ house_points: newHouse, individual_points: newIndividual }).eq('id', selected.id)
+    const houseName = s.members?.houses?.name
+    if (houseName) await supabase.rpc('adjust_house_points', { p_house_name: houseName, p_delta: amount })
+    setSelected(prev => prev ? { ...prev, house_points: newHouse, individual_points: newIndividual } : prev)
+  }
   const [intervalModes, setIntervalModes] = useState([])
   const [bodyweightTypeOptions, setBodyweightTypeOptions] = useState([])
   const [stretchOptionsList, setStretchOptionsList] = useState([])
@@ -4412,13 +4431,14 @@ export default function AthleteProfiles() {
   }, [])
 
   useEffect(() => {
-    supabase.from('settings').select('key,value').in('key', ['f2f_run_categories', 'f2f_interval_modes', 'f2f_bodyweight_types', 'f2f_stretch_options'])
+    supabase.from('settings').select('key,value').in('key', ['f2f_run_categories', 'f2f_interval_modes', 'f2f_bodyweight_types', 'f2f_stretch_options', 'athlete_house_points'])
       .then(({ data }) => {
         const map = Object.fromEntries((data || []).map(r => [r.key, r.value]))
         setRunCategoryTests(map.f2f_run_categories || {})
         setIntervalModes(map.f2f_interval_modes || ['20 seconds on 20 seconds off', '30 seconds on 30 seconds off', '40 seconds on 20 seconds off'])
         setBodyweightTypeOptions(map.f2f_bodyweight_types || ['Push-ups', 'Pull-ups', 'Squats', 'Dips', 'Sit-ups', 'Burpees', 'Other'])
         setStretchOptionsList(map.f2f_stretch_options || ['Other'])
+        setAthleteHousePoints({ f2f_question: 1, checkin: 1, pdp_complete: 1, pdp_calendar: 1, ...(map.athlete_house_points || {}) })
       })
   }, [])
 
@@ -10769,6 +10789,7 @@ export default function AthleteProfiles() {
                 setApData={setApData}
                 student={selected}
                 isAdmin={isAdmin}
+                onAwardHousePoints={awardHousePoints}
                 opponentNotes={opponentNotes}
                 onAddOpponentNote={addOpponentNote}
                 onToggleOpponentNoteShared={toggleOpponentNoteShared}
