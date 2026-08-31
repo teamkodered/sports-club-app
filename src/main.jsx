@@ -34,6 +34,7 @@ import AdminImport from './pages/AdminImport.jsx'
 import StudentDatabase from './pages/StudentDatabase.jsx'
 import Settings from './pages/Settings.jsx'
 import Registers from './pages/Registers.jsx'
+import CctvViewer from './pages/CctvViewer.jsx'
 import Classes from './pages/Classes.jsx'
 import Forms from './pages/Forms.jsx'
 import Trackers from './pages/Trackers.jsx'
@@ -117,6 +118,7 @@ function App() {
             <Route path="kickboxing-tpt"  element={<ProtectedRoute><KickboxingTPT /></ProtectedRoute>} />
             <Route path="fit2fight"       element={<FitToFight />} />
             <Route path="athletes"        element={<ProtectedRoute staffOnly><AthleteProfiles /></ProtectedRoute>} />
+            <Route path="cctv"            element={<ProtectedRoute staffOnly><CctvViewer /></ProtectedRoute>} />
             <Route path="import"          element={<ProtectedRoute adminOnly><AdminImport /></ProtectedRoute>} />
             <Route path="settings"        element={<ProtectedRoute adminOnly><Settings /></ProtectedRoute>} />
           </Route>

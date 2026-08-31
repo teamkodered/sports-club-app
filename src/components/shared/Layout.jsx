@@ -97,6 +97,7 @@ export default function Layout() {
     { to: '/fixtures',       icon: '📅', label: 'Fixtures',           roles: ['admin','captain'] },
     { to: '/athlete-app',    icon: '🎽', label: 'My app' },
     { to: '/athletes',       icon: '🏅', label: 'Athlete profiles',   roles: ['admin','captain'] },
+    { to: '/cctv',           icon: '📹', label: 'CCTV',               roles: ['admin','captain'] },
     ...(isAdmin ? [
       { section: 'Admin' },
       { to: '/settings', icon: '⚙️', label: 'Settings' },
