@@ -7030,12 +7030,17 @@ export default function AthleteApp() {
                                     const isTest = s.key === 'test'
                                     const testCat = isTest ? TEST_CATEGORIES.find(c => c.label === label) : null
                                     const firstTestName = testCat?.tests?.[0]?.name
+                                    const loggedTest = isTest && testCat ? testCat.tests.find(t => todaysSessionRow?.test?.[t.name] != null) : null
                                     return (
                                       <div key={label}>
                                         <div onClick={() => setF2fQuickLogQuestion(v => v === `${s.key}::${label}` ? null : `${s.key}::${label}`)}
                                           style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, padding: '5px 8px', cursor: 'pointer' }}>
                                           <span>{label}</span>
-                                          {loggedToday && <span style={{ fontWeight: 600, color: '#1D9E75' }}>✓ Logged today</span>}
+                                          {loggedToday && (
+                                            <span style={{ fontWeight: 600, color: '#1D9E75' }}>
+                                              {loggedTest ? `✓ ${todaysSessionRow.test[loggedTest.name]} ${loggedTest.unit}` : '✓ Logged today'}
+                                            </span>
+                                          )}
                                         </div>
                                         {qExpanded && (
                                           <div style={{ padding: '6px 8px 10px 16px', display: 'flex', gap: 8, alignItems: 'center' }}>
