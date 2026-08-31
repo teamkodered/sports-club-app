@@ -3007,20 +3007,30 @@ export default function AthleteProfiles() {
   const [athleteHousePoints, setAthleteHousePoints] = useState({ f2f_question: 1, checkin: 1, pdp_complete: 1, pdp_calendar: 1 })
 
   // Awards house + individual points for an athlete's own in-app action
-  // (mirrors AthleteApp.jsx's identical helper and the same students/
-  // adjust_house_points update pattern staff pages use, so totals stay
-  // consistent regardless of who/what awarded them).
+  // (mirrors AthleteApp.jsx's identical helper). Uses the atomic
+  // adjust_student_points RPC (a single UPDATE statement) rather than
+  // reading the current total and writing it back, which is what let
+  // two point-awards landing close together silently clobber one
+  // another and lose points. Also logs a points_log row so it shows up
+  // with a reason in the athlete's own points history list.
   async function awardHousePoints(reasonKey) {
     const amount = athleteHousePoints[reasonKey]
     if (!selected?.id || !amount) return
-    const { data: s } = await supabase.from('students').select('house_points, individual_points, members(houses(name))').eq('id', selected.id).single()
-    if (!s) return
-    const newHouse = (s.house_points || 0) + amount
-    const newIndividual = (s.individual_points || 0) + amount
-    await supabase.from('students').update({ house_points: newHouse, individual_points: newIndividual }).eq('id', selected.id)
-    const houseName = s.members?.houses?.name
+    const reasonLabels = {
+      f2f_question: 'F2F question logged',
+      checkin: 'Self check-in (app)',
+      pdp_complete: 'PDP task completed',
+      pdp_calendar: 'PDP added to calendar',
+    }
+    const { data: s } = await supabase.from('students').select('members(houses(name))').eq('id', selected.id).single()
+    await supabase.rpc('adjust_student_points', { p_student_id: selected.id, p_house_delta: amount, p_individual_delta: amount })
+    await supabase.from('points_log').insert({
+      student_id: selected.id, point_type: reasonLabels[reasonKey] || reasonKey,
+      points_awarded: amount, point_scope: 'both', awarded_at: new Date().toISOString(),
+    })
+    const houseName = s?.members?.houses?.name
     if (houseName) await supabase.rpc('adjust_house_points', { p_house_name: houseName, p_delta: amount })
-    setSelected(prev => prev ? { ...prev, house_points: newHouse, individual_points: newIndividual } : prev)
+    setSelected(prev => prev ? { ...prev, house_points: (prev.house_points || 0) + amount, individual_points: (prev.individual_points || 0) + amount } : prev)
   }
   const [intervalModes, setIntervalModes] = useState([])
   const [bodyweightTypeOptions, setBodyweightTypeOptions] = useState([])

@@ -2236,21 +2236,33 @@ export default function AthleteApp() {
   }, [])
 
   // Awards house + individual points for an athlete's own in-app action
-  // (F2F quick-log, self check-in, sending a PDP note to calendar) --
-  // mirrors the exact same students/adjust_house_points update pattern
-  // staff-side pages (CheckIn.jsx etc.) already use, so totals/
-  // leaderboards stay consistent regardless of who/what awarded them.
+  // (F2F quick-log, self check-in, sending a PDP note to calendar).
+  // Uses the atomic adjust_student_points RPC (a single UPDATE
+  // statement) rather than reading the current total and writing it
+  // back, which is what let two point-awards landing close together
+  // silently clobber one another and lose points -- exactly what
+  // happened to Millan Rai's stored total vs their points_log history.
+  // Also logs a points_log row (same as every other point award in the
+  // app) so it shows up with a reason in the athlete's own points
+  // history list, not just as an invisible bump to the raw totals.
   async function awardHousePoints(reasonKey) {
     const amount = athleteHousePoints[reasonKey]
     if (!student || !amount) return
-    const { data: s } = await supabase.from('students').select('house_points, individual_points, members(houses(name))').eq('id', student.id).single()
-    if (!s) return
-    const newHouse = (s.house_points || 0) + amount
-    const newIndividual = (s.individual_points || 0) + amount
-    await supabase.from('students').update({ house_points: newHouse, individual_points: newIndividual }).eq('id', student.id)
-    const houseName = s.members?.houses?.name
+    const reasonLabels = {
+      f2f_question: 'F2F question logged',
+      checkin: 'Self check-in (app)',
+      pdp_complete: 'PDP task completed',
+      pdp_calendar: 'PDP added to calendar',
+    }
+    const { data: s } = await supabase.from('students').select('members(houses(name))').eq('id', student.id).single()
+    await supabase.rpc('adjust_student_points', { p_student_id: student.id, p_house_delta: amount, p_individual_delta: amount })
+    await supabase.from('points_log').insert({
+      student_id: student.id, point_type: reasonLabels[reasonKey] || reasonKey,
+      points_awarded: amount, point_scope: 'both', awarded_at: new Date().toISOString(),
+    })
+    const houseName = s?.members?.houses?.name
     if (houseName) await supabase.rpc('adjust_house_points', { p_house_name: houseName, p_delta: amount })
-    setStudent(prev => prev ? { ...prev, house_points: newHouse, individual_points: newIndividual } : prev)
+    setStudent(prev => prev ? { ...prev, house_points: (prev.house_points || 0) + amount, individual_points: (prev.individual_points || 0) + amount } : prev)
   }
 
   // Hold-to-quick-log: marks a card as "done today" without requiring

@@ -118,11 +118,7 @@ export default function Dashboard() {
         point_scope: 'both', awarded_at: new Date().toISOString(),
       })
       if (error) { alert(`Error awarding to ${s.members?.first_name}: ${error.message}`); continue }
-      const { data: current } = await supabase.from('students').select('house_points, individual_points').eq('id', s.id).single()
-      await supabase.from('students').update({
-        house_points: (current?.house_points || 0) + pt.points,
-        individual_points: (current?.individual_points || 0) + pt.points,
-      }).eq('id', s.id)
+      await supabase.rpc('adjust_student_points', { p_student_id: s.id, p_house_delta: pt.points, p_individual_delta: pt.points })
       const houseName = s.members?.houses?.name || s.house_name
       if (houseName) {
         const { error: houseErr } = await supabase.rpc('adjust_house_points', { p_house_name: houseName, p_delta: pt.points })
@@ -150,11 +146,7 @@ export default function Dashboard() {
     if (field === 'points_awarded') {
       const diff = parseFloat(value) - parseFloat(oldValue || 0)
       if (diff !== 0 && p.student_id) {
-        const { data: current } = await supabase.from('students').select('house_points, individual_points').eq('id', p.student_id).single()
-        await supabase.from('students').update({
-          house_points: (current?.house_points || 0) + diff,
-          individual_points: (current?.individual_points || 0) + diff,
-        }).eq('id', p.student_id)
+        await supabase.rpc('adjust_student_points', { p_student_id: p.student_id, p_house_delta: diff, p_individual_delta: diff })
         // point_scope on this log entry decides whether the house total
         // needs the same adjustment -- this used to be skipped entirely,
         // which is one of the two reasons house totals drifted from

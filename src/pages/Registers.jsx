@@ -539,10 +539,7 @@ export default function Registers() {
       awarded_at: new Date(date).toISOString(),
       class_id: classId || null,
     })
-    await supabase.from('students').update({
-      house_points: (student.house_points || 0) + netChange,
-      individual_points: (student.individual_points || 0) + netChange,
-    }).eq('id', student.id)
+    await supabase.rpc('adjust_student_points', { p_student_id: student.id, p_house_delta: netChange, p_individual_delta: netChange })
 
     const houseName = student.house_name || student.members?.houses?.name
     if (houseName && netChange !== 0) {
@@ -597,12 +594,9 @@ export default function Registers() {
     if (entry.pointsAwarded) {
       const s = students.find(x => x.id === entry.studentId)
       if (s) {
-        await supabase.from('students').update({
-          house_points: (s.house_points || 0) - entry.pointsAwarded,
-          individual_points: (s.individual_points || 0) - entry.pointsAwarded,
-        }).eq('id', entry.studentId)
+        await supabase.rpc('adjust_student_points', { p_student_id: entry.studentId, p_house_delta: -entry.pointsAwarded, p_individual_delta: -entry.pointsAwarded })
         setStudents(prev => prev.map(x => x.id === entry.studentId
-          ? { ...x, house_points: (x.house_points || 0) - entry.pointsAwarded, individual_points: (x.individual_points || 0) - entry.pointsAwarded }
+          ? { ...x, house_points: Math.max(0, (x.house_points || 0) - entry.pointsAwarded), individual_points: Math.max(0, (x.individual_points || 0) - entry.pointsAwarded) }
           : x))
         const houseName = s.house_name || s.members?.houses?.name
         if (houseName) await supabase.rpc('adjust_house_points', { p_house_name: houseName, p_delta: -entry.pointsAwarded })
@@ -771,12 +765,13 @@ export default function Registers() {
 
     const s = students.find(x => x.id === entry.student_id)
     if (s && diff !== 0) {
-      const updates = {}
-      if (entry.point_scope === 'house' || entry.point_scope === 'both') updates.house_points = (s.house_points || 0) + diff
-      if (entry.point_scope === 'individual' || entry.point_scope === 'both') updates.individual_points = (s.individual_points || 0) + diff
-      const { error: updErr } = await supabase.from('students').update(updates).eq('id', s.id)
+      const houseDelta = (entry.point_scope === 'house' || entry.point_scope === 'both') ? diff : 0
+      const individualDelta = (entry.point_scope === 'individual' || entry.point_scope === 'both') ? diff : 0
+      const { error: updErr } = await supabase.rpc('adjust_student_points', { p_student_id: s.id, p_house_delta: houseDelta, p_individual_delta: individualDelta })
       if (updErr) { alert('Points entry saved, but updating the total failed: ' + updErr.message) }
-      else setStudents(prev => prev.map(x => x.id === s.id ? { ...x, ...updates } : x))
+      else setStudents(prev => prev.map(x => x.id === s.id
+        ? { ...x, house_points: Math.max(0, (x.house_points || 0) + houseDelta), individual_points: Math.max(0, (x.individual_points || 0) + individualDelta) }
+        : x))
 
       // Same adjustment needs to land on the house total too -- this
       // used to be skipped here entirely, which is a big part of why
@@ -803,12 +798,13 @@ export default function Registers() {
 
     const s = students.find(x => x.id === entry.student_id)
     if (s) {
-      const updates = {}
-      if (entry.point_scope === 'house' || entry.point_scope === 'both') updates.house_points = Math.max(0, (s.house_points || 0) - entry.points_awarded)
-      if (entry.point_scope === 'individual' || entry.point_scope === 'both') updates.individual_points = Math.max(0, (s.individual_points || 0) - entry.points_awarded)
-      const { error: updErr } = await supabase.from('students').update(updates).eq('id', s.id)
+      const houseDelta = (entry.point_scope === 'house' || entry.point_scope === 'both') ? -entry.points_awarded : 0
+      const individualDelta = (entry.point_scope === 'individual' || entry.point_scope === 'both') ? -entry.points_awarded : 0
+      const { error: updErr } = await supabase.rpc('adjust_student_points', { p_student_id: s.id, p_house_delta: houseDelta, p_individual_delta: individualDelta })
       if (updErr) { alert('Entry deleted, but updating the total failed: ' + updErr.message) }
-      else setStudents(prev => prev.map(x => x.id === s.id ? { ...x, ...updates } : x))
+      else setStudents(prev => prev.map(x => x.id === s.id
+        ? { ...x, house_points: Math.max(0, (x.house_points || 0) + houseDelta), individual_points: Math.max(0, (x.individual_points || 0) + individualDelta) }
+        : x))
 
       if (entry.point_scope === 'house' || entry.point_scope === 'both') {
         const houseName = s.house_name || s.members?.houses?.name
@@ -844,16 +840,10 @@ export default function Registers() {
           return
         }
       }
-      const updates = {
-        house_points: (s.house_points || 0) + total,
-        individual_points: (s.individual_points || 0) + total,
-      }
-      if (isChamp) updates.class_champion_count = (s.class_champion_count || 0) + 1
-      const { error: updateError } = await supabase.from('students').update(updates).eq('id', sid)
-      if (updateError) {
-        alert(`Points were logged, but saving totals for ${s.members?.first_name} failed: ${updateError.message}`)
-        setSaving(false)
-        return
+      await supabase.rpc('adjust_student_points', { p_student_id: sid, p_house_delta: total, p_individual_delta: total })
+      if (isChamp) {
+        const { error: champErr } = await supabase.from('students').update({ class_champion_count: (s.class_champion_count || 0) + 1 }).eq('id', sid)
+        if (champErr) alert(`Points saved for ${s.members?.first_name}, but updating class champion count failed: ${champErr.message}`)
       }
       const houseName = s.house_name || s.members?.houses?.name
       if (houseName && total > 0) {

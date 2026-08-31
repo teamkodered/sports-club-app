@@ -489,12 +489,10 @@ export default function LeagueViews() {
     // which is one of the reasons house totals drift from reality
     // every time a coach corrects a point value from this page.
     if (diff !== 0 && editingPoint.student_id) {
-      const { data: current } = await supabase.from('students').select('house_points, individual_points').eq('id', editingPoint.student_id).single()
-      if (current) {
-        const updates = {}
-        if (editingPoint.point_scope === 'house' || editingPoint.point_scope === 'both') updates.house_points = (current.house_points || 0) + diff
-        if (editingPoint.point_scope === 'individual' || editingPoint.point_scope === 'both') updates.individual_points = (current.individual_points || 0) + diff
-        await supabase.from('students').update(updates).eq('id', editingPoint.student_id)
+      const houseDelta = (editingPoint.point_scope === 'house' || editingPoint.point_scope === 'both') ? diff : 0
+      const individualDelta = (editingPoint.point_scope === 'individual' || editingPoint.point_scope === 'both') ? diff : 0
+      if (houseDelta !== 0 || individualDelta !== 0) {
+        await supabase.rpc('adjust_student_points', { p_student_id: editingPoint.student_id, p_house_delta: houseDelta, p_individual_delta: individualDelta })
       }
       if (editingPoint.point_scope === 'house' || editingPoint.point_scope === 'both') {
         const houseName = editingPoint.students?.members?.houses?.name
@@ -513,12 +511,10 @@ export default function LeagueViews() {
     if (error) { alert('Error deleting: ' + error.message); return }
 
     if (entry?.student_id) {
-      const { data: current } = await supabase.from('students').select('house_points, individual_points').eq('id', entry.student_id).single()
-      if (current) {
-        const updates = {}
-        if (entry.point_scope === 'house' || entry.point_scope === 'both') updates.house_points = Math.max(0, (current.house_points || 0) - entry.points_awarded)
-        if (entry.point_scope === 'individual' || entry.point_scope === 'both') updates.individual_points = Math.max(0, (current.individual_points || 0) - entry.points_awarded)
-        await supabase.from('students').update(updates).eq('id', entry.student_id)
+      const houseDelta = (entry.point_scope === 'house' || entry.point_scope === 'both') ? -entry.points_awarded : 0
+      const individualDelta = (entry.point_scope === 'individual' || entry.point_scope === 'both') ? -entry.points_awarded : 0
+      if (houseDelta !== 0 || individualDelta !== 0) {
+        await supabase.rpc('adjust_student_points', { p_student_id: entry.student_id, p_house_delta: houseDelta, p_individual_delta: individualDelta })
       }
       if (entry.point_scope === 'house' || entry.point_scope === 'both') {
         const houseName = entry.students?.members?.houses?.name
