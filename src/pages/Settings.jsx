@@ -128,7 +128,8 @@ export default function Settings() {
     const blankRule = () => ({
       name: '', rule_type: 'section_target_remaining', section_key: 'tactical', question_key: '',
       daily_target: 3, remind_when_remaining_at_or_below: 999,
-      message_template: "You only have {remaining} {section} sessions left today", active_from_hour: 8, active_until_hour: 21, enabled: true,
+      message_templates: ["You only have {remaining} {section} sessions left today"], max_per_day: 1, min_hours_between_sends: 4,
+      active_from_hour: 8, active_until_hour: 21, enabled: true,
     })
 
     function loadRules() {
@@ -139,7 +140,7 @@ export default function Settings() {
 
     async function saveDraft() {
       setSaving(true)
-      const payload = { ...draft }
+      const payload = { ...draft, message_templates: (draft.message_templates || []).map(m => m.trim()).filter(Boolean) }
       delete payload.id
       const { error } = editingId === 'new'
         ? await supabase.from('reminder_rules').insert(payload)
@@ -211,9 +212,17 @@ export default function Settings() {
                 </label>
               </>
             )}
-            <label style={{ fontSize: 12 }}>Message (use {'{remaining}'}, {'{section}'}, {'{question}'} as placeholders)
-              <textarea value={draft.message_template} onChange={e => setDraft(d => ({ ...d, message_template: e.target.value }))} style={{ fontSize: 13, width: '100%', minHeight: 50 }} />
+            <label style={{ fontSize: 12 }}>Message(s) — one per line; if there's more than one, they rotate across multiple sends in a day. Use {'{remaining}'}, {'{section}'}, {'{question}'} as placeholders
+              <textarea value={(draft.message_templates || []).join('\n')} onChange={e => setDraft(d => ({ ...d, message_templates: e.target.value.split('\n') }))} style={{ fontSize: 13, width: '100%', minHeight: 70 }} />
             </label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <label style={{ fontSize: 12, flex: 1 }}>Max reminders per day
+                <input type="number" min="1" value={draft.max_per_day} onChange={e => setDraft(d => ({ ...d, max_per_day: Number(e.target.value) }))} style={{ fontSize: 13, width: '100%' }} />
+              </label>
+              <label style={{ fontSize: 12, flex: 1 }}>Min hours between sends
+                <input type="number" min="0" value={draft.min_hours_between_sends} onChange={e => setDraft(d => ({ ...d, min_hours_between_sends: Number(e.target.value) }))} style={{ fontSize: 13, width: '100%' }} />
+              </label>
+            </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <label style={{ fontSize: 12, flex: 1 }}>Active from (hour)
                 <input type="number" min="0" max="23" value={draft.active_from_hour} onChange={e => setDraft(d => ({ ...d, active_from_hour: Number(e.target.value) }))} style={{ fontSize: 13, width: '100%' }} />

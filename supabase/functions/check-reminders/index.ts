@@ -102,9 +102,16 @@ Deno.serve(async () => {
         const memberId = memberByStudent[studentId]
         if (!memberId) continue
 
-        // Already sent this exact rule to this athlete today?
-        const { data: alreadySent } = await supabase.from('reminder_sent_log').select('id').eq('rule_id', rule.id).eq('student_id', studentId).eq('sent_date', today).maybeSingle()
-        if (alreadySent) continue
+        // How many times has this rule already fired for this athlete
+        // today, and how long ago was the most recent one? Both gate
+        // whether another send is allowed right now.
+        const { data: sentToday } = await supabase.from('reminder_sent_log').select('sent_at').eq('rule_id', rule.id).eq('student_id', studentId).eq('sent_date', today).order('sent_at', { ascending: false })
+        const sendsToday = sentToday?.length || 0
+        if (sendsToday >= (rule.max_per_day ?? 1)) continue
+        if (sendsToday > 0) {
+          const hoursSinceLast = (now.getTime() - new Date(sentToday[0].sent_at).getTime()) / 1000 / 60 / 60
+          if (hoursSinceLast < (rule.min_hours_between_sends ?? 4)) continue
+        }
 
         const session = sessionByStudent[studentId] || {}
         let shouldSend = false
@@ -126,14 +133,21 @@ Deno.serve(async () => {
 
         if (!shouldSend) continue
 
-        const message = renderTemplate(rule.message_template, vars)
+        // Pick a different variant than whatever was sent last time
+        // today, when there's more than one to choose from, so a
+        // second nudge doesn't read as an identical repeat.
+        const variants: string[] = rule.message_templates?.length ? rule.message_templates : ['Reminder']
+        const message = variants.length > 1 && sendsToday > 0
+          ? variants[sendsToday % variants.length]
+          : variants[Math.floor(Math.random() * variants.length)]
+
         await fetch(`${FUNCTIONS_URL}/send-push`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}` },
           body: JSON.stringify({
             member_id: memberId,
             title: rule.name,
-            body: message,
+            body: renderTemplate(message, vars),
             url: '/athlete-app?tab=fit2fight',
           }),
         })
