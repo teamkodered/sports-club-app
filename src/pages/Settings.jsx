@@ -118,6 +118,122 @@ export default function Settings() {
     )
   }
 
+  function ReminderRulesEditor() {
+    const [rules, setRules] = useState([])
+    const [loading, setLoading] = useState(true)
+    const [editingId, setEditingId] = useState(null)
+    const [draft, setDraft] = useState(null)
+    const [saving, setSaving] = useState(false)
+
+    const blankRule = () => ({
+      name: '', rule_type: 'section_target_remaining', section_key: 'tactical', question_key: '',
+      daily_target: 3, remind_when_remaining_at_or_below: 999,
+      message_template: "You only have {remaining} {section} sessions left today", active_from_hour: 8, active_until_hour: 21, enabled: true,
+    })
+
+    function loadRules() {
+      setLoading(true)
+      supabase.from('reminder_rules').select('*').order('created_at', { ascending: true }).then(({ data }) => { setRules(data || []); setLoading(false) })
+    }
+    useEffect(() => { loadRules() }, [])
+
+    async function saveDraft() {
+      setSaving(true)
+      const payload = { ...draft }
+      delete payload.id
+      const { error } = editingId === 'new'
+        ? await supabase.from('reminder_rules').insert(payload)
+        : await supabase.from('reminder_rules').update(payload).eq('id', editingId)
+      setSaving(false)
+      if (error) { alert('Error saving: ' + error.message); return }
+      setEditingId(null)
+      setDraft(null)
+      loadRules()
+    }
+
+    async function deleteRule(id) {
+      if (!confirm('Delete this reminder rule?')) return
+      await supabase.from('reminder_rules').delete().eq('id', id)
+      loadRules()
+    }
+
+    async function toggleEnabled(rule) {
+      await supabase.from('reminder_rules').update({ enabled: !rule.enabled }).eq('id', rule.id)
+      loadRules()
+    }
+
+    const SECTIONS = ['physical', 'technique', 'tactical', 'mentality', 'wellbeing', 'test']
+
+    return (
+      <div className="card" style={{ marginBottom: 10 }}>
+        <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 2 }}>F2F reminder notifications</div>
+        <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 14 }}>Push reminders sent automatically, checked every 30 minutes, at most once per athlete per day per rule.</div>
+
+        {loading ? <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Loading…</p> : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+            {rules.map(r => (
+              <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)' }}>
+                <div>
+                  <div style={{ fontWeight: 500 }}>{r.name} {!r.enabled && <span style={{ color: 'var(--text-tertiary)' }}>(off)</span>}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{r.rule_type === 'section_target_remaining' ? `Remaining today \u2264 ${r.remind_when_remaining_at_or_below}, target ${r.daily_target}/day` : `Unlogged: ${r.section_key}${r.question_key ? ' / ' + r.question_key : ''}`} · {r.active_from_hour}:00–{r.active_until_hour}:00</div>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button className="btn btn-sm" onClick={() => toggleEnabled(r)}>{r.enabled ? 'Turn off' : 'Turn on'}</button>
+                  <button className="btn btn-sm" onClick={() => { setEditingId(r.id); setDraft({ ...r }) }}>Edit</button>
+                  <button className="btn btn-sm" onClick={() => deleteRule(r.id)}>Delete</button>
+                </div>
+              </div>
+            ))}
+            {rules.length === 0 && <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No reminder rules yet.</p>}
+          </div>
+        )}
+
+        {editingId ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 12, background: 'var(--bg-secondary)', borderRadius: 'var(--radius)' }}>
+            <input type="text" placeholder="Name (shown as the notification title)" value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} style={{ fontSize: 13 }} />
+            <select value={draft.rule_type} onChange={e => setDraft(d => ({ ...d, rule_type: e.target.value }))} style={{ fontSize: 13 }}>
+              <option value="section_target_remaining">Remind about sessions left today</option>
+              <option value="unlogged_question">Remind if not logged yet today</option>
+            </select>
+            <select value={draft.section_key} onChange={e => setDraft(d => ({ ...d, section_key: e.target.value }))} style={{ fontSize: 13 }}>
+              {SECTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            {draft.rule_type === 'unlogged_question' && (draft.section_key === 'wellbeing' || draft.section_key === 'mentality') && (
+              <input type="text" placeholder="Question key (e.g. hydration) -- leave blank for whole section" value={draft.question_key || ''} onChange={e => setDraft(d => ({ ...d, question_key: e.target.value }))} style={{ fontSize: 13 }} />
+            )}
+            {draft.rule_type === 'section_target_remaining' && (
+              <>
+                <label style={{ fontSize: 12 }}>Daily target (sessions/day)
+                  <input type="number" value={draft.daily_target} onChange={e => setDraft(d => ({ ...d, daily_target: Number(e.target.value) }))} style={{ fontSize: 13, width: '100%' }} />
+                </label>
+                <label style={{ fontSize: 12 }}>Only remind once remaining is at or below
+                  <input type="number" value={draft.remind_when_remaining_at_or_below} onChange={e => setDraft(d => ({ ...d, remind_when_remaining_at_or_below: Number(e.target.value) }))} style={{ fontSize: 13, width: '100%' }} />
+                </label>
+              </>
+            )}
+            <label style={{ fontSize: 12 }}>Message (use {'{remaining}'}, {'{section}'}, {'{question}'} as placeholders)
+              <textarea value={draft.message_template} onChange={e => setDraft(d => ({ ...d, message_template: e.target.value }))} style={{ fontSize: 13, width: '100%', minHeight: 50 }} />
+            </label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <label style={{ fontSize: 12, flex: 1 }}>Active from (hour)
+                <input type="number" min="0" max="23" value={draft.active_from_hour} onChange={e => setDraft(d => ({ ...d, active_from_hour: Number(e.target.value) }))} style={{ fontSize: 13, width: '100%' }} />
+              </label>
+              <label style={{ fontSize: 12, flex: 1 }}>Active until (hour)
+                <input type="number" min="0" max="23" value={draft.active_until_hour} onChange={e => setDraft(d => ({ ...d, active_until_hour: Number(e.target.value) }))} style={{ fontSize: 13, width: '100%' }} />
+              </label>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-sm btn-primary" disabled={saving || !draft.name.trim()} onClick={saveDraft}>{saving ? 'Saving…' : 'Save rule'}</button>
+              <button className="btn btn-sm" onClick={() => { setEditingId(null); setDraft(null) }}>Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <button className="btn btn-sm btn-primary" onClick={() => { setEditingId('new'); setDraft(blankRule()) }}>+ New reminder rule</button>
+        )}
+      </div>
+    )
+  }
+
   function AthleteHousePointsEditor() {
     const defaults = { f2f_question: 1, checkin: 1, pdp_complete: 1, pdp_calendar: 1 }
     const stored = { ...defaults, ...(settings.athlete_house_points || {}) }
@@ -363,6 +479,9 @@ export default function Settings() {
       {SECTION('Points System')}
       <PointTypesEditor />
       <AthleteHousePointsEditor />
+
+      {SECTION('Reminders')}
+      <ReminderRulesEditor />
 
       {SECTION('Fit II Fight Options')}
       <ListSetting label="Running categories & tests" settingKey="f2f_run_categories"
