@@ -164,26 +164,30 @@ export default function LeagueViews() {
   useEffect(() => { loadAll() }, [dateFrom, dateTo, classFilter, selectedClassId])
 
   // Load saved "show top" selections and date range so the public
-  // league display can mirror whatever is currently set here, without
-  // its own control. dateFrom is deliberately kept as whatever was
-  // last saved (a season start date shouldn't move on its own), but
-  // dateTo is NOT loaded from the saved value here -- it always stays
-  // "today" locally (its useState default), and gets written back to
-  // settings immediately below so the public page's mirrored cutoff
-  // never goes stale either. Previously dateTo was loaded FROM
-  // settings, which meant whatever date was last saved (e.g. from a
-  // one-off historical look-back) stayed "stuck" as the cutoff on
-  // every future visit, silently excluding anything awarded since.
+  // league display can mirror whatever is currently set here. dateFrom
+  // is kept as whatever was last saved (a season start date shouldn't
+  // move on its own). dateTo: read from settings, but only actually
+  // use it if it's today or later -- a forgotten stale PAST date still
+  // falls back to live "today" automatically (the original problem
+  // this was guarding against), but a deliberately chosen FUTURE end
+  // date (e.g. extending the league period to a set finish date) is
+  // now respected instead of being silently overwritten back to
+  // "today" on every single page load, which is what broke a real
+  // admin-chosen end date before.
   useEffect(() => {
-    supabase.from('settings').select('key,value').in('key', ['league_topn_individual', 'league_topn_house', 'league_date_from'])
+    supabase.from('settings').select('key,value').in('key', ['league_topn_individual', 'league_topn_house', 'league_date_from', 'league_date_to'])
       .then(({ data }) => {
         const map = Object.fromEntries((data || []).map(r => [r.key, r.value]))
         if (map.league_topn_individual) setTopN(map.league_topn_individual)
         if (map.league_topn_house) setHouseTopN(map.league_topn_house)
         if (map.league_date_from) setDateFrom(map.league_date_from)
+        const todayStr = new Date().toISOString().split('T')[0]
+        const resolvedTo = (map.league_date_to && map.league_date_to >= todayStr) ? map.league_date_to : todayStr
+        setDateTo(resolvedTo)
+        if (resolvedTo !== map.league_date_to) {
+          supabase.from('settings').upsert({ key: 'league_date_to', value: resolvedTo }, { onConflict: 'key' })
+        }
       })
-    const todayStr = new Date().toISOString().split('T')[0]
-    supabase.from('settings').upsert({ key: 'league_date_to', value: todayStr }, { onConflict: 'key' })
   }, [])
 
   async function updateTopN(n) {

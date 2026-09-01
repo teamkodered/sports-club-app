@@ -63,22 +63,23 @@ export default function LeaguePublic() {
       // exactly what caused this page to show different totals than
       // the internal League page.
       //
-      // league_date_to is deliberately NOT read from settings here --
-      // it's only kept fresh there by the internal /league page
-      // overwriting it every time someone opens that page, so if a few
-      // days pass with nobody visiting it, this public display would
-      // silently freeze on that stale cutoff and show a shorter, older
-      // date range than "today" -- which is exactly what happened
-      // (this page still showing 22 Aug while the internal page,
-      // computing "today" live, correctly showed 25 Aug). dateTo stays
-      // as this component's own live "today" default instead, same
-      // fix already applied to the internal page for the same reason.
+      // league_date_to: read from settings, but only actually use it
+      // if it's today or later. A forgotten stale PAST date (the
+      // original problem here -- this page silently freezing on an
+      // old one-off cutoff while the internal page moved on) still
+      // falls back to live "today" automatically. But a deliberately
+      // chosen FUTURE end date (e.g. extending the current league
+      // period out to a set finish date) is now respected instead of
+      // being unconditionally overwritten back to "today" every time
+      // -- which is what broke a real admin-chosen end date before.
       const { data: settings } = await supabase.from('settings').select('key,value')
-        .in('key', ['club_name','club_emoji','league_topn_individual','league_topn_house','league_date_from'])
+        .in('key', ['club_name','club_emoji','league_topn_individual','league_topn_house','league_date_from','league_date_to'])
       const sm = Object.fromEntries((settings || []).map(r => [r.key, r.value]))
       const resolvedFrom = sm.league_date_from || dateFrom
-      const resolvedTo = dateTo
+      const todayStr = new Date().toISOString().split('T')[0]
+      const resolvedTo = (sm.league_date_to && sm.league_date_to >= todayStr) ? sm.league_date_to : todayStr
       if (sm.league_date_from) setDateFrom(sm.league_date_from)
+      if (resolvedTo !== dateTo) setDateTo(resolvedTo)
 
       const [{ data: h }, pts, { data: studentsData }] = await Promise.all([
         supabase.from('houses').select('*'),
