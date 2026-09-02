@@ -17,6 +17,9 @@ function formatDuration(seconds) {
 
 export default function CctvViewer() {
   const [cameras, setCameras] = useState([])
+  const [onlyDuringActivity, setOnlyDuringActivity] = useState(false)
+  const [classSchedule, setClassSchedule] = useState([])
+  const [attendanceTimes, setAttendanceTimes] = useState([])
   const [cameraFilter, setCameraFilter] = useState('all')
   const [dateFilter, setDateFilter] = useState(() => new Date().toISOString().split('T')[0])
   const [clips, setClips] = useState([])
@@ -54,7 +57,51 @@ export default function CctvViewer() {
     supabase.from('students').select('id, member_id, members(first_name, last_name)').then(({ data }) => {
       setStudents((data || []).map(s => ({ id: s.id, name: `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.trim() })))
     })
+    // For the "only show during activity" filter -- a clip counts as
+    // having activity if it overlaps a scheduled class OR someone
+    // actually checked in during it (covers off-timetable training
+    // that a class-only check would miss).
+    supabase.from('classes').select('day_of_week, start_time, end_time').eq('active', true).then(({ data }) => setClassSchedule(data || []))
   }, [])
+
+  // Scoped to the currently visible date filter (or a reasonable
+  // default window if none is set) -- fetching all-time attendance
+  // history unfiltered would be a lot of data for a large, established
+  // club.
+  useEffect(() => {
+    let query = supabase.from('attendance').select('attended_at')
+    if (dateFilter) {
+      query = query.gte('attended_at', dateFilter + 'T00:00:00').lte('attended_at', dateFilter + 'T23:59:59')
+    } else {
+      const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 60)
+      query = query.gte('attended_at', cutoff.toISOString())
+    }
+    query.then(({ data }) => setAttendanceTimes((data || []).map(r => r.attended_at).filter(Boolean)))
+  }, [dateFilter])
+
+  // Does this clip's time window overlap a scheduled class, or
+  // contain an actual check-in? Class end time defaults to 1 hour
+  // after start if a class has no explicit end_time set.
+  function clipHasActivity(clip) {
+    const clipStart = new Date(clip.recorded_at)
+    const clipEnd = new Date(clipStart.getTime() + (clip.duration_seconds || 0) * 1000)
+
+    const hadCheckIn = attendanceTimes.some(t => {
+      const at = new Date(t)
+      return at >= clipStart && at <= clipEnd
+    })
+    if (hadCheckIn) return true
+
+    const dayName = clipStart.toLocaleDateString('en-GB', { weekday: 'long' })
+    return classSchedule.some(c => {
+      if (c.day_of_week !== dayName) return false
+      const [sh, sm] = (c.start_time || '00:00').split(':').map(Number)
+      const [eh, em] = (c.end_time || '').split(':').map(Number)
+      const classStart = new Date(clipStart); classStart.setHours(sh, sm, 0, 0)
+      const classEnd = c.end_time ? (() => { const d = new Date(clipStart); d.setHours(eh, em, 0, 0); return d })() : new Date(classStart.getTime() + 60 * 60 * 1000)
+      return classStart <= clipEnd && classEnd >= clipStart
+    })
+  }
 
   async function openClip(clip) {
     setSelectedClip(clip)
@@ -134,6 +181,7 @@ export default function CctvViewer() {
   }
 
   const filteredStudents = students.filter(s => s.name.toLowerCase().includes(studentSearch.toLowerCase()))
+  const visibleClips = onlyDuringActivity ? clips.filter(clipHasActivity) : clips
 
   return (
     <div style={{ padding: 20, maxWidth: 1100, margin: '0 auto' }}>
@@ -147,17 +195,21 @@ export default function CctvViewer() {
         </select>
         <input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} style={{ fontSize: 13 }} />
         {dateFilter && <button className="btn btn-sm" onClick={() => setDateFilter('')}>Clear date</button>}
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+          <input type="checkbox" checked={onlyDuringActivity} onChange={e => setOnlyDuringActivity(e.target.checked)} />
+          Only show clips during activity
+        </label>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: selectedClip ? '1fr 1fr' : '1fr', gap: 20 }}>
         <div>
           {loading ? (
             <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Loading…</p>
-          ) : clips.length === 0 ? (
-            <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No clips found for this filter.</p>
+          ) : visibleClips.length === 0 ? (
+            <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>{onlyDuringActivity ? 'No clips with detected activity in this filter.' : 'No clips found for this filter.'}</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 600, overflowY: 'auto' }}>
-              {clips.map(clip => (
+              {visibleClips.map(clip => (
                 <div key={clip.id} onClick={() => openClip(clip)}
                   className="card"
                   style={{ padding: '10px 14px', cursor: 'pointer', border: selectedClip?.id === clip.id ? '2px solid var(--text)' : undefined }}>
