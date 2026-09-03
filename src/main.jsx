@@ -104,21 +104,21 @@ function App() {
             <Route path="my-dashboard"    element={<AthleteDashboard />} />
             <Route path="checkin"         element={<ProtectedRoute staffOnly><CheckIn /></ProtectedRoute>} />
             <Route path="registers"       element={<ProtectedRoute staffOnly><Registers /></ProtectedRoute>} />
-            <Route path="students"        element={<ProtectedRoute staffOnly><StudentDatabase /></ProtectedRoute>} />
+            <Route path="students"        element={<ProtectedRoute staffOnly excludeLeader><StudentDatabase /></ProtectedRoute>} />
             <Route path="members"         element={<ProtectedRoute staffOnly><Members /></ProtectedRoute>} />
-            <Route path="fixtures"        element={<Fixtures />} />
+            <Route path="fixtures"        element={<ProtectedRoute staffOnly excludeLeader><Fixtures /></ProtectedRoute>} />
             <Route path="calendar"        element={<ProtectedRoute staffOnly><CalendarPage /></ProtectedRoute>} />
             <Route path="crm"             element={<ProtectedRoute staffOnly excludeLeader><CRM /></ProtectedRoute>} />
-            <Route path="classes"         element={<ProtectedRoute staffOnly><Classes /></ProtectedRoute>} />
+            <Route path="classes"         element={<ProtectedRoute staffOnly excludeLeader><Classes /></ProtectedRoute>} />
             <Route path="league"          element={<LeagueViews />} />
-            <Route path="forms"           element={<Forms />} />
-            <Route path="trackers"        element={<ProtectedRoute staffOnly><Trackers /></ProtectedRoute>} />
+            <Route path="forms"           element={<ProtectedRoute staffOnly excludeLeader><Forms /></ProtectedRoute>} />
+            <Route path="trackers"        element={<ProtectedRoute staffOnly excludeLeader><Trackers /></ProtectedRoute>} />
             <Route path="profile"         element={<Profile />} />
             <Route path="boxing-tpt"      element={<ProtectedRoute><BoxingTPT /></ProtectedRoute>} />
             <Route path="kickboxing-tpt"  element={<ProtectedRoute><KickboxingTPT /></ProtectedRoute>} />
             <Route path="fit2fight"       element={<FitToFight />} />
-            <Route path="athletes"        element={<ProtectedRoute staffOnly><AthleteProfiles /></ProtectedRoute>} />
-            <Route path="cctv"            element={<ProtectedRoute staffOnly><CctvViewer /></ProtectedRoute>} />
+            <Route path="athletes"        element={<ProtectedRoute staffOnly excludeLeader><AthleteProfiles /></ProtectedRoute>} />
+            <Route path="cctv"            element={<ProtectedRoute staffOnly excludeLeader><CctvViewer /></ProtectedRoute>} />
             <Route path="import"          element={<ProtectedRoute adminOnly><AdminImport /></ProtectedRoute>} />
             <Route path="settings"        element={<ProtectedRoute adminOnly><Settings /></ProtectedRoute>} />
           </Route>
