@@ -177,6 +177,7 @@ export default function CRM() {
   const [enquiries, setEnquiries] = useState([])
   const [enquiriesLoaded, setEnquiriesLoaded] = useState(false)
   const [enquiryStatusFilter, setEnquiryStatusFilter] = useState('all')
+  const [enquiryMethodFilter, setEnquiryMethodFilter] = useState('all')
   const [showNewEnquiryForm, setShowNewEnquiryForm] = useState(false)
   const [enquiryDraft, setEnquiryDraft] = useState(null)
   const [savingEnquiry, setSavingEnquiry] = useState(false)
@@ -1016,6 +1017,47 @@ export default function CRM() {
   // (this year, or next year if it's already passed) falls within the
   // next 28 days. Purely computed from date_of_birth already loaded
   // with students, so no extra queries needed.
+  // Daily enquiry-count bar chart, respecting the method filter --
+  // last 30 days, matching the app's existing hand-rolled SVG chart
+  // style rather than pulling in a charting library.
+  function EnquiriesDailyChart({ enquiries, methodFilter }) {
+    const days = Array.from({ length: 30 }, (_, i) => {
+      const d = new Date(); d.setDate(d.getDate() - (29 - i)); return d.toISOString().split('T')[0]
+    })
+    const filtered = methodFilter === 'all' ? enquiries : enquiries.filter(e => e.contact_method === methodFilter)
+    const counts = days.map(day => filtered.filter(e => e.enquiry_date === day).length)
+    const maxCount = Math.max(1, ...counts)
+    const w = 600, h = 140, pad = { t: 10, r: 10, b: 24, l: 24 }
+    const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b
+    const barW = iw / days.length
+    return (
+      <div className="hscroll-area" style={{ overflowX: 'auto', marginBottom: 16 }}>
+        <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', minWidth: 320, height: 'auto' }}>
+          {[0, 0.5, 1].map((t, i) => {
+            const yv = pad.t + ih * (1 - t)
+            return <g key={i}>
+              <line x1={pad.l} x2={pad.l + iw} y1={yv} y2={yv} stroke="var(--border)" strokeWidth="0.5" />
+              <text x={pad.l - 4} y={yv + 3} textAnchor="end" fontSize="8" fill="var(--text-tertiary)">{Math.round(maxCount * t)}</text>
+            </g>
+          })}
+          {days.map((day, i) => {
+            const barH = (counts[i] / maxCount) * ih
+            return (
+              <g key={day}>
+                <rect x={pad.l + i * barW + 1} y={pad.t + ih - barH} width={Math.max(1, barW - 2)} height={barH} fill="#378ADD" rx="1" />
+                {i % 5 === 0 && (
+                  <text x={pad.l + i * barW + barW / 2} y={h - 6} textAnchor="middle" fontSize="7" fill="var(--text-tertiary)">
+                    {new Date(day + 'T12:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                  </text>
+                )}
+              </g>
+            )
+          })}
+        </svg>
+      </div>
+    )
+  }
+
   function loadEnquiries() {
     supabase.from('enquiries').select('*, members(id, first_name, last_name)').order('enquiry_date', { ascending: false })
       .then(({ data }) => { setEnquiries(data || []); setEnquiriesLoaded(true) })
@@ -1605,6 +1647,19 @@ export default function CRM() {
             )}
           </div>
 
+          <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+            {[['all', 'All'], ['call', 'Call'], ['text', 'Text'], ['email', 'Email'], ['facebook_ad', 'Social media']].map(([val, label]) => (
+              <button key={val} onClick={() => setEnquiryMethodFilter(val)}
+                style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                  border: `1px solid ${enquiryMethodFilter === val ? '#378ADD' : 'var(--border)'}`,
+                  background: enquiryMethodFilter === val ? '#378ADD18' : 'transparent',
+                  color: enquiryMethodFilter === val ? '#378ADD' : 'var(--text-secondary)', fontWeight: enquiryMethodFilter === val ? 600 : 400 }}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <EnquiriesDailyChart enquiries={enquiries} methodFilter={enquiryMethodFilter} />
+
           {showNewEnquiryForm && (
             <div className="card" style={{ marginBottom: 16, padding: 16 }}>
               <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 10 }}>New enquiry</div>
@@ -1637,7 +1692,7 @@ export default function CRM() {
             <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Loading…</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {enquiries.filter(e => enquiryStatusFilter === 'all' || e.status === enquiryStatusFilter).map(enq => (
+              {enquiries.filter(e => (enquiryStatusFilter === 'all' || e.status === enquiryStatusFilter) && (enquiryMethodFilter === 'all' || e.contact_method === enquiryMethodFilter)).map(enq => (
                 <div key={enq.id} className="card" style={{ padding: 14 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
@@ -1689,7 +1744,7 @@ export default function CRM() {
                   )}
                 </div>
               ))}
-              {enquiries.filter(e => enquiryStatusFilter === 'all' || e.status === enquiryStatusFilter).length === 0 && (
+              {enquiries.filter(e => (enquiryStatusFilter === 'all' || e.status === enquiryStatusFilter) && (enquiryMethodFilter === 'all' || e.contact_method === enquiryMethodFilter)).length === 0 && (
                 <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No enquiries logged yet.</p>
               )}
             </div>
