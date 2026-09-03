@@ -1479,59 +1479,69 @@ export default function CRM() {
     return false
   }
 
+  // BUG FIX: this used to return early with ONLY the manually-linked
+  // students the moment any manual link existed for a payer name --
+  // which meant an already-correct AUTOMATIC match for one sibling
+  // would silently disappear (bounced back to "unpaid") the instant a
+  // second sibling got manually linked to the same payment. A manual
+  // link should always ADD to the matched set, never replace it.
   function matchStudentIdsForPayment(payment) {
     const n = normalizeName(payment.name)
-    if (linksByPayerName[n]?.length) return linksByPayerName[n]
-
+    const manualIds = linksByPayerName[n] || []
     const excluded = excludedByPayerName[n]
     const dropExcluded = list => excluded ? list.filter(s => !excluded.has(s.id)) : list
 
+    let autoIds = []
     if (studentByNormalizedName[n]) {
       const sid = studentByNormalizedName[n]
-      return excluded?.has(sid) ? [] : [sid]
-    }
+      autoIds = excluded?.has(sid) ? [] : [sid]
+    } else {
+      const paymentWords = wordsOf(payment.name)
+      const paymentWordSet = new Set(paymentWords)
 
-    const paymentWords = wordsOf(payment.name)
-    const paymentWordSet = new Set(paymentWords)
-
-    const nameCandidates = dropExcluded(students.filter(s => {
-      const fw = wordsOf(s.members?.first_name)
-      const lw = wordsOf(s.members?.last_name)
-      if (!fw.length || !lw.length) return false
-      return fw.every(w => namePartPresent(w, paymentWordSet)) && lw.every(w => namePartPresent(w, paymentWordSet))
-    }))
-    // A full first+last name match is a strong, reliable signal on its
-    // own -- finding it for MORE than one student just means a family
-    // payment genuinely covering several siblings (e.g. "Smith Family -
-    // John and Jane Smith"), not an ambiguous guess. All of them get
-    // matched automatically. The looser surname-only/first-name-only
-    // fallbacks below stay conservative and single-match-only, since
-    // those are weaker signals where ambiguity really does mean "don't guess".
-    if (nameCandidates.length >= 1) return nameCandidates.map(s => s.id)
-
-    if (!nameCandidates.length) {
-      const surnameCandidates = []
-      for (const w of paymentWordSet) {
-        if (w.length >= 3 && lastNameCounts[w] === 1) {
-          surnameCandidates.push(...students.filter(s => normalizeName(s.members?.last_name) === w))
+      const nameCandidates = dropExcluded(students.filter(s => {
+        const fw = wordsOf(s.members?.first_name)
+        const lw = wordsOf(s.members?.last_name)
+        if (!fw.length || !lw.length) return false
+        return fw.every(w => namePartPresent(w, paymentWordSet)) && lw.every(w => namePartPresent(w, paymentWordSet))
+      }))
+      // A full first+last name match is a strong, reliable signal on its
+      // own -- finding it for MORE than one student just means a family
+      // payment genuinely covering several siblings (e.g. "Smith Family -
+      // John and Jane Smith"), not an ambiguous guess. All of them get
+      // matched automatically. The looser surname-only/first-name-only
+      // fallbacks below stay conservative and single-match-only, since
+      // those are weaker signals where ambiguity really does mean "don't guess".
+      if (nameCandidates.length >= 1) {
+        autoIds = nameCandidates.map(s => s.id)
+      } else {
+        const surnameCandidates = []
+        for (const w of paymentWordSet) {
+          if (w.length >= 3 && lastNameCounts[w] === 1) {
+            surnameCandidates.push(...students.filter(s => normalizeName(s.members?.last_name) === w))
+          }
+        }
+        const filteredSurname = dropExcluded(surnameCandidates)
+        if (filteredSurname.length === 1) {
+          autoIds = [filteredSurname[0].id]
+        } else {
+          const firstNameCandidates = []
+          for (const w of paymentWordSet) {
+            if (w.length >= 4 && firstNameCounts[w] === 1) {
+              firstNameCandidates.push(...students.filter(s => normalizeName(s.members?.first_name) === w))
+            }
+          }
+          const filteredFirst = dropExcluded(firstNameCandidates)
+          if (filteredFirst.length === 1) autoIds = [filteredFirst[0].id]
         }
       }
-      const filtered = dropExcluded(surnameCandidates)
-      if (filtered.length === 1) return [filtered[0].id]
     }
 
-    if (!nameCandidates.length) {
-      const firstNameCandidates = []
-      for (const w of paymentWordSet) {
-        if (w.length >= 4 && firstNameCounts[w] === 1) {
-          firstNameCandidates.push(...students.filter(s => normalizeName(s.members?.first_name) === w))
-        }
-      }
-      const filtered = dropExcluded(firstNameCandidates)
-      if (filtered.length === 1) return [filtered[0].id]
-    }
-
-    return []
+    // Union, not replace -- a manual link for one sibling never hides
+    // an already-correct automatic match for another sibling on the
+    // same payment. Deduplicated in case the same student is somehow
+    // in both (e.g. manually confirming what was already auto-matched).
+    return [...new Set([...manualIds, ...autoIds])]
   }
 
   // Map of studentId -> the payment(s) that matched them, so the
