@@ -185,6 +185,9 @@ export default function CRM() {
   const [memberLinkResults, setMemberLinkResults] = useState([])
   const [importingFacebookLeads, setImportingFacebookLeads] = useState(false)
   const [facebookImportResult, setFacebookImportResult] = useState(null)
+  const [emailingEnquiry, setEmailingEnquiry] = useState(null)
+  const [enquiryEmailDraft, setEnquiryEmailDraft] = useState(null)
+  const [sendingEnquiryEmail, setSendingEnquiryEmail] = useState(false)
   const [selectedBirthdays, setSelectedBirthdays] = useState(new Set())
   const [autoSendBirthdays, setAutoSendBirthdays] = useState(false)
   const [showBirthdaysHelp, setShowBirthdaysHelp] = useState(false)
@@ -765,6 +768,7 @@ export default function CRM() {
     setReplySending(false)
     if (ok) {
       alert(`✓ Reply sent to ${replyDraft.to}`)
+      await markEnquiryContactedByEmail(replyDraft.to)
       setReplyDraft(null)
       setOpenMessage(null)
     }
@@ -1006,6 +1010,32 @@ export default function CRM() {
     const { data } = await supabase.from('members').select('id, first_name, last_name, email, phone')
       .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%`).limit(10)
     setMemberLinkResults(data || [])
+  }
+
+  // If the email address being replied/sent to matches an open
+  // enquiry (not already joined or marked not-interested), moves it
+  // to "Contacted" automatically -- covers both replying to them via
+  // the existing inbox AND emailing them directly from the Enquiries
+  // tab, since both funnel through here.
+  async function markEnquiryContactedByEmail(email) {
+    if (!email) return
+    await supabase.from('enquiries')
+      .update({ status: 'contacted', updated_at: new Date().toISOString() })
+      .ilike('contact_email', email)
+      .eq('status', 'new')
+    if (enquiriesLoaded) loadEnquiries()
+  }
+
+  async function sendEnquiryEmail() {
+    if (!emailingEnquiry || !enquiryEmailDraft?.body?.trim()) return
+    setSendingEnquiryEmail(true)
+    const ok = await sendRealEmail(emailingEnquiry.contact_email, enquiryEmailDraft.subject, enquiryEmailDraft.body)
+    setSendingEnquiryEmail(false)
+    if (ok) {
+      await markEnquiryContactedByEmail(emailingEnquiry.contact_email)
+      setEmailingEnquiry(null)
+      setEnquiryEmailDraft(null)
+    }
   }
 
   async function linkEnquiryToMember(enquiryId, memberId) {
@@ -1589,6 +1619,13 @@ export default function CRM() {
                       <option value="not_interested">Not interested</option>
                     </select>
                   </div>
+                  {enq.contact_email && (
+                    <div style={{ marginTop: 8 }}>
+                      <button className="btn btn-sm" onClick={() => { setEmailingEnquiry(enq); setEnquiryEmailDraft({ subject: 'Following up from KR Centre', body: `Hi ${enq.name.split(' ')[0]},\n\n` }) }}>
+                        ✉️ Email this lead
+                      </button>
+                    </div>
+                  )}
                   {!enq.linked_member_id && (
                     <div style={{ marginTop: 8 }}>
                       {linkingEnquiryId === enq.id ? (
@@ -1612,6 +1649,27 @@ export default function CRM() {
               {enquiries.filter(e => enquiryStatusFilter === 'all' || e.status === enquiryStatusFilter).length === 0 && (
                 <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No enquiries logged yet.</p>
               )}
+            </div>
+          )}
+
+          {emailingEnquiry && (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
+              onClick={() => { setEmailingEnquiry(null); setEnquiryEmailDraft(null) }}>
+              <div className="card" style={{ width: '100%', maxWidth: 480 }} onClick={e => e.stopPropagation()}>
+                <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 10 }}>Email {emailingEnquiry.name}</h3>
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10 }}>To: {emailingEnquiry.contact_email}</p>
+                <input type="text" value={enquiryEmailDraft.subject} onChange={e => setEnquiryEmailDraft(d => ({ ...d, subject: e.target.value }))}
+                  placeholder="Subject" style={{ width: '100%', fontSize: 13, marginBottom: 8 }} />
+                <textarea value={enquiryEmailDraft.body} onChange={e => setEnquiryEmailDraft(d => ({ ...d, body: e.target.value }))}
+                  rows={8} style={{ width: '100%', fontSize: 14, padding: '10px 12px', marginBottom: 10, resize: 'vertical' }} />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn btn-primary" disabled={sendingEnquiryEmail || !enquiryEmailDraft.body.trim()} onClick={sendEnquiryEmail}>
+                    {sendingEnquiryEmail ? 'Sending…' : '✉️ Send'}
+                  </button>
+                  <button className="btn" onClick={() => { setEmailingEnquiry(null); setEnquiryEmailDraft(null) }}>Cancel</button>
+                </div>
+                <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>Sending this will automatically move their status to "Contacted".</p>
+              </div>
             </div>
           )}
         </div>
