@@ -193,6 +193,8 @@ export default function CRM() {
   const [emailingEnquiry, setEmailingEnquiry] = useState(null)
   const [enquiryEmailDraft, setEnquiryEmailDraft] = useState(null)
   const [sendingEnquiryEmail, setSendingEnquiryEmail] = useState(false)
+  const [deletingEmailUid, setDeletingEmailUid] = useState(null)
+  const [markingContactedUid, setMarkingContactedUid] = useState(null)
   const [selectedBirthdays, setSelectedBirthdays] = useState(new Set())
   const [autoSendBirthdays, setAutoSendBirthdays] = useState(false)
   const [showBirthdaysHelp, setShowBirthdaysHelp] = useState(false)
@@ -855,6 +857,56 @@ export default function CRM() {
       setOpenMessageError(e.message)
     }
     setOpenMessageLoading(false)
+  }
+
+  // Deletes the message from the actual mailbox via IMAP (not just
+  // hiding it in this view) -- the delete-email function already
+  // existed but was never wired up to anything in the UI.
+  async function deleteOpenMessage() {
+    if (!openMessage?.uid) return
+    if (!confirm('Delete this email? This removes it from the mailbox permanently.')) return
+    const { data: sessionData } = await supabase.auth.getSession()
+    const accessToken = sessionData?.session?.access_token
+    const res = await fetch('/.netlify/functions/delete-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ uid: openMessage.uid }),
+    })
+    const result = await res.json()
+    if (!res.ok || result.error) { alert('Error deleting: ' + (result.error || res.statusText)); return }
+    setInboxMessages(prev => prev.filter(m => m.uid !== openMessage.uid))
+    setOpenMessage(null)
+  }
+
+  // A quick UK-mobile-shaped number found anywhere in the message
+  // body, so a Text/Call button can appear without needing a
+  // structured "phone" field on the email itself.
+  function extractPhoneNumber(text) {
+    if (!text) return null
+    const match = text.match(/(?:\+44\s?7\d{3}|\(?07\d{3}\)?)[\s-]?\d{3}[\s-]?\d{3}/)
+    return match ? match[0].replace(/[\s()-]/g, '') : null
+  }
+
+  // Adds (or updates) this sender as an Enquiries entry marked
+  // "Contacted" -- a manual equivalent to the automatic add-on-inbox-
+  // load, for explicitly logging that this exact email was dealt with.
+  async function markMessageContacted() {
+    if (!openMessage?.from) return
+    const { data: existing } = await supabase.from('enquiries').select('id').ilike('contact_email', openMessage.from).maybeSingle()
+    if (existing) {
+      await supabase.from('enquiries').update({ status: 'contacted', updated_at: new Date().toISOString() }).eq('id', existing.id)
+    } else {
+      await supabase.from('enquiries').insert({
+        name: openMessage.fromName || openMessage.from.split('@')[0],
+        contact_email: openMessage.from,
+        contact_method: 'email',
+        enquiry_date: openMessage.date ? new Date(openMessage.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        notes: openMessage.subject ? `From email: "${openMessage.subject}"` : 'From email',
+        status: 'contacted',
+      })
+    }
+    if (enquiriesLoaded) loadEnquiries()
+    alert('Added to Enquiries, marked as Contacted')
   }
 
   async function sendReply() {
@@ -3342,6 +3394,18 @@ export default function CRM() {
                     <div style={{ overflowY: 'auto', flex: 1, marginBottom: 14, whiteSpace: 'pre-line', fontSize: 13, lineHeight: 1.5, padding: '10px 12px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)' }}>
                       {openMessage.body}
                     </div>
+
+                    {!replyDraft && (() => {
+                      const phone = extractPhoneNumber(openMessage.body) || extractPhoneNumber(openMessage.subject)
+                      return (
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+                          {phone && <a className="btn btn-sm" href={`tel:${phone}`}>📞 Call {phone}</a>}
+                          {phone && <a className="btn btn-sm" href={`sms:${phone}`}>💬 Text {phone}</a>}
+                          <button className="btn btn-sm" onClick={markMessageContacted}>✓ Mark contacted → Enquiries</button>
+                          <button className="btn btn-sm" style={{ color: '#E24B4A' }} onClick={deleteOpenMessage}>🗑️ Delete</button>
+                        </div>
+                      )
+                    })()}
 
                     {replyDraft ? (
                       <div>
