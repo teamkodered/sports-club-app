@@ -86,7 +86,7 @@ export default function Layout() {
   const NAV_ITEMS = [
     { section: 'Main' },
     { to: '/dashboard',      icon: '🏠', label: 'Dashboard',          roles: ['admin','captain'] },
-    { to: '/registers',      icon: '📋', label: 'Registers',          roles: ['admin','captain'] },
+    { to: '/registers',      icon: '📋', label: 'Registers',          roles: ['admin','captain','leader'] },
     { to: '/league',         icon: '🏆', label: 'Houses',             roles: ['admin','captain'] },
     { to: '/trackers',       icon: '📈', label: 'Trackers',           roles: ['admin','captain'] },
     { to: '/forms',          icon: '📝', label: 'Forms',              roles: ['admin','captain'] },
