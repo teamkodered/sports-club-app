@@ -113,6 +113,8 @@ export default function LeagueViews() {
   const [scoreHistoryOpen, setScoreHistoryOpen] = useState(false) // shows the score-history popup using searchResults, without switching to Score check tab
   const [profilePopupFor, setProfilePopupFor] = useState(null) // student object for the hold-triggered quick-profile popup
   const [fullProfileModal, setFullProfileModal] = useState(null) // richer profile fetched on demand, shown as a second same-page popup (never navigates away)
+  const [enlargedPhoto, setEnlargedPhoto] = useState(null)
+  const photoHoldTimer = useRef(null)
   const [loadingFullProfile, setLoadingFullProfile] = useState(false)
   const [editVal, setEditVal] = useState('')
   const [saving, setSaving] = useState(false)
@@ -1119,7 +1121,12 @@ export default function LeagueViews() {
               return (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
                   {profilePopupFor.photo_url ? (
-                    <img src={profilePopupFor.photo_url} alt="" style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                    <img src={profilePopupFor.photo_url} alt="" style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, cursor: 'pointer' }}
+                      onDoubleClick={() => setEnlargedPhoto(profilePopupFor.photo_url)}
+                      onPointerDown={() => { photoHoldTimer.current = setTimeout(() => setEnlargedPhoto(profilePopupFor.photo_url), 500) }}
+                      onPointerUp={() => clearTimeout(photoHoldTimer.current)}
+                      onPointerLeave={() => clearTimeout(photoHoldTimer.current)}
+                      onContextMenu={e => e.preventDefault()} />
                   ) : (
                     <div style={{ width: 48, height: 48, borderRadius: '50%', background: colour + '22', color: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, fontWeight: 700, flexShrink: 0 }}>
                       {profilePopupFor.name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
@@ -1155,7 +1162,12 @@ export default function LeagueViews() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     {fullProfileModal.photo_url ? (
-                      <img src={fullProfileModal.photo_url} alt="" style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                      <img src={fullProfileModal.photo_url} alt="" style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, cursor: 'pointer' }}
+                        onDoubleClick={() => setEnlargedPhoto(fullProfileModal.photo_url)}
+                        onPointerDown={() => { photoHoldTimer.current = setTimeout(() => setEnlargedPhoto(fullProfileModal.photo_url), 500) }}
+                        onPointerUp={() => clearTimeout(photoHoldTimer.current)}
+                        onPointerLeave={() => clearTimeout(photoHoldTimer.current)}
+                        onContextMenu={e => e.preventDefault()} />
                     ) : (
                       <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>
                         {(fullProfileModal.members?.first_name?.[0] || '')}{(fullProfileModal.members?.last_name?.[0] || '')}
@@ -1189,6 +1201,12 @@ export default function LeagueViews() {
               </>
             )}
           </div>
+        </div>
+      )}
+
+      {enlargedPhoto && (
+        <div onClick={() => setEnlargedPhoto(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 24, cursor: 'zoom-out' }}>
+          <img src={enlargedPhoto} alt="" style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 8 }} />
         </div>
       )}
     </div>

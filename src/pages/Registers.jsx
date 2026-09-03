@@ -161,6 +161,8 @@ export default function Registers() {
   const [attendHistory, setAttendHistory] = useState([])
   const [attendFuture, setAttendFuture]   = useState([])
   const [contactModal, setContactModal] = useState(null)
+  const [enlargedPhoto, setEnlargedPhoto] = useState(null)
+  const photoHoldTimer = useRef(null)
   const [birthdayPopup, setBirthdayPopup] = useState(null) // { name, info } or null
   const [attendance, setAttendance]     = useState({})
   // Entries auto-added by the double-session cascade, shown as an
@@ -1392,7 +1394,12 @@ export default function Registers() {
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 {contactModal.photo_url ? (
-                  <img src={contactModal.photo_url} alt="" style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                  <img src={contactModal.photo_url} alt="" style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, cursor: 'pointer' }}
+                    onDoubleClick={() => setEnlargedPhoto(contactModal.photo_url)}
+                    onPointerDown={() => { photoHoldTimer.current = setTimeout(() => setEnlargedPhoto(contactModal.photo_url), 500) }}
+                    onPointerUp={() => clearTimeout(photoHoldTimer.current)}
+                    onPointerLeave={() => clearTimeout(photoHoldTimer.current)}
+                    onContextMenu={e => e.preventDefault()} />
                 ) : (
                   <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>
                     {(contactModal.members?.first_name?.[0] || '')}{(contactModal.members?.last_name?.[0] || '')}
@@ -1422,6 +1429,12 @@ export default function Registers() {
               <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => { setContactModal(null); navigate(studentProfileLink(contactModal)) }}>View profile →</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {enlargedPhoto && (
+        <div onClick={() => setEnlargedPhoto(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 24, cursor: 'zoom-out' }}>
+          <img src={enlargedPhoto} alt="" style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 8 }} />
         </div>
       )}
 
