@@ -178,6 +178,8 @@ export default function CRM() {
   const [enquiriesLoaded, setEnquiriesLoaded] = useState(false)
   const [enquiryStatusFilter, setEnquiryStatusFilter] = useState('all')
   const [enquiryMethodFilter, setEnquiryMethodFilter] = useState('all')
+  const [leadSources, setLeadSources] = useState([])
+  const [leadSourcesLoaded, setLeadSourcesLoaded] = useState(false)
   const [showNewEnquiryForm, setShowNewEnquiryForm] = useState(false)
   const [enquiryDraft, setEnquiryDraft] = useState(null)
   const [savingEnquiry, setSavingEnquiry] = useState(false)
@@ -1058,6 +1060,48 @@ export default function CRM() {
     )
   }
 
+  // How actual members said they found the club, straight from the
+  // join forms' own "How did you hear about us?" question -- this
+  // covers everyone who joined, not just people who went through a
+  // manually-logged call/text/email enquiry first (e.g. someone who
+  // just walked in and filled the form on the spot).
+  function loadLeadSources() {
+    supabase.from('membership_forms').select('hear_about').then(({ data }) => {
+      const counts = {}
+      for (const row of data || []) {
+        const key = row.hear_about?.trim() || 'Not recorded'
+        counts[key] = (counts[key] || 0) + 1
+      }
+      const sorted = Object.entries(counts).map(([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count)
+      setLeadSources(sorted)
+      setLeadSourcesLoaded(true)
+    })
+  }
+
+  function LeadSourcesChart({ sources }) {
+    const total = sources.reduce((sum, s) => sum + s.count, 0)
+    const maxCount = Math.max(1, ...sources.map(s => s.count))
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {sources.map(s => (
+          <div key={s.source}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 2 }}>
+              <span>{s.source}</span>
+              <span style={{ color: 'var(--text-tertiary)' }}>{s.count} ({total ? Math.round(s.count / total * 100) : 0}%)</span>
+            </div>
+            <div style={{ height: 8, background: 'var(--bg-secondary)', borderRadius: 4, overflow: 'hidden' }}>
+              <div style={{ width: `${(s.count / maxCount) * 100}%`, height: '100%', background: '#378ADD', borderRadius: 4 }} />
+            </div>
+          </div>
+        ))}
+        {sources.length === 0 && <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No join forms recorded yet.</p>}
+        <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>
+          Note: only PKA Adult and PKA Child join forms currently ask this question — KRBA joins aren't included here yet.
+        </p>
+      </div>
+    )
+  }
+
   function loadEnquiries() {
     supabase.from('enquiries').select('*, members(id, first_name, last_name)').order('enquiry_date', { ascending: false })
       .then(({ data }) => { setEnquiries(data || []); setEnquiriesLoaded(true) })
@@ -1594,7 +1638,7 @@ export default function CRM() {
           color: tab === 'birthdays' ? 'var(--text)' : 'var(--text-secondary)',
           fontWeight: tab === 'birthdays' ? 500 : 400,
         }}>Birthdays{birthdays.length > 0 ? ` (${birthdays.length})` : ''}</button>
-        <button onClick={() => { setTab('enquiries'); if (!enquiriesLoaded) loadEnquiries() }} style={{
+        <button onClick={() => { setTab('enquiries'); if (!enquiriesLoaded) loadEnquiries(); if (!leadSourcesLoaded) loadLeadSources() }} style={{
           padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
           borderBottom: `2px solid ${tab === 'enquiries' ? 'var(--text)' : 'transparent'}`,
           color: tab === 'enquiries' ? 'var(--text)' : 'var(--text-secondary)',
@@ -1659,6 +1703,15 @@ export default function CRM() {
             ))}
           </div>
           <EnquiriesDailyChart enquiries={enquiries} methodFilter={enquiryMethodFilter} />
+
+          <div className="card" style={{ padding: 14, marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Where members actually said they found us</div>
+            {!leadSourcesLoaded ? (
+              <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Loading…</p>
+            ) : (
+              <LeadSourcesChart sources={leadSources} />
+            )}
+          </div>
 
           {showNewEnquiryForm && (
             <div className="card" style={{ marginBottom: 16, padding: 16 }}>
