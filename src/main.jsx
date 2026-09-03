@@ -100,17 +100,17 @@ function App() {
           <Route path="/athlete-app"     element={<ProtectedRoute><AthleteApp /></ProtectedRoute>} />
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-            <Route path="dashboard"       element={<ProtectedRoute staffOnly><Dashboard /></ProtectedRoute>} />
+            <Route path="dashboard"       element={<ProtectedRoute staffOnly excludeLeader><Dashboard /></ProtectedRoute>} />
             <Route path="my-dashboard"    element={<AthleteDashboard />} />
             <Route path="checkin"         element={<ProtectedRoute staffOnly><CheckIn /></ProtectedRoute>} />
             <Route path="registers"       element={<ProtectedRoute staffOnly><Registers /></ProtectedRoute>} />
             <Route path="students"        element={<ProtectedRoute staffOnly excludeLeader><StudentDatabase /></ProtectedRoute>} />
             <Route path="members"         element={<ProtectedRoute staffOnly><Members /></ProtectedRoute>} />
             <Route path="fixtures"        element={<ProtectedRoute staffOnly excludeLeader><Fixtures /></ProtectedRoute>} />
-            <Route path="calendar"        element={<ProtectedRoute staffOnly><CalendarPage /></ProtectedRoute>} />
+            <Route path="calendar"        element={<ProtectedRoute staffOnly excludeLeader><CalendarPage /></ProtectedRoute>} />
             <Route path="crm"             element={<ProtectedRoute staffOnly excludeLeader><CRM /></ProtectedRoute>} />
             <Route path="classes"         element={<ProtectedRoute staffOnly excludeLeader><Classes /></ProtectedRoute>} />
-            <Route path="league"          element={<LeagueViews />} />
+            <Route path="league"          element={<ProtectedRoute staffOnly excludeLeader><LeagueViews /></ProtectedRoute>} />
             <Route path="forms"           element={<ProtectedRoute staffOnly excludeLeader><Forms /></ProtectedRoute>} />
             <Route path="trackers"        element={<ProtectedRoute staffOnly excludeLeader><Trackers /></ProtectedRoute>} />
             <Route path="profile"         element={<Profile />} />
