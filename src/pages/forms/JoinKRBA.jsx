@@ -6,6 +6,7 @@ import { useFormDraft } from '../../hooks/useFormDraft.js'
 import { useReturningPerson } from '../../hooks/useReturningPerson.js'
 
 const STEPS = ['Your details', 'Medical & Emergency', 'Waiver', 'Done']
+const HEAR_OPTIONS = ['Search Engine (Google etc)', 'Word of Mouth', 'Social Media', 'Walked Past', 'Leaflet/Poster', 'Other']
 
 export default function JoinKRBA() {
   const [step, setStep] = useState(0)
@@ -16,7 +17,7 @@ export default function JoinKRBA() {
     full_name: '', address: '', postcode: '', dob: '',
     home_phone: '', mobile_phone: '', email: '',
     additional_needs: '', medical_concerns: '', medication: '',
-    emergency_contact: '', previous_club: '', media_permission: '',
+    emergency_contact: '', previous_club: '', media_permission: '', hear_about: '',
     waiver_agreed: false, signed_name: '', signed_date: '',
   })
 
@@ -64,6 +65,7 @@ export default function JoinKRBA() {
         previous_club: form.previous_club,
         emergency_contact_name: form.emergency_contact,
         waiver_agreed: form.waiver_agreed,
+        hear_about: form.hear_about,
         submitted_at: new Date().toISOString(),
       })
       if (mfErr) console.error('Error saving membership_forms entry:', mfErr)
@@ -160,6 +162,12 @@ export default function JoinKRBA() {
               </div>
             )}
             <div className="field"><label>Previous club details</label><input value={form.previous_club} onChange={set('previous_club')} /></div>
+            <div className="field"><label>How did you hear about us?</label>
+              <select value={form.hear_about} onChange={set('hear_about')}>
+                <option value="">Select…</option>
+                {HEAR_OPTIONS.map(o => <option key={o}>{o}</option>)}
+              </select>
+            </div>
             <div className="field"><label>Media permissions <span className="required">*</span></label>
               <select value={form.media_permission} onChange={set('media_permission')}>
                 <option value="">Select…</option>

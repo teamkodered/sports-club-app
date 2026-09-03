@@ -1095,9 +1095,6 @@ export default function CRM() {
           </div>
         ))}
         {sources.length === 0 && <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No join forms recorded yet.</p>}
-        <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>
-          Note: only PKA Adult and PKA Child join forms currently ask this question — KRBA joins aren't included here yet.
-        </p>
       </div>
     )
   }
