@@ -183,6 +183,8 @@ export default function CRM() {
   const [linkingEnquiryId, setLinkingEnquiryId] = useState(null)
   const [memberLinkSearch, setMemberLinkSearch] = useState('')
   const [memberLinkResults, setMemberLinkResults] = useState([])
+  const [importingFacebookLeads, setImportingFacebookLeads] = useState(false)
+  const [facebookImportResult, setFacebookImportResult] = useState(null)
   const [selectedBirthdays, setSelectedBirthdays] = useState(new Set())
   const [autoSendBirthdays, setAutoSendBirthdays] = useState(false)
   const [showBirthdaysHelp, setShowBirthdaysHelp] = useState(false)
@@ -1014,6 +1016,62 @@ export default function CRM() {
     loadEnquiries()
   }
 
+  // Imports a Facebook Lead Ads export (the "download leads" .xls/.csv
+  // file Meta's ad manager produces). Each Facebook lead has its own
+  // unique id, stored in external_id, so re-uploading the same file
+  // (or a file with an overlapping date range) never creates
+  // duplicates -- already-imported leads are just skipped.
+  async function importFacebookLeadsFile(file) {
+    setImportingFacebookLeads(true)
+    setFacebookImportResult(null)
+    try {
+      const buf = await file.arrayBuffer()
+      const wb = XLSX.read(buf, { type: 'array', cellDates: true })
+      const sheet = wb.Sheets[wb.SheetNames[0]]
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' })
+
+      if (rows.length === 0) { setFacebookImportResult({ error: 'No rows found in that file.' }); return }
+
+      const externalIds = rows.map(r => String(r.id || '')).filter(Boolean)
+      const { data: existing } = await supabase.from('enquiries').select('external_id').in('external_id', externalIds)
+      const existingIds = new Set((existing || []).map(e => e.external_id))
+
+      const toInsert = rows
+        .filter(r => r.id && !existingIds.has(String(r.id)))
+        .map(r => {
+          const created = r.created_time instanceof Date ? r.created_time : new Date(r.created_time)
+          const dateStr = isNaN(created) ? new Date().toISOString().split('T')[0] : created.toISOString().split('T')[0]
+          const notesParts = []
+          if (r.campaign_name) notesParts.push(`Campaign: ${r.campaign_name}`)
+          if (r.ad_name) notesParts.push(`Ad: ${r.ad_name}`)
+          if (r.platform) notesParts.push(`Platform: ${r.platform === 'ig' ? 'Instagram' : r.platform === 'fb' ? 'Facebook' : r.platform}`)
+          return {
+            name: r['full name'] || r.full_name || 'Unknown',
+            contact_phone: r.phone_number || null,
+            contact_email: r.email || null,
+            contact_method: 'facebook_ad',
+            enquiry_date: dateStr,
+            notes: notesParts.join(' · ') || null,
+            status: 'new',
+            external_id: String(r.id),
+          }
+        })
+
+      if (toInsert.length === 0) {
+        setFacebookImportResult({ added: 0, skipped: rows.length })
+        return
+      }
+      const { error } = await supabase.from('enquiries').insert(toInsert)
+      if (error) { setFacebookImportResult({ error: error.message }); return }
+      setFacebookImportResult({ added: toInsert.length, skipped: rows.length - toInsert.length })
+      loadEnquiries()
+    } catch (err) {
+      setFacebookImportResult({ error: 'Could not read that file: ' + err.message })
+    } finally {
+      setImportingFacebookLeads(false)
+    }
+  }
+
   function loadBirthdays() {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -1461,6 +1519,19 @@ export default function CRM() {
             <button className="btn btn-sm btn-primary" onClick={() => { setShowNewEnquiryForm(true); setEnquiryDraft({ name: '', contact_phone: '', contact_email: '', contact_method: 'call', enquiry_date: new Date().toISOString().split('T')[0], notes: '' }) }}>+ Log new enquiry</button>
           </div>
 
+          <div style={{ marginBottom: 16 }}>
+            <label className="btn btn-sm" style={{ cursor: 'pointer', display: 'inline-flex' }}>
+              {importingFacebookLeads ? 'Importing…' : '📥 Import Facebook leads file'}
+              <input type="file" accept=".xls,.xlsx,.csv" style={{ display: 'none' }} disabled={importingFacebookLeads}
+                onChange={e => { if (e.target.files[0]) importFacebookLeadsFile(e.target.files[0]); e.target.value = '' }} />
+            </label>
+            {facebookImportResult && (
+              <span style={{ fontSize: 12, marginLeft: 10, color: facebookImportResult.error ? '#E24B4A' : 'var(--text-secondary)' }}>
+                {facebookImportResult.error || `Added ${facebookImportResult.added} new, skipped ${facebookImportResult.skipped} already imported`}
+              </span>
+            )}
+          </div>
+
           {showNewEnquiryForm && (
             <div className="card" style={{ marginBottom: 16, padding: 16 }}>
               <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 10 }}>New enquiry</div>
@@ -1500,7 +1571,7 @@ export default function CRM() {
                       <div style={{ fontSize: 14, fontWeight: 500 }}>{enq.name}</div>
                       <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
                         {new Date(enq.enquiry_date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                        {' · '}{{ call: 'Phone call', text: 'Text message', email: 'Email', in_person: 'In person', other: 'Other' }[enq.contact_method]}
+                        {' · '}{{ call: 'Phone call', text: 'Text message', email: 'Email', in_person: 'In person', other: 'Other', facebook_ad: 'Facebook/Instagram ad' }[enq.contact_method]}
                         {enq.contact_phone ? ` · ${enq.contact_phone}` : ''}{enq.contact_email ? ` · ${enq.contact_email}` : ''}
                       </div>
                       {enq.notes && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{enq.notes}</div>}
