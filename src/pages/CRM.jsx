@@ -716,12 +716,55 @@ export default function CRM() {
         setInboxError(result.error || res.statusText)
       } else {
         setInboxMessages(result.messages || [])
+        autoAddUnknownEmailsAsEnquiries(result.messages || [])
       }
     } catch (e) {
       setInboxError(e.message)
     }
     setInboxLoaded(true)
     setInboxLoading(false)
+  }
+
+  // Anyone emailing in who isn't already an existing member AND isn't
+  // already tracked as an enquiry (from any source -- phone, Facebook,
+  // etc.) gets added automatically as a new "email" enquiry. Existing
+  // members are deliberately excluded -- they're already customers,
+  // not leads, so treating their emails as enquiries would just be
+  // noise. Safe to call every time the inbox loads: matching is by
+  // email address, so anyone already added is simply skipped, not
+  // duplicated.
+  async function autoAddUnknownEmailsAsEnquiries(messages) {
+    const senderEmails = [...new Set(messages.map(m => m.from?.toLowerCase()).filter(Boolean))]
+    if (senderEmails.length === 0) return
+
+    const [{ data: existingEnquiries }, { data: existingMembers }] = await Promise.all([
+      supabase.from('enquiries').select('contact_email').not('contact_email', 'is', null),
+      supabase.from('members').select('email').not('email', 'is', null),
+    ])
+    const knownEmails = new Set([
+      ...(existingEnquiries || []).map(e => e.contact_email?.toLowerCase()),
+      ...(existingMembers || []).map(m => m.email?.toLowerCase()),
+    ])
+
+    const seenThisBatch = new Set()
+    const toInsert = []
+    for (const m of messages) {
+      const email = m.from?.toLowerCase()
+      if (!email || knownEmails.has(email) || seenThisBatch.has(email)) continue
+      seenThisBatch.add(email)
+      const dateStr = m.date ? new Date(m.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
+      toInsert.push({
+        name: m.fromName || email.split('@')[0],
+        contact_email: m.from,
+        contact_method: 'email',
+        enquiry_date: dateStr,
+        notes: m.subject ? `Auto-added from inbox: "${m.subject}"` : 'Auto-added from inbox',
+        status: 'new',
+      })
+    }
+    if (toInsert.length === 0) return
+    await supabase.from('enquiries').insert(toInsert)
+    if (enquiriesLoaded) loadEnquiries()
   }
 
   // Sends a real test email to the club's own address -- a quick,
