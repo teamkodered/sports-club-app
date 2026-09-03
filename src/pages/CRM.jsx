@@ -878,13 +878,18 @@ export default function CRM() {
     setOpenMessage(null)
   }
 
-  // A quick UK-mobile-shaped number found anywhere in the message
-  // body, so a Text/Call button can appear without needing a
-  // structured "phone" field on the email itself.
+  // A UK phone number found anywhere in the message body, so a
+  // Text/Call button can appear without needing a structured "phone"
+  // field on the email itself. Matches mobiles (07...) and landlines
+  // (01/02/03...) alike -- both start with 0 (or +44) followed by 9-10
+  // more digits, with optional spaces/dashes between groups (e.g.
+  // "01332 123456", "0116-496 0123", "+44 7856 513738"). Text
+  // messages/calls don't really apply to a landline, but the button
+  // still shows for click-to-call convenience.
   function extractPhoneNumber(text) {
     if (!text) return null
-    const match = text.match(/(?:\+44\s?7\d{3}|\(?07\d{3}\)?)[\s-]?\d{3}[\s-]?\d{3}/)
-    return match ? match[0].replace(/[\s()-]/g, '') : null
+    const match = text.match(/(?:\+44\s?|0)(?:\d[\s-]?){9,10}/)
+    return match ? match[0].replace(/[\s-]/g, '') : null
   }
 
   // Adds (or updates) this sender as an Enquiries entry marked
@@ -3397,10 +3402,11 @@ export default function CRM() {
 
                     {!replyDraft && (() => {
                       const phone = extractPhoneNumber(openMessage.body) || extractPhoneNumber(openMessage.subject)
+                      const isMobile = phone && /^(?:\+447|07)/.test(phone)
                       return (
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
                           {phone && <a className="btn btn-sm" href={`tel:${phone}`}>📞 Call {phone}</a>}
-                          {phone && <a className="btn btn-sm" href={`sms:${phone}`}>💬 Text {phone}</a>}
+                          {phone && isMobile && <a className="btn btn-sm" href={`sms:${phone}`}>💬 Text {phone}</a>}
                           <button className="btn btn-sm" onClick={markMessageContacted}>✓ Mark contacted → Enquiries</button>
                           <button className="btn btn-sm" style={{ color: '#E24B4A' }} onClick={deleteOpenMessage}>🗑️ Delete</button>
                         </div>
