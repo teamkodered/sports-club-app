@@ -12,7 +12,7 @@ export default function CoachSignup() {
   const [form, setForm] = useState({
     first_name: '', last_name: '', email: '',
     phone: '', password: '', confirm: '',
-    role: 'captain', // captain or admin
+    role: 'leader', // leader or admin
   })
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -124,7 +124,7 @@ export default function CoachSignup() {
             <div className="field">
               <label>Role</label>
               <select value={form.role} onChange={set('role')}>
-                <option value="captain">Coach / Captain</option>
+                <option value="leader">Leader</option>
                 <option value="admin">Administrator</option>
               </select>
             </div>

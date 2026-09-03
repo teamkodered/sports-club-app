@@ -529,7 +529,7 @@ export default function Settings() {
                 disabled={roleSaving === m.id}
                 style={{ padding: '5px 8px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 12, background: 'var(--bg-secondary)', color: 'var(--text)', minWidth: 110 }}>
                 <option value="member">Member</option>
-                <option value="captain">Captain</option>
+                <option value="leader">Leader</option>
                 <option value="admin">Admin</option>
               </select>
               {roleSaving === m.id && <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>…</span>}
