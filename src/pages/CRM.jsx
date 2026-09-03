@@ -736,8 +736,24 @@ export default function CRM() {
   // noise. Safe to call every time the inbox loads: matching is by
   // email address, so anyone already added is simply skipped, not
   // duplicated.
+  //
+  // Also excludes the club's own address (self-notifications, e.g.
+  // the website's booking widget emailing a "New booking" alert to
+  // this same inbox -- that's a system notification, not a lead) and
+  // any message whose subject matches a known automated-notification
+  // pattern, as a second layer of protection against the same kind of
+  // noise from other automated senders.
+  const CLUB_OWN_EMAIL = 'info@derbykickboxing.org.uk'
+  const AUTOMATED_SUBJECT_PATTERNS = [/^new booking for event:/i, /^booking confirmation/i, /^automatic reply/i]
+
   async function autoAddUnknownEmailsAsEnquiries(messages) {
-    const senderEmails = [...new Set(messages.map(m => m.from?.toLowerCase()).filter(Boolean))]
+    const relevantMessages = messages.filter(m => {
+      const email = m.from?.toLowerCase()
+      if (!email || email === CLUB_OWN_EMAIL) return false
+      if (AUTOMATED_SUBJECT_PATTERNS.some(p => p.test(m.subject || ''))) return false
+      return true
+    })
+    const senderEmails = [...new Set(relevantMessages.map(m => m.from?.toLowerCase()).filter(Boolean))]
     if (senderEmails.length === 0) return
 
     const [{ data: existingEnquiries }, { data: existingMembers }] = await Promise.all([
@@ -751,7 +767,7 @@ export default function CRM() {
 
     const seenThisBatch = new Set()
     const toInsert = []
-    for (const m of messages) {
+    for (const m of relevantMessages) {
       const email = m.from?.toLowerCase()
       if (!email || knownEmails.has(email) || seenThisBatch.has(email)) continue
       seenThisBatch.add(email)
@@ -785,6 +801,28 @@ export default function CRM() {
 
   // Opens a single inbox message, fetching its full body on demand
   // (the list view only ever loads headers, to keep it fast).
+  // Some automated senders (this affects the website's booking
+  // notification emails specifically) accidentally include their own
+  // raw delivery headers (Return-Path, Received, X-PHP-Script etc.) as
+  // part of the actual message body -- a bug on the sending side, not
+  // something wrong with how this app reads mail. Detects and strips
+  // that header block so the readable content displays cleanly.
+  function stripLeadingRawHeaders(body) {
+    if (!body) return body
+    const lines = body.split('\n')
+    let i = 0
+    // A "header line" looks like "Word-Word: value" or "(parenthetical)".
+    // Keep skipping while lines match that shape or are blank, up to a
+    // sane limit so this can't accidentally eat a genuinely short reply.
+    while (i < lines.length && i < 40 && (/^[\w-]+:\s?/.test(lines[i]) || /^\(.*\)$/.test(lines[i]) || lines[i].trim() === '')) {
+      i++
+    }
+    // Only strip if we actually found several header-shaped lines --
+    // one or two matches could just be normal text that happens to
+    // contain a colon.
+    return i >= 5 ? lines.slice(i).join('\n').replace(/^\n+/, '') : body
+  }
+
   async function openInboxMessage(uid) {
     setOpenMessage({ uid }) // shows the modal immediately with a loading state
     setOpenMessageLoading(true)
@@ -799,7 +837,7 @@ export default function CRM() {
       if (!res.ok || result.error) {
         setOpenMessageError(result.error || res.statusText)
       } else {
-        setOpenMessage(result.message)
+        setOpenMessage({ ...result.message, body: stripLeadingRawHeaders(result.message.body) })
       }
     } catch (e) {
       setOpenMessageError(e.message)
