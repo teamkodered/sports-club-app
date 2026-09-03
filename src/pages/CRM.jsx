@@ -128,6 +128,8 @@ export default function CRM() {
   const [students, setStudents] = useState([])
   const [payerLinks, setPayerLinks] = useState([])
   const [payments, setPayments] = useState([]) // parsed from the uploaded file: [{ name, amount, raw }]
+  const [adhocKeywords, setAdhocKeywords] = useState(['level up'])
+  const [adhocKeywordDraft, setAdhocKeywordDraft] = useState('')
   const [pastUploads, setPastUploads] = useState([]) // [{ id, uploaded_at, filename }] -- history list, not the full payments
   const [activeUploadId, setActiveUploadId] = useState(null) // which past upload (if any) is currently loaded
   const [lastAction, setLastAction] = useState(null) // { label, undo } -- covers every undoable action on this page, not just dismiss
@@ -612,6 +614,16 @@ export default function CRM() {
   }
 
   useEffect(() => { loadData() }, [])
+
+  useEffect(() => {
+    supabase.from('settings').select('value').eq('key', 'standing_order_adhoc_keywords').maybeSingle()
+      .then(({ data }) => { if (data?.value?.length) setAdhocKeywords(data.value) })
+  }, [])
+
+  async function saveAdhocKeywords(next) {
+    setAdhocKeywords(next)
+    await supabase.from('settings').upsert({ key: 'standing_order_adhoc_keywords', value: next }, { onConflict: 'key' })
+  }
   useEffect(() => { loadPastUploads() }, [])
 
   async function loadPastUploads() {
@@ -1552,9 +1564,20 @@ export default function CRM() {
   // matched to someone else -- this is what makes it possible to
   // link ONE payment to MULTIPLE students (e.g. a parent paying for
   // several siblings in one standing order).
+  // Payments containing a configured ad-hoc keyword (e.g. "Level Up"
+  // sessions, equipment purchases) are pulled out here entirely --
+  // shown separately for visibility, but never matched to a student or
+  // counted toward their standing order being paid.
+  function isAdhocPayment(name) {
+    const lower = (name || '').toLowerCase()
+    return adhocKeywords.some(kw => kw.trim() && lower.includes(kw.trim().toLowerCase()))
+  }
+
   const paymentsByStudentId = {}
   const unmatchedPayments = []
+  const adhocPayments = []
   payments.forEach((p, idx) => {
+    if (isAdhocPayment(p.name)) { adhocPayments.push({ payment: p, idx }); return }
     const sids = matchStudentIdsForPayment(p)
     if (sids.length) sids.forEach(sid => (paymentsByStudentId[sid] ||= []).push({ payment: p, idx }))
     else unmatchedPayments.push({ payment: p, idx })
@@ -2013,11 +2036,47 @@ export default function CRM() {
             )}
             {payments.length > 0 && (
               <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
-                {payments.length} payments loaded · {matchedStudentIds.size} matched · {unmatchedPayments.length} unmatched
+                {payments.length} payments loaded · {matchedStudentIds.size} matched · {unmatchedPayments.length} unmatched · {adhocPayments.length} ad-hoc (excluded)
                 <button className="btn btn-sm" onClick={clearPayments}>✕ Clear</button>
               </p>
             )}
           </div>
+
+          <div className="card" style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>🏷️ Ad-hoc payment keywords</div>
+            <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 8 }}>
+              Any payment whose description contains one of these words is treated as a one-off (Level Up sessions, equipment, etc.) — shown separately below, never matched to a student or counted as their standing order.
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+              {adhocKeywords.map((kw, i) => (
+                <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, padding: '3px 8px', borderRadius: 12, background: 'var(--bg-secondary)' }}>
+                  {kw}
+                  <button onClick={() => saveAdhocKeywords(adhocKeywords.filter((_, j) => j !== i))} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 12, padding: 0 }}>✕</button>
+                </span>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input type="text" value={adhocKeywordDraft} onChange={e => setAdhocKeywordDraft(e.target.value)}
+                placeholder="e.g. equipment" style={{ fontSize: 12, flex: 1 }}
+                onKeyDown={e => { if (e.key === 'Enter' && adhocKeywordDraft.trim()) { saveAdhocKeywords([...adhocKeywords, adhocKeywordDraft.trim()]); setAdhocKeywordDraft('') } }} />
+              <button className="btn btn-sm" onClick={() => { if (adhocKeywordDraft.trim()) { saveAdhocKeywords([...adhocKeywords, adhocKeywordDraft.trim()]); setAdhocKeywordDraft('') } }}>+ Add</button>
+            </div>
+          </div>
+
+          {adhocPayments.length > 0 && (
+            <div className="card" style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Ad-hoc payments in this upload ({adhocPayments.length})</div>
+              <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 8 }}>For reference only — not counted anywhere above.</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {adhocPayments.map(({ payment: p, idx }) => (
+                  <div key={idx} style={{ fontSize: 12, display: 'flex', justifyContent: 'space-between', padding: '4px 8px', background: 'var(--bg-secondary)', borderRadius: 6 }}>
+                    <span>{p.name}</span>
+                    {p.amount != null && <span style={{ color: 'var(--text-tertiary)' }}>{p.amount}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {loading ? <p>Loading…</p> : payments.length > 0 && (
             <>
