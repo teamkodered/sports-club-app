@@ -174,6 +174,15 @@ export default function CRM() {
   const [mtRecipientSearch, setMtRecipientSearch] = useState('')
   const [birthdays, setBirthdays] = useState([]) // computed list, loaded on first visit to that tab
   const [birthdaysLoaded, setBirthdaysLoaded] = useState(false)
+  const [enquiries, setEnquiries] = useState([])
+  const [enquiriesLoaded, setEnquiriesLoaded] = useState(false)
+  const [enquiryStatusFilter, setEnquiryStatusFilter] = useState('all')
+  const [showNewEnquiryForm, setShowNewEnquiryForm] = useState(false)
+  const [enquiryDraft, setEnquiryDraft] = useState(null)
+  const [savingEnquiry, setSavingEnquiry] = useState(false)
+  const [linkingEnquiryId, setLinkingEnquiryId] = useState(null)
+  const [memberLinkSearch, setMemberLinkSearch] = useState('')
+  const [memberLinkResults, setMemberLinkResults] = useState([])
   const [selectedBirthdays, setSelectedBirthdays] = useState(new Set())
   const [autoSendBirthdays, setAutoSendBirthdays] = useState(false)
   const [showBirthdaysHelp, setShowBirthdaysHelp] = useState(false)
@@ -958,6 +967,53 @@ export default function CRM() {
   // (this year, or next year if it's already passed) falls within the
   // next 28 days. Purely computed from date_of_birth already loaded
   // with students, so no extra queries needed.
+  function loadEnquiries() {
+    supabase.from('enquiries').select('*, members(id, first_name, last_name)').order('enquiry_date', { ascending: false })
+      .then(({ data }) => { setEnquiries(data || []); setEnquiriesLoaded(true) })
+  }
+
+  async function saveNewEnquiry() {
+    if (!enquiryDraft?.name?.trim()) return
+    setSavingEnquiry(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    const { error } = await supabase.from('enquiries').insert({
+      name: enquiryDraft.name.trim(),
+      contact_phone: enquiryDraft.contact_phone?.trim() || null,
+      contact_email: enquiryDraft.contact_email?.trim() || null,
+      contact_method: enquiryDraft.contact_method || 'call',
+      enquiry_date: enquiryDraft.enquiry_date || new Date().toISOString().split('T')[0],
+      notes: enquiryDraft.notes?.trim() || null,
+      status: 'new',
+      created_by: user?.id || null,
+    })
+    setSavingEnquiry(false)
+    if (error) { alert('Error saving enquiry: ' + error.message); return }
+    setShowNewEnquiryForm(false)
+    setEnquiryDraft(null)
+    loadEnquiries()
+  }
+
+  async function updateEnquiryStatus(id, status) {
+    await supabase.from('enquiries').update({ status, updated_at: new Date().toISOString() }).eq('id', id)
+    loadEnquiries()
+  }
+
+  async function searchMembersToLink(query) {
+    setMemberLinkSearch(query)
+    if (!query.trim()) { setMemberLinkResults([]); return }
+    const { data } = await supabase.from('members').select('id, first_name, last_name, email, phone')
+      .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%`).limit(10)
+    setMemberLinkResults(data || [])
+  }
+
+  async function linkEnquiryToMember(enquiryId, memberId) {
+    await supabase.from('enquiries').update({ linked_member_id: memberId, status: 'joined', updated_at: new Date().toISOString() }).eq('id', enquiryId)
+    setLinkingEnquiryId(null)
+    setMemberLinkSearch('')
+    setMemberLinkResults([])
+    loadEnquiries()
+  }
+
   function loadBirthdays() {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -1365,6 +1421,12 @@ export default function CRM() {
           color: tab === 'birthdays' ? 'var(--text)' : 'var(--text-secondary)',
           fontWeight: tab === 'birthdays' ? 500 : 400,
         }}>Birthdays{birthdays.length > 0 ? ` (${birthdays.length})` : ''}</button>
+        <button onClick={() => { setTab('enquiries'); if (!enquiriesLoaded) loadEnquiries() }} style={{
+          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
+          borderBottom: `2px solid ${tab === 'enquiries' ? 'var(--text)' : 'transparent'}`,
+          color: tab === 'enquiries' ? 'var(--text)' : 'var(--text-secondary)',
+          fontWeight: tab === 'enquiries' ? 500 : 400,
+        }}>Enquiries</button>
         <button onClick={() => setTab('messages')} style={{
           padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
           borderBottom: `2px solid ${tab === 'messages' ? 'var(--text)' : 'transparent'}`,
@@ -1384,6 +1446,105 @@ export default function CRM() {
           fontWeight: tab === 'courses' ? 500 : 400,
         }}>Courses{courses.length > 0 ? ` (${courses.length})` : ''}</button>
       </div>
+
+      {tab === 'enquiries' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <select value={enquiryStatusFilter} onChange={e => setEnquiryStatusFilter(e.target.value)} style={{ fontSize: 13 }}>
+              <option value="all">All statuses</option>
+              <option value="new">New</option>
+              <option value="contacted">Contacted</option>
+              <option value="trial_booked">Trial booked</option>
+              <option value="joined">Joined</option>
+              <option value="not_interested">Not interested</option>
+            </select>
+            <button className="btn btn-sm btn-primary" onClick={() => { setShowNewEnquiryForm(true); setEnquiryDraft({ name: '', contact_phone: '', contact_email: '', contact_method: 'call', enquiry_date: new Date().toISOString().split('T')[0], notes: '' }) }}>+ Log new enquiry</button>
+          </div>
+
+          {showNewEnquiryForm && (
+            <div className="card" style={{ marginBottom: 16, padding: 16 }}>
+              <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 10 }}>New enquiry</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <input type="text" placeholder="Name" value={enquiryDraft.name} onChange={e => setEnquiryDraft(d => ({ ...d, name: e.target.value }))} style={{ fontSize: 13 }} />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input type="text" placeholder="Phone" value={enquiryDraft.contact_phone} onChange={e => setEnquiryDraft(d => ({ ...d, contact_phone: e.target.value }))} style={{ fontSize: 13, flex: 1 }} />
+                  <input type="email" placeholder="Email" value={enquiryDraft.contact_email} onChange={e => setEnquiryDraft(d => ({ ...d, contact_email: e.target.value }))} style={{ fontSize: 13, flex: 1 }} />
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <select value={enquiryDraft.contact_method} onChange={e => setEnquiryDraft(d => ({ ...d, contact_method: e.target.value }))} style={{ fontSize: 13, flex: 1 }}>
+                    <option value="call">Phone call</option>
+                    <option value="text">Text message</option>
+                    <option value="email">Email</option>
+                    <option value="in_person">In person</option>
+                    <option value="other">Other</option>
+                  </select>
+                  <input type="date" value={enquiryDraft.enquiry_date} onChange={e => setEnquiryDraft(d => ({ ...d, enquiry_date: e.target.value }))} style={{ fontSize: 13, flex: 1 }} />
+                </div>
+                <textarea placeholder="Notes (what they asked about, any follow-up needed...)" value={enquiryDraft.notes} onChange={e => setEnquiryDraft(d => ({ ...d, notes: e.target.value }))} style={{ fontSize: 13, minHeight: 60 }} />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn btn-sm btn-primary" disabled={savingEnquiry || !enquiryDraft.name.trim()} onClick={saveNewEnquiry}>{savingEnquiry ? 'Saving…' : 'Save enquiry'}</button>
+                  <button className="btn btn-sm" onClick={() => { setShowNewEnquiryForm(false); setEnquiryDraft(null) }}>Cancel</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!enquiriesLoaded ? (
+            <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Loading…</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {enquiries.filter(e => enquiryStatusFilter === 'all' || e.status === enquiryStatusFilter).map(enq => (
+                <div key={enq.id} className="card" style={{ padding: 14 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 500 }}>{enq.name}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                        {new Date(enq.enquiry_date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        {' · '}{{ call: 'Phone call', text: 'Text message', email: 'Email', in_person: 'In person', other: 'Other' }[enq.contact_method]}
+                        {enq.contact_phone ? ` · ${enq.contact_phone}` : ''}{enq.contact_email ? ` · ${enq.contact_email}` : ''}
+                      </div>
+                      {enq.notes && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{enq.notes}</div>}
+                      {enq.members && (
+                        <div style={{ fontSize: 12, color: '#1D9E75', marginTop: 4, fontWeight: 500 }}>
+                          ✓ Joined — linked to {enq.members.first_name} {enq.members.last_name}
+                        </div>
+                      )}
+                    </div>
+                    <select value={enq.status} onChange={e => updateEnquiryStatus(enq.id, e.target.value)} style={{ fontSize: 12 }}>
+                      <option value="new">New</option>
+                      <option value="contacted">Contacted</option>
+                      <option value="trial_booked">Trial booked</option>
+                      <option value="joined">Joined</option>
+                      <option value="not_interested">Not interested</option>
+                    </select>
+                  </div>
+                  {!enq.linked_member_id && (
+                    <div style={{ marginTop: 8 }}>
+                      {linkingEnquiryId === enq.id ? (
+                        <div>
+                          <input type="text" placeholder="Search members by name…" value={memberLinkSearch} onChange={e => searchMembersToLink(e.target.value)} style={{ fontSize: 12, width: '100%', marginBottom: 4 }} />
+                          {memberLinkResults.map(m => (
+                            <div key={m.id} onClick={() => linkEnquiryToMember(enq.id, m.id)} style={{ fontSize: 12, padding: '4px 6px', cursor: 'pointer', borderRadius: 4 }}
+                              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                              {m.first_name} {m.last_name} {m.email ? `· ${m.email}` : ''}
+                            </div>
+                          ))}
+                          <button className="btn btn-sm" style={{ marginTop: 4 }} onClick={() => { setLinkingEnquiryId(null); setMemberLinkSearch(''); setMemberLinkResults([]) }}>Cancel</button>
+                        </div>
+                      ) : (
+                        <button className="btn btn-sm" onClick={() => setLinkingEnquiryId(enq.id)}>Link to member (once they've joined)</button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+              {enquiries.filter(e => enquiryStatusFilter === 'all' || e.status === enquiryStatusFilter).length === 0 && (
+                <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No enquiries logged yet.</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {tab === 'standing_orders' && (
         <div>
