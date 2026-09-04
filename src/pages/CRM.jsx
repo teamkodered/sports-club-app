@@ -815,26 +815,26 @@ export default function CRM() {
 
   // Opens a single inbox message, fetching its full body on demand
   // (the list view only ever loads headers, to keep it fast).
-  // Some automated senders (this affects the website's booking
-  // notification emails specifically) accidentally include their own
-  // raw delivery headers (Return-Path, Received, X-PHP-Script etc.) as
-  // part of the actual message body -- a bug on the sending side, not
-  // something wrong with how this app reads mail. Detects and strips
-  // that header block so the readable content displays cleanly.
+  // Some senders' emails include their own raw delivery headers
+  // (Return-Path, Received, DKIM-Signature etc.) as if they were part
+  // of the message body -- either a bug on the sending side, or (as
+  // seen with a long DKIM signature) headers that fold across many
+  // physical lines, which broke an earlier, simpler per-line check.
+  // RFC822 headers reliably end at the first truly blank line no
+  // matter how many lines they span, so that's the boundary used here
+  // -- checking for several recognisable header field names before it
+  // (rather than validating every line) means folded/wrapped headers
+  // no longer trip this up.
   function stripLeadingRawHeaders(body) {
     if (!body) return body
-    const lines = body.split('\n')
-    let i = 0
-    // A "header line" looks like "Word-Word: value" or "(parenthetical)".
-    // Keep skipping while lines match that shape or are blank, up to a
-    // sane limit so this can't accidentally eat a genuinely short reply.
-    while (i < lines.length && i < 40 && (/^[\w-]+:\s?/.test(lines[i]) || /^\(.*\)$/.test(lines[i]) || lines[i].trim() === '')) {
-      i++
-    }
-    // Only strip if we actually found several header-shaped lines --
-    // one or two matches could just be normal text that happens to
-    // contain a colon.
-    return i >= 5 ? lines.slice(i).join('\n').replace(/^\n+/, '') : body
+    const blankLineIdx = body.search(/\r?\n\s*\r?\n/)
+    if (blankLineIdx === -1) return body
+    const headerChunk = body.slice(0, blankLineIdx)
+    const knownHeaders = ['Return-Path:', 'Delivered-To:', 'Received:', 'DKIM-Signature:', 'Message-Id:', 'Message-ID:', 'X-Mailer:', 'Content-Type:', 'Content-Transfer-Encoding:', 'MIME-Version:', 'Envelope-to:', 'Envelope-from:', 'X-PHP-Script:', 'X-Spam-Status:', 'X-Spam-Score:']
+    const matches = knownHeaders.filter(h => headerChunk.includes(h)).length
+    if (matches < 3) return body
+    const stripped = body.slice(blankLineIdx).replace(/^(\r?\n\s*)+/, '')
+    return stripped.trim() ? stripped : "(This message's content couldn't be separated from its headers -- the raw text has been hidden rather than shown as-is.)"
   }
 
   async function openInboxMessage(uid) {
