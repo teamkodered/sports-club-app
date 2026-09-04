@@ -214,6 +214,9 @@ export default function CRM() {
   const [bdRecipientId, setBdRecipientId] = useState(null)
   const [bdRecipientSearch, setBdRecipientSearch] = useState('')
   const [showMessagesHelp, setShowMessagesHelp] = useState(false)
+  const [msgSelectedStudentIds, setMsgSelectedStudentIds] = useState(() => new Set())
+  const [msgNameSearch, setMsgNameSearch] = useState('')
+  const [msgBatchSending, setMsgBatchSending] = useState(false)
   const [msgTemplates, setMsgTemplates] = useState([
     { label: 'Template 1', body: '' },
     { label: 'Template 2', body: '' },
@@ -1045,9 +1048,9 @@ export default function CRM() {
     }
   }
 
-  async function sendRealEmail(to, subject, text) {
-    if (!to) { alert('No email address on file for this person.'); return false }
-    if (!text || !text.trim()) { alert('This message is empty — add some text to the template first.'); return false }
+  async function sendRealEmail(to, subject, text, silent = false) {
+    if (!to) { if (!silent) alert('No email address on file for this person.'); return false }
+    if (!text || !text.trim()) { if (!silent) alert('This message is empty — add some text to the template first.'); return false }
     try {
       const { data: sessionData } = await supabase.auth.getSession()
       const accessToken = sessionData?.session?.access_token
@@ -1057,10 +1060,10 @@ export default function CRM() {
         body: JSON.stringify({ to, subject, text }),
       })
       const result = await res.json()
-      if (!res.ok || result.error) { alert('Could not send email: ' + (result.error || res.statusText)); return false }
+      if (!res.ok || result.error) { if (!silent) alert('Could not send email: ' + (result.error || res.statusText)); return false }
       return true
     } catch (e) {
-      alert('Could not send email: ' + e.message)
+      if (!silent) alert('Could not send email: ' + e.message)
       return false
     }
   }
@@ -3427,10 +3430,53 @@ export default function CRM() {
             )}
           </div>
 
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
+            <input type="text" placeholder="🔍 Search by name…" value={msgNameSearch} onChange={e => setMsgNameSearch(e.target.value)} style={{ fontSize: 13, flex: 1, minWidth: 160 }} />
+            {msgSelectedStudentIds.size > 0 && (
+              <>
+                <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{msgSelectedStudentIds.size} selected</span>
+                <button className="btn btn-sm" onClick={() => setMsgSelectedStudentIds(new Set())}>Clear</button>
+                <button className="btn btn-sm btn-primary" disabled={msgSelectedTemplateIdx == null || msgBatchSending}
+                  title={msgSelectedTemplateIdx == null ? 'Select a template first' : 'Emails every selected student who has a real email address on file'}
+                  onClick={async () => {
+                    setMsgBatchSending(true)
+                    const targets = students.filter(s => msgSelectedStudentIds.has(s.id))
+                    let sent = 0, skipped = 0
+                    for (const s of targets) {
+                      const email = s.members?.email && !s.members.email.includes('@kr-centre.placeholder') ? s.members.email : null
+                      if (!email) { skipped++; continue }
+                      const text = (msgTemplates[msgSelectedTemplateIdx].body || '')
+                        .replace(/\{name\}/gi, s.members?.first_name || '')
+                        .replace(/\{parent_name\}/gi, s.guardian_name || '')
+                      const ok = await sendRealEmail(email, msgTemplates[msgSelectedTemplateIdx].label || 'Message from KR Centre', text, true)
+                      if (ok) sent++; else skipped++
+                    }
+                    setMsgBatchSending(false)
+                    alert(`Sent to ${sent} student${sent === 1 ? '' : 's'}${skipped ? ` · ${skipped} skipped (no email on file, or send failed)` : ''}`)
+                  }}>
+                  {msgBatchSending ? 'Sending…' : `✉️ Send to ${msgSelectedStudentIds.size} selected`}
+                </button>
+              </>
+            )}
+          </div>
+
           <div className="card" style={{ overflowX: 'auto' }}>
             <table style={{ minWidth: 700 }}>
               <thead>
                 <tr>
+                  <th style={{ width: 32 }}>
+                    <input type="checkbox"
+                      checked={sortedMessagesStudents().filter(s => !msgNameSearch.trim() || studentFullName(s).toLowerCase().includes(msgNameSearch.trim().toLowerCase())).length > 0 && sortedMessagesStudents().filter(s => !msgNameSearch.trim() || studentFullName(s).toLowerCase().includes(msgNameSearch.trim().toLowerCase())).every(s => msgSelectedStudentIds.has(s.id))}
+                      onChange={e => {
+                        const visible = sortedMessagesStudents().filter(s => !msgNameSearch.trim() || studentFullName(s).toLowerCase().includes(msgNameSearch.trim().toLowerCase()))
+                        setMsgSelectedStudentIds(prev => {
+                          const next = new Set(prev)
+                          if (e.target.checked) visible.forEach(s => next.add(s.id))
+                          else visible.forEach(s => next.delete(s.id))
+                          return next
+                        })
+                      }} />
+                  </th>
                   {[
                     ['student_ref', 'ID'], ['name', 'Name'], ['age', 'Age'], ['house', 'House'],
                     ['grade', 'Grade'],
@@ -3471,8 +3517,17 @@ export default function CRM() {
                 </tr>
               </thead>
               <tbody>
-                {sortedMessagesStudents().map(s => (
+                {sortedMessagesStudents().filter(s => !msgNameSearch.trim() || studentFullName(s).toLowerCase().includes(msgNameSearch.trim().toLowerCase())).map(s => (
                   <tr key={s.id}>
+                    <td>
+                      <input type="checkbox" checked={msgSelectedStudentIds.has(s.id)} onChange={e => {
+                        setMsgSelectedStudentIds(prev => {
+                          const next = new Set(prev)
+                          if (e.target.checked) next.add(s.id); else next.delete(s.id)
+                          return next
+                        })
+                      }} />
+                    </td>
                     <td style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{s.student_ref}</td>
                     <td style={{ fontSize: 13, fontWeight: 500 }}>{studentFullName(s)}</td>
                     <td style={{ fontSize: 13 }}>{studentAge(s) ?? '—'}</td>
