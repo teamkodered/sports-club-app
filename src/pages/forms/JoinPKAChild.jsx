@@ -38,7 +38,7 @@ export default function JoinPKAChild() {
     // Emergency
     emergency_name: '', emergency_phone: '',
     // Waiver
-    waiver_agreed: false, signature_name: '', signature_dob: '', signature_postcode: '', signature_phone: '',
+    waiver_agreed: false, signature_name: '', signature_surname: '', signature_dob: '', signature_postcode: '', signature_phone: '',
     // Sponsor
     sponsor_name: '',
   })
@@ -260,7 +260,7 @@ export default function JoinPKAChild() {
             <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 10 }}>Your signature details:</p>
             <div className="field-row">
               <div className="field"><label>First name</label><input value={form.signature_name} onChange={set('signature_name')} /></div>
-              <div className="field"><label>Surname</label><input value={form.last_name} readOnly style={{ opacity: 0.7 }} /></div>
+              <div className="field"><label>Surname</label><input value={form.signature_surname} onChange={set('signature_surname')} /></div>
             </div>
             <div className="field-row">
               <div className="field"><label>Date of birth</label><input type="date" value={form.signature_dob} onChange={set('signature_dob')} /></div>
@@ -274,7 +274,15 @@ export default function JoinPKAChild() {
             {step > 0 && <button className="btn" onClick={() => setStep(s => s - 1)}>← Back</button>}
             {step < STEPS.length - 2 ? (
               <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}
-                onClick={() => setStep(s => s + 1)}
+                onClick={() => {
+                  // Moving into the Waiver step (4) -- default the
+                  // signature surname to the child's surname, since
+                  // that's the common case, but this is now a normal
+                  // editable field so a parent/guardian with a
+                  // different surname can correct it.
+                  if (step === 3 && !form.signature_surname) setForm(f => ({ ...f, signature_surname: f.last_name }))
+                  setStep(s => s + 1)
+                }}
                 disabled={
                   (step === 0 && (!form.first_name || !form.last_name || !form.dob)) ||
                   (step === 1 && (!form.guardian_name || !form.email || !form.mobile_phone || !form.media_permission))
@@ -284,7 +292,7 @@ export default function JoinPKAChild() {
             ) : (
               <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}
                 onClick={submit}
-                disabled={submitting || !form.waiver_agreed || !form.signature_name || !form.signature_dob || !form.signature_postcode || !form.signature_phone}>
+                disabled={submitting || !form.waiver_agreed || !form.signature_name || !form.signature_surname || !form.signature_dob || !form.signature_postcode || !form.signature_phone}>
                 {submitting ? 'Submitting…' : 'Submit application'}
               </button>
             )}

@@ -35,7 +35,7 @@ export default function JoinPKAAdult() {
     media_permission: '', hear_about: '', promo_code: '',
     goals: [], goal_notes: '', fitness_level: '', other_activities: '',
     medical_concerns: '',
-    waiver_agreed: false, signature_name: '', signature_dob: '', signature_postcode: '', signature_phone: '',
+    waiver_agreed: false, signature_name: '', signature_surname: '', signature_dob: '', signature_postcode: '', signature_phone: '',
   })
 
   const draft = useFormDraft('pka_adult', form, setForm, step, setStep)
@@ -234,7 +234,7 @@ export default function JoinPKAAdult() {
             </label>
             <div className="field-row">
               <div className="field"><label>First name</label><input value={form.signature_name || form.first_name} onChange={set('signature_name')} /></div>
-              <div className="field"><label>Surname</label><input value={form.last_name} readOnly style={{ opacity: 0.7 }} /></div>
+              <div className="field"><label>Surname</label><input value={form.signature_surname} onChange={set('signature_surname')} /></div>
             </div>
             <div className="field-row">
               <div className="field"><label>Date of birth</label><input type="date" max={EIGHTEEN_YEARS_AGO_STR} value={form.signature_dob || form.dob} onChange={set('signature_dob')} /></div>
@@ -245,12 +245,16 @@ export default function JoinPKAAdult() {
           <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
             {step > 0 && <button className="btn" onClick={() => setStep(s => s - 1)}>← Back</button>}
             {step < STEPS.length - 2 ? (
-              <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setStep(s => s + 1)}
+              <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}
+                onClick={() => {
+                  if (step === 3 && !form.signature_surname) setForm(f => ({ ...f, signature_surname: f.last_name }))
+                  setStep(s => s + 1)
+                }}
                 disabled={(step === 0 && (!form.first_name || !form.last_name || !form.dob)) || (step === 1 && (!form.email || !form.mobile_phone || !form.media_permission))}>
                 Continue →
               </button>
             ) : (
-              <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={submit} disabled={submitting || !form.waiver_agreed || !form.signature_name || !form.signature_dob || !form.signature_postcode || !form.signature_phone}>
+              <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={submit} disabled={submitting || !form.waiver_agreed || !form.signature_name || !form.signature_surname || !form.signature_dob || !form.signature_postcode || !form.signature_phone}>
                 {submitting ? 'Submitting…' : 'Submit application'}
               </button>
             )}
