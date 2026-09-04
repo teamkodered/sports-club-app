@@ -235,7 +235,7 @@ export default function JoinPKAAdult() {
               I agree and understand that my name, phone number, postcode and date of birth will act as my signature.
             </label>
             <div className="field-row">
-              <div className="field"><label>First name</label><input value={form.signature_name || form.first_name} onChange={set('signature_name')} /></div>
+              <div className="field"><label>First name</label><input value={form.signature_name} onChange={set('signature_name')} /></div>
               <div className="field"><label>Surname</label><input value={form.signature_surname} onChange={set('signature_surname')} /></div>
             </div>
             <div className="field-row">
@@ -249,7 +249,7 @@ export default function JoinPKAAdult() {
             {step < STEPS.length - 2 ? (
               <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}
                 onClick={() => {
-                  if (step === 3 && !form.signature_surname) setForm(f => ({ ...f, signature_surname: f.last_name }))
+                  if (step === 3) setForm(f => ({ ...f, signature_name: f.signature_name || f.first_name, signature_surname: f.signature_surname || f.last_name }))
                   setStep(s => s + 1)
                 }}
                 disabled={(step === 0 && (!form.first_name || !form.last_name || !form.dob)) || (step === 1 && (!form.email || !form.mobile_phone || !form.media_permission))}>
