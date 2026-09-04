@@ -309,6 +309,8 @@ export default function CRM() {
   const [enquiryMethodFilter, setEnquiryMethodFilter] = useState('all')
   const [leadSources, setLeadSources] = useState([])
   const [leadSourcesLoaded, setLeadSourcesLoaded] = useState(false)
+  const [joinsStopsMembers, setJoinsStopsMembers] = useState([])
+  const [joinsStopsLoaded, setJoinsStopsLoaded] = useState(false)
   const [showNewEnquiryForm, setShowNewEnquiryForm] = useState(false)
   const [editingEnquiryId, setEditingEnquiryId] = useState(null)
   const [standingOrderCheckMonth, setStandingOrderCheckMonth] = useState(null)
@@ -1409,6 +1411,85 @@ export default function CRM() {
     })
   }
 
+  // Moved here from Trackers -- same underlying data/logic, just
+  // living alongside the other Enquiries-tab charts now instead.
+  function loadJoinsVsStops() {
+    supabase.from('members').select('id, first_name, last_name, joined_date, status, stopped_at').then(({ data }) => {
+      setJoinsStopsMembers(data || [])
+      setJoinsStopsLoaded(true)
+    })
+  }
+
+  function JoinsVsStopsChart({ allMembers }) {
+    const timelineMap = {}
+    allMembers.forEach(m => {
+      if (m.joined_date) {
+        const key = m.joined_date
+        timelineMap[key] = timelineMap[key] || { date: key, joined: 0, stopped: 0 }
+        timelineMap[key].joined++
+      }
+      if (m.stopped_at) {
+        const key = m.stopped_at.split('T')[0]
+        timelineMap[key] = timelineMap[key] || { date: key, joined: 0, stopped: 0 }
+        timelineMap[key].stopped++
+      }
+    })
+    const timeline = Object.values(timelineMap).sort((a, b) => b.date.localeCompare(a.date))
+
+    const monthMap = {}
+    timeline.forEach(t => {
+      const monthKey = t.date.slice(0, 7)
+      monthMap[monthKey] = monthMap[monthKey] || { month: monthKey, joined: 0, stopped: 0 }
+      monthMap[monthKey].joined += t.joined
+      monthMap[monthKey].stopped += t.stopped
+    })
+    const months = Object.values(monthMap).sort((a, b) => a.month.localeCompare(b.month)).slice(-12)
+    const maxMonthCount = Math.max(1, ...months.map(m => Math.max(m.joined, m.stopped)))
+
+    return (
+      <div>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 130, borderBottom: '1px solid var(--border)', paddingBottom: 4, overflowX: 'auto' }}>
+          {months.map(m => (
+            <div key={m.month} style={{ flex: 1, minWidth: 32, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 100 }}>
+                <div title={`${m.joined} joined`} style={{ width: 10, minHeight: m.joined ? 3 : 0, height: `${(m.joined / maxMonthCount) * 90}px`, background: '#1D9E75', borderRadius: '2px 2px 0 0' }} />
+                <div title={`${m.stopped} stopped`} style={{ width: 10, minHeight: m.stopped ? 3 : 0, height: `${(m.stopped / maxMonthCount) * 90}px`, background: '#E24B4A', borderRadius: '2px 2px 0 0' }} />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+          {months.map(m => (
+            <div key={m.month} style={{ flex: 1, minWidth: 32, textAlign: 'center', fontSize: 9, color: 'var(--text-secondary)' }}>
+              {new Date(m.month + '-02').toLocaleDateString(undefined, { month: 'short' })}
+            </div>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 16, marginTop: 10, fontSize: 11, color: 'var(--text-secondary)' }}>
+          <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#1D9E75', borderRadius: 2, marginRight: 4 }} />Joined</span>
+          <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#E24B4A', borderRadius: 2, marginRight: 4 }} />Stopped</span>
+        </div>
+
+        <div style={{ marginTop: 16, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--text-secondary)' }}>By date</div>
+          <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {timeline.length === 0 ? (
+              <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No join/stop data yet.</p>
+            ) : timeline.map(t => (
+              <div key={t.date} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '4px 0' }}>
+                <span>{new Date(t.date).toLocaleDateString('en-GB')}</span>
+                <span style={{ display: 'flex', gap: 10 }}>
+                  {t.joined > 0 && <span style={{ color: '#1D9E75' }}>{t.joined} joined</span>}
+                  {t.stopped > 0 && <span style={{ color: '#E24B4A' }}>{t.stopped} stopped</span>}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   function LeadSourcesChart({ sources }) {
     const total = sources.reduce((sum, s) => sum + s.count, 0)
     const maxCount = Math.max(1, ...sources.map(s => s.count))
@@ -2064,7 +2145,7 @@ export default function CRM() {
           color: tab === 'birthdays' ? 'var(--text)' : 'var(--text-secondary)',
           fontWeight: tab === 'birthdays' ? 500 : 400,
         }}>Birthdays{birthdays.length > 0 ? ` (${birthdays.length})` : ''}</button>
-        <button onClick={() => { setTab('enquiries'); if (!enquiriesLoaded) loadEnquiries(); if (!leadSourcesLoaded) loadLeadSources() }} style={{
+        <button onClick={() => { setTab('enquiries'); if (!enquiriesLoaded) loadEnquiries(); if (!leadSourcesLoaded) loadLeadSources(); if (!joinsStopsLoaded) loadJoinsVsStops() }} style={{
           padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer', flexShrink: 0,
           borderBottom: `2px solid ${tab === 'enquiries' ? 'var(--text)' : 'transparent'}`,
           color: tab === 'enquiries' ? 'var(--text)' : 'var(--text-secondary)',
@@ -2141,6 +2222,15 @@ export default function CRM() {
               <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Loading…</p>
             ) : (
               <LeadSourcesChart sources={leadSources} />
+            )}
+          </div>
+
+          <div className="card" style={{ padding: 14, marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>📈 Joins vs stops — last 12 months</div>
+            {!joinsStopsLoaded ? (
+              <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Loading…</p>
+            ) : (
+              <JoinsVsStopsChart allMembers={joinsStopsMembers} />
             )}
           </div>
 
