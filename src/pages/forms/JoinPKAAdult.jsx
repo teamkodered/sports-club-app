@@ -53,7 +53,7 @@ export default function JoinPKAAdult() {
       if (sigDob > EIGHTEEN_YEARS_AGO_STR) throw new Error('You must be 18 or over to submit this form.')
 
       const { data: existingRows } = await supabase.rpc('lookup_member_by_email', { p_email: form.email })
-      if (existingRows && existingRows.length && existingRows[0].member_exists) throw new Error('An account with this email already exists. Please contact us if you need help accessing it, rather than submitting a new form.')
+      if (existingRows && existingRows.length && existingRows[0].member_exists && existingRows[0].has_adult_membership) throw new Error('An account with this email already exists. Please contact us if you need help accessing it, rather than submitting a new form.')
 
       const ref = generateStudentId(form.last_name, form.first_name, form.dob)
       setStudentRef(ref)

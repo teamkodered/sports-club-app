@@ -263,7 +263,7 @@ export default function Forms() {
     setResponses([])
     const { data } = await supabase
       .from('membership_forms')
-      .select('*, members(students(media_restriction))')
+      .select('*, members(id, status, students(media_restriction))')
       .eq('form_type', form.key)
       .order('submitted_at', { ascending: false })
     // Flatten the joined media_restriction up to the top level and drop
@@ -271,14 +271,30 @@ export default function Forms() {
     // and the print view render every field generically with
     // Object.entries(), which would otherwise show the raw nested
     // object instead of a clean "Media permission" row.
+    //
+    // IMPORTANT: membership_forms has its own (separate, disconnected)
+    // "status" column, which used to leak through here via the `*`
+    // wildcard select and never actually matched the real, current
+    // status stored on members.status -- the one Stopped Training and
+    // everywhere else in the app actually relies on. member_status
+    // below always overrides it with the real value.
     const flattened = (data || []).map(r => {
       const studentsData = r.members?.students
       const mediaRestriction = Array.isArray(studentsData) ? studentsData[0]?.media_restriction : studentsData?.media_restriction
+      const memberId = r.members?.id
+      const memberStatus = r.members?.status
       const { members, ...rest } = r
-      return { ...rest, media_permission: mediaRestriction === 'Yes' ? 'Yes' : mediaRestriction === 'No' ? 'No' : null }
+      return { ...rest, member_id: memberId, status: memberStatus || 'pending', media_permission: mediaRestriction === 'Yes' ? 'Yes' : mediaRestriction === 'No' ? 'No' : null }
     })
     setResponses(flattened)
     setResponsesLoading(false)
+  }
+
+  async function updateResponseStatus(memberId, newStatus) {
+    if (!memberId) { alert("Can't update status -- this response isn't linked to a member record."); return }
+    const { error } = await supabase.from('members').update({ status: newStatus }).eq('id', memberId)
+    if (error) { alert('Error updating status: ' + error.message); return }
+    setResponses(prev => prev.map(r => r.member_id === memberId ? { ...r, status: newStatus } : r))
   }
 
   return (
@@ -415,12 +431,18 @@ export default function Forms() {
                         </td>
                         <td style={{ fontWeight: 500, fontSize: 13 }}>{r.first_name} {r.last_name}</td>
                         <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{r.email || '—'}</td>
-                        <td style={{ textAlign: 'center' }}>
-                          <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20,
-                            background: r.status === 'active' ? '#1d9e7520' : r.status === 'stopped' ? '#a32d2d20' : '#EF9F2720',
-                            color: r.status === 'active' ? '#1d9e75' : r.status === 'stopped' ? '#a32d2d' : '#EF9F27' }}>
-                            {r.status || 'pending'}
-                          </span>
+                        <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                          <select value={r.status || 'pending'} onChange={e => updateResponseStatus(r.member_id, e.target.value)}
+                            style={{ fontSize: 10, padding: '2px 6px', borderRadius: 20, border: 'none', cursor: r.member_id ? 'pointer' : 'not-allowed',
+                              background: r.status === 'active' ? '#1d9e7520' : r.status === 'stopped' ? '#a32d2d20' : '#EF9F2720',
+                              color: r.status === 'active' ? '#1d9e75' : r.status === 'stopped' ? '#a32d2d' : '#EF9F27' }}
+                            disabled={!r.member_id} title={!r.member_id ? "Not linked to a member record" : ''}>
+                            <option value="pending">pending</option>
+                            <option value="active">active</option>
+                            <option value="stopped">stopped</option>
+                            <option value="inactive">inactive</option>
+                            <option value="not_started">not_started</option>
+                          </select>
                         </td>
                         <td>
                           <button className="btn btn-sm" onClick={e => { e.stopPropagation(); setViewResponse(r) }}>
