@@ -183,6 +183,7 @@ export default function CRM() {
   const [leadSources, setLeadSources] = useState([])
   const [leadSourcesLoaded, setLeadSourcesLoaded] = useState(false)
   const [showNewEnquiryForm, setShowNewEnquiryForm] = useState(false)
+  const [editingEnquiryId, setEditingEnquiryId] = useState(null)
   const [enquiryDraft, setEnquiryDraft] = useState(null)
   const [savingEnquiry, setSavingEnquiry] = useState(false)
   const [linkingEnquiryId, setLinkingEnquiryId] = useState(null)
@@ -1204,11 +1205,29 @@ export default function CRM() {
   // covers everyone who joined, not just people who went through a
   // manually-logged call/text/email enquiry first (e.g. someone who
   // just walked in and filled the form on the spot).
+  // Raw hear_about values are messier than the clean list of options
+  // the join form offers -- variants like "Facebook Ads", "Facebook",
+  // even garbled ones with stray spaces or ligature characters split
+  // into the text ("F acebook", "Sear ch", "Leaﬂet") all needed
+  // folding into the same category, or the breakdown fragments into
+  // near-duplicate rows for what's really the same answer.
+  function normalizeHearAboutSource(raw) {
+    if (!raw || !raw.trim()) return 'Not recorded'
+    const clean = raw.toLowerCase().replace(/ﬂ/g, 'fl').replace(/\s+/g, '')
+    if (clean.includes('facebook') || clean.includes('instagram') || clean.includes('socialmedia')) return 'Social Media'
+    if (clean.includes('wordofmouth') || clean === 'word') return 'Word of Mouth'
+    if (clean.includes('search') || clean.includes('google')) return 'Search Engine (Google etc)'
+    if (clean.includes('leaflet') || clean.includes('poster')) return 'Leaflet/Poster'
+    if (clean.includes('walked')) return 'Walked Past'
+    if (clean === 'other') return 'Other'
+    return raw.trim() // anything genuinely unrecognised shows as-is, rather than being silently hidden
+  }
+
   function loadLeadSources() {
     supabase.from('membership_forms').select('hear_about').then(({ data }) => {
       const counts = {}
       for (const row of data || []) {
-        const key = row.hear_about?.trim() || 'Not recorded'
+        const key = normalizeHearAboutSource(row.hear_about)
         counts[key] = (counts[key] || 0) + 1
       }
       const sorted = Object.entries(counts).map(([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count)
@@ -1244,11 +1263,10 @@ export default function CRM() {
   }
 
   async function saveNewEnquiry() {
-    if (!enquiryDraft?.name?.trim()) return
     setSavingEnquiry(true)
     const { data: { user } } = await supabase.auth.getUser()
     const { error } = await supabase.from('enquiries').insert({
-      name: enquiryDraft.name.trim(),
+      name: enquiryDraft.name?.trim() || 'Unknown',
       contact_phone: enquiryDraft.contact_phone?.trim() || null,
       contact_email: enquiryDraft.contact_email?.trim() || null,
       contact_method: enquiryDraft.contact_method || 'call',
@@ -1261,6 +1279,32 @@ export default function CRM() {
     if (error) { alert('Error saving enquiry: ' + error.message); return }
     setShowNewEnquiryForm(false)
     setEnquiryDraft(null)
+    loadEnquiries()
+  }
+
+  async function saveEditedEnquiry() {
+    if (!editingEnquiryId) return
+    setSavingEnquiry(true)
+    const { error } = await supabase.from('enquiries').update({
+      name: enquiryDraft.name?.trim() || 'Unknown',
+      contact_phone: enquiryDraft.contact_phone?.trim() || null,
+      contact_email: enquiryDraft.contact_email?.trim() || null,
+      contact_method: enquiryDraft.contact_method || 'call',
+      enquiry_date: enquiryDraft.enquiry_date || new Date().toISOString().split('T')[0],
+      notes: enquiryDraft.notes?.trim() || null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', editingEnquiryId)
+    setSavingEnquiry(false)
+    if (error) { alert('Error saving changes: ' + error.message); return }
+    setEditingEnquiryId(null)
+    setEnquiryDraft(null)
+    loadEnquiries()
+  }
+
+  async function deleteEnquiry(id) {
+    if (!confirm('Delete this enquiry? This cannot be undone.')) return
+    const { error } = await supabase.from('enquiries').delete().eq('id', id)
+    if (error) { alert('Error deleting: ' + error.message); return }
     loadEnquiries()
   }
 
@@ -1764,61 +1808,61 @@ export default function CRM() {
         <p>Standing orders, and more to come</p>
       </div>
 
-      <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', marginBottom: 20 }}>
+      <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', marginBottom: 20, overflowX: 'auto', WebkitOverflowScrolling: 'touch', flexWrap: 'nowrap' }}>
         <button onClick={() => setTab('standing_orders')} style={{
-          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
+          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer', flexShrink: 0,
           borderBottom: `2px solid ${tab === 'standing_orders' ? 'var(--text)' : 'transparent'}`,
           color: tab === 'standing_orders' ? 'var(--text)' : 'var(--text-secondary)',
           fontWeight: tab === 'standing_orders' ? 500 : 400,
         }}>Standing orders</button>
         <button onClick={() => { setTab('missed_training'); if (!missedTrainingLoaded) loadMissedTraining() }} style={{
-          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
+          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer', flexShrink: 0,
           borderBottom: `2px solid ${tab === 'missed_training' ? 'var(--text)' : 'transparent'}`,
           color: tab === 'missed_training' ? 'var(--text)' : 'var(--text-secondary)',
           fontWeight: tab === 'missed_training' ? 500 : 400,
         }}>Missed training{missedTraining.length > 0 ? ` (${missedTraining.length})` : ''}</button>
         <button onClick={() => { setTab('stopped_training'); if (!stoppedLoaded) loadStoppedStudents() }} style={{
-          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
+          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer', flexShrink: 0,
           borderBottom: `2px solid ${tab === 'stopped_training' ? 'var(--text)' : 'transparent'}`,
           color: tab === 'stopped_training' ? 'var(--text)' : 'var(--text-secondary)',
           fontWeight: tab === 'stopped_training' ? 500 : 400,
         }}>Stopped training{stoppedStudents.length > 0 ? ` (${stoppedStudents.length})` : ''}</button>
         <button onClick={() => { setTab('grading_requests'); if (!gradingLoaded) loadGradingRequests() }} style={{
-          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
+          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer', flexShrink: 0,
           borderBottom: `2px solid ${tab === 'grading_requests' ? 'var(--text)' : 'transparent'}`,
           color: tab === 'grading_requests' ? 'var(--text)' : 'var(--text-secondary)',
           fontWeight: tab === 'grading_requests' ? 500 : 400,
         }}>Grading requests{gradingRequests.filter(r => !r.coach_approved).length > 0 ? ` (${gradingRequests.filter(r => !r.coach_approved).length})` : ''}</button>
         <button onClick={() => { setTab('birthdays'); if (!birthdaysLoaded) loadBirthdays() }} style={{
-          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
+          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer', flexShrink: 0,
           borderBottom: `2px solid ${tab === 'birthdays' ? 'var(--text)' : 'transparent'}`,
           color: tab === 'birthdays' ? 'var(--text)' : 'var(--text-secondary)',
           fontWeight: tab === 'birthdays' ? 500 : 400,
         }}>Birthdays{birthdays.length > 0 ? ` (${birthdays.length})` : ''}</button>
         <button onClick={() => { setTab('enquiries'); if (!enquiriesLoaded) loadEnquiries(); if (!leadSourcesLoaded) loadLeadSources() }} style={{
-          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
+          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer', flexShrink: 0,
           borderBottom: `2px solid ${tab === 'enquiries' ? 'var(--text)' : 'transparent'}`,
           color: tab === 'enquiries' ? 'var(--text)' : 'var(--text-secondary)',
           fontWeight: tab === 'enquiries' ? 500 : 400,
         }}>Enquiries</button>
         <button onClick={() => setTab('messages')} style={{
-          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
+          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer', flexShrink: 0,
           borderBottom: `2px solid ${tab === 'messages' ? 'var(--text)' : 'transparent'}`,
           color: tab === 'messages' ? 'var(--text)' : 'var(--text-secondary)',
           fontWeight: tab === 'messages' ? 500 : 400,
         }}>Messages</button>
         <button onClick={() => { setTab('email'); if (!inboxLoaded) loadInbox() }} style={{
-          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
+          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer', flexShrink: 0,
           borderBottom: `2px solid ${tab === 'email' ? 'var(--text)' : 'transparent'}`,
           color: tab === 'email' ? 'var(--text)' : 'var(--text-secondary)',
           fontWeight: tab === 'email' ? 500 : 400,
         }}>Email</button>
         <button onClick={() => { setTab('courses'); if (!coursesLoaded) loadCourses() }} style={{
-          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
+          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer', flexShrink: 0,
           borderBottom: `2px solid ${tab === 'courses' ? 'var(--text)' : 'transparent'}`,
           color: tab === 'courses' ? 'var(--text)' : 'var(--text-secondary)',
           fontWeight: tab === 'courses' ? 500 : 400,
-        }}>Courses{courses.length > 0 ? ` (${courses.length})` : ''}</button>
+        }}>Notices{courses.length > 0 ? ` (${courses.length})` : ''}</button>
       </div>
 
       {tab === 'enquiries' && (
@@ -1870,11 +1914,11 @@ export default function CRM() {
             )}
           </div>
 
-          {showNewEnquiryForm && (
+          {(showNewEnquiryForm || editingEnquiryId) && (
             <div className="card" style={{ marginBottom: 16, padding: 16 }}>
-              <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 10 }}>New enquiry</div>
+              <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 10 }}>{editingEnquiryId ? 'Edit enquiry' : 'New enquiry'}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <input type="text" placeholder="Name" value={enquiryDraft.name} onChange={e => setEnquiryDraft(d => ({ ...d, name: e.target.value }))} style={{ fontSize: 13 }} />
+                <input type="text" placeholder="Name (optional)" value={enquiryDraft.name} onChange={e => setEnquiryDraft(d => ({ ...d, name: e.target.value }))} style={{ fontSize: 13 }} />
                 <div style={{ display: 'flex', gap: 8 }}>
                   <input type="text" placeholder="Phone" value={enquiryDraft.contact_phone} onChange={e => setEnquiryDraft(d => ({ ...d, contact_phone: e.target.value }))} style={{ fontSize: 13, flex: 1 }} />
                   <input type="email" placeholder="Email" value={enquiryDraft.contact_email} onChange={e => setEnquiryDraft(d => ({ ...d, contact_email: e.target.value }))} style={{ fontSize: 13, flex: 1 }} />
@@ -1885,14 +1929,15 @@ export default function CRM() {
                     <option value="text">Text message</option>
                     <option value="email">Email</option>
                     <option value="in_person">In person</option>
+                    <option value="facebook_ad">Facebook/Instagram ad</option>
                     <option value="other">Other</option>
                   </select>
                   <input type="date" value={enquiryDraft.enquiry_date} onChange={e => setEnquiryDraft(d => ({ ...d, enquiry_date: e.target.value }))} style={{ fontSize: 13, flex: 1 }} />
                 </div>
                 <textarea placeholder="Notes (what they asked about, any follow-up needed...)" value={enquiryDraft.notes} onChange={e => setEnquiryDraft(d => ({ ...d, notes: e.target.value }))} style={{ fontSize: 13, minHeight: 60 }} />
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn btn-sm btn-primary" disabled={savingEnquiry || !enquiryDraft.name.trim()} onClick={saveNewEnquiry}>{savingEnquiry ? 'Saving…' : 'Save enquiry'}</button>
-                  <button className="btn btn-sm" onClick={() => { setShowNewEnquiryForm(false); setEnquiryDraft(null) }}>Cancel</button>
+                  <button className="btn btn-sm btn-primary" disabled={savingEnquiry} onClick={editingEnquiryId ? saveEditedEnquiry : saveNewEnquiry}>{savingEnquiry ? 'Saving…' : editingEnquiryId ? 'Save changes' : 'Save enquiry'}</button>
+                  <button className="btn btn-sm" onClick={() => { setShowNewEnquiryForm(false); setEditingEnquiryId(null); setEnquiryDraft(null) }}>Cancel</button>
                 </div>
               </div>
             </div>
@@ -1919,13 +1964,19 @@ export default function CRM() {
                         </div>
                       )}
                     </div>
-                    <select value={enq.status} onChange={e => updateEnquiryStatus(enq.id, e.target.value)} style={{ fontSize: 12 }}>
-                      <option value="new">New</option>
-                      <option value="contacted">Contacted</option>
-                      <option value="trial_booked">Trial booked</option>
-                      <option value="joined">Joined</option>
-                      <option value="not_interested">Not interested</option>
-                    </select>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                      <select value={enq.status} onChange={e => updateEnquiryStatus(enq.id, e.target.value)} style={{ fontSize: 12 }}>
+                        <option value="new">New</option>
+                        <option value="contacted">Contacted</option>
+                        <option value="trial_booked">Trial booked</option>
+                        <option value="joined">Joined</option>
+                        <option value="not_interested">Not interested</option>
+                      </select>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button className="btn btn-sm" onClick={() => { setEditingEnquiryId(enq.id); setShowNewEnquiryForm(false); setEnquiryDraft({ name: enq.name === 'Unknown' ? '' : enq.name, contact_phone: enq.contact_phone || '', contact_email: enq.contact_email || '', contact_method: enq.contact_method, enquiry_date: enq.enquiry_date, notes: enq.notes || '' }) }}>Edit</button>
+                        <button className="btn btn-sm" style={{ color: '#E24B4A' }} onClick={() => deleteEnquiry(enq.id)}>Delete</button>
+                      </div>
+                    </div>
                   </div>
                   {enq.contact_email && (
                     <div style={{ marginTop: 8 }}>
@@ -3493,7 +3544,7 @@ export default function CRM() {
             <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
               Courses, gradings, and seminars — also shown on the club calendar.
             </p>
-            {isAdmin && <button className="btn btn-primary btn-sm" onClick={() => startEditCourse(null)}>+ Add course</button>}
+            {isAdmin && <button className="btn btn-primary btn-sm" onClick={() => startEditCourse(null)}>+ Add notice</button>}
           </div>
 
           {courses.length === 0 ? (
@@ -3632,7 +3683,7 @@ export default function CRM() {
             <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
               onClick={() => setEditingCourse(null)}>
               <div className="card" style={{ width: '100%', maxWidth: 420, maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
-                <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 14 }}>{editingCourse?.id ? 'Edit course' : 'Add course'}</h3>
+                <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 14 }}>{editingCourse?.id ? 'Edit notice' : 'Add notice'}</h3>
 
                 <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Title</label>
                 <input value={courseForm.title} onChange={e => setCourseForm(f => ({ ...f, title: e.target.value }))}
