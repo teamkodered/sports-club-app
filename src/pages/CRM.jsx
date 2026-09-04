@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useBackableTab } from '../hooks/useBackableTab.js'
 import * as XLSX from 'xlsx'
+import Trackers from './Trackers.jsx'
 
 // Loosely finds the "name" and "amount" columns in an uploaded
 // spreadsheet, since bank/standing-order exports vary a lot in
@@ -1511,6 +1512,73 @@ export default function CRM() {
     )
   }
 
+  // One combined analytics card with a category selector, rather than
+  // three separate stacked cards -- "All" shows a compact version of
+  // everything at once, and picking a specific category shows that
+  // one full-size with its own controls (e.g. the method filter chips
+  // only make sense for the Enquiries view specifically).
+  function CombinedAnalyticsChart({ enquiries, enquiryMethodFilter, setEnquiryMethodFilter, leadSources, joinsStopsMembers }) {
+    const [view, setView] = useState('all')
+    const categories = [
+      ['all', 'All'],
+      ['enquiries', 'Enquiries by day'],
+      ['sources', 'Where they came from'],
+      ['joins', 'Joins vs stops'],
+    ]
+    return (
+      <div className="card" style={{ padding: 14, marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+          {categories.map(([val, label]) => (
+            <button key={val} onClick={() => setView(val)}
+              style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                border: `1px solid ${view === val ? '#378ADD' : 'var(--border)'}`,
+                background: view === val ? '#378ADD18' : 'transparent',
+                color: view === val ? '#378ADD' : 'var(--text-secondary)', fontWeight: view === val ? 600 : 400 }}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {view === 'enquiries' && (
+          <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+            {[['all', 'All'], ['call', 'Call'], ['text', 'Text'], ['email', 'Email'], ['facebook_ad', 'Social media']].map(([val, label]) => (
+              <button key={val} onClick={() => setEnquiryMethodFilter(val)}
+                style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                  border: `1px solid ${enquiryMethodFilter === val ? '#378ADD' : 'var(--border)'}`,
+                  background: enquiryMethodFilter === val ? '#378ADD18' : 'transparent',
+                  color: enquiryMethodFilter === val ? '#378ADD' : 'var(--text-secondary)', fontWeight: enquiryMethodFilter === val ? 600 : 400 }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {view === 'all' ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--text-secondary)' }}>Enquiries by day</div>
+              <EnquiriesDailyChart enquiries={enquiries} methodFilter="all" />
+            </div>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--text-secondary)' }}>Where they came from</div>
+              <LeadSourcesChart sources={leadSources} />
+            </div>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--text-secondary)' }}>Joins vs stops — last 12 months</div>
+              <JoinsVsStopsChart allMembers={joinsStopsMembers} />
+            </div>
+          </div>
+        ) : view === 'enquiries' ? (
+          <EnquiriesDailyChart enquiries={enquiries} methodFilter={enquiryMethodFilter} />
+        ) : view === 'sources' ? (
+          <LeadSourcesChart sources={leadSources} />
+        ) : (
+          <JoinsVsStopsChart allMembers={joinsStopsMembers} />
+        )}
+      </div>
+    )
+  }
+
   // Generic export used by every tab -- takes rows already shaped as
   // flat objects (matching what's actually shown on screen for that
   // tab) and writes them straight to a downloadable .xlsx file.
@@ -2145,12 +2213,18 @@ export default function CRM() {
           color: tab === 'birthdays' ? 'var(--text)' : 'var(--text-secondary)',
           fontWeight: tab === 'birthdays' ? 500 : 400,
         }}>Birthdays{birthdays.length > 0 ? ` (${birthdays.length})` : ''}</button>
-        <button onClick={() => { setTab('enquiries'); if (!enquiriesLoaded) loadEnquiries(); if (!leadSourcesLoaded) loadLeadSources(); if (!joinsStopsLoaded) loadJoinsVsStops() }} style={{
+        <button onClick={() => { setTab('enquiries'); if (!enquiriesLoaded) loadEnquiries() }} style={{
           padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer', flexShrink: 0,
           borderBottom: `2px solid ${tab === 'enquiries' ? 'var(--text)' : 'transparent'}`,
           color: tab === 'enquiries' ? 'var(--text)' : 'var(--text-secondary)',
           fontWeight: tab === 'enquiries' ? 500 : 400,
         }}>Enquiries</button>
+        <button onClick={() => { setTab('trackers'); if (!enquiriesLoaded) loadEnquiries(); if (!leadSourcesLoaded) loadLeadSources(); if (!joinsStopsLoaded) loadJoinsVsStops() }} style={{
+          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer', flexShrink: 0,
+          borderBottom: `2px solid ${tab === 'trackers' ? 'var(--text)' : 'transparent'}`,
+          color: tab === 'trackers' ? 'var(--text)' : 'var(--text-secondary)',
+          fontWeight: tab === 'trackers' ? 500 : 400,
+        }}>Trackers</button>
         <button onClick={() => setTab('messages')} style={{
           padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer', flexShrink: 0,
           borderBottom: `2px solid ${tab === 'messages' ? 'var(--text)' : 'transparent'}`,
@@ -2214,26 +2288,6 @@ export default function CRM() {
               </button>
             ))}
           </div>
-          <EnquiriesDailyChart enquiries={enquiries} methodFilter={enquiryMethodFilter} />
-
-          <div className="card" style={{ padding: 14, marginBottom: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Where members actually said they found us</div>
-            {!leadSourcesLoaded ? (
-              <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Loading…</p>
-            ) : (
-              <LeadSourcesChart sources={leadSources} />
-            )}
-          </div>
-
-          <div className="card" style={{ padding: 14, marginBottom: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>📈 Joins vs stops — last 12 months</div>
-            {!joinsStopsLoaded ? (
-              <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Loading…</p>
-            ) : (
-              <JoinsVsStopsChart allMembers={joinsStopsMembers} />
-            )}
-          </div>
-
           {(showNewEnquiryForm || editingEnquiryId) && (
             <div className="card" style={{ marginBottom: 16, padding: 16 }}>
               <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 10 }}>{editingEnquiryId ? 'Edit enquiry' : 'New enquiry'}</div>
@@ -2351,6 +2405,19 @@ export default function CRM() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {tab === 'trackers' && (
+        <div>
+          <CombinedAnalyticsChart
+            enquiries={enquiries}
+            enquiryMethodFilter={enquiryMethodFilter}
+            setEnquiryMethodFilter={setEnquiryMethodFilter}
+            leadSources={leadSources}
+            joinsStopsMembers={joinsStopsMembers}
+          />
+          <Trackers />
         </div>
       )}
 

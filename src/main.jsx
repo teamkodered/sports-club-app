@@ -37,7 +37,6 @@ import Registers from './pages/Registers.jsx'
 import CctvViewer from './pages/CctvViewer.jsx'
 import Classes from './pages/Classes.jsx'
 import Forms from './pages/Forms.jsx'
-import Trackers from './pages/Trackers.jsx'
 import CheckIn from './pages/CheckIn.jsx'
 import Fit2FightForm from './pages/Fit2FightForm.jsx'
 import BoxingTPTForm from './pages/BoxingTPTForm.jsx'
@@ -112,7 +111,6 @@ function App() {
             <Route path="classes"         element={<ProtectedRoute staffOnly excludeLeader><Classes /></ProtectedRoute>} />
             <Route path="league"          element={<ProtectedRoute staffOnly excludeLeader><LeagueViews /></ProtectedRoute>} />
             <Route path="forms"           element={<ProtectedRoute staffOnly excludeLeader><Forms /></ProtectedRoute>} />
-            <Route path="trackers"        element={<ProtectedRoute staffOnly excludeLeader><Trackers /></ProtectedRoute>} />
             <Route path="profile"         element={<Profile />} />
             <Route path="boxing-tpt"      element={<ProtectedRoute><BoxingTPT /></ProtectedRoute>} />
             <Route path="kickboxing-tpt"  element={<ProtectedRoute><KickboxingTPT /></ProtectedRoute>} />

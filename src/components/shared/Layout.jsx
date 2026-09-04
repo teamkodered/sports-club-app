@@ -88,7 +88,6 @@ export default function Layout() {
     { to: '/dashboard',      icon: '🏠', label: 'Dashboard',          roles: ['admin','captain'] },
     { to: '/registers',      icon: '📋', label: 'Registers',          roles: ['admin','captain','leader'] },
     { to: '/league',         icon: '🏆', label: 'Houses',             roles: ['admin','captain'] },
-    { to: '/trackers',       icon: '📈', label: 'Trackers',           roles: ['admin','captain'] },
     { to: '/forms',          icon: '📝', label: 'Forms',              roles: ['admin','captain'] },
     { to: '/classes',        icon: '🗓️', label: 'Classes',           roles: ['admin','captain'] },
     { to: '/calendar',       icon: '📆', label: 'Calendar',          roles: ['admin','captain'] },
