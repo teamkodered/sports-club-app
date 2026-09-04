@@ -122,6 +122,133 @@ function beltSizeFor(dob, rule) {
   return age < rule.threshold_age ? rule.under_size : rule.over_size
 }
 
+// The redesigned targeted-send flow for a notice: pick a method, pick
+// recipients from the full student list, then either send
+// immediately, schedule it for a later time, or set it up to repeat
+// to the same list on an interval. Scheduled/recurring sends are
+// written to notice_sends and fired later by the send-scheduled-
+// notices cron job -- nobody needs to keep the app open for those.
+//
+// Defined at module level (not nested inside CRM's render) since it
+// holds its own interactive state (search text, selected checkboxes)
+// that must survive CRM re-rendering, which happens often given how
+// large that component is.
+function NoticeTargetedSend({ notice, students, sendRealEmail, studentFullName }) {
+  const [open, setOpen] = useState(false)
+  const [method, setMethod] = useState('email')
+  const [search, setSearch] = useState('')
+  const [selectedIds, setSelectedIds] = useState(() => new Set())
+  const [sendMode, setSendMode] = useState('now') // 'now' | 'schedule' | 'recurring'
+  const [scheduleAt, setScheduleAt] = useState('')
+  const [repeatInterval, setRepeatInterval] = useState('weekly')
+  const [sending, setSending] = useState(false)
+  const [result, setResult] = useState(null)
+
+  if (!open) {
+    return <button className="btn btn-sm" style={{ marginBottom: 14 }} onClick={() => setOpen(true)}>🎯 Send to specific students</button>
+  }
+
+  const filtered = students.filter(s => !search.trim() || studentFullName(s).toLowerCase().includes(search.trim().toLowerCase()))
+  const messageBody = notice.message_text || `Check out our upcoming notice: ${notice.title}`
+
+  async function handleSend() {
+    const ids = [...selectedIds]
+    if (ids.length === 0) { alert('Select at least one student first.'); return }
+    setSending(true)
+    setResult(null)
+
+    if (sendMode === 'now') {
+      let sent = 0, skipped = 0
+      for (const sid of ids) {
+        const s = students.find(x => x.id === sid)
+        const email = s?.members?.email && !s.members.email.includes('@kr-centre.placeholder') ? s.members.email : null
+        if (!email) { skipped++; continue }
+        const text = messageBody.replace(/\{name\}/gi, s.members?.first_name || '')
+        const ok = await sendRealEmail(email, notice.title, text, true)
+        if (ok) sent++; else skipped++
+      }
+      setResult(`Sent to ${sent} student${sent === 1 ? '' : 's'}${skipped ? ` · ${skipped} skipped (no email on file, or send failed)` : ''}`)
+    } else {
+      const { error } = await supabase.from('notice_sends').insert({
+        course_id: notice.id,
+        method: 'email',
+        student_ids: ids,
+        subject: notice.title,
+        message_text: messageBody,
+        send_at: sendMode === 'schedule' ? new Date(scheduleAt).toISOString() : new Date().toISOString(),
+        repeat_interval: sendMode === 'recurring' ? repeatInterval : 'none',
+      })
+      if (error) setResult('Error: ' + error.message)
+      else setResult(sendMode === 'schedule' ? `Scheduled for ${new Date(scheduleAt).toLocaleString('en-GB')}` : `Set up to send every ${repeatInterval === 'weekly' ? 'week' : 'month'} to this list, starting now`)
+    }
+    setSending(false)
+  }
+
+  return (
+    <div className="card" style={{ background: 'var(--bg-secondary)', marginBottom: 14 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <p style={{ fontSize: 12, fontWeight: 600 }}>🎯 Send to specific students</p>
+        <button className="btn btn-sm" onClick={() => setOpen(false)}>Close</button>
+      </div>
+
+      <label style={{ fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 4 }}>Method</label>
+      <select value={method} onChange={e => setMethod(e.target.value)} style={{ width: '100%', fontSize: 13, marginBottom: 10 }}>
+        <option value="email">Email</option>
+      </select>
+      <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: -6, marginBottom: 10 }}>
+        Only email can be sent directly to a chosen list from here — text/WhatsApp need your phone's own share menu (use "Send details" above for those instead).
+      </p>
+
+      <input type="text" placeholder="🔍 Search by name…" value={search} onChange={e => setSearch(e.target.value)} style={{ width: '100%', fontSize: 13, marginBottom: 8 }} />
+      <div style={{ maxHeight: 160, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6, marginBottom: 10 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, padding: '6px 8px', borderBottom: '1px solid var(--border)', fontWeight: 600 }}>
+          <input type="checkbox" checked={filtered.length > 0 && filtered.every(s => selectedIds.has(s.id))}
+            onChange={e => setSelectedIds(prev => {
+              const next = new Set(prev)
+              filtered.forEach(s => e.target.checked ? next.add(s.id) : next.delete(s.id))
+              return next
+            })} />
+          Select all ({filtered.length})
+        </label>
+        {filtered.map(s => (
+          <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, padding: '4px 8px' }}>
+            <input type="checkbox" checked={selectedIds.has(s.id)} onChange={e => setSelectedIds(prev => {
+              const next = new Set(prev)
+              if (e.target.checked) next.add(s.id); else next.delete(s.id)
+              return next
+            })} />
+            {studentFullName(s)}
+          </label>
+        ))}
+      </div>
+      <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10 }}>{selectedIds.size} selected</p>
+
+      <label style={{ fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 4 }}>When</label>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+        {[['now', 'Send now'], ['schedule', 'Schedule'], ['recurring', 'Repeat to this list']].map(([val, label]) => (
+          <button key={val} className={sendMode === val ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setSendMode(val)}>{label}</button>
+        ))}
+      </div>
+      {sendMode === 'schedule' && (
+        <input type="datetime-local" value={scheduleAt} onChange={e => setScheduleAt(e.target.value)} style={{ width: '100%', fontSize: 13, marginBottom: 10 }} />
+      )}
+      {sendMode === 'recurring' && (
+        <select value={repeatInterval} onChange={e => setRepeatInterval(e.target.value)} style={{ width: '100%', fontSize: 13, marginBottom: 10 }}>
+          <option value="weekly">Every week</option>
+          <option value="monthly">Every month</option>
+        </select>
+      )}
+
+      <button className="btn btn-sm btn-primary" style={{ width: '100%', justifyContent: 'center' }}
+        disabled={sending || selectedIds.size === 0 || (sendMode === 'schedule' && !scheduleAt)}
+        onClick={handleSend}>
+        {sending ? 'Sending…' : sendMode === 'now' ? `✉️ Send now to ${selectedIds.size}` : sendMode === 'schedule' ? '🕐 Schedule send' : '🔁 Set up recurring send'}
+      </button>
+      {result && <p style={{ fontSize: 12, color: result.startsWith('Error') ? '#E24B4A' : 'var(--text-secondary)', marginTop: 8 }}>{result}</p>}
+    </div>
+  )
+}
+
 export default function CRM() {
   const { isAdmin } = useAuth()
   const [tab, setTab] = useBackableTab('standing_orders')
@@ -245,7 +372,7 @@ export default function CRM() {
   const [courses, setCourses] = useState([])
   const [coursesLoaded, setCoursesLoaded] = useState(false)
   const [editingCourse, setEditingCourse] = useState(null) // {} for new, or the course object
-  const [courseForm, setCourseForm] = useState({ title: '', description: '', poster_url: '', start_date: '', end_date: '', location: '', price: '', message_text: '' })
+  const [courseForm, setCourseForm] = useState({ title: '', description: '', poster_url: '', start_date: '', end_date: '', location: '', price: '', message_text: '', repeat_type: 'none', repeat_count: 8 })
   const [courseInterest, setCourseInterest] = useState({}) // course_id -> array of responses
   const [loadingInterestFor, setLoadingInterestFor] = useState(null)
   const [savingCourse, setSavingCourse] = useState(false)
@@ -364,8 +491,8 @@ export default function CRM() {
   function startEditCourse(course) {
     setEditingCourse(course || {})
     setCourseForm(course
-      ? { title: course.title, description: course.description || '', poster_url: course.poster_url || '', start_date: course.start_date, end_date: course.end_date || '', location: course.location || '', price: course.price || '', message_text: course.message_text || '' }
-      : { title: '', description: '', poster_url: '', start_date: '', end_date: '', location: '', price: '', message_text: '' })
+      ? { title: course.title, description: course.description || '', poster_url: course.poster_url || '', start_date: course.start_date, end_date: course.end_date || '', location: course.location || '', price: course.price || '', message_text: course.message_text || '', repeat_type: 'none', repeat_count: 8 }
+      : { title: '', description: '', poster_url: '', start_date: '', end_date: '', location: '', price: '', message_text: '', repeat_type: 'none', repeat_count: 8 })
   }
 
   async function uploadCoursePoster(file) {
@@ -384,15 +511,35 @@ export default function CRM() {
   async function saveCourse() {
     if (!courseForm.title || !courseForm.start_date) { alert('Please fill in at least a title and start date.'); return }
     setSavingCourse(true)
-    const payload = { ...courseForm, end_date: courseForm.end_date || null }
+    const { repeat_type, repeat_count, ...base } = courseForm
+    const payload = { ...base, end_date: base.end_date || null }
     let error
+
     if (editingCourse?.id) {
       ;({ error } = await supabase.from('courses').update(payload).eq('id', editingCourse.id))
-    } else {
+    } else if (repeat_type === 'none') {
       ;({ error } = await supabase.from('courses').insert(payload))
+    } else {
+      // Repeating notices are generated as several real, independent
+      // rows up front (rather than one row with "repeat" metadata),
+      // so every other part of the app that already reads from the
+      // courses table (calendar etc.) just sees normal individual
+      // notices with no extra logic needed anywhere else.
+      const groupId = crypto.randomUUID()
+      const startBase = new Date(payload.start_date + 'T00:00:00')
+      const endBase = payload.end_date ? new Date(payload.end_date + 'T00:00:00') : null
+      const rows = Array.from({ length: Math.max(1, repeat_count || 1) }, (_, i) => {
+        const s = new Date(startBase)
+        const e = endBase ? new Date(endBase) : null
+        if (repeat_type === 'weekly') { s.setDate(s.getDate() + i * 7); if (e) e.setDate(e.getDate() + i * 7) }
+        else { s.setMonth(s.getMonth() + i); if (e) e.setMonth(e.getMonth() + i) }
+        return { ...payload, start_date: s.toISOString().split('T')[0], end_date: e ? e.toISOString().split('T')[0] : null, recurring_group_id: groupId }
+      })
+      ;({ error } = await supabase.from('courses').insert(rows))
     }
+
     setSavingCourse(false)
-    if (error) { alert('Error saving course: ' + error.message); return }
+    if (error) { alert('Error saving notice: ' + error.message); return }
     setEditingCourse(null)
     await loadCourses()
   }
@@ -3730,6 +3877,8 @@ export default function CRM() {
               {courses.map(c => {
                 const isOpen = expandedCourseId === c.id
                 const isPast = c.start_date < new Date().toISOString().split('T')[0]
+                const daysUntil = Math.round((new Date(c.start_date + 'T00:00:00') - new Date(new Date().toISOString().split('T')[0] + 'T00:00:00')) / (24 * 60 * 60 * 1000))
+                const untilLabel = isPast ? null : daysUntil === 0 ? 'Today' : daysUntil < 7 ? `${daysUntil} day${daysUntil === 1 ? '' : 's'} away` : `${Math.floor(daysUntil / 7)} week${Math.floor(daysUntil / 7) === 1 ? '' : 's'}${daysUntil % 7 ? ` ${daysUntil % 7} day${daysUntil % 7 === 1 ? '' : 's'}` : ''} away`
                 return (
                   <div key={c.id} className="card" style={{ padding: 0, opacity: isPast ? 0.6 : 1 }}>
                     <button onClick={() => { const next = isOpen ? null : c.id; setExpandedCourseId(next); if (next) loadCourseInterest(next) }}
@@ -3746,6 +3895,7 @@ export default function CRM() {
                           {c.end_date ? ` – ${new Date(c.end_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : ''}
                           {c.location ? ` · ${c.location}` : ''}
                         </div>
+                        {untilLabel && <div style={{ fontSize: 11, color: '#378ADD', fontWeight: 600, marginTop: 2 }}>{untilLabel}</div>}
                       </div>
                       <span style={{ fontSize: 12, color: 'var(--text-tertiary)', alignSelf: 'center' }}>{isOpen ? '▲' : '▼'}</span>
                     </button>
@@ -3802,6 +3952,8 @@ export default function CRM() {
                             </div>
                           )
                         })()}
+
+                        {isAdmin && <NoticeTargetedSend notice={c} students={students} sendRealEmail={sendRealEmail} studentFullName={studentFullName} />}
 
                         {isAdmin && (
                           <div>
@@ -3888,6 +4040,25 @@ export default function CRM() {
                     <input type="date" value={courseForm.end_date} onChange={e => setCourseForm(f => ({ ...f, end_date: e.target.value }))} style={{ width: '100%' }} />
                   </div>
                 </div>
+
+                {!editingCourse?.id && (
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Repeat</label>
+                      <select value={courseForm.repeat_type} onChange={e => setCourseForm(f => ({ ...f, repeat_type: e.target.value }))} style={{ width: '100%' }}>
+                        <option value="none">Doesn't repeat</option>
+                        <option value="weekly">Weekly (same day)</option>
+                        <option value="monthly">Monthly (same date)</option>
+                      </select>
+                    </div>
+                    {courseForm.repeat_type !== 'none' && (
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Number of occurrences</label>
+                        <input type="number" min="2" max="52" value={courseForm.repeat_count} onChange={e => setCourseForm(f => ({ ...f, repeat_count: Number(e.target.value) }))} style={{ width: '100%' }} />
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Location</label>
                 <input value={courseForm.location} onChange={e => setCourseForm(f => ({ ...f, location: e.target.value }))}
