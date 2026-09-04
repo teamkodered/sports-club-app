@@ -184,6 +184,7 @@ export default function CRM() {
   const [leadSourcesLoaded, setLeadSourcesLoaded] = useState(false)
   const [showNewEnquiryForm, setShowNewEnquiryForm] = useState(false)
   const [editingEnquiryId, setEditingEnquiryId] = useState(null)
+  const [standingOrderCheckMonth, setStandingOrderCheckMonth] = useState(null)
   const [enquiryDraft, setEnquiryDraft] = useState(null)
   const [savingEnquiry, setSavingEnquiry] = useState(false)
   const [linkingEnquiryId, setLinkingEnquiryId] = useState(null)
@@ -622,6 +623,28 @@ export default function CRM() {
     supabase.from('settings').select('value').eq('key', 'standing_order_adhoc_keywords').maybeSingle()
       .then(({ data }) => { if (data?.value?.length) setAdhocKeywords(data.value) })
   }, [])
+
+  // Loads the data these three reminder banners need eagerly, rather
+  // than waiting for someone to click into those tabs first -- the
+  // whole point of a reminder is that it's visible without having to
+  // go looking for it. Runs once students are available (missed
+  // training / birthdays are both computed from that array).
+  useEffect(() => {
+    if (students.length === 0) return
+    if (!missedTrainingLoaded) loadMissedTraining()
+    if (!birthdaysLoaded) loadBirthdays()
+  }, [students.length])
+
+  useEffect(() => {
+    supabase.from('settings').select('value').eq('key', 'standing_order_check_last_done').maybeSingle()
+      .then(({ data }) => setStandingOrderCheckMonth(data?.value || null))
+  }, [])
+
+  async function markStandingOrderCheckDone() {
+    const thisMonth = new Date().toISOString().slice(0, 7) // 'YYYY-MM'
+    await supabase.from('settings').upsert({ key: 'standing_order_check_last_done', value: thisMonth }, { onConflict: 'key' })
+    setStandingOrderCheckMonth(thisMonth)
+  }
 
   async function saveAdhocKeywords(next) {
     setAdhocKeywords(next)
@@ -1818,6 +1841,47 @@ export default function CRM() {
         <h1>CRM</h1>
         <p>Standing orders, and more to come</p>
       </div>
+
+      {(() => {
+        const thisMonth = new Date().toISOString().slice(0, 7)
+        const standingOrderDue = standingOrderCheckMonth !== null && standingOrderCheckMonth !== thisMonth
+        const standingOrderNeverChecked = standingOrderCheckMonth === null
+        const birthdaysToday = birthdays.filter(b => b.daysUntil === 0)
+        const birthdaysThisWeek = birthdays.filter(b => b.daysUntil > 0 && b.daysUntil <= 7)
+        const hasAnyReminder = standingOrderDue || standingOrderNeverChecked || missedTraining.length > 0 || birthdaysToday.length > 0 || birthdaysThisWeek.length > 0
+        if (!hasAnyReminder) return null
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+            {(standingOrderDue || standingOrderNeverChecked) && (
+              <div className="card" style={{ padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, background: '#EF9F2718' }}>
+                <span style={{ fontSize: 13 }}>📋 Standing order check {standingOrderNeverChecked ? 'has never been marked done' : `hasn't been done for ${new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })} yet`}</span>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button className="btn btn-sm" onClick={() => setTab('standing_orders')}>View</button>
+                  <button className="btn btn-sm btn-primary" onClick={markStandingOrderCheckDone}>✓ Mark done for this month</button>
+                </div>
+              </div>
+            )}
+            {missedTraining.length > 0 && (
+              <div className="card" style={{ padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, background: '#E24B4A18' }}>
+                <span style={{ fontSize: 13 }}>⚠️ {missedTraining.length} student{missedTraining.length === 1 ? ' has' : 's have'} missed training</span>
+                <button className="btn btn-sm" onClick={() => setTab('missed_training')}>View list → contact</button>
+              </div>
+            )}
+            {birthdaysToday.length > 0 && (
+              <div className="card" style={{ padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, background: '#378ADD18' }}>
+                <span style={{ fontSize: 13 }}>🎂 It's {birthdaysToday.map(b => `${b.student.members?.first_name}`).join(', ')}'s birthday today!</span>
+                <button className="btn btn-sm" onClick={() => setTab('birthdays')}>View</button>
+              </div>
+            )}
+            {birthdaysThisWeek.length > 0 && (
+              <div className="card" style={{ padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, background: '#378ADD18' }}>
+                <span style={{ fontSize: 13 }}>🎂 {birthdaysThisWeek.map(b => `${b.student.members?.first_name}`).join(', ')} — birthday this week</span>
+                <button className="btn btn-sm" onClick={() => setTab('birthdays')}>View</button>
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', marginBottom: 20, overflowX: 'auto', WebkitOverflowScrolling: 'touch', flexWrap: 'nowrap' }}>
         <button onClick={() => setTab('standing_orders')} style={{
