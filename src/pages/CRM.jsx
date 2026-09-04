@@ -1257,6 +1257,17 @@ export default function CRM() {
     )
   }
 
+  // Generic export used by every tab -- takes rows already shaped as
+  // flat objects (matching what's actually shown on screen for that
+  // tab) and writes them straight to a downloadable .xlsx file.
+  function exportToExcel(rows, filename) {
+    if (!rows || rows.length === 0) { alert('Nothing to export yet.'); return }
+    const sheet = XLSX.utils.json_to_sheet(rows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, sheet, 'Export')
+    XLSX.writeFile(wb, `${filename}_${new Date().toISOString().split('T')[0]}.xlsx`)
+  }
+
   function loadEnquiries() {
     supabase.from('enquiries').select('*, members(id, first_name, last_name)').order('enquiry_date', { ascending: false })
       .then(({ data }) => { setEnquiries(data || []); setEnquiriesLoaded(true) })
@@ -1877,6 +1888,11 @@ export default function CRM() {
               <option value="not_interested">Not interested</option>
             </select>
             <button className="btn btn-sm btn-primary" onClick={() => { setShowNewEnquiryForm(true); setEnquiryDraft({ name: '', contact_phone: '', contact_email: '', contact_method: 'call', enquiry_date: new Date().toISOString().split('T')[0], notes: '' }) }}>+ Log new enquiry</button>
+            <button className="btn btn-sm" onClick={() => exportToExcel(enquiries.map(e => ({
+              Name: e.name, Phone: e.contact_phone || '', Email: e.contact_email || '',
+              Method: e.contact_method, Date: e.enquiry_date, Status: e.status, Notes: e.notes || '',
+              'Linked member': e.members ? `${e.members.first_name} ${e.members.last_name}` : '',
+            })), 'enquiries')}>⬇️ Export</button>
           </div>
 
           <div style={{ marginBottom: 16 }}>
@@ -2063,6 +2079,12 @@ export default function CRM() {
                 style={{ width: 20, height: 20, padding: 0, borderRadius: '50%', fontSize: 11, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 ?
               </button>
+              <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => exportToExcel(students.map(s => ({
+                Name: `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.trim(),
+                Discipline: s.discipline || '',
+                Paid: matchedStudentIds.has(s.id) ? 'Yes' : 'No',
+                'Amount matched': (paymentsByStudentId[s.id] || []).reduce((sum, p) => sum + (Number(p.payment.amount) || 0), 0) || '',
+              })), 'standing_orders')}>⬇️ Export</button>
             </div>
             {showUploadHelp && (
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>
@@ -2390,6 +2412,13 @@ export default function CRM() {
                 style={{ width: 20, height: 20, padding: 0, borderRadius: '50%', fontSize: 11, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 ?
               </button>
+              <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => exportToExcel(missedTraining.map(r => ({
+                Name: `${r.student.members?.first_name || ''} ${r.student.members?.last_name || ''}`.trim(),
+                Phone: r.student.members?.phone || '',
+                Email: r.student.members?.email || '',
+                'Last attended': r.lastDate || 'Never',
+                'Weeks missed': r.weeksMissed ?? '',
+              })), 'missed_training')}>⬇️ Export</button>
             </div>
             {showMissedTrainingHelp && (
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 10 }}>
@@ -2590,6 +2619,12 @@ export default function CRM() {
                 style={{ width: 20, height: 20, padding: 0, borderRadius: '50%', fontSize: 11, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 ?
               </button>
+              <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => exportToExcel(stoppedStudents.map(s => ({
+                Name: `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.trim(),
+                Phone: s.members?.phone || '',
+                Email: s.members?.email || '',
+                'Do not contact': s.members?.do_not_contact ? 'Yes' : 'No',
+              })), 'stopped_training')}>⬇️ Export</button>
             </div>
             {showStoppedHelp && (
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 10 }}>
@@ -2781,6 +2816,16 @@ export default function CRM() {
           <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
             <button className={gradingView === 'requests' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setGradingView('requests')}>Requests</button>
             <button className={gradingView === 'list' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setGradingView('list')}>Grading list</button>
+            <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => exportToExcel(gradingRequests.map(r => ({
+              Name: `${r.students?.members?.first_name || ''} ${r.students?.members?.last_name || ''}`.trim(),
+              Discipline: r.students?.discipline || '',
+              'Current belt/level': r.students?.pka_belt || r.students?.krba_level || '',
+              'Grading for': r.grading_for || '',
+              'Sessions attended (claimed)': r.notes?.sessions_attended ?? '',
+              'Sessions attended (actual, last 3mo)': r.attendanceCount ?? '',
+              Approved: r.coach_approved ? 'Yes' : 'No',
+              'Submitted': r.created_at ? new Date(r.created_at).toLocaleDateString('en-GB') : '',
+            })), 'grading_requests')}>⬇️ Export</button>
           </div>
 
           {gradingLoading ? (
@@ -3080,6 +3125,14 @@ export default function CRM() {
                 style={{ width: 20, height: 20, padding: 0, borderRadius: '50%', fontSize: 11, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 ?
               </button>
+              <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => exportToExcel(birthdays.map(b => ({
+                Name: `${b.student.members?.first_name || ''} ${b.student.members?.last_name || ''}`.trim(),
+                Phone: b.student.members?.phone || '',
+                Email: b.student.members?.email || '',
+                'Birthday': b.nextBirthday ? new Date(b.nextBirthday).toLocaleDateString('en-GB') : '',
+                'Turning': b.turningAge ?? '',
+                'Days until': b.daysUntil ?? '',
+              })), 'birthdays')}>⬇️ Export</button>
             </div>
             {showBirthdaysHelp && (
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 10 }}>
@@ -3545,6 +3598,10 @@ export default function CRM() {
               Courses, gradings, and seminars — also shown on the club calendar.
             </p>
             {isAdmin && <button className="btn btn-primary btn-sm" onClick={() => startEditCourse(null)}>+ Add notice</button>}
+            <button className="btn btn-sm" onClick={() => exportToExcel(courses.map(c => ({
+              Title: c.title, Description: c.description || '', 'Start date': c.start_date, 'End date': c.end_date || '',
+              Location: c.location || '', Price: c.price || '',
+            })), 'notices')}>⬇️ Export</button>
           </div>
 
           {courses.length === 0 ? (
