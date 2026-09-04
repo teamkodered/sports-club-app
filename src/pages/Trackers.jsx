@@ -308,11 +308,6 @@ export default function Trackers() {
 
   return (
     <div>
-      <div className="page-header">
-        <h1>Trackers</h1>
-        <p>Student progress, attendance and weight tracking</p>
-      </div>
-
       <div style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--border)', marginBottom: 16 }}>
         {[['dashboard','📊 Dashboard'], ['spreadsheet','📋 Spreadsheet'], ['weight','⚖️ Weight tracker'], ['attendance','✅ Attendance']].map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)} style={{
