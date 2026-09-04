@@ -66,16 +66,24 @@ export default function JoinPKAChild() {
       const ref = generateStudentId(form.last_name, form.first_name, form.dob)
       setStudentRef(ref)
 
-      const { data: member, error: mErr } = await supabase.from('members').insert({
+      // Generating the id ourselves (rather than letting the database
+      // assign one and reading it back afterward) avoids a genuine
+      // Supabase gotcha: .insert().select() requires read permission
+      // on the new row too, but a public applicant has no login
+      // session yet, so that read-back would fail RLS even though the
+      // insert itself is correctly allowed for anonymous submissions.
+      const memberId = crypto.randomUUID()
+      const { error: mErr } = await supabase.from('members').insert({
+        id: memberId,
         member_id: ref, first_name: form.first_name, last_name: form.last_name,
         email: form.email, phone: form.mobile_phone,
         date_of_birth: form.dob, address_line1: form.address,
         role: 'member', status: 'pending', joined_date: new Date().toISOString().split('T')[0],
-      }).select().single()
+      })
       if (mErr) throw mErr
 
       const { error: sErr } = await supabase.from('students').insert({
-        member_id: member.id, student_ref: ref, discipline: 'PKA',
+        member_id: memberId, student_ref: ref, discipline: 'PKA',
         age_category: ageCategory,
         guardian_name: form.guardian_name, guardian_phone: form.mobile_phone,
         media_restriction: form.media_permission === 'Yes' ? 'Yes' : 'No',
@@ -85,7 +93,7 @@ export default function JoinPKAChild() {
       if (sErr) throw sErr
 
       const { error: mfErr } = await supabase.from('membership_forms').insert({
-        member_id: member.id, form_type: 'pka_child',
+        member_id: memberId, form_type: 'pka_child',
         sponsor_name: form.sponsor_name, school: form.school, year: form.year,
         other_activities: form.other_activities, hear_about: form.hear_about,
         promo_code: form.promo_code, goals: form.goals, goal_notes: form.goal_notes,

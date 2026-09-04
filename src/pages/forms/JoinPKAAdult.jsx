@@ -60,23 +60,25 @@ export default function JoinPKAAdult() {
       const age = form.dob ? Math.floor((Date.now() - new Date(form.dob)) / (365.25*24*60*60*1000)) : 0
       const ageCategory = age < 18 ? '16-17' : '18+'
 
-      const { data: member, error: mErr } = await supabase.from('members').insert({
+      const memberId = crypto.randomUUID()
+      const { error: mErr } = await supabase.from('members').insert({
+        id: memberId,
         member_id: ref, first_name: form.first_name, last_name: form.last_name,
         email: form.email, phone: form.mobile_phone, date_of_birth: form.dob,
         address_line1: form.address, role: 'member', status: 'pending',
         joined_date: new Date().toISOString().split('T')[0],
-      }).select().single()
+      })
       if (mErr) throw mErr
 
       const { error: sErr } = await supabase.from('students').insert({
-        member_id: member.id, student_ref: ref, discipline: 'PKA', age_category: ageCategory,
+        member_id: memberId, student_ref: ref, discipline: 'PKA', age_category: ageCategory,
         media_restriction: form.media_permission === 'Yes' ? 'Yes' : 'No',
         medical_conditions: form.medical_concerns || null,
       })
       if (sErr) throw sErr
 
       const { error: mfErr } = await supabase.from('membership_forms').insert({
-        member_id: member.id, form_type: 'pka_adult',
+        member_id: memberId, form_type: 'pka_adult',
         hear_about: form.hear_about, promo_code: form.promo_code,
         goals: form.goals, goal_notes: form.goal_notes,
         fitness_level: form.fitness_level, other_activities: form.other_activities,

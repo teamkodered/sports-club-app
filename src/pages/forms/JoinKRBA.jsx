@@ -43,16 +43,18 @@ export default function JoinKRBA() {
       const ref = generateStudentId(last_name, first_name, form.dob)
       setStudentRef(ref)
 
-      const { data: member, error: mErr } = await supabase.from('members').insert({
+      const memberId = crypto.randomUUID()
+      const { error: mErr } = await supabase.from('members').insert({
+        id: memberId,
         member_id: ref, first_name, last_name,
         email: form.email, phone: form.mobile_phone, date_of_birth: form.dob,
         address_line1: form.address, role: 'member', status: 'pending',
         joined_date: new Date().toISOString().split('T')[0],
-      }).select().single()
+      })
       if (mErr) throw mErr
 
       const { error: sErr } = await supabase.from('students').insert({
-        member_id: member.id, student_ref: ref, discipline: 'KRBA',
+        member_id: memberId, student_ref: ref, discipline: 'KRBA',
         media_restriction: form.media_permission === 'Yes' ? 'Yes' : 'No',
         medical_conditions: form.medical_concerns || null,
         medication: form.medication || null,
@@ -60,7 +62,7 @@ export default function JoinKRBA() {
       if (sErr) throw sErr
 
       const { error: mfErr } = await supabase.from('membership_forms').insert({
-        member_id: member.id, form_type: 'krba',
+        member_id: memberId, form_type: 'krba',
         additional_needs: form.additional_needs,
         previous_club: form.previous_club,
         emergency_contact_name: form.emergency_contact,
