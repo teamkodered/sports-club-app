@@ -851,12 +851,44 @@ export default function CRM() {
       if (!res.ok || result.error) {
         setOpenMessageError(result.error || res.statusText)
       } else {
-        setOpenMessage({ ...result.message, body: stripLeadingRawHeaders(result.message.body) })
+        const listEntry = inboxMessages.find(m => m.uid === uid)
+        setOpenMessage({ ...result.message, body: stripLeadingRawHeaders(result.message.body), flagged: listEntry?.flagged || false })
       }
     } catch (e) {
       setOpenMessageError(e.message)
     }
     setOpenMessageLoading(false)
+  }
+
+  // Next/previous just move through the same ordered list already
+  // showing on screen -- no need to re-fetch the whole inbox.
+  function goToAdjacentMessage(direction) {
+    if (!openMessage?.uid || inboxMessages.length === 0) return
+    const idx = inboxMessages.findIndex(m => m.uid === openMessage.uid)
+    if (idx === -1) return
+    const nextIdx = idx + direction
+    if (nextIdx < 0 || nextIdx >= inboxMessages.length) return
+    setReplyDraft(null)
+    openInboxMessage(inboxMessages[nextIdx].uid)
+  }
+
+  async function toggleStarOpenMessage() {
+    if (!openMessage?.uid) return
+    const newStarred = !openMessage.flagged
+    setOpenMessage(prev => ({ ...prev, flagged: newStarred })) // optimistic
+    setInboxMessages(prev => prev.map(m => m.uid === openMessage.uid ? { ...m, flagged: newStarred } : m))
+    const { data: sessionData } = await supabase.auth.getSession()
+    const accessToken = sessionData?.session?.access_token
+    const res = await fetch('/.netlify/functions/star-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ uid: openMessage.uid, starred: newStarred }),
+    })
+    if (!res.ok) {
+      // revert on failure
+      setOpenMessage(prev => ({ ...prev, flagged: !newStarred }))
+      setInboxMessages(prev => prev.map(m => m.uid === openMessage.uid ? { ...m, flagged: !newStarred } : m))
+    }
   }
 
   // Deletes the message from the actual mailbox via IMAP (not just
@@ -3365,6 +3397,7 @@ export default function CRM() {
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       {!m.seen && <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#378ADD', flexShrink: 0 }} />}
+                      {m.flagged && <span style={{ fontSize: 12, flexShrink: 0 }}>⭐</span>}
                       <span style={{ fontSize: 13, fontWeight: m.seen ? 400 : 600 }}>{m.fromName || m.from}</span>
                       <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{m.from}</span>
                     </div>
@@ -3383,6 +3416,22 @@ export default function CRM() {
             <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
               onClick={() => { setOpenMessage(null); setReplyDraft(null) }}>
               <div className="card" style={{ width: '100%', maxWidth: 560, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+                {/* Top toolbar -- navigation, star, close. Always visible, even
+                    while loading, so switching messages doesn't feel like it
+                    resets the modal each time. */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <button className="btn btn-sm" title="Previous message" disabled={inboxMessages.findIndex(m => m.uid === openMessage.uid) <= 0} onClick={() => goToAdjacentMessage(-1)}>⬅️</button>
+                    <button className="btn btn-sm" title="Next message" disabled={inboxMessages.findIndex(m => m.uid === openMessage.uid) === inboxMessages.length - 1} onClick={() => goToAdjacentMessage(1)}>➡️</button>
+                  </div>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    {!openMessageLoading && !openMessageError && (
+                      <button className="btn btn-sm" title={openMessage.flagged ? 'Unstar' : 'Star'} onClick={toggleStarOpenMessage}>{openMessage.flagged ? '⭐' : '☆'}</button>
+                    )}
+                    <button className="btn btn-sm" title="Close" onClick={() => { setOpenMessage(null); setReplyDraft(null) }}>✕</button>
+                  </div>
+                </div>
+
                 {openMessageLoading ? (
                   <div className="loading">Loading message…</div>
                 ) : openMessageError ? (
@@ -3405,6 +3454,10 @@ export default function CRM() {
                       const isMobile = phone && /^(?:\+447|07)/.test(phone)
                       return (
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+                          <button className="btn btn-sm btn-primary" onClick={() => setReplyDraft({
+                            to: openMessage.from, subject: openMessage.subject?.toLowerCase().startsWith('re:') ? openMessage.subject : `Re: ${openMessage.subject}`,
+                            body: `\n\n---\nOn ${openMessage.date ? new Date(openMessage.date).toLocaleString('en-GB') : ''}, ${openMessage.fromName || openMessage.from} wrote:\n${openMessage.body}`,
+                          })}>↩️ Reply</button>
                           {phone && <a className="btn btn-sm" href={`tel:${phone}`}>📞 Call {phone}</a>}
                           {phone && isMobile && <a className="btn btn-sm" href={`sms:${phone}`}>💬 Text {phone}</a>}
                           <button className="btn btn-sm" onClick={markMessageContacted}>✓ Mark contacted → Enquiries</button>
@@ -3413,7 +3466,7 @@ export default function CRM() {
                       )
                     })()}
 
-                    {replyDraft ? (
+                    {replyDraft && (
                       <div>
                         <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 6 }}>Replying to {replyDraft.to}</p>
                         <textarea value={replyDraft.body} onChange={e => setReplyDraft(d => ({ ...d, body: e.target.value }))}
@@ -3424,17 +3477,6 @@ export default function CRM() {
                           </button>
                           <button className="btn" onClick={() => setReplyDraft(null)}>Cancel</button>
                         </div>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <button className="btn btn-primary" onClick={() => setReplyDraft({
-                          to: openMessage.from,
-                          subject: openMessage.subject?.toLowerCase().startsWith('re:') ? openMessage.subject : `Re: ${openMessage.subject}`,
-                          body: `\n\n---\nOn ${openMessage.date ? new Date(openMessage.date).toLocaleString('en-GB') : ''}, ${openMessage.fromName || openMessage.from} wrote:\n${openMessage.body}`,
-                        })}>
-                          ↩️ Reply
-                        </button>
-                        <button className="btn" onClick={() => setOpenMessage(null)}>Close</button>
                       </div>
                     )}
                   </>

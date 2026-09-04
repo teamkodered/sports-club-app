@@ -119,12 +119,17 @@ exports.handler = async (event) => {
                 // rather than a full HTML-to-text library, for the
                 // same untrusted-input-safety reason noted above.
                 bodyText = bodyText
+                  .replace(/<!--[\s\S]*?-->/g, '')
                   .replace(/<style[\s\S]*?<\/style>/gi, '')
                   .replace(/<script[\s\S]*?<\/script>/gi, '')
+                  .replace(/<head[\s\S]*?<\/head>/gi, '')
                   .replace(/<br\s*\/?>/gi, '\n')
-                  .replace(/<\/p>/gi, '\n\n')
+                  .replace(/<\/(p|div|tr|li|h[1-6])>/gi, '\n\n')
                   .replace(/<[^>]+>/g, '')
-                  .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'").replace(/&quot;/g, '"')
+                  .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+                  .replace(/&#39;/g, "'").replace(/&apos;/g, "'").replace(/&quot;/g, '"')
+                  .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(code))
+                  .replace(/[ \t]+/g, ' ')
                   .replace(/\n{3,}/g, '\n\n')
                   .trim()
               }
@@ -165,6 +170,7 @@ exports.handler = async (event) => {
                 subject: msg.envelope?.subject || '(no subject)',
                 date: msg.envelope?.date,
                 seen: (msg.flags || new Set()).has('\\Seen'),
+                flagged: (msg.flags || new Set()).has('\\Flagged'),
               })
             }
           } catch (err) {
