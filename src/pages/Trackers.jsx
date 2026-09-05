@@ -274,14 +274,6 @@ export default function Trackers() {
   const fullKitCount = attendanceThisMonth.filter(a => a.attendance_type === 'full_kit').length
   const trainedThisMonth = attendedCount + fullKitCount
 
-  const dayMap = {}
-  attendanceThisMonth.forEach(a => {
-    const day = new Date(a.attended_at).toISOString().split('T')[0]
-    dayMap[day] = (dayMap[day] || 0) + 1
-  })
-  const trainedByDay = Object.entries(dayMap).map(([date, count]) => ({ date, count })).sort((a,b) => a.date.localeCompare(b.date))
-  const maxDayCount = Math.max(1, ...trainedByDay.map(d => d.count))
-
   // New members this month
   const newMembersThisMonth = allMembers.filter(m => {
     if (!m.joined_date) return false
@@ -322,35 +314,25 @@ export default function Trackers() {
       {/* Dashboard */}
       {tab === 'dashboard' && (
         <div>
-          {/* Average training duration -- top of page as requested */}
-          <div className="card" style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-            <div style={{ fontSize: 32 }}>⏱️</div>
-            <div style={{ flex: 1, minWidth: 200 }}>
-              <div style={{ fontSize: 24, fontWeight: 700 }}>
-                {avgMonthsTrained !== null ? `${avgMonthsTrained} months` : 'Not enough data yet'}
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                Average length of training (joined → stopped), based on {completedDurations.length} member{completedDurations.length === 1 ? '' : 's'} with a recorded stop date
-              </div>
-              {missingStopDates > 0 && (
-                <div style={{ fontSize: 11, color: '#EF9F27', marginTop: 4 }}>
-                  ⚠️ {missingStopDates} stopped member{missingStopDates === 1 ? '' : 's'} {missingStopDates === 1 ? 'has' : 'have'} no recorded stop date and {missingStopDates === 1 ? "isn't" : "aren't"} included
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 10 }}>
             {[
               { label: 'Total students', value: totalStudents, colour: '#378ADD', icon: '🎽' },
+              { label: 'New members this month', value: newMembersThisMonth, colour: '#E24B4A', icon: '🆕' },
               { label: 'Trained this month', value: trainedThisMonth, colour: '#1D9E75', icon: '💪' },
               { label: 'Avg sessions/student', value: avgSessions, colour: '#EF9F27', icon: '📈' },
-              { label: 'New members this month', value: newMembersThisMonth, colour: '#E24B4A', icon: '🆕' },
+              {
+                label: 'Avg length of training', colour: '#8B5CF6', icon: '⏱️',
+                value: avgMonthsTrained !== null ? `${avgMonthsTrained}mo` : '—',
+                caption: `Joined → stopped, based on ${completedDurations.length} member${completedDurations.length === 1 ? '' : 's'}`,
+                warning: missingStopDates > 0 ? `⚠️ ${missingStopDates} missing a stop date` : null,
+              },
             ].map(s => (
-              <div key={s.label} className="card" style={{ textAlign: 'center' }}>
+              <div key={s.label} className="card" style={{ textAlign: 'center' }} title={s.warning || undefined}>
                 <div style={{ fontSize: 28, marginBottom: 4 }}>{s.icon}</div>
                 <div style={{ fontSize: 26, fontWeight: 700, color: s.colour }}>{s.value}</div>
                 <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{s.label}</div>
+                {s.caption && <div style={{ fontSize: 9, color: 'var(--text-tertiary)', marginTop: 4 }}>{s.caption}</div>}
+                {s.warning && <div style={{ fontSize: 9, color: '#EF9F27', marginTop: 2 }}>{s.warning}</div>}
               </div>
             ))}
           </div>
@@ -358,35 +340,6 @@ export default function Trackers() {
           <div style={{ display: 'flex', gap: 16, marginBottom: 20, fontSize: 12, color: 'var(--text-secondary)', paddingLeft: 2 }}>
             <span>✓ Attended: <strong style={{ color: 'var(--text)' }}>{attendedCount}</strong></span>
             <span>✓ Full kit: <strong style={{ color: 'var(--text)' }}>{fullKitCount}</strong></span>
-          </div>
-
-          {/* Students trained per day this month */}
-          <div className="card" style={{ marginBottom: 20 }}>
-            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 14 }}>📅 Students trained per day — this month</div>
-            {trainedByDay.length === 0 ? (
-              <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No attendance recorded yet this month.</p>
-            ) : (
-              <>
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 110, borderBottom: '1px solid var(--border)', paddingBottom: 4, overflowX: 'auto' }}>
-                  {trainedByDay.map(d => (
-                    <div key={d.date} title={`${new Date(d.date).toLocaleDateString('en-GB')}: ${d.count} trained`} style={{ flex: 1, minWidth: 6, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                      <div style={{
-                        width: '100%', minHeight: d.count ? 3 : 0,
-                        height: `${(d.count / maxDayCount) * 90}px`,
-                        background: '#1D9E75', borderRadius: '2px 2px 0 0',
-                      }} />
-                    </div>
-                  ))}
-                </div>
-                <div style={{ display: 'flex', gap: 3, marginTop: 4 }}>
-                  {trainedByDay.map(d => (
-                    <div key={d.date} style={{ flex: 1, minWidth: 6, textAlign: 'center', fontSize: 8, color: 'var(--text-tertiary)' }}>
-                      {new Date(d.date).getDate()}
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
           </div>
 
           {/* Joins vs stops -- moved to CRM > Enquiries, alongside the
