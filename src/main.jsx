@@ -35,6 +35,7 @@ import StudentDatabase from './pages/StudentDatabase.jsx'
 import Settings from './pages/Settings.jsx'
 import Registers from './pages/Registers.jsx'
 import CctvViewer from './pages/CctvViewer.jsx'
+import ViewIt from './pages/ViewIt.jsx'
 import Classes from './pages/Classes.jsx'
 import Forms from './pages/Forms.jsx'
 import CheckIn from './pages/CheckIn.jsx'
@@ -128,6 +129,7 @@ function App() {
             <Route path="fit2fight"       element={<FitToFight />} />
             <Route path="athletes"        element={<ProtectedRoute staffOnly excludeLeader><AthleteProfiles /></ProtectedRoute>} />
             <Route path="cctv"            element={<ProtectedRoute staffOnly excludeLeader><CctvViewer /></ProtectedRoute>} />
+            <Route path="view-it"         element={<ProtectedRoute staffOnly excludeLeader><ViewIt /></ProtectedRoute>} />
             <Route path="import"          element={<ProtectedRoute adminOnly><AdminImport /></ProtectedRoute>} />
             <Route path="settings"        element={<ProtectedRoute adminOnly><Settings /></ProtectedRoute>} />
           </Route>
