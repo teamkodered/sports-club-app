@@ -4083,23 +4083,25 @@ export default function CRM() {
             ) : (
               inboxMessages.map(m => (
                 pendingDeleteUids.has(m.uid) ? (
-                  <div key={m.uid} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '14px 16px', borderTop: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
-                    <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>Deleted "{m.subject}"</span>
-                    <button className="btn btn-sm" onClick={() => undoDeleteEmail(m.uid)}>↺ Undo</button>
+                  <div key={m.uid} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '14px 16px', minHeight: 64, borderTop: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
+                    <span style={{ fontSize: 14, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>Deleted "{m.subject}"</span>
+                    <button className="btn btn-sm" style={{ flexShrink: 0 }} onClick={() => undoDeleteEmail(m.uid)}>↺ Undo</button>
                   </div>
                 ) : (
-                  <div key={m.uid} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 16px', borderTop: '1px solid var(--border)' }}>
+                  <div key={m.uid} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 16px', minHeight: 64, borderTop: '1px solid var(--border)' }}>
                     <div style={{ display: 'flex', gap: 6, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
                       <button className="btn btn-sm" title="Mark contacted → Enquiries" onClick={() => markContactedForMessage(m)}>✓</button>
                       <button className="btn btn-sm" style={{ color: '#E24B4A' }} title="Delete" onClick={() => deleteEmailWithUndo(m)}>🗑️</button>
                     </div>
                     <div onClick={() => openInboxMessage(m.uid)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, cursor: 'pointer' }}>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ minWidth: 0, overflow: 'hidden' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                           {!m.seen && <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#378ADD', flexShrink: 0 }} />}
                           {m.flagged && <span style={{ fontSize: 14, flexShrink: 0 }}>⭐</span>}
-                          <span style={{ fontSize: 15, fontWeight: m.seen ? 400 : 600 }}>{m.fromName || m.from}</span>
-                          <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{m.from}</span>
+                          <span style={{ fontSize: 15, fontWeight: m.seen ? 400 : 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                            {m.fromName || m.from}{' '}
+                            <span style={{ fontWeight: 400, fontSize: 12, color: 'var(--text-tertiary)' }}>{m.from}</span>
+                          </span>
                         </div>
                         <div style={{ fontSize: 15, fontWeight: m.seen ? 400 : 600, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.subject}</div>
                       </div>
