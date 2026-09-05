@@ -312,6 +312,8 @@ export default function CRM() {
   const [leadSourcesLoaded, setLeadSourcesLoaded] = useState(false)
   const [joinsStopsMembers, setJoinsStopsMembers] = useState([])
   const [joinsStopsLoaded, setJoinsStopsLoaded] = useState(false)
+  const [trainedPerDay, setTrainedPerDay] = useState([])
+  const [trainedPerDayLoaded, setTrainedPerDayLoaded] = useState(false)
   const [showNewEnquiryForm, setShowNewEnquiryForm] = useState(false)
   const [editingEnquiryId, setEditingEnquiryId] = useState(null)
   const [standingOrderCheckMonth, setStandingOrderCheckMonth] = useState(null)
@@ -1421,6 +1423,20 @@ export default function CRM() {
     })
   }
 
+  function loadTrainedPerDay() {
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 30)
+    supabase.from('attendance').select('student_id, session_date').gte('session_date', cutoff.toISOString().split('T')[0]).then(({ data }) => {
+      const byDay = {}
+      for (const row of data || []) {
+        if (!row.session_date) continue
+        byDay[row.session_date] = byDay[row.session_date] || new Set()
+        byDay[row.session_date].add(row.student_id)
+      }
+      setTrainedPerDay(Object.entries(byDay).map(([date, students]) => ({ date, count: students.size })))
+      setTrainedPerDayLoaded(true)
+    })
+  }
+
   function JoinsVsStopsChart({ allMembers }) {
     const timelineMap = {}
     allMembers.forEach(m => {
@@ -1517,63 +1533,108 @@ export default function CRM() {
   // everything at once, and picking a specific category shows that
   // one full-size with its own controls (e.g. the method filter chips
   // only make sense for the Enquiries view specifically).
-  function CombinedAnalyticsChart({ enquiries, enquiryMethodFilter, setEnquiryMethodFilter, leadSources, joinsStopsMembers }) {
-    const [view, setView] = useState('all')
-    const categories = [
-      ['all', 'All'],
-      ['enquiries', 'Enquiries by day'],
-      ['sources', 'Where they came from'],
-      ['joins', 'Joins vs stops'],
+  // Enquiries, Joins, Stops, and Students Trained all plotted on ONE
+  // shared daily chart, each independently toggleable -- "All" shows
+  // everything at once, deselecting a series hides just that one, so
+  // you can view any single metric or any combination. All four use
+  // the same last-30-days window so they genuinely line up on one
+  // x-axis (Joins vs Stops previously used a 12-month view, which
+  // can't overlay with the other two daily metrics, so it's been
+  // recomputed daily here to match).
+  //
+  // "Where they came from" stays a completely separate card below --
+  // it's a percentage breakdown by category, not a time series, so it
+  // was never going to sensibly overlay with the others.
+  function CombinedDailyChart({ enquiries, joinsStopsMembers, trainedPerDay }) {
+    const SERIES = [
+      { key: 'enquiries', label: 'Enquiries', colour: '#378ADD' },
+      { key: 'joined', label: 'Joined', colour: '#1D9E75' },
+      { key: 'stopped', label: 'Stopped', colour: '#E24B4A' },
+      { key: 'trained', label: 'Students trained', colour: '#EF9F27' },
     ]
+    const [visible, setVisible] = useState(() => new Set(SERIES.map(s => s.key)))
+
+    function toggleSeries(key) {
+      setVisible(prev => {
+        const next = new Set(prev)
+        next.has(key) ? next.delete(key) : next.add(key)
+        return next
+      })
+    }
+
+    const days = Array.from({ length: 30 }, (_, i) => {
+      const d = new Date(); d.setDate(d.getDate() - (29 - i)); return d.toISOString().split('T')[0]
+    })
+    const trainedByDay = Object.fromEntries(trainedPerDay.map(t => [t.date, t.count]))
+    const data = days.map(day => ({
+      date: day,
+      enquiries: enquiries.filter(e => e.enquiry_date === day).length,
+      joined: joinsStopsMembers.filter(m => m.joined_date === day).length,
+      stopped: joinsStopsMembers.filter(m => m.stopped_at?.split('T')[0] === day).length,
+      trained: trainedByDay[day] || 0,
+    }))
+    const activeSeries = SERIES.filter(s => visible.has(s.key))
+    const maxVal = Math.max(1, ...data.flatMap(d => activeSeries.map(s => d[s.key])))
+
+    const w = 700, h = 180, pad = { t: 10, r: 10, b: 24, l: 28 }
+    const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b
+    const groupW = iw / days.length
+    const barW = activeSeries.length ? Math.max(1, (groupW - 2) / activeSeries.length) : 0
+
     return (
       <div className="card" style={{ padding: 14, marginBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
-          {categories.map(([val, label]) => (
-            <button key={val} onClick={() => setView(val)}
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Enquiries, Joins/Stops & Training — last 30 days</div>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+          <button onClick={() => setVisible(new Set(SERIES.map(s => s.key)))}
+            style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+              border: '1px solid var(--border)', background: visible.size === SERIES.length ? '#37373718' : 'transparent',
+              color: 'var(--text-secondary)', fontWeight: visible.size === SERIES.length ? 600 : 400 }}>
+            All
+          </button>
+          {SERIES.map(s => (
+            <button key={s.key} onClick={() => toggleSeries(s.key)}
               style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                border: `1px solid ${view === val ? '#378ADD' : 'var(--border)'}`,
-                background: view === val ? '#378ADD18' : 'transparent',
-                color: view === val ? '#378ADD' : 'var(--text-secondary)', fontWeight: view === val ? 600 : 400 }}>
-              {label}
+                border: `1px solid ${visible.has(s.key) ? s.colour : 'var(--border)'}`,
+                background: visible.has(s.key) ? s.colour + '18' : 'transparent',
+                color: visible.has(s.key) ? s.colour : 'var(--text-tertiary)', fontWeight: visible.has(s.key) ? 600 : 400 }}>
+              {s.label}
             </button>
           ))}
         </div>
 
-        {view === 'enquiries' && (
-          <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-            {[['all', 'All'], ['call', 'Call'], ['text', 'Text'], ['email', 'Email'], ['facebook_ad', 'Social media']].map(([val, label]) => (
-              <button key={val} onClick={() => setEnquiryMethodFilter(val)}
-                style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                  border: `1px solid ${enquiryMethodFilter === val ? '#378ADD' : 'var(--border)'}`,
-                  background: enquiryMethodFilter === val ? '#378ADD18' : 'transparent',
-                  color: enquiryMethodFilter === val ? '#378ADD' : 'var(--text-secondary)', fontWeight: enquiryMethodFilter === val ? 600 : 400 }}>
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {view === 'all' ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--text-secondary)' }}>Enquiries by day</div>
-              <EnquiriesDailyChart enquiries={enquiries} methodFilter="all" />
-            </div>
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--text-secondary)' }}>Where they came from</div>
-              <LeadSourcesChart sources={leadSources} />
-            </div>
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--text-secondary)' }}>Joins vs stops — last 12 months</div>
-              <JoinsVsStopsChart allMembers={joinsStopsMembers} />
-            </div>
-          </div>
-        ) : view === 'enquiries' ? (
-          <EnquiriesDailyChart enquiries={enquiries} methodFilter={enquiryMethodFilter} />
-        ) : view === 'sources' ? (
-          <LeadSourcesChart sources={leadSources} />
+        {activeSeries.length === 0 ? (
+          <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Select at least one to display.</p>
         ) : (
-          <JoinsVsStopsChart allMembers={joinsStopsMembers} />
+          <div style={{ overflowX: 'auto' }}>
+            <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', minWidth: 500, height: 'auto' }}>
+              {[0, 0.5, 1].map((t, i) => {
+                const yv = pad.t + ih * (1 - t)
+                return <g key={i}>
+                  <line x1={pad.l} x2={pad.l + iw} y1={yv} y2={yv} stroke="var(--border)" strokeWidth="0.5" />
+                  <text x={pad.l - 4} y={yv + 3} textAnchor="end" fontSize="8" fill="var(--text-tertiary)">{Math.round(maxVal * t)}</text>
+                </g>
+              })}
+              {data.map((d, i) => (
+                <g key={d.date}>
+                  {activeSeries.map((s, si) => {
+                    const val = d[s.key]
+                    const barH = (val / maxVal) * ih
+                    return (
+                      <rect key={s.key} x={pad.l + i * groupW + si * barW + 1} y={pad.t + ih - barH}
+                        width={Math.max(1, barW - 1)} height={barH} fill={s.colour} rx="1">
+                        <title>{`${s.label}: ${val} on ${d.date}`}</title>
+                      </rect>
+                    )
+                  })}
+                  {i % 5 === 0 && (
+                    <text x={pad.l + i * groupW + groupW / 2} y={h - 6} textAnchor="middle" fontSize="7" fill="var(--text-tertiary)">
+                      {new Date(d.date + 'T12:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                    </text>
+                  )}
+                </g>
+              ))}
+            </svg>
+          </div>
         )}
       </div>
     )
@@ -2219,7 +2280,7 @@ export default function CRM() {
           color: tab === 'enquiries' ? 'var(--text)' : 'var(--text-secondary)',
           fontWeight: tab === 'enquiries' ? 500 : 400,
         }}>Enquiries</button>
-        <button onClick={() => { setTab('trackers'); if (!enquiriesLoaded) loadEnquiries(); if (!leadSourcesLoaded) loadLeadSources(); if (!joinsStopsLoaded) loadJoinsVsStops() }} style={{
+        <button onClick={() => { setTab('trackers'); if (!enquiriesLoaded) loadEnquiries(); if (!leadSourcesLoaded) loadLeadSources(); if (!joinsStopsLoaded) loadJoinsVsStops(); if (!trainedPerDayLoaded) loadTrainedPerDay() }} style={{
           padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer', flexShrink: 0,
           borderBottom: `2px solid ${tab === 'trackers' ? 'var(--text)' : 'transparent'}`,
           color: tab === 'trackers' ? 'var(--text)' : 'var(--text-secondary)',
@@ -2410,13 +2471,19 @@ export default function CRM() {
 
       {tab === 'trackers' && (
         <div>
-          <CombinedAnalyticsChart
+          <CombinedDailyChart
             enquiries={enquiries}
-            enquiryMethodFilter={enquiryMethodFilter}
-            setEnquiryMethodFilter={setEnquiryMethodFilter}
-            leadSources={leadSources}
             joinsStopsMembers={joinsStopsMembers}
+            trainedPerDay={trainedPerDay}
           />
+          <div className="card" style={{ padding: 14, marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Where members actually said they found us</div>
+            {!leadSourcesLoaded ? (
+              <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Loading…</p>
+            ) : (
+              <LeadSourcesChart sources={leadSources} />
+            )}
+          </div>
           <Trackers />
         </div>
       )}
