@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment } from 'react'
+import { useState, useEffect, Fragment, useRef } from 'react'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useBackableTab } from '../hooks/useBackableTab.js'
@@ -368,6 +368,8 @@ export default function CRM() {
   const [inboxLoaded, setInboxLoaded] = useState(false)
   const [inboxLoading, setInboxLoading] = useState(false)
   const [inboxMessages, setInboxMessages] = useState([])
+  const [pendingDeleteUids, setPendingDeleteUids] = useState(() => new Set())
+  const pendingDeleteTimers = useRef({})
   const [inboxError, setInboxError] = useState(null)
   const [testEmailStatus, setTestEmailStatus] = useState(null) // null | 'sending' | 'sent' | 'error'
   const [openMessage, setOpenMessage] = useState(null) // full message detail once loaded, or null
@@ -776,6 +778,13 @@ export default function CRM() {
 
   useEffect(() => { loadData() }, [])
 
+  // Clears any in-flight "deleted, undo?" timers if this page/component
+  // ever unmounts mid-countdown, so a delete can't silently fire later
+  // against stale state.
+  useEffect(() => () => {
+    Object.values(pendingDeleteTimers.current).forEach(clearTimeout)
+  }, [])
+
   useEffect(() => {
     supabase.from('settings').select('value').eq('key', 'standing_order_adhoc_keywords').maybeSingle()
       .then(({ data }) => { if (data?.value?.length) setAdhocKeywords(data.value) })
@@ -1049,23 +1058,56 @@ export default function CRM() {
   // Adds (or updates) this sender as an Enquiries entry marked
   // "Contacted" -- a manual equivalent to the automatic add-on-inbox-
   // load, for explicitly logging that this exact email was dealt with.
-  async function markMessageContacted() {
-    if (!openMessage?.from) return
-    const { data: existing } = await supabase.from('enquiries').select('id').ilike('contact_email', openMessage.from).maybeSingle()
+  async function markContactedForMessage(msg) {
+    if (!msg?.from) return
+    const { data: existing } = await supabase.from('enquiries').select('id').ilike('contact_email', msg.from).maybeSingle()
     if (existing) {
       await supabase.from('enquiries').update({ status: 'contacted', updated_at: new Date().toISOString() }).eq('id', existing.id)
     } else {
       await supabase.from('enquiries').insert({
-        name: openMessage.fromName || openMessage.from.split('@')[0],
-        contact_email: openMessage.from,
+        name: msg.fromName || msg.from.split('@')[0],
+        contact_email: msg.from,
         contact_method: 'email',
-        enquiry_date: openMessage.date ? new Date(openMessage.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-        notes: openMessage.subject ? `From email: "${openMessage.subject}"` : 'From email',
+        enquiry_date: msg.date ? new Date(msg.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        notes: msg.subject ? `From email: "${msg.subject}"` : 'From email',
         status: 'contacted',
       })
     }
     if (enquiriesLoaded) loadEnquiries()
+  }
+
+  async function markMessageContacted() {
+    await markContactedForMessage(openMessage)
     alert('Added to Enquiries, marked as Contacted')
+  }
+
+  // Delete with an undo window instead of a blocking confirm() --
+  // the row visually shows "Deleted" + Undo for a few seconds; the
+  // actual IMAP delete only fires once that window passes uncancelled.
+  function deleteEmailWithUndo(m) {
+    setPendingDeleteUids(prev => new Set(prev).add(m.uid))
+    pendingDeleteTimers.current[m.uid] = setTimeout(async () => {
+      delete pendingDeleteTimers.current[m.uid]
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData?.session?.access_token
+      const res = await fetch('/.netlify/functions/delete-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ uid: m.uid }),
+      })
+      if (res.ok) {
+        setInboxMessages(prev => prev.filter(x => x.uid !== m.uid))
+      } else {
+        alert("Couldn't delete this message -- it's no longer marked as pending.")
+      }
+      setPendingDeleteUids(prev => { const next = new Set(prev); next.delete(m.uid); return next })
+    }, 5000)
+  }
+
+  function undoDeleteEmail(uid) {
+    clearTimeout(pendingDeleteTimers.current[uid])
+    delete pendingDeleteTimers.current[uid]
+    setPendingDeleteUids(prev => { const next = new Set(prev); next.delete(uid); return next })
   }
 
   async function sendReply() {
@@ -4040,21 +4082,33 @@ export default function CRM() {
               <p style={{ fontSize: 13, color: 'var(--text-tertiary)', padding: 20, textAlign: 'center' }}>No messages found.</p>
             ) : (
               inboxMessages.map(m => (
-                <div key={m.uid} onClick={() => openInboxMessage(m.uid)}
-                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '10px 14px', borderTop: '1px solid var(--border)', cursor: 'pointer' }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {!m.seen && <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#378ADD', flexShrink: 0 }} />}
-                      {m.flagged && <span style={{ fontSize: 12, flexShrink: 0 }}>⭐</span>}
-                      <span style={{ fontSize: 13, fontWeight: m.seen ? 400 : 600 }}>{m.fromName || m.from}</span>
-                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{m.from}</span>
-                    </div>
-                    <div style={{ fontSize: 13, fontWeight: m.seen ? 400 : 600, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.subject}</div>
+                pendingDeleteUids.has(m.uid) ? (
+                  <div key={m.uid} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '14px 16px', borderTop: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
+                    <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>Deleted "{m.subject}"</span>
+                    <button className="btn btn-sm" onClick={() => undoDeleteEmail(m.uid)}>↺ Undo</button>
                   </div>
-                  <span style={{ fontSize: 11, color: 'var(--text-tertiary)', flexShrink: 0 }}>
-                    {m.date ? new Date(m.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''}
-                  </span>
-                </div>
+                ) : (
+                  <div key={m.uid} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 16px', borderTop: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+                      <button className="btn btn-sm" title="Mark contacted → Enquiries" onClick={() => markContactedForMessage(m)}>✓</button>
+                      <button className="btn btn-sm" style={{ color: '#E24B4A' }} title="Delete" onClick={() => deleteEmailWithUndo(m)}>🗑️</button>
+                    </div>
+                    <div onClick={() => openInboxMessage(m.uid)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, cursor: 'pointer' }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {!m.seen && <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#378ADD', flexShrink: 0 }} />}
+                          {m.flagged && <span style={{ fontSize: 14, flexShrink: 0 }}>⭐</span>}
+                          <span style={{ fontSize: 15, fontWeight: m.seen ? 400 : 600 }}>{m.fromName || m.from}</span>
+                          <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{m.from}</span>
+                        </div>
+                        <div style={{ fontSize: 15, fontWeight: m.seen ? 400 : 600, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.subject}</div>
+                      </div>
+                      <span style={{ fontSize: 12, color: 'var(--text-tertiary)', flexShrink: 0 }}>
+                        {m.date ? new Date(m.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''}
+                      </span>
+                    </div>
+                  </div>
+                )
               ))
             )}
           </div>
