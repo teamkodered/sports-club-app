@@ -312,6 +312,7 @@ export default function CRM() {
   const [leadSourcesLoaded, setLeadSourcesLoaded] = useState(false)
   const [joinsStopsMembers, setJoinsStopsMembers] = useState([])
   const [joinsStopsLoaded, setJoinsStopsLoaded] = useState(false)
+  const [trackersStats, setTrackersStats] = useState(null)
   const [trainedPerDay, setTrainedPerDay] = useState([])
   const [trainedPerDayLoaded, setTrainedPerDayLoaded] = useState(false)
   const [showNewEnquiryForm, setShowNewEnquiryForm] = useState(false)
@@ -2471,6 +2472,30 @@ export default function CRM() {
 
       {tab === 'trackers' && (
         <div>
+          {trackersStats && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 16 }}>
+              {[
+                { label: 'Total students', value: trackersStats.totalStudents, colour: '#378ADD', icon: '🎽' },
+                { label: 'New members this month', value: trackersStats.newMembersThisMonth, colour: '#E24B4A', icon: '🆕' },
+                { label: 'Trained this month', value: trackersStats.trainedThisMonth, colour: '#1D9E75', icon: '💪' },
+                { label: 'Avg sessions/student', value: trackersStats.avgSessions, colour: '#EF9F27', icon: '📈' },
+                {
+                  label: 'Avg length of training', colour: '#8B5CF6', icon: '⏱️',
+                  value: trackersStats.avgMonthsTrained !== null ? `${trackersStats.avgMonthsTrained}mo` : '—',
+                  caption: `Joined → stopped, based on ${trackersStats.completedDurationsCount} member${trackersStats.completedDurationsCount === 1 ? '' : 's'}`,
+                  warning: trackersStats.missingStopDates > 0 ? `⚠️ ${trackersStats.missingStopDates} missing a stop date` : null,
+                },
+              ].map(s => (
+                <div key={s.label} className="card" style={{ textAlign: 'center' }} title={s.warning || undefined}>
+                  <div style={{ fontSize: 28, marginBottom: 4 }}>{s.icon}</div>
+                  <div style={{ fontSize: 26, fontWeight: 700, color: s.colour }}>{s.value}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{s.label}</div>
+                  {s.caption && <div style={{ fontSize: 9, color: 'var(--text-tertiary)', marginTop: 4 }}>{s.caption}</div>}
+                  {s.warning && <div style={{ fontSize: 9, color: '#EF9F27', marginTop: 2 }}>{s.warning}</div>}
+                </div>
+              ))}
+            </div>
+          )}
           <CombinedDailyChart
             enquiries={enquiries}
             joinsStopsMembers={joinsStopsMembers}
@@ -2484,7 +2509,7 @@ export default function CRM() {
               <LeadSourcesChart sources={leadSources} />
             )}
           </div>
-          <Trackers />
+          <Trackers onStatsReady={setTrackersStats} />
         </div>
       )}
 

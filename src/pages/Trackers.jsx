@@ -67,7 +67,7 @@ function Sparkline({ data, colour = '#378ADD', width = 110, height = 32, onClick
   )
 }
 
-export default function Trackers() {
+export default function Trackers({ onStatsReady } = {}) {
   const [tab, setTab]               = useBackableTab('dashboard')
   const [attendance, setAttendance]   = useState([])
   const [attFilter, setAttFilter]     = useState('all')
@@ -296,6 +296,15 @@ export default function Trackers() {
     : null
   const missingStopDates = allMembers.filter(m => m.status === 'stopped' && (!m.stopped_at || !m.joined_date)).length
 
+  // Reports these up to CRM.jsx, which now renders the actual stat
+  // cards itself (positioned above its own graph) -- avoids
+  // duplicating any of this data-fetching/calculation in the parent
+  // just to move where the cards visually sit.
+  useEffect(() => {
+    if (loading) return
+    onStatsReady?.({ totalStudents, newMembersThisMonth, trainedThisMonth, avgSessions, avgMonthsTrained, completedDurationsCount: completedDurations.length, missingStopDates })
+  }, [loading, totalStudents, newMembersThisMonth, trainedThisMonth, avgSessions, avgMonthsTrained, completedDurations.length, missingStopDates])
+
   if (loading) return <div className="loading">Loading trackers…</div>
 
   return (
@@ -314,29 +323,6 @@ export default function Trackers() {
       {/* Dashboard */}
       {tab === 'dashboard' && (
         <div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 10 }}>
-            {[
-              { label: 'Total students', value: totalStudents, colour: '#378ADD', icon: '🎽' },
-              { label: 'New members this month', value: newMembersThisMonth, colour: '#E24B4A', icon: '🆕' },
-              { label: 'Trained this month', value: trainedThisMonth, colour: '#1D9E75', icon: '💪' },
-              { label: 'Avg sessions/student', value: avgSessions, colour: '#EF9F27', icon: '📈' },
-              {
-                label: 'Avg length of training', colour: '#8B5CF6', icon: '⏱️',
-                value: avgMonthsTrained !== null ? `${avgMonthsTrained}mo` : '—',
-                caption: `Joined → stopped, based on ${completedDurations.length} member${completedDurations.length === 1 ? '' : 's'}`,
-                warning: missingStopDates > 0 ? `⚠️ ${missingStopDates} missing a stop date` : null,
-              },
-            ].map(s => (
-              <div key={s.label} className="card" style={{ textAlign: 'center' }} title={s.warning || undefined}>
-                <div style={{ fontSize: 28, marginBottom: 4 }}>{s.icon}</div>
-                <div style={{ fontSize: 26, fontWeight: 700, color: s.colour }}>{s.value}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{s.label}</div>
-                {s.caption && <div style={{ fontSize: 9, color: 'var(--text-tertiary)', marginTop: 4 }}>{s.caption}</div>}
-                {s.warning && <div style={{ fontSize: 9, color: '#EF9F27', marginTop: 2 }}>{s.warning}</div>}
-              </div>
-            ))}
-          </div>
-
           <div style={{ display: 'flex', gap: 16, marginBottom: 20, fontSize: 12, color: 'var(--text-secondary)', paddingLeft: 2 }}>
             <span>✓ Attended: <strong style={{ color: 'var(--text)' }}>{attendedCount}</strong></span>
             <span>✓ Full kit: <strong style={{ color: 'var(--text)' }}>{fullKitCount}</strong></span>
