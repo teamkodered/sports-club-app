@@ -1,6 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './hooks/useAuth.jsx'
 import { supabase } from './lib/supabase.js'
 import ErrorBoundary from './components/shared/ErrorBoundary.jsx'
@@ -47,10 +47,21 @@ import CourseInterest from './pages/forms/CourseInterest.jsx'
 import WhoopDisplayBoard from './pages/WhoopDisplayBoard.jsx'
 import Layout from './components/shared/Layout.jsx'
 
+// Paths only an athlete/member would ever be on -- if someone with no
+// session lands on one of these (e.g. an expired session on a
+// bookmarked /athlete-app link), they get sent to the athlete-specific
+// login page instead of the coach one, so members are never routed
+// through the coach-branded entry point.
+const ATHLETE_ONLY_PATHS = ['/athlete-app', '/my-dashboard', '/profile', '/boxing-tpt', '/kickboxing-tpt', '/fit2fight']
+
 function ProtectedRoute({ children, adminOnly = false, staffOnly = false, excludeLeader = false }) {
   const { session, profile, profileError, isAdmin, isStaff, isLeader, loading } = useAuth()
+  const location = useLocation()
   if (loading) return <div className="loading">Loading…</div>
-  if (!session) return <Navigate to="/login" replace />
+  if (!session) {
+    const loginPath = ATHLETE_ONLY_PATHS.includes(location.pathname) ? '/athlete-login' : '/login'
+    return <Navigate to={loginPath} replace />
+  }
   if (!profile) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center' }}>
       <div>
@@ -60,7 +71,7 @@ function ProtectedRoute({ children, adminOnly = false, staffOnly = false, exclud
           {profileError === 'no_member_record' ? ' This can happen if your account was created before your membership record, or the two haven\'t been linked up.' : ` (${profileError || 'unknown error'})`}
           {' '}Please contact your coach or club admin so they can link your account.
         </p>
-        <button className="btn btn-primary" onClick={() => { supabase.auth.signOut(); window.location.href = '/login' }}>Sign out</button>
+        <button className="btn btn-primary" onClick={() => { supabase.auth.signOut(); window.location.href = ATHLETE_ONLY_PATHS.includes(location.pathname) ? '/athlete-login' : '/login' }}>Sign out</button>
       </div>
     </div>
   )
