@@ -317,6 +317,7 @@ export default function CRM() {
   const [trainedPerDayLoaded, setTrainedPerDayLoaded] = useState(false)
   const [showNewEnquiryForm, setShowNewEnquiryForm] = useState(false)
   const [editingEnquiryId, setEditingEnquiryId] = useState(null)
+  const [contactPopupFor, setContactPopupFor] = useState(null)
   const [standingOrderCheckMonth, setStandingOrderCheckMonth] = useState(null)
   const [enquiryDraft, setEnquiryDraft] = useState(null)
   const [savingEnquiry, setSavingEnquiry] = useState(false)
@@ -972,7 +973,7 @@ export default function CRM() {
         contact_method: 'email',
         enquiry_date: dateStr,
         notes: m.subject ? `Auto-added from inbox: "${m.subject}"` : 'Auto-added from inbox',
-        status: 'new',
+        status: 'not_started',
       })
     }
     if (toInsert.length === 0) return
@@ -1667,7 +1668,7 @@ export default function CRM() {
       contact_method: enquiryDraft.contact_method || 'call',
       enquiry_date: enquiryDraft.enquiry_date || new Date().toISOString().split('T')[0],
       notes: enquiryDraft.notes?.trim() || null,
-      status: 'new',
+      status: 'not_started',
       created_by: user?.id || null,
     })
     setSavingEnquiry(false)
@@ -1708,6 +1709,42 @@ export default function CRM() {
     loadEnquiries()
   }
 
+  // The progress button's stages, in order. Each entry's label is the
+  // prompt/action for a card CURRENTLY sitting at that stage -- e.g.
+  // a card at 'contacted' shows "Trial booked?" as the next thing to
+  // confirm, not the stage's own past-tense name.
+  const ENQUIRY_STAGES = [
+    { key: 'not_started', label: 'Contact', colour: '#EF9F27' },
+    { key: 'contacted', label: 'Trial booked?', colour: '#378ADD' },
+    { key: 'trial_booked', label: 'Joined?', colour: '#8B5CF6' },
+    { key: 'joined', label: '✓ Joined', colour: '#1D9E75' },
+  ]
+
+  function openWelcomeMessagePopup(enq) {
+    setEmailingEnquiry(enq)
+    setEnquiryEmailDraft({
+      subject: 'Welcome to KR Centre!',
+      body: `Hi ${enq.name.split(' ')[0]},\n\nWelcome to KR Centre! We're really glad you've joined us.\n\n`,
+    })
+  }
+
+  // Middle stages (contacted -> trial_booked -> joined) advance
+  // straight away with no popup, per the confirmed flow -- only the
+  // very first stage (contact) and the final stage (joined) show
+  // anything extra.
+  function handleProgressClick(enq) {
+    if (enq.status === 'not_started') {
+      setContactPopupFor(enq)
+    } else if (enq.status === 'contacted') {
+      updateEnquiryStatus(enq.id, 'trial_booked')
+    } else if (enq.status === 'trial_booked') {
+      updateEnquiryStatus(enq.id, 'joined')
+      openWelcomeMessagePopup(enq)
+    } else if (enq.status === 'joined') {
+      openWelcomeMessagePopup(enq)
+    }
+  }
+
   async function searchMembersToLink(query) {
     setMemberLinkSearch(query)
     if (!query.trim()) { setMemberLinkResults([]); return }
@@ -1726,7 +1763,7 @@ export default function CRM() {
     await supabase.from('enquiries')
       .update({ status: 'contacted', updated_at: new Date().toISOString() })
       .ilike('contact_email', email)
-      .eq('status', 'new')
+      .eq('status', 'not_started')
     if (enquiriesLoaded) loadEnquiries()
   }
 
@@ -1786,7 +1823,7 @@ export default function CRM() {
             contact_method: 'facebook_ad',
             enquiry_date: dateStr,
             notes: notesParts.join(' · ') || null,
-            status: 'new',
+            status: 'not_started',
             external_id: String(r.id),
           }
         })
@@ -2312,7 +2349,7 @@ export default function CRM() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <select value={enquiryStatusFilter} onChange={e => setEnquiryStatusFilter(e.target.value)} style={{ fontSize: 13 }}>
               <option value="all">All statuses</option>
-              <option value="new">New</option>
+              <option value="not_started">Not started</option>
               <option value="contacted">Contacted</option>
               <option value="trial_booked">Trial booked</option>
               <option value="joined">Joined</option>
@@ -2383,35 +2420,52 @@ export default function CRM() {
             <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Loading…</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {enquiries.filter(e => (enquiryStatusFilter === 'all' || e.status === enquiryStatusFilter) && (enquiryMethodFilter === 'all' || e.contact_method === enquiryMethodFilter)).map(enq => (
-                <div key={enq.id} className="card" style={{ padding: 14 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
+              {enquiries.filter(e => (enquiryStatusFilter === 'all' || e.status === enquiryStatusFilter) && (enquiryMethodFilter === 'all' || e.contact_method === enquiryMethodFilter)).map(enq => {
+                const stageIdx = ENQUIRY_STAGES.findIndex(s => s.key === enq.status)
+                const stage = stageIdx >= 0 ? ENQUIRY_STAGES[stageIdx] : ENQUIRY_STAGES[0]
+                const borderColour = enq.status === 'not_interested' ? '#9CA3AF' : stage.colour
+                return (
+                <div key={enq.id} className="card" style={{ padding: 14, borderLeft: `4px solid ${borderColour}` }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 14, fontWeight: 500 }}>{enq.name}</div>
                       <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
                         {new Date(enq.enquiry_date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                         {' · '}{{ call: 'Phone call', text: 'Text message', email: 'Email', in_person: 'In person', other: 'Other', facebook_ad: 'Facebook/Instagram ad' }[enq.contact_method]}
                         {enq.contact_phone ? ` · ${enq.contact_phone}` : ''}{enq.contact_email ? ` · ${enq.contact_email}` : ''}
                       </div>
-                      {enq.notes && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{enq.notes}</div>}
+                      {enq.notes && (
+                        <div style={{ fontSize: 13, color: 'var(--text)', marginTop: 8, padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 6, maxWidth: '85%' }}>
+                          {enq.notes}
+                        </div>
+                      )}
                       {enq.members && (
-                        <div style={{ fontSize: 12, color: '#1D9E75', marginTop: 4, fontWeight: 500 }}>
+                        <div style={{ fontSize: 12, color: '#1D9E75', marginTop: 8, fontWeight: 500 }}>
                           ✓ Joined — linked to {enq.members.first_name} {enq.members.last_name}
                         </div>
                       )}
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-                      <select value={enq.status} onChange={e => updateEnquiryStatus(enq.id, e.target.value)} style={{ fontSize: 12 }}>
-                        <option value="new">New</option>
-                        <option value="contacted">Contacted</option>
-                        <option value="trial_booked">Trial booked</option>
-                        <option value="joined">Joined</option>
-                        <option value="not_interested">Not interested</option>
-                      </select>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
+                      {enq.status === 'not_interested' ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                          <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Not interested</span>
+                          <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => updateEnquiryStatus(enq.id, 'not_started')}>↺ Reopen</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => handleProgressClick(enq)} style={{
+                          padding: '5px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                          border: `1px solid ${stage.colour}`, background: stage.colour + '18', color: stage.colour,
+                        }}>
+                          {stage.label}
+                        </button>
+                      )}
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button className="btn btn-sm" onClick={() => { setEditingEnquiryId(enq.id); setShowNewEnquiryForm(false); setEnquiryDraft({ name: enq.name === 'Unknown' ? '' : enq.name, contact_phone: enq.contact_phone || '', contact_email: enq.contact_email || '', contact_method: enq.contact_method, enquiry_date: enq.enquiry_date, notes: enq.notes || '' }) }}>Edit</button>
                         <button className="btn btn-sm" style={{ color: '#E24B4A' }} onClick={() => deleteEnquiry(enq.id)}>Delete</button>
                       </div>
+                      {enq.status !== 'not_interested' && enq.status !== 'joined' && (
+                        <button className="btn btn-sm" style={{ fontSize: 10, color: 'var(--text-tertiary)' }} onClick={() => updateEnquiryStatus(enq.id, 'not_interested')}>Not interested</button>
+                      )}
                     </div>
                   </div>
                   {enq.contact_email && (
@@ -2440,10 +2494,42 @@ export default function CRM() {
                     </div>
                   )}
                 </div>
-              ))}
+              )})}
               {enquiries.filter(e => (enquiryStatusFilter === 'all' || e.status === enquiryStatusFilter) && (enquiryMethodFilter === 'all' || e.contact_method === enquiryMethodFilter)).length === 0 && (
                 <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No enquiries logged yet.</p>
               )}
+            </div>
+          )}
+
+          {contactPopupFor && (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
+              onClick={() => setContactPopupFor(null)}>
+              <div className="card" style={{ width: '100%', maxWidth: 400 }} onClick={e => e.stopPropagation()}>
+                <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Contact {contactPopupFor.name}</h3>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+                  {contactPopupFor.contact_phone && <a className="btn btn-sm" href={`tel:${contactPopupFor.contact_phone}`}>📞 Call</a>}
+                  {contactPopupFor.contact_phone && /^(?:\+447|07)/.test(contactPopupFor.contact_phone) && (
+                    <a className="btn btn-sm" href={`sms:${contactPopupFor.contact_phone}`}>💬 Text</a>
+                  )}
+                  {contactPopupFor.contact_email && (
+                    <button className="btn btn-sm" onClick={() => {
+                      setEmailingEnquiry(contactPopupFor)
+                      setEnquiryEmailDraft({ subject: 'Following up from KR Centre', body: `Hi ${contactPopupFor.name.split(' ')[0]},\n\n` })
+                      setContactPopupFor(null)
+                    }}>✉️ Email</button>
+                  )}
+                </div>
+                <p style={{ fontSize: 13, marginBottom: 10 }}>Have you contacted them? (in case this happened outside the app, e.g. a personal phone call)</p>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}
+                    onClick={() => { updateEnquiryStatus(contactPopupFor.id, 'contacted'); setContactPopupFor(null) }}>
+                    Yes
+                  </button>
+                  <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setContactPopupFor(null)}>
+                    No
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
