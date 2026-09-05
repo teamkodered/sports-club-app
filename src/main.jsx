@@ -7,6 +7,7 @@ import ErrorBoundary from './components/shared/ErrorBoundary.jsx'
 import './styles/global.css'
 
 import Login from './pages/Login.jsx'
+import AthleteLogin from './pages/AthleteLogin.jsx'
 import ResetPassword from './pages/ResetPassword.jsx'
 import Join from './pages/Join.jsx'
 import CoachSignup from './pages/CoachSignup.jsx'
@@ -82,6 +83,7 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login"           element={<Login />} />
+          <Route path="/athlete-login"   element={<AthleteLogin />} />
           <Route path="/reset-password"  element={<ResetPassword />} />
           <Route path="/join"            element={<Join />} />
           <Route path="/coach-signup"    element={<CoachSignup />} />

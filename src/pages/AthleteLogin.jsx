@@ -4,11 +4,11 @@ import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useBackableTab } from '../hooks/useBackableTab.js'
 
-// Coach/staff-facing login -- the athlete-facing equivalent lives at
-// AthleteLogin.jsx (route /athlete-login), split out so each only
-// shows what's relevant to that audience. "Create login" (claiming an
-// existing student profile) is athlete-only, so it's not here.
-export default function Login() {
+// Athlete-facing login, split out from the shared Login.jsx so coaches
+// and athletes each get a page with only what's relevant to them --
+// this one keeps "Create login" (for athletes with an existing student
+// profile but no account yet) and drops the Coach signup link.
+export default function AthleteLogin() {
   const navigate = useNavigate()
   const { session, profile, profileError, isStaff } = useAuth()
   const [tab, setTab]             = useBackableTab('login')
@@ -17,21 +17,12 @@ export default function Login() {
   const [error, setError]         = useState('')
   const [loading, setLoading]     = useState(false)
   const [resetSent, setResetSent] = useState(false)
+  const [createSent, setCreateSent] = useState(false)
 
-  // Google sign-in redirects the whole page away and back rather than
-  // resolving inline like the email/password form, so there's no
-  // submit handler to navigate() from directly. Once a session +
-  // profile appear (from ANY sign-in method, including landing back
-  // here after Google), route to the right place the same way
-  // handleLogin's success path already does.
   useEffect(() => {
     if (session && profile) navigate(isStaff ? '/dashboard' : '/athlete-app')
   }, [session, profile])
 
-  // If a session exists but no profile could be matched (even after
-  // the automatic email-linking attempt in useAuth), surface that
-  // clearly instead of silently sitting on this page forever looking
-  // like nothing happened.
   const stuckWithNoProfile = session && !profile && profileError
 
   async function handleGoogleSignIn() {
@@ -39,12 +30,7 @@ export default function Login() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/login`,
-        // Without this, Google silently reuses whatever account is
-        // already signed into the browser and skips the picker
-        // entirely -- easy to end up signed in with the wrong Google
-        // account (e.g. a personal Gmail) with no chance to notice or
-        // choose differently.
+        redirectTo: `${window.location.origin}/athlete-login`,
         queryParams: { prompt: 'select_account' },
       },
     })
@@ -76,18 +62,26 @@ export default function Login() {
     setLoading(false)
   }
 
-  // For an athlete who already has a student record but no login yet
-  // has moved to AthleteLogin.jsx -- coaches don't need this flow.
+  async function handleCreateLogin(e) {
+    e.preventDefault()
+    setLoading(true); setError('')
+    const { error } = await supabase.auth.signUp({
+      email, password,
+      options: { emailRedirectTo: `${window.location.origin}/athlete-login` }
+    })
+    if (error) setError(error.message)
+    else setCreateSent(true)
+    setLoading(false)
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div style={{ width: '100%', maxWidth: 380 }}>
 
-        {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <img src="/kr-logo.png" alt="KR Centre" style={{ height: 90, objectFit: 'contain', marginBottom: 12 }} />
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#fff' }}>KR Centre</h1>
-          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginTop: 3 }}>Coach / Staff Login</p>
+          <img src="/logos/f2f-logo.png" alt="Fit II Fight" style={{ height: 90, objectFit: 'contain', marginBottom: 12 }} />
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#fff' }}>Fit II Fight</h1>
+          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginTop: 3 }}>Athlete Login</p>
         </div>
 
         <div className="card">
@@ -106,10 +100,9 @@ export default function Login() {
             </div>
           ) : (
           <>
-          {/* Tabs */}
           <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 20 }}>
-            {[['login','Sign in'],['reset','Reset password']].map(([key, label]) => (
-              <button key={key} onClick={() => { setTab(key); setError(''); setResetSent(false) }} style={{
+            {[['login','Sign in'],['reset','Reset password'],['create','Create login']].map(([key, label]) => (
+              <button key={key} onClick={() => { setTab(key); setError(''); setResetSent(false); setCreateSent(false) }} style={{
                 flex: 1, padding: '8px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
                 borderBottom: `2px solid ${tab === key ? 'var(--text)' : 'transparent'}`,
                 color: tab === key ? 'var(--text)' : 'var(--text-secondary)',
@@ -164,13 +157,37 @@ export default function Login() {
             </div>
           )}
 
+          {tab === 'create' && !createSent && (
+            <form onSubmit={handleCreateLogin}>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 14 }}>
+                Already have a student profile at KR Centre but no login yet? Create one here with your own email, then link it to your profile from "My app".
+              </p>
+              <div className="field"><label>Your email</label>
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" autoFocus required />
+              </div>
+              <div className="field"><label>Choose a password</label>
+                <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="At least 6 characters" minLength={6} required />
+              </div>
+              {error && <p style={{ fontSize: 12, color: '#e24b4a', marginBottom: 10 }}>{error}</p>}
+              <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={loading}>
+                {loading ? 'Creating…' : 'Create login'}
+              </button>
+            </form>
+          )}
+
+          {tab === 'create' && createSent && (
+            <div style={{ textAlign: 'center', padding: '8px 0' }}>
+              <div style={{ fontSize: 36, marginBottom: 10 }}>✓</div>
+              <p style={{ fontSize: 14, fontWeight: 500, marginBottom: 6 }}>Login created!</p>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 14 }}>
+                Sign in with your new email and password, then go to "My app" → "Find your profile" to link your account.
+              </p>
+              <button className="btn btn-sm btn-primary" onClick={() => { setTab('login'); setCreateSent(false) }}>Go to sign in</button>
+            </div>
+          )}
           </>
           )}
         </div>
-
-        <p style={{ textAlign: 'center', fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 16 }}>
-          <Link to="/coach-signup" style={{ color: 'rgba(255,255,255,0.7)', fontWeight: 500 }}>Coach signup</Link>
-        </p>
       </div>
     </div>
   )
