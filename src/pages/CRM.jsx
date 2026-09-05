@@ -914,71 +914,12 @@ export default function CRM() {
         setInboxError(result.error || res.statusText)
       } else {
         setInboxMessages(result.messages || [])
-        autoAddUnknownEmailsAsEnquiries(result.messages || [])
       }
     } catch (e) {
       setInboxError(e.message)
     }
     setInboxLoaded(true)
     setInboxLoading(false)
-  }
-
-  // Anyone emailing in who isn't already an existing member AND isn't
-  // already tracked as an enquiry (from any source -- phone, Facebook,
-  // etc.) gets added automatically as a new "email" enquiry. Existing
-  // members are deliberately excluded -- they're already customers,
-  // not leads, so treating their emails as enquiries would just be
-  // noise. Safe to call every time the inbox loads: matching is by
-  // email address, so anyone already added is simply skipped, not
-  // duplicated.
-  //
-  // Also excludes the club's own address (self-notifications, e.g.
-  // the website's booking widget emailing a "New booking" alert to
-  // this same inbox -- that's a system notification, not a lead) and
-  // any message whose subject matches a known automated-notification
-  // pattern, as a second layer of protection against the same kind of
-  // noise from other automated senders.
-  const CLUB_OWN_EMAIL = 'info@derbykickboxing.org.uk'
-  const AUTOMATED_SUBJECT_PATTERNS = [/^new booking for event:/i, /^booking confirmation/i, /^automatic reply/i]
-
-  async function autoAddUnknownEmailsAsEnquiries(messages) {
-    const relevantMessages = messages.filter(m => {
-      const email = m.from?.toLowerCase()
-      if (!email || email === CLUB_OWN_EMAIL) return false
-      if (AUTOMATED_SUBJECT_PATTERNS.some(p => p.test(m.subject || ''))) return false
-      return true
-    })
-    const senderEmails = [...new Set(relevantMessages.map(m => m.from?.toLowerCase()).filter(Boolean))]
-    if (senderEmails.length === 0) return
-
-    const [{ data: existingEnquiries }, { data: existingMembers }] = await Promise.all([
-      supabase.from('enquiries').select('contact_email').not('contact_email', 'is', null),
-      supabase.from('members').select('email').not('email', 'is', null),
-    ])
-    const knownEmails = new Set([
-      ...(existingEnquiries || []).map(e => e.contact_email?.toLowerCase()),
-      ...(existingMembers || []).map(m => m.email?.toLowerCase()),
-    ])
-
-    const seenThisBatch = new Set()
-    const toInsert = []
-    for (const m of relevantMessages) {
-      const email = m.from?.toLowerCase()
-      if (!email || knownEmails.has(email) || seenThisBatch.has(email)) continue
-      seenThisBatch.add(email)
-      const dateStr = m.date ? new Date(m.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
-      toInsert.push({
-        name: m.fromName || email.split('@')[0],
-        contact_email: m.from,
-        contact_method: 'email',
-        enquiry_date: dateStr,
-        notes: m.subject ? `Auto-added from inbox: "${m.subject}"` : 'Auto-added from inbox',
-        status: 'not_started',
-      })
-    }
-    if (toInsert.length === 0) return
-    await supabase.from('enquiries').insert(toInsert)
-    if (enquiriesLoaded) loadEnquiries()
   }
 
   // Sends a real test email to the club's own address -- a quick,
@@ -2426,47 +2367,49 @@ export default function CRM() {
                 const borderColour = enq.status === 'not_interested' ? '#9CA3AF' : stage.colour
                 return (
                 <div key={enq.id} className="card" style={{ padding: 14, borderLeft: `4px solid ${borderColour}` }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 500 }}>{enq.name}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                        {new Date(enq.enquiry_date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                        {' · '}{{ call: 'Phone call', text: 'Text message', email: 'Email', in_person: 'In person', other: 'Other', facebook_ad: 'Facebook/Instagram ad' }[enq.contact_method]}
-                        {enq.contact_phone ? ` · ${enq.contact_phone}` : ''}{enq.contact_email ? ` · ${enq.contact_email}` : ''}
-                      </div>
-                      {enq.notes && (
-                        <div style={{ fontSize: 13, color: 'var(--text)', marginTop: 8, padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 6, maxWidth: '85%' }}>
-                          {enq.notes}
-                        </div>
-                      )}
-                      {enq.members && (
-                        <div style={{ fontSize: 12, color: '#1D9E75', marginTop: 8, fontWeight: 500 }}>
-                          ✓ Joined — linked to {enq.members.first_name} {enq.members.last_name}
-                        </div>
-                      )}
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       {enq.status === 'not_interested' ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                        <>
                           <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Not interested</span>
                           <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => updateEnquiryStatus(enq.id, 'not_started')}>↺ Reopen</button>
-                        </div>
+                        </>
                       ) : (
-                        <button onClick={() => handleProgressClick(enq)} style={{
-                          padding: '5px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                          border: `1px solid ${stage.colour}`, background: stage.colour + '18', color: stage.colour,
-                        }}>
-                          {stage.label}
-                        </button>
-                      )}
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button className="btn btn-sm" onClick={() => { setEditingEnquiryId(enq.id); setShowNewEnquiryForm(false); setEnquiryDraft({ name: enq.name === 'Unknown' ? '' : enq.name, contact_phone: enq.contact_phone || '', contact_email: enq.contact_email || '', contact_method: enq.contact_method, enquiry_date: enq.enquiry_date, notes: enq.notes || '' }) }}>Edit</button>
-                        <button className="btn btn-sm" style={{ color: '#E24B4A' }} onClick={() => deleteEnquiry(enq.id)}>Delete</button>
-                      </div>
-                      {enq.status !== 'not_interested' && enq.status !== 'joined' && (
-                        <button className="btn btn-sm" style={{ fontSize: 10, color: 'var(--text-tertiary)' }} onClick={() => updateEnquiryStatus(enq.id, 'not_interested')}>Not interested</button>
+                        <>
+                          <button onClick={() => handleProgressClick(enq)} style={{
+                            padding: '5px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                            border: `1px solid ${stage.colour}`, background: stage.colour + '18', color: stage.colour,
+                          }}>
+                            {stage.label}
+                          </button>
+                          {enq.status !== 'joined' && (
+                            <button className="btn btn-sm" style={{ fontSize: 10, color: 'var(--text-tertiary)' }} onClick={() => updateEnquiryStatus(enq.id, 'not_interested')}>Not interested</button>
+                          )}
+                        </>
                       )}
                     </div>
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                      <button className="btn btn-sm" onClick={() => { setEditingEnquiryId(enq.id); setShowNewEnquiryForm(false); setEnquiryDraft({ name: enq.name === 'Unknown' ? '' : enq.name, contact_phone: enq.contact_phone || '', contact_email: enq.contact_email || '', contact_method: enq.contact_method, enquiry_date: enq.enquiry_date, notes: enq.notes || '' }) }}>Edit</button>
+                      <button className="btn btn-sm" style={{ color: '#E24B4A' }} onClick={() => deleteEnquiry(enq.id)}>Delete</button>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'left' }}>
+                    <div style={{ fontSize: 14, fontWeight: 500 }}>{enq.name}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                      {new Date(enq.enquiry_date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      {' · '}{{ call: 'Phone call', text: 'Text message', email: 'Email', in_person: 'In person', other: 'Other', facebook_ad: 'Facebook/Instagram ad' }[enq.contact_method]}
+                      {enq.contact_phone ? ` · ${enq.contact_phone}` : ''}{enq.contact_email ? ` · ${enq.contact_email}` : ''}
+                    </div>
+                    {enq.notes && (
+                      <div style={{ fontSize: 13, color: 'var(--text)', marginTop: 8, padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 6, maxWidth: '85%', textAlign: 'left' }}>
+                        {enq.notes}
+                      </div>
+                    )}
+                    {enq.members && (
+                      <div style={{ fontSize: 12, color: '#1D9E75', marginTop: 8, fontWeight: 500 }}>
+                        ✓ Joined — linked to {enq.members.first_name} {enq.members.last_name}
+                      </div>
+                    )}
                   </div>
                   {enq.contact_email && (
                     <div style={{ marginTop: 8 }}>
