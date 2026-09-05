@@ -2,17 +2,15 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 
-const COACH_ACCESS_CODE = 'KODERED2025' // Change this in Settings once logged in
-
 export default function CoachSignup() {
   const navigate = useNavigate()
   const [step, setStep] = useState(0) // 0=code, 1=details, 2=done
   const [code, setCode] = useState('')
   const [codeError, setCodeError] = useState('')
+  const [checkingCode, setCheckingCode] = useState(false)
   const [form, setForm] = useState({
     first_name: '', last_name: '', email: '',
     phone: '', password: '', confirm: '',
-    role: 'leader', // leader or admin
   })
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -21,13 +19,25 @@ export default function CoachSignup() {
     return e => setForm(f => ({ ...f, [field]: e.target.value }))
   }
 
-  function checkCode() {
-    if (code.trim().toUpperCase() === COACH_ACCESS_CODE) {
-      setStep(1)
-      setCodeError('')
-    } else {
-      setCodeError('Incorrect access code. Contact your administrator.')
+  // Verified server-side now -- the real code lives only as a Netlify
+  // environment variable, never in this file, so it can't just be read
+  // out of the JS bundle the way a hardcoded client-side check could.
+  async function checkCode() {
+    setCheckingCode(true)
+    setCodeError('')
+    try {
+      const res = await fetch('/.netlify/functions/verify-coach-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      })
+      const data = await res.json()
+      if (data.valid) setStep(1)
+      else setCodeError('Incorrect access code. Contact your administrator.')
+    } catch {
+      setCodeError("Couldn't verify the code right now. Please try again.")
     }
+    setCheckingCode(false)
   }
 
   async function submit() {
@@ -56,6 +66,10 @@ export default function CoachSignup() {
         throw new Error('Something went wrong creating your login — please try again.')
       }
 
+      // Role is always 'leader' here, never chosen by the person signing
+      // up -- self-service signup granting admin access would be a real
+      // security hole. An existing admin can upgrade someone's access
+      // level afterward in Settings if they actually need more.
       const { error: memberErr } = await supabase.from('members').insert({
         auth_id: authData.user?.id,
         member_id: `COACH-${Date.now().toString().slice(-5)}`,
@@ -63,7 +77,7 @@ export default function CoachSignup() {
         last_name: form.last_name,
         email: form.email,
         phone: form.phone,
-        role: form.role,
+        role: 'leader',
         status: 'active',
         joined_date: new Date().toISOString().split('T')[0],
       })
@@ -105,8 +119,8 @@ export default function CoachSignup() {
               />
               {codeError && <p className="error-msg">{codeError}</p>}
             </div>
-            <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} onClick={checkCode}>
-              Continue →
+            <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} onClick={checkCode} disabled={checkingCode}>
+              {checkingCode ? 'Checking…' : 'Continue →'}
             </button>
           </div>
         )}
@@ -121,15 +135,11 @@ export default function CoachSignup() {
             </div>
             <div className="field"><label>Email <span className="required">*</span></label><input type="email" value={form.email} onChange={set('email')} placeholder="coach@example.com" /></div>
             <div className="field"><label>Phone</label><input type="tel" value={form.phone} onChange={set('phone')} placeholder="+44 7700 000000" /></div>
-            <div className="field">
-              <label>Role</label>
-              <select value={form.role} onChange={set('role')}>
-                <option value="leader">Leader</option>
-                <option value="admin">Administrator</option>
-              </select>
-            </div>
             <div className="field"><label>Password <span className="required">*</span></label><input type="password" value={form.password} onChange={set('password')} placeholder="Min 8 characters" /></div>
             <div className="field"><label>Confirm password <span className="required">*</span></label><input type="password" value={form.confirm} onChange={set('confirm')} placeholder="Repeat password" /></div>
+            <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 10 }}>
+              Your account will be created with Leader access. An admin can grant more access afterward if you need it.
+            </p>
             {error && <p className="error-msg" style={{ marginBottom: 10 }}>{error}</p>}
             <div style={{ display: 'flex', gap: 8 }}>
               <button className="btn" onClick={() => setStep(0)}>← Back</button>
