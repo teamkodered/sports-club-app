@@ -13,7 +13,7 @@ function OneOffStudent({ displayStudents, onAdd, date }) {
       if (!memberData?.length) { setResults([]); return }
       const eligibleMembers = memberData.filter(m => m.status !== 'stopped' && m.status !== 'not_started')
       const { data: stuData } = await supabase
-        .from('students').select('id, student_ref, pka_belt, house_name, member_id, members(first_name, last_name, houses(name))')
+        .from('students').select('id, student_ref, pka_belt, house_name, weight_kg, member_id, members(first_name, last_name, houses(name))')
         .in('member_id', eligibleMembers.map(m => m.id))
       // Filter out students already in register
       const existing = new Set(displayStudents.map(s => s.id))
@@ -196,6 +196,7 @@ export default function Registers() {
     { key: 'age',         label: 'Age' },
     { key: 'house',       label: 'House' },
     { key: 'grade',       label: 'Grade' },
+    { key: 'weight',      label: 'Weight' },
     { key: 'class_time',  label: 'Class time' },
     { key: 'groups',      label: 'Groups' },
     { key: 'attendance',  label: 'Attend.' },
@@ -1164,6 +1165,7 @@ export default function Registers() {
                 {visibleCols.includes('age')         && <SortTh col="age" label="Age" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
                 {visibleCols.includes('house')       && <SortTh col="house" label="House" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
                 {visibleCols.includes('grade')       && <SortTh col="grade" label="Grade" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
+                {visibleCols.includes('weight') && !isKR && regType !== 'krba' && <SortTh col="weight_kg" label="Weight" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} style={{ textAlign: 'center' }} />}
                 {visibleCols.includes('class_time')  && <th style={{ background: 'var(--bg)' }}>Class time</th>}
                 {isKR && <>
                   <SortTh col="competition_team" label="Experience" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
@@ -1256,6 +1258,7 @@ export default function Registers() {
                       </span>
                     </td>}
                     {visibleCols.includes('grade') && <td style={{ fontSize: 12 }}>{s.pka_belt || s.krba_level || '—'}</td>}
+                    {visibleCols.includes('weight') && !isKR && regType !== 'krba' && <td style={{ fontSize: 12, textAlign: 'center' }}>{s.weight_kg ? `${s.weight_kg}kg` : '—'}</td>}
                     {visibleCols.includes('class_time') && <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{s.class_time || '—'}</td>}
                     {isKR && (
                       <>
