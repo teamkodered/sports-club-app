@@ -9,7 +9,6 @@ import './styles/global.css'
 import Login from './pages/Login.jsx'
 import AthleteLogin from './pages/AthleteLogin.jsx'
 import ResetPassword from './pages/ResetPassword.jsx'
-import Join from './pages/Join.jsx'
 import CoachSignup from './pages/CoachSignup.jsx'
 import Claim from './pages/Claim.jsx'
 import JoinPKAChild from './pages/forms/JoinPKAChild.jsx'
@@ -96,7 +95,6 @@ function App() {
           <Route path="/login"           element={<Login />} />
           <Route path="/athlete-login"   element={<AthleteLogin />} />
           <Route path="/reset-password"  element={<ResetPassword />} />
-          <Route path="/join"            element={<Join />} />
           <Route path="/coach-signup"    element={<CoachSignup />} />
           <Route path="/claim"           element={<Claim />} />
           <Route path="/join-pka-child"  element={<JoinPKAChild />} />
