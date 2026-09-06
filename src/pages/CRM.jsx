@@ -1287,9 +1287,10 @@ export default function CRM() {
 
   async function loadMissedTraining() {
     setMissedTrainingLoading(true)
-    const [{ data: assignments }, { data: attendance }] = await Promise.all([
+    const [{ data: assignments }, { data: attendance }, { data: holidayRows }] = await Promise.all([
       supabase.from('student_class_assignments').select('student_id'),
       supabase.from('attendance').select('student_id, session_date').order('session_date', { ascending: false }),
+      supabase.from('holidays').select('student_id, start_date, end_date'),
     ])
     const assignedStudentIds = new Set((assignments || []).map(a => a.student_id))
     const lastAttendedByStudent = {}
@@ -1299,6 +1300,10 @@ export default function CRM() {
     const cutoff = new Date()
     cutoff.setDate(cutoff.getDate() - 28)
     const cutoffStr = cutoff.toISOString().split('T')[0]
+    const todayStr = new Date().toISOString().split('T')[0]
+    const onHolidayStudentIds = new Set(
+      (holidayRows || []).filter(h => h.start_date <= todayStr && todayStr <= h.end_date).map(h => h.student_id)
+    )
 
     const results = students
       .filter(s => assignedStudentIds.has(s.id))
@@ -1308,10 +1313,17 @@ export default function CRM() {
         const weeksMissed = lastDate
           ? Math.floor((Date.now() - new Date(lastDate).getTime()) / (7 * 24 * 60 * 60 * 1000))
           : null // never attended at all
-        return { student: s, lastDate, weeksMissed }
+        return { student: s, lastDate, weeksMissed, onHoliday: onHolidayStudentIds.has(s.id) }
       })
       .filter(Boolean)
-      .sort((a, b) => (b.weeksMissed ?? 999) - (a.weeksMissed ?? 999))
+      // On-holiday students sort to the bottom as their own group,
+      // rather than mixed in by weeks-missed like everyone else --
+      // being away explains the gap, so it's not really the same kind
+      // of "missing" as someone who's just stopped showing up.
+      .sort((a, b) => {
+        if (a.onHoliday !== b.onHoliday) return a.onHoliday ? 1 : -1
+        return (b.weeksMissed ?? 999) - (a.weeksMissed ?? 999)
+      })
 
     setMissedTraining(results)
     setMissedTrainingLoaded(true)
@@ -3095,14 +3107,19 @@ export default function CRM() {
                     <th>Stop</th>
                   </tr></thead>
                   <tbody>
-                    {missedTraining.map(r => {
+                    {missedTraining.map((r, i) => {
                       const m = r.student.members
                       const dnc = !!m?.do_not_contact
                       const email = m?.email && !m.email.includes('@kr-centre.placeholder') ? m.email : null
                       const phone = m?.phone
                       const smsBody = encodeURIComponent(`Hi ${m?.first_name}, we've missed you at training — it's been a few weeks since your last session. Hope to see you back soon! - KR Centre`)
+                      const isFirstHoliday = r.onHoliday && (i === 0 || !missedTraining[i - 1].onHoliday)
                       return (
-                        <tr key={r.student.id} style={dnc ? { opacity: 0.5 } : undefined}>
+                        <Fragment key={r.student.id}>
+                          {isFirstHoliday && (
+                            <tr><td colSpan={7} style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', padding: '10px 12px', background: 'var(--bg-secondary)' }}>🏖️ Holidays</td></tr>
+                          )}
+                          <tr style={dnc ? { opacity: 0.5 } : undefined}>
                           <td><input type="checkbox" checked={selectedMissed.has(r.student.id)} disabled={dnc}
                             onChange={() => setSelectedMissed(prev => {
                               const next = new Set(prev)
@@ -3129,6 +3146,7 @@ export default function CRM() {
                             </button>
                           </td>
                         </tr>
+                        </Fragment>
                       )
                     })}
                   </tbody>
