@@ -843,10 +843,19 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
           <button className="btn btn-sm" style={GLASS_STYLE} onClick={() => step(5)}>5s ⏩</button>
         </div>
 
-        {isCoach && footageId && markerRangeStart === null && !showMarkerChoice && (
+        {isCoach && footageId && !showMarkerChoice && (
           <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 10 }}>
-            <button className="btn btn-sm" style={GLASS_STYLE} onClick={handleMarkerButtonPress}>📍 Add marker here</button>
-            <button className="btn btn-sm" style={GLASS_STYLE} onClick={capturePhotoMarker}>📷 Add photo</button>
+            {markerRangeStart === null ? (
+              <>
+                <button className="btn btn-sm" style={GLASS_STYLE} onClick={handleMarkerButtonPress}>📍 Add marker here</button>
+                <button className="btn btn-sm" style={GLASS_STYLE} onClick={capturePhotoMarker}>📷 Add photo</button>
+              </>
+            ) : (
+              <>
+                <button className="btn btn-sm" style={GLASS_STYLE} onClick={handleMarkerButtonPress}>🏁 End marker here</button>
+                <button className="btn btn-sm" style={GLASS_STYLE} onClick={cancelMarkerRange}>✕ Cancel</button>
+              </>
+            )}
           </div>
         )}
 
@@ -876,16 +885,6 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
             style={{ width: 40, height: 40, borderRadius: '50%', border: 'none', cursor: 'pointer', fontSize: 18, background: 'rgba(226,75,74,0.5)' }}>
             ✕
           </button>
-        </div>
-      )}
-
-      {markerRangeStart !== null && !showMarkerChoice && (
-        <div style={{ padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, ...GLASS_STYLE }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>Marker starts at {fmt(markerRangeStart)} — scrub to where it ends, then confirm</span>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn btn-sm btn-primary" onClick={() => setShowMarkerChoice(true)}>🏁 End marker here</button>
-            <button className="btn btn-sm" style={GLASS_STYLE} onClick={cancelMarkerRange}>Cancel</button>
-          </div>
         </div>
       )}
 
