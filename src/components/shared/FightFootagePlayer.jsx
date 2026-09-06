@@ -30,6 +30,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   const wrapperRef = useRef(null)
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeed] = useState(1)
+  const speedRef = useRef(1) // mirrors speed, read inside the rAF loop below to avoid a stale closure
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [videoAspect, setVideoAspect] = useState(16 / 9) // updated once real metadata loads; used to keep overlays aligned to the actual visible video, not the full (possibly letterboxed) screen
@@ -76,6 +77,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   const [editingMarker, setEditingMarker] = useState(null)
   const [editingMarkerNoteText, setEditingMarkerNoteText] = useState('')
   const [editingMarkerColour, setEditingMarkerColour] = useState(HIGHLIGHT_COLOURS[0])
+  const [editingMarkerSpeed, setEditingMarkerSpeed] = useState(1)
 
   // Photo/freeze-frame markers
   const [frozenPhoto, setFrozenPhoto] = useState(null)
@@ -101,6 +103,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
 
   useEffect(() => { markersRef.current = markers }, [markers])
   useEffect(() => { controlsVisibleRef.current = controlsVisible }, [controlsVisible])
+  useEffect(() => { speedRef.current = speed }, [speed])
   useEffect(() => { frozenPhotoRef.current = frozenPhoto }, [frozenPhoto])
 
   useEffect(() => {
@@ -141,6 +144,17 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
         if ((active?.id || null) !== lastActiveMarkerIdRef.current) {
           lastActiveMarkerIdRef.current = active?.id || null
           setViewingMarkerNote(active || null)
+        }
+
+        // A marker can carry its own playback speed (set via the
+        // speed-up/slow-down buttons in its edit popup) -- applies for
+        // as long as playback is inside that marker's range, then
+        // reverts to whatever speed the person had manually selected.
+        // Skipped while hold-to-slow-mo is actively engaged, since that
+        // gesture already owns the playback rate for its duration.
+        if (!isHoldingRef.current) {
+          const targetSpeed = (active?.playback_speed && active.playback_speed !== 1) ? active.playback_speed : speedRef.current
+          if (Math.abs(v.playbackRate - targetSpeed) > 0.001) v.playbackRate = targetSpeed
         }
 
         if (!frozenPhotoRef.current && !v.paused) {
@@ -569,6 +583,35 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
     }
   }
 
+  // Alternative to the two-tap flow above: hold the button instead --
+  // the video plays at normal speed for as long as it's held, and
+  // releasing pauses it and opens the same Highlight/Note choice,
+  // using the whole held stretch as the marker's range.
+  const addMarkerHoldTimerRef = useRef(null)
+  const addMarkerHoldEngagedRef = useRef(false)
+
+  function handleAddMarkerButtonPointerDown() {
+    clearTimeout(addMarkerHoldTimerRef.current)
+    addMarkerHoldTimerRef.current = setTimeout(() => {
+      const v = videoRef.current
+      if (!v) return
+      addMarkerHoldEngagedRef.current = true
+      setMarkerRangeStart(v.currentTime)
+      if (v.paused) v.play()
+    }, HOLD_THRESHOLD_MS)
+  }
+
+  function handleAddMarkerButtonPointerUp() {
+    clearTimeout(addMarkerHoldTimerRef.current)
+    if (addMarkerHoldEngagedRef.current) {
+      addMarkerHoldEngagedRef.current = false
+      videoRef.current?.pause()
+      setShowMarkerChoice(true)
+    } else {
+      handleMarkerButtonPress() // was just a normal press -- falls back to the existing two-tap flow
+    }
+  }
+
   function cancelMarkerRange() {
     setMarkerRangeStart(null)
     setShowMarkerChoice(false)
@@ -641,6 +684,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
     setEditingMarker(m)
     setEditingMarkerNoteText(m.note_text || '')
     setEditingMarkerColour(m.highlight_color || HIGHLIGHT_COLOURS[0])
+    setEditingMarkerSpeed(m.playback_speed || 1)
   }
 
   function handleMarkerPointerDown(m) {
@@ -661,11 +705,27 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
     setEditingMarker(null)
   }
 
-  // Note text and highlight colour save together now, rather than as
-  // two separate edit paths -- a marker can freely have either, both,
-  // or (after clearing the note) just a colour again.
-  async function saveMarkerEdits(m, colour) {
-    const updates = { note_text: editingMarkerNoteText.trim() || null, highlight_color: colour }
+  async function duplicateMarker(m) {
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data: member } = await supabase.from('members').select('id').eq('auth_id', user.id).single()
+    const { data: copy } = await supabase.from('fight_footage_markers').insert({
+      footage_id: footageId,
+      start_seconds: m.start_seconds,
+      end_seconds: m.end_seconds,
+      marker_type: m.marker_type,
+      note_text: m.note_text,
+      highlight_color: m.highlight_color,
+      playback_speed: m.playback_speed,
+      created_by: member?.id || null,
+    }).select().single()
+    if (copy) setMarkers(prev => [...prev, copy].sort((a, b) => a.start_seconds - b.start_seconds))
+    setEditingMarker(null)
+  }
+
+  // Note text, highlight colour, and this section's own playback
+  // speed all save together now, rather than as separate edit paths.
+  async function saveMarkerEdits(m, colour, playbackSpeed) {
+    const updates = { note_text: editingMarkerNoteText.trim() || null, highlight_color: colour, playback_speed: playbackSpeed }
     await supabase.from('fight_footage_markers').update(updates).eq('id', m.id)
     setMarkers(prev => prev.map(x => x.id === m.id ? { ...x, ...updates } : x))
     setEditingMarker(null)
@@ -790,7 +850,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
                 associated with where you are among the markers. Also
                 swipeable directly (drives the same currentTime as the
                 scrub bar below, so the two always stay in sync). */}
-            <div ref={markerRowRef} style={{ position: 'relative', height: 18, marginBottom: 6, touchAction: 'none' }}
+            <div ref={markerRowRef} style={{ position: 'relative', height: 36, marginBottom: 6, touchAction: 'none' }}
               onPointerDown={handleMarkerRowPointerDown}
               onPointerMove={handleMarkerRowPointerMove}
               onPointerUp={handleMarkerRowPointerUp}
@@ -830,6 +890,26 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
                         display: 'flex', alignItems: 'center',
                       }}>
                       <div style={{ width: '100%', height: 9, borderRadius: 4, background: m.marker_type === 'highlight' ? (m.highlight_color || '#EF9F27') : '#378ADD' }} />
+                    </div>
+                  )
+                })
+              })()}
+              {(() => {
+                const windowDuration = zoomLevel === 1 ? duration : duration / zoomLevel
+                const windowEnd = zoomWindowStart + windowDuration
+                return duration > 0 && clips.map(c => {
+                  if (c.end_seconds < zoomWindowStart || c.start_seconds > windowEnd) return null
+                  const leftPct = ((c.start_seconds - zoomWindowStart) / windowDuration) * 100
+                  return (
+                    <div key={c.id} title={`${(c.end_seconds - c.start_seconds).toFixed(1)}s saved clip — ${c.status}`}
+                      onClick={e => { e.stopPropagation(); openClip(c) }}
+                      style={{
+                        position: 'absolute', bottom: 0, left: `${leftPct}%`, transform: 'translateX(-50%)',
+                        width: 18, height: 18, borderRadius: 3, cursor: 'pointer', border: '1px solid #fff',
+                        background: '#EF9F27', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10,
+                        opacity: c.status === 'ready' ? 1 : 0.6,
+                      }}>
+                      {c.status === 'ready' ? '🎬' : c.status === 'failed' ? '⚠️' : '⏳'}
                     </div>
                   )
                 })
@@ -896,7 +976,9 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
           <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 10 }}>
             {markerRangeStart === null ? (
               <>
-                <button className="btn btn-sm" style={GLASS_STYLE} onClick={handleMarkerButtonPress}>📍 Add marker here</button>
+                <button className="btn btn-sm" style={GLASS_STYLE}
+                  onPointerDown={handleAddMarkerButtonPointerDown} onPointerUp={handleAddMarkerButtonPointerUp}
+                  onPointerLeave={() => { if (addMarkerHoldEngagedRef.current) handleAddMarkerButtonPointerUp() }}>📍 Add marker here</button>
                 <button className="btn btn-sm" style={GLASS_STYLE} onClick={capturePhotoMarker}>📷 Add photo</button>
               </>
             ) : (
@@ -963,28 +1045,48 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
             {editingMarker.marker_type === 'photo' ? 'Photo marker' : 'Edit marker'} — {fmt(editingMarker.start_seconds)}{editingMarker.marker_type !== 'photo' ? ` → ${fmt(editingMarker.end_seconds)}` : ''}
           </h3>
 
-          {editingMarker.marker_type === 'photo' ? (
+          {editingMarker.marker_type === 'photo' && (
             <div style={{ marginBottom: 12 }}>
               <img src={editingMarker.photo_data_url} alt="" style={{ width: '100%', borderRadius: 8, marginBottom: 8 }} />
               <p style={{ fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center' }}>Freezes for {editingMarker.freeze_seconds || 5}s during playback</p>
             </div>
-          ) : (
-            <>
-              <textarea value={editingMarkerNoteText} onChange={e => setEditingMarkerNoteText(e.target.value)} placeholder="Note (optional)" style={{ width: '100%', fontSize: 13, minHeight: 60, marginBottom: 10 }} />
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 12 }}>
-                {HIGHLIGHT_COLOURS.map(c => (
-                  <button key={c} onClick={() => setEditingMarkerColour(c)}
-                    style={{ width: 30, height: 30, borderRadius: '50%', background: c, cursor: 'pointer', padding: 0,
-                      border: editingMarkerColour === c ? '3px solid #fff' : '2px solid rgba(255,255,255,0.4)' }} />
-                ))}
-              </div>
-              <button className="btn btn-sm btn-primary" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }} onClick={() => saveMarkerEdits(editingMarker, editingMarkerColour)}>Save</button>
-            </>
           )}
 
+          {/* Notes/colour now available for every marker type, photos included. */}
+          <textarea value={editingMarkerNoteText} onChange={e => setEditingMarkerNoteText(e.target.value)} placeholder="Note (optional)" style={{ width: '100%', fontSize: 13, minHeight: 60, marginBottom: 10 }} />
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 12 }}>
+            {HIGHLIGHT_COLOURS.map(c => (
+              <button key={c} onClick={() => setEditingMarkerColour(c)}
+                style={{ width: 30, height: 30, borderRadius: '50%', background: c, cursor: 'pointer', padding: 0,
+                  border: editingMarkerColour === c ? '3px solid #fff' : '2px solid rgba(255,255,255,0.4)' }} />
+            ))}
+          </div>
+
+          {/* Speed only makes sense for a section with actual duration
+              -- a photo marker is a single instant, not a range. */}
+          {editingMarker.marker_type !== 'photo' && (
+            <div style={{ marginBottom: 12 }}>
+              <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginBottom: 6, textAlign: 'center' }}>Playback speed for this section</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+                {SPEEDS.map(s => (
+                  <button key={s} onClick={() => setEditingMarkerSpeed(s)}
+                    style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                      ...GLASS_STYLE,
+                      border: editingMarkerSpeed === s ? '1px solid #fff' : GLASS_BORDER,
+                      color: editingMarkerSpeed === s ? '#fff' : 'rgba(255,255,255,0.7)', fontWeight: editingMarkerSpeed === s ? 600 : 400 }}>
+                    {s === 1 ? '1x' : `${s}x`}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <button className="btn btn-sm btn-primary" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }} onClick={() => saveMarkerEdits(editingMarker, editingMarkerColour, editingMarkerSpeed)}>Save</button>
+
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn btn-sm" style={{ ...GLASS_STYLE, color: '#E24B4A', flex: 1, justifyContent: 'center' }} onClick={() => deleteMarker(editingMarker)}>🗑️ Delete</button>
-            <button className="btn btn-sm" style={{ ...GLASS_STYLE, flex: 1, justifyContent: 'center' }} onClick={() => setEditingMarker(null)}>Cancel</button>
+            <button className="btn btn-sm" style={GLASS_STYLE} onClick={() => duplicateMarker(editingMarker)}>📋 Duplicate</button>
+            <button className="btn btn-sm" style={{ ...GLASS_STYLE, color: '#E24B4A' }} onClick={() => deleteMarker(editingMarker)}>🗑️ Delete</button>
+            <button className="btn btn-sm" style={GLASS_STYLE} onClick={() => setEditingMarker(null)}>Cancel</button>
           </div>
         </div>
       )}
