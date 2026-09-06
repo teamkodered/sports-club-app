@@ -69,8 +69,12 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   useEffect(() => {
     const v = videoRef.current
     if (!v) return
+    // timeupdate only fires a few times a second in most browsers --
+    // fine for the photo-freeze check below, but felt laggy for the
+    // scrubber. currentTime itself is now driven by the
+    // requestAnimationFrame loop further down instead, which updates
+    // every frame and stays properly in sync with playback.
     const onTime = () => {
-      setCurrentTime(v.currentTime)
       // Freeze-frame ("photo") markers: pause on reaching one during
       // normal playback, hold for its freeze_seconds, then resume --
       // using refs here since this listener is only ever set up once.
@@ -104,6 +108,20 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
       v.removeEventListener('play', onPlay)
       v.removeEventListener('pause', onPause)
     }
+  }, [])
+
+  // Drives currentTime for the scrubber every frame (~60fps) rather
+  // than relying on timeupdate's much coarser firing rate -- this is
+  // what actually keeps the scrub bar visually in sync with playback.
+  useEffect(() => {
+    let rafId
+    function tick() {
+      const v = videoRef.current
+      if (v) setCurrentTime(v.currentTime)
+      rafId = requestAnimationFrame(tick)
+    }
+    rafId = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(rafId)
   }, [])
 
   // If the video element itself ends up in native browser fullscreen
@@ -546,8 +564,8 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
             {duration > 0 && markers.map(m => (
               m.marker_type === 'photo' ? (
                 <div key={m.id} title="Photo marker — hold to edit"
-                  onPointerDown={() => handleMarkerPointerDown(m)}
-                  onPointerUp={() => handleMarkerPointerUp(m)}
+                  onPointerDown={e => { e.stopPropagation(); handleMarkerPointerDown(m) }}
+                  onPointerUp={e => { e.stopPropagation(); handleMarkerPointerUp(m) }}
                   onPointerLeave={() => clearTimeout(markerHoldTimerRef.current)}
                   style={{
                     position: 'absolute', top: -6, left: `${(m.start_seconds / duration) * 100}%`, transform: 'translateX(-50%)',
@@ -555,17 +573,26 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
                     backgroundImage: `url(${m.photo_data_url})`, backgroundSize: 'cover', backgroundPosition: 'center',
                   }} />
               ) : (
+                // Outer div is a much bigger touch target than the thin
+                // visible bar (which is just the inner child) -- a
+                // finger press on a 4px-tall bar was unreliable and
+                // often fell through to the scrubber underneath instead,
+                // triggering a seek rather than the intended hold.
+                // stopPropagation on top of that stops the press from
+                // also reaching the range input at all.
                 <div key={m.id}
                   title={m.marker_type === 'note' ? m.note_text : 'Highlight — hold to edit'}
-                  onPointerDown={() => handleMarkerPointerDown(m)}
-                  onPointerUp={() => handleMarkerPointerUp(m)}
+                  onPointerDown={e => { e.stopPropagation(); handleMarkerPointerDown(m) }}
+                  onPointerUp={e => { e.stopPropagation(); handleMarkerPointerUp(m) }}
                   onPointerLeave={() => clearTimeout(markerHoldTimerRef.current)}
                   style={{
-                    position: 'absolute', top: 6, height: 4, borderRadius: 2, cursor: 'pointer',
+                    position: 'absolute', top: -6, height: 16, cursor: 'pointer',
                     left: `${(m.start_seconds / duration) * 100}%`,
-                    width: `${Math.max(0.5, ((m.end_seconds - m.start_seconds) / duration) * 100)}%`,
-                    background: m.marker_type === 'highlight' ? (m.highlight_color || '#EF9F27') : '#378ADD',
-                  }} />
+                    width: `${Math.max(2, ((m.end_seconds - m.start_seconds) / duration) * 100)}%`,
+                    display: 'flex', alignItems: 'center',
+                  }}>
+                  <div style={{ width: '100%', height: 4, borderRadius: 2, background: m.marker_type === 'highlight' ? (m.highlight_color || '#EF9F27') : '#378ADD' }} />
+                </div>
               )
             ))}
           </div>
