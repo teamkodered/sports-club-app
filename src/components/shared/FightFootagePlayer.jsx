@@ -802,11 +802,13 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
             </div>
           )}
           {viewingMarkerNote && (
-            <div style={{
-              position: 'absolute', bottom: 16, left: 16, right: 16, color: '#fff', fontSize: 13, padding: '10px 14px', borderRadius: 8,
-              background: hexToRgba(viewingMarkerNote.highlight_color || '#000000', 0.55), backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
-              pointerEvents: 'none', // tracks playback automatically now, not dismissed by tapping
-            }}>
+            <div
+              onClick={() => { if (isCoach) openMarkerEditor(viewingMarkerNote) }}
+              style={{
+                position: 'absolute', bottom: 16, left: 16, right: 16, color: '#fff', fontSize: 13, padding: '10px 14px', borderRadius: 8,
+                background: hexToRgba(viewingMarkerNote.highlight_color || '#000000', 0.55), backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
+                cursor: isCoach ? 'pointer' : 'default', // athletes can see it, only coaches can edit
+              }}>
               {viewingMarkerNote.note_text ? `📝 ${viewingMarkerNote.note_text}` : '⭐ Highlight'}
             </div>
           )}
