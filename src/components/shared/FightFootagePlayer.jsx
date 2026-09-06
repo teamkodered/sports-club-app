@@ -810,6 +810,10 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
               {viewingMarkerNote.note_text ? `📝 ${viewingMarkerNote.note_text}` : '⭐ Highlight'}
             </div>
           )}
+
+          <button className="btn btn-sm" style={{ position: 'absolute', bottom: 8, left: 8, zIndex: 2, ...GLASS_STYLE }} onClick={toggleFullscreen}>
+            {isFullscreen ? '⤢ Exit fullscreen' : '⛶ Fullscreen'}
+          </button>
         </div>
 
         <canvas ref={canvasRef} style={{ display: 'none' }} />
@@ -854,10 +858,6 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
         <span style={{ color: '#fff', fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
         <button className="btn btn-sm" style={GLASS_STYLE} onClick={onClose}>✕ Close</button>
       </div>
-
-      <button className="btn btn-sm" style={{ position: 'absolute', bottom: 12, left: 12, zIndex: 2, ...GLASS_STYLE }} onClick={toggleFullscreen}>
-        {isFullscreen ? '⤢ Exit fullscreen' : '⛶ Fullscreen'}
-      </button>
 
       {/* Bottom bar -- also floats over the video (absolute, not a
           flex sibling), so it never resizes the video when it shows
