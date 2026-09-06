@@ -53,19 +53,24 @@ export default function GradingExpression() {
   // every keystroke -- this form is standalone and works whether or not
   // there's a match, so a miss is never treated as an error, just silence.
   async function checkForStudentMatch() {
-    const typed = form.name.trim().toLowerCase()
+    const typed = form.name.trim()
     if (typed.length < 3) { setMatchedStudent(null); return }
     setCheckingMatch(true)
-    const { data } = await supabase.from('students').select('id, pka_belt, members(first_name, last_name, phone, date_of_birth)')
-    const match = (data || []).find(s => `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.trim().toLowerCase() === typed)
+    // Anonymous visitors can't read the students/members tables directly
+    // (RLS requires a real login) -- this RPC runs with elevated
+    // privileges internally but only ever returns the one specific
+    // match, never the whole table, same pattern as the join forms'
+    // lookup_member_by_email.
+    const { data } = await supabase.rpc('lookup_student_by_name', { typed_name: typed })
+    const match = data?.[0] || null
     setCheckingMatch(false)
     if (match) {
       setMatchedStudent(match)
       setForm(f => ({
         ...f,
-        dob: match.members?.date_of_birth || f.dob,
+        dob: match.date_of_birth || f.dob,
         current_belt: match.pka_belt || f.current_belt,
-        contact_phone: f.contact_phone || match.members?.phone || '',
+        contact_phone: f.contact_phone || match.phone || '',
       }))
     } else {
       setMatchedStudent(null)
