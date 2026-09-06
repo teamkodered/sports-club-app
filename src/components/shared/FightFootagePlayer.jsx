@@ -81,6 +81,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   const [frozenPhoto, setFrozenPhoto] = useState(null)
   const frozenPhotoRef = useRef(null)
   const lastTriggeredPhotoIdRef = useRef(null)
+  const lastActiveMarkerIdRef = useRef(null)
   const markersRef = useRef([])
   const canvasRef = useRef(null)
 
@@ -130,6 +131,18 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
       const v = videoRef.current
       if (v) {
         setCurrentTime(v.currentTime)
+
+        // Auto-show whichever highlight/note the current playback
+        // position is inside, for as long as it's inside it -- no tap
+        // needed, it just tracks along with playback like a subtitle.
+        const active = markersRef.current.find(m =>
+          m.marker_type !== 'photo' && v.currentTime >= m.start_seconds && v.currentTime <= m.end_seconds
+        )
+        if ((active?.id || null) !== lastActiveMarkerIdRef.current) {
+          lastActiveMarkerIdRef.current = active?.id || null
+          setViewingMarkerNote(active || null)
+        }
+
         if (!frozenPhotoRef.current && !v.paused) {
           const hit = markersRef.current.find(m =>
             m.marker_type === 'photo' &&
@@ -639,8 +652,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   function handleMarkerPointerUp(m) {
     clearTimeout(markerHoldTimerRef.current)
     if (markerHeldRef.current) return // long-press already handled it
-    seekTo(m.start_seconds)
-    if (m.note_text) setViewingMarkerNote(m)
+    seekTo(m.start_seconds) // the overlay itself now appears automatically once playback is inside the marker's range, so no need to also set it here
   }
 
   async function deleteMarker(m) {
@@ -710,9 +722,9 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
             <div style={{
               position: 'absolute', bottom: 16, left: 16, right: 16, color: '#fff', fontSize: 13, padding: '10px 14px', borderRadius: 8,
               background: hexToRgba(viewingMarkerNote.highlight_color || '#000000', 0.55), backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
-            }}
-              onClick={() => setViewingMarkerNote(null)}>
-              📝 {viewingMarkerNote.note_text}
+              pointerEvents: 'none', // tracks playback automatically now, not dismissed by tapping
+            }}>
+              {viewingMarkerNote.note_text ? `📝 ${viewingMarkerNote.note_text}` : '⭐ Highlight'}
             </div>
           )}
         </div>
