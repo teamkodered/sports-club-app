@@ -8,6 +8,7 @@ const SPEEDS = [0.25, 0.5, 1, 1.5, 2]
 // scrubbing to the right moment rather than a frame-perfect step.
 const FRAME_SECONDS = 1 / 30
 const HOLD_THRESHOLD_MS = 220 // how long a press must last before it counts as "hold" rather than a tap
+const MOVE_CANCEL_THRESHOLD = 12 // px of movement that cancels a pending hold -- this is a swipe, not a hold
 const SLOW_MO_SPEED = 0.25
 const CONTROLS_AUTOHIDE_MS = 3000
 const HIGHLIGHT_COLOURS = ['#E24B4A', '#EF9F27', '#1D9E75', '#378ADD', '#8B5CF6']
@@ -53,6 +54,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   const isHoldingRef = useRef(false)
   const [isHolding, setIsHolding] = useState(false) // mirrors isHoldingRef, purely so the on-screen banner can actually re-render
   const holdStartRef = useRef(0)
+  const holdStartPosRef = useRef({ x: 0, y: 0 })
   const preHoldSpeedRef = useRef(1)
   const [pendingClip, setPendingClip] = useState(null) // { start, end } once released, awaiting Save/Discard
   const [savingClip, setSavingClip] = useState(false)
@@ -388,10 +390,21 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
 
   // Video gestures: tap toggles controls / double-tap skips / hold
   // slows down (see engage/releaseHoldSlowMo above).
-  function handlePointerDown() {
+  function handlePointerDown(e) {
     if (!footageId) return
+    holdStartPosRef.current = { x: e.clientX, y: e.clientY }
     clearTimeout(holdTimerRef.current)
     holdTimerRef.current = setTimeout(engageHoldSlowMo, HOLD_THRESHOLD_MS)
+  }
+
+  // A swipe (finger genuinely moving, not just resting) shouldn't
+  // trigger slow-mo just because it happened to last longer than the
+  // hold threshold -- cancels the pending hold the moment the pointer
+  // moves more than a few pixels from where it first went down.
+  function handleVideoPointerMove(e) {
+    const dx = e.clientX - holdStartPosRef.current.x
+    const dy = e.clientY - holdStartPosRef.current.y
+    if (Math.sqrt(dx * dx + dy * dy) > MOVE_CANCEL_THRESHOLD) clearTimeout(holdTimerRef.current)
   }
 
   function handlePointerUp(e) {
@@ -643,6 +656,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
           disablePictureInPicture
           controlsList="nofullscreen noremoteplayback"
           onPointerDown={handlePointerDown}
+          onPointerMove={handleVideoPointerMove}
           onPointerUp={handlePointerUp}
           onPointerLeave={() => { if (isHoldingRef.current) handlePointerUp({ clientX: 0 }) }}
         />
