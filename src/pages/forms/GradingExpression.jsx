@@ -24,11 +24,6 @@ function ageBandForAge(age) {
   return 'Adults (14+)'
 }
 
-function ageFromDob(dob) {
-  if (!dob) return ''
-  return String(Math.floor((Date.now() - new Date(dob)) / (365.25 * 24 * 60 * 60 * 1000)))
-}
-
 export default function GradingExpression() {
   const [matchedStudent, setMatchedStudent] = useState(null) // set once a typed name matches an existing student, else null
   const [checkingMatch, setCheckingMatch] = useState(false)
@@ -45,7 +40,6 @@ export default function GradingExpression() {
     session_class_id: '',
     contact_phone: '',
     student_notes: '',
-    uniform_confirmed: false,
   })
 
   function set(field) {
@@ -58,26 +52,28 @@ export default function GradingExpression() {
       .then(({ data }) => setPkaClasses((data || []).filter(c => !EXCLUDED_CLASS_NAMES.includes(c.name?.trim()))))
   }, [])
 
-  // Checked once the person finishes typing their name (on blur), not on
-  // every keystroke -- this form is standalone and works whether or not
-  // there's a match, so a miss is never treated as an error, just silence.
+  // Checked once both name and age are filled in (on blur of either),
+  // not on every keystroke -- requires both to actually match together
+  // now, a stronger check than name alone. This form is standalone and
+  // works whether or not there's a match, so a miss is never treated
+  // as an error, just silence.
   async function checkForStudentMatch() {
     const typed = form.name.trim()
-    if (typed.length < 3) { setMatchedStudent(null); return }
+    const age = parseInt(form.age, 10)
+    if (typed.length < 3 || !form.age || isNaN(age)) { setMatchedStudent(null); return }
     setCheckingMatch(true)
     // Anonymous visitors can't read the students/members tables directly
     // (RLS requires a real login) -- this RPC runs with elevated
     // privileges internally but only ever returns the one specific
     // match, never the whole table, same pattern as the join forms'
     // lookup_member_by_email.
-    const { data } = await supabase.rpc('lookup_student_by_name', { typed_name: typed })
+    const { data } = await supabase.rpc('lookup_student_by_name', { typed_name: typed, typed_age: age })
     const match = data?.[0] || null
     setCheckingMatch(false)
     if (match) {
       setMatchedStudent(match)
       setForm(f => ({
         ...f,
-        age: ageFromDob(match.date_of_birth) || f.age,
         current_belt: match.pka_belt || f.current_belt,
         contact_phone: f.contact_phone || match.phone || '',
         session_class_id: f.session_class_id || match.pka_class_id || '',
@@ -116,7 +112,7 @@ export default function GradingExpression() {
           contact_phone: form.contact_phone,
           session_class_id: form.session_class_id || null,
           student_notes: form.student_notes,
-          uniform_confirmed: form.uniform_confirmed,
+          uniform_confirmed: true, // submitting the form is now the confirmation itself, not a separate checkbox
         }),
         coach_approved: false,
       })
@@ -170,7 +166,7 @@ export default function GradingExpression() {
             </div>
 
             <div className="field"><label>Age <span className="required">*</span></label>
-              <input type="number" min="1" max="99" value={form.age} onChange={set('age')} placeholder="e.g. 9" required />
+              <input type="number" min="1" max="99" value={form.age} onChange={set('age')} onBlur={checkForStudentMatch} placeholder="e.g. 9" required />
             </div>
 
             <div className="field-row">
@@ -215,20 +211,15 @@ export default function GradingExpression() {
                 placeholder="Anything else you'd like your coach to know…" style={{ resize: 'none' }} />
             </div>
 
-            <div className="field" style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-              <input type="checkbox" id="uniform_confirmed" checked={form.uniform_confirmed}
-                onChange={e => setForm(f => ({ ...f, uniform_confirmed: e.target.checked }))}
-                required style={{ marginTop: 3 }} />
-              <label htmlFor="uniform_confirmed" style={{ fontSize: 13, fontWeight: 400 }}>
-                I understand that the official uniform (Trousers &amp; PKA T-shirt) must be worn to attend.<br />
-                <em>*Shorts &amp; leggings are NOT permitted.</em>
-              </label>
-            </div>
-
             {error && <p className="error-msg" style={{ marginBottom: 10 }}>{error}</p>}
 
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10, lineHeight: 1.5 }}>
+              By submitting this form, I understand that the official uniform (Trousers &amp; PKA T-shirt) must be worn to attend.<br />
+              <em>*Shorts &amp; leggings are NOT permitted.</em>
+            </p>
+
             <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}
-              disabled={!form.name.trim() || !form.age || !form.grading_for || !form.uniform_confirmed || submitting}>
+              disabled={!form.name.trim() || !form.age || !form.grading_for || submitting}>
               {submitting ? 'Submitting…' : 'Submit expression of interest'}
             </button>
           </div>
