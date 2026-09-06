@@ -12,6 +12,17 @@ const SLOW_MO_SPEED = 0.25
 const CONTROLS_AUTOHIDE_MS = 3000
 const HIGHLIGHT_COLOURS = ['#E24B4A', '#EF9F27', '#1D9E75', '#378ADD', '#8B5CF6']
 const ZOOM_LEVELS = [1, 2, 4, 8]
+// Shared "glass" look for popups/buttons in this player -- light grey,
+// translucent, with a soft blur so it reads clearly over any part of
+// the video without needing a solid, attention-grabbing colour block.
+const GLASS_BG = 'rgba(210,210,210,0.28)'
+const GLASS_BORDER = '1px solid rgba(255,255,255,0.35)'
+const GLASS_STYLE = { background: GLASS_BG, border: GLASS_BORDER, backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }
+
+function hexToRgba(hex, alpha) {
+  const n = parseInt(hex.replace('#', ''), 16)
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`
+}
 
 export default function FightFootagePlayer({ videoUrl, title, footageId, storagePath, isCoach = false, onClose }) {
   const videoRef = useRef(null)
@@ -28,6 +39,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   const [controlsVisible, setControlsVisible] = useState(true)
   const autoHideTimerRef = useRef(null)
   const scrubbingRef = useRef(false)
+  const markerRowRef = useRef(null)
 
   // Timeline zoom -- lets scrubbing be more precise on longer videos.
   // The visible window re-centres on the current playback position as
@@ -68,6 +80,16 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   const lastTriggeredPhotoIdRef = useRef(null)
   const markersRef = useRef([])
   const canvasRef = useRef(null)
+
+  // Filmstrip preview (simple version) -- a row of thumbnail frames
+  // generated once via a hidden, separate video element (so generating
+  // them never disrupts the actual visible player), used as the scrub
+  // track's background. Holding the scrub bar zooms in for more detail,
+  // Samsung Gallery style.
+  const [filmstrip, setFilmstrip] = useState([]) // [{ t, url }]
+  const filmstripVideoRef = useRef(null)
+  const filmstripCanvasRef = useRef(null)
+  const scrubHoldTimerRef = useRef(null)
 
   // Double-tap left/right half to skip back/forward
   const lastTapAtRef = useRef(0)
@@ -237,6 +259,86 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   function handleScrubEnd() {
     scrubbingRef.current = false
     scheduleAutoHide()
+  }
+
+  // Swiping the marker row directly seeks too, exactly like dragging
+  // the scrub bar -- both just set currentTime, so they can never
+  // drift out of sync with each other.
+  function seekFromRowEvent(e) {
+    const rect = markerRowRef.current?.getBoundingClientRect()
+    if (!rect || !duration) return
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
+    const windowDuration = zoomLevel === 1 ? duration : duration / zoomLevel
+    seekTo(zoomWindowStart + pct * windowDuration)
+  }
+
+  function handleMarkerRowPointerDown(e) {
+    handleScrubStart()
+    seekFromRowEvent(e)
+  }
+
+  function handleMarkerRowPointerMove(e) {
+    if (!scrubbingRef.current) return
+    seekFromRowEvent(e)
+  }
+
+  function handleMarkerRowPointerUp() {
+    handleScrubEnd()
+  }
+
+  // Generates a simple filmstrip once duration is known -- seeks a
+  // separate hidden video element through evenly-spaced points and
+  // captures each as a small JPEG. Uses a hidden element rather than
+  // the visible one so generating thumbnails never disrupts what's
+  // actually playing. Deliberately rough/simple: a handful of frames,
+  // not frame-accurate, good enough for "roughly where am I".
+  useEffect(() => {
+    if (!duration || filmstrip.length > 0) return
+    const v = filmstripVideoRef.current
+    const canvas = filmstripCanvasRef.current
+    if (!v || !canvas) return
+    const COUNT = 12
+    const points = Array.from({ length: COUNT }, (_, i) => (duration / COUNT) * i)
+    let cancelled = false
+
+    async function generate() {
+      const results = []
+      for (const t of points) {
+        if (cancelled) return
+        await new Promise(resolve => {
+          function onSeeked() {
+            v.removeEventListener('seeked', onSeeked)
+            try {
+              canvas.width = 80
+              canvas.height = 45
+              canvas.getContext('2d').drawImage(v, 0, 0, canvas.width, canvas.height)
+              results.push({ t, url: canvas.toDataURL('image/jpeg', 0.5) })
+            } catch { /* ignore a single failed frame, keep going */ }
+            resolve()
+          }
+          v.addEventListener('seeked', onSeeked)
+          v.currentTime = t
+        })
+      }
+      if (!cancelled) setFilmstrip(results)
+    }
+    generate()
+    return () => { cancelled = true }
+  }, [duration])
+
+  // Holding the scrub track (rather than just tapping/dragging it)
+  // zooms in one level for more detail, Samsung Gallery style. The
+  // native range input still handles normal dragging itself as usual;
+  // this just adds a hold-timer alongside without interfering.
+  function handleScrubTrackPointerDown() {
+    clearTimeout(scrubHoldTimerRef.current)
+    scrubHoldTimerRef.current = setTimeout(() => {
+      setZoomLevel(z => ZOOM_LEVELS[Math.min(ZOOM_LEVELS.length - 1, ZOOM_LEVELS.indexOf(z) + 1)])
+    }, HOLD_THRESHOLD_MS)
+  }
+
+  function handleScrubTrackPointerUp() {
+    clearTimeout(scrubHoldTimerRef.current)
   }
 
   // Keeps the zoomed timeline window centred on the current playback
@@ -507,7 +609,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
     markerTouchStartYRef.current = null
     if (markerHeldRef.current) return // long-press or swipe-up already handled it
     seekTo(m.start_seconds)
-    if (m.note_text) setViewingMarkerNote(m.note_text)
+    if (m.note_text) setViewingMarkerNote(m)
   }
 
   async function deleteMarker(m) {
@@ -527,12 +629,16 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   }
 
   return (
-    <div ref={wrapperRef} style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 200, display: 'flex', flexDirection: 'column' }}>
+    <div ref={wrapperRef} style={{
+      position: 'fixed', inset: 0, background: '#000', zIndex: 200, display: 'flex', flexDirection: 'column',
+      userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'manipulation',
+    }}
+      onContextMenu={e => e.preventDefault()}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 12, flexShrink: 0, background: 'rgba(0,0,0,0.6)', zIndex: 2 }}>
         <span style={{ color: '#fff', fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
         <div style={{ display: 'flex', gap: 6 }}>
-          <button className="btn btn-sm" onClick={toggleFullscreen}>{isFullscreen ? '⤢ Exit fullscreen' : '⛶ Fullscreen'}</button>
-          <button className="btn btn-sm" onClick={onClose}>✕ Close</button>
+          <button className="btn btn-sm" style={GLASS_STYLE} onClick={toggleFullscreen}>{isFullscreen ? '⤢ Exit fullscreen' : '⛶ Fullscreen'}</button>
+          <button className="btn btn-sm" style={GLASS_STYLE} onClick={onClose}>✕ Close</button>
         </div>
       </div>
 
@@ -551,6 +657,8 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
           onPointerLeave={() => { if (isHoldingRef.current) handlePointerUp({ clientX: 0 }) }}
         />
         <canvas ref={canvasRef} style={{ display: 'none' }} />
+        <video ref={filmstripVideoRef} src={videoUrl} crossOrigin="anonymous" muted playsInline style={{ display: 'none' }} />
+        <canvas ref={filmstripCanvasRef} style={{ display: 'none' }} />
         {frozenPhoto && (
           <div style={{ position: 'absolute', inset: 0, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <img src={frozenPhoto.photo_data_url} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
@@ -565,28 +673,30 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
           </div>
         )}
         {viewingMarkerNote && (
-          <div style={{ position: 'absolute', bottom: 16, left: 16, right: 16, background: 'rgba(0,0,0,0.85)', color: '#fff', fontSize: 13, padding: '10px 14px', borderRadius: 8 }}
+          <div style={{
+            position: 'absolute', bottom: 16, left: 16, right: 16, color: '#fff', fontSize: 13, padding: '10px 14px', borderRadius: 8,
+            background: hexToRgba(viewingMarkerNote.highlight_color || '#000000', 0.55), backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
+          }}
             onClick={() => setViewingMarkerNote(null)}>
-            📝 {viewingMarkerNote}
+            📝 {viewingMarkerNote.note_text}
           </div>
         )}
 
         {/* Middle overlay -- just play/pause and speed, tap the video
-            to show/hide. Everything else (scrubber, stepping, markers)
-            lives in the always-visible bottom bar instead. */}
+            to show/hide (same tap-to-show as the bottom bar now). */}
         {controlsVisible && (
           <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, transform: 'translateY(-50%)', padding: '16px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}
             onClick={e => e.stopPropagation()}>
-            <button className="btn btn-primary" style={{ minWidth: 72, height: 72, borderRadius: '50%', justifyContent: 'center', fontSize: 26 }}
+            <button style={{ minWidth: 72, height: 72, borderRadius: '50%', justifyContent: 'center', fontSize: 26, cursor: 'pointer', color: '#fff', ...GLASS_STYLE }}
               onPointerDown={handlePlayButtonPointerDown} onPointerUp={handlePlayButtonPointerUp}
               onPointerLeave={() => { if (isHoldingRef.current) handlePlayButtonPointerUp() }}>{playing ? '⏸' : '▶️'}</button>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
               {SPEEDS.map(s => (
                 <button key={s} onClick={() => setPlaybackSpeed(s)}
                   style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                    border: `1px solid ${speed === s ? '#378ADD' : 'rgba(255,255,255,0.3)'}`,
-                    background: speed === s ? '#378ADD30' : 'rgba(0,0,0,0.4)',
-                    color: speed === s ? '#5FA8EA' : 'rgba(255,255,255,0.7)', fontWeight: speed === s ? 600 : 400 }}>
+                    ...GLASS_STYLE,
+                    border: speed === s ? '1px solid #fff' : GLASS_BORDER,
+                    color: speed === s ? '#fff' : 'rgba(255,255,255,0.7)', fontWeight: speed === s ? 600 : 400 }}>
                   {s === 1 ? '1x' : `${s}x`}
                 </button>
               ))}
@@ -604,18 +714,25 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
         )}
       </div>
 
-      {/* Bottom bar -- always visible (not tied to tap-to-show), same
-          as the original layout: scrubber with marker overlay,
-          frame/5s stepping, add marker/photo, saved clips. */}
-      <div style={{ flexShrink: 0, padding: '10px 12px 16px', background: 'rgba(0,0,0,0.6)' }}>
+      {/* Bottom bar -- now tied to the same tap-to-show/hide as the
+          middle overlay, per your latest call: scrubber with marker
+          overlay, frame/5s stepping, add marker/photo, saved clips. */}
+      {controlsVisible && (
+      <div style={{ flexShrink: 0, padding: '10px 12px 16px', ...GLASS_STYLE }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
           <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, minWidth: 36 }}>{fmt(currentTime)}</span>
           <div style={{ flex: 1 }}>
             {/* Marker row -- its own space above the scrubber, thicker
                 bars, with a visible gap between this and the track.
                 The playhead line lives here too now, so it's clearly
-                associated with where you are among the markers. */}
-            <div style={{ position: 'relative', height: 18, marginBottom: 6 }}>
+                associated with where you are among the markers. Also
+                swipeable directly (drives the same currentTime as the
+                scrub bar below, so the two always stay in sync). */}
+            <div ref={markerRowRef} style={{ position: 'relative', height: 18, marginBottom: 6, touchAction: 'none' }}
+              onPointerDown={handleMarkerRowPointerDown}
+              onPointerMove={handleMarkerRowPointerMove}
+              onPointerUp={handleMarkerRowPointerUp}
+              onPointerLeave={handleMarkerRowPointerUp}>
               {(() => {
                 const windowDuration = zoomLevel === 1 ? duration : duration / zoomLevel
                 const windowEnd = zoomWindowStart + windowDuration
@@ -665,8 +782,28 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
               })()}
             </div>
 
-            {/* Scrub track */}
-            <div style={{ position: 'relative' }}>
+            {/* Scrub track -- filmstrip thumbnails as a backdrop, hold
+                to zoom in for more detail. */}
+            <div style={{ position: 'relative' }}
+              onPointerDown={handleScrubTrackPointerDown}
+              onPointerUp={handleScrubTrackPointerUp}
+              onPointerLeave={handleScrubTrackPointerUp}>
+              {filmstrip.length > 0 && duration > 0 && (() => {
+                const windowDuration = zoomLevel === 1 ? duration : duration / zoomLevel
+                const visible = filmstrip.filter(f => f.t >= zoomWindowStart - windowDuration * 0.1 && f.t <= zoomWindowStart + windowDuration * 1.1)
+                return (
+                  <div style={{ position: 'absolute', inset: 0, borderRadius: 4, overflow: 'hidden', pointerEvents: 'none' }}>
+                    {visible.map(f => (
+                      <img key={f.t} src={f.url} alt=""
+                        style={{
+                          position: 'absolute', top: 0, height: '100%', width: `${100 / (12 / zoomLevel)}%`,
+                          left: `${((f.t - zoomWindowStart) / windowDuration) * 100}%`,
+                          objectFit: 'cover', opacity: 0.55,
+                        }} />
+                    ))}
+                  </div>
+                )
+              })()}
               <input
                 type="range"
                 min={zoomWindowStart}
@@ -676,7 +813,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
                 onChange={e => seekTo(parseFloat(e.target.value))}
                 onPointerDown={handleScrubStart}
                 onPointerUp={handleScrubEnd}
-                style={{ width: '100%' }}
+                style={{ width: '100%', position: 'relative' }}
               />
             </div>
           </div>
@@ -684,25 +821,25 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 6 }}>
-          <button className="btn btn-sm" disabled={zoomLevel === ZOOM_LEVELS[0]} onClick={() => setZoomLevel(z => ZOOM_LEVELS[Math.max(0, ZOOM_LEVELS.indexOf(z) - 1)])}>🔍− Zoom out</button>
+          <button className="btn btn-sm" style={GLASS_STYLE} disabled={zoomLevel === ZOOM_LEVELS[0]} onClick={() => setZoomLevel(z => ZOOM_LEVELS[Math.max(0, ZOOM_LEVELS.indexOf(z) - 1)])}>🔍− Zoom out</button>
           <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', alignSelf: 'center' }}>{zoomLevel}x</span>
-          <button className="btn btn-sm" disabled={zoomLevel === ZOOM_LEVELS[ZOOM_LEVELS.length - 1]} onClick={() => setZoomLevel(z => ZOOM_LEVELS[Math.min(ZOOM_LEVELS.length - 1, ZOOM_LEVELS.indexOf(z) + 1)])}>🔍+ Zoom in</button>
+          <button className="btn btn-sm" style={GLASS_STYLE} disabled={zoomLevel === ZOOM_LEVELS[ZOOM_LEVELS.length - 1]} onClick={() => setZoomLevel(z => ZOOM_LEVELS[Math.min(ZOOM_LEVELS.length - 1, ZOOM_LEVELS.indexOf(z) + 1)])}>🔍+ Zoom in</button>
         </div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', alignItems: 'center', marginTop: 8 }}>
-          <button className="btn btn-sm" onClick={() => step(-5)}>⏪ 5s</button>
-          <button className="btn btn-sm" onClick={() => step(-FRAME_SECONDS)}>⏮ Frame</button>
+          <button className="btn btn-sm" style={GLASS_STYLE} onClick={() => step(-5)}>⏪ 5s</button>
+          <button className="btn btn-sm" style={GLASS_STYLE} onClick={() => step(-FRAME_SECONDS)}>⏮ Frame</button>
           <button className="btn btn-primary" style={{ minWidth: 56, justifyContent: 'center' }}
             onPointerDown={handlePlayButtonPointerDown} onPointerUp={handlePlayButtonPointerUp}
             onPointerLeave={() => { if (isHoldingRef.current) handlePlayButtonPointerUp() }}>{playing ? '⏸' : '▶️'}</button>
-          <button className="btn btn-sm" onClick={() => step(FRAME_SECONDS)}>Frame ⏭</button>
-          <button className="btn btn-sm" onClick={() => step(5)}>5s ⏩</button>
+          <button className="btn btn-sm" style={GLASS_STYLE} onClick={() => step(FRAME_SECONDS)}>Frame ⏭</button>
+          <button className="btn btn-sm" style={GLASS_STYLE} onClick={() => step(5)}>5s ⏩</button>
         </div>
 
         {isCoach && footageId && markerRangeStart === null && !showMarkerChoice && (
           <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 10 }}>
-            <button className="btn btn-sm" onClick={handleMarkerButtonPress}>📍 Add marker here</button>
-            <button className="btn btn-sm" onClick={capturePhotoMarker}>📷 Add photo</button>
+            <button className="btn btn-sm" style={GLASS_STYLE} onClick={handleMarkerButtonPress}>📍 Add marker here</button>
+            <button className="btn btn-sm" style={GLASS_STYLE} onClick={capturePhotoMarker}>📷 Add photo</button>
           </div>
         )}
 
@@ -711,7 +848,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginBottom: 6, textAlign: 'center' }}>Saved clips</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
               {clips.map(c => (
-                <button key={c.id} className="btn btn-sm" onClick={() => openClip(c)} style={{ opacity: c.status === 'ready' ? 1 : 0.6 }}>
+                <button key={c.id} className="btn btn-sm" style={GLASS_STYLE} onClick={() => openClip(c)} style={{ opacity: c.status === 'ready' ? 1 : 0.6 }}>
                   {c.status === 'ready' ? '▶️' : c.status === 'failed' ? '⚠️' : '⏳'} {(c.end_seconds - c.start_seconds).toFixed(1)}s @ {fmt(c.start_seconds)}
                 </button>
               ))}
@@ -719,29 +856,34 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
           </div>
         )}
       </div>
+      )}
 
       {pendingClip && (
-        <div style={{ padding: '10px 16px', background: '#EF9F27', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: '#111' }}>Save this {(pendingClip.end - pendingClip.start).toFixed(1)}s slow-mo clip?</span>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn btn-sm btn-primary" disabled={savingClip} onClick={saveClip}>{savingClip ? 'Saving…' : '✓ Save clip'}</button>
-            <button className="btn btn-sm" onClick={() => setPendingClip(null)}>Discard</button>
-          </div>
+        <div style={{ position: 'fixed', top: 60, left: 12, zIndex: 205, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: 10, borderRadius: 12, ...GLASS_STYLE }}>
+          <span style={{ fontSize: 10, color: '#fff', fontWeight: 600 }}>{(pendingClip.end - pendingClip.start).toFixed(1)}s clip</span>
+          <button title="Save clip" disabled={savingClip} onClick={saveClip}
+            style={{ width: 40, height: 40, borderRadius: '50%', border: 'none', cursor: 'pointer', fontSize: 18, background: 'rgba(29,158,117,0.5)' }}>
+            {savingClip ? '⏳' : '✓'}
+          </button>
+          <button title="Discard" onClick={() => setPendingClip(null)}
+            style={{ width: 40, height: 40, borderRadius: '50%', border: 'none', cursor: 'pointer', fontSize: 18, background: 'rgba(226,75,74,0.5)' }}>
+            ✕
+          </button>
         </div>
       )}
 
       {markerRangeStart !== null && !showMarkerChoice && (
-        <div style={{ padding: '10px 16px', background: '#378ADD', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, ...GLASS_STYLE }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>Marker starts at {fmt(markerRangeStart)} — scrub to where it ends, then confirm</span>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn btn-sm btn-primary" onClick={() => setShowMarkerChoice(true)}>🏁 End marker here</button>
-            <button className="btn btn-sm" onClick={cancelMarkerRange}>Cancel</button>
+            <button className="btn btn-sm" style={GLASS_STYLE} onClick={cancelMarkerRange}>Cancel</button>
           </div>
         </div>
       )}
 
       {showMarkerChoice && (
-        <div style={{ padding: '10px 16px', background: 'rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+        <div style={{ padding: '10px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, ...GLASS_STYLE }}>
           <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>
             {fmt(Math.min(markerRangeStart, currentTime))} → {fmt(Math.max(markerRangeStart, currentTime))} ({Math.abs(currentTime - markerRangeStart).toFixed(1)}s)
           </span>
@@ -755,7 +897,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
           <input value={addingNoteText} onChange={e => setAddingNoteText(e.target.value)} placeholder="Add a note (optional)" style={{ width: '100%', maxWidth: 480, fontSize: 13 }} />
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn btn-sm btn-primary" onClick={saveMarker}>Save</button>
-            <button className="btn btn-sm" onClick={cancelMarkerRange}>Cancel</button>
+            <button className="btn btn-sm" style={GLASS_STYLE} onClick={cancelMarkerRange}>Cancel</button>
           </div>
         </div>
       )}
@@ -763,7 +905,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
       {editingMarker && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 210, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
           onClick={() => setEditingMarker(null)}>
-          <div className="card" style={{ width: '100%', maxWidth: 380 }} onClick={e => e.stopPropagation()}>
+          <div style={{ width: '100%', maxWidth: 380, padding: 16, borderRadius: 12, ...GLASS_STYLE }} onClick={e => e.stopPropagation()}>
             <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>
               {editingMarker.marker_type === 'photo' ? 'Photo marker' : 'Edit marker'} — {fmt(editingMarker.start_seconds)}{editingMarker.marker_type !== 'photo' ? ` → ${fmt(editingMarker.end_seconds)}` : ''}
             </h3>
@@ -788,8 +930,8 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
             )}
 
             <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-sm" style={{ color: '#E24B4A', flex: 1, justifyContent: 'center' }} onClick={() => deleteMarker(editingMarker)}>🗑️ Delete</button>
-              <button className="btn btn-sm" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setEditingMarker(null)}>Cancel</button>
+              <button className="btn btn-sm" style={{ ...GLASS_STYLE, color: '#E24B4A', flex: 1, justifyContent: 'center' }} onClick={() => deleteMarker(editingMarker)}>🗑️ Delete</button>
+              <button className="btn btn-sm" style={{ ...GLASS_STYLE, flex: 1, justifyContent: 'center' }} onClick={() => setEditingMarker(null)}>Cancel</button>
             </div>
           </div>
         </div>
