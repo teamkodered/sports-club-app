@@ -630,24 +630,21 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
 
   return (
     <div ref={wrapperRef} style={{
-      position: 'fixed', inset: 0, background: '#000', zIndex: 200, display: 'flex', flexDirection: 'column',
+      position: 'fixed', inset: 0, background: '#000', zIndex: 200,
       userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'manipulation',
     }}
       onContextMenu={e => e.preventDefault()}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 12, flexShrink: 0, background: 'rgba(0,0,0,0.6)', zIndex: 2 }}>
-        <span style={{ color: '#fff', fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button className="btn btn-sm" style={GLASS_STYLE} onClick={toggleFullscreen}>{isFullscreen ? '⤢ Exit fullscreen' : '⛶ Fullscreen'}</button>
-          <button className="btn btn-sm" style={GLASS_STYLE} onClick={onClose}>✕ Close</button>
-        </div>
-      </div>
-
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0, position: 'relative' }}>
+      {/* Video always fills the entire player, full stop -- every
+          control (top bar, middle overlay, bottom bar) floats on top
+          of it as an absolute overlay instead of taking its own layout
+          space, so nothing about the video's own size ever changes
+          depending on whether controls happen to be showing. */}
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <video
           ref={videoRef}
           src={videoUrl}
           crossOrigin="anonymous"
-          style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+          style={{ width: '100%', height: '100%', objectFit: 'contain' }}
           playsInline
           webkit-playsinline="true"
           disablePictureInPicture
@@ -714,11 +711,21 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
         )}
       </div>
 
-      {/* Bottom bar -- now tied to the same tap-to-show/hide as the
-          middle overlay, per your latest call: scrubber with marker
-          overlay, frame/5s stepping, add marker/photo, saved clips. */}
+      {/* Top bar -- floats over the video too now, doesn't take its
+          own layout space. */}
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 12, zIndex: 2 }}>
+        <span style={{ color: '#fff', fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button className="btn btn-sm" style={GLASS_STYLE} onClick={toggleFullscreen}>{isFullscreen ? '⤢ Exit fullscreen' : '⛶ Fullscreen'}</button>
+          <button className="btn btn-sm" style={GLASS_STYLE} onClick={onClose}>✕ Close</button>
+        </div>
+      </div>
+
+      {/* Bottom bar -- also floats over the video (absolute, not a
+          flex sibling), so it never resizes the video when it shows
+          or hides -- same tap-to-show/hide as the middle overlay. */}
       {controlsVisible && (
-      <div style={{ flexShrink: 0, padding: '10px 12px 16px', ...GLASS_STYLE }} onClick={e => e.stopPropagation()}>
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '10px 12px 16px', ...GLASS_STYLE }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
           <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, minWidth: 36 }}>{fmt(currentTime)}</span>
           <div style={{ flex: 1 }}>
