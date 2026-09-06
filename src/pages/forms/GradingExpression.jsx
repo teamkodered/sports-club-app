@@ -76,7 +76,6 @@ export default function GradingExpression() {
       setForm(f => ({
         ...f,
         current_belt: match.pka_belt || f.current_belt,
-        contact_phone: f.contact_phone || match.phone || '',
         session_class_id: f.session_class_id || match.pka_class_id || '',
       }))
     } else {
