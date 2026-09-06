@@ -69,6 +69,8 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   const [selectedColour, setSelectedColour] = useState(HIGHLIGHT_COLOURS[0])
   const [markerRangeStart, setMarkerRangeStart] = useState(null) // set once "Add marker" is first tapped, awaiting the end point
   const [viewingMarkerNote, setViewingMarkerNote] = useState(null)
+  const [colourFilter, setColourFilter] = useState(null) // when set, playback auto-skips to only play sections marked in this colour
+  const colourFilterRef = useRef(null) // mirrors colourFilter for the rAF loop
 
   // Long-press a marker to edit/delete it
   const markerHoldTimerRef = useRef(null)
@@ -84,6 +86,8 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   const frozenPhotoRef = useRef(null)
   const lastTriggeredPhotoIdRef = useRef(null)
   const lastActiveMarkerIdRef = useRef(null)
+  const consumedReplayIdsRef = useRef(new Set()) // markers already "played" once this pass -- lets a duplicated section replay once per duplicate, then move on
+  const prevTimeForReplayRef = useRef(0)
   const markersRef = useRef([])
   const canvasRef = useRef(null)
 
@@ -104,6 +108,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   useEffect(() => { markersRef.current = markers }, [markers])
   useEffect(() => { controlsVisibleRef.current = controlsVisible }, [controlsVisible])
   useEffect(() => { speedRef.current = speed }, [speed])
+  useEffect(() => { colourFilterRef.current = colourFilter }, [colourFilter])
   useEffect(() => { frozenPhotoRef.current = frozenPhoto }, [frozenPhoto])
 
   useEffect(() => {
@@ -173,6 +178,49 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
               v.play()
             }, (hit.freeze_seconds || 5) * 1000)
           }
+        }
+
+        // Colour filter mode: only sections marked in the chosen
+        // colour play -- everything else gets skipped forward to the
+        // next matching section automatically, like a highlight reel.
+        if (colourFilterRef.current && !v.paused && !scrubbingRef.current) {
+          const insideFiltered = markersRef.current.some(m =>
+            m.marker_type === 'highlight' && m.highlight_color === colourFilterRef.current &&
+            v.currentTime >= m.start_seconds && v.currentTime <= m.end_seconds
+          )
+          if (!insideFiltered) {
+            const next = markersRef.current
+              .filter(m => m.marker_type === 'highlight' && m.highlight_color === colourFilterRef.current && m.start_seconds > v.currentTime)
+              .sort((a, b) => a.start_seconds - b.start_seconds)[0]
+            if (next) v.currentTime = next.start_seconds
+            else v.pause() // no more matching sections ahead -- reached the end of the reel
+          }
+        }
+
+        // A duplicated marker (created via the Duplicate button, or two
+        // markers that just happen to share the same range) makes that
+        // section play twice during normal playback -- once per
+        // duplicate. Detected by noticing playback just crossed a
+        // marker's end while another, not-yet-played marker covers the
+        // exact same range.
+        if (!v.paused && !scrubbingRef.current) {
+          const prevT = prevTimeForReplayRef.current
+          const currT = v.currentTime
+          if (currT > prevT) {
+            const justEnded = markersRef.current.find(m =>
+              m.marker_type !== 'photo' && m.end_seconds > prevT && m.end_seconds <= currT && !consumedReplayIdsRef.current.has(m.id)
+            )
+            if (justEnded) {
+              const duplicate = markersRef.current.find(m2 =>
+                m2.id !== justEnded.id && m2.marker_type !== 'photo' &&
+                Math.abs(m2.start_seconds - justEnded.start_seconds) < 0.05 && Math.abs(m2.end_seconds - justEnded.end_seconds) < 0.05 &&
+                !consumedReplayIdsRef.current.has(m2.id)
+              )
+              consumedReplayIdsRef.current.add(justEnded.id)
+              if (duplicate) v.currentTime = justEnded.start_seconds
+            }
+          }
+          prevTimeForReplayRef.current = currT
         }
       }
       rafId = requestAnimationFrame(tick)
@@ -259,6 +307,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
     const v = videoRef.current
     if (!v) return
     v.currentTime = t
+    consumedReplayIdsRef.current.clear() // a fresh manual seek means duplicated sections ahead should be free to replay again
   }
 
   function fmt(t) {
@@ -867,6 +916,27 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
           color: '#fff', fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>{title}</span>
         <button className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, ...GLASS_STYLE }} onClick={onClose}>✕ Close</button>
+
+        {/* One swatch per colour actually in use on the timeline --
+            tapping one plays only that colour's sections (a highlight
+            reel), skipping everything else automatically; tapping the
+            same colour again turns it back off. */}
+        {(() => {
+          const distinctColours = [...new Set(markers.filter(m => m.marker_type === 'highlight' && m.highlight_color).map(m => m.highlight_color))]
+          if (distinctColours.length === 0) return null
+          return (
+            <div style={{ position: 'absolute', top: 40, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 6 }}>
+              {distinctColours.map(c => (
+                <button key={c} title={colourFilter === c ? 'Show full video again' : 'Play only this colour'}
+                  onClick={() => setColourFilter(prev => prev === c ? null : c)}
+                  style={{
+                    width: 22, height: 22, borderRadius: '50%', background: c, cursor: 'pointer', padding: 0,
+                    border: colourFilter === c ? '3px solid #fff' : '1px solid rgba(255,255,255,0.5)',
+                  }} />
+              ))}
+            </div>
+          )
+        })()}
       </div>
       )}
 
