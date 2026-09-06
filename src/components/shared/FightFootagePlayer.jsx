@@ -33,6 +33,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   const [markers, setMarkers] = useState([])
   const [showMarkerChoice, setShowMarkerChoice] = useState(false)
   const [addingNoteText, setAddingNoteText] = useState(null) // string once "Note" chosen, null otherwise
+  const [markerRangeStart, setMarkerRangeStart] = useState(null) // set once "Add marker" is first tapped, awaiting the end point
   const [viewingMarkerNote, setViewingMarkerNote] = useState(null)
 
   useEffect(() => {
@@ -88,7 +89,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   async function loadClipsAndMarkers() {
     const [{ data: c }, { data: m }] = await Promise.all([
       supabase.from('fight_footage_clips').select('*').eq('source_footage_id', footageId).order('created_at', { ascending: false }),
-      supabase.from('fight_footage_markers').select('*').eq('footage_id', footageId).order('timestamp_seconds'),
+      supabase.from('fight_footage_markers').select('*').eq('footage_id', footageId).order('start_seconds'),
     ])
     setClips(c || [])
     setMarkers(m || [])
@@ -216,19 +217,42 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   }
 
   // --- Markers -----------------------------------------------------
+  // Two-tap flow: first tap on "Add marker" sets the start point and
+  // waits; the button then reads "End marker here" -- tapping again
+  // captures the end point and opens the Highlight/Note choice for
+  // that whole span.
+  function handleMarkerButtonPress() {
+    videoRef.current?.pause()
+    if (markerRangeStart === null) {
+      setMarkerRangeStart(currentTime)
+    } else {
+      setShowMarkerChoice(true)
+    }
+  }
+
+  function cancelMarkerRange() {
+    setMarkerRangeStart(null)
+    setShowMarkerChoice(false)
+    setAddingNoteText(null)
+  }
+
   async function saveMarker(type, text = null) {
+    const start = Math.min(markerRangeStart, currentTime)
+    const end = Math.max(markerRangeStart, currentTime)
     const { data: { user } } = await supabase.auth.getUser()
     const { data: member } = await supabase.from('members').select('id').eq('auth_id', user.id).single()
     const { data: newMarker } = await supabase.from('fight_footage_markers').insert({
       footage_id: footageId,
-      timestamp_seconds: currentTime,
+      start_seconds: start,
+      end_seconds: end,
       marker_type: type,
       note_text: text,
       created_by: member?.id || null,
     }).select().single()
-    if (newMarker) setMarkers(prev => [...prev, newMarker].sort((a, b) => a.timestamp_seconds - b.timestamp_seconds))
+    if (newMarker) setMarkers(prev => [...prev, newMarker].sort((a, b) => a.start_seconds - b.start_seconds))
     setShowMarkerChoice(false)
     setAddingNoteText(null)
+    setMarkerRangeStart(null)
   }
 
   return (
@@ -277,20 +301,35 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
         </div>
       )}
 
+      {markerRangeStart !== null && !showMarkerChoice && (
+        <div style={{ padding: '10px 16px', background: '#378ADD', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>Marker starts at {fmt(markerRangeStart)} — scrub to where it ends, then confirm</span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-sm btn-primary" onClick={() => setShowMarkerChoice(true)}>🏁 End marker here</button>
+            <button className="btn btn-sm" onClick={cancelMarkerRange}>Cancel</button>
+          </div>
+        </div>
+      )}
+
       {showMarkerChoice && (
-        <div style={{ padding: '10px 16px', background: 'rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
-          {addingNoteText === null ? (
-            <>
-              <button className="btn btn-sm" onClick={() => saveMarker('highlight')}>⭐ Highlight this moment</button>
-              <button className="btn btn-sm" onClick={() => setAddingNoteText('')}>📝 Add a note</button>
-              <button className="btn btn-sm" onClick={() => setShowMarkerChoice(false)}>Cancel</button>
-            </>
-          ) : (
-            <div style={{ display: 'flex', gap: 8, width: '100%', maxWidth: 480 }}>
-              <input autoFocus value={addingNoteText} onChange={e => setAddingNoteText(e.target.value)} placeholder="What's happening here?" style={{ flex: 1, fontSize: 13 }} />
-              <button className="btn btn-sm btn-primary" onClick={() => saveMarker('note', addingNoteText.trim())} disabled={!addingNoteText.trim()}>Save</button>
-            </div>
-          )}
+        <div style={{ padding: '10px 16px', background: 'rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>
+            {fmt(Math.min(markerRangeStart, currentTime))} → {fmt(Math.max(markerRangeStart, currentTime))} ({Math.abs(currentTime - markerRangeStart).toFixed(1)}s)
+          </span>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+            {addingNoteText === null ? (
+              <>
+                <button className="btn btn-sm" onClick={() => saveMarker('highlight')}>⭐ Highlight this section</button>
+                <button className="btn btn-sm" onClick={() => setAddingNoteText('')}>📝 Add a note</button>
+                <button className="btn btn-sm" onClick={cancelMarkerRange}>Cancel</button>
+              </>
+            ) : (
+              <div style={{ display: 'flex', gap: 8, width: '100%', maxWidth: 480 }}>
+                <input autoFocus value={addingNoteText} onChange={e => setAddingNoteText(e.target.value)} placeholder="What's happening here?" style={{ flex: 1, fontSize: 13 }} />
+                <button className="btn btn-sm btn-primary" onClick={() => saveMarker('note', addingNoteText.trim())} disabled={!addingNoteText.trim()}>Save</button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -312,11 +351,12 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
             />
             {duration > 0 && markers.map(m => (
               <div key={m.id} title={m.marker_type === 'note' ? m.note_text : 'Highlight'}
-                onClick={() => { seekTo(m.timestamp_seconds); if (m.marker_type === 'note') setViewingMarkerNote(m.note_text) }}
+                onClick={() => { seekTo(m.start_seconds); if (m.marker_type === 'note') setViewingMarkerNote(m.note_text) }}
                 style={{
-                  position: 'absolute', top: -2, left: `${(m.timestamp_seconds / duration) * 100}%`,
-                  width: 8, height: 8, borderRadius: '50%', cursor: 'pointer', transform: 'translateX(-50%)',
-                  background: m.marker_type === 'highlight' ? '#EF9F27' : '#378ADD', border: '1px solid #fff',
+                  position: 'absolute', top: 6, height: 4, borderRadius: 2, cursor: 'pointer',
+                  left: `${(m.start_seconds / duration) * 100}%`,
+                  width: `${Math.max(0.5, ((m.end_seconds - m.start_seconds) / duration) * 100)}%`,
+                  background: m.marker_type === 'highlight' ? '#EF9F27' : '#378ADD',
                 }} />
             ))}
           </div>
@@ -345,7 +385,9 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
 
         {isCoach && footageId && (
           <div style={{ display: 'flex', justifyContent: 'center', marginTop: 10 }}>
-            <button className="btn btn-sm" onClick={() => { videoRef.current?.pause(); setShowMarkerChoice(true) }}>📍 Add marker here</button>
+            {markerRangeStart === null && !showMarkerChoice && (
+              <button className="btn btn-sm" onClick={handleMarkerButtonPress}>📍 Add marker here</button>
+            )}
           </div>
         )}
 
