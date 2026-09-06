@@ -59,8 +59,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   const holdStartRef = useRef(0)
   const holdStartPosRef = useRef({ x: 0, y: 0 })
   const preHoldSpeedRef = useRef(1)
-  const [pendingClip, setPendingClip] = useState(null) // { start, end } once released, awaiting Save/Discard
-  const [savingClip, setSavingClip] = useState(false)
+  const isSlowMoClipPendingRef = useRef(false) // true when the currently-open note/highlight popup originated from a slow-mo hold, so saving it should also trim a clip
   const [clips, setClips] = useState([])
 
   // Markers (highlight/note)
@@ -78,6 +77,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   const [editingMarkerNoteText, setEditingMarkerNoteText] = useState('')
   const [editingMarkerColour, setEditingMarkerColour] = useState(HIGHLIGHT_COLOURS[0])
   const [editingMarkerSpeed, setEditingMarkerSpeed] = useState(1)
+  const [editingMarkerClip, setEditingMarkerClip] = useState(null)
 
   // Photo/freeze-frame markers
   const [frozenPhoto, setFrozenPhoto] = useState(null)
@@ -281,6 +281,23 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
     scheduleAutoHide()
   }
 
+  // Holding an area outside the video itself (the letterbox bars, or
+  // anywhere else that isn't the video/a button/a marker) just keeps
+  // controls visible for as long as it's held, without triggering
+  // slow-mo or anything else video-specific. Only reacts when the
+  // press starts directly on this container, not bubbled up from a
+  // child element that has its own handling.
+  function handleOutsideVideoPointerDown(e) {
+    if (e.target !== e.currentTarget) return
+    clearTimeout(autoHideTimerRef.current)
+    setControlsVisible(true)
+  }
+
+  function handleOutsideVideoPointerUp(e) {
+    if (e.target !== e.currentTarget) return
+    scheduleAutoHide()
+  }
+
   function handleScrubStart() {
     scrubbingRef.current = true
     clearTimeout(autoHideTimerRef.current) // never hide mid-drag
@@ -394,8 +411,14 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
     const end = v?.currentTime || 0
     const start = holdStartRef.current
     if (!skipSavePrompt && isCoach && end - start >= 0.4) {
-      setPendingClip({ start: Math.min(start, end), end: Math.max(start, end) })
+      // Instead of a separate save/discard prompt, this now opens the
+      // same note/highlight popup used for regular markers -- saving
+      // from there both creates the marker AND trims the actual clip
+      // (see saveMarker below), so there's only one save flow.
       if (v) v.pause()
+      isSlowMoClipPendingRef.current = true
+      setMarkerRangeStart(Math.min(start, end))
+      setShowMarkerChoice(true)
       showControls()
     } else {
       scheduleAutoHide() // resume the normal countdown now that the hold has ended
@@ -512,38 +535,28 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   // do something else instead of pressing Save or Discard), it
   // auto-discards on its own after a while rather than lingering
   // indefinitely -- nothing gets saved unless Save was actually pressed.
-  useEffect(() => {
-    if (!pendingClip) return
-    const t = setTimeout(() => setPendingClip(null), 15000)
-    return () => clearTimeout(t)
-  }, [pendingClip])
-
-  async function saveClip() {
-    if (!pendingClip) return
-    setSavingClip(true)
+  // Called from saveMarker below when the popup being saved originated
+  // from a slow-mo hold -- creates the clip row linked to the new
+  // marker's id, then kicks off the actual ffmpeg trim.
+  async function saveClipForMarker(marker, start, end) {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      const { data: member } = await supabase.from('members').select('id').eq('auth_id', user.id).single()
-
       const { data: newClip, error: insertErr } = await supabase.from('fight_footage_clips').insert({
         source_footage_id: footageId,
-        start_seconds: pendingClip.start,
-        end_seconds: pendingClip.end,
+        marker_id: marker.id,
+        start_seconds: start,
+        end_seconds: end,
         playback_speed: SLOW_MO_SPEED,
         status: 'processing',
-        created_by: member?.id || null,
       }).select().single()
       if (insertErr) throw insertErr
-
       setClips(prev => [newClip, ...prev])
-      setPendingClip(null)
 
       const { data: sessionData } = await supabase.auth.getSession()
       const accessToken = sessionData?.session?.access_token
       const res = await fetch('/.netlify/functions/trim-footage-clip', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ clip_id: newClip.id, source_storage_path: storagePath, start_seconds: pendingClip.start, end_seconds: pendingClip.end }),
+        body: JSON.stringify({ clip_id: newClip.id, source_storage_path: storagePath, start_seconds: start, end_seconds: end }),
       })
       const result = await res.json()
       if (result.error) throw new Error(result.error)
@@ -552,7 +565,6 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
       alert('Could not save clip: ' + err.message)
       loadClipsAndMarkers()
     }
-    setSavingClip(false)
   }
 
   async function openClip(clip) {
@@ -617,6 +629,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
     setShowMarkerChoice(false)
     setAddingNoteText('')
     setSelectedColour(HIGHLIGHT_COLOURS[0])
+    isSlowMoClipPendingRef.current = false // discarding a slow-mo-triggered popup shouldn't leave the flag armed for some future, unrelated marker save
   }
 
   // Captures the exact current video frame as a still image (via a
@@ -667,6 +680,12 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
       created_by: member?.id || null,
     }).select().single()
     if (newMarker) setMarkers(prev => [...prev, newMarker].sort((a, b) => a.start_seconds - b.start_seconds))
+
+    if (isSlowMoClipPendingRef.current && newMarker) {
+      isSlowMoClipPendingRef.current = false
+      saveClipForMarker(newMarker, start, end)
+    }
+
     setShowMarkerChoice(false)
     setAddingNoteText('')
     setSelectedColour(HIGHLIGHT_COLOURS[0])
@@ -685,6 +704,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
     setEditingMarkerNoteText(m.note_text || '')
     setEditingMarkerColour(m.highlight_color || HIGHLIGHT_COLOURS[0])
     setEditingMarkerSpeed(m.playback_speed || 1)
+    setEditingMarkerClip(clips.find(c => c.marker_id === m.id) || null)
   }
 
   function handleMarkerPointerDown(m) {
@@ -742,7 +762,10 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
           of it as an absolute overlay instead of taking its own layout
           space, so nothing about the video's own size ever changes
           depending on whether controls happen to be showing. */}
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        onPointerDown={handleOutsideVideoPointerDown}
+        onPointerUp={handleOutsideVideoPointerUp}
+        onPointerLeave={handleOutsideVideoPointerUp}>
         {/* This inner box exactly matches the video's own rendered
             bounds (same aspect ratio, fit within the available space)
             -- in portrait, a landscape video is letterboxed with black
@@ -894,26 +917,6 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
                   )
                 })
               })()}
-              {(() => {
-                const windowDuration = zoomLevel === 1 ? duration : duration / zoomLevel
-                const windowEnd = zoomWindowStart + windowDuration
-                return duration > 0 && clips.map(c => {
-                  if (c.end_seconds < zoomWindowStart || c.start_seconds > windowEnd) return null
-                  const leftPct = ((c.start_seconds - zoomWindowStart) / windowDuration) * 100
-                  return (
-                    <div key={c.id} title={`${(c.end_seconds - c.start_seconds).toFixed(1)}s saved clip — ${c.status}`}
-                      onClick={e => { e.stopPropagation(); openClip(c) }}
-                      style={{
-                        position: 'absolute', bottom: 0, left: `${leftPct}%`, transform: 'translateX(-50%)',
-                        width: 18, height: 18, borderRadius: 3, cursor: 'pointer', border: '1px solid #fff',
-                        background: '#EF9F27', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10,
-                        opacity: c.status === 'ready' ? 1 : 0.6,
-                      }}>
-                      {c.status === 'ready' ? '🎬' : c.status === 'failed' ? '⚠️' : '⏳'}
-                    </div>
-                  )
-                })
-              })()}
               {duration > 0 && (() => {
                 const windowDuration = zoomLevel === 1 ? duration : duration / zoomLevel
                 const pct = ((currentTime - zoomWindowStart) / windowDuration) * 100
@@ -989,34 +992,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
             )}
           </div>
         )}
-
-        {clips.length > 0 && (
-          <div style={{ marginTop: 12, borderTop: '1px solid rgba(255,255,255,0.15)', paddingTop: 10 }}>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginBottom: 6, textAlign: 'center' }}>Saved clips</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
-              {clips.map(c => (
-                <button key={c.id} className="btn btn-sm" style={GLASS_STYLE} onClick={() => openClip(c)} style={{ opacity: c.status === 'ready' ? 1 : 0.6 }}>
-                  {c.status === 'ready' ? '▶️' : c.status === 'failed' ? '⚠️' : '⏳'} {(c.end_seconds - c.start_seconds).toFixed(1)}s @ {fmt(c.start_seconds)}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
-      )}
-
-      {pendingClip && (
-        <div style={{ position: 'fixed', top: 60, left: 12, zIndex: 205, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: 10, borderRadius: 12, ...GLASS_STYLE }}>
-          <span style={{ fontSize: 10, color: '#fff', fontWeight: 600 }}>{(pendingClip.end - pendingClip.start).toFixed(1)}s clip</span>
-          <button title="Save clip" disabled={savingClip} onClick={saveClip}
-            style={{ width: 40, height: 40, borderRadius: '50%', border: 'none', cursor: 'pointer', fontSize: 18, background: 'rgba(29,158,117,0.5)' }}>
-            {savingClip ? '⏳' : '✓'}
-          </button>
-          <button title="Discard" onClick={() => setPendingClip(null)}
-            style={{ width: 40, height: 40, borderRadius: '50%', border: 'none', cursor: 'pointer', fontSize: 18, background: 'rgba(226,75,74,0.5)' }}>
-            ✕
-          </button>
-        </div>
       )}
 
       {showMarkerChoice && (
@@ -1079,6 +1055,13 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
                 ))}
               </div>
             </div>
+          )}
+
+          {editingMarkerClip && (
+            <button className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8, ...GLASS_STYLE }}
+              disabled={editingMarkerClip.status !== 'ready'} onClick={() => openClip(editingMarkerClip)}>
+              {editingMarkerClip.status === 'ready' ? '▶️ Play recorded clip' : editingMarkerClip.status === 'failed' ? '⚠️ Clip failed to save' : '⏳ Clip still processing…'}
+            </button>
           )}
 
           <button className="btn btn-sm btn-primary" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }} onClick={() => saveMarkerEdits(editingMarker, editingMarkerColour, editingMarkerSpeed)}>Save</button>
