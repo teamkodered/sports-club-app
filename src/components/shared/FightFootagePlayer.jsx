@@ -260,8 +260,11 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
         lastTapAtRef.current = now
         clearTimeout(singleTapTimerRef.current)
         singleTapTimerRef.current = setTimeout(() => {
-          togglePlay()
-          showControls() // reveal the play/pause state briefly, auto-hides again per the usual timer
+          // Tapping the screen only ever reveals/hides the controls --
+          // play/pause happens exclusively via pressing the actual
+          // button, never from a generic tap anywhere on the video.
+          if (controlsVisible) { clearTimeout(autoHideTimerRef.current); setControlsVisible(false) }
+          else showControls()
         }, 300)
       }
       return
