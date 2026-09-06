@@ -91,7 +91,6 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   const [filmstrip, setFilmstrip] = useState([]) // [{ t, url }]
   const filmstripVideoRef = useRef(null)
   const filmstripCanvasRef = useRef(null)
-  const scrubHoldTimerRef = useRef(null)
 
   // Double-tap left/right half to skip back/forward
   const lastTapAtRef = useRef(0)
@@ -327,21 +326,6 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
     generate()
     return () => { cancelled = true }
   }, [duration])
-
-  // Holding the scrub track (rather than just tapping/dragging it)
-  // zooms in one level for more detail, Samsung Gallery style. The
-  // native range input still handles normal dragging itself as usual;
-  // this just adds a hold-timer alongside without interfering.
-  function handleScrubTrackPointerDown() {
-    clearTimeout(scrubHoldTimerRef.current)
-    scrubHoldTimerRef.current = setTimeout(() => {
-      setZoomLevel(z => ZOOM_LEVELS[Math.min(ZOOM_LEVELS.length - 1, ZOOM_LEVELS.indexOf(z) + 1)])
-    }, HOLD_THRESHOLD_MS)
-  }
-
-  function handleScrubTrackPointerUp() {
-    clearTimeout(scrubHoldTimerRef.current)
-  }
 
   // Keeps the zoomed timeline window centred on the current playback
   // position -- including while actively scrubbing, so the marker row
@@ -805,12 +789,8 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
               })()}
             </div>
 
-            {/* Scrub track -- filmstrip thumbnails as a backdrop, hold
-                to zoom in for more detail. */}
-            <div style={{ position: 'relative' }}
-              onPointerDown={handleScrubTrackPointerDown}
-              onPointerUp={handleScrubTrackPointerUp}
-              onPointerLeave={handleScrubTrackPointerUp}>
+            {/* Scrub track -- filmstrip thumbnails as a backdrop. */}
+            <div style={{ position: 'relative' }}>
               {filmstrip.length > 0 && duration > 0 && (() => {
                 const windowDuration = zoomLevel === 1 ? duration : duration / zoomLevel
                 const visible = filmstrip.filter(f => f.t >= zoomWindowStart - windowDuration * 0.1 && f.t <= zoomWindowStart + windowDuration * 1.1)
@@ -905,10 +885,11 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
       )}
 
       {showMarkerChoice && (
-        <div style={{ padding: '10px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, ...GLASS_STYLE }}>
+        <div style={{ position: 'fixed', bottom: 90, left: 12, right: 12, zIndex: 206, padding: '10px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, borderRadius: 12, ...GLASS_STYLE }}>
           <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>
             {fmt(Math.min(markerRangeStart, currentTime))} → {fmt(Math.max(markerRangeStart, currentTime))} ({Math.abs(currentTime - markerRangeStart).toFixed(1)}s)
           </span>
+          <input value={addingNoteText} onChange={e => setAddingNoteText(e.target.value)} placeholder="Add a note (optional)" style={{ width: '100%', maxWidth: 480, fontSize: 13 }} />
           <div style={{ display: 'flex', gap: 6 }}>
             {HIGHLIGHT_COLOURS.map(c => (
               <button key={c} title="Highlight colour" onClick={() => setSelectedColour(c)}
@@ -916,7 +897,6 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
                   border: selectedColour === c ? '3px solid #fff' : '2px solid rgba(255,255,255,0.4)' }} />
             ))}
           </div>
-          <input value={addingNoteText} onChange={e => setAddingNoteText(e.target.value)} placeholder="Add a note (optional)" style={{ width: '100%', maxWidth: 480, fontSize: 13 }} />
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn btn-sm btn-primary" onClick={saveMarker}>Save</button>
             <button className="btn btn-sm" style={GLASS_STYLE} onClick={cancelMarkerRange}>Cancel</button>

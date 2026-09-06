@@ -152,7 +152,7 @@ export default function ViewIt() {
             <textarea value={uploadForm.description} onChange={e => setUploadForm(f => ({ ...f, description: e.target.value }))} style={{ minHeight: 60 }} />
           </div>
           <div className="field"><label>Video file</label>
-            <input type="file" accept="video/*" onChange={e => setFile(e.target.files[0])} />
+            <input type="file" accept="video/*,.mkv,.avi,.mov,.wmv,.flv,.3gp,.webm,.m4v" onChange={e => setFile(e.target.files[0])} />
           </div>
 
           <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 6 }}>Who can see this?</label>
