@@ -12,10 +12,12 @@ const SLOW_MO_SPEED = 0.25
 
 export default function FightFootagePlayer({ videoUrl, title, footageId, storagePath, isCoach = false, onClose }) {
   const videoRef = useRef(null)
+  const wrapperRef = useRef(null)
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeed] = useState(1)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   // Hold-to-slow-mo + save-clip
   const holdTimerRef = useRef(null)
@@ -51,6 +53,32 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
       v.removeEventListener('pause', onPause)
     }
   }, [])
+
+  // If the video element itself ends up in native browser fullscreen
+  // (some mobile browsers do this automatically, e.g. on rotation),
+  // our custom controls -- which live outside the <video> element --
+  // would be left behind and invisible. This redirects that to make
+  // the whole wrapper (video + controls together) fullscreen instead,
+  // so controls are never lost.
+  useEffect(() => {
+    function onFullscreenChange() {
+      const fsEl = document.fullscreenElement
+      setIsFullscreen(!!fsEl)
+      if (fsEl && fsEl === videoRef.current && wrapperRef.current) {
+        document.exitFullscreen?.().then(() => wrapperRef.current?.requestFullscreen?.().catch(() => {}))
+      }
+    }
+    document.addEventListener('fullscreenchange', onFullscreenChange)
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange)
+  }, [])
+
+  function toggleFullscreen() {
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.()
+    } else {
+      wrapperRef.current?.requestFullscreen?.().catch(() => {})
+    }
+  }
 
   useEffect(() => {
     if (!footageId) return
@@ -204,10 +232,13 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 200, display: 'flex', flexDirection: 'column' }}>
+    <div ref={wrapperRef} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 200, display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 12, flexShrink: 0 }}>
         <span style={{ color: '#fff', fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
-        <button className="btn btn-sm" onClick={onClose}>✕ Close</button>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button className="btn btn-sm" onClick={toggleFullscreen}>{isFullscreen ? '⤢ Exit fullscreen' : '⛶ Fullscreen'}</button>
+          <button className="btn btn-sm" onClick={onClose}>✕ Close</button>
+        </div>
       </div>
 
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0, padding: '0 8px', position: 'relative' }}>
@@ -216,6 +247,9 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
           src={videoUrl}
           style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
           playsInline
+          webkit-playsinline="true"
+          disablePictureInPicture
+          controlsList="nofullscreen noremoteplayback"
           onPointerDown={handlePointerDown}
           onPointerUp={handlePointerUp}
           onPointerLeave={handlePointerUp}
