@@ -240,10 +240,11 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   }
 
   // Keeps the zoomed timeline window centred on the current playback
-  // position as it plays, but leaves it alone while actively
-  // scrubbing so the window doesn't shift under your finger mid-drag.
+  // position -- including while actively scrubbing, so the marker row
+  // and playhead visibly move together with the scrub bar in real
+  // time rather than staying frozen until you release.
   useEffect(() => {
-    if (zoomLevel === 1 || scrubbingRef.current || duration === 0) { setZoomWindowStart(0); return }
+    if (zoomLevel === 1 || duration === 0) { setZoomWindowStart(0); return }
     const windowDuration = duration / zoomLevel
     setZoomWindowStart(Math.max(0, Math.min(currentTime - windowDuration / 2, duration - windowDuration)))
   }, [currentTime, zoomLevel, duration])
@@ -431,24 +432,29 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
     const v = videoRef.current
     if (!v) return
     v.pause()
-    const canvas = canvasRef.current
-    canvas.width = v.videoWidth
-    canvas.height = v.videoHeight
-    canvas.getContext('2d').drawImage(v, 0, 0, canvas.width, canvas.height)
-    const photoDataUrl = canvas.toDataURL('image/jpeg', 0.7)
+    try {
+      const canvas = canvasRef.current
+      canvas.width = v.videoWidth
+      canvas.height = v.videoHeight
+      canvas.getContext('2d').drawImage(v, 0, 0, canvas.width, canvas.height)
+      const photoDataUrl = canvas.toDataURL('image/jpeg', 0.7)
 
-    const { data: { user } } = await supabase.auth.getUser()
-    const { data: member } = await supabase.from('members').select('id').eq('auth_id', user.id).single()
-    const { data: newMarker } = await supabase.from('fight_footage_markers').insert({
-      footage_id: footageId,
-      start_seconds: currentTime,
-      end_seconds: currentTime,
-      marker_type: 'photo',
-      photo_data_url: photoDataUrl,
-      freeze_seconds: 5,
-      created_by: member?.id || null,
-    }).select().single()
-    if (newMarker) setMarkers(prev => [...prev, newMarker].sort((a, b) => a.start_seconds - b.start_seconds))
+      const { data: { user } } = await supabase.auth.getUser()
+      const { data: member } = await supabase.from('members').select('id').eq('auth_id', user.id).single()
+      const { data: newMarker, error } = await supabase.from('fight_footage_markers').insert({
+        footage_id: footageId,
+        start_seconds: currentTime,
+        end_seconds: currentTime,
+        marker_type: 'photo',
+        photo_data_url: photoDataUrl,
+        freeze_seconds: 5,
+        created_by: member?.id || null,
+      }).select().single()
+      if (error) throw error
+      if (newMarker) setMarkers(prev => [...prev, newMarker].sort((a, b) => a.start_seconds - b.start_seconds))
+    } catch (err) {
+      alert('Could not capture photo: ' + err.message)
+    }
   }
 
   async function saveMarker() {
@@ -534,6 +540,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
         <video
           ref={videoRef}
           src={videoUrl}
+          crossOrigin="anonymous"
           style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
           playsInline
           webkit-playsinline="true"
@@ -605,7 +612,9 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
           <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, minWidth: 36 }}>{fmt(currentTime)}</span>
           <div style={{ flex: 1 }}>
             {/* Marker row -- its own space above the scrubber, thicker
-                bars, with a visible gap between this and the track. */}
+                bars, with a visible gap between this and the track.
+                The playhead line lives here too now, so it's clearly
+                associated with where you are among the markers. */}
             <div style={{ position: 'relative', height: 18, marginBottom: 6 }}>
               {(() => {
                 const windowDuration = zoomLevel === 1 ? duration : duration / zoomLevel
@@ -648,10 +657,15 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
                   )
                 })
               })()}
+              {duration > 0 && (() => {
+                const windowDuration = zoomLevel === 1 ? duration : duration / zoomLevel
+                const pct = ((currentTime - zoomWindowStart) / windowDuration) * 100
+                if (pct < 0 || pct > 100) return null
+                return <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${pct}%`, width: 2, background: '#fff', pointerEvents: 'none', transform: 'translateX(-1px)' }} />
+              })()}
             </div>
 
-            {/* Scrub track, with a playhead line for a clearer "you are
-                here" than the native range thumb alone gives. */}
+            {/* Scrub track */}
             <div style={{ position: 'relative' }}>
               <input
                 type="range"
@@ -664,12 +678,6 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
                 onPointerUp={handleScrubEnd}
                 style={{ width: '100%' }}
               />
-              {duration > 0 && (() => {
-                const windowDuration = zoomLevel === 1 ? duration : duration / zoomLevel
-                const pct = ((currentTime - zoomWindowStart) / windowDuration) * 100
-                if (pct < 0 || pct > 100) return null
-                return <div style={{ position: 'absolute', top: 2, bottom: 2, left: `${pct}%`, width: 2, background: '#fff', pointerEvents: 'none', transform: 'translateX(-1px)' }} />
-              })()}
             </div>
           </div>
           <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, minWidth: 36 }}>{fmt(duration)}</span>
