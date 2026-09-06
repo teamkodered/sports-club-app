@@ -61,7 +61,7 @@ function TemplateSendModal({ templates, recipients, placeholderFn, onClose, send
     let successCount = 0
     for (const r of withEmail) {
       const body = placeholderFn(template.body || '', r)
-      const ok = await sendRealEmail(r.email, template.label || 'Message from KR Centre', body, true)
+      const ok = await sendRealEmail(r.email, template.label || 'Message from KR Centre', body, true, template.image_data_url || null, template.image_filename || null)
       if (ok) successCount++
     }
     setSending(false)
@@ -86,14 +86,17 @@ function TemplateSendModal({ templates, recipients, placeholderFn, onClose, send
               {templates.map((t, i) => (
                 <div key={i} onClick={() => setSelectedIdx(i)}
                   style={{
-                    padding: 8, borderRadius: 'var(--radius)', cursor: 'pointer',
+                    padding: 8, borderRadius: 'var(--radius)', cursor: 'pointer', display: 'flex', gap: 8, alignItems: 'center',
                     background: selectedIdx === i ? '#378ADD20' : 'var(--bg-secondary)',
                     border: selectedIdx === i ? '2px solid #378ADD' : '1px solid var(--border)',
                   }}>
-                  <div style={{ fontSize: 12, fontWeight: 600 }}>{t.label || `Template ${i + 1}`}</div>
-                  <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                    {t.body || 'No message set yet'}
-                  </p>
+                  {t.image_data_url && <img src={t.image_data_url} alt="" style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />}
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600 }}>{t.label || `Template ${i + 1}`}</div>
+                    <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                      {t.body || 'No message set yet'}
+                    </p>
+                  </div>
                 </div>
               ))}
             </div>
@@ -515,6 +518,18 @@ export default function CRM() {
     if (error) { alert('Error saving template: ' + error.message); return }
     setTemplates(updated)
     setEditingTemplateIdx(null)
+  }
+
+  // Reads a chosen image file into a data URL, stored directly in the
+  // template object (same simple approach used for photo markers in
+  // View IT) -- small marketing/reminder images only, not meant for
+  // large files.
+  function handleTemplateImageChange(e, setDraft) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => setDraft(d => ({ ...d, image_data_url: reader.result, image_filename: file.name }))
+    reader.readAsDataURL(file)
   }
 
   async function saveMtTemplate(idx) {
@@ -1251,7 +1266,7 @@ export default function CRM() {
     }
   }
 
-  async function sendRealEmail(to, subject, text, silent = false) {
+  async function sendRealEmail(to, subject, text, silent = false, imageDataUrl = null, imageFilename = null) {
     if (!to) { if (!silent) alert('No email address on file for this person.'); return false }
     if (!text || !text.trim()) { if (!silent) alert('This message is empty — add some text to the template first.'); return false }
     try {
@@ -1260,7 +1275,7 @@ export default function CRM() {
       const res = await fetch('/.netlify/functions/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ to, subject, text }),
+        body: JSON.stringify({ to, subject, text, imageDataUrl, imageFilename }),
       })
       const result = await res.json()
       if (!res.ok || result.error) { if (!silent) alert('Could not send email: ' + (result.error || res.statusText)); return false }
@@ -3055,6 +3070,15 @@ export default function CRM() {
                     <textarea value={mtTemplateDraft.body} onChange={e => setMtTemplateDraft(d => ({ ...d, body: e.target.value }))}
                       placeholder="Message text — use {name} for first name, {weeks} for weeks missed, {parent_name} for the parent/guardian's name" rows={7}
                       style={{ width: '100%', fontSize: 15, padding: '10px 12px', marginBottom: 6, resize: 'vertical' }} />
+                    <div style={{ marginBottom: 6 }}>
+                      {mtTemplateDraft.image_data_url && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                          <img src={mtTemplateDraft.image_data_url} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }} />
+                          <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }} onClick={() => setMtTemplateDraft(d => ({ ...d, image_data_url: null, image_filename: null }))}>Remove image</button>
+                        </div>
+                      )}
+                      <input type="file" accept="image/*" onChange={e => handleTemplateImageChange(e, setMtTemplateDraft)} style={{ fontSize: 10 }} />
+                    </div>
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px', flex: 1 }} disabled={mtSavingTemplate}
                         onClick={() => saveMtTemplate(i)}>{mtSavingTemplate ? 'Saving…' : 'Save'}</button>
@@ -3121,7 +3145,7 @@ export default function CRM() {
                             .replace(/\{name\}/gi, recipientRow?.student?.members?.first_name || '')
                             .replace(/\{weeks\}/gi, recipientRow?.weeksMissed ?? '')
                             .replace(/\{parent_name\}/gi, recipientRow?.student?.guardian_name || '')
-                          sendRealEmail(email, mtTemplates[mtSelectedTemplateIdx].label || 'Message from KR Centre', text)
+                          sendRealEmail(email, mtTemplates[mtSelectedTemplateIdx].label || 'Message from KR Centre', text, false, mtTemplates[mtSelectedTemplateIdx].image_data_url || null, mtTemplates[mtSelectedTemplateIdx].image_filename || null)
                         }}>✉️ Email</button>
                     )
                   })()}
@@ -3785,6 +3809,15 @@ export default function CRM() {
                     <textarea value={bdTemplateDraft.body} onChange={e => setBdTemplateDraft(d => ({ ...d, body: e.target.value }))}
                       placeholder="Message text — use {name} for first name, {age} for the age they're turning, {parent_name} for the parent/guardian's name" rows={7}
                       style={{ width: '100%', fontSize: 15, padding: '10px 12px', marginBottom: 6, resize: 'vertical' }} />
+                    <div style={{ marginBottom: 6 }}>
+                      {bdTemplateDraft.image_data_url && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                          <img src={bdTemplateDraft.image_data_url} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }} />
+                          <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }} onClick={() => setBdTemplateDraft(d => ({ ...d, image_data_url: null, image_filename: null }))}>Remove image</button>
+                        </div>
+                      )}
+                      <input type="file" accept="image/*" onChange={e => handleTemplateImageChange(e, setBdTemplateDraft)} style={{ fontSize: 10 }} />
+                    </div>
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px', flex: 1 }} disabled={bdSavingTemplate}
                         onClick={() => saveBdTemplate(i)}>{bdSavingTemplate ? 'Saving…' : 'Save'}</button>
@@ -3851,7 +3884,7 @@ export default function CRM() {
                             .replace(/\{name\}/gi, recipientRow?.student?.members?.first_name || '')
                             .replace(/\{age\}/gi, recipientRow?.turningAge ?? '')
                             .replace(/\{parent_name\}/gi, recipientRow?.student?.guardian_name || '')
-                          sendRealEmail(email, bdTemplates[bdSelectedTemplateIdx].label || 'Message from KR Centre', text)
+                          sendRealEmail(email, bdTemplates[bdSelectedTemplateIdx].label || 'Message from KR Centre', text, false, bdTemplates[bdSelectedTemplateIdx].image_data_url || null, bdTemplates[bdSelectedTemplateIdx].image_filename || null)
                         }}>✉️ Email</button>
                     )
                   })()}

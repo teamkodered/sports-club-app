@@ -20,7 +20,7 @@ exports.handler = async (event) => {
     return { statusCode: 405, body: 'Method not allowed' }
   }
 
-  const { to, subject, text } = JSON.parse(event.body || '{}')
+  const { to, subject, text, imageDataUrl, imageFilename } = JSON.parse(event.body || '{}')
   if (!to || !text) return { statusCode: 400, body: JSON.stringify({ error: 'to and text are required' }) }
 
   const authHeader = event.headers.authorization || event.headers.Authorization
@@ -66,6 +66,14 @@ exports.handler = async (event) => {
       to,
       subject: subject || 'Message from KR Centre',
       text,
+      // Templates can carry an optional image (stored as a data URL) --
+      // attached here as a regular file attachment rather than an
+      // inline HTML image, since the rest of the email stays plain text.
+      attachments: imageDataUrl ? [{
+        filename: imageFilename || 'image.jpg',
+        content: imageDataUrl.split(',')[1] || imageDataUrl,
+        encoding: 'base64',
+      }] : undefined,
     })
 
     return { statusCode: 200, body: JSON.stringify({ success: true }) }
