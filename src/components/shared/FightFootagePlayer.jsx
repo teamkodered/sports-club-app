@@ -72,41 +72,13 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   useEffect(() => {
     const v = videoRef.current
     if (!v) return
-    // timeupdate only fires a few times a second in most browsers --
-    // fine for the photo-freeze check below, but felt laggy for the
-    // scrubber. currentTime itself is now driven by the
-    // requestAnimationFrame loop further down instead, which updates
-    // every frame and stays properly in sync with playback.
-    const onTime = () => {
-      // Freeze-frame ("photo") markers: pause on reaching one during
-      // normal playback, hold for its freeze_seconds, then resume --
-      // using refs here since this listener is only ever set up once.
-      if (frozenPhotoRef.current || v.paused) return
-      const hit = markersRef.current.find(m =>
-        m.marker_type === 'photo' &&
-        Math.abs(v.currentTime - m.start_seconds) < 0.15 &&
-        lastTriggeredPhotoIdRef.current !== m.id
-      )
-      if (hit) {
-        lastTriggeredPhotoIdRef.current = hit.id
-        v.pause()
-        setFrozenPhoto(hit)
-        setTimeout(() => {
-          setFrozenPhoto(null)
-          lastTriggeredPhotoIdRef.current = null // allow re-triggering if this point is reached again later (e.g. after seeking back)
-          v.play()
-        }, (hit.freeze_seconds || 5) * 1000)
-      }
-    }
     const onMeta = () => setDuration(v.duration || 0)
     const onPlay = () => setPlaying(true)
     const onPause = () => setPlaying(false)
-    v.addEventListener('timeupdate', onTime)
     v.addEventListener('loadedmetadata', onMeta)
     v.addEventListener('play', onPlay)
     v.addEventListener('pause', onPause)
     return () => {
-      v.removeEventListener('timeupdate', onTime)
       v.removeEventListener('loadedmetadata', onMeta)
       v.removeEventListener('play', onPlay)
       v.removeEventListener('pause', onPause)
@@ -114,13 +86,35 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   }, [])
 
   // Drives currentTime for the scrubber every frame (~60fps) rather
-  // than relying on timeupdate's much coarser firing rate -- this is
-  // what actually keeps the scrub bar visually in sync with playback.
+  // than relying on timeupdate's much coarser (only a few times a
+  // second) firing rate -- also runs the photo-marker freeze check
+  // here for the same reason: timeupdate's gaps let playback skip
+  // right past a marker's timestamp without ever landing inside the
+  // narrow detection window, so it often just never triggered at all.
   useEffect(() => {
     let rafId
     function tick() {
       const v = videoRef.current
-      if (v) setCurrentTime(v.currentTime)
+      if (v) {
+        setCurrentTime(v.currentTime)
+        if (!frozenPhotoRef.current && !v.paused) {
+          const hit = markersRef.current.find(m =>
+            m.marker_type === 'photo' &&
+            Math.abs(v.currentTime - m.start_seconds) < 0.15 &&
+            lastTriggeredPhotoIdRef.current !== m.id
+          )
+          if (hit) {
+            lastTriggeredPhotoIdRef.current = hit.id
+            v.pause()
+            setFrozenPhoto(hit)
+            setTimeout(() => {
+              setFrozenPhoto(null)
+              lastTriggeredPhotoIdRef.current = null // allow re-triggering if this point is reached again later (e.g. after seeking back)
+              v.play()
+            }, (hit.freeze_seconds || 5) * 1000)
+          }
+        }
+      }
       rafId = requestAnimationFrame(tick)
     }
     rafId = requestAnimationFrame(tick)
