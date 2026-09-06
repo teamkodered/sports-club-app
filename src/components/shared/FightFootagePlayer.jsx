@@ -51,10 +51,41 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   const [editingMarker, setEditingMarker] = useState(null)
   const [editingMarkerNoteText, setEditingMarkerNoteText] = useState('')
 
+  // Photo/freeze-frame markers
+  const [frozenPhoto, setFrozenPhoto] = useState(null)
+  const frozenPhotoRef = useRef(null)
+  const lastTriggeredPhotoIdRef = useRef(null)
+  const markersRef = useRef([])
+  const canvasRef = useRef(null)
+
+  useEffect(() => { markersRef.current = markers }, [markers])
+  useEffect(() => { frozenPhotoRef.current = frozenPhoto }, [frozenPhoto])
+
   useEffect(() => {
     const v = videoRef.current
     if (!v) return
-    const onTime = () => setCurrentTime(v.currentTime)
+    const onTime = () => {
+      setCurrentTime(v.currentTime)
+      // Freeze-frame ("photo") markers: pause on reaching one during
+      // normal playback, hold for its freeze_seconds, then resume --
+      // using refs here since this listener is only ever set up once.
+      if (frozenPhotoRef.current || v.paused) return
+      const hit = markersRef.current.find(m =>
+        m.marker_type === 'photo' &&
+        Math.abs(v.currentTime - m.start_seconds) < 0.15 &&
+        lastTriggeredPhotoIdRef.current !== m.id
+      )
+      if (hit) {
+        lastTriggeredPhotoIdRef.current = hit.id
+        v.pause()
+        setFrozenPhoto(hit)
+        setTimeout(() => {
+          setFrozenPhoto(null)
+          lastTriggeredPhotoIdRef.current = null // allow re-triggering if this point is reached again later (e.g. after seeking back)
+          v.play()
+        }, (hit.freeze_seconds || 5) * 1000)
+      }
+    }
     const onMeta = () => setDuration(v.duration || 0)
     const onPlay = () => setPlaying(true)
     const onPause = () => setPlaying(false)
@@ -184,6 +215,8 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
       if (!v) return
       isHoldingRef.current = true
       setIsHolding(true)
+      clearTimeout(autoHideTimerRef.current) // never hide controls while actively holding for slow-mo
+      setControlsVisible(true)
       preHoldSpeedRef.current = speed
       holdStartRef.current = v.currentTime
       v.playbackRate = SLOW_MO_SPEED
@@ -210,8 +243,20 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
       setPendingClip({ start: Math.min(start, end), end: Math.max(start, end) })
       if (v) v.pause()
       showControls()
+    } else {
+      scheduleAutoHide() // resume the normal countdown now that the hold has ended
     }
   }
+
+  // If a save-clip prompt just sits there ignored (coach moved on to
+  // do something else instead of pressing Save or Discard), it
+  // auto-discards on its own after a while rather than lingering
+  // indefinitely -- nothing gets saved unless Save was actually pressed.
+  useEffect(() => {
+    if (!pendingClip) return
+    const t = setTimeout(() => setPendingClip(null), 15000)
+    return () => clearTimeout(t)
+  }, [pendingClip])
 
   async function saveClip() {
     if (!pendingClip) return
@@ -282,6 +327,34 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
     setMarkerRangeStart(null)
     setShowMarkerChoice(false)
     setAddingNoteText(null)
+  }
+
+  // Captures the exact current video frame as a still image (via a
+  // hidden canvas) and saves it as a "photo" marker -- during normal
+  // playback later, reaching this point pauses on that frame for
+  // freeze_seconds (defaulting to 5) before continuing automatically.
+  async function capturePhotoMarker() {
+    const v = videoRef.current
+    if (!v) return
+    v.pause()
+    const canvas = canvasRef.current
+    canvas.width = v.videoWidth
+    canvas.height = v.videoHeight
+    canvas.getContext('2d').drawImage(v, 0, 0, canvas.width, canvas.height)
+    const photoDataUrl = canvas.toDataURL('image/jpeg', 0.7)
+
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data: member } = await supabase.from('members').select('id').eq('auth_id', user.id).single()
+    const { data: newMarker } = await supabase.from('fight_footage_markers').insert({
+      footage_id: footageId,
+      start_seconds: currentTime,
+      end_seconds: currentTime,
+      marker_type: 'photo',
+      photo_data_url: photoDataUrl,
+      freeze_seconds: 5,
+      created_by: member?.id || null,
+    }).select().single()
+    if (newMarker) setMarkers(prev => [...prev, newMarker].sort((a, b) => a.start_seconds - b.start_seconds))
   }
 
   async function saveMarker(type, text = null, colour = null) {
@@ -364,6 +437,15 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
           onPointerUp={handlePointerUp}
           onPointerLeave={handlePointerUp}
         />
+        <canvas ref={canvasRef} style={{ display: 'none' }} />
+        {frozenPhoto && (
+          <div style={{ position: 'absolute', inset: 0, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <img src={frozenPhoto.photo_data_url} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+            <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)', background: '#378ADD', color: '#fff', fontSize: 12, fontWeight: 700, padding: '4px 12px', borderRadius: 20 }}>
+              📷 Photo — resuming shortly
+            </div>
+          </div>
+        )}
         {isHolding && (
           <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)', background: '#EF9F27', color: '#111', fontSize: 12, fontWeight: 700, padding: '4px 12px', borderRadius: 20 }}>
             🐢 Slow motion — hold to keep going
@@ -396,17 +478,29 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
                   style={{ width: '100%' }}
                 />
                 {duration > 0 && markers.map(m => (
-                  <div key={m.id}
-                    title={m.marker_type === 'note' ? m.note_text : 'Highlight — hold to edit'}
-                    onPointerDown={() => handleMarkerPointerDown(m)}
-                    onPointerUp={() => handleMarkerPointerUp(m)}
-                    onPointerLeave={() => clearTimeout(markerHoldTimerRef.current)}
-                    style={{
-                      position: 'absolute', top: 6, height: 4, borderRadius: 2, cursor: 'pointer',
-                      left: `${(m.start_seconds / duration) * 100}%`,
-                      width: `${Math.max(0.5, ((m.end_seconds - m.start_seconds) / duration) * 100)}%`,
-                      background: m.marker_type === 'highlight' ? (m.highlight_color || '#EF9F27') : '#378ADD',
-                    }} />
+                  m.marker_type === 'photo' ? (
+                    <div key={m.id} title="Photo marker — hold to edit"
+                      onPointerDown={() => handleMarkerPointerDown(m)}
+                      onPointerUp={() => handleMarkerPointerUp(m)}
+                      onPointerLeave={() => clearTimeout(markerHoldTimerRef.current)}
+                      style={{
+                        position: 'absolute', top: -6, left: `${(m.start_seconds / duration) * 100}%`, transform: 'translateX(-50%)',
+                        width: 16, height: 16, borderRadius: 3, cursor: 'pointer', border: '1px solid #fff',
+                        backgroundImage: `url(${m.photo_data_url})`, backgroundSize: 'cover', backgroundPosition: 'center',
+                      }} />
+                  ) : (
+                    <div key={m.id}
+                      title={m.marker_type === 'note' ? m.note_text : 'Highlight — hold to edit'}
+                      onPointerDown={() => handleMarkerPointerDown(m)}
+                      onPointerUp={() => handleMarkerPointerUp(m)}
+                      onPointerLeave={() => clearTimeout(markerHoldTimerRef.current)}
+                      style={{
+                        position: 'absolute', top: 6, height: 4, borderRadius: 2, cursor: 'pointer',
+                        left: `${(m.start_seconds / duration) * 100}%`,
+                        width: `${Math.max(0.5, ((m.end_seconds - m.start_seconds) / duration) * 100)}%`,
+                        background: m.marker_type === 'highlight' ? (m.highlight_color || '#EF9F27') : '#378ADD',
+                      }} />
+                  )
                 ))}
               </div>
               <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, minWidth: 36 }}>{fmt(duration)}</span>
@@ -433,8 +527,9 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
             </div>
 
             {isCoach && footageId && markerRangeStart === null && !showMarkerChoice && (
-              <div style={{ display: 'flex', justifyContent: 'center', marginTop: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 10 }}>
                 <button className="btn btn-sm" onClick={handleMarkerButtonPress}>📍 Add marker here</button>
+                <button className="btn btn-sm" onClick={capturePhotoMarker}>📷 Add photo</button>
               </div>
             )}
 
@@ -504,7 +599,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
           onClick={() => setEditingMarker(null)}>
           <div className="card" style={{ width: '100%', maxWidth: 380 }} onClick={e => e.stopPropagation()}>
             <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>
-              {editingMarker.marker_type === 'note' ? 'Edit note' : 'Edit highlight'} — {fmt(editingMarker.start_seconds)} → {fmt(editingMarker.end_seconds)}
+              {editingMarker.marker_type === 'note' ? 'Edit note' : editingMarker.marker_type === 'photo' ? 'Photo marker' : 'Edit highlight'} — {fmt(editingMarker.start_seconds)}{editingMarker.marker_type !== 'photo' ? ` → ${fmt(editingMarker.end_seconds)}` : ''}
             </h3>
 
             {editingMarker.marker_type === 'note' ? (
@@ -512,6 +607,11 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
                 <textarea value={editingMarkerNoteText} onChange={e => setEditingMarkerNoteText(e.target.value)} style={{ width: '100%', fontSize: 13, minHeight: 60, marginBottom: 10 }} />
                 <button className="btn btn-sm btn-primary" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }} onClick={() => updateMarkerNote(editingMarker)}>Save note</button>
               </>
+            ) : editingMarker.marker_type === 'photo' ? (
+              <div style={{ marginBottom: 12 }}>
+                <img src={editingMarker.photo_data_url} alt="" style={{ width: '100%', borderRadius: 8, marginBottom: 8 }} />
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center' }}>Freezes for {editingMarker.freeze_seconds || 5}s during playback</p>
+              </div>
             ) : (
               <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 12 }}>
                 {HIGHLIGHT_COLOURS.map(c => (
