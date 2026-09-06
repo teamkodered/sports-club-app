@@ -69,7 +69,6 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   // Long-press a marker to edit/delete it
   const markerHoldTimerRef = useRef(null)
   const markerHeldRef = useRef(false)
-  const markerTouchStartYRef = useRef(null)
   const [editingMarker, setEditingMarker] = useState(null)
   const [editingMarkerNoteText, setEditingMarkerNoteText] = useState('')
   const [editingMarkerColour, setEditingMarkerColour] = useState(HIGHLIGHT_COLOURS[0])
@@ -582,7 +581,8 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
 
   // Long-press a marker bar to edit/delete it; a quick tap keeps the
   // existing behaviour (seek there, show its note if it has one).
-  const SWIPE_UP_THRESHOLD = 25 // px of upward movement before it counts as a swipe
+  // (Swipe-up used to also open the editor here, but removed -- it was
+  // triggering slow-mo unintentionally. Long-press alone covers this.)
 
   function openMarkerEditor(m) {
     markerHeldRef.current = true
@@ -592,22 +592,15 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
     setEditingMarkerColour(m.highlight_color || HIGHLIGHT_COLOURS[0])
   }
 
-  function handleMarkerPointerDown(e, m) {
+  function handleMarkerPointerDown(m) {
     markerHeldRef.current = false
-    markerTouchStartYRef.current = e.clientY
     clearTimeout(markerHoldTimerRef.current)
     markerHoldTimerRef.current = setTimeout(() => openMarkerEditor(m), HOLD_THRESHOLD_MS)
   }
 
-  function handleMarkerPointerMove(e, m) {
-    if (markerHeldRef.current || markerTouchStartYRef.current == null) return
-    if (markerTouchStartYRef.current - e.clientY > SWIPE_UP_THRESHOLD) openMarkerEditor(m)
-  }
-
   function handleMarkerPointerUp(m) {
     clearTimeout(markerHoldTimerRef.current)
-    markerTouchStartYRef.current = null
-    if (markerHeldRef.current) return // long-press or swipe-up already handled it
+    if (markerHeldRef.current) return // long-press already handled it
     seekTo(m.start_seconds)
     if (m.note_text) setViewingMarkerNote(m)
   }
@@ -748,8 +741,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
                   const leftPct = ((m.start_seconds - zoomWindowStart) / windowDuration) * 100
                   return m.marker_type === 'photo' ? (
                     <div key={m.id} title="Photo marker — hold to edit"
-                      onPointerDown={e => { e.stopPropagation(); handleMarkerPointerDown(e, m) }}
-                      onPointerMove={e => handleMarkerPointerMove(e, m)}
+                      onPointerDown={e => { e.stopPropagation(); handleMarkerPointerDown(m) }}
                       onPointerUp={e => { e.stopPropagation(); handleMarkerPointerUp(m) }}
                       onPointerLeave={() => clearTimeout(markerHoldTimerRef.current)}
                       style={{
@@ -766,8 +758,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
                     // stops the press from also reaching the range input.
                     <div key={m.id}
                       title={m.note_text || 'Highlight — hold to edit'}
-                      onPointerDown={e => { e.stopPropagation(); handleMarkerPointerDown(e, m) }}
-                      onPointerMove={e => handleMarkerPointerMove(e, m)}
+                      onPointerDown={e => { e.stopPropagation(); handleMarkerPointerDown(m) }}
                       onPointerUp={e => { e.stopPropagation(); handleMarkerPointerUp(m) }}
                       onPointerLeave={() => clearTimeout(markerHoldTimerRef.current)}
                       style={{
