@@ -6,12 +6,15 @@ import FightFootagePlayer from '../components/shared/FightFootagePlayer.jsx'
 
 export default function ViewIt() {
   const navigate = useNavigate()
-  const { upload, startUpload } = useFightFootageUpload()
+  const { upload, startUpload, startBulkUpload } = useFightFootageUpload()
   const [footage, setFootage] = useState([])
+  const [events, setEvents] = useState([])
   const [loaded, setLoaded] = useState(false)
   const [students, setStudents] = useState([])
   const [showUpload, setShowUpload] = useState(false)
-  const [uploadForm, setUploadForm] = useState({ title: '', description: '', accessMode: 'coach_only', studentIds: new Set() })
+  const [bulkMode, setBulkMode] = useState(false)
+  const [bulkFiles, setBulkFiles] = useState([])
+  const [uploadForm, setUploadForm] = useState({ title: '', description: '', accessMode: 'coach_only', studentIds: new Set(), eventId: '', newEventName: '' })
   const [studentSearch, setStudentSearch] = useState('')
   const [file, setFile] = useState(null)
   const [playingUrl, setPlayingUrl] = useState(null)
@@ -21,6 +24,8 @@ export default function ViewIt() {
   const [editAccessMode, setEditAccessMode] = useState('coach_only')
   const [editStudentIds, setEditStudentIds] = useState(() => new Set())
   const [editStudentSearch, setEditStudentSearch] = useState('')
+  const [filterEventId, setFilterEventId] = useState('')
+  const [filterStudentId, setFilterStudentId] = useState('')
 
   useEffect(() => { load() }, [])
 
@@ -35,12 +40,14 @@ export default function ViewIt() {
   }, [upload?.status])
 
   async function load() {
-    const [{ data: f }, { data: s }] = await Promise.all([
-      supabase.from('fight_footage').select('*, fight_footage_athletes(student_id, students(members(first_name, last_name)))').order('uploaded_at', { ascending: false }),
+    const [{ data: f }, { data: s }, { data: e }] = await Promise.all([
+      supabase.from('fight_footage').select('*, fight_footage_athletes(student_id, students(members(first_name, last_name))), events(id, name)').order('uploaded_at', { ascending: false }),
       supabase.from('students').select('id, members(first_name, last_name)'),
+      supabase.from('events').select('*').order('event_date', { ascending: false }),
     ])
     setFootage(f || [])
     setStudents(s || [])
+    setEvents(e || [])
     setLoaded(true)
   }
 
@@ -48,8 +55,23 @@ export default function ViewIt() {
     return `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.trim()
   }
 
+  // Resolves whatever the coach picked in the Event dropdown into a
+  // real event_id -- creating a brand new event row first if "+ New
+  // event" was chosen instead of an existing one.
+  async function resolveEventId() {
+    if (uploadForm.eventId === '__new__') {
+      if (!uploadForm.newEventName.trim()) return null
+      const { data: newEvent, error } = await supabase.from('events').insert({ name: uploadForm.newEventName.trim() }).select().single()
+      if (error) { alert('Could not create event: ' + error.message); return null }
+      setEvents(prev => [newEvent, ...prev])
+      return newEvent.id
+    }
+    return uploadForm.eventId || null
+  }
+
   async function handleUpload() {
     if (!file || !uploadForm.title.trim()) { alert('Add a title and choose a video file first.'); return }
+    const eventId = await resolveEventId()
     // Fire-and-forget into the shared upload context -- closing this
     // panel and even navigating away doesn't interrupt it, it'll keep
     // going and show progress via the floating indicator instead.
@@ -59,10 +81,41 @@ export default function ViewIt() {
       description: uploadForm.description,
       accessMode: uploadForm.accessMode,
       studentIds: uploadForm.studentIds,
+      eventId,
     })
+    resetUploadForm()
+  }
+
+  async function handleBulkUpload() {
+    if (bulkFiles.length === 0) { alert('Choose a folder with video files first.'); return }
+    const eventId = await resolveEventId()
+    startBulkUpload(bulkFiles, {
+      accessMode: uploadForm.accessMode,
+      studentIds: uploadForm.studentIds,
+      eventId,
+    })
+    resetUploadForm()
+  }
+
+  function resetUploadForm() {
     setShowUpload(false)
-    setUploadForm({ title: '', description: '', accessMode: 'coach_only', studentIds: new Set() })
+    setBulkMode(false)
+    setUploadForm({ title: '', description: '', accessMode: 'coach_only', studentIds: new Set(), eventId: '', newEventName: '' })
     setFile(null)
+    setBulkFiles([])
+  }
+
+  function handleFolderSelect(e) {
+    const files = [...e.target.files].filter(f => f.type.startsWith('video/') || /\.(mkv|avi|mov|wmv|flv|3gp|webm|m4v)$/i.test(f.name))
+    setBulkFiles(files)
+    // Suggests the containing folder's name as the event, since that's
+    // usually exactly what it's organised by (e.g. Dropbox event
+    // folders) -- easy to change before uploading if it's not right.
+    const relPath = files[0]?.webkitRelativePath
+    const folderName = relPath ? relPath.split('/')[0] : ''
+    if (folderName && !uploadForm.newEventName) {
+      setUploadForm(f => ({ ...f, eventId: '__new__', newEventName: folderName }))
+    }
   }
 
   async function openFootage(item) {
@@ -108,6 +161,12 @@ export default function ViewIt() {
 
   const filteredStudents = students.filter(s => !studentSearch.trim() || studentName(s).toLowerCase().includes(studentSearch.trim().toLowerCase()))
 
+  const visibleFootage = footage.filter(item => {
+    if (filterEventId && item.event_id !== filterEventId) return false
+    if (filterStudentId && !(item.fight_footage_athletes || []).some(a => a.student_id === filterStudentId)) return false
+    return true
+  })
+
   return (
     <div>
       <button className="btn btn-sm" style={{ marginBottom: 12 }} onClick={() => navigate(-1)}>← Back</button>
@@ -117,19 +176,44 @@ export default function ViewIt() {
         <p>Record, review, and share fight/sparring footage with athletes or the team</p>
       </div>
 
-      <button className="btn btn-primary" style={{ marginBottom: 16 }} onClick={() => setShowUpload(true)}>+ Upload footage</button>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        <button className="btn btn-primary" onClick={() => { setBulkMode(false); setShowUpload(true) }}>+ Upload footage</button>
+        <button className="btn" onClick={() => { setBulkMode(true); setShowUpload(true) }}>📁 Bulk upload (folder)</button>
+      </div>
 
       {showUpload && (
         <div className="card" style={{ marginBottom: 16, padding: 16 }}>
-          <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Upload footage</h3>
-          <div className="field"><label>Title</label>
-            <input value={uploadForm.title} onChange={e => setUploadForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Jake vs Marcus - sparring round 3" />
-          </div>
-          <div className="field"><label>Notes (optional)</label>
-            <textarea value={uploadForm.description} onChange={e => setUploadForm(f => ({ ...f, description: e.target.value }))} style={{ minHeight: 60 }} />
-          </div>
-          <div className="field"><label>Video file</label>
-            <input type="file" accept="video/*,.mkv,.avi,.mov,.wmv,.flv,.3gp,.webm,.m4v" onChange={e => setFile(e.target.files[0])} />
+          <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>{bulkMode ? 'Bulk upload from a folder' : 'Upload footage'}</h3>
+
+          {bulkMode ? (
+            <div className="field"><label>Folder of videos</label>
+              <input type="file" webkitdirectory="" directory="" multiple onChange={handleFolderSelect} />
+              {bulkFiles.length > 0 && <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{bulkFiles.length} video file{bulkFiles.length === 1 ? '' : 's'} found — each will be titled from its own filename.</p>}
+              <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>Note: whole-folder selection isn't supported on iPhone/iPad Safari — use "+ Upload footage" one at a time there instead, or do bulk uploads from a desktop or Android device.</p>
+            </div>
+          ) : (
+            <>
+              <div className="field"><label>Title</label>
+                <input value={uploadForm.title} onChange={e => setUploadForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Jake vs Marcus - sparring round 3" />
+              </div>
+              <div className="field"><label>Notes (optional)</label>
+                <textarea value={uploadForm.description} onChange={e => setUploadForm(f => ({ ...f, description: e.target.value }))} style={{ minHeight: 60 }} />
+              </div>
+              <div className="field"><label>Video file</label>
+                <input type="file" accept="video/*,.mkv,.avi,.mov,.wmv,.flv,.3gp,.webm,.m4v" onChange={e => setFile(e.target.files[0])} />
+              </div>
+            </>
+          )}
+
+          <div className="field"><label>Event (optional)</label>
+            <select value={uploadForm.eventId} onChange={e => setUploadForm(f => ({ ...f, eventId: e.target.value }))}>
+              <option value="">No event</option>
+              <option value="__new__">+ New event…</option>
+              {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
+            </select>
+            {uploadForm.eventId === '__new__' && (
+              <input style={{ marginTop: 6 }} value={uploadForm.newEventName} onChange={e => setUploadForm(f => ({ ...f, newEventName: e.target.value }))} placeholder="Event name, e.g. Regionals 2026" />
+            )}
           </div>
 
           <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 6 }}>Who can see this?</label>
@@ -139,7 +223,7 @@ export default function ViewIt() {
             <button className={uploadForm.accessMode === 'all' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setUploadForm(f => ({ ...f, accessMode: 'all' }))}>Whole team</button>
           </div>
           <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10 }}>
-            Uploads always start as "Coach only" — you can open it up to specific athletes or the whole team any time afterward.
+            {bulkMode ? 'This applies to every video in the folder.' : 'Uploads always start as "Coach only" — you can open it up to specific athletes or the whole team any time afterward.'}
           </p>
 
           {uploadForm.accessMode === 'select_athletes' && (
@@ -166,25 +250,42 @@ export default function ViewIt() {
           </p>
 
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn btn-primary" onClick={handleUpload}>⬆️ Upload</button>
-            <button className="btn" onClick={() => { setShowUpload(false); setFile(null) }}>Cancel</button>
+            <button className="btn btn-primary" onClick={bulkMode ? handleBulkUpload : handleUpload}>⬆️ Upload</button>
+            <button className="btn" onClick={resetUploadForm}>Cancel</button>
           </div>
+        </div>
+      )}
+
+      {events.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+          <select value={filterEventId} onChange={e => setFilterEventId(e.target.value)} style={{ fontSize: 13 }}>
+            <option value="">All events</option>
+            {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
+          </select>
+          <select value={filterStudentId} onChange={e => setFilterStudentId(e.target.value)} style={{ fontSize: 13 }}>
+            <option value="">All athletes</option>
+            {students.map(s => <option key={s.id} value={s.id}>{studentName(s)}</option>)}
+          </select>
+          {(filterEventId || filterStudentId) && (
+            <button className="btn btn-sm" onClick={() => { setFilterEventId(''); setFilterStudentId('') }}>✕ Clear filters</button>
+          )}
         </div>
       )}
 
       {!loaded ? (
         <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Loading…</p>
-      ) : footage.length === 0 ? (
-        <div className="empty-state"><h3>No footage yet</h3><p>Upload your first clip to get started</p></div>
+      ) : visibleFootage.length === 0 ? (
+        <div className="empty-state"><h3>No footage yet</h3><p>{footage.length > 0 ? 'Nothing matches these filters' : 'Upload your first clip to get started'}</p></div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {footage.map(item => (
+          {visibleFootage.map(item => (
             <div key={item.id} className="card" style={{ padding: 14 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                 <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => openFootage(item)}>
                   <div style={{ fontSize: 14, fontWeight: 500 }}>▶️ {item.title}</div>
                   <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
                     {new Date(item.uploaded_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    {item.events?.name && <> · 🏆 {item.events.name}</>}
                     {' · '}{item.access_mode === 'all' ? 'Whole team' : item.access_mode === 'coach_only' ? 'Coach only' : `${item.fight_footage_athletes?.length || 0} athlete${item.fight_footage_athletes?.length === 1 ? '' : 's'}`}
                   </div>
                   {item.description && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{item.description}</div>}

@@ -330,7 +330,7 @@ function FightFootageUploadIndicator() {
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6 }}>
         <span style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {upload.status === 'error' ? '⚠️ Upload failed' : upload.status === 'done' ? '✅ Uploaded' : `⬆️ ${upload.title || 'Uploading…'}`}
+          {upload.status === 'error' ? '⚠️ Upload failed' : upload.status === 'done' ? `✅ Uploaded${upload.total > 1 ? ` ${upload.total} files` : ''}` : `⬆️ ${upload.total > 1 ? `(${upload.current}/${upload.total}) ` : ''}${upload.title || 'Uploading…'}`}
         </span>
         {(upload.status === 'error' || upload.status === 'done') && (
           <button onClick={ctx.dismissUpload} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-secondary)' }}>✕</button>
