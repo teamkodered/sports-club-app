@@ -249,8 +249,8 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
       if (!v) return
       isHoldingRef.current = true
       setIsHolding(true)
-      clearTimeout(autoHideTimerRef.current) // never hide controls while actively holding for slow-mo
-      setControlsVisible(true)
+      clearTimeout(autoHideTimerRef.current) // don't let a stale timer pop controls back up mid-hold
+      setControlsVisible(false) // hide the middle overlay so it doesn't block the view during slow-mo
       preHoldSpeedRef.current = speed
       holdStartRef.current = v.currentTime
       v.playbackRate = SLOW_MO_SPEED
