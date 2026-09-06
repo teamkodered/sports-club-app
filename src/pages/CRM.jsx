@@ -44,6 +44,70 @@ function wordsOf(s) {
 // through each person in turn, with the message already pre-filled
 // for each one (saves searching for each contact + retyping the
 // message, even though it's still one tap per person).
+// Opens from the checkbox-selection bulk-action area on Birthdays and
+// Missed Training -- lets you pick one of the existing templates and
+// sends it (personalised per recipient via placeholderFn) to everyone
+// selected who has a real email on file, one at a time.
+function TemplateSendModal({ templates, recipients, placeholderFn, onClose, sendRealEmail }) {
+  const [selectedIdx, setSelectedIdx] = useState(null)
+  const [sending, setSending] = useState(false)
+  const [sentCount, setSentCount] = useState(null)
+  const withEmail = recipients.filter(r => r.email)
+
+  async function handleSend() {
+    if (selectedIdx == null) return
+    setSending(true)
+    const template = templates[selectedIdx]
+    let successCount = 0
+    for (const r of withEmail) {
+      const body = placeholderFn(template.body || '', r)
+      const ok = await sendRealEmail(r.email, template.label || 'Message from KR Centre', body, true)
+      if (ok) successCount++
+    }
+    setSending(false)
+    setSentCount(successCount)
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={onClose}>
+      <div className="card" style={{ width: '100%', maxWidth: 420, padding: 16 }} onClick={e => e.stopPropagation()}>
+        {sentCount != null ? (
+          <>
+            <p style={{ fontSize: 14, marginBottom: 14 }}>✅ Sent to {sentCount} of {withEmail.length} selected{withEmail.length < recipients.length ? ` (${recipients.length - withEmail.length} had no email on file)` : ''}.</p>
+            <button className="btn btn-primary" onClick={onClose}>Done</button>
+          </>
+        ) : (
+          <>
+            <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Send to {recipients.length} selected</h3>
+            {withEmail.length < recipients.length && (
+              <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8 }}>{recipients.length - withEmail.length} of these have no email on file and will be skipped.</p>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12, maxHeight: 260, overflowY: 'auto' }}>
+              {templates.map((t, i) => (
+                <div key={i} onClick={() => setSelectedIdx(i)}
+                  style={{
+                    padding: 8, borderRadius: 'var(--radius)', cursor: 'pointer',
+                    background: selectedIdx === i ? '#378ADD20' : 'var(--bg-secondary)',
+                    border: selectedIdx === i ? '2px solid #378ADD' : '1px solid var(--border)',
+                  }}>
+                  <div style={{ fontSize: 12, fontWeight: 600 }}>{t.label || `Template ${i + 1}`}</div>
+                  <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                    {t.body || 'No message set yet'}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-primary" disabled={selectedIdx == null || sending || withEmail.length === 0} onClick={handleSend}>{sending ? 'Sending…' : 'Send'}</button>
+              <button className="btn" onClick={onClose}>Cancel</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function BulkSendOptions({ people, subjectText, bodyText, noun = 'people' }) {
   const [showWhatsapp, setShowWhatsapp] = useState(false)
   const emailPeople = people.filter(p => p.email)
@@ -332,6 +396,8 @@ export default function CRM() {
   const [deletingEmailUid, setDeletingEmailUid] = useState(null)
   const [markingContactedUid, setMarkingContactedUid] = useState(null)
   const [selectedBirthdays, setSelectedBirthdays] = useState(new Set())
+  const [showBdSendModal, setShowBdSendModal] = useState(false)
+  const [showMtSendModal, setShowMtSendModal] = useState(false)
   const [autoSendBirthdays, setAutoSendBirthdays] = useState(false)
   const [showBirthdaysHelp, setShowBirthdaysHelp] = useState(false)
   const [bdTemplates, setBdTemplates] = useState([
@@ -3084,6 +3150,7 @@ export default function CRM() {
                       name: `${r.student.members?.first_name || ''} ${r.student.members?.last_name || ''}`.trim(),
                       email: r.student.members?.email && !r.student.members.email.includes('@kr-centre.placeholder') ? r.student.members.email : null,
                       phone: r.student.members?.phone || null,
+                      row: r,
                     }))
                   return (
                     <div style={{ display: 'flex', gap: 8 }}>
@@ -3091,6 +3158,15 @@ export default function CRM() {
                       <BulkSendOptions people={people} noun="students"
                         subjectText="We've missed you at training!"
                         bodyText={"Hi,\n\nWe noticed it's been a few weeks since your last session — we'd love to see you back on the mats/in the ring soon!\n\nLet us know if there's anything stopping you from training, we're happy to help.\n\nSee you soon,\nKR Centre"} />
+                      <button className="btn btn-sm" onClick={() => setShowMtSendModal(true)}>📝 Send with template</button>
+                      {showMtSendModal && (
+                        <TemplateSendModal templates={mtTemplates} recipients={people} sendRealEmail={sendRealEmail}
+                          onClose={() => setShowMtSendModal(false)}
+                          placeholderFn={(body, p) => body
+                            .replace(/\{name\}/gi, p.row?.student?.members?.first_name || '')
+                            .replace(/\{weeks\}/gi, p.row?.weeksMissed ?? '')
+                            .replace(/\{parent_name\}/gi, p.row?.student?.guardian_name || '')} />
+                      )}
                     </div>
                   )
                 })()}
@@ -3800,6 +3876,7 @@ export default function CRM() {
                     name: `${r.student.members?.first_name || ''} ${r.student.members?.last_name || ''}`.trim(),
                     email: r.student.members?.email && !r.student.members.email.includes('@kr-centre.placeholder') ? r.student.members.email : null,
                     phone: r.student.members?.phone || null,
+                    row: r,
                   }))
                   return (
                     <div style={{ display: 'flex', gap: 8 }}>
@@ -3807,6 +3884,15 @@ export default function CRM() {
                       <BulkSendOptions people={people} noun="students"
                         subjectText="Happy Birthday!"
                         bodyText={"Hi,\n\nWishing you a very happy birthday from everyone at KR Centre! Hope you have a great day.\n\nSee you at training soon,\nKR Centre"} />
+                      <button className="btn btn-sm" onClick={() => setShowBdSendModal(true)}>📝 Send with template</button>
+                      {showBdSendModal && (
+                        <TemplateSendModal templates={bdTemplates} recipients={people} sendRealEmail={sendRealEmail}
+                          onClose={() => setShowBdSendModal(false)}
+                          placeholderFn={(body, p) => body
+                            .replace(/\{name\}/gi, p.row?.student?.members?.first_name || '')
+                            .replace(/\{age\}/gi, p.row?.turningAge ?? '')
+                            .replace(/\{parent_name\}/gi, p.row?.student?.guardian_name || '')} />
+                      )}
                     </div>
                   )
                 })()}
