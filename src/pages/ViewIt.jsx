@@ -1,8 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
+import { useFightFootageUpload } from '../hooks/useFightFootageUpload.jsx'
 import FightFootagePlayer from '../components/shared/FightFootagePlayer.jsx'
 
 export default function ViewIt() {
+  const navigate = useNavigate()
+  const { upload, startUpload } = useFightFootageUpload()
   const [footage, setFootage] = useState([])
   const [loaded, setLoaded] = useState(false)
   const [students, setStudents] = useState([])
@@ -10,8 +14,6 @@ export default function ViewIt() {
   const [uploadForm, setUploadForm] = useState({ title: '', description: '', accessMode: 'coach_only', studentIds: new Set() })
   const [studentSearch, setStudentSearch] = useState('')
   const [file, setFile] = useState(null)
-  const [uploading, setUploading] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState(0)
   const [playingUrl, setPlayingUrl] = useState(null)
   const [playingTitle, setPlayingTitle] = useState('')
   const [playingItem, setPlayingItem] = useState(null)
@@ -21,6 +23,16 @@ export default function ViewIt() {
   const [editStudentSearch, setEditStudentSearch] = useState('')
 
   useEffect(() => { load() }, [])
+
+  // The actual upload now lives in a shared context (see
+  // useFightFootageUpload) so it survives navigating away from this
+  // page entirely -- this just refreshes the list here if/when it
+  // finishes while the person happens to still be on this screen.
+  const prevUploadStatusRef = useRef(null)
+  useEffect(() => {
+    if (upload?.status === 'done' && prevUploadStatusRef.current !== 'done') load()
+    prevUploadStatusRef.current = upload?.status
+  }, [upload?.status])
 
   async function load() {
     const [{ data: f }, { data: s }] = await Promise.all([
@@ -38,56 +50,19 @@ export default function ViewIt() {
 
   async function handleUpload() {
     if (!file || !uploadForm.title.trim()) { alert('Add a title and choose a video file first.'); return }
-    setUploading(true)
-    setUploadProgress(0)
-    try {
-      const { data: sessionData } = await supabase.auth.getSession()
-      const accessToken = sessionData?.session?.access_token
-
-      const urlRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fight-footage-url`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ mode: 'upload', file_name: file.name }),
-      })
-      const urlData = await urlRes.json()
-      if (urlData.error) throw new Error(urlData.error)
-
-      // Plain fetch PUT doesn't report upload progress -- XHR does,
-      // and a multi-hundred-MB fight video upload is exactly the kind
-      // of thing where "is this actually doing anything?" matters.
-      await new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest()
-        xhr.open('PUT', urlData.upload_url)
-        xhr.upload.onprogress = e => { if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100)) }
-        xhr.onload = () => (xhr.status >= 200 && xhr.status < 300) ? resolve() : reject(new Error(`Upload failed (${xhr.status})`))
-        xhr.onerror = () => reject(new Error('Upload failed'))
-        xhr.send(file)
-      })
-
-      const { data: newFootage, error: insertErr } = await supabase.from('fight_footage').insert({
-        title: uploadForm.title.trim(),
-        description: uploadForm.description.trim() || null,
-        storage_path: urlData.storage_path,
-        file_size_bytes: file.size,
-        access_mode: uploadForm.accessMode,
-      }).select().single()
-      if (insertErr) throw insertErr
-
-      if (uploadForm.accessMode === 'select_athletes' && uploadForm.studentIds.size > 0) {
-        await supabase.from('fight_footage_athletes').insert(
-          [...uploadForm.studentIds].map(student_id => ({ footage_id: newFootage.id, student_id }))
-        )
-      }
-
-      setShowUpload(false)
-      setUploadForm({ title: '', description: '', accessMode: 'coach_only', studentIds: new Set() })
-      setFile(null)
-      load()
-    } catch (err) {
-      alert('Upload failed: ' + err.message)
-    }
-    setUploading(false)
-    setUploadProgress(0)
+    // Fire-and-forget into the shared upload context -- closing this
+    // panel and even navigating away doesn't interrupt it, it'll keep
+    // going and show progress via the floating indicator instead.
+    startUpload({
+      file,
+      title: uploadForm.title,
+      description: uploadForm.description,
+      accessMode: uploadForm.accessMode,
+      studentIds: uploadForm.studentIds,
+    })
+    setShowUpload(false)
+    setUploadForm({ title: '', description: '', accessMode: 'coach_only', studentIds: new Set() })
+    setFile(null)
   }
 
   async function openFootage(item) {
@@ -135,6 +110,8 @@ export default function ViewIt() {
 
   return (
     <div>
+      <button className="btn btn-sm" style={{ marginBottom: 12 }} onClick={() => navigate(-1)}>← Back</button>
+
       <div className="page-header">
         <h1>View IT</h1>
         <p>Record, review, and share fight/sparring footage with athletes or the team</p>
@@ -184,17 +161,12 @@ export default function ViewIt() {
             </div>
           )}
 
-          {uploading && (
-            <div style={{ marginBottom: 10 }}>
-              <div style={{ height: 6, background: 'var(--bg-secondary)', borderRadius: 3, overflow: 'hidden' }}>
-                <div style={{ width: `${uploadProgress}%`, height: '100%', background: '#378ADD', transition: 'width 0.2s' }} />
-              </div>
-              <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>Uploading… {uploadProgress}%</p>
-            </div>
-          )}
+          <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10 }}>
+            Once you hit Upload, it'll keep going in the background — feel free to close this or navigate elsewhere, a small progress indicator stays visible until it's done.
+          </p>
 
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn btn-primary" disabled={uploading} onClick={handleUpload}>{uploading ? 'Uploading…' : '⬆️ Upload'}</button>
+            <button className="btn btn-primary" onClick={handleUpload}>⬆️ Upload</button>
             <button className="btn" onClick={() => { setShowUpload(false); setFile(null) }}>Cancel</button>
           </div>
         </div>

@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './hooks/useAuth.jsx'
+import { FightFootageUploadProvider } from './hooks/useFightFootageUpload.jsx'
 import { supabase } from './lib/supabase.js'
 import ErrorBoundary from './components/shared/ErrorBoundary.jsx'
 import './styles/global.css'
@@ -91,6 +92,7 @@ function App() {
   return (
     <ErrorBoundary>
     <AuthProvider>
+    <FightFootageUploadProvider>
       <BrowserRouter>
         <Routes>
           <Route path="/login"           element={<Login />} />
@@ -135,6 +137,7 @@ function App() {
           </Route>
         </Routes>
       </BrowserRouter>
+    </FightFootageUploadProvider>
     </AuthProvider>
     </ErrorBoundary>
   )

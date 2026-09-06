@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth.jsx'
+import { useFightFootageUpload } from '../../hooks/useFightFootageUpload.jsx'
 import { supabase } from '../../lib/supabase.js'
 
 const SIDEBAR_FULL = 220
@@ -307,7 +308,41 @@ export default function Layout() {
         }}>☰</button>
       )}
 
+      <FightFootageUploadIndicator />
+
     </div>
   )
 }
 
+// A small floating banner visible on any page while a View IT upload
+// is in progress -- since the upload itself now lives in a context at
+// the app root (not tied to the ViewIt page's own lifetime), this is
+// what lets someone navigate elsewhere and still see it's still going.
+function FightFootageUploadIndicator() {
+  const ctx = useFightFootageUpload()
+  const upload = ctx?.upload
+  if (!upload) return null
+  return (
+    <div style={{
+      position: 'fixed', bottom: 16, right: 16, zIndex: 40, maxWidth: 300,
+      background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+      padding: '10px 14px', boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+        <span style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {upload.status === 'error' ? '⚠️ Upload failed' : upload.status === 'done' ? '✅ Uploaded' : `⬆️ ${upload.title || 'Uploading…'}`}
+        </span>
+        {(upload.status === 'error' || upload.status === 'done') && (
+          <button onClick={ctx.dismissUpload} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-secondary)' }}>✕</button>
+        )}
+      </div>
+      {upload.status === 'uploading' && (
+        <div style={{ height: 5, background: 'var(--bg-secondary)', borderRadius: 3, overflow: 'hidden' }}>
+          <div style={{ width: `${upload.progress}%`, height: '100%', background: '#378ADD', transition: 'width 0.2s' }} />
+        </div>
+      )}
+      {upload.status === 'processing' && <p style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Finishing up…</p>}
+      {upload.status === 'error' && <p style={{ fontSize: 11, color: '#E24B4A' }}>{upload.error}</p>}
+    </div>
+  )
+}
