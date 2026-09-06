@@ -32,6 +32,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   const [speed, setSpeed] = useState(1)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
+  const [videoAspect, setVideoAspect] = useState(16 / 9) // updated once real metadata loads; used to keep overlays aligned to the actual visible video, not the full (possibly letterboxed) screen
   const [isFullscreen, setIsFullscreen] = useState(false)
 
   // Controls visibility -- tap the video to show, auto-hides after a
@@ -103,7 +104,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   useEffect(() => {
     const v = videoRef.current
     if (!v) return
-    const onMeta = () => setDuration(v.duration || 0)
+    const onMeta = () => { setDuration(v.duration || 0); if (v.videoWidth && v.videoHeight) setVideoAspect(v.videoWidth / v.videoHeight) }
     const onPlay = () => setPlaying(true)
     const onPause = () => setPlaying(false)
     v.addEventListener('loadedmetadata', onMeta)
@@ -646,45 +647,55 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
           space, so nothing about the video's own size ever changes
           depending on whether controls happen to be showing. */}
       <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <video
-          ref={videoRef}
-          src={videoUrl}
-          crossOrigin="anonymous"
-          style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-          playsInline
-          webkit-playsinline="true"
-          disablePictureInPicture
-          controlsList="nofullscreen noremoteplayback"
-          onPointerDown={handlePointerDown}
-          onPointerMove={handleVideoPointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerLeave={() => { if (isHoldingRef.current) handlePointerUp({ clientX: 0 }) }}
-        />
+        {/* This inner box exactly matches the video's own rendered
+            bounds (same aspect ratio, fit within the available space)
+            -- in portrait, a landscape video is letterboxed with black
+            bars above/below, and without this, overlays like the note
+            below would end up positioned against the full screen and
+            appear to float in that black bar rather than sitting
+            against the actual visible video image. */}
+        <div style={{ position: 'relative', maxWidth: '100%', maxHeight: '100%', aspectRatio: videoAspect }}>
+          <video
+            ref={videoRef}
+            src={videoUrl}
+            crossOrigin="anonymous"
+            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            playsInline
+            webkit-playsinline="true"
+            disablePictureInPicture
+            controlsList="nofullscreen noremoteplayback"
+            onPointerDown={handlePointerDown}
+            onPointerMove={handleVideoPointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerLeave={() => { if (isHoldingRef.current) handlePointerUp({ clientX: 0 }) }}
+          />
+          {frozenPhoto && (
+            <div style={{ position: 'absolute', inset: 0, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <img src={frozenPhoto.photo_data_url} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+              <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)', background: '#378ADD', color: '#fff', fontSize: 12, fontWeight: 700, padding: '4px 12px', borderRadius: 20 }}>
+                📷 Photo — resuming shortly
+              </div>
+            </div>
+          )}
+          {isHolding && (
+            <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)', background: '#EF9F27', color: '#111', fontSize: 12, fontWeight: 700, padding: '4px 12px', borderRadius: 20 }}>
+              🐢 Slow motion — hold to keep going
+            </div>
+          )}
+          {viewingMarkerNote && (
+            <div style={{
+              position: 'absolute', bottom: 16, left: 16, right: 16, color: '#fff', fontSize: 13, padding: '10px 14px', borderRadius: 8,
+              background: hexToRgba(viewingMarkerNote.highlight_color || '#000000', 0.55), backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
+            }}
+              onClick={() => setViewingMarkerNote(null)}>
+              📝 {viewingMarkerNote.note_text}
+            </div>
+          )}
+        </div>
+
         <canvas ref={canvasRef} style={{ display: 'none' }} />
         <video ref={filmstripVideoRef} src={videoUrl} crossOrigin="anonymous" muted playsInline style={{ display: 'none' }} />
         <canvas ref={filmstripCanvasRef} style={{ display: 'none' }} />
-        {frozenPhoto && (
-          <div style={{ position: 'absolute', inset: 0, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <img src={frozenPhoto.photo_data_url} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
-            <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)', background: '#378ADD', color: '#fff', fontSize: 12, fontWeight: 700, padding: '4px 12px', borderRadius: 20 }}>
-              📷 Photo — resuming shortly
-            </div>
-          </div>
-        )}
-        {isHolding && (
-          <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)', background: '#EF9F27', color: '#111', fontSize: 12, fontWeight: 700, padding: '4px 12px', borderRadius: 20 }}>
-            🐢 Slow motion — hold to keep going
-          </div>
-        )}
-        {viewingMarkerNote && (
-          <div style={{
-            position: 'absolute', bottom: 16, left: 16, right: 16, color: '#fff', fontSize: 13, padding: '10px 14px', borderRadius: 8,
-            background: hexToRgba(viewingMarkerNote.highlight_color || '#000000', 0.55), backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
-          }}
-            onClick={() => setViewingMarkerNote(null)}>
-            📝 {viewingMarkerNote.note_text}
-          </div>
-        )}
 
         {/* Middle overlay -- just play/pause and speed, tap the video
             to show/hide (same tap-to-show as the bottom bar now). */}
