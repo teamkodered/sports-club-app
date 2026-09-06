@@ -58,6 +58,11 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   const markersRef = useRef([])
   const canvasRef = useRef(null)
 
+  // Double-tap left/right half to skip back/forward
+  const lastTapAtRef = useRef(0)
+  const singleTapTimerRef = useRef(null)
+  const [skipFlash, setSkipFlash] = useState(null) // 'back' | 'forward' | null, brief visual confirmation
+
   useEffect(() => { markersRef.current = markers }, [markers])
   useEffect(() => { frozenPhotoRef.current = frozenPhoto }, [frozenPhoto])
 
@@ -164,6 +169,17 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
     v.currentTime = Math.min(Math.max(0, v.currentTime + deltaSeconds), v.duration || 0)
   }
 
+  // Double-tap skip -- unlike step(), this deliberately doesn't pause,
+  // matching how skip-forward/back gestures work in most video apps
+  // (skipping while playing just keeps playing from the new point).
+  function skipSeconds(deltaSeconds) {
+    const v = videoRef.current
+    if (!v) return
+    v.currentTime = Math.min(Math.max(0, v.currentTime + deltaSeconds), v.duration || 0)
+    setSkipFlash(deltaSeconds < 0 ? 'back' : 'forward')
+    setTimeout(() => setSkipFlash(null), 500)
+  }
+
   function seekTo(t) {
     const v = videoRef.current
     if (!v) return
@@ -224,13 +240,30 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
     }, HOLD_THRESHOLD_MS)
   }
 
-  function handlePointerUp() {
+  function handlePointerUp(e) {
     clearTimeout(holdTimerRef.current)
     const v = videoRef.current
     if (!isHoldingRef.current) {
-      // was just a quick tap -- toggle the controls overlay
-      if (controlsVisible) { clearTimeout(autoHideTimerRef.current); setControlsVisible(false) }
-      else showControls()
+      // Was just a quick release -- could be a single tap (toggle
+      // controls) or the second half of a double-tap (skip). Wait a
+      // beat before committing to the single-tap action, in case a
+      // second tap arrives within the double-tap window.
+      const now = Date.now()
+      const isDoubleTap = now - lastTapAtRef.current < 300
+      if (isDoubleTap) {
+        clearTimeout(singleTapTimerRef.current)
+        lastTapAtRef.current = 0
+        const rect = wrapperRef.current?.getBoundingClientRect()
+        const isLeftSide = rect && (e.clientX - rect.left) < rect.width / 2
+        skipSeconds(isLeftSide ? -5 : 5)
+      } else {
+        lastTapAtRef.current = now
+        clearTimeout(singleTapTimerRef.current)
+        singleTapTimerRef.current = setTimeout(() => {
+          if (controlsVisible) { clearTimeout(autoHideTimerRef.current); setControlsVisible(false) }
+          else showControls()
+        }, 300)
+      }
       return
     }
     isHoldingRef.current = false
@@ -458,93 +491,108 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
           </div>
         )}
 
-        {/* Playback controls -- overlaid mid-screen on top of the video,
-            tap to show/hide, never auto-hides while scrubbing. */}
+        {/* Middle overlay -- just play/pause and speed, tap the video
+            to show/hide. Everything else (scrubber, stepping, markers)
+            lives in the always-visible bottom bar instead. */}
         {controlsVisible && (
-          <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, transform: 'translateY(-50%)', padding: '16px 12px', background: 'rgba(0,0,0,0.55)' }}
+          <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, transform: 'translateY(-50%)', padding: '16px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}
             onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-              <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, minWidth: 36 }}>{fmt(currentTime)}</span>
-              <div style={{ position: 'relative', flex: 1 }}>
-                <input
-                  type="range"
-                  min={0}
-                  max={duration || 0}
-                  step={0.01}
-                  value={currentTime}
-                  onChange={e => seekTo(parseFloat(e.target.value))}
-                  onPointerDown={handleScrubStart}
-                  onPointerUp={handleScrubEnd}
-                  style={{ width: '100%' }}
-                />
-                {duration > 0 && markers.map(m => (
-                  m.marker_type === 'photo' ? (
-                    <div key={m.id} title="Photo marker — hold to edit"
-                      onPointerDown={() => handleMarkerPointerDown(m)}
-                      onPointerUp={() => handleMarkerPointerUp(m)}
-                      onPointerLeave={() => clearTimeout(markerHoldTimerRef.current)}
-                      style={{
-                        position: 'absolute', top: -6, left: `${(m.start_seconds / duration) * 100}%`, transform: 'translateX(-50%)',
-                        width: 16, height: 16, borderRadius: 3, cursor: 'pointer', border: '1px solid #fff',
-                        backgroundImage: `url(${m.photo_data_url})`, backgroundSize: 'cover', backgroundPosition: 'center',
-                      }} />
-                  ) : (
-                    <div key={m.id}
-                      title={m.marker_type === 'note' ? m.note_text : 'Highlight — hold to edit'}
-                      onPointerDown={() => handleMarkerPointerDown(m)}
-                      onPointerUp={() => handleMarkerPointerUp(m)}
-                      onPointerLeave={() => clearTimeout(markerHoldTimerRef.current)}
-                      style={{
-                        position: 'absolute', top: 6, height: 4, borderRadius: 2, cursor: 'pointer',
-                        left: `${(m.start_seconds / duration) * 100}%`,
-                        width: `${Math.max(0.5, ((m.end_seconds - m.start_seconds) / duration) * 100)}%`,
-                        background: m.marker_type === 'highlight' ? (m.highlight_color || '#EF9F27') : '#378ADD',
-                      }} />
-                  )
-                ))}
-              </div>
-              <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, minWidth: 36 }}>{fmt(duration)}</span>
-            </div>
-
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', alignItems: 'center', marginTop: 8 }}>
-              <button className="btn btn-sm" onClick={() => step(-5)}>⏪ 5s</button>
-              <button className="btn btn-sm" onClick={() => step(-FRAME_SECONDS)}>⏮ Frame</button>
-              <button className="btn btn-primary" style={{ minWidth: 64, justifyContent: 'center' }} onClick={togglePlay}>{playing ? '⏸' : '▶️'}</button>
-              <button className="btn btn-sm" onClick={() => step(FRAME_SECONDS)}>Frame ⏭</button>
-              <button className="btn btn-sm" onClick={() => step(5)}>5s ⏩</button>
-            </div>
-
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginTop: 10 }}>
+            <button className="btn btn-primary" style={{ minWidth: 72, height: 72, borderRadius: '50%', justifyContent: 'center', fontSize: 26 }} onClick={togglePlay}>{playing ? '⏸' : '▶️'}</button>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
               {SPEEDS.map(s => (
                 <button key={s} onClick={() => setPlaybackSpeed(s)}
                   style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)',
                     border: `1px solid ${speed === s ? '#378ADD' : 'rgba(255,255,255,0.3)'}`,
-                    background: speed === s ? '#378ADD30' : 'transparent',
+                    background: speed === s ? '#378ADD30' : 'rgba(0,0,0,0.4)',
                     color: speed === s ? '#5FA8EA' : 'rgba(255,255,255,0.7)', fontWeight: speed === s ? 600 : 400 }}>
                   {s === 1 ? '1x' : `${s}x`}
                 </button>
               ))}
             </div>
+          </div>
+        )}
 
-            {isCoach && footageId && markerRangeStart === null && !showMarkerChoice && (
-              <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 10 }}>
-                <button className="btn btn-sm" onClick={handleMarkerButtonPress}>📍 Add marker here</button>
-                <button className="btn btn-sm" onClick={capturePhotoMarker}>📷 Add photo</button>
-              </div>
-            )}
+        {skipFlash && (
+          <div style={{
+            position: 'absolute', top: 0, bottom: 0, [skipFlash === 'back' ? 'left' : 'right']: 0, width: '35%',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', pointerEvents: 'none',
+          }}>
+            <span style={{ color: '#fff', fontSize: 28 }}>{skipFlash === 'back' ? '⏪ 5s' : '5s ⏩'}</span>
+          </div>
+        )}
+      </div>
 
-            {clips.length > 0 && (
-              <div style={{ marginTop: 12, borderTop: '1px solid rgba(255,255,255,0.15)', paddingTop: 10 }}>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginBottom: 6, textAlign: 'center' }}>Saved clips</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
-                  {clips.map(c => (
-                    <button key={c.id} className="btn btn-sm" onClick={() => openClip(c)} style={{ opacity: c.status === 'ready' ? 1 : 0.6 }}>
-                      {c.status === 'ready' ? '▶️' : c.status === 'failed' ? '⚠️' : '⏳'} {(c.end_seconds - c.start_seconds).toFixed(1)}s @ {fmt(c.start_seconds)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+      {/* Bottom bar -- always visible (not tied to tap-to-show), same
+          as the original layout: scrubber with marker overlay,
+          frame/5s stepping, add marker/photo, saved clips. */}
+      <div style={{ flexShrink: 0, padding: '10px 12px 16px', background: 'rgba(0,0,0,0.6)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, minWidth: 36 }}>{fmt(currentTime)}</span>
+          <div style={{ position: 'relative', flex: 1 }}>
+            <input
+              type="range"
+              min={0}
+              max={duration || 0}
+              step={0.01}
+              value={currentTime}
+              onChange={e => seekTo(parseFloat(e.target.value))}
+              onPointerDown={handleScrubStart}
+              onPointerUp={handleScrubEnd}
+              style={{ width: '100%' }}
+            />
+            {duration > 0 && markers.map(m => (
+              m.marker_type === 'photo' ? (
+                <div key={m.id} title="Photo marker — hold to edit"
+                  onPointerDown={() => handleMarkerPointerDown(m)}
+                  onPointerUp={() => handleMarkerPointerUp(m)}
+                  onPointerLeave={() => clearTimeout(markerHoldTimerRef.current)}
+                  style={{
+                    position: 'absolute', top: -6, left: `${(m.start_seconds / duration) * 100}%`, transform: 'translateX(-50%)',
+                    width: 16, height: 16, borderRadius: 3, cursor: 'pointer', border: '1px solid #fff',
+                    backgroundImage: `url(${m.photo_data_url})`, backgroundSize: 'cover', backgroundPosition: 'center',
+                  }} />
+              ) : (
+                <div key={m.id}
+                  title={m.marker_type === 'note' ? m.note_text : 'Highlight — hold to edit'}
+                  onPointerDown={() => handleMarkerPointerDown(m)}
+                  onPointerUp={() => handleMarkerPointerUp(m)}
+                  onPointerLeave={() => clearTimeout(markerHoldTimerRef.current)}
+                  style={{
+                    position: 'absolute', top: 6, height: 4, borderRadius: 2, cursor: 'pointer',
+                    left: `${(m.start_seconds / duration) * 100}%`,
+                    width: `${Math.max(0.5, ((m.end_seconds - m.start_seconds) / duration) * 100)}%`,
+                    background: m.marker_type === 'highlight' ? (m.highlight_color || '#EF9F27') : '#378ADD',
+                  }} />
+              )
+            ))}
+          </div>
+          <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, minWidth: 36 }}>{fmt(duration)}</span>
+        </div>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', alignItems: 'center', marginTop: 8 }}>
+          <button className="btn btn-sm" onClick={() => step(-5)}>⏪ 5s</button>
+          <button className="btn btn-sm" onClick={() => step(-FRAME_SECONDS)}>⏮ Frame</button>
+          <button className="btn btn-sm" onClick={() => step(FRAME_SECONDS)}>Frame ⏭</button>
+          <button className="btn btn-sm" onClick={() => step(5)}>5s ⏩</button>
+        </div>
+
+        {isCoach && footageId && markerRangeStart === null && !showMarkerChoice && (
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 10 }}>
+            <button className="btn btn-sm" onClick={handleMarkerButtonPress}>📍 Add marker here</button>
+            <button className="btn btn-sm" onClick={capturePhotoMarker}>📷 Add photo</button>
+          </div>
+        )}
+
+        {clips.length > 0 && (
+          <div style={{ marginTop: 12, borderTop: '1px solid rgba(255,255,255,0.15)', paddingTop: 10 }}>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginBottom: 6, textAlign: 'center' }}>Saved clips</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+              {clips.map(c => (
+                <button key={c.id} className="btn btn-sm" onClick={() => openClip(c)} style={{ opacity: c.status === 'ready' ? 1 : 0.6 }}>
+                  {c.status === 'ready' ? '▶️' : c.status === 'failed' ? '⚠️' : '⏳'} {(c.end_seconds - c.start_seconds).toFixed(1)}s @ {fmt(c.start_seconds)}
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>
