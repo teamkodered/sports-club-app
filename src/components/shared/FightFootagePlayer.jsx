@@ -48,6 +48,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   // Long-press a marker to edit/delete it
   const markerHoldTimerRef = useRef(null)
   const markerHeldRef = useRef(false)
+  const markerTouchStartYRef = useRef(null)
   const [editingMarker, setEditingMarker] = useState(null)
   const [editingMarkerNoteText, setEditingMarkerNoteText] = useState('')
 
@@ -457,19 +458,31 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
 
   // Long-press a marker bar to edit/delete it; a quick tap keeps the
   // existing behaviour (seek there, show its note if it has one).
-  function handleMarkerPointerDown(m) {
-    markerHeldRef.current = false
+  const SWIPE_UP_THRESHOLD = 25 // px of upward movement before it counts as a swipe
+
+  function openMarkerEditor(m) {
+    markerHeldRef.current = true
     clearTimeout(markerHoldTimerRef.current)
-    markerHoldTimerRef.current = setTimeout(() => {
-      markerHeldRef.current = true
-      setEditingMarker(m)
-      setEditingMarkerNoteText(m.note_text || '')
-    }, HOLD_THRESHOLD_MS)
+    setEditingMarker(m)
+    setEditingMarkerNoteText(m.note_text || '')
+  }
+
+  function handleMarkerPointerDown(e, m) {
+    markerHeldRef.current = false
+    markerTouchStartYRef.current = e.clientY
+    clearTimeout(markerHoldTimerRef.current)
+    markerHoldTimerRef.current = setTimeout(() => openMarkerEditor(m), HOLD_THRESHOLD_MS)
+  }
+
+  function handleMarkerPointerMove(e, m) {
+    if (markerHeldRef.current || markerTouchStartYRef.current == null) return
+    if (markerTouchStartYRef.current - e.clientY > SWIPE_UP_THRESHOLD) openMarkerEditor(m)
   }
 
   function handleMarkerPointerUp(m) {
     clearTimeout(markerHoldTimerRef.current)
-    if (markerHeldRef.current) return // long-press already handled it
+    markerTouchStartYRef.current = null
+    if (markerHeldRef.current) return // long-press or swipe-up already handled it
     seekTo(m.start_seconds)
     if (m.marker_type === 'note') setViewingMarkerNote(m.note_text)
   }
@@ -590,7 +603,8 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
             {duration > 0 && markers.map(m => (
               m.marker_type === 'photo' ? (
                 <div key={m.id} title="Photo marker — hold to edit"
-                  onPointerDown={e => { e.stopPropagation(); handleMarkerPointerDown(m) }}
+                  onPointerDown={e => { e.stopPropagation(); handleMarkerPointerDown(e, m) }}
+                  onPointerMove={e => handleMarkerPointerMove(e, m)}
                   onPointerUp={e => { e.stopPropagation(); handleMarkerPointerUp(m) }}
                   onPointerLeave={() => clearTimeout(markerHoldTimerRef.current)}
                   style={{
@@ -608,7 +622,8 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
                 // also reaching the range input at all.
                 <div key={m.id}
                   title={m.marker_type === 'note' ? m.note_text : 'Highlight — hold to edit'}
-                  onPointerDown={e => { e.stopPropagation(); handleMarkerPointerDown(m) }}
+                  onPointerDown={e => { e.stopPropagation(); handleMarkerPointerDown(e, m) }}
+                  onPointerMove={e => handleMarkerPointerMove(e, m)}
                   onPointerUp={e => { e.stopPropagation(); handleMarkerPointerUp(m) }}
                   onPointerLeave={() => clearTimeout(markerHoldTimerRef.current)}
                   style={{
