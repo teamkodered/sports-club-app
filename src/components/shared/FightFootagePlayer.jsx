@@ -358,7 +358,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
     if (v.paused) v.play()
   }
 
-  function releaseHoldSlowMo() {
+  function releaseHoldSlowMo(skipSavePrompt = false) {
     const v = videoRef.current
     isHoldingRef.current = false
     setIsHolding(false)
@@ -366,13 +366,25 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
     setSpeed(preHoldSpeedRef.current)
     const end = v?.currentTime || 0
     const start = holdStartRef.current
-    if (isCoach && end - start >= 0.4) {
+    if (!skipSavePrompt && isCoach && end - start >= 0.4) {
       setPendingClip({ start: Math.min(start, end), end: Math.max(start, end) })
       if (v) v.pause()
       showControls()
     } else {
       scheduleAutoHide() // resume the normal countdown now that the hold has ended
     }
+  }
+
+  // A fast flick can outrun individual pointermove events (browsers
+  // may only deliver a couple during a very quick gesture), so the
+  // live movement-cancel check doesn't always get the chance to fire
+  // in time. This is a backup: comparing the final release point to
+  // where the finger first went down catches it retroactively even if
+  // the timer already engaged slow-mo.
+  function wasActuallyASwipe(e) {
+    const dx = e.clientX - holdStartPosRef.current.x
+    const dy = e.clientY - holdStartPosRef.current.y
+    return Math.sqrt(dx * dx + dy * dy) > MOVE_CANCEL_THRESHOLD
   }
 
   // Video gestures: tap toggles controls / double-tap skips / hold
@@ -438,7 +450,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
       }
       return
     }
-    releaseHoldSlowMo()
+    releaseHoldSlowMo(wasActuallyASwipe(e))
   }
 
   // Play/pause button gestures: a quick press toggles play/pause as
@@ -460,13 +472,13 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
     if (isHoldingRef.current) releaseHoldSlowMo()
   }
 
-  function handlePlayButtonPointerUp() {
+  function handlePlayButtonPointerUp(e) {
     clearTimeout(holdTimerRef.current)
     if (!isHoldingRef.current) {
       togglePlay()
       return
     }
-    releaseHoldSlowMo()
+    releaseHoldSlowMo(wasActuallyASwipe(e))
   }
 
   // If a save-clip prompt just sits there ignored (coach moved on to
@@ -650,7 +662,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   return (
     <div ref={wrapperRef} style={{
       position: 'fixed', inset: 0, background: '#000', zIndex: 200,
-      userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'manipulation',
+      userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'none', overscrollBehavior: 'none',
     }}
       onContextMenu={e => e.preventDefault()}>
       {/* Video always fills the entire player, full stop -- every
@@ -745,11 +757,12 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
           own layout space. */}
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 12, zIndex: 2 }}>
         <span style={{ color: '#fff', fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button className="btn btn-sm" style={GLASS_STYLE} onClick={toggleFullscreen}>{isFullscreen ? '⤢ Exit fullscreen' : '⛶ Fullscreen'}</button>
-          <button className="btn btn-sm" style={GLASS_STYLE} onClick={onClose}>✕ Close</button>
-        </div>
+        <button className="btn btn-sm" style={GLASS_STYLE} onClick={onClose}>✕ Close</button>
       </div>
+
+      <button className="btn btn-sm" style={{ position: 'absolute', bottom: 12, left: 12, zIndex: 2, ...GLASS_STYLE }} onClick={toggleFullscreen}>
+        {isFullscreen ? '⤢ Exit fullscreen' : '⛶ Fullscreen'}
+      </button>
 
       {/* Bottom bar -- also floats over the video (absolute, not a
           flex sibling), so it never resizes the video when it shows
