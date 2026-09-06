@@ -7,7 +7,7 @@ export default function ViewIt() {
   const [loaded, setLoaded] = useState(false)
   const [students, setStudents] = useState([])
   const [showUpload, setShowUpload] = useState(false)
-  const [uploadForm, setUploadForm] = useState({ title: '', description: '', accessMode: 'select_athletes', studentIds: new Set() })
+  const [uploadForm, setUploadForm] = useState({ title: '', description: '', accessMode: 'coach_only', studentIds: new Set() })
   const [studentSearch, setStudentSearch] = useState('')
   const [file, setFile] = useState(null)
   const [uploading, setUploading] = useState(false)
@@ -15,6 +15,10 @@ export default function ViewIt() {
   const [playingUrl, setPlayingUrl] = useState(null)
   const [playingTitle, setPlayingTitle] = useState('')
   const [playingItem, setPlayingItem] = useState(null)
+  const [editingAccessId, setEditingAccessId] = useState(null)
+  const [editAccessMode, setEditAccessMode] = useState('coach_only')
+  const [editStudentIds, setEditStudentIds] = useState(() => new Set())
+  const [editStudentSearch, setEditStudentSearch] = useState('')
 
   useEffect(() => { load() }, [])
 
@@ -76,7 +80,7 @@ export default function ViewIt() {
       }
 
       setShowUpload(false)
-      setUploadForm({ title: '', description: '', accessMode: 'select_athletes', studentIds: new Set() })
+      setUploadForm({ title: '', description: '', accessMode: 'coach_only', studentIds: new Set() })
       setFile(null)
       load()
     } catch (err) {
@@ -99,6 +103,26 @@ export default function ViewIt() {
     setPlayingUrl(data.url)
     setPlayingTitle(item.title)
     setPlayingItem(item)
+  }
+
+  function startEditAccess(item) {
+    setEditingAccessId(item.id)
+    setEditAccessMode(item.access_mode)
+    setEditStudentIds(new Set((item.fight_footage_athletes || []).map(a => a.student_id)))
+    setEditStudentSearch('')
+  }
+
+  async function saveEditAccess(item) {
+    await supabase.from('fight_footage').update({ access_mode: editAccessMode }).eq('id', item.id)
+    // Simplest correct approach: replace the whole tagged-athletes set
+    // rather than trying to diff it, since this is a small, infrequent
+    // admin action, not a hot path worth optimising.
+    await supabase.from('fight_footage_athletes').delete().eq('footage_id', item.id)
+    if (editAccessMode === 'select_athletes' && editStudentIds.size > 0) {
+      await supabase.from('fight_footage_athletes').insert([...editStudentIds].map(student_id => ({ footage_id: item.id, student_id })))
+    }
+    setEditingAccessId(null)
+    load()
   }
 
   async function deleteFootage(item) {
@@ -132,10 +156,14 @@ export default function ViewIt() {
           </div>
 
           <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 6 }}>Who can see this?</label>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+            <button className={uploadForm.accessMode === 'coach_only' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setUploadForm(f => ({ ...f, accessMode: 'coach_only' }))}>Coach only</button>
             <button className={uploadForm.accessMode === 'select_athletes' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setUploadForm(f => ({ ...f, accessMode: 'select_athletes' }))}>Specific athletes</button>
             <button className={uploadForm.accessMode === 'all' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setUploadForm(f => ({ ...f, accessMode: 'all' }))}>Whole team</button>
           </div>
+          <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10 }}>
+            Uploads always start as "Coach only" — you can open it up to specific athletes or the whole team any time afterward.
+          </p>
 
           {uploadForm.accessMode === 'select_athletes' && (
             <div style={{ marginBottom: 14 }}>
@@ -179,16 +207,52 @@ export default function ViewIt() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {footage.map(item => (
-            <div key={item.id} className="card" style={{ padding: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => openFootage(item)}>
-                <div style={{ fontSize: 14, fontWeight: 500 }}>▶️ {item.title}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
-                  {new Date(item.uploaded_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                  {' · '}{item.access_mode === 'all' ? 'Whole team' : `${item.fight_footage_athletes?.length || 0} athlete${item.fight_footage_athletes?.length === 1 ? '' : 's'}`}
+            <div key={item.id} className="card" style={{ padding: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => openFootage(item)}>
+                  <div style={{ fontSize: 14, fontWeight: 500 }}>▶️ {item.title}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+                    {new Date(item.uploaded_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    {' · '}{item.access_mode === 'all' ? 'Whole team' : item.access_mode === 'coach_only' ? 'Coach only' : `${item.fight_footage_athletes?.length || 0} athlete${item.fight_footage_athletes?.length === 1 ? '' : 's'}`}
+                  </div>
+                  {item.description && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{item.description}</div>}
                 </div>
-                {item.description && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{item.description}</div>}
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button className="btn btn-sm" onClick={() => startEditAccess(item)}>Who can see this?</button>
+                  <button className="btn btn-sm" style={{ color: '#E24B4A' }} onClick={() => deleteFootage(item)}>Delete</button>
+                </div>
               </div>
-              <button className="btn btn-sm" style={{ color: '#E24B4A' }} onClick={() => deleteFootage(item)}>Delete</button>
+
+              {editingAccessId === item.id && (
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+                    <button className={editAccessMode === 'coach_only' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setEditAccessMode('coach_only')}>Coach only</button>
+                    <button className={editAccessMode === 'select_athletes' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setEditAccessMode('select_athletes')}>Specific athletes</button>
+                    <button className={editAccessMode === 'all' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setEditAccessMode('all')}>Whole team</button>
+                  </div>
+                  {editAccessMode === 'select_athletes' && (
+                    <div style={{ marginBottom: 10 }}>
+                      <input type="text" placeholder="🔍 Search by name…" value={editStudentSearch} onChange={e => setEditStudentSearch(e.target.value)} style={{ width: '100%', fontSize: 13, marginBottom: 8 }} />
+                      <div style={{ maxHeight: 160, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6 }}>
+                        {students.filter(s => !editStudentSearch.trim() || studentName(s).toLowerCase().includes(editStudentSearch.trim().toLowerCase())).map(s => (
+                          <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, padding: '4px 8px' }}>
+                            <input type="checkbox" checked={editStudentIds.has(s.id)} onChange={e => setEditStudentIds(prev => {
+                              const next = new Set(prev)
+                              if (e.target.checked) next.add(s.id); else next.delete(s.id)
+                              return next
+                            })} />
+                            {studentName(s)}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button className="btn btn-sm btn-primary" onClick={() => saveEditAccess(item)}>Save</button>
+                    <button className="btn btn-sm" onClick={() => setEditingAccessId(null)}>Cancel</button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
