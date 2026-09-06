@@ -14,6 +14,7 @@ export default function ViewIt() {
   const [showUpload, setShowUpload] = useState(false)
   const [bulkMode, setBulkMode] = useState(false)
   const [bulkFiles, setBulkFiles] = useState([])
+  const [bulkTotalSelected, setBulkTotalSelected] = useState(0)
   const [uploadForm, setUploadForm] = useState({ title: '', description: '', accessMode: 'coach_only', studentIds: new Set(), eventId: '', newEventName: '' })
   const [studentSearch, setStudentSearch] = useState('')
   const [file, setFile] = useState(null)
@@ -106,8 +107,10 @@ export default function ViewIt() {
   }
 
   function handleFolderSelect(e) {
-    const files = [...e.target.files].filter(f => f.type.startsWith('video/') || /\.(mkv|avi|mov|wmv|flv|3gp|webm|m4v)$/i.test(f.name))
+    const totalSelected = e.target.files.length
+    const files = [...e.target.files].filter(f => f.type.startsWith('video/') || /\.(mp4|mkv|avi|mov|wmv|flv|3gp|webm|m4v)$/i.test(f.name))
     setBulkFiles(files)
+    setBulkTotalSelected(totalSelected)
     // Suggests the containing folder's name as the event, since that's
     // usually exactly what it's organised by (e.g. Dropbox event
     // folders) -- easy to change before uploading if it's not right.
@@ -189,6 +192,12 @@ export default function ViewIt() {
             <div className="field"><label>Folder of videos</label>
               <input type="file" webkitdirectory="" directory="" multiple onChange={handleFolderSelect} />
               {bulkFiles.length > 0 && <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{bulkFiles.length} video file{bulkFiles.length === 1 ? '' : 's'} found — each will be titled from its own filename.</p>}
+              {bulkTotalSelected > 0 && bulkFiles.length === 0 && (
+                <p style={{ fontSize: 12, color: '#E24B4A', marginTop: 4 }}>Selected {bulkTotalSelected} file{bulkTotalSelected === 1 ? '' : 's'}, but none looked like a recognised video format — check the folder actually contains video files.</p>
+              )}
+              {bulkTotalSelected === 0 && (
+                <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>No folder selected yet, or this device/browser doesn't support folder selection.</p>
+              )}
               <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>Note: whole-folder selection isn't supported on iPhone/iPad Safari — use "+ Upload footage" one at a time there instead, or do bulk uploads from a desktop or Android device.</p>
             </div>
           ) : (
