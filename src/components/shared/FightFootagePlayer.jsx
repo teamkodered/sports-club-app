@@ -958,36 +958,33 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
       )}
 
       {editingMarker && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 210, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
-          onClick={() => setEditingMarker(null)}>
-          <div style={{ width: '100%', maxWidth: 380, padding: 16, borderRadius: 12, ...GLASS_STYLE }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>
-              {editingMarker.marker_type === 'photo' ? 'Photo marker' : 'Edit marker'} — {fmt(editingMarker.start_seconds)}{editingMarker.marker_type !== 'photo' ? ` → ${fmt(editingMarker.end_seconds)}` : ''}
-            </h3>
+        <div style={{ position: 'fixed', bottom: 90, left: 12, right: 12, zIndex: 210, padding: 16, borderRadius: 12, ...GLASS_STYLE }}>
+          <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>
+            {editingMarker.marker_type === 'photo' ? 'Photo marker' : 'Edit marker'} — {fmt(editingMarker.start_seconds)}{editingMarker.marker_type !== 'photo' ? ` → ${fmt(editingMarker.end_seconds)}` : ''}
+          </h3>
 
-            {editingMarker.marker_type === 'photo' ? (
-              <div style={{ marginBottom: 12 }}>
-                <img src={editingMarker.photo_data_url} alt="" style={{ width: '100%', borderRadius: 8, marginBottom: 8 }} />
-                <p style={{ fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center' }}>Freezes for {editingMarker.freeze_seconds || 5}s during playback</p>
-              </div>
-            ) : (
-              <>
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 12 }}>
-                  {HIGHLIGHT_COLOURS.map(c => (
-                    <button key={c} onClick={() => setEditingMarkerColour(c)}
-                      style={{ width: 30, height: 30, borderRadius: '50%', background: c, cursor: 'pointer', padding: 0,
-                        border: editingMarkerColour === c ? '3px solid #fff' : '2px solid rgba(255,255,255,0.4)' }} />
-                  ))}
-                </div>
-                <textarea value={editingMarkerNoteText} onChange={e => setEditingMarkerNoteText(e.target.value)} placeholder="Note (optional)" style={{ width: '100%', fontSize: 13, minHeight: 60, marginBottom: 10 }} />
-                <button className="btn btn-sm btn-primary" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }} onClick={() => saveMarkerEdits(editingMarker, editingMarkerColour)}>Save</button>
-              </>
-            )}
-
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-sm" style={{ ...GLASS_STYLE, color: '#E24B4A', flex: 1, justifyContent: 'center' }} onClick={() => deleteMarker(editingMarker)}>🗑️ Delete</button>
-              <button className="btn btn-sm" style={{ ...GLASS_STYLE, flex: 1, justifyContent: 'center' }} onClick={() => setEditingMarker(null)}>Cancel</button>
+          {editingMarker.marker_type === 'photo' ? (
+            <div style={{ marginBottom: 12 }}>
+              <img src={editingMarker.photo_data_url} alt="" style={{ width: '100%', borderRadius: 8, marginBottom: 8 }} />
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center' }}>Freezes for {editingMarker.freeze_seconds || 5}s during playback</p>
             </div>
+          ) : (
+            <>
+              <textarea value={editingMarkerNoteText} onChange={e => setEditingMarkerNoteText(e.target.value)} placeholder="Note (optional)" style={{ width: '100%', fontSize: 13, minHeight: 60, marginBottom: 10 }} />
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 12 }}>
+                {HIGHLIGHT_COLOURS.map(c => (
+                  <button key={c} onClick={() => setEditingMarkerColour(c)}
+                    style={{ width: 30, height: 30, borderRadius: '50%', background: c, cursor: 'pointer', padding: 0,
+                      border: editingMarkerColour === c ? '3px solid #fff' : '2px solid rgba(255,255,255,0.4)' }} />
+                ))}
+              </div>
+              <button className="btn btn-sm btn-primary" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }} onClick={() => saveMarkerEdits(editingMarker, editingMarkerColour)}>Save</button>
+            </>
+          )}
+
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-sm" style={{ ...GLASS_STYLE, color: '#E24B4A', flex: 1, justifyContent: 'center' }} onClick={() => deleteMarker(editingMarker)}>🗑️ Delete</button>
+            <button className="btn btn-sm" style={{ ...GLASS_STYLE, flex: 1, justifyContent: 'center' }} onClick={() => setEditingMarker(null)}>Cancel</button>
           </div>
         </div>
       )}
