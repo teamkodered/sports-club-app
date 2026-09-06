@@ -2405,7 +2405,7 @@ export default function CRM() {
           color: tab === 'stopped_training' ? 'var(--text)' : 'var(--text-secondary)',
           fontWeight: tab === 'stopped_training' ? 500 : 400,
         }}>Stopped training{stoppedStudents.length > 0 ? ` (${stoppedStudents.length})` : ''}</button>
-        <button onClick={() => { setTab('grading_requests'); if (!gradingLoaded) loadGradingRequests() }} style={{
+        <button onClick={() => { setTab('grading_requests'); loadGradingRequests() }} style={{
           padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer', flexShrink: 0,
           borderBottom: `2px solid ${tab === 'grading_requests' ? 'var(--text)' : 'transparent'}`,
           color: tab === 'grading_requests' ? 'var(--text)' : 'var(--text-secondary)',
@@ -3497,6 +3497,7 @@ export default function CRM() {
           <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
             <button className={gradingView === 'requests' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setGradingView('requests')}>Requests</button>
             <button className={gradingView === 'list' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setGradingView('list')}>Grading list</button>
+            <button className="btn btn-sm" onClick={loadGradingRequests} disabled={gradingLoading}>{gradingLoading ? 'Refreshing…' : '🔄 Refresh'}</button>
             <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => exportToExcel(gradingRequests.map(r => ({
               Name: `${r.students?.members?.first_name || ''} ${r.students?.members?.last_name || ''}`.trim(),
               Discipline: r.students?.discipline || '',
