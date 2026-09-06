@@ -258,14 +258,42 @@ export default function Forms() {
     setTimeout(() => w.print(), 500)
   }
 
+  // These four forms save to their own dedicated table rather than the
+  // generic membership_forms table -- this mapping is what was missing
+  // before, which is why their response counts always silently showed
+  // zero regardless of how many people had actually submitted.
+  const RESPONSE_TABLE_BY_FORM_KEY = {
+    grading: { table: 'grading_expressions', dateField: 'created_at' },
+    fit2fight: { table: 'fit2fight_sessions', dateField: 'session_date' },
+    boxing_tpt: { table: 'tpt_boxing', dateField: 'created_at' },
+    kb_tpt: { table: 'tpt_kickboxing', dateField: 'created_at' },
+  }
+
   async function loadResponses(form) {
     setResponsesLoading(true)
     setResponses([])
-    const { data } = await supabase
+
+    const override = RESPONSE_TABLE_BY_FORM_KEY[form.key]
+    if (override) {
+      const { data, error } = await supabase.from(override.table).select('*')
+      if (error) { alert(`Error loading responses: ${error.message}`); setResponsesLoading(false); return }
+      // Normalised to submitted_at so the existing generic date
+      // display/sort/print logic below works unchanged regardless of
+      // what this particular table actually calls its own date column.
+      const normalized = (data || [])
+        .map(r => ({ ...r, submitted_at: r[override.dateField] || null }))
+        .sort((a, b) => (b.submitted_at || '').localeCompare(a.submitted_at || ''))
+      setResponses(normalized)
+      setResponsesLoading(false)
+      return
+    }
+
+    const { data, error } = await supabase
       .from('membership_forms')
       .select('*, members(id, status, students(media_restriction))')
       .eq('form_type', form.key)
       .order('submitted_at', { ascending: false })
+    if (error) { alert(`Error loading responses: ${error.message}`); setResponsesLoading(false); return }
     // Flatten the joined media_restriction up to the top level and drop
     // the nested "members" object -- both the on-screen response viewer
     // and the print view render every field generically with
