@@ -468,7 +468,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
           controlsList="nofullscreen noremoteplayback"
           onPointerDown={handlePointerDown}
           onPointerUp={handlePointerUp}
-          onPointerLeave={handlePointerUp}
+          onPointerLeave={() => { if (isHoldingRef.current) handlePointerUp({ clientX: 0 }) }}
         />
         <canvas ref={canvasRef} style={{ display: 'none' }} />
         {frozenPhoto && (
