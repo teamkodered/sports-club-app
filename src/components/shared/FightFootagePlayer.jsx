@@ -41,7 +41,8 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   // Markers (highlight/note)
   const [markers, setMarkers] = useState([])
   const [showMarkerChoice, setShowMarkerChoice] = useState(false)
-  const [addingNoteText, setAddingNoteText] = useState(null) // string once "Note" chosen, null otherwise
+  const [addingNoteText, setAddingNoteText] = useState('') // optional note text, combined with a colour in the same form now
+  const [selectedColour, setSelectedColour] = useState(HIGHLIGHT_COLOURS[0])
   const [markerRangeStart, setMarkerRangeStart] = useState(null) // set once "Add marker" is first tapped, awaiting the end point
   const [viewingMarkerNote, setViewingMarkerNote] = useState(null)
 
@@ -51,6 +52,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   const markerTouchStartYRef = useRef(null)
   const [editingMarker, setEditingMarker] = useState(null)
   const [editingMarkerNoteText, setEditingMarkerNoteText] = useState('')
+  const [editingMarkerColour, setEditingMarkerColour] = useState(HIGHLIGHT_COLOURS[0])
 
   // Photo/freeze-frame markers
   const [frozenPhoto, setFrozenPhoto] = useState(null)
@@ -405,7 +407,8 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   function cancelMarkerRange() {
     setMarkerRangeStart(null)
     setShowMarkerChoice(false)
-    setAddingNoteText(null)
+    setAddingNoteText('')
+    setSelectedColour(HIGHLIGHT_COLOURS[0])
   }
 
   // Captures the exact current video frame as a still image (via a
@@ -436,7 +439,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
     if (newMarker) setMarkers(prev => [...prev, newMarker].sort((a, b) => a.start_seconds - b.start_seconds))
   }
 
-  async function saveMarker(type, text = null, colour = null) {
+  async function saveMarker() {
     const start = Math.min(markerRangeStart, currentTime)
     const end = Math.max(markerRangeStart, currentTime)
     const { data: { user } } = await supabase.auth.getUser()
@@ -445,14 +448,15 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
       footage_id: footageId,
       start_seconds: start,
       end_seconds: end,
-      marker_type: type,
-      note_text: text,
-      highlight_color: colour,
+      marker_type: 'highlight',
+      note_text: addingNoteText?.trim() || null,
+      highlight_color: selectedColour,
       created_by: member?.id || null,
     }).select().single()
     if (newMarker) setMarkers(prev => [...prev, newMarker].sort((a, b) => a.start_seconds - b.start_seconds))
     setShowMarkerChoice(false)
-    setAddingNoteText(null)
+    setAddingNoteText('')
+    setSelectedColour(HIGHLIGHT_COLOURS[0])
     setMarkerRangeStart(null)
   }
 
@@ -465,6 +469,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
     clearTimeout(markerHoldTimerRef.current)
     setEditingMarker(m)
     setEditingMarkerNoteText(m.note_text || '')
+    setEditingMarkerColour(m.highlight_color || HIGHLIGHT_COLOURS[0])
   }
 
   function handleMarkerPointerDown(e, m) {
@@ -484,7 +489,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
     markerTouchStartYRef.current = null
     if (markerHeldRef.current) return // long-press or swipe-up already handled it
     seekTo(m.start_seconds)
-    if (m.marker_type === 'note') setViewingMarkerNote(m.note_text)
+    if (m.note_text) setViewingMarkerNote(m.note_text)
   }
 
   async function deleteMarker(m) {
@@ -493,15 +498,13 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
     setEditingMarker(null)
   }
 
-  async function updateMarkerNote(m) {
-    await supabase.from('fight_footage_markers').update({ note_text: editingMarkerNoteText.trim() }).eq('id', m.id)
-    setMarkers(prev => prev.map(x => x.id === m.id ? { ...x, note_text: editingMarkerNoteText.trim() } : x))
-    setEditingMarker(null)
-  }
-
-  async function updateMarkerColour(m, colour) {
-    await supabase.from('fight_footage_markers').update({ highlight_color: colour }).eq('id', m.id)
-    setMarkers(prev => prev.map(x => x.id === m.id ? { ...x, highlight_color: colour } : x))
+  // Note text and highlight colour save together now, rather than as
+  // two separate edit paths -- a marker can freely have either, both,
+  // or (after clearing the note) just a colour again.
+  async function saveMarkerEdits(m, colour) {
+    const updates = { note_text: editingMarkerNoteText.trim() || null, highlight_color: colour }
+    await supabase.from('fight_footage_markers').update(updates).eq('id', m.id)
+    setMarkers(prev => prev.map(x => x.id === m.id ? { ...x, ...updates } : x))
     setEditingMarker(null)
   }
 
@@ -621,7 +624,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
                 // stopPropagation on top of that stops the press from
                 // also reaching the range input at all.
                 <div key={m.id}
-                  title={m.marker_type === 'note' ? m.note_text : 'Highlight — hold to edit'}
+                  title={m.note_text || 'Highlight — hold to edit'}
                   onPointerDown={e => { e.stopPropagation(); handleMarkerPointerDown(e, m) }}
                   onPointerMove={e => handleMarkerPointerMove(e, m)}
                   onPointerUp={e => { e.stopPropagation(); handleMarkerPointerUp(m) }}
@@ -696,23 +699,18 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
           <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>
             {fmt(Math.min(markerRangeStart, currentTime))} → {fmt(Math.max(markerRangeStart, currentTime))} ({Math.abs(currentTime - markerRangeStart).toFixed(1)}s)
           </span>
-          {addingNoteText === null ? (
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center' }}>
-              <button className="btn btn-sm" onClick={() => setAddingNoteText('')}>📝 Add a note</button>
-              <button className="btn btn-sm" onClick={cancelMarkerRange}>Cancel</button>
-              <div style={{ display: 'flex', gap: 6 }}>
-                {HIGHLIGHT_COLOURS.map(c => (
-                  <button key={c} title="Highlight in this colour" onClick={() => saveMarker('highlight', null, c)}
-                    style={{ width: 26, height: 26, borderRadius: '50%', background: c, border: '2px solid rgba(255,255,255,0.6)', cursor: 'pointer', padding: 0 }} />
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', gap: 8, width: '100%', maxWidth: 480 }}>
-              <input autoFocus value={addingNoteText} onChange={e => setAddingNoteText(e.target.value)} placeholder="What's happening here?" style={{ flex: 1, fontSize: 13 }} />
-              <button className="btn btn-sm btn-primary" onClick={() => saveMarker('note', addingNoteText.trim())} disabled={!addingNoteText.trim()}>Save</button>
-            </div>
-          )}
+          <div style={{ display: 'flex', gap: 6 }}>
+            {HIGHLIGHT_COLOURS.map(c => (
+              <button key={c} title="Highlight colour" onClick={() => setSelectedColour(c)}
+                style={{ width: 26, height: 26, borderRadius: '50%', background: c, cursor: 'pointer', padding: 0,
+                  border: selectedColour === c ? '3px solid #fff' : '2px solid rgba(255,255,255,0.4)' }} />
+            ))}
+          </div>
+          <input value={addingNoteText} onChange={e => setAddingNoteText(e.target.value)} placeholder="Add a note (optional)" style={{ width: '100%', maxWidth: 480, fontSize: 13 }} />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-sm btn-primary" onClick={saveMarker}>Save</button>
+            <button className="btn btn-sm" onClick={cancelMarkerRange}>Cancel</button>
+          </div>
         </div>
       )}
 
@@ -721,27 +719,26 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
           onClick={() => setEditingMarker(null)}>
           <div className="card" style={{ width: '100%', maxWidth: 380 }} onClick={e => e.stopPropagation()}>
             <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>
-              {editingMarker.marker_type === 'note' ? 'Edit note' : editingMarker.marker_type === 'photo' ? 'Photo marker' : 'Edit highlight'} — {fmt(editingMarker.start_seconds)}{editingMarker.marker_type !== 'photo' ? ` → ${fmt(editingMarker.end_seconds)}` : ''}
+              {editingMarker.marker_type === 'photo' ? 'Photo marker' : 'Edit marker'} — {fmt(editingMarker.start_seconds)}{editingMarker.marker_type !== 'photo' ? ` → ${fmt(editingMarker.end_seconds)}` : ''}
             </h3>
 
-            {editingMarker.marker_type === 'note' ? (
-              <>
-                <textarea value={editingMarkerNoteText} onChange={e => setEditingMarkerNoteText(e.target.value)} style={{ width: '100%', fontSize: 13, minHeight: 60, marginBottom: 10 }} />
-                <button className="btn btn-sm btn-primary" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }} onClick={() => updateMarkerNote(editingMarker)}>Save note</button>
-              </>
-            ) : editingMarker.marker_type === 'photo' ? (
+            {editingMarker.marker_type === 'photo' ? (
               <div style={{ marginBottom: 12 }}>
                 <img src={editingMarker.photo_data_url} alt="" style={{ width: '100%', borderRadius: 8, marginBottom: 8 }} />
                 <p style={{ fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center' }}>Freezes for {editingMarker.freeze_seconds || 5}s during playback</p>
               </div>
             ) : (
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 12 }}>
-                {HIGHLIGHT_COLOURS.map(c => (
-                  <button key={c} onClick={() => updateMarkerColour(editingMarker, c)}
-                    style={{ width: 30, height: 30, borderRadius: '50%', background: c, cursor: 'pointer', padding: 0,
-                      border: editingMarker.highlight_color === c ? '3px solid #fff' : '2px solid rgba(255,255,255,0.4)' }} />
-                ))}
-              </div>
+              <>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 12 }}>
+                  {HIGHLIGHT_COLOURS.map(c => (
+                    <button key={c} onClick={() => setEditingMarkerColour(c)}
+                      style={{ width: 30, height: 30, borderRadius: '50%', background: c, cursor: 'pointer', padding: 0,
+                        border: editingMarkerColour === c ? '3px solid #fff' : '2px solid rgba(255,255,255,0.4)' }} />
+                  ))}
+                </div>
+                <textarea value={editingMarkerNoteText} onChange={e => setEditingMarkerNoteText(e.target.value)} placeholder="Note (optional)" style={{ width: '100%', fontSize: 13, minHeight: 60, marginBottom: 10 }} />
+                <button className="btn btn-sm btn-primary" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }} onClick={() => saveMarkerEdits(editingMarker, editingMarkerColour)}>Save</button>
+              </>
             )}
 
             <div style={{ display: 'flex', gap: 8 }}>
