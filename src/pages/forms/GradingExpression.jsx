@@ -11,13 +11,22 @@ const PKA_GRADE_ORDERS = {
   'Adults (14+)': ['Red', 'Yellow', 'Orange', 'Green', 'Blue', 'Purple', 'Brown', 'Black'],
 }
 
-function ageBandFor(dob) {
-  if (!dob) return null
-  const age = Math.floor((Date.now() - new Date(dob)) / (365.25 * 24 * 60 * 60 * 1000))
-  if (age <= 5) return 'Tiny Tots (3-5 years)'
-  if (age <= 8) return 'Small Soldiers (6-8 years)'
-  if (age <= 13) return 'Junior Jedi (9-13 years)'
+// These entries exist in the classes table for admin/register purposes,
+// not as actual sessions a student attends -- filtered out of the dropdown.
+const EXCLUDED_CLASS_NAMES = ['PTs register', 'Leaders register', 'KR Sat 9.30', 'KR Sat 10']
+
+function ageBandForAge(age) {
+  if (age === '' || age == null || isNaN(age)) return null
+  const n = Number(age)
+  if (n <= 5) return 'Tiny Tots (3-5 years)'
+  if (n <= 8) return 'Small Soldiers (6-8 years)'
+  if (n <= 13) return 'Junior Jedi (9-13 years)'
   return 'Adults (14+)'
+}
+
+function ageFromDob(dob) {
+  if (!dob) return ''
+  return String(Math.floor((Date.now() - new Date(dob)) / (365.25 * 24 * 60 * 60 * 1000)))
 }
 
 export default function GradingExpression() {
@@ -30,13 +39,13 @@ export default function GradingExpression() {
 
   const [form, setForm] = useState({
     name: '',
-    dob: '',
+    age: '',
     current_belt: '',
     grading_for: '',
     session_class_id: '',
     contact_phone: '',
-    coach_name: '',
     student_notes: '',
+    uniform_confirmed: false,
   })
 
   function set(field) {
@@ -46,7 +55,7 @@ export default function GradingExpression() {
   useEffect(() => {
     supabase.from('classes').select('id, name, day_of_week, start_time').eq('active', true).eq('discipline', 'PKA')
       .order('day_of_week').order('start_time')
-      .then(({ data }) => setPkaClasses(data || []))
+      .then(({ data }) => setPkaClasses((data || []).filter(c => !EXCLUDED_CLASS_NAMES.includes(c.name?.trim()))))
   }, [])
 
   // Checked once the person finishes typing their name (on blur), not on
@@ -68,9 +77,10 @@ export default function GradingExpression() {
       setMatchedStudent(match)
       setForm(f => ({
         ...f,
-        dob: match.date_of_birth || f.dob,
+        age: ageFromDob(match.date_of_birth) || f.age,
         current_belt: match.pka_belt || f.current_belt,
         contact_phone: f.contact_phone || match.phone || '',
+        session_class_id: f.session_class_id || match.pka_class_id || '',
       }))
     } else {
       setMatchedStudent(null)
@@ -82,13 +92,13 @@ export default function GradingExpression() {
   // something else.
   useEffect(() => {
     if (!form.current_belt) return
-    const band = ageBandFor(form.dob)
+    const band = ageBandForAge(form.age)
     const order = PKA_GRADE_ORDERS[band] || []
     const idx = order.indexOf(form.current_belt)
     const next = idx >= 0 && idx < order.length - 1 ? order[idx + 1] : ''
     setForm(f => (f.grading_for === next ? f : { ...f, grading_for: next }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.current_belt, form.dob])
+  }, [form.current_belt, form.age])
 
   async function submit(e) {
     e.preventDefault()
@@ -102,11 +112,11 @@ export default function GradingExpression() {
         grading_for: form.grading_for,
         notes: JSON.stringify({
           name: form.name,
-          dob: form.dob,
+          age: form.age,
           contact_phone: form.contact_phone,
           session_class_id: form.session_class_id || null,
-          coach_name: form.coach_name,
           student_notes: form.student_notes,
+          uniform_confirmed: form.uniform_confirmed,
         }),
         coach_approved: false,
       })
@@ -118,7 +128,7 @@ export default function GradingExpression() {
     setSubmitting(false)
   }
 
-  const ageBand = ageBandFor(form.dob)
+  const ageBand = ageBandForAge(form.age)
   const currentBeltList = ageBand ? (PKA_GRADE_ORDERS[ageBand] || []) : []
   const currentIdx = currentBeltList.indexOf(form.current_belt)
   const nextBelts = currentIdx >= 0 ? currentBeltList.slice(currentIdx + 1) : currentBeltList
@@ -159,19 +169,19 @@ export default function GradingExpression() {
               )}
             </div>
 
-            <div className="field"><label>Date of birth <span className="required">*</span></label>
-              <input type="date" value={form.dob} onChange={set('dob')} required />
+            <div className="field"><label>Age <span className="required">*</span></label>
+              <input type="number" min="1" max="99" value={form.age} onChange={set('age')} placeholder="e.g. 9" required />
             </div>
 
             <div className="field-row">
               <div className="field"><label>Current grade</label>
-                <select value={form.current_belt} onChange={set('current_belt')} disabled={!form.dob}>
-                  <option value="">{form.dob ? 'Select…' : 'Enter date of birth first'}</option>
+                <select value={form.current_belt} onChange={set('current_belt')} disabled={!form.age}>
+                  <option value="">{form.age ? 'Select…' : 'Enter age first'}</option>
                   {currentBeltList.map(b => <option key={b}>{b}</option>)}
                 </select>
               </div>
               <div className="field"><label>Grading for <span className="required">*</span></label>
-                <select value={form.grading_for} onChange={set('grading_for')} required disabled={!form.dob}>
+                <select value={form.grading_for} onChange={set('grading_for')} required disabled={!form.age}>
                   <option value="">Select next grade…</option>
                   {nextBelts.map(b => <option key={b}>{b}</option>)}
                   {nextBelts.length === 0 && currentBeltList.map(b => <option key={b}>{b}</option>)}
@@ -200,20 +210,25 @@ export default function GradingExpression() {
             </div>
 
             <div className="field">
-              <label>Your coach's name</label>
-              <input value={form.coach_name} onChange={set('coach_name')} placeholder="e.g. MP, GD, LW…" />
-            </div>
-
-            <div className="field">
               <label>Any additional notes for your coach</label>
               <textarea rows={2} value={form.student_notes} onChange={set('student_notes')}
                 placeholder="Anything else you'd like your coach to know…" style={{ resize: 'none' }} />
             </div>
 
+            <div className="field" style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+              <input type="checkbox" id="uniform_confirmed" checked={form.uniform_confirmed}
+                onChange={e => setForm(f => ({ ...f, uniform_confirmed: e.target.checked }))}
+                required style={{ marginTop: 3 }} />
+              <label htmlFor="uniform_confirmed" style={{ fontSize: 13, fontWeight: 400 }}>
+                I understand that the official uniform (Trousers &amp; PKA T-shirt) must be worn to attend.<br />
+                <em>*Shorts &amp; leggings are NOT permitted.</em>
+              </label>
+            </div>
+
             {error && <p className="error-msg" style={{ marginBottom: 10 }}>{error}</p>}
 
             <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}
-              disabled={!form.name.trim() || !form.dob || !form.grading_for || submitting}>
+              disabled={!form.name.trim() || !form.age || !form.grading_for || !form.uniform_confirmed || submitting}>
               {submitting ? 'Submitting…' : 'Submit expression of interest'}
             </button>
           </div>
