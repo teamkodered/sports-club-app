@@ -813,8 +813,10 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
             </div>
           )}
 
-          <button className="btn btn-sm" style={{ position: 'absolute', bottom: 8, left: 8, zIndex: 2, ...GLASS_STYLE }} onClick={toggleFullscreen}>
-            {isFullscreen ? '⤢ Exit fullscreen' : '⛶ Fullscreen'}
+          <button title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+            style={{ position: 'absolute', top: 8, left: 8, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer', ...GLASS_STYLE }}
+            onClick={toggleFullscreen}>
+            {isFullscreen ? '⤢' : '⛶'}
           </button>
         </div>
 
@@ -856,9 +858,12 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
 
       {/* Top bar -- floats over the video too now, doesn't take its
           own layout space. */}
-      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 12, zIndex: 2 }}>
-        <span style={{ color: '#fff', fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
-        <button className="btn btn-sm" style={GLASS_STYLE} onClick={onClose}>✕ Close</button>
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: 12, zIndex: 2 }}>
+        <span style={{
+          position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', maxWidth: '70%',
+          color: '#fff', fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>{title}</span>
+        <button className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, ...GLASS_STYLE }} onClick={onClose}>✕ Close</button>
       </div>
 
       {/* Bottom bar -- also floats over the video (absolute, not a
