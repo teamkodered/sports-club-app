@@ -572,6 +572,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', alignItems: 'center', marginTop: 8 }}>
           <button className="btn btn-sm" onClick={() => step(-5)}>⏪ 5s</button>
           <button className="btn btn-sm" onClick={() => step(-FRAME_SECONDS)}>⏮ Frame</button>
+          <button className="btn btn-primary" style={{ minWidth: 56, justifyContent: 'center' }} onClick={togglePlay}>{playing ? '⏸' : '▶️'}</button>
           <button className="btn btn-sm" onClick={() => step(FRAME_SECONDS)}>Frame ⏭</button>
           <button className="btn btn-sm" onClick={() => step(5)}>5s ⏩</button>
         </div>
