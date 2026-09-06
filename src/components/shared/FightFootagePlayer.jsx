@@ -11,6 +11,7 @@ const HOLD_THRESHOLD_MS = 220 // how long a press must last before it counts as 
 const SLOW_MO_SPEED = 0.25
 const CONTROLS_AUTOHIDE_MS = 3000
 const HIGHLIGHT_COLOURS = ['#E24B4A', '#EF9F27', '#1D9E75', '#378ADD', '#8B5CF6']
+const ZOOM_LEVELS = [1, 2, 4, 8]
 
 export default function FightFootagePlayer({ videoUrl, title, footageId, storagePath, isCoach = false, onClose }) {
   const videoRef = useRef(null)
@@ -27,6 +28,13 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   const [controlsVisible, setControlsVisible] = useState(true)
   const autoHideTimerRef = useRef(null)
   const scrubbingRef = useRef(false)
+
+  // Timeline zoom -- lets scrubbing be more precise on longer videos.
+  // The visible window re-centres on the current playback position as
+  // it plays, but freezes while actively dragging the scrubber so the
+  // timeline doesn't shift under your finger mid-drag.
+  const [zoomLevel, setZoomLevel] = useState(1)
+  const [zoomWindowStart, setZoomWindowStart] = useState(0)
 
   // Hold-to-slow-mo + save-clip
   const holdTimerRef = useRef(null)
@@ -230,6 +238,16 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
     scrubbingRef.current = false
     scheduleAutoHide()
   }
+
+  // Keeps the zoomed timeline window centred on the current playback
+  // position as it plays, but leaves it alone while actively
+  // scrubbing so the window doesn't shift under your finger mid-drag.
+  useEffect(() => {
+    if (zoomLevel === 1 || scrubbingRef.current || duration === 0) { setZoomWindowStart(0); return }
+    const windowDuration = duration / zoomLevel
+    setZoomWindowStart(Math.max(0, Math.min(currentTime - windowDuration / 2, duration - windowDuration)))
+  }, [currentTime, zoomLevel, duration])
+
 
   // --- Hold-to-slow-mo -------------------------------------------------
   // Shared by both the video itself and the play/pause buttons -- a
@@ -583,58 +601,84 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
           as the original layout: scrubber with marker overlay,
           frame/5s stepping, add marker/photo, saved clips. */}
       <div style={{ flexShrink: 0, padding: '10px 12px 16px', background: 'rgba(0,0,0,0.6)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
           <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, minWidth: 36 }}>{fmt(currentTime)}</span>
-          <div style={{ position: 'relative', flex: 1 }}>
-            <input
-              type="range"
-              min={0}
-              max={duration || 0}
-              step={0.01}
-              value={currentTime}
-              onChange={e => seekTo(parseFloat(e.target.value))}
-              onPointerDown={handleScrubStart}
-              onPointerUp={handleScrubEnd}
-              style={{ width: '100%' }}
-            />
-            {duration > 0 && markers.map(m => (
-              m.marker_type === 'photo' ? (
-                <div key={m.id} title="Photo marker — hold to edit"
-                  onPointerDown={e => { e.stopPropagation(); handleMarkerPointerDown(e, m) }}
-                  onPointerMove={e => handleMarkerPointerMove(e, m)}
-                  onPointerUp={e => { e.stopPropagation(); handleMarkerPointerUp(m) }}
-                  onPointerLeave={() => clearTimeout(markerHoldTimerRef.current)}
-                  style={{
-                    position: 'absolute', top: -6, left: `${(m.start_seconds / duration) * 100}%`, transform: 'translateX(-50%)',
-                    width: 16, height: 16, borderRadius: 3, cursor: 'pointer', border: '1px solid #fff',
-                    backgroundImage: `url(${m.photo_data_url})`, backgroundSize: 'cover', backgroundPosition: 'center',
-                  }} />
-              ) : (
-                // Outer div is a much bigger touch target than the thin
-                // visible bar (which is just the inner child) -- a
-                // finger press on a 4px-tall bar was unreliable and
-                // often fell through to the scrubber underneath instead,
-                // triggering a seek rather than the intended hold.
-                // stopPropagation on top of that stops the press from
-                // also reaching the range input at all.
-                <div key={m.id}
-                  title={m.note_text || 'Highlight — hold to edit'}
-                  onPointerDown={e => { e.stopPropagation(); handleMarkerPointerDown(e, m) }}
-                  onPointerMove={e => handleMarkerPointerMove(e, m)}
-                  onPointerUp={e => { e.stopPropagation(); handleMarkerPointerUp(m) }}
-                  onPointerLeave={() => clearTimeout(markerHoldTimerRef.current)}
-                  style={{
-                    position: 'absolute', top: -6, height: 16, cursor: 'pointer',
-                    left: `${(m.start_seconds / duration) * 100}%`,
-                    width: `${Math.max(2, ((m.end_seconds - m.start_seconds) / duration) * 100)}%`,
-                    display: 'flex', alignItems: 'center',
-                  }}>
-                  <div style={{ width: '100%', height: 4, borderRadius: 2, background: m.marker_type === 'highlight' ? (m.highlight_color || '#EF9F27') : '#378ADD' }} />
-                </div>
-              )
-            ))}
+          <div style={{ flex: 1 }}>
+            {/* Marker row -- its own space above the scrubber, thicker
+                bars, with a visible gap between this and the track. */}
+            <div style={{ position: 'relative', height: 18, marginBottom: 6 }}>
+              {(() => {
+                const windowDuration = zoomLevel === 1 ? duration : duration / zoomLevel
+                const windowEnd = zoomWindowStart + windowDuration
+                return duration > 0 && markers.map(m => {
+                  if (m.end_seconds < zoomWindowStart || m.start_seconds > windowEnd) return null // outside the zoomed-in view
+                  const leftPct = ((m.start_seconds - zoomWindowStart) / windowDuration) * 100
+                  return m.marker_type === 'photo' ? (
+                    <div key={m.id} title="Photo marker — hold to edit"
+                      onPointerDown={e => { e.stopPropagation(); handleMarkerPointerDown(e, m) }}
+                      onPointerMove={e => handleMarkerPointerMove(e, m)}
+                      onPointerUp={e => { e.stopPropagation(); handleMarkerPointerUp(m) }}
+                      onPointerLeave={() => clearTimeout(markerHoldTimerRef.current)}
+                      style={{
+                        position: 'absolute', top: 0, left: `${leftPct}%`, transform: 'translateX(-50%)',
+                        width: 18, height: 18, borderRadius: 3, cursor: 'pointer', border: '1px solid #fff',
+                        backgroundImage: `url(${m.photo_data_url})`, backgroundSize: 'cover', backgroundPosition: 'center',
+                      }} />
+                  ) : (
+                    // Outer div is a much bigger touch target than the
+                    // visible bar itself -- a finger press on a thin bar
+                    // was unreliable and often fell through to the
+                    // scrubber underneath, triggering a seek instead of
+                    // the intended hold. stopPropagation on top of that
+                    // stops the press from also reaching the range input.
+                    <div key={m.id}
+                      title={m.note_text || 'Highlight — hold to edit'}
+                      onPointerDown={e => { e.stopPropagation(); handleMarkerPointerDown(e, m) }}
+                      onPointerMove={e => handleMarkerPointerMove(e, m)}
+                      onPointerUp={e => { e.stopPropagation(); handleMarkerPointerUp(m) }}
+                      onPointerLeave={() => clearTimeout(markerHoldTimerRef.current)}
+                      style={{
+                        position: 'absolute', top: 0, height: 18, cursor: 'pointer',
+                        left: `${leftPct}%`,
+                        width: `${Math.max(2, ((m.end_seconds - m.start_seconds) / windowDuration) * 100)}%`,
+                        display: 'flex', alignItems: 'center',
+                      }}>
+                      <div style={{ width: '100%', height: 9, borderRadius: 4, background: m.marker_type === 'highlight' ? (m.highlight_color || '#EF9F27') : '#378ADD' }} />
+                    </div>
+                  )
+                })
+              })()}
+            </div>
+
+            {/* Scrub track, with a playhead line for a clearer "you are
+                here" than the native range thumb alone gives. */}
+            <div style={{ position: 'relative' }}>
+              <input
+                type="range"
+                min={zoomWindowStart}
+                max={zoomLevel === 1 ? (duration || 0) : zoomWindowStart + duration / zoomLevel}
+                step={0.01}
+                value={currentTime}
+                onChange={e => seekTo(parseFloat(e.target.value))}
+                onPointerDown={handleScrubStart}
+                onPointerUp={handleScrubEnd}
+                style={{ width: '100%' }}
+              />
+              {duration > 0 && (() => {
+                const windowDuration = zoomLevel === 1 ? duration : duration / zoomLevel
+                const pct = ((currentTime - zoomWindowStart) / windowDuration) * 100
+                if (pct < 0 || pct > 100) return null
+                return <div style={{ position: 'absolute', top: 2, bottom: 2, left: `${pct}%`, width: 2, background: '#fff', pointerEvents: 'none', transform: 'translateX(-1px)' }} />
+              })()}
+            </div>
           </div>
           <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, minWidth: 36 }}>{fmt(duration)}</span>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 6 }}>
+          <button className="btn btn-sm" disabled={zoomLevel === ZOOM_LEVELS[0]} onClick={() => setZoomLevel(z => ZOOM_LEVELS[Math.max(0, ZOOM_LEVELS.indexOf(z) - 1)])}>🔍− Zoom out</button>
+          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', alignSelf: 'center' }}>{zoomLevel}x</span>
+          <button className="btn btn-sm" disabled={zoomLevel === ZOOM_LEVELS[ZOOM_LEVELS.length - 1]} onClick={() => setZoomLevel(z => ZOOM_LEVELS[Math.min(ZOOM_LEVELS.length - 1, ZOOM_LEVELS.indexOf(z) + 1)])}>🔍+ Zoom in</button>
         </div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', alignItems: 'center', marginTop: 8 }}>
