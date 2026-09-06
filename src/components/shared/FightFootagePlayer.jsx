@@ -235,32 +235,50 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   }
 
   // --- Hold-to-slow-mo -------------------------------------------------
-  // A quick tap toggles the controls overlay (rather than play/pause
-  // directly -- play/pause now lives inside that overlay, matching how
-  // most video apps handle tap-to-reveal). A press held past
-  // HOLD_THRESHOLD_MS switches into slow motion for as long as it's
-  // held, and releasing offers to save that stretch as its own clip --
-  // similar to how Samsung's camera/gallery app works.
+  // Shared by both the video itself and the play/pause buttons -- a
+  // press held past HOLD_THRESHOLD_MS switches into slow motion for as
+  // long as it's held, and releasing offers to save that stretch as
+  // its own clip, similar to how Samsung's camera/gallery app works.
+  function engageHoldSlowMo() {
+    const v = videoRef.current
+    if (!v) return
+    isHoldingRef.current = true
+    setIsHolding(true)
+    clearTimeout(autoHideTimerRef.current) // don't let a stale timer pop controls back up mid-hold
+    setControlsVisible(false) // hide the middle overlay so it doesn't block the view during slow-mo
+    preHoldSpeedRef.current = speed
+    holdStartRef.current = v.currentTime
+    v.playbackRate = SLOW_MO_SPEED
+    if (v.paused) v.play()
+  }
+
+  function releaseHoldSlowMo() {
+    const v = videoRef.current
+    isHoldingRef.current = false
+    setIsHolding(false)
+    if (v) v.playbackRate = preHoldSpeedRef.current
+    setSpeed(preHoldSpeedRef.current)
+    const end = v?.currentTime || 0
+    const start = holdStartRef.current
+    if (isCoach && end - start >= 0.4) {
+      setPendingClip({ start: Math.min(start, end), end: Math.max(start, end) })
+      if (v) v.pause()
+      showControls()
+    } else {
+      scheduleAutoHide() // resume the normal countdown now that the hold has ended
+    }
+  }
+
+  // Video gestures: tap toggles controls / double-tap skips / hold
+  // slows down (see engage/releaseHoldSlowMo above).
   function handlePointerDown() {
     if (!footageId) return
     clearTimeout(holdTimerRef.current)
-    holdTimerRef.current = setTimeout(() => {
-      const v = videoRef.current
-      if (!v) return
-      isHoldingRef.current = true
-      setIsHolding(true)
-      clearTimeout(autoHideTimerRef.current) // don't let a stale timer pop controls back up mid-hold
-      setControlsVisible(false) // hide the middle overlay so it doesn't block the view during slow-mo
-      preHoldSpeedRef.current = speed
-      holdStartRef.current = v.currentTime
-      v.playbackRate = SLOW_MO_SPEED
-      if (v.paused) v.play()
-    }, HOLD_THRESHOLD_MS)
+    holdTimerRef.current = setTimeout(engageHoldSlowMo, HOLD_THRESHOLD_MS)
   }
 
   function handlePointerUp(e) {
     clearTimeout(holdTimerRef.current)
-    const v = videoRef.current
     if (!isHoldingRef.current) {
       // Was just a quick release -- could be a single tap (toggle
       // controls) or the second half of a double-tap (skip). Wait a
@@ -287,19 +305,25 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
       }
       return
     }
-    isHoldingRef.current = false
-    setIsHolding(false)
-    if (v) v.playbackRate = preHoldSpeedRef.current
-    setSpeed(preHoldSpeedRef.current)
-    const end = v?.currentTime || 0
-    const start = holdStartRef.current
-    if (isCoach && end - start >= 0.4) {
-      setPendingClip({ start: Math.min(start, end), end: Math.max(start, end) })
-      if (v) v.pause()
-      showControls()
-    } else {
-      scheduleAutoHide() // resume the normal countdown now that the hold has ended
+    releaseHoldSlowMo()
+  }
+
+  // Play/pause button gestures: a quick press toggles play/pause as
+  // normal; holding it does the same slow-mo effect as holding the
+  // video itself.
+  function handlePlayButtonPointerDown() {
+    if (!footageId) return
+    clearTimeout(holdTimerRef.current)
+    holdTimerRef.current = setTimeout(engageHoldSlowMo, HOLD_THRESHOLD_MS)
+  }
+
+  function handlePlayButtonPointerUp() {
+    clearTimeout(holdTimerRef.current)
+    if (!isHoldingRef.current) {
+      togglePlay()
+      return
     }
+    releaseHoldSlowMo()
   }
 
   // If a save-clip prompt just sits there ignored (coach moved on to
@@ -518,7 +542,9 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
         {controlsVisible && (
           <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, transform: 'translateY(-50%)', padding: '16px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}
             onClick={e => e.stopPropagation()}>
-            <button className="btn btn-primary" style={{ minWidth: 72, height: 72, borderRadius: '50%', justifyContent: 'center', fontSize: 26 }} onClick={togglePlay}>{playing ? '⏸' : '▶️'}</button>
+            <button className="btn btn-primary" style={{ minWidth: 72, height: 72, borderRadius: '50%', justifyContent: 'center', fontSize: 26 }}
+              onPointerDown={handlePlayButtonPointerDown} onPointerUp={handlePlayButtonPointerUp}
+              onPointerLeave={() => { if (isHoldingRef.current) handlePlayButtonPointerUp() }}>{playing ? '⏸' : '▶️'}</button>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
               {SPEEDS.map(s => (
                 <button key={s} onClick={() => setPlaybackSpeed(s)}
@@ -602,7 +628,9 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', alignItems: 'center', marginTop: 8 }}>
           <button className="btn btn-sm" onClick={() => step(-5)}>⏪ 5s</button>
           <button className="btn btn-sm" onClick={() => step(-FRAME_SECONDS)}>⏮ Frame</button>
-          <button className="btn btn-primary" style={{ minWidth: 56, justifyContent: 'center' }} onClick={togglePlay}>{playing ? '⏸' : '▶️'}</button>
+          <button className="btn btn-primary" style={{ minWidth: 56, justifyContent: 'center' }}
+            onPointerDown={handlePlayButtonPointerDown} onPointerUp={handlePlayButtonPointerUp}
+            onPointerLeave={() => { if (isHoldingRef.current) handlePlayButtonPointerUp() }}>{playing ? '⏸' : '▶️'}</button>
           <button className="btn btn-sm" onClick={() => step(FRAME_SECONDS)}>Frame ⏭</button>
           <button className="btn btn-sm" onClick={() => step(5)}>5s ⏩</button>
         </div>
