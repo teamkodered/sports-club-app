@@ -39,6 +39,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   // few seconds of no interaction. Never hides while actively
   // scrubbing, so dragging the timeline always stays responsive.
   const [controlsVisible, setControlsVisible] = useState(true)
+  const controlsVisibleRef = useRef(true) // mirrors the state above so the delayed single-tap check below always reads the live value, not a stale one captured when the timer was set up
   const autoHideTimerRef = useRef(null)
   const scrubbingRef = useRef(false)
   const markerRowRef = useRef(null)
@@ -98,6 +99,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   const [skipFlash, setSkipFlash] = useState(null) // 'back' | 'forward' | null, brief visual confirmation
 
   useEffect(() => { markersRef.current = markers }, [markers])
+  useEffect(() => { controlsVisibleRef.current = controlsVisible }, [controlsVisible])
   useEffect(() => { frozenPhotoRef.current = frozenPhoto }, [frozenPhoto])
 
   useEffect(() => {
@@ -392,11 +394,17 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   // A swipe (finger genuinely moving, not just resting) shouldn't
   // trigger slow-mo just because it happened to last longer than the
   // hold threshold -- cancels the pending hold the moment the pointer
-  // moves more than a few pixels from where it first went down.
+  // moves more than a few pixels from where it first went down. Also
+  // covers the case where the finger held still long enough for
+  // slow-mo to already engage, and *then* started moving/dragging --
+  // that's dragging, not holding, so it exits slow-mo immediately too
+  // rather than staying stuck in it for the rest of the gesture.
   function handleVideoPointerMove(e) {
     const dx = e.clientX - holdStartPosRef.current.x
     const dy = e.clientY - holdStartPosRef.current.y
-    if (Math.sqrt(dx * dx + dy * dy) > MOVE_CANCEL_THRESHOLD) clearTimeout(holdTimerRef.current)
+    if (Math.sqrt(dx * dx + dy * dy) <= MOVE_CANCEL_THRESHOLD) return
+    clearTimeout(holdTimerRef.current)
+    if (isHoldingRef.current) releaseHoldSlowMo()
   }
 
   function handlePointerUp(e) {
@@ -421,7 +429,10 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
           // Tapping the screen only ever reveals/hides the controls --
           // play/pause happens exclusively via pressing the actual
           // button, never from a generic tap anywhere on the video.
-          if (controlsVisible) { clearTimeout(autoHideTimerRef.current); setControlsVisible(false) }
+          // Reads the ref (not the closed-over state) so this always
+          // acts on the live value even if something changed it during
+          // the 300ms disambiguation wait.
+          if (controlsVisibleRef.current) { clearTimeout(autoHideTimerRef.current); setControlsVisible(false) }
           else showControls()
         }, 300)
       }
@@ -444,7 +455,9 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   function handlePlayButtonPointerMove(e) {
     const dx = e.clientX - holdStartPosRef.current.x
     const dy = e.clientY - holdStartPosRef.current.y
-    if (Math.sqrt(dx * dx + dy * dy) > MOVE_CANCEL_THRESHOLD) clearTimeout(holdTimerRef.current)
+    if (Math.sqrt(dx * dx + dy * dy) <= MOVE_CANCEL_THRESHOLD) return
+    clearTimeout(holdTimerRef.current)
+    if (isHoldingRef.current) releaseHoldSlowMo()
   }
 
   function handlePlayButtonPointerUp() {
