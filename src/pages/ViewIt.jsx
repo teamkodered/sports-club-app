@@ -14,6 +14,7 @@ export default function ViewIt() {
   const [uploadProgress, setUploadProgress] = useState(0)
   const [playingUrl, setPlayingUrl] = useState(null)
   const [playingTitle, setPlayingTitle] = useState('')
+  const [playingItem, setPlayingItem] = useState(null)
 
   useEffect(() => { load() }, [])
 
@@ -97,6 +98,7 @@ export default function ViewIt() {
     if (data.error) { alert('Could not open this video: ' + data.error); return }
     setPlayingUrl(data.url)
     setPlayingTitle(item.title)
+    setPlayingItem(item)
   }
 
   async function deleteFootage(item) {
@@ -193,7 +195,8 @@ export default function ViewIt() {
       )}
 
       {playingUrl && (
-        <FightFootagePlayer videoUrl={playingUrl} title={playingTitle} onClose={() => { setPlayingUrl(null); setPlayingTitle('') }} />
+        <FightFootagePlayer videoUrl={playingUrl} title={playingTitle} footageId={playingItem?.id} storagePath={playingItem?.storage_path} isCoach
+          onClose={() => { setPlayingUrl(null); setPlayingTitle(''); setPlayingItem(null) }} />
       )}
     </div>
   )

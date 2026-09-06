@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
     const { data: userData, error: authError } = await callerClient.auth.getUser()
     if (authError || !userData?.user) return new Response(JSON.stringify({ error: 'Not authenticated' }), { status: 401, headers: corsHeaders })
 
-    const { mode, footage_id, file_name } = await req.json()
+    const { mode, footage_id, file_name, clip_id } = await req.json()
 
     if (mode === 'upload') {
       const { data: caller } = await supabase.from('members').select('role').eq('auth_id', userData.user.id).single()
@@ -62,6 +62,21 @@ Deno.serve(async (req) => {
       const objectUrl = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${R2_BUCKET}/${storagePath}`
       const signed = await r2.sign(objectUrl, { method: 'PUT', aws: { signQuery: true } })
       return new Response(JSON.stringify({ upload_url: signed.url.toString(), storage_path: storagePath }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
+    if (mode === 'read_clip') {
+      if (!clip_id) return new Response(JSON.stringify({ error: 'clip_id is required' }), { status: 400, headers: corsHeaders })
+      // RLS on fight_footage_clips means this only returns a row if
+      // the caller can actually see the source footage it belongs to.
+      const { data: clip } = await callerClient.from('fight_footage_clips').select('storage_path, status').eq('id', clip_id).single()
+      if (!clip) return new Response(JSON.stringify({ error: 'Clip not found or not accessible' }), { status: 404, headers: corsHeaders })
+      if (clip.status !== 'ready') return new Response(JSON.stringify({ error: `Clip is still ${clip.status}` }), { status: 409, headers: corsHeaders })
+
+      const objectUrl = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${R2_BUCKET}/${clip.storage_path}`
+      const expiresIn = 3600
+      const urlToSign = `${objectUrl}?X-Amz-Expires=${expiresIn}&response-content-type=video%2Fmp4&response-content-disposition=inline`
+      const signed = await r2.sign(urlToSign, { aws: { signQuery: true } })
+      return new Response(JSON.stringify({ url: signed.url.toString() }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     if (mode === 'read') {

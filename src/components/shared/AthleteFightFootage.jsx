@@ -12,6 +12,7 @@ export default function AthleteFightFootage({ studentId }) {
   const [loaded, setLoaded] = useState(false)
   const [playingUrl, setPlayingUrl] = useState(null)
   const [playingTitle, setPlayingTitle] = useState('')
+  const [playingItem, setPlayingItem] = useState(null)
 
   useEffect(() => {
     if (!studentId) return
@@ -33,6 +34,7 @@ export default function AthleteFightFootage({ studentId }) {
     if (data.error) { alert("Couldn't open this video: " + data.error); return }
     setPlayingUrl(data.url)
     setPlayingTitle(item.title)
+    setPlayingItem(item)
   }
 
   if (!loaded || footage.length === 0) return null
@@ -53,7 +55,8 @@ export default function AthleteFightFootage({ studentId }) {
       </div>
 
       {playingUrl && (
-        <FightFootagePlayer videoUrl={playingUrl} title={playingTitle} onClose={() => { setPlayingUrl(null); setPlayingTitle('') }} />
+        <FightFootagePlayer videoUrl={playingUrl} title={playingTitle} footageId={playingItem?.id} storagePath={playingItem?.storage_path}
+          onClose={() => { setPlayingUrl(null); setPlayingTitle(''); setPlayingItem(null) }} />
       )}
     </div>
   )
