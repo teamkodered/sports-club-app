@@ -67,7 +67,8 @@ export default function GradingExpression() {
     // privileges internally but only ever returns the one specific
     // match, never the whole table, same pattern as the join forms'
     // lookup_member_by_email.
-    const { data } = await supabase.rpc('lookup_student_by_name', { typed_name: typed, typed_age: age })
+    const { data, error: rpcError } = await supabase.rpc('lookup_student_by_name', { typed_name: typed, typed_age: age })
+    if (rpcError) console.error('lookup_student_by_name failed:', rpcError.message) // surfaced in the browser console -- an RPC error currently looks identical to "no match" otherwise
     const match = data?.[0] || null
     setCheckingMatch(false)
     if (match) {
