@@ -1139,7 +1139,25 @@ export default function CRM() {
   // Adds (or updates) this sender as an Enquiries entry marked
   // "Contacted" -- a manual equivalent to the automatic add-on-inbox-
   // load, for explicitly logging that this exact email was dealt with.
-  async function markContactedForMessage(msg) {
+  async function moveEmailToFolder(uid, targetFolder) {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData?.session?.access_token
+      const res = await fetch('/.netlify/functions/move-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ uid, targetFolder }),
+      })
+      const result = await res.json()
+      if (!res.ok || result.error) throw new Error(result.error || res.statusText)
+      return true
+    } catch (err) {
+      alert(`Added to Enquiries, but couldn't move the email to ${targetFolder}: ` + err.message)
+      return false
+    }
+  }
+
+  async function markContactedForMessage(msg, silent = false) {
     if (!msg?.from) return
     const { data: existing } = await supabase.from('enquiries').select('id').ilike('contact_email', msg.from).maybeSingle()
     if (existing) {
@@ -1155,11 +1173,22 @@ export default function CRM() {
       })
     }
     if (enquiriesLoaded) loadEnquiries()
+    if (msg.uid) {
+      const moved = await moveEmailToFolder(msg.uid, 'Contacted')
+      if (moved && !silent) alert('Added to Enquiries, marked as Contacted, and moved to the Contacted folder.')
+    } else if (!silent) {
+      alert('Added to Enquiries, marked as Contacted.')
+    }
   }
 
   async function markMessageContacted() {
     await markContactedForMessage(openMessage)
-    alert('Added to Enquiries, marked as Contacted')
+  }
+
+  async function moveMessageToNotes(msg) {
+    if (!msg?.uid) return
+    const moved = await moveEmailToFolder(msg.uid, 'Notes')
+    if (moved) alert('Moved to the Notes folder.')
   }
 
   // Delete with an undo window instead of a blocking confirm() --
@@ -4228,6 +4257,7 @@ export default function CRM() {
                   <div key={m.uid} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 16px', minHeight: 64, borderTop: '1px solid var(--border)' }}>
                     <div style={{ display: 'flex', gap: 6, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
                       <button className="btn btn-sm" title="Mark contacted → Enquiries" onClick={() => markContactedForMessage(m)}>✓</button>
+                      <button className="btn btn-sm" title="Move to Notes folder" onClick={() => moveMessageToNotes(m)}>📝</button>
                       <button className="btn btn-sm" style={{ color: '#E24B4A' }} title="Delete" onClick={() => deleteEmailWithUndo(m)}>🗑️</button>
                     </div>
                     <div onClick={() => openInboxMessage(m.uid)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, cursor: 'pointer' }}>
@@ -4302,6 +4332,7 @@ export default function CRM() {
                           {phone && <a className="btn btn-sm" href={`tel:${phone}`}>📞 Call {phone}</a>}
                           {phone && isMobile && <a className="btn btn-sm" href={`sms:${phone}`}>💬 Text {phone}</a>}
                           <button className="btn btn-sm" onClick={markMessageContacted}>✓ Mark contacted → Enquiries</button>
+                          <button className="btn btn-sm" onClick={() => moveMessageToNotes(openMessage)}>📝 Move to Notes</button>
                           <button className="btn btn-sm" style={{ color: '#E24B4A' }} onClick={deleteOpenMessage}>🗑️ Delete</button>
                         </div>
                       )
