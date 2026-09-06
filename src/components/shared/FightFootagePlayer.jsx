@@ -377,6 +377,13 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   // slows down (see engage/releaseHoldSlowMo above).
   function handlePointerDown(e) {
     if (!footageId) return
+    // Pointer capture keeps move/up events targeting this element for
+    // the whole gesture, regardless of where the finger physically
+    // travels -- without it, a swipe that drifts outside the video's
+    // own (possibly letterboxed, smaller-than-screen) bounds stops
+    // generating move events here entirely, so the movement-cancel
+    // check below never gets the chance to actually cancel the hold.
+    e.target.setPointerCapture?.(e.pointerId)
     holdStartPosRef.current = { x: e.clientX, y: e.clientY }
     clearTimeout(holdTimerRef.current)
     holdTimerRef.current = setTimeout(engageHoldSlowMo, HOLD_THRESHOLD_MS)
@@ -426,10 +433,18 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   // Play/pause button gestures: a quick press toggles play/pause as
   // normal; holding it does the same slow-mo effect as holding the
   // video itself.
-  function handlePlayButtonPointerDown() {
+  function handlePlayButtonPointerDown(e) {
     if (!footageId) return
+    e.target.setPointerCapture?.(e.pointerId)
+    holdStartPosRef.current = { x: e.clientX, y: e.clientY }
     clearTimeout(holdTimerRef.current)
     holdTimerRef.current = setTimeout(engageHoldSlowMo, HOLD_THRESHOLD_MS)
+  }
+
+  function handlePlayButtonPointerMove(e) {
+    const dx = e.clientX - holdStartPosRef.current.x
+    const dy = e.clientY - holdStartPosRef.current.y
+    if (Math.sqrt(dx * dx + dy * dy) > MOVE_CANCEL_THRESHOLD) clearTimeout(holdTimerRef.current)
   }
 
   function handlePlayButtonPointerUp() {
@@ -687,7 +702,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
           <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, transform: 'translateY(-50%)', padding: '16px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}
             onClick={e => e.stopPropagation()}>
             <button style={{ minWidth: 72, height: 72, borderRadius: '50%', justifyContent: 'center', fontSize: 26, cursor: 'pointer', color: '#fff', ...GLASS_STYLE }}
-              onPointerDown={handlePlayButtonPointerDown} onPointerUp={handlePlayButtonPointerUp}
+              onPointerDown={handlePlayButtonPointerDown} onPointerMove={handlePlayButtonPointerMove} onPointerUp={handlePlayButtonPointerUp}
               onPointerLeave={() => { if (isHoldingRef.current) handlePlayButtonPointerUp() }}>{playing ? '⏸' : '▶️'}</button>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
               {SPEEDS.map(s => (
@@ -833,7 +848,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
           <button className="btn btn-sm" style={GLASS_STYLE} onClick={() => step(-5)}>⏪ 5s</button>
           <button className="btn btn-sm" style={GLASS_STYLE} onClick={() => step(-FRAME_SECONDS)}>⏮ Frame</button>
           <button className="btn btn-primary" style={{ minWidth: 56, justifyContent: 'center' }}
-            onPointerDown={handlePlayButtonPointerDown} onPointerUp={handlePlayButtonPointerUp}
+            onPointerDown={handlePlayButtonPointerDown} onPointerMove={handlePlayButtonPointerMove} onPointerUp={handlePlayButtonPointerUp}
             onPointerLeave={() => { if (isHoldingRef.current) handlePlayButtonPointerUp() }}>{playing ? '⏸' : '▶️'}</button>
           <button className="btn btn-sm" style={GLASS_STYLE} onClick={() => step(FRAME_SECONDS)}>Frame ⏭</button>
           <button className="btn btn-sm" style={GLASS_STYLE} onClick={() => step(5)}>5s ⏩</button>
