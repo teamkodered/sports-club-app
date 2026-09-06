@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { supabase } from '../lib/supabase.js'
 
@@ -216,6 +217,7 @@ function ShareModal({ form, onClose }) {
 
 export default function Forms() {
   const { isAdmin } = useAuth()
+  const navigate = useNavigate()
   const [shareForm, setShareForm] = useState(null)
   const [selectedForm, setSelectedForm] = useState(null)
   const [responses, setResponses] = useState([])
@@ -453,7 +455,8 @@ export default function Forms() {
                       if (aVal > bVal) return sortDir === 'asc' ? 1 : -1
                       return 0
                     }).map((r, i) => (
-                      <tr key={i} style={{ cursor: 'pointer' }} onClick={() => setViewResponse(r)}>
+                      <tr key={i} style={{ cursor: 'pointer' }}
+                        onClick={() => selectedForm.key === 'grading' ? navigate('/crm', { state: { initialTab: 'grading_requests' } }) : setViewResponse(r)}>
                         <td style={{ fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                           {r.submitted_at ? new Date(r.submitted_at).toLocaleDateString('en-GB') : '—'}
                         </td>
@@ -473,7 +476,8 @@ export default function Forms() {
                           </select>
                         </td>
                         <td>
-                          <button className="btn btn-sm" onClick={e => { e.stopPropagation(); setViewResponse(r) }}>
+                          <button className="btn btn-sm"
+                            onClick={e => { e.stopPropagation(); selectedForm.key === 'grading' ? navigate('/crm', { state: { initialTab: 'grading_requests' } }) : setViewResponse(r) }}>
                             View →
                           </button>
                         </td>

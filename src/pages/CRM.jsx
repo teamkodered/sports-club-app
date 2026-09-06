@@ -1,4 +1,5 @@
 import { useState, useEffect, Fragment, useRef } from 'react'
+import { useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useBackableTab } from '../hooks/useBackableTab.js'
@@ -319,7 +320,21 @@ function NoticeTargetedSend({ notice, students, sendRealEmail, studentFullName }
 
 export default function CRM() {
   const { isAdmin } = useAuth()
+  const location = useLocation()
   const [tab, setTab] = useBackableTab('standing_orders')
+
+  // Deep-link support -- Forms.jsx sends people here with a specific
+  // tab pre-selected (e.g. "View" on a Grading Expression response
+  // jumps straight to the richer admin view here instead of a generic
+  // response modal). Only acts once on arrival, not on every render.
+  useEffect(() => {
+    const initialTab = location.state?.initialTab
+    if (!initialTab) return
+    setTab(initialTab)
+    if (initialTab === 'grading_requests') loadGradingRequests()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const [students, setStudents] = useState([])
   const [payerLinks, setPayerLinks] = useState([])
   const [payments, setPayments] = useState([]) // parsed from the uploaded file: [{ name, amount, raw }]
@@ -810,6 +825,13 @@ export default function CRM() {
     setApprovingGradingId(null)
     if (error) { alert('Error approving: ' + error.message); return }
     setGradingRequests(prev => prev.map(r => r.id === id ? { ...r, coach_approved: true } : r))
+  }
+
+  async function deleteGradingRequest(id) {
+    if (!confirm('Delete this grading request? This cannot be undone.')) return
+    const { error } = await supabase.from('grading_expressions').delete().eq('id', id)
+    if (error) { alert('Error deleting: ' + error.message); return }
+    setGradingRequests(prev => prev.filter(r => r.id !== id))
   }
 
   async function loadCourseInterest(courseId) {
@@ -3520,26 +3542,44 @@ export default function CRM() {
                 const m = r.students?.members
                 let extra = {}
                 try { extra = JSON.parse(r.notes || '{}') } catch { /* ignore malformed notes */ }
+                // Flags when "grading for" skips one or more grades ahead
+                // of "current belt" in the age-appropriate PKA order --
+                // e.g. Yellow -> Green, skipping Orange -- so a coach
+                // reviewing this can catch an accidental (or deliberate)
+                // double-grade request before approving it.
+                const ageBand = ageBandFor(m?.date_of_birth)
+                const order = r.discipline === 'PKA' ? (PKA_GRADE_ORDERS[ageBand] || []) : []
+                const currentIdx = order.indexOf(r.current_belt)
+                const gradingForIdx = order.indexOf(r.grading_for)
+                const isDoubleGrade = r.discipline === 'PKA' && currentIdx >= 0 && gradingForIdx >= 0 && (gradingForIdx - currentIdx) > 1
                 return (
-                  <div key={r.id} className="card" style={{ padding: 14, background: r.coach_approved ? '#1D9E7512' : undefined }}>
+                  <div key={r.id} className="card" style={{ padding: 14, background: isDoubleGrade ? '#EF9F2718' : r.coach_approved ? '#1D9E7512' : undefined, border: isDoubleGrade ? '1px solid #EF9F27' : undefined }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
                       <div>
                         <p style={{ fontSize: 14, fontWeight: 700 }}>{m ? `${m.first_name} ${m.last_name}` : 'Unknown student'}</p>
                         <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
                           {r.discipline} · {r.current_belt || '—'} → <strong>{r.grading_for}</strong>
                         </p>
+                        {isDoubleGrade && (
+                          <p style={{ fontSize: 12, fontWeight: 600, color: '#b8720a', marginTop: 2 }}>
+                            ⚠️ Skips {gradingForIdx - currentIdx - 1} grade{gradingForIdx - currentIdx - 1 === 1 ? '' : 's'} ({order.slice(currentIdx + 1, gradingForIdx).join(', ')})
+                          </p>
+                        )}
                         <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
                           Submitted {r.created_at ? new Date(r.created_at).toLocaleDateString('en-GB') : '—'}
                         </p>
                       </div>
-                      {r.coach_approved ? (
-                        <span style={{ fontSize: 12, fontWeight: 600, color: '#1D9E75', flexShrink: 0 }}>✓ Approved</span>
-                      ) : (
-                        <button className="btn btn-sm btn-primary" style={{ flexShrink: 0 }} disabled={approvingGradingId === r.id}
-                          onClick={() => approveGrading(r.id)}>
-                          {approvingGradingId === r.id ? 'Approving…' : 'Approve grading'}
-                        </button>
-                      )}
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+                        {r.coach_approved ? (
+                          <span style={{ fontSize: 12, fontWeight: 600, color: '#1D9E75' }}>✓ Approved</span>
+                        ) : (
+                          <button className="btn btn-sm btn-primary" disabled={approvingGradingId === r.id}
+                            onClick={() => approveGrading(r.id)}>
+                            {approvingGradingId === r.id ? 'Approving…' : 'Approve grading'}
+                          </button>
+                        )}
+                        <button className="btn btn-sm" style={{ color: '#E24B4A' }} title="Delete" onClick={() => deleteGradingRequest(r.id)}>🗑️</button>
+                      </div>
                     </div>
 
                     <div style={{ display: 'flex', gap: 16, marginTop: 10, flexWrap: 'wrap' }}>
