@@ -108,6 +108,7 @@ export default function ViewIt() {
 
   function handleFolderSelect(e) {
     const totalSelected = e.target.files.length
+    console.log('Files selected:', [...e.target.files].map(f => ({ name: f.name, type: f.type, size: f.size })))
     const files = [...e.target.files].filter(f => f.type.startsWith('video/') || /\.(mp4|mkv|avi|mov|wmv|flv|3gp|webm|m4v)$/i.test(f.name))
     setBulkFiles(files)
     setBulkTotalSelected(totalSelected)
