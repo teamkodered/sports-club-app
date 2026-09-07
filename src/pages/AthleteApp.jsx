@@ -1462,6 +1462,9 @@ export default function AthleteApp() {
   const [sessionNoteDraft, setSessionNoteDraft] = useState('')
   const [savingSessionNote, setSavingSessionNote] = useState(false)
   const [savingNote, setSavingNote] = useState(false)
+  const [pendingNoteMedia, setPendingNoteMedia] = useState(null) // { file, previewUrl, type: 'photo'|'video' } chosen but not yet saved
+  const [uploadingNoteMedia, setUploadingNoteMedia] = useState(false)
+  const [openNoteMediaUrl, setOpenNoteMediaUrl] = useState(null) // signed URL for whichever note is currently open, if it has media
   const [myChartPopup, setMyChartPopup] = useState(null)
   const [highlightedMyEntryId, setHighlightedMyEntryId] = useState(null)
   const myPressTimer = useRef(null)
@@ -2291,16 +2294,67 @@ export default function AthleteApp() {
     if (error) alert('Error saving: ' + error.message)
   }
 
+  function handleNoteMediaSelect(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const type = file.type.startsWith('video/') ? 'video' : 'photo'
+    setPendingNoteMedia({ file, previewUrl: URL.createObjectURL(file), type })
+  }
+
+  function clearPendingNoteMedia() {
+    if (pendingNoteMedia?.previewUrl) URL.revokeObjectURL(pendingNoteMedia.previewUrl)
+    setPendingNoteMedia(null)
+  }
+
   async function addNote() {
     if (!newNoteText.trim() || !student) return
     setSavingNote(true)
+
+    let mediaStoragePath = null
+    let mediaType = null
+    if (pendingNoteMedia) {
+      setUploadingNoteMedia(true)
+      try {
+        const { data: sessionData } = await supabase.auth.getSession()
+        const accessToken = sessionData?.session?.access_token
+        const urlRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/athlete-note-media-url`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify({ mode: 'upload', file_name: pendingNoteMedia.file.name }),
+        })
+        const urlData = await urlRes.json()
+        if (urlData.error) throw new Error(urlData.error)
+        await fetch(urlData.upload_url, { method: 'PUT', body: pendingNoteMedia.file })
+        mediaStoragePath = urlData.storage_path
+        mediaType = pendingNoteMedia.type
+      } catch (err) {
+        alert('Could not attach photo/video: ' + err.message + ' — saving the note without it.')
+      }
+      setUploadingNoteMedia(false)
+    }
+
     const { data, error } = await supabase.from('athlete_notes_log')
-      .insert({ student_id: student.id, note_text: newNoteText.trim(), logged_at: new Date().toISOString(), author_role: 'athlete', visible_to_athlete: true })
+      .insert({ student_id: student.id, note_text: newNoteText.trim(), logged_at: new Date().toISOString(), author_role: 'athlete', visible_to_athlete: true, media_storage_path: mediaStoragePath, media_type: mediaType })
       .select().single()
     if (error) { alert('Error saving note: ' + error.message); setSavingNote(false); return }
     setMyNotesLog(prev => [data, ...prev])
     setNewNoteText('')
+    clearPendingNoteMedia()
     setSavingNote(false)
+  }
+
+  async function openNoteMedia(storagePath) {
+    setOpenNoteMediaUrl(null)
+    if (!storagePath) return
+    const { data: sessionData } = await supabase.auth.getSession()
+    const accessToken = sessionData?.session?.access_token
+    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/athlete-note-media-url`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ mode: 'read', storage_path: storagePath }),
+    })
+    const data = await res.json()
+    if (!data.error) setOpenNoteMediaUrl(data.url)
   }
 
   async function deleteNote(noteId) {
@@ -2336,7 +2390,7 @@ export default function AthleteApp() {
     setSavingNote(false)
     if (error) { alert('Error saving note: ' + error.message); return }
     setMyNotesLog(prev => prev.map(n => n.id === noteId ? { ...n, note_text: text.trim() } : n))
-    setOpenNoteId(null)
+    setOpenNoteId(null); setOpenNoteMediaUrl(null)
   }
 
   // Simple keyword-matching (not true AI) to spot notes that read like
@@ -6637,13 +6691,16 @@ export default function AthleteApp() {
               {myNotesLog.map(note => {
                 const match = detectNoteCategory(note.note_text)
                 return (
-                <div key={note.id} className="card" onClick={() => { setOpenNoteId(note.id); setOpenNoteDraft(note.note_text) }} style={{ cursor: 'pointer' }}>
+                <div key={note.id} className="card" onClick={() => { setOpenNoteId(note.id); setOpenNoteDraft(note.note_text); openNoteMedia(note.media_storage_path) }} style={{ cursor: 'pointer' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
                       <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>
                         {new Date(note.logged_at).toLocaleDateString('en-GB')} · {new Date(note.logged_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                       </div>
                       <p style={{ fontSize: 13, lineHeight: 1.5, margin: 0, whiteSpace: 'pre-line' }}>{note.note_text}</p>
+                      {note.media_storage_path && (
+                        <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{note.media_type === 'video' ? '🎬 Video attached' : '📷 Photo attached'}</span>
+                      )}
                     </div>
                     <button onClick={e => { e.stopPropagation(); deleteNote(note.id) }} title="Delete note"
                       style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 16, flexShrink: 0 }}>×</button>
@@ -6676,9 +6733,28 @@ export default function AthleteApp() {
           <textarea autoFocus value={newNoteText} onChange={e => setNewNoteText(e.target.value)}
             placeholder="Write a note for yourself…"
             style={{ flex: 1, width: '100%', padding: 14, border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 15, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'none', marginBottom: 14 }} />
+
+          {pendingNoteMedia && (
+            <div style={{ position: 'relative', marginBottom: 14 }}>
+              {pendingNoteMedia.type === 'video' ? (
+                <video src={pendingNoteMedia.previewUrl} controls style={{ width: '100%', maxHeight: 200, borderRadius: 'var(--radius)' }} />
+              ) : (
+                <img src={pendingNoteMedia.previewUrl} alt="" style={{ width: '100%', maxHeight: 200, objectFit: 'contain', borderRadius: 'var(--radius)' }} />
+              )}
+              <button onClick={clearPendingNoteMedia} style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '50%', width: 28, height: 28, cursor: 'pointer' }}>✕</button>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+            <input type="file" accept="image/*,video/*" capture="environment" onChange={handleNoteMediaSelect} style={{ display: 'none' }} id="note-camera-input" />
+            <label htmlFor="note-camera-input" className="btn btn-sm" style={{ cursor: 'pointer', flex: 1, justifyContent: 'center' }}>📷 Take photo/video</label>
+            <input type="file" accept="image/*,video/*" onChange={handleNoteMediaSelect} style={{ display: 'none' }} id="note-gallery-input" />
+            <label htmlFor="note-gallery-input" className="btn btn-sm" style={{ cursor: 'pointer', flex: 1, justifyContent: 'center' }}>🖼️ Upload</label>
+          </div>
+
           <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={!newNoteText.trim() || savingNote}
             onClick={async () => { await addNote(); setShowFullscreenNoteComposer(false) }}>
-            {savingNote ? 'Saving…' : '+ Log note'}
+            {savingNote ? (uploadingNoteMedia ? 'Uploading…' : 'Saving…') : '+ Log note'}
           </button>
         </div>
       )}
@@ -6689,13 +6765,24 @@ export default function AthleteApp() {
         return (
           <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 200, display: 'flex', flexDirection: 'column', padding: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-              <button onClick={() => setOpenNoteId(null)} className="btn btn-sm">← Back</button>
+              <button onClick={() => { setOpenNoteId(null); setOpenNoteMediaUrl(null) }} className="btn btn-sm">← Back</button>
               <h2 style={{ fontSize: 15, fontWeight: 600 }}>{new Date(note.logged_at).toLocaleDateString('en-GB')}</h2>
             </div>
             <textarea autoFocus value={openNoteDraft} onChange={e => setOpenNoteDraft(e.target.value)}
               style={{ flex: 1, width: '100%', padding: 14, border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 15, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'none', marginBottom: 14 }} />
+            {note.media_storage_path && (
+              openNoteMediaUrl ? (
+                note.media_type === 'video' ? (
+                  <video src={openNoteMediaUrl} controls style={{ width: '100%', maxHeight: 240, borderRadius: 'var(--radius)', marginBottom: 14 }} />
+                ) : (
+                  <img src={openNoteMediaUrl} alt="" style={{ width: '100%', maxHeight: 240, objectFit: 'contain', borderRadius: 'var(--radius)', marginBottom: 14 }} />
+                )
+              ) : (
+                <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 14 }}>Loading attachment…</p>
+              )
+            )}
             <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setOpenNoteId(null)}>Cancel</button>
+              <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => { setOpenNoteId(null); setOpenNoteMediaUrl(null) }}>Cancel</button>
               <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} disabled={!openNoteDraft.trim() || savingNote}
                 onClick={() => updateNote(note.id, openNoteDraft)}>
                 {savingNote ? 'Saving…' : 'Save'}
