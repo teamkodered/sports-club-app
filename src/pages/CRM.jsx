@@ -454,6 +454,8 @@ export default function CRM() {
   const [inboxMessages, setInboxMessages] = useState([])
   const [pendingDeleteUids, setPendingDeleteUids] = useState(() => new Set())
   const pendingDeleteTimers = useRef({})
+  const [pendingMoveUids, setPendingMoveUids] = useState(() => new Set())
+  const pendingMoveTimers = useRef({})
   const [inboxError, setInboxError] = useState(null)
   const [testEmailStatus, setTestEmailStatus] = useState(null) // null | 'sending' | 'sent' | 'error'
   const [openMessage, setOpenMessage] = useState(null) // full message detail once loaded, or null
@@ -886,6 +888,7 @@ export default function CRM() {
   // against stale state.
   useEffect(() => () => {
     Object.values(pendingDeleteTimers.current).forEach(clearTimeout)
+    Object.values(pendingMoveTimers.current).forEach(clearTimeout)
   }, [])
 
   useEffect(() => {
@@ -1162,21 +1165,16 @@ export default function CRM() {
   // "Contacted" -- a manual equivalent to the automatic add-on-inbox-
   // load, for explicitly logging that this exact email was dealt with.
   async function moveEmailToFolder(uid, targetFolder) {
-    try {
-      const { data: sessionData } = await supabase.auth.getSession()
-      const accessToken = sessionData?.session?.access_token
-      const res = await fetch('/.netlify/functions/move-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ uid, targetFolder }),
-      })
-      const result = await res.json()
-      if (!res.ok || result.error) throw new Error(result.error || res.statusText)
-      return true
-    } catch (err) {
-      alert(`Added to Enquiries, but couldn't move the email to ${targetFolder}: ` + err.message)
-      return false
-    }
+    const { data: sessionData } = await supabase.auth.getSession()
+    const accessToken = sessionData?.session?.access_token
+    const res = await fetch('/.netlify/functions/move-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ uid, targetFolder }),
+    })
+    const result = await res.json().catch(() => ({}))
+    if (!res.ok || result.error) throw new Error(result.error || res.statusText || 'Unknown error')
+    return true
   }
 
   async function markContactedForMessage(msg, silent = false) {
@@ -1196,8 +1194,12 @@ export default function CRM() {
     }
     if (enquiriesLoaded) loadEnquiries()
     if (msg.uid) {
-      const moved = await moveEmailToFolder(msg.uid, 'Contacted')
-      if (moved && !silent) alert('Added to Enquiries, marked as Contacted, and moved to the Contacted folder.')
+      try {
+        await moveEmailToFolder(msg.uid, 'Contacted')
+        if (!silent) alert('Added to Enquiries, marked as Contacted, and moved to the Contacted folder.')
+      } catch (err) {
+        if (!silent) alert(`Added to Enquiries, but couldn't move the email to the Contacted folder: ${err.message}`)
+      }
     } else if (!silent) {
       alert('Added to Enquiries, marked as Contacted.')
     }
@@ -1207,10 +1209,28 @@ export default function CRM() {
     await markContactedForMessage(openMessage)
   }
 
-  async function moveMessageToNotes(msg) {
+  // Move-to-Notes with the same undo window as delete -- the row shows
+  // "Moved to Notes" + Undo for a few seconds; the actual IMAP move
+  // only fires once that window passes uncancelled.
+  function moveMessageToNotes(msg) {
     if (!msg?.uid) return
-    const moved = await moveEmailToFolder(msg.uid, 'Notes')
-    if (moved) alert('Moved to the Notes folder.')
+    setPendingMoveUids(prev => new Set(prev).add(msg.uid))
+    pendingMoveTimers.current[msg.uid] = setTimeout(async () => {
+      delete pendingMoveTimers.current[msg.uid]
+      try {
+        await moveEmailToFolder(msg.uid, 'Notes')
+        setInboxMessages(prev => prev.filter(x => x.uid !== msg.uid))
+      } catch (err) {
+        alert("Couldn't move this email to Notes: " + err.message)
+      }
+      setPendingMoveUids(prev => { const next = new Set(prev); next.delete(msg.uid); return next })
+    }, 5000)
+  }
+
+  function undoMoveToNotes(uid) {
+    clearTimeout(pendingMoveTimers.current[uid])
+    delete pendingMoveTimers.current[uid]
+    setPendingMoveUids(prev => { const next = new Set(prev); next.delete(uid); return next })
   }
 
   // Delete with an undo window instead of a blocking confirm() --
@@ -4294,6 +4314,11 @@ export default function CRM() {
                     <span style={{ fontSize: 14, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>Deleted "{m.subject}"</span>
                     <button className="btn btn-sm" style={{ flexShrink: 0 }} onClick={() => undoDeleteEmail(m.uid)}>↺ Undo</button>
                   </div>
+                ) : pendingMoveUids.has(m.uid) ? (
+                  <div key={m.uid} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '14px 16px', minHeight: 64, borderTop: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
+                    <span style={{ fontSize: 14, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>Moved "{m.subject}" to Notes</span>
+                    <button className="btn btn-sm" style={{ flexShrink: 0 }} onClick={() => undoMoveToNotes(m.uid)}>↺ Undo</button>
+                  </div>
                 ) : (
                   <div key={m.uid} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 16px', minHeight: 64, borderTop: '1px solid var(--border)' }}>
                     <div style={{ display: 'flex', gap: 6, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
@@ -4373,7 +4398,7 @@ export default function CRM() {
                           {phone && <a className="btn btn-sm" href={`tel:${phone}`}>📞 Call {phone}</a>}
                           {phone && isMobile && <a className="btn btn-sm" href={`sms:${phone}`}>💬 Text {phone}</a>}
                           <button className="btn btn-sm" onClick={markMessageContacted}>✓ Mark contacted → Enquiries</button>
-                          <button className="btn btn-sm" onClick={() => moveMessageToNotes(openMessage)}>📝 Move to Notes</button>
+                          <button className="btn btn-sm" onClick={() => { moveMessageToNotes(openMessage); setOpenMessage(null) }}>📝 Move to Notes</button>
                           <button className="btn btn-sm" style={{ color: '#E24B4A' }} onClick={deleteOpenMessage}>🗑️ Delete</button>
                         </div>
                       )
