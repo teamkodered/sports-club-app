@@ -4396,6 +4396,7 @@ export default function CRM() {
                             body: `\n\n---\nOn ${openMessage.date ? new Date(openMessage.date).toLocaleString('en-GB') : ''}, ${openMessage.fromName || openMessage.from} wrote:\n${openMessage.body}`,
                           })}>↩️ Reply</button>
                           {phone && <a className="btn btn-sm" href={`tel:${phone}`}>📞 Call {phone}</a>}
+                          {phone && <a className="btn btn-sm" href={`https://wa.me/${phone.replace(/[^0-9]/g, '').replace(/^0/, '44')}`} target="_blank" rel="noreferrer">💬 WhatsApp</a>}
                           {phone && isMobile && <a className="btn btn-sm" href={`sms:${phone}`}>💬 Text {phone}</a>}
                           <button className="btn btn-sm" onClick={markMessageContacted}>✓ Mark contacted → Enquiries</button>
                           <button className="btn btn-sm" onClick={() => { moveMessageToNotes(openMessage); setOpenMessage(null) }}>📝 Move to Notes</button>
