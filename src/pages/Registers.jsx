@@ -1368,7 +1368,8 @@ export default function Registers() {
       )}
 
       {/* One-off student addition */}
-      <OneOffStudent displayStudents={displayStudents} onAdd={(s) => setStudents(prev => prev.find(x => x.id === s.id) ? prev : [...prev, s])} date={date} />
+      <OneOffStudent displayStudents={displayStudents} date={date}
+        onAdd={(s) => regType === 'adhoc' ? addAdhoc(s) : setStudents(prev => prev.find(x => x.id === s.id) ? prev : [...prev, s])} />
 
       {/* Contact modal */}
       {birthdayPopup && (
