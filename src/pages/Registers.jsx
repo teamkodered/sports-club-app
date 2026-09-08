@@ -182,6 +182,7 @@ export default function Registers() {
   const [adhocSearch, setAdhocSearch]   = useState('')
   const [adhocResults, setAdhocResults] = useState([])
   const [adhocPills, setAdhocPills]     = useState([]) // { id, name, student_ref }
+  const oneOffStudentsRef = useRef([]) // full student objects added via "one-off" this session -- kept separately so a reload (date/regType change, or a slow fetch resolving after they were added) can never silently wipe them back out
   const tableRef = useRef(null)
   const [showColPicker, setShowColPicker] = useState(false)
   const [visibleCols, setVisibleCols] = useState(() => {
@@ -215,6 +216,7 @@ export default function Registers() {
 
   useEffect(() => { loadPointTypes() }, [])
   useEffect(() => { loadStudents() }, [regType, date])
+  useEffect(() => { oneOffStudentsRef.current = [] }, [date]) // one-off additions are "for this session only" -- shouldn't carry over to a genuinely different day
   // Clear the double-session undo banner when switching date/class --
   // those entries only make sense in the context they were created in.
   useEffect(() => { setCascadedEntries([]) }, [date, classFilter])
@@ -272,7 +274,14 @@ export default function Registers() {
 
     const { data, error } = await query
     const filteredStudents = (data || []).filter(s => s.members?.status !== 'stopped' && s.members?.status !== 'not_started')
-    setStudents(filteredStudents)
+    // Re-merges any one-off students added this session back in, since
+    // they're not part of the official query above (they're not
+    // assigned to this class) -- without this, a reload triggered by
+    // changing date/regType, or even just a slow fetch resolving after
+    // someone was added, would silently wipe them back out with no
+    // indication anything had gone wrong.
+    const stillMissing = oneOffStudentsRef.current.filter(s => !filteredStudents.find(x => x.id === s.id))
+    setStudents([...filteredStudents, ...stillMissing])
 
     // Also fetch explicit class assignments (student_class_assignments)
     // for these students -- this is a second, independent source of
@@ -1369,7 +1378,11 @@ export default function Registers() {
 
       {/* One-off student addition */}
       <OneOffStudent displayStudents={displayStudents} date={date}
-        onAdd={(s) => regType === 'adhoc' ? addAdhoc(s) : setStudents(prev => prev.find(x => x.id === s.id) ? prev : [...prev, s])} />
+        onAdd={(s) => {
+          oneOffStudentsRef.current = [...oneOffStudentsRef.current, s]
+          if (regType === 'adhoc') addAdhoc(s)
+          else setStudents(prev => prev.find(x => x.id === s.id) ? prev : [...prev, s])
+        }} />
 
       {/* Contact modal */}
       {birthdayPopup && (
