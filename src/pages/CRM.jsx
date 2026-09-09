@@ -456,6 +456,8 @@ export default function CRM() {
   const pendingDeleteTimers = useRef({})
   const [pendingMoveUids, setPendingMoveUids] = useState(() => new Set())
   const pendingMoveTimers = useRef({})
+  const [pendingContactUids, setPendingContactUids] = useState(() => new Set())
+  const pendingContactTimers = useRef({})
   const [inboxError, setInboxError] = useState(null)
   const [testEmailStatus, setTestEmailStatus] = useState(null) // null | 'sending' | 'sent' | 'error'
   const [openMessage, setOpenMessage] = useState(null) // full message detail once loaded, or null
@@ -889,6 +891,7 @@ export default function CRM() {
   useEffect(() => () => {
     Object.values(pendingDeleteTimers.current).forEach(clearTimeout)
     Object.values(pendingMoveTimers.current).forEach(clearTimeout)
+    Object.values(pendingContactTimers.current).forEach(clearTimeout)
   }, [])
 
   useEffect(() => {
@@ -1177,36 +1180,49 @@ export default function CRM() {
     return true
   }
 
-  async function markContactedForMessage(msg, silent = false) {
-    if (!msg?.from) return
-    const { data: existing } = await supabase.from('enquiries').select('id').ilike('contact_email', msg.from).maybeSingle()
-    if (existing) {
-      await supabase.from('enquiries').update({ status: 'contacted', updated_at: new Date().toISOString() }).eq('id', existing.id)
-    } else {
-      await supabase.from('enquiries').insert({
-        name: msg.fromName || msg.from.split('@')[0],
-        contact_email: msg.from,
-        contact_method: 'email',
-        enquiry_date: msg.date ? new Date(msg.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-        notes: msg.subject ? `From email: "${msg.subject}"` : 'From email',
-        status: 'contacted',
-      })
-    }
-    if (enquiriesLoaded) loadEnquiries()
-    if (msg.uid) {
+  // Mark Contacted now uses the same undo window as Delete/Move to
+  // Notes -- the row shows "Marked contacted" + Undo for a few
+  // seconds; the actual Enquiries insert + IMAP folder move only
+  // happen once that window passes uncancelled, and the email then
+  // disappears from the main list (same as a move to Notes does).
+  function markContactedForMessage(msg) {
+    if (!msg?.from || !msg?.uid) return
+    setPendingContactUids(prev => new Set(prev).add(msg.uid))
+    pendingContactTimers.current[msg.uid] = setTimeout(async () => {
+      delete pendingContactTimers.current[msg.uid]
       try {
+        const { data: existing } = await supabase.from('enquiries').select('id').ilike('contact_email', msg.from).maybeSingle()
+        if (existing) {
+          await supabase.from('enquiries').update({ status: 'contacted', updated_at: new Date().toISOString() }).eq('id', existing.id)
+        } else {
+          await supabase.from('enquiries').insert({
+            name: msg.fromName || msg.from.split('@')[0],
+            contact_email: msg.from,
+            contact_method: 'email',
+            enquiry_date: msg.date ? new Date(msg.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            notes: msg.subject ? `From email: "${msg.subject}"` : 'From email',
+            status: 'contacted',
+          })
+        }
+        if (enquiriesLoaded) loadEnquiries()
         await moveEmailToFolder(msg.uid, 'Contacted')
-        if (!silent) alert('Added to Enquiries, marked as Contacted, and moved to the Contacted folder.')
+        setInboxMessages(prev => prev.filter(x => x.uid !== msg.uid))
       } catch (err) {
-        if (!silent) alert(`Added to Enquiries, but couldn't move the email to the Contacted folder: ${err.message}`)
+        alert("Couldn't mark this email as contacted: " + err.message)
       }
-    } else if (!silent) {
-      alert('Added to Enquiries, marked as Contacted.')
-    }
+      setPendingContactUids(prev => { const next = new Set(prev); next.delete(msg.uid); return next })
+    }, 5000)
   }
 
-  async function markMessageContacted() {
-    await markContactedForMessage(openMessage)
+  function undoMarkContacted(uid) {
+    clearTimeout(pendingContactTimers.current[uid])
+    delete pendingContactTimers.current[uid]
+    setPendingContactUids(prev => { const next = new Set(prev); next.delete(uid); return next })
+  }
+
+  function markMessageContacted() {
+    markContactedForMessage(openMessage)
+    setOpenMessage(null)
   }
 
   // Move-to-Notes with the same undo window as delete -- the row shows
@@ -4318,6 +4334,11 @@ export default function CRM() {
                   <div key={m.uid} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '14px 16px', minHeight: 64, borderTop: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
                     <span style={{ fontSize: 14, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>Moved "{m.subject}" to Notes</span>
                     <button className="btn btn-sm" style={{ flexShrink: 0 }} onClick={() => undoMoveToNotes(m.uid)}>↺ Undo</button>
+                  </div>
+                ) : pendingContactUids.has(m.uid) ? (
+                  <div key={m.uid} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '14px 16px', minHeight: 64, borderTop: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
+                    <span style={{ fontSize: 14, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>Marked "{m.subject}" contacted</span>
+                    <button className="btn btn-sm" style={{ flexShrink: 0 }} onClick={() => undoMarkContacted(m.uid)}>↺ Undo</button>
                   </div>
                 ) : (
                   <div key={m.uid} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 16px', minHeight: 64, borderTop: '1px solid var(--border)' }}>
