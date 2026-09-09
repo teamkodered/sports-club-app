@@ -249,7 +249,7 @@ export default function JoinPKAAdult() {
             {step < STEPS.length - 2 ? (
               <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}
                 onClick={() => {
-                  if (step === 3) setForm(f => ({ ...f, signature_name: f.signature_name || f.first_name, signature_surname: f.signature_surname || f.last_name }))
+                  if (step === 3) setForm(f => ({ ...f, signature_name: f.signature_name || f.first_name, signature_surname: f.signature_surname || f.last_name, signature_dob: f.signature_dob || f.dob, signature_phone: f.signature_phone || f.mobile_phone }))
                   setStep(s => s + 1)
                 }}
                 disabled={(step === 0 && (!form.first_name || !form.last_name || !form.dob)) || (step === 1 && (!form.email || !form.mobile_phone || !form.media_permission))}>
