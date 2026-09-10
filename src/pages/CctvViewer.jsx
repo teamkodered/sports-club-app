@@ -34,6 +34,9 @@ export default function CctvViewer() {
   const [studentSearch, setStudentSearch] = useState('')
   const [savingAccess, setSavingAccess] = useState(false)
   const [flagText, setFlagText] = useState('')
+  const [bulkSelected, setBulkSelected] = useState(() => new Set())
+  const [bulkDownloading, setBulkDownloading] = useState(false)
+  const [bulkEnabling, setBulkEnabling] = useState(false)
 
   const loadClips = useCallback(() => {
     setLoading(true)
@@ -169,6 +172,50 @@ export default function CctvViewer() {
     window.open(data.url, '_blank')
   }
 
+  function toggleBulkSelect(clipId) {
+    setBulkSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(clipId)) next.delete(clipId); else next.add(clipId)
+      return next
+    })
+  }
+
+  // Sequential, not parallel -- a signed URL per clip, opened one at a
+  // time with a short pause in between, since firing many window.open
+  // calls back-to-back is exactly the pattern browsers' popup blockers
+  // are designed to catch, and a real backup could be dozens of large
+  // video files.
+  async function bulkDownload() {
+    const toDownload = visibleClips.filter(c => bulkSelected.has(c.id) && c.allow_download)
+    if (toDownload.length === 0) { alert('None of the selected clips have "Allow download" enabled -- enable it first (per clip, or use "Allow download for selected" below).'); return }
+    setBulkDownloading(true)
+    const { data: { session } } = await supabase.auth.getSession()
+    for (const clip of toDownload) {
+      try {
+        const { data, error } = await supabase.functions.invoke('cctv-presigned-url', {
+          body: { storage_path: clip.storage_path, download: true },
+          headers: { Authorization: `Bearer ${session?.access_token}` },
+        })
+        if (error || data?.error) { console.error(`Failed to prepare download for ${clip.storage_path}:`, error || data.error); continue }
+        window.open(data.url, '_blank')
+      } catch (err) {
+        console.error(`Failed to download ${clip.storage_path}:`, err.message)
+      }
+      await new Promise(r => setTimeout(r, 800)) // gives each download a moment to actually start before firing the next
+    }
+    setBulkDownloading(false)
+  }
+
+  async function bulkEnableDownload() {
+    const ids = [...bulkSelected]
+    if (ids.length === 0) return
+    setBulkEnabling(true)
+    const { error } = await supabase.from('cctv_clips').update({ allow_download: true }).in('id', ids)
+    setBulkEnabling(false)
+    if (error) { alert('Error enabling download: ' + error.message); return }
+    setClips(prev => prev.map(c => ids.includes(c.id) ? { ...c, allow_download: true } : c))
+  }
+
   async function runDebugProbe() {
     if (!selectedClip) return
     setDebugResult('Checking…')
@@ -201,6 +248,21 @@ export default function CctvViewer() {
         </label>
       </div>
 
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+        <button className="btn btn-sm" onClick={() => setBulkSelected(new Set(visibleClips.map(c => c.id)))}>Select all ({visibleClips.length})</button>
+        {bulkSelected.size > 0 && (
+          <>
+            <button className="btn btn-sm" onClick={() => setBulkSelected(new Set())}>✕ Deselect all</button>
+            <button className="btn btn-sm" disabled={bulkEnabling} onClick={bulkEnableDownload}>
+              {bulkEnabling ? 'Enabling…' : `Allow download for selected (${bulkSelected.size})`}
+            </button>
+            <button className="btn btn-sm btn-primary" disabled={bulkDownloading} onClick={bulkDownload}>
+              {bulkDownloading ? 'Downloading…' : `⬇ Download selected (${bulkSelected.size})`}
+            </button>
+          </>
+        )}
+      </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: selectedClip ? '1fr 1fr' : '1fr', gap: 20 }}>
         <div>
           {loading ? (
@@ -212,7 +274,9 @@ export default function CctvViewer() {
               {visibleClips.map(clip => (
                 <div key={clip.id} onClick={() => openClip(clip)}
                   className="card"
-                  style={{ padding: '10px 14px', cursor: 'pointer', border: selectedClip?.id === clip.id ? '2px solid var(--text)' : undefined }}>
+                  style={{ padding: '10px 14px', cursor: 'pointer', border: selectedClip?.id === clip.id ? '2px solid var(--text)' : undefined, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <input type="checkbox" checked={bulkSelected.has(clip.id)} onClick={e => e.stopPropagation()} onChange={() => toggleBulkSelect(clip.id)} style={{ marginTop: 3, flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 500 }}>
                     <span>{clip.camera_name}</span>
                     <span style={{ color: 'var(--text-tertiary)' }}>{formatDuration(clip.duration_seconds)}</span>
@@ -226,6 +290,8 @@ export default function CctvViewer() {
                     </span>
                     {clip.keep_forever && <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 10, background: 'var(--bg-secondary)', color: 'var(--text-tertiary)' }}>Kept forever</span>}
                     {clip.flagged_reason && <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 10, background: '#E24B4A22', color: '#E24B4A' }}>🚩 Flagged</span>}
+                    {clip.allow_download && <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 10, background: '#1D9E7522', color: '#1D9E75' }}>⬇ Downloadable</span>}
+                  </div>
                   </div>
                 </div>
               ))}
