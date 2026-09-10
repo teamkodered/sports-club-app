@@ -184,6 +184,27 @@ export default function Registers() {
   const [adhocPills, setAdhocPills]     = useState([]) // { id, name, student_ref }
   const oneOffStudentsRef = useRef([]) // full student objects added via "one-off" this session -- kept separately so a reload (date/regType change, or a slow fetch resolving after they were added) can never silently wipe them back out
   const tableRef = useRef(null)
+  // Distinguishes a horizontal swipe (to see other columns) from a
+  // genuine tap-to-select -- mobile browsers can still fire a click
+  // after a touch that moved a little, so this tracks the actual
+  // distance moved and suppresses the row's select-toggle if it looks
+  // like a swipe rather than a tap.
+  const touchStartRef = useRef(null)
+  function handleRowTouchStart(e) {
+    const t = e.touches?.[0]
+    if (t) touchStartRef.current = { x: t.clientX, y: t.clientY }
+  }
+  function handleRowTouchMove(e) {
+    const start = touchStartRef.current
+    const t = e.touches?.[0]
+    if (!start || !t) return
+    if (Math.abs(t.clientX - start.x) > 10 || Math.abs(t.clientY - start.y) > 10) touchStartRef.current = { ...start, moved: true }
+  }
+  function handleRowClick(studentId) {
+    if (touchStartRef.current?.moved) { touchStartRef.current = null; return } // was a swipe, not a tap -- don't toggle selection
+    touchStartRef.current = null
+    setSelectedStudents(prev => prev.includes(studentId) ? prev.filter(x => x !== studentId) : [...prev, studentId])
+  }
   const [showColPicker, setShowColPicker] = useState(false)
   const [visibleCols, setVisibleCols] = useState(() => {
     const saved = localStorage.getItem('register_cols')
@@ -1177,9 +1198,9 @@ export default function Registers() {
           <table style={{ minWidth: isKR ? 900 : 680 }}>
             <thead style={{ position: 'sticky', top: 46, zIndex: 12, background: 'var(--bg)' }}>
               <tr>
-                {visibleCols.includes('checkbox') && <th style={{ width: 32, paddingLeft: 12, background: 'var(--bg)' }}></th>}
+                {visibleCols.includes('checkbox') && <th style={{ width: 32, paddingLeft: 12, background: 'var(--bg)', position: 'sticky', left: 0, zIndex: 13 }}></th>}
                 {visibleCols.includes('student_ref') && <SortTh col="student_ref" label="ID" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
-                {visibleCols.includes('name')        && <SortTh col="first_name" label="Name" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
+                {visibleCols.includes('name')        && <SortTh col="first_name" label="Name" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} style={{ position: 'sticky', left: visibleCols.includes('checkbox') ? 32 : 0, zIndex: 13, background: 'var(--bg)' }} />}
                 {visibleCols.includes('age')         && <SortTh col="age" label="Age" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
                 {visibleCols.includes('house')       && <SortTh col="house" label="House" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
                 {visibleCols.includes('grade')       && <SortTh col="grade" label="Grade" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
@@ -1235,13 +1256,15 @@ export default function Registers() {
 
                 return (
                   <tr key={s.id}
-                    onClick={() => setSelectedStudents(prev => prev.includes(s.id) ? prev.filter(x => x !== s.id) : [...prev, s.id])}
+                    onClick={() => handleRowClick(s.id)}
+                    onTouchStart={handleRowTouchStart}
+                    onTouchMove={handleRowTouchMove}
                     style={{
                       background: isSelected ? '#e6f1fb' : undefined,
                       outline: isSelected ? '2px solid #378ADD' : undefined,
                       cursor: 'pointer',
                     }}>
-                    {visibleCols.includes('checkbox') && <td style={{ paddingLeft: 12 }} onClick={e => e.stopPropagation()}>
+                    {visibleCols.includes('checkbox') && <td style={{ paddingLeft: 12, position: 'sticky', left: 0, zIndex: 1, background: isSelected ? '#e6f1fb' : 'var(--bg)' }} onClick={e => e.stopPropagation()}>
                       <input type="checkbox" checked={isSelected}
                         onChange={() => setSelectedStudents(prev => prev.includes(s.id) ? prev.filter(x => x !== s.id) : [...prev, s.id])}
                         style={{ width: 14, height: 14 }} />
@@ -1251,9 +1274,9 @@ export default function Registers() {
                         {s.student_ref || '—'}
                       </span>
                     </td>}
-                    {visibleCols.includes('name') && <td>
+                    {visibleCols.includes('name') && <td className="register-name-cell" style={{ position: 'sticky', left: visibleCols.includes('checkbox') ? 32 : 0, zIndex: 1, background: isSelected ? '#e6f1fb' : 'var(--bg)' }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ color: 'var(--text)', fontWeight: 500, fontSize: 13 }}>
+                        <span style={{ color: 'var(--text)', fontWeight: 500, fontSize: 13 }} className="register-name-text">
                           {m?.first_name} {m?.last_name}
                         </span>
                         {(() => {
