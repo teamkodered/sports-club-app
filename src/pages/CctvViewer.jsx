@@ -17,7 +17,7 @@ function formatDuration(seconds) {
 
 export default function CctvViewer() {
   const [cameras, setCameras] = useState([])
-  const [onlyDuringActivity, setOnlyDuringActivity] = useState(false)
+  const [activityFilter, setActivityFilter] = useState('all') // 'all' | 'during' | 'unmatched'
   const [classSchedule, setClassSchedule] = useState([])
   const [attendanceTimes, setAttendanceTimes] = useState([])
   const [cameraFilter, setCameraFilter] = useState('all')
@@ -228,7 +228,9 @@ export default function CctvViewer() {
   }
 
   const filteredStudents = students.filter(s => s.name.toLowerCase().includes(studentSearch.toLowerCase()))
-  const visibleClips = onlyDuringActivity ? clips.filter(clipHasActivity) : clips
+  const visibleClips = activityFilter === 'during' ? clips.filter(clipHasActivity)
+    : activityFilter === 'unmatched' ? clips.filter(c => !clipHasActivity(c))
+    : clips
 
   return (
     <div style={{ padding: 20, maxWidth: 1100, margin: '0 auto' }}>
@@ -242,10 +244,11 @@ export default function CctvViewer() {
         </select>
         <input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} style={{ fontSize: 13 }} />
         {dateFilter && <button className="btn btn-sm" onClick={() => setDateFilter('')}>Clear date</button>}
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
-          <input type="checkbox" checked={onlyDuringActivity} onChange={e => setOnlyDuringActivity(e.target.checked)} />
-          Only show clips during activity
-        </label>
+        <select value={activityFilter} onChange={e => setActivityFilter(e.target.value)} style={{ fontSize: 13 }}>
+          <option value="all">All clips</option>
+          <option value="during">Only during activity (check-in or scheduled class)</option>
+          <option value="unmatched">⚠️ Unmatched activity (recorded but no check-in or schedule)</option>
+        </select>
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -268,7 +271,11 @@ export default function CctvViewer() {
           {loading ? (
             <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Loading…</p>
           ) : visibleClips.length === 0 ? (
-            <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>{onlyDuringActivity ? 'No clips with detected activity in this filter.' : 'No clips found for this filter.'}</p>
+            <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>
+              {activityFilter === 'during' ? 'No clips with detected activity in this filter.'
+                : activityFilter === 'unmatched' ? 'No unmatched clips -- everything recorded lines up with a check-in or scheduled class. 👍'
+                : 'No clips found for this filter.'}
+            </p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 600, overflowY: 'auto' }}>
               {visibleClips.map(clip => (
