@@ -37,6 +37,8 @@ a { color: inherit; text-decoration: none; }
   border: 1px solid var(--border-strong);
   background: transparent; font-size: 13px; font-weight: 500;
   color: var(--text); transition: background 0.15s;
+  user-select: none; -webkit-user-select: none;
+  -webkit-touch-callout: none; /* stops iOS/Android showing a "copy/open in new tab" context menu on a long press */
 }
 .btn:hover { background: var(--bg-secondary); }
 .btn-primary {

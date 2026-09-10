@@ -257,16 +257,16 @@ export default function Dashboard() {
             { label: athleteStep.label, value: athleteBreakdownValue, icon: '🏅', colour: '#EF9F27', to: '/athletes', isAthleteCard: true },
             { label: 'Houses',         value: standings.length,   icon: '🛡️', colour: '#E24B4A', to: '/league' },
           ].map(s => (
-            <Link key={s.label === step.label ? 'members' : (s.isAthleteCard ? 'athletes' : s.label)} to={s.to} className="card" style={{ textAlign: 'center', borderTop: `3px solid ${s.colour}`, textDecoration: 'none', color: 'inherit', display: 'block' }}>
+            <Link key={s.label === step.label ? 'members' : (s.isAthleteCard ? 'athletes' : s.label)} to={s.to} className="card" style={{ textAlign: 'center', borderTop: `3px solid ${s.colour}`, textDecoration: 'none', color: 'inherit', display: 'block', WebkitTouchCallout: 'none' }}>
               {s.isMemberCard ? (
-                <div style={{ fontSize: 26, marginBottom: 4 }}
+                <div style={{ fontSize: 26, marginBottom: 4, userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
                   onPointerDown={handleMemberIconDown} onPointerUp={handleMemberIconUp} onPointerLeave={() => clearTimeout(memberHoldTimerRef.current)}
                   onClick={handleMemberIconClick}
                   title="Hold to cycle: All / PKA / KR Centre PKA / Derby Moore / Moorways / KR / KRBA">
                   {s.icon}
                 </div>
               ) : s.isAthleteCard ? (
-                <div style={{ fontSize: 26, marginBottom: 4 }}
+                <div style={{ fontSize: 26, marginBottom: 4, userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
                   onPointerDown={handleAthleteIconDown} onPointerUp={handleAthleteIconUp} onPointerLeave={() => clearTimeout(athleteHoldTimerRef.current)}
                   onClick={handleAthleteIconClick}
                   title="Hold to cycle: Total Athletes / KR Athletes / KRBA Athletes">
