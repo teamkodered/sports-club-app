@@ -533,7 +533,7 @@ export default function StudentDatabase() {
                               const hasExtra = studentAssignments.length > 0
                               return (
                                 <div style={{ position: 'relative' }}>
-                                  <button onClick={() => setAddingClassFor(addingClassFor === s.id ? null : s.id)}
+                                  <button onClick={() => { const opening = addingClassFor !== s.id; setAddingClassFor(opening ? s.id : null); if (opening) loadAllAssignments() }}
                                     title={hasExtra ? `${studentAssignments.length} extra class${studentAssignments.length === 1 ? '' : 'es'} assigned — click to view/add` : 'Add an extra class for this student'}
                                     style={{
                                       background: hasExtra ? '#1D9E7520' : 'none',
@@ -576,12 +576,16 @@ export default function StudentDatabase() {
                               <select value={s.class_schedule || ''} onChange={e => updateStudentField(s.id, 'class_schedule', e.target.value || null)}
                                 style={{ fontSize: 12, padding: '3px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
                                 <option value="">— Not set —</option>
+                                <option>Monday</option>
+                                <option>Tuesday</option>
+                                <option>Wednesday</option>
+                                <option>Thursday</option>
+                                <option>Friday</option>
+                                <option>Saturday</option>
+                                <option>Sunday</option>
                                 <option>Mon/Fri</option>
                                 <option>Tue/Thu</option>
                                 <option>Wed/Sun</option>
-                                <option>Wednesday</option>
-                                <option>Saturday</option>
-                                <option>Sunday</option>
                                 <option>Derby Moore</option>
                                 <option>Moorways</option>
                               </select>
