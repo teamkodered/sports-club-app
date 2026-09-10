@@ -631,7 +631,13 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   // Alternative to the two-tap flow above: hold the button instead --
   // the video plays at normal speed for as long as it's held, and
   // releasing pauses it and opens the same Highlight/Note choice,
-  // using the whole held stretch as the marker's range.
+  // using the whole held stretch as the marker's range. Uses its own,
+  // longer threshold (not the shared HOLD_THRESHOLD_MS used elsewhere)
+  // because a normal tap -- especially on a touchscreen, where a
+  // finger naturally lingers a bit -- was easily exceeding the shorter
+  // shared threshold and accidentally triggering this hold path,
+  // skipping straight to the popup instead of the intended two-tap flow.
+  const ADD_MARKER_HOLD_THRESHOLD_MS = 450
   const addMarkerHoldTimerRef = useRef(null)
   const addMarkerHoldEngagedRef = useRef(false)
 
@@ -643,7 +649,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
       addMarkerHoldEngagedRef.current = true
       setMarkerRangeStart(v.currentTime)
       if (v.paused) v.play()
-    }, HOLD_THRESHOLD_MS)
+    }, ADD_MARKER_HOLD_THRESHOLD_MS)
   }
 
   function handleAddMarkerButtonPointerUp() {
