@@ -907,7 +907,7 @@ export default function Registers() {
       {showColPicker && (
         <div className="card" style={{ marginBottom: 10, padding: 12 }}>
           <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Show / hide columns</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
             {ALL_REG_COLS.map(c => (
               <button key={c.key} onClick={() => toggleRegCol(c.key)} style={{
                 padding: '4px 10px', borderRadius: 20, fontSize: 11, cursor: 'pointer',
