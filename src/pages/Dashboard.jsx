@@ -25,17 +25,24 @@ export default function Dashboard() {
     memberHoldFiredRef.current = false
     memberHoldTimerRef.current = setTimeout(() => { memberHoldFiredRef.current = true; setMemberBreakdownIndex(i => i + 1) }, HOLD_MS)
   }
-  function handleMemberIconUp(e) {
+  function handleMemberIconUp() {
     clearTimeout(memberHoldTimerRef.current)
-    if (memberHoldFiredRef.current) e.preventDefault() // hold already cycled the stat -- don't also navigate
+  }
+  function handleMemberIconClick(e) {
+    // preventDefault on pointerup doesn't stop the browser's separate,
+    // later click event from still firing and letting the parent Link
+    // navigate -- this is the one that actually needs to intercept it.
+    if (memberHoldFiredRef.current) { e.preventDefault(); e.stopPropagation() }
   }
   function handleAthleteIconDown() {
     athleteHoldFiredRef.current = false
     athleteHoldTimerRef.current = setTimeout(() => { athleteHoldFiredRef.current = true; setAthleteBreakdownIndex(i => i + 1) }, HOLD_MS)
   }
-  function handleAthleteIconUp(e) {
+  function handleAthleteIconUp() {
     clearTimeout(athleteHoldTimerRef.current)
-    if (athleteHoldFiredRef.current) e.preventDefault()
+  }
+  function handleAthleteIconClick(e) {
+    if (athleteHoldFiredRef.current) { e.preventDefault(); e.stopPropagation() }
   }
 
   // Colours the number green/orange/red depending on whether it's gone
@@ -254,12 +261,14 @@ export default function Dashboard() {
               {s.isMemberCard ? (
                 <div style={{ fontSize: 26, marginBottom: 4 }}
                   onPointerDown={handleMemberIconDown} onPointerUp={handleMemberIconUp} onPointerLeave={() => clearTimeout(memberHoldTimerRef.current)}
+                  onClick={handleMemberIconClick}
                   title="Hold to cycle: All / PKA / KR Centre PKA / Derby Moore / Moorways / KR / KRBA">
                   {s.icon}
                 </div>
               ) : s.isAthleteCard ? (
                 <div style={{ fontSize: 26, marginBottom: 4 }}
                   onPointerDown={handleAthleteIconDown} onPointerUp={handleAthleteIconUp} onPointerLeave={() => clearTimeout(athleteHoldTimerRef.current)}
+                  onClick={handleAthleteIconClick}
                   title="Hold to cycle: Total Athletes / KR Athletes / KRBA Athletes">
                   {s.icon}
                 </div>
