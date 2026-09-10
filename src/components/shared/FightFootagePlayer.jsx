@@ -9,7 +9,7 @@ const SPEEDS = [0.25, 0.5, 1, 1.5, 2]
 const FRAME_SECONDS = 1 / 30
 const HOLD_THRESHOLD_MS = 220 // how long a press must last before it counts as "hold" rather than a tap
 const MOVE_CANCEL_THRESHOLD = 12 // px of movement that cancels a pending hold -- this is a swipe, not a hold
-const SLOW_MO_SPEED = 0.25
+const SLOW_MO_SPEED = 0.5
 const CONTROLS_AUTOHIDE_MS = 3000
 const HIGHLIGHT_COLOURS = ['#E24B4A', '#EF9F27', '#1D9E75', '#378ADD', '#8B5CF6']
 const ZOOM_LEVELS = [1, 2, 4, 8]
@@ -101,9 +101,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   const filmstripCanvasRef = useRef(null)
 
   // Double-tap left/right half to skip back/forward
-  const lastTapAtRef = useRef(0)
-  const singleTapTimerRef = useRef(null)
-  const [skipFlash, setSkipFlash] = useState(null) // 'back' | 'forward' | null, brief visual confirmation
+
 
   useEffect(() => { markersRef.current = markers }, [markers])
   useEffect(() => { controlsVisibleRef.current = controlsVisible }, [controlsVisible])
@@ -292,15 +290,22 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
     v.currentTime = Math.min(Math.max(0, v.currentTime + deltaSeconds), v.duration || 0)
   }
 
-  // Double-tap skip -- unlike step(), this deliberately doesn't pause,
-  // matching how skip-forward/back gestures work in most video apps
-  // (skipping while playing just keeps playing from the new point).
-  function skipSeconds(deltaSeconds) {
-    const v = videoRef.current
-    if (!v) return
-    v.currentTime = Math.min(Math.max(0, v.currentTime + deltaSeconds), v.duration || 0)
-    setSkipFlash(deltaSeconds < 0 ? 'back' : 'forward')
-    setTimeout(() => setSkipFlash(null), 500)
+  // Holding a step button (frame or 5s) repeats it continuously rather
+  // than needing repeated individual taps -- fires once immediately,
+  // then again every 200ms for as long as it's held.
+  const stepRepeatTimerRef = useRef(null)
+  const stepRepeatIntervalRef = useRef(null)
+  function startStepRepeat(deltaSeconds) {
+    step(deltaSeconds)
+    clearTimeout(stepRepeatTimerRef.current)
+    clearInterval(stepRepeatIntervalRef.current)
+    stepRepeatTimerRef.current = setTimeout(() => {
+      stepRepeatIntervalRef.current = setInterval(() => step(deltaSeconds), 200)
+    }, HOLD_THRESHOLD_MS)
+  }
+  function stopStepRepeat() {
+    clearTimeout(stepRepeatTimerRef.current)
+    clearInterval(stepRepeatIntervalRef.current)
   }
 
   function seekTo(t) {
@@ -521,32 +526,11 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   function handlePointerUp(e) {
     clearTimeout(holdTimerRef.current)
     if (!isHoldingRef.current) {
-      // Was just a quick release -- could be a single tap (toggle
-      // controls) or the second half of a double-tap (skip). Wait a
-      // beat before committing to the single-tap action, in case a
-      // second tap arrives within the double-tap window.
-      const now = Date.now()
-      const isDoubleTap = now - lastTapAtRef.current < 300
-      if (isDoubleTap) {
-        clearTimeout(singleTapTimerRef.current)
-        lastTapAtRef.current = 0
-        const rect = wrapperRef.current?.getBoundingClientRect()
-        const isLeftSide = rect && (e.clientX - rect.left) < rect.width / 2
-        skipSeconds(isLeftSide ? -5 : 5)
-      } else {
-        lastTapAtRef.current = now
-        clearTimeout(singleTapTimerRef.current)
-        singleTapTimerRef.current = setTimeout(() => {
-          // Tapping the screen only ever reveals/hides the controls --
-          // play/pause happens exclusively via pressing the actual
-          // button, never from a generic tap anywhere on the video.
-          // Reads the ref (not the closed-over state) so this always
-          // acts on the live value even if something changed it during
-          // the 300ms disambiguation wait.
-          if (controlsVisibleRef.current) { clearTimeout(autoHideTimerRef.current); setControlsVisible(false) }
-          else showControls()
-        }, 300)
-      }
+      // A quick tap just reveals/hides the controls -- no double-tap
+      // skip gesture anymore, so this can act immediately rather than
+      // waiting to see if a second tap follows.
+      if (controlsVisibleRef.current) { clearTimeout(autoHideTimerRef.current); setControlsVisible(false) }
+      else showControls()
       return
     }
     releaseHoldSlowMo(wasActuallyASwipe(e))
@@ -864,7 +848,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
 
           {controlsVisible && (
             <button title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-              style={{ position: 'absolute', top: 8, left: 8, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer', ...GLASS_STYLE }}
+              style={{ position: 'absolute', top: 8, left: 8, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer' }}
               onClick={toggleFullscreen}>
               {isFullscreen ? '⤢' : '⛶'}
             </button>
@@ -880,29 +864,19 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
         {controlsVisible && (
           <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, transform: 'translateY(-50%)', padding: '16px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}
             onClick={e => e.stopPropagation()}>
-            <button style={{ minWidth: 72, height: 72, borderRadius: '50%', justifyContent: 'center', fontSize: 26, cursor: 'pointer', color: '#fff', ...GLASS_STYLE }}
+            <button style={{ minWidth: 72, height: 72, borderRadius: '50%', justifyContent: 'center', fontSize: 26, cursor: 'pointer', color: '#fff' }}
               onPointerDown={handlePlayButtonPointerDown} onPointerMove={handlePlayButtonPointerMove} onPointerUp={handlePlayButtonPointerUp}
               onPointerLeave={() => { if (isHoldingRef.current) handlePlayButtonPointerUp() }}>{playing ? '⏸' : '▶️'}</button>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
               {SPEEDS.map(s => (
                 <button key={s} onClick={() => setPlaybackSpeed(s)}
                   style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                    ...GLASS_STYLE,
-                    border: speed === s ? '1px solid #fff' : GLASS_BORDER,
+                                        border: speed === s ? '1px solid #fff' : '1px solid rgba(255,255,255,0.3)',
                     color: speed === s ? '#fff' : 'rgba(255,255,255,0.7)', fontWeight: speed === s ? 600 : 400 }}>
                   {s === 1 ? '1x' : `${s}x`}
                 </button>
               ))}
             </div>
-          </div>
-        )}
-
-        {skipFlash && (
-          <div style={{
-            position: 'absolute', top: 0, bottom: 0, [skipFlash === 'back' ? 'left' : 'right']: 0, width: '35%',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', pointerEvents: 'none',
-          }}>
-            <span style={{ color: '#fff', fontSize: 28 }}>{skipFlash === 'back' ? '⏪ 5s' : '5s ⏩'}</span>
           </div>
         )}
       </div>
@@ -915,7 +889,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
           position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', maxWidth: '70%',
           color: '#fff', fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>{title}</span>
-        <button className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12, ...GLASS_STYLE }} onClick={onClose}>✕ Close</button>
+        <button className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12 }} onClick={onClose}>✕ Close</button>
 
         {/* One swatch per colour actually in use on the timeline --
             tapping one plays only that colour's sections (a highlight
@@ -944,7 +918,10 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
           flex sibling), so it never resizes the video when it shows
           or hides -- same tap-to-show/hide as the middle overlay. */}
       {controlsVisible && (
-      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '10px 12px 16px', ...GLASS_STYLE }} onClick={e => e.stopPropagation()}>
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '10px 12px 16px' }}
+        onClick={e => e.stopPropagation()}
+        onPointerDown={() => clearTimeout(autoHideTimerRef.current)}
+        onPointerUp={scheduleAutoHide}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
           <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, minWidth: 36 }}>{fmt(currentTime)}</span>
           <div style={{ flex: 1 }}>
@@ -1041,34 +1018,34 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 6 }}>
-          <button className="btn btn-sm" style={GLASS_STYLE} disabled={zoomLevel === ZOOM_LEVELS[0]} onClick={() => setZoomLevel(z => ZOOM_LEVELS[Math.max(0, ZOOM_LEVELS.indexOf(z) - 1)])}>🔍− Zoom out</button>
+          <button className="btn btn-sm" disabled={zoomLevel === ZOOM_LEVELS[0]} onClick={() => setZoomLevel(z => ZOOM_LEVELS[Math.max(0, ZOOM_LEVELS.indexOf(z) - 1)])}>🔍− Zoom out</button>
           <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', alignSelf: 'center' }}>{zoomLevel}x</span>
-          <button className="btn btn-sm" style={GLASS_STYLE} disabled={zoomLevel === ZOOM_LEVELS[ZOOM_LEVELS.length - 1]} onClick={() => setZoomLevel(z => ZOOM_LEVELS[Math.min(ZOOM_LEVELS.length - 1, ZOOM_LEVELS.indexOf(z) + 1)])}>🔍+ Zoom in</button>
+          <button className="btn btn-sm" disabled={zoomLevel === ZOOM_LEVELS[ZOOM_LEVELS.length - 1]} onClick={() => setZoomLevel(z => ZOOM_LEVELS[Math.min(ZOOM_LEVELS.length - 1, ZOOM_LEVELS.indexOf(z) + 1)])}>🔍+ Zoom in</button>
         </div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', alignItems: 'center', marginTop: 8 }}>
-          <button className="btn btn-sm" style={GLASS_STYLE} onClick={() => step(-5)}>⏪ 5s</button>
-          <button className="btn btn-sm" style={GLASS_STYLE} onClick={() => step(-FRAME_SECONDS)}>⏮ Frame</button>
+          <button className="btn btn-sm" onPointerDown={() => startStepRepeat(-5)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>⏪ 5s</button>
+          <button className="btn btn-sm" onPointerDown={() => startStepRepeat(-FRAME_SECONDS)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>⏮ Frame</button>
           <button className="btn btn-primary" style={{ minWidth: 56, justifyContent: 'center' }}
             onPointerDown={handlePlayButtonPointerDown} onPointerMove={handlePlayButtonPointerMove} onPointerUp={handlePlayButtonPointerUp}
             onPointerLeave={() => { if (isHoldingRef.current) handlePlayButtonPointerUp() }}>{playing ? '⏸' : '▶️'}</button>
-          <button className="btn btn-sm" style={GLASS_STYLE} onClick={() => step(FRAME_SECONDS)}>Frame ⏭</button>
-          <button className="btn btn-sm" style={GLASS_STYLE} onClick={() => step(5)}>5s ⏩</button>
+          <button className="btn btn-sm" onPointerDown={() => startStepRepeat(FRAME_SECONDS)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>Frame ⏭</button>
+          <button className="btn btn-sm" onPointerDown={() => startStepRepeat(5)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>5s ⏩</button>
         </div>
 
         {isCoach && footageId && !showMarkerChoice && (
           <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 10 }}>
             {markerRangeStart === null ? (
               <>
-                <button className="btn btn-sm" style={GLASS_STYLE}
+                <button className="btn btn-sm"
                   onPointerDown={handleAddMarkerButtonPointerDown} onPointerUp={handleAddMarkerButtonPointerUp}
                   onPointerLeave={() => { if (addMarkerHoldEngagedRef.current) handleAddMarkerButtonPointerUp() }}>📍 Add marker here</button>
-                <button className="btn btn-sm" style={GLASS_STYLE} onClick={capturePhotoMarker}>📷 Add photo</button>
+                <button className="btn btn-sm" onClick={capturePhotoMarker}>📷 Add photo</button>
               </>
             ) : (
               <>
-                <button className="btn btn-sm" style={GLASS_STYLE} onClick={handleMarkerButtonPress}>🏁 End marker here</button>
-                <button className="btn btn-sm" style={GLASS_STYLE} onClick={cancelMarkerRange}>✕ Cancel</button>
+                <button className="btn btn-sm" onClick={handleMarkerButtonPress}>🏁 End marker here</button>
+                <button className="btn btn-sm" onClick={cancelMarkerRange}>✕ Cancel</button>
               </>
             )}
           </div>
