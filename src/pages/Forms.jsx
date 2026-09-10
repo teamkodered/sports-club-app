@@ -337,7 +337,7 @@ export default function Forms() {
       <div style={{ display: 'grid', gridTemplateColumns: selectedForm ? '280px 1fr' : '1fr', gap: 16, alignItems: 'start' }}>
 
         {/* Left — forms list */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={selectedForm ? { display: 'flex', flexDirection: 'column', gap: 8 } : { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           {FORMS.filter(f => !f.adminOnly || isAdmin).map(f => (
             <div key={f.key} className="card" style={{
               borderLeft: `3px solid ${f.colour}`,
