@@ -187,7 +187,15 @@ export default function Registers() {
   const [showColPicker, setShowColPicker] = useState(false)
   const [visibleCols, setVisibleCols] = useState(() => {
     const saved = localStorage.getItem('register_cols')
-    return saved ? JSON.parse(saved) : ['checkbox','student_ref','name','age','house','grade','groups','attendance','media','points']
+    if (saved) {
+      // "record" wasn't a toggleable option before -- it was always
+      // shown for KR/KRBA regardless of any saved preference, so an
+      // existing saved list predating this change shouldn't be read
+      // as "the user chose to hide it".
+      const parsed = JSON.parse(saved)
+      return parsed.includes('record') ? parsed : [...parsed, 'record']
+    }
+    return ['checkbox','student_ref','name','age','house','grade','groups','attendance','media','points','record']
   })
 
   const ALL_REG_COLS = [
@@ -198,6 +206,7 @@ export default function Registers() {
     { key: 'house',       label: 'House' },
     { key: 'grade',       label: 'Grade' },
     { key: 'weight',      label: 'Weight' },
+    { key: 'record',      label: 'Record' },
     { key: 'class_time',  label: 'Class time' },
     { key: 'groups',      label: 'Groups' },
     { key: 'attendance',  label: 'Attend.' },
@@ -908,7 +917,7 @@ export default function Registers() {
         <div className="card" style={{ marginBottom: 10, padding: 12 }}>
           <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Show / hide columns</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
-            {ALL_REG_COLS.map(c => (
+            {ALL_REG_COLS.filter(c => c.key !== 'record' || regType === 'kr' || regType === 'krba').map(c => (
               <button key={c.key} onClick={() => toggleRegCol(c.key)} style={{
                 padding: '4px 10px', borderRadius: 20, fontSize: 11, cursor: 'pointer',
                 border: `1px solid ${visibleCols.includes(c.key) ? 'var(--text)' : 'var(--border-strong)'}`,
@@ -1175,6 +1184,7 @@ export default function Registers() {
                 {visibleCols.includes('house')       && <SortTh col="house" label="House" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
                 {visibleCols.includes('grade')       && <SortTh col="grade" label="Grade" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
                 {visibleCols.includes('weight') && !isKR && regType !== 'krba' && <SortTh col="weight_kg" label="Weight" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} style={{ textAlign: 'center' }} />}
+                {visibleCols.includes('record') && (regType === 'kr' || regType === 'krba') && <SortTh col="wins" label="Record" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} style={{ textAlign: 'center' }} />}
                 {visibleCols.includes('class_time')  && <th style={{ background: 'var(--bg)' }}>Class time</th>}
                 {isKR && <>
                   <SortTh col="competition_team" label="Experience" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
@@ -1193,7 +1203,6 @@ export default function Registers() {
                       </>} />
                   )
                 })()}
-                {(regType === 'kr' || regType === 'krba') && <SortTh col="wins" label="Record" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} style={{ textAlign: 'center' }} />}
                 {visibleCols.includes('groups')      && <GroupFilterTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} groupFilter={groupFilter} setGroupFilter={setGroupFilter} filterOpen={groupFilterOpen} setFilterOpen={setGroupFilterOpen} />}
                 {visibleCols.includes('attendance')  && (
                   <SortTh col="attendance" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} style={{ textAlign: 'center' }}
@@ -1287,7 +1296,7 @@ export default function Registers() {
                         </button>
                       </td>
                     )}
-                    {(regType === 'kr' || regType === 'krba') && (
+                    {visibleCols.includes('record') && (regType === 'kr' || regType === 'krba') && (
                       <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()} onTouchStart={e => e.stopPropagation()} onTouchEnd={e => e.stopPropagation()}>
                         <div style={{ display: 'flex', gap: 2, alignItems: 'center', justifyContent: 'center' }}>
                           <input type="number" min="0" defaultValue={s.wins || 0} title="Wins"
