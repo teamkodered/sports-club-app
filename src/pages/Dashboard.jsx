@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { supabase } from '../lib/supabase.js'
@@ -15,6 +15,49 @@ export default function Dashboard() {
   const [stats, setStats]         = useState({})
   const [memberBreakdownIndex, setMemberBreakdownIndex] = useState(0)
   const [athleteBreakdownIndex, setAthleteBreakdownIndex] = useState(0)
+  const memberHoldTimerRef = useRef(null)
+  const memberHoldFiredRef = useRef(false)
+  const athleteHoldTimerRef = useRef(null)
+  const athleteHoldFiredRef = useRef(false)
+
+  const HOLD_MS = 450
+  function handleMemberIconDown() {
+    memberHoldFiredRef.current = false
+    memberHoldTimerRef.current = setTimeout(() => { memberHoldFiredRef.current = true; setMemberBreakdownIndex(i => i + 1) }, HOLD_MS)
+  }
+  function handleMemberIconUp(e) {
+    clearTimeout(memberHoldTimerRef.current)
+    if (memberHoldFiredRef.current) e.preventDefault() // hold already cycled the stat -- don't also navigate
+  }
+  function handleAthleteIconDown() {
+    athleteHoldFiredRef.current = false
+    athleteHoldTimerRef.current = setTimeout(() => { athleteHoldFiredRef.current = true; setAthleteBreakdownIndex(i => i + 1) }, HOLD_MS)
+  }
+  function handleAthleteIconUp(e) {
+    clearTimeout(athleteHoldTimerRef.current)
+    if (athleteHoldFiredRef.current) e.preventDefault()
+  }
+
+  // Colours the number green/orange/red depending on whether it's gone
+  // up, stayed the same, or gone down since the last time this same
+  // stat was viewed -- tracked per browser via localStorage, since
+  // there's no dedicated history table for these dashboard counts.
+  // Computed once per real data load (not per render), otherwise
+  // cycling the breakdown view would re-trigger this and immediately
+  // make "previous" equal "current", losing the actual trend.
+  const [trendColours, setTrendColours] = useState({})
+  useEffect(() => {
+    if (stats.memberCount == null && stats.athleteCount == null) return
+    const next = {}
+    for (const [key, value] of Object.entries({ members: stats.memberCount, athletes: stats.athleteCount })) {
+      if (value == null) continue
+      const stored = localStorage.getItem(`dash_trend_${key}`)
+      const prev = stored != null ? Number(stored) : null
+      localStorage.setItem(`dash_trend_${key}`, String(value))
+      next[key] = prev == null ? undefined : value > prev ? '#1D9E75' : value < prev ? '#E24B4A' : '#EF9F27'
+    }
+    setTrendColours(next)
+  }, [stats.memberCount, stats.athleteCount])
   const [standings, setStandings] = useState([])
   const [topStudents, setTopStudents] = useState([])
   const [recentPts, setRecentPts] = useState([])
@@ -210,20 +253,20 @@ export default function Dashboard() {
             <Link key={s.label === step.label ? 'members' : (s.isAthleteCard ? 'athletes' : s.label)} to={s.to} className="card" style={{ textAlign: 'center', borderTop: `3px solid ${s.colour}`, textDecoration: 'none', color: 'inherit', display: 'block' }}>
               {s.isMemberCard ? (
                 <div style={{ fontSize: 26, marginBottom: 4 }}
-                  onClick={e => { e.preventDefault(); e.stopPropagation(); setMemberBreakdownIndex(i => i + 1) }}
-                  title="Tap to cycle: All / PKA / KR Centre PKA / Derby Moore / Moorways / KR / KRBA">
+                  onPointerDown={handleMemberIconDown} onPointerUp={handleMemberIconUp} onPointerLeave={() => clearTimeout(memberHoldTimerRef.current)}
+                  title="Hold to cycle: All / PKA / KR Centre PKA / Derby Moore / Moorways / KR / KRBA">
                   {s.icon}
                 </div>
               ) : s.isAthleteCard ? (
                 <div style={{ fontSize: 26, marginBottom: 4 }}
-                  onClick={e => { e.preventDefault(); e.stopPropagation(); setAthleteBreakdownIndex(i => i + 1) }}
-                  title="Tap the medal to cycle: Total Athletes / KR Athletes / KRBA Athletes">
+                  onPointerDown={handleAthleteIconDown} onPointerUp={handleAthleteIconUp} onPointerLeave={() => clearTimeout(athleteHoldTimerRef.current)}
+                  title="Hold to cycle: Total Athletes / KR Athletes / KRBA Athletes">
                   {s.icon}
                 </div>
               ) : (
                 <div style={{ fontSize: 26, marginBottom: 4 }}>{s.icon}</div>
               )}
-              <div style={{ fontSize: 26, fontWeight: 700, color: s.colour }}>{s.value}</div>
+              <div style={{ fontSize: 26, fontWeight: 700, color: (s.isMemberCard && trendColours.members) || (s.isAthleteCard && trendColours.athletes) || s.colour }}>{s.value}</div>
               <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{s.label}</div>
             </Link>
           ))
