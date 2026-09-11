@@ -452,6 +452,7 @@ export default function CRM() {
   const [inboxLoaded, setInboxLoaded] = useState(false)
   const [inboxLoading, setInboxLoading] = useState(false)
   const [inboxMessages, setInboxMessages] = useState([])
+  const [emailFolder, setEmailFolder] = useState('INBOX') // 'INBOX' | 'Contacted' | 'Notes'
   const [pendingDeleteUids, setPendingDeleteUids] = useState(() => new Set())
   const pendingDeleteTimers = useRef({})
   const [pendingMoveUids, setPendingMoveUids] = useState(() => new Set())
@@ -1023,13 +1024,13 @@ export default function CRM() {
   // also doubles as a straightforward way to check the mailbox
   // credentials are actually working, since a failure here surfaces a
   // clear error (e.g. wrong password) rather than needing to guess.
-  async function loadInbox() {
+  async function loadInbox(folder = emailFolder) {
     setInboxLoading(true)
     setInboxError(null)
     try {
       const { data: sessionData } = await supabase.auth.getSession()
       const accessToken = sessionData?.session?.access_token
-      const res = await fetch('/.netlify/functions/list-inbox', {
+      const res = await fetch(`/.netlify/functions/list-inbox?folder=${encodeURIComponent(folder)}`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       })
       const result = await res.json()
@@ -1043,6 +1044,11 @@ export default function CRM() {
     }
     setInboxLoaded(true)
     setInboxLoading(false)
+  }
+
+  function switchEmailFolder(folder) {
+    setEmailFolder(folder)
+    loadInbox(folder)
   }
 
   // Sends a real test email to the club's own address -- a quick,
@@ -1089,7 +1095,7 @@ export default function CRM() {
     try {
       const { data: sessionData } = await supabase.auth.getSession()
       const accessToken = sessionData?.session?.access_token
-      const res = await fetch(`/.netlify/functions/list-inbox?uid=${uid}`, {
+      const res = await fetch(`/.netlify/functions/list-inbox?uid=${uid}&folder=${encodeURIComponent(emailFolder)}`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       })
       const result = await res.json()
@@ -4329,6 +4335,19 @@ export default function CRM() {
             </div>
           </div>
 
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            {['INBOX', 'Contacted', 'Notes'].map(f => (
+              <button key={f} className={emailFolder === f ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => switchEmailFolder(f)}>
+                {f === 'INBOX' ? '📥 Inbox' : f}
+              </button>
+            ))}
+          </div>
+          {emailFolder !== 'INBOX' && (
+            <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 12 }}>
+              Viewing the {emailFolder} folder — read-only here (delete/move/mark-contacted aren't available outside the Inbox).
+            </p>
+          )}
+
           <div className="card" style={{ padding: 0 }}>
             {inboxLoading ? (
               <div className="loading">Loading inbox…</div>
@@ -4358,9 +4377,11 @@ export default function CRM() {
                 ) : (
                   <div key={m.uid} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 16px', minHeight: 64, borderTop: '1px solid var(--border)' }}>
                     <div style={{ display: 'flex', gap: 6, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
-                      <button className="btn btn-sm" title="Mark contacted → Enquiries" onClick={() => markContactedForMessage(m)}>✓</button>
-                      <button className="btn btn-sm" title="Move to Notes folder" onClick={() => moveMessageToNotes(m)}>📝</button>
-                      <button className="btn btn-sm" style={{ color: '#E24B4A' }} title="Delete" onClick={() => deleteEmailWithUndo(m)}>🗑️</button>
+                      {emailFolder === 'INBOX' && <>
+                        <button className="btn btn-sm" title="Mark contacted → Enquiries" onClick={() => markContactedForMessage(m)}>✓</button>
+                        <button className="btn btn-sm" title="Move to Notes folder" onClick={() => moveMessageToNotes(m)}>📝</button>
+                        <button className="btn btn-sm" style={{ color: '#E24B4A' }} title="Delete" onClick={() => deleteEmailWithUndo(m)}>🗑️</button>
+                      </>}
                     </div>
                     <div onClick={() => openInboxMessage(m.uid)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, cursor: 'pointer' }}>
                       <div style={{ minWidth: 0, overflow: 'hidden' }}>
@@ -4434,9 +4455,11 @@ export default function CRM() {
                           {phone && <a className="btn btn-sm" href={`tel:${phone}`}>📞 Call {phone}</a>}
                           {phone && <a className="btn btn-sm" href={`https://wa.me/${phone.replace(/[^0-9]/g, '').replace(/^0/, '44')}`} target="_blank" rel="noreferrer">💬 WhatsApp</a>}
                           {phone && isMobile && <a className="btn btn-sm" href={`sms:${phone}`}>💬 Text {phone}</a>}
-                          <button className="btn btn-sm" onClick={markMessageContacted}>✓ Mark contacted → Enquiries</button>
-                          <button className="btn btn-sm" onClick={() => { moveMessageToNotes(openMessage); setOpenMessage(null) }}>📝 Move to Notes</button>
-                          <button className="btn btn-sm" style={{ color: '#E24B4A' }} onClick={deleteOpenMessage}>🗑️ Delete</button>
+                          {emailFolder === 'INBOX' && <>
+                            <button className="btn btn-sm" onClick={markMessageContacted}>✓ Mark contacted → Enquiries</button>
+                            <button className="btn btn-sm" onClick={() => { moveMessageToNotes(openMessage); setOpenMessage(null) }}>📝 Move to Notes</button>
+                            <button className="btn btn-sm" style={{ color: '#E24B4A' }} onClick={deleteOpenMessage}>🗑️ Delete</button>
+                          </>}
                         </div>
                       )
                     })()}

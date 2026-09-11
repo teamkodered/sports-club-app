@@ -21,6 +21,7 @@ exports.handler = async (event) => {
   }
 
   const uid = event.queryStringParameters?.uid
+  const folder = event.queryStringParameters?.folder || 'INBOX'
 
   const authHeader = event.headers.authorization || event.headers.Authorization
   if (!authHeader) return { statusCode: 401, body: JSON.stringify({ error: 'Missing session' }) }
@@ -69,10 +70,10 @@ exports.handler = async (event) => {
     try {
       let lock
       try {
-        lock = await client.getMailboxLock('INBOX')
+        lock = await client.getMailboxLock(folder)
       } catch (err) {
         const detail = err.responseText || err.response?.attributes?.map(a => a.value).join(' ') || null
-        throw new Error(`Opening INBOX failed: ${detail || err.message}`)
+        throw new Error(`Opening ${folder} failed: ${detail || err.message}`)
       }
 
       try {
