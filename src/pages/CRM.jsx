@@ -322,6 +322,24 @@ export default function CRM() {
   const { isAdmin } = useAuth()
   const location = useLocation()
   const [tab, setTab] = useBackableTab('standing_orders')
+  const DEFAULT_TAB_ORDER = ['standing_orders', 'missed_training', 'stopped_training', 'grading_requests', 'birthdays', 'enquiries', 'trackers', 'messages', 'email', 'courses']
+  const [tabOrder, setTabOrder] = useState(() => {
+    const saved = localStorage.getItem('crm_tab_order')
+    if (!saved) return DEFAULT_TAB_ORDER
+    try {
+      const parsed = JSON.parse(saved)
+      // Adds any newly-introduced tab that predates a saved order,
+      // and drops any that no longer exist, rather than silently
+      // hiding/crashing on a stale list.
+      const stillValid = parsed.filter(k => DEFAULT_TAB_ORDER.includes(k))
+      const missing = DEFAULT_TAB_ORDER.filter(k => !stillValid.includes(k))
+      return [...stillValid, ...missing]
+    } catch { return DEFAULT_TAB_ORDER }
+  })
+  useEffect(() => { localStorage.setItem('crm_tab_order', JSON.stringify(tabOrder)) }, [tabOrder])
+  const [draggingTab, setDraggingTab] = useState(null)
+  const tabHoldTimerRef = useRef(null)
+  const tabDragStartXRef = useRef(0)
 
   // Deep-link support -- Forms.jsx sends people here with a specific
   // tab pre-selected (e.g. "View" on a Grading Expression response
@@ -2491,68 +2509,78 @@ export default function CRM() {
         )
       })()}
 
-      <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', marginBottom: 20, overflowX: 'auto', WebkitOverflowScrolling: 'touch', flexWrap: 'nowrap' }}>
-        <button onClick={() => setTab('standing_orders')} style={{
-          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer', flexShrink: 0,
-          borderBottom: `2px solid ${tab === 'standing_orders' ? 'var(--text)' : 'transparent'}`,
-          color: tab === 'standing_orders' ? 'var(--text)' : 'var(--text-secondary)',
-          fontWeight: tab === 'standing_orders' ? 500 : 400,
-        }}>Standing orders</button>
-        <button onClick={() => { setTab('missed_training'); if (!missedTrainingLoaded) loadMissedTraining() }} style={{
-          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer', flexShrink: 0,
-          borderBottom: `2px solid ${tab === 'missed_training' ? 'var(--text)' : 'transparent'}`,
-          color: tab === 'missed_training' ? 'var(--text)' : 'var(--text-secondary)',
-          fontWeight: tab === 'missed_training' ? 500 : 400,
-        }}>Missed training{missedTraining.length > 0 ? ` (${missedTraining.length})` : ''}</button>
-        <button onClick={() => { setTab('stopped_training'); if (!stoppedLoaded) loadStoppedStudents() }} style={{
-          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer', flexShrink: 0,
-          borderBottom: `2px solid ${tab === 'stopped_training' ? 'var(--text)' : 'transparent'}`,
-          color: tab === 'stopped_training' ? 'var(--text)' : 'var(--text-secondary)',
-          fontWeight: tab === 'stopped_training' ? 500 : 400,
-        }}>Stopped training{stoppedStudents.length > 0 ? ` (${stoppedStudents.length})` : ''}</button>
-        <button onClick={() => { setTab('grading_requests'); loadGradingRequests() }} style={{
-          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer', flexShrink: 0,
-          borderBottom: `2px solid ${tab === 'grading_requests' ? 'var(--text)' : 'transparent'}`,
-          color: tab === 'grading_requests' ? 'var(--text)' : 'var(--text-secondary)',
-          fontWeight: tab === 'grading_requests' ? 500 : 400,
-        }}>Grading requests{gradingRequests.filter(r => !r.coach_approved).length > 0 ? ` (${gradingRequests.filter(r => !r.coach_approved).length})` : ''}</button>
-        <button onClick={() => { setTab('birthdays'); if (!birthdaysLoaded) loadBirthdays() }} style={{
-          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer', flexShrink: 0,
-          borderBottom: `2px solid ${tab === 'birthdays' ? 'var(--text)' : 'transparent'}`,
-          color: tab === 'birthdays' ? 'var(--text)' : 'var(--text-secondary)',
-          fontWeight: tab === 'birthdays' ? 500 : 400,
-        }}>Birthdays{birthdays.length > 0 ? ` (${birthdays.length})` : ''}</button>
-        <button onClick={() => { setTab('enquiries'); if (!enquiriesLoaded) loadEnquiries() }} style={{
-          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer', flexShrink: 0,
-          borderBottom: `2px solid ${tab === 'enquiries' ? 'var(--text)' : 'transparent'}`,
-          color: tab === 'enquiries' ? 'var(--text)' : 'var(--text-secondary)',
-          fontWeight: tab === 'enquiries' ? 500 : 400,
-        }}>Enquiries</button>
-        <button onClick={() => { setTab('trackers'); if (!enquiriesLoaded) loadEnquiries(); if (!leadSourcesLoaded) loadLeadSources(); if (!joinsStopsLoaded) loadJoinsVsStops(); if (!trainedPerDayLoaded) loadTrainedPerDay() }} style={{
-          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer', flexShrink: 0,
-          borderBottom: `2px solid ${tab === 'trackers' ? 'var(--text)' : 'transparent'}`,
-          color: tab === 'trackers' ? 'var(--text)' : 'var(--text-secondary)',
-          fontWeight: tab === 'trackers' ? 500 : 400,
-        }}>Trackers</button>
-        <button onClick={() => setTab('messages')} style={{
-          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer', flexShrink: 0,
-          borderBottom: `2px solid ${tab === 'messages' ? 'var(--text)' : 'transparent'}`,
-          color: tab === 'messages' ? 'var(--text)' : 'var(--text-secondary)',
-          fontWeight: tab === 'messages' ? 500 : 400,
-        }}>Messages</button>
-        <button onClick={() => { setTab('email'); if (!inboxLoaded) loadInbox() }} style={{
-          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer', flexShrink: 0,
-          borderBottom: `2px solid ${tab === 'email' ? 'var(--text)' : 'transparent'}`,
-          color: tab === 'email' ? 'var(--text)' : 'var(--text-secondary)',
-          fontWeight: tab === 'email' ? 500 : 400,
-        }}>Email</button>
-        <button onClick={() => { setTab('courses'); if (!coursesLoaded) loadCourses() }} style={{
-          padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer', flexShrink: 0,
-          borderBottom: `2px solid ${tab === 'courses' ? 'var(--text)' : 'transparent'}`,
-          color: tab === 'courses' ? 'var(--text)' : 'var(--text-secondary)',
-          fontWeight: tab === 'courses' ? 500 : 400,
-        }}>Notices{courses.length > 0 ? ` (${courses.length})` : ''}</button>
-      </div>
+      {(() => {
+        const TAB_DEFS = {
+          standing_orders:  { label: 'Standing orders', colour: '#378ADD', onSelect: () => setTab('standing_orders') },
+          missed_training:  { label: `Missed training${missedTraining.length > 0 ? ` (${missedTraining.length})` : ''}`, colour: '#EF9F27', onSelect: () => { setTab('missed_training'); if (!missedTrainingLoaded) loadMissedTraining() } },
+          stopped_training: { label: `Stopped training${stoppedStudents.length > 0 ? ` (${stoppedStudents.length})` : ''}`, colour: '#E24B4A', onSelect: () => { setTab('stopped_training'); if (!stoppedLoaded) loadStoppedStudents() } },
+          grading_requests: { label: `Grading requests${gradingRequests.filter(r => !r.coach_approved).length > 0 ? ` (${gradingRequests.filter(r => !r.coach_approved).length})` : ''}`, colour: '#8B5CF6', onSelect: () => { setTab('grading_requests'); loadGradingRequests() } },
+          birthdays:        { label: `Birthdays${birthdays.length > 0 ? ` (${birthdays.length})` : ''}`, colour: '#EC4899', onSelect: () => { setTab('birthdays'); if (!birthdaysLoaded) loadBirthdays() } },
+          enquiries:        { label: 'Enquiries', colour: '#1D9E75', onSelect: () => { setTab('enquiries'); if (!enquiriesLoaded) loadEnquiries() } },
+          trackers:         { label: 'Trackers', colour: '#06B6D4', onSelect: () => { setTab('trackers'); if (!enquiriesLoaded) loadEnquiries(); if (!leadSourcesLoaded) loadLeadSources(); if (!joinsStopsLoaded) loadJoinsVsStops(); if (!trainedPerDayLoaded) loadTrainedPerDay() } },
+          messages:         { label: 'Messages', colour: '#6366F1', onSelect: () => setTab('messages') },
+          email:            { label: 'Email', colour: '#14B8A6', onSelect: () => { setTab('email'); if (!inboxLoaded) loadInbox() } },
+          courses:          { label: `Notices${courses.length > 0 ? ` (${courses.length})` : ''}`, colour: '#64748B', onSelect: () => { setTab('courses'); if (!coursesLoaded) loadCourses() } },
+        }
+
+        // Long-press (450ms) then drag horizontally to reorder tabs --
+        // a quick tap still just switches tabs normally. The dragged
+        // tab swaps position with whichever tab it's currently
+        // overlapping, live, as the finger/cursor moves.
+        function handleTabPointerDown(key, e) {
+          const startX = e.clientX
+          tabDragStartXRef.current = startX
+          tabHoldTimerRef.current = setTimeout(() => setDraggingTab(key), 450)
+        }
+        function handleTabPointerMove(e) {
+          if (!draggingTab) return
+          const el = document.elementFromPoint(e.clientX, e.clientY)
+          const overKey = el?.closest?.('[data-tab-key]')?.getAttribute('data-tab-key')
+          if (overKey && overKey !== draggingTab) {
+            setTabOrder(prev => {
+              const next = [...prev]
+              const from = next.indexOf(draggingTab)
+              const to = next.indexOf(overKey)
+              if (from === -1 || to === -1) return prev
+              next.splice(from, 1)
+              next.splice(to, 0, draggingTab)
+              return next
+            })
+          }
+        }
+        function handleTabPointerUp(key) {
+          clearTimeout(tabHoldTimerRef.current)
+          if (draggingTab) { setDraggingTab(null); return } // was a drag -- don't also fire the tap-select
+          TAB_DEFS[key].onSelect()
+        }
+
+        return (
+          <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', marginBottom: 20, overflowX: 'auto', WebkitOverflowScrolling: 'touch', flexWrap: 'nowrap' }}
+            onPointerMove={handleTabPointerMove}>
+            {tabOrder.map(key => {
+              const def = TAB_DEFS[key]
+              if (!def) return null
+              const active = tab === key
+              return (
+                <button key={key} data-tab-key={key}
+                  onPointerDown={e => handleTabPointerDown(key, e)}
+                  onPointerUp={() => handleTabPointerUp(key)}
+                  onPointerLeave={() => clearTimeout(tabHoldTimerRef.current)}
+                  style={{
+                    padding: '8px 16px', fontSize: 13, border: 'none', cursor: 'pointer', flexShrink: 0,
+                    background: draggingTab === key ? 'var(--bg-secondary)' : 'none',
+                    opacity: draggingTab === key ? 0.6 : 1,
+                    borderBottom: `2px solid ${active ? def.colour : 'transparent'}`,
+                    color: active ? def.colour : 'var(--text-secondary)',
+                    fontWeight: active ? 600 : 400,
+                    userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none',
+                  }}>{def.label}</button>
+              )
+            })}
+          </div>
+        )
+      })()}
+
 
       {tab === 'enquiries' && (
         <div>
