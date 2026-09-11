@@ -1221,27 +1221,32 @@ export default function CRM() {
   // sense), separate from markContactedForMessage below which does both
   // together for a fresh Inbox message.
   async function addToEnquiries(msg) {
-    if (!msg?.from) return
+    console.log('addToEnquiries called with:', msg)
+    if (!msg?.from) { console.log('addToEnquiries: no msg.from, bailing out silently -- this is likely the actual bug'); return }
     try {
       const { data: existing, error: selectErr } = await supabase.from('enquiries').select('id').ilike('contact_email', msg.from).maybeSingle()
+      console.log('addToEnquiries: lookup for', msg.from, '-> existing:', existing, 'selectErr:', selectErr)
       if (selectErr) throw selectErr
       if (existing) {
-        const { error: updateErr } = await supabase.from('enquiries').update({ status: 'contacted', updated_at: new Date().toISOString() }).eq('id', existing.id)
+        const { data: updateData, error: updateErr } = await supabase.from('enquiries').update({ status: 'contacted', updated_at: new Date().toISOString() }).eq('id', existing.id).select()
+        console.log('addToEnquiries: update result:', updateData, updateErr)
         if (updateErr) throw updateErr
       } else {
-        const { error: insertErr } = await supabase.from('enquiries').insert({
+        const { data: insertData, error: insertErr } = await supabase.from('enquiries').insert({
           name: msg.fromName || msg.from.split('@')[0],
           contact_email: msg.from,
           contact_method: 'email',
           enquiry_date: msg.date ? new Date(msg.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
           notes: msg.subject ? `From email: "${msg.subject}"` : 'From email',
           status: 'contacted',
-        })
+        }).select()
+        console.log('addToEnquiries: insert result:', insertData, insertErr)
         if (insertErr) throw insertErr
       }
       if (enquiriesLoaded) loadEnquiries()
       setAddedToEnquiriesUids(prev => new Set(prev).add(msg.uid))
     } catch (err) {
+      console.log('addToEnquiries: caught error:', err)
       alert("Couldn't add to Enquiries: " + err.message)
     }
   }
