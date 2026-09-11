@@ -417,6 +417,7 @@ export default function CRM() {
   const [trainedPerDayLoaded, setTrainedPerDayLoaded] = useState(false)
   const [showNewEnquiryForm, setShowNewEnquiryForm] = useState(false)
   const [editingEnquiryId, setEditingEnquiryId] = useState(null)
+  const [viewingEnquiry, setViewingEnquiry] = useState(null)
   const [contactPopupFor, setContactPopupFor] = useState(null)
   const [standingOrderCheckMonth, setStandingOrderCheckMonth] = useState(null)
   const [enquiryDraft, setEnquiryDraft] = useState(null)
@@ -2669,8 +2670,9 @@ export default function CRM() {
                 const stage = stageIdx >= 0 ? ENQUIRY_STAGES[stageIdx] : ENQUIRY_STAGES[0]
                 const borderColour = enq.status === 'not_interested' ? '#9CA3AF' : stage.colour
                 return (
-                <div key={enq.id} className="card" style={{ padding: 14, borderLeft: `4px solid ${borderColour}` }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
+                <div key={enq.id} className="card" style={{ padding: 14, borderLeft: `4px solid ${borderColour}`, cursor: 'pointer' }}
+                  onClick={() => setViewingEnquiry(enq)}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 10, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       {enq.status === 'not_interested' ? (
                         <>
@@ -2697,14 +2699,17 @@ export default function CRM() {
                     </div>
                   </div>
                   <div style={{ textAlign: 'left' }}>
-                    <div style={{ fontSize: 14, fontWeight: 500 }}>{enq.name}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+                      <div style={{ fontSize: 15, fontWeight: 600 }}>{enq.name}</div>
+                      {enq.contact_phone && <div style={{ fontSize: 14, fontWeight: 600, color: '#378ADD' }}>📞 {enq.contact_phone}</div>}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
                       {new Date(enq.enquiry_date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                       {' · '}{{ call: 'Phone call', text: 'Text message', email: 'Email', in_person: 'In person', other: 'Other', facebook_ad: 'Facebook/Instagram ad' }[enq.contact_method]}
-                      {enq.contact_phone ? ` · ${enq.contact_phone}` : ''}{enq.contact_email ? ` · ${enq.contact_email}` : ''}
+                      {enq.contact_email ? ` · ${enq.contact_email}` : ''}
                     </div>
                     {enq.notes && (
-                      <div style={{ fontSize: 13, color: 'var(--text)', marginTop: 8, padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 6, maxWidth: '85%', textAlign: 'left' }}>
+                      <div style={{ fontSize: 13, color: 'var(--text)', marginTop: 8, padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 6, maxWidth: '85%', textAlign: 'left', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
                         {enq.notes}
                       </div>
                     )}
@@ -2714,6 +2719,7 @@ export default function CRM() {
                       </div>
                     )}
                   </div>
+                  <div onClick={e => e.stopPropagation()}>
                   {enq.contact_email && (
                     <div style={{ marginTop: 8 }}>
                       <button className="btn btn-sm" onClick={() => { setEmailingEnquiry(enq); setEnquiryEmailDraft({ subject: 'Following up from KR Centre', body: `Hi ${enq.name.split(' ')[0]},\n\n` }) }}>
@@ -2739,6 +2745,7 @@ export default function CRM() {
                       )}
                     </div>
                   )}
+                  </div>
                 </div>
               )})}
               {enquiries.filter(e => (enquiryStatusFilter === 'all' || e.status === enquiryStatusFilter) && (enquiryMethodFilter === 'all' || e.contact_method === enquiryMethodFilter)).length === 0 && (
@@ -2796,6 +2803,44 @@ export default function CRM() {
                   <button className="btn" onClick={() => { setEmailingEnquiry(null); setEnquiryEmailDraft(null) }}>Cancel</button>
                 </div>
                 <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>Sending this will automatically move their status to "Contacted".</p>
+              </div>
+            </div>
+          )}
+
+          {viewingEnquiry && (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
+              onClick={() => setViewingEnquiry(null)}>
+              <div className="card" style={{ width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                  <h3 style={{ fontSize: 17, fontWeight: 600 }}>{viewingEnquiry.name}</h3>
+                  <button onClick={() => setViewingEnquiry(null)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-secondary)' }}>✕</button>
+                </div>
+                {viewingEnquiry.contact_phone && <p style={{ fontSize: 15, fontWeight: 600, color: '#378ADD', marginBottom: 6 }}>📞 {viewingEnquiry.contact_phone}</p>}
+                {viewingEnquiry.contact_email && <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 6 }}>✉️ {viewingEnquiry.contact_email}</p>}
+                <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 14 }}>
+                  {new Date(viewingEnquiry.enquiry_date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  {' · '}{{ call: 'Phone call', text: 'Text message', email: 'Email', in_person: 'In person', other: 'Other', facebook_ad: 'Facebook/Instagram ad' }[viewingEnquiry.contact_method]}
+                </p>
+                {viewingEnquiry.notes && (
+                  <div style={{ fontSize: 14, color: 'var(--text)', padding: '12px 14px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', whiteSpace: 'pre-line', marginBottom: 14 }}>
+                    {viewingEnquiry.notes}
+                  </div>
+                )}
+                {viewingEnquiry.members && (
+                  <p style={{ fontSize: 13, color: '#1D9E75', fontWeight: 500, marginBottom: 14 }}>
+                    ✓ Joined — linked to {viewingEnquiry.members.first_name} {viewingEnquiry.members.last_name}
+                  </p>
+                )}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {viewingEnquiry.contact_phone && <a className="btn btn-sm" href={`tel:${viewingEnquiry.contact_phone}`}>📞 Call</a>}
+                  {viewingEnquiry.contact_phone && <a className="btn btn-sm" href={`https://wa.me/${viewingEnquiry.contact_phone.replace(/[^0-9]/g, '').replace(/^0/, '44')}`} target="_blank" rel="noreferrer">💬 WhatsApp</a>}
+                  {viewingEnquiry.contact_phone && <a className="btn btn-sm" href={`sms:${viewingEnquiry.contact_phone}`}>💬 Text</a>}
+                  {viewingEnquiry.contact_email && (
+                    <button className="btn btn-sm" onClick={() => { setViewingEnquiry(null); setEmailingEnquiry(viewingEnquiry); setEnquiryEmailDraft({ subject: 'Following up from KR Centre', body: `Hi ${viewingEnquiry.name.split(' ')[0]},\n\n` }) }}>
+                      ✉️ Email
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           )}
