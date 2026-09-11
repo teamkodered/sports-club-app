@@ -168,3 +168,20 @@ tbody tr:hover td { background: var(--bg-secondary); }
   .register-name-text { font-size: 16px !important; font-weight: 600 !important; }
   .desktop-only-zoom-controls { display: none !important; }
 }
+
+/* CRM: fixed-column-count grids (e.g. the 5 message templates in
+   Standing Orders/Missed Training/Birthdays) don't leave room to
+   squeeze into a narrow phone screen -- on mobile these become a
+   horizontally-scrollable row instead, each item keeping a sane
+   minimum width rather than getting crushed illegibly thin. */
+@media (max-width: 768px) {
+  .template-grid {
+    display: flex !important;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .template-grid > * {
+    min-width: 150px;
+    flex-shrink: 0;
+  }
+}

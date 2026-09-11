@@ -2745,7 +2745,7 @@ export default function CRM() {
       {tab === 'trackers' && (
         <div>
           {trackersStats && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 16 }}>
+            <div className="template-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 16 }}>
               {[
                 { label: 'Total students', value: trackersStats.totalStudents, colour: '#378ADD', icon: '🎽' },
                 { label: 'New members this month', value: trackersStats.newMembersThisMonth, colour: '#E24B4A', icon: '🆕' },
@@ -2834,7 +2834,7 @@ export default function CRM() {
             )}
 
             <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>Message templates — press to select, then choose who to send it to</p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 12 }}>
+            <div className="template-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 12 }}>
               {templates.map((t, i) => (
                 editingTemplateIdx === i ? (
                   <div key={i} className="card" style={{ padding: 8, background: 'var(--bg-secondary)' }}>
@@ -3169,7 +3169,7 @@ export default function CRM() {
             </label>
 
             <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>Message templates — press to select, then choose who to send it to</p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 12 }}>
+            <div className="template-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 12 }}>
               {mtTemplates.map((t, i) => (
                 mtEditingIdx === i ? (
                   <div key={i} className="card" style={{ padding: 8, background: 'var(--bg-secondary)' }}>
@@ -3394,7 +3394,7 @@ export default function CRM() {
               </p>
             )}
             <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>Message templates — press to select, then choose who to send it to</p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 12 }}>
+            <div className="template-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 12 }}>
               {stTemplates.map((t, i) => (
                 stEditingIdx === i ? (
                   <div key={i} className="card" style={{ padding: 8, background: 'var(--bg-secondary)' }}>
@@ -3927,7 +3927,7 @@ export default function CRM() {
             </label>
 
             <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>Message templates — press to select, then choose who to send it to</p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 12 }}>
+            <div className="template-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 12 }}>
               {bdTemplates.map((t, i) => (
                 bdEditingIdx === i ? (
                   <div key={i} className="card" style={{ padding: 8, background: 'var(--bg-secondary)' }}>
@@ -4120,7 +4120,7 @@ export default function CRM() {
             )}
 
             <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>Message templates — press to select, then use the 📤 button on any student below</p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 4 }}>
+            <div className="template-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 4 }}>
               {msgTemplates.map((t, i) => (
                 msgEditingIdx === i ? (
                   <div key={i} className="card" style={{ padding: 8, background: 'var(--bg-secondary)' }}>
