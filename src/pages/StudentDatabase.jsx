@@ -449,7 +449,9 @@ export default function StudentDatabase() {
                     groupFilter={groupFilter} setGroupFilter={setGroupFilter} filterOpen={groupFilterOpen} setFilterOpen={setGroupFilterOpen} />
                 }
                 return c.sortable
-                  ? <SortTh key={c.key} col={c.key} label={c.label} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                  ? <SortTh key={c.key} col={c.key} label={c.label} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}
+                      style={c.key === 'first_name' ? { position: 'sticky', left: 0, zIndex: 13, background: 'var(--bg)' }
+                        : c.key === 'last_name' ? { position: 'sticky', left: 100, zIndex: 13, background: 'var(--bg)' } : {}} />
                   : <th key={c.key}>{c.label}</th>
               })}
               <th></th>
@@ -478,18 +480,20 @@ export default function StudentDatabase() {
                         </td>
                       )
                       case 'first_name':  return (
-                        <td key={c.key}>
+                        <td key={c.key} className="register-name-cell" style={{ position: 'sticky', left: 0, zIndex: 1, background: 'var(--bg)', minWidth: 100 }}>
                           <a href={studentProfileLink(s)}
                             onClick={e => { e.preventDefault(); navigate(studentProfileLink(s)) }}
+                            className="register-name-text"
                             style={{ color: 'var(--text)', fontWeight: 500, textDecoration: 'none', cursor: 'pointer' }}>
                             {m?.first_name}
                           </a>
                         </td>
                       )
                       case 'last_name':   return (
-                        <td key={c.key}>
+                        <td key={c.key} className="register-name-cell" style={{ position: 'sticky', left: 100, zIndex: 1, background: 'var(--bg)', minWidth: 100 }}>
                           <a href={studentProfileLink(s)}
                             onClick={e => { e.preventDefault(); navigate(studentProfileLink(s)) }}
+                            className="register-name-text"
                             style={{ color: 'var(--text)', fontWeight: 500, textDecoration: 'none', cursor: 'pointer' }}>
                             {m?.last_name}
                           </a>
