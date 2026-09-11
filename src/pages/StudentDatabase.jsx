@@ -105,6 +105,8 @@ export default function StudentDatabase() {
   const [stopping, setStopping]       = useState(null)
   const [roleEdit, setRoleEdit]       = useState(null)
   const [sortKey, setSortKey]         = useState('last_name')
+  const [studentsZoom, setStudentsZoom] = useState(() => Number(localStorage.getItem('students_zoom')) || 100)
+  useEffect(() => { localStorage.setItem('students_zoom', String(studentsZoom)) }, [studentsZoom])
   const [sortDir, setSortDir]         = useState('asc')
   const [visibleCols, setVisibleCols] = useState(DEFAULT_VISIBLE)
   const [showColPicker, setShowColPicker] = useState(false)
@@ -432,7 +434,14 @@ export default function StudentDatabase() {
         </select>
       </div>
 
-      <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+      <div className="desktop-only-zoom-controls" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Zoom:</span>
+        <button className="btn btn-sm" onClick={() => setStudentsZoom(z => Math.max(70, z - 10))}>−</button>
+        <span style={{ fontSize: 12, minWidth: 40, textAlign: 'center' }}>{studentsZoom}%</span>
+        <button className="btn btn-sm" onClick={() => setStudentsZoom(z => Math.min(200, z + 10))}>+</button>
+        {studentsZoom !== 100 && <button className="btn btn-sm" onClick={() => setStudentsZoom(100)}>Reset</button>}
+      </div>
+      <div className="card" style={{ padding: 0, overflowX: 'auto', zoom: `${studentsZoom}%` }}>
         <table>
           <thead>
             <tr>
