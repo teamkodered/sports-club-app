@@ -471,6 +471,7 @@ export default function CRM() {
   const [inboxLoading, setInboxLoading] = useState(false)
   const [inboxMessages, setInboxMessages] = useState([])
   const [emailFolder, setEmailFolder] = useState('INBOX') // 'INBOX' | 'Contacted' | 'Notes'
+  const [addedToEnquiriesUids, setAddedToEnquiriesUids] = useState(() => new Set()) // session-only marker, turns the row green after a successful "Add to Enquiries"
   const [pendingDeleteUids, setPendingDeleteUids] = useState(() => new Set())
   const pendingDeleteTimers = useRef({})
   const [pendingMoveUids, setPendingMoveUids] = useState(() => new Set())
@@ -1066,6 +1067,7 @@ export default function CRM() {
 
   function switchEmailFolder(folder) {
     setEmailFolder(folder)
+    setAddedToEnquiriesUids(new Set())
     loadInbox(folder)
   }
 
@@ -1221,11 +1223,13 @@ export default function CRM() {
   async function addToEnquiries(msg) {
     if (!msg?.from) return
     try {
-      const { data: existing } = await supabase.from('enquiries').select('id').ilike('contact_email', msg.from).maybeSingle()
+      const { data: existing, error: selectErr } = await supabase.from('enquiries').select('id').ilike('contact_email', msg.from).maybeSingle()
+      if (selectErr) throw selectErr
       if (existing) {
-        await supabase.from('enquiries').update({ status: 'contacted', updated_at: new Date().toISOString() }).eq('id', existing.id)
+        const { error: updateErr } = await supabase.from('enquiries').update({ status: 'contacted', updated_at: new Date().toISOString() }).eq('id', existing.id)
+        if (updateErr) throw updateErr
       } else {
-        await supabase.from('enquiries').insert({
+        const { error: insertErr } = await supabase.from('enquiries').insert({
           name: msg.fromName || msg.from.split('@')[0],
           contact_email: msg.from,
           contact_method: 'email',
@@ -1233,9 +1237,10 @@ export default function CRM() {
           notes: msg.subject ? `From email: "${msg.subject}"` : 'From email',
           status: 'contacted',
         })
+        if (insertErr) throw insertErr
       }
       if (enquiriesLoaded) loadEnquiries()
-      alert(`Added to Enquiries (marked as Contacted).`)
+      setAddedToEnquiriesUids(prev => new Set(prev).add(msg.uid))
     } catch (err) {
       alert("Couldn't add to Enquiries: " + err.message)
     }
@@ -4425,13 +4430,15 @@ export default function CRM() {
                     <button className="btn btn-sm" style={{ flexShrink: 0 }} onClick={() => undoMarkContacted(m.uid)}>↺ Undo</button>
                   </div>
                 ) : (
-                  <div key={m.uid} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 16px', minHeight: 64, borderTop: '1px solid var(--border)' }}>
+                  <div key={m.uid} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 16px', minHeight: 64, borderTop: '1px solid var(--border)', background: addedToEnquiriesUids.has(m.uid) ? '#1D9E7518' : undefined }}>
                     <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
                       {emailFolder === 'INBOX' && (
                         <button className="btn btn-sm" title="Mark contacted → Enquiries" onClick={() => markContactedForMessage(m)}>✓</button>
                       )}
                       {emailFolder !== 'INBOX' && (
-                        <button className="btn btn-sm" title="Add to Enquiries" onClick={() => addToEnquiries(m)}>✓ Enquiries</button>
+                        <button className="btn btn-sm" title="Add to Enquiries" disabled={addedToEnquiriesUids.has(m.uid)}
+                          style={addedToEnquiriesUids.has(m.uid) ? { color: '#1D9E75', borderColor: '#1D9E75' } : undefined}
+                          onClick={() => addToEnquiries(m)}>{addedToEnquiriesUids.has(m.uid) ? '✓ Added' : '✓ Enquiries'}</button>
                       )}
                       {emailFolder !== 'INBOX' && (
                         <button className="btn btn-sm" title="Move to Inbox" onClick={() => moveMessageToFolderWithUndo(m, 'INBOX')}>📥</button>
