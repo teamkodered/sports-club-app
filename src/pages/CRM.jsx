@@ -2686,23 +2686,41 @@ export default function CRM() {
             <div className="card" style={{ marginBottom: 16, padding: 16 }}>
               <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 10 }}>{editingEnquiryId ? 'Edit enquiry' : 'New enquiry'}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <input type="text" placeholder="Name (optional)" value={enquiryDraft.name} onChange={e => setEnquiryDraft(d => ({ ...d, name: e.target.value }))} style={{ fontSize: 13 }} />
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <input type="text" placeholder="Phone" value={enquiryDraft.contact_phone} onChange={e => setEnquiryDraft(d => ({ ...d, contact_phone: e.target.value }))} style={{ fontSize: 13, flex: 1 }} />
-                  <input type="email" placeholder="Email" value={enquiryDraft.contact_email} onChange={e => setEnquiryDraft(d => ({ ...d, contact_email: e.target.value }))} style={{ fontSize: 13, flex: 1 }} />
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>Name</label>
+                  <input type="text" placeholder="Name (optional)" value={enquiryDraft.name} onChange={e => setEnquiryDraft(d => ({ ...d, name: e.target.value }))} style={{ fontSize: 13, width: '100%' }} />
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <select value={enquiryDraft.contact_method} onChange={e => setEnquiryDraft(d => ({ ...d, contact_method: e.target.value }))} style={{ fontSize: 13, flex: 1 }}>
-                    <option value="call">Phone call</option>
-                    <option value="text">Text message</option>
-                    <option value="email">Email</option>
-                    <option value="in_person">In person</option>
-                    <option value="facebook_ad">Facebook/Instagram ad</option>
-                    <option value="other">Other</option>
-                  </select>
-                  <input type="date" value={enquiryDraft.enquiry_date} onChange={e => setEnquiryDraft(d => ({ ...d, enquiry_date: e.target.value }))} style={{ fontSize: 13, flex: 1 }} />
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>Phone</label>
+                    <input type="text" placeholder="Phone" value={enquiryDraft.contact_phone} onChange={e => setEnquiryDraft(d => ({ ...d, contact_phone: e.target.value }))} style={{ fontSize: 13, width: '100%' }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>Email</label>
+                    <input type="email" placeholder="Email" value={enquiryDraft.contact_email} onChange={e => setEnquiryDraft(d => ({ ...d, contact_email: e.target.value }))} style={{ fontSize: 13, width: '100%' }} />
+                  </div>
                 </div>
-                <textarea placeholder="Notes (what they asked about, any follow-up needed...)" value={enquiryDraft.notes} onChange={e => setEnquiryDraft(d => ({ ...d, notes: e.target.value }))} style={{ fontSize: 13, minHeight: 60 }} />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>Contact method</label>
+                    <select value={enquiryDraft.contact_method} onChange={e => setEnquiryDraft(d => ({ ...d, contact_method: e.target.value }))} style={{ fontSize: 13, width: '100%' }}>
+                      <option value="call">Phone call</option>
+                      <option value="text">Text message</option>
+                      <option value="email">Email</option>
+                      <option value="in_person">In person</option>
+                      <option value="facebook_ad">Facebook/Instagram ad</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>Date</label>
+                    <input type="date" value={enquiryDraft.enquiry_date} onChange={e => setEnquiryDraft(d => ({ ...d, enquiry_date: e.target.value }))} style={{ fontSize: 13, width: '100%' }} />
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>Notes</label>
+                  <textarea placeholder="Notes (what they asked about, any follow-up needed...)" value={enquiryDraft.notes} onChange={e => setEnquiryDraft(d => ({ ...d, notes: e.target.value }))} style={{ fontSize: 13, minHeight: 60, width: '100%' }} />
+                </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button className="btn btn-sm btn-primary" disabled={savingEnquiry} onClick={editingEnquiryId ? saveEditedEnquiry : saveNewEnquiry}>{savingEnquiry ? 'Saving…' : editingEnquiryId ? 'Save changes' : 'Save enquiry'}</button>
                   <button className="btn btn-sm" onClick={() => { setShowNewEnquiryForm(false); setEditingEnquiryId(null); setEnquiryDraft(null) }}>Cancel</button>
