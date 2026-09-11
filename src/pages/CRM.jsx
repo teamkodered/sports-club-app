@@ -885,13 +885,18 @@ export default function CRM() {
 
   useEffect(() => { loadData() }, [])
 
-  // Clears any in-flight "deleted, undo?" timers if this page/component
-  // ever unmounts mid-countdown, so a delete can't silently fire later
-  // against stale state.
+  // Runs any in-flight "deleted/moved/contacted, undo?" actions
+  // immediately if this page/component ever unmounts mid-countdown
+  // (e.g. navigating away), rather than silently discarding them.
   useEffect(() => () => {
-    Object.values(pendingDeleteTimers.current).forEach(clearTimeout)
-    Object.values(pendingMoveTimers.current).forEach(clearTimeout)
-    Object.values(pendingContactTimers.current).forEach(clearTimeout)
+    // Unmounting (e.g. navigating away from this page) used to just
+    // cancel any pending delete/move/mark-contacted action outright --
+    // silently discarding it as if it never happened, with no error or
+    // confirmation either way. Now runs each one immediately instead,
+    // so navigating away within the undo window doesn't lose the action.
+    Object.values(pendingDeleteTimers.current).forEach(({ timerId, run }) => { clearTimeout(timerId); run() })
+    Object.values(pendingMoveTimers.current).forEach(({ timerId, run }) => { clearTimeout(timerId); run() })
+    Object.values(pendingContactTimers.current).forEach(({ timerId, run }) => { clearTimeout(timerId); run() })
   }, [])
 
   useEffect(() => {
@@ -1188,7 +1193,7 @@ export default function CRM() {
   function markContactedForMessage(msg) {
     if (!msg?.from || !msg?.uid) return
     setPendingContactUids(prev => new Set(prev).add(msg.uid))
-    pendingContactTimers.current[msg.uid] = setTimeout(async () => {
+    const run = async () => {
       delete pendingContactTimers.current[msg.uid]
       try {
         const { data: existing } = await supabase.from('enquiries').select('id').ilike('contact_email', msg.from).maybeSingle()
@@ -1211,11 +1216,12 @@ export default function CRM() {
         alert("Couldn't mark this email as contacted: " + err.message)
       }
       setPendingContactUids(prev => { const next = new Set(prev); next.delete(msg.uid); return next })
-    }, 5000)
+    }
+    pendingContactTimers.current[msg.uid] = { timerId: setTimeout(run, 5000), run }
   }
 
   function undoMarkContacted(uid) {
-    clearTimeout(pendingContactTimers.current[uid])
+    clearTimeout(pendingContactTimers.current[uid]?.timerId)
     delete pendingContactTimers.current[uid]
     setPendingContactUids(prev => { const next = new Set(prev); next.delete(uid); return next })
   }
@@ -1231,7 +1237,7 @@ export default function CRM() {
   function moveMessageToNotes(msg) {
     if (!msg?.uid) return
     setPendingMoveUids(prev => new Set(prev).add(msg.uid))
-    pendingMoveTimers.current[msg.uid] = setTimeout(async () => {
+    const run = async () => {
       delete pendingMoveTimers.current[msg.uid]
       try {
         await moveEmailToFolder(msg.uid, 'Notes')
@@ -1240,11 +1246,12 @@ export default function CRM() {
         alert("Couldn't move this email to Notes: " + err.message)
       }
       setPendingMoveUids(prev => { const next = new Set(prev); next.delete(msg.uid); return next })
-    }, 5000)
+    }
+    pendingMoveTimers.current[msg.uid] = { timerId: setTimeout(run, 5000), run }
   }
 
   function undoMoveToNotes(uid) {
-    clearTimeout(pendingMoveTimers.current[uid])
+    clearTimeout(pendingMoveTimers.current[uid]?.timerId)
     delete pendingMoveTimers.current[uid]
     setPendingMoveUids(prev => { const next = new Set(prev); next.delete(uid); return next })
   }
@@ -1254,7 +1261,14 @@ export default function CRM() {
   // actual IMAP delete only fires once that window passes uncancelled.
   function deleteEmailWithUndo(m) {
     setPendingDeleteUids(prev => new Set(prev).add(m.uid))
-    pendingDeleteTimers.current[m.uid] = setTimeout(async () => {
+    // The actual action lives in its own function (not just inline in
+    // the setTimeout) so that if the person navigates away from this
+    // page before the undo window elapses, the unmount cleanup below
+    // can run it immediately instead of just cancelling it outright --
+    // previously, navigating away within the 5-second window silently
+    // discarded the delete/move/contact action entirely, with nothing
+    // ever actually happening and no error shown.
+    const run = async () => {
       delete pendingDeleteTimers.current[m.uid]
       const { data: sessionData } = await supabase.auth.getSession()
       const accessToken = sessionData?.session?.access_token
@@ -1269,11 +1283,12 @@ export default function CRM() {
         alert("Couldn't delete this message -- it's no longer marked as pending.")
       }
       setPendingDeleteUids(prev => { const next = new Set(prev); next.delete(m.uid); return next })
-    }, 5000)
+    }
+    pendingDeleteTimers.current[m.uid] = { timerId: setTimeout(run, 5000), run }
   }
 
   function undoDeleteEmail(uid) {
-    clearTimeout(pendingDeleteTimers.current[uid])
+    clearTimeout(pendingDeleteTimers.current[uid]?.timerId)
     delete pendingDeleteTimers.current[uid]
     setPendingDeleteUids(prev => { const next = new Set(prev); next.delete(uid); return next })
   }
