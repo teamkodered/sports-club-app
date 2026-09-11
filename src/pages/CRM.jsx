@@ -1988,7 +1988,8 @@ export default function CRM() {
   }
 
   async function updateEnquiryStatus(id, status) {
-    await supabase.from('enquiries').update({ status, updated_at: new Date().toISOString() }).eq('id', id)
+    const { error } = await supabase.from('enquiries').update({ status, updated_at: new Date().toISOString() }).eq('id', id)
+    if (error) { alert('Error updating status: ' + error.message); return }
     loadEnquiries()
   }
 
