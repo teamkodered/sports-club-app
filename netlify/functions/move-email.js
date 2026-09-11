@@ -13,13 +13,14 @@ exports.handler = async (event) => {
     return { statusCode: 405, body: 'Method not allowed' }
   }
 
-  let uid, targetFolder
+  let uid, targetFolder, sourceFolder
   try {
-    ;({ uid, targetFolder } = JSON.parse(event.body || '{}'))
+    ;({ uid, targetFolder, sourceFolder } = JSON.parse(event.body || '{}'))
   } catch {
     return { statusCode: 400, body: JSON.stringify({ error: 'Invalid request body' }) }
   }
   if (!uid || !targetFolder) return { statusCode: 400, body: JSON.stringify({ error: 'uid and targetFolder are required' }) }
+  sourceFolder = sourceFolder || 'INBOX'
 
   const authHeader = event.headers.authorization || event.headers.Authorization
   if (!authHeader) return { statusCode: 401, body: JSON.stringify({ error: 'Missing session' }) }
@@ -73,7 +74,7 @@ exports.handler = async (event) => {
         try { await client.mailboxCreate(targetFolder) } catch { /* someone else created it in the meantime, or it already exists under a different case -- fine either way */ }
       }
 
-      const lock = await client.getMailboxLock('INBOX')
+      const lock = await client.getMailboxLock(sourceFolder)
       try {
         const ok = await client.messageMove(String(uid), targetFolder, { uid: true })
         if (!ok) throw new Error('Message not found (it may have already been moved or deleted).')

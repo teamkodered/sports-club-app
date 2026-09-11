@@ -1153,7 +1153,7 @@ export default function CRM() {
     const res = await fetch('/.netlify/functions/delete-email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-      body: JSON.stringify({ uid: openMessage.uid }),
+      body: JSON.stringify({ uid: openMessage.uid, folder: emailFolder }),
     })
     const result = await res.json()
     if (!res.ok || result.error) { alert('Error deleting: ' + (result.error || res.statusText)); return }
@@ -1184,7 +1184,7 @@ export default function CRM() {
     const res = await fetch('/.netlify/functions/move-email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-      body: JSON.stringify({ uid, targetFolder }),
+      body: JSON.stringify({ uid, targetFolder, sourceFolder: emailFolder }),
     })
     const result = await res.json().catch(() => ({}))
     if (!res.ok || result.error) throw new Error(result.error || res.statusText || 'Unknown error')
@@ -1196,6 +1196,33 @@ export default function CRM() {
   // seconds; the actual Enquiries insert + IMAP folder move only
   // happen once that window passes uncancelled, and the email then
   // disappears from the main list (same as a move to Notes does).
+  // Just the Enquiries insert/update, no folder move -- for emails
+  // already sitting in Contacted/Notes (moving them again doesn't make
+  // sense), separate from markContactedForMessage below which does both
+  // together for a fresh Inbox message.
+  async function addToEnquiries(msg) {
+    if (!msg?.from) return
+    try {
+      const { data: existing } = await supabase.from('enquiries').select('id').ilike('contact_email', msg.from).maybeSingle()
+      if (existing) {
+        await supabase.from('enquiries').update({ status: 'contacted', updated_at: new Date().toISOString() }).eq('id', existing.id)
+      } else {
+        await supabase.from('enquiries').insert({
+          name: msg.fromName || msg.from.split('@')[0],
+          contact_email: msg.from,
+          contact_method: 'email',
+          enquiry_date: msg.date ? new Date(msg.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+          notes: msg.subject ? `From email: "${msg.subject}"` : 'From email',
+          status: 'contacted',
+        })
+      }
+      if (enquiriesLoaded) loadEnquiries()
+      alert(`Added to Enquiries (marked as Contacted).`)
+    } catch (err) {
+      alert("Couldn't add to Enquiries: " + err.message)
+    }
+  }
+
   function markContactedForMessage(msg) {
     if (!msg?.from || !msg?.uid) return
     setPendingContactUids(prev => new Set(prev).add(msg.uid))
@@ -1240,22 +1267,21 @@ export default function CRM() {
   // Move-to-Notes with the same undo window as delete -- the row shows
   // "Moved to Notes" + Undo for a few seconds; the actual IMAP move
   // only fires once that window passes uncancelled.
-  function moveMessageToNotes(msg) {
+  function moveMessageToFolderWithUndo(msg, targetFolder) {
     if (!msg?.uid) return
     setPendingMoveUids(prev => new Set(prev).add(msg.uid))
     const run = async () => {
       delete pendingMoveTimers.current[msg.uid]
       try {
-        await moveEmailToFolder(msg.uid, 'Notes')
+        await moveEmailToFolder(msg.uid, targetFolder)
         setInboxMessages(prev => prev.filter(x => x.uid !== msg.uid))
       } catch (err) {
-        alert("Couldn't move this email to Notes: " + err.message)
+        alert(`Couldn't move this email to ${targetFolder}: ` + err.message)
       }
       setPendingMoveUids(prev => { const next = new Set(prev); next.delete(msg.uid); return next })
     }
     pendingMoveTimers.current[msg.uid] = { timerId: setTimeout(run, 5000), run }
   }
-
   function undoMoveToNotes(uid) {
     clearTimeout(pendingMoveTimers.current[uid]?.timerId)
     delete pendingMoveTimers.current[uid]
@@ -1281,7 +1307,7 @@ export default function CRM() {
       const res = await fetch('/.netlify/functions/delete-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ uid: m.uid }),
+        body: JSON.stringify({ uid: m.uid, folder: emailFolder }),
       })
       if (res.ok) {
         setInboxMessages(prev => prev.filter(x => x.uid !== m.uid))
@@ -4342,11 +4368,6 @@ export default function CRM() {
               </button>
             ))}
           </div>
-          {emailFolder !== 'INBOX' && (
-            <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 12 }}>
-              Viewing the {emailFolder} folder — read-only here (delete/move/mark-contacted aren't available outside the Inbox).
-            </p>
-          )}
 
           <div className="card" style={{ padding: 0 }}>
             {inboxLoading ? (
@@ -4376,12 +4397,23 @@ export default function CRM() {
                   </div>
                 ) : (
                   <div key={m.uid} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 16px', minHeight: 64, borderTop: '1px solid var(--border)' }}>
-                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
-                      {emailFolder === 'INBOX' && <>
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
+                      {emailFolder === 'INBOX' && (
                         <button className="btn btn-sm" title="Mark contacted → Enquiries" onClick={() => markContactedForMessage(m)}>✓</button>
-                        <button className="btn btn-sm" title="Move to Notes folder" onClick={() => moveMessageToNotes(m)}>📝</button>
-                        <button className="btn btn-sm" style={{ color: '#E24B4A' }} title="Delete" onClick={() => deleteEmailWithUndo(m)}>🗑️</button>
-                      </>}
+                      )}
+                      {emailFolder !== 'INBOX' && (
+                        <button className="btn btn-sm" title="Add to Enquiries" onClick={() => addToEnquiries(m)}>✓ Enquiries</button>
+                      )}
+                      {emailFolder !== 'INBOX' && (
+                        <button className="btn btn-sm" title="Move to Inbox" onClick={() => moveMessageToFolderWithUndo(m, 'INBOX')}>📥</button>
+                      )}
+                      {emailFolder !== 'Notes' && (
+                        <button className="btn btn-sm" title="Move to Notes folder" onClick={() => moveMessageToFolderWithUndo(m, 'Notes')}>📝</button>
+                      )}
+                      {emailFolder !== 'Contacted' && (
+                        <button className="btn btn-sm" title="Move to Contacted folder" onClick={() => moveMessageToFolderWithUndo(m, 'Contacted')}>📇</button>
+                      )}
+                      <button className="btn btn-sm" style={{ color: '#E24B4A' }} title="Delete" onClick={() => deleteEmailWithUndo(m)}>🗑️</button>
                     </div>
                     <div onClick={() => openInboxMessage(m.uid)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, cursor: 'pointer' }}>
                       <div style={{ minWidth: 0, overflow: 'hidden' }}>
@@ -4455,11 +4487,22 @@ export default function CRM() {
                           {phone && <a className="btn btn-sm" href={`tel:${phone}`}>📞 Call {phone}</a>}
                           {phone && <a className="btn btn-sm" href={`https://wa.me/${phone.replace(/[^0-9]/g, '').replace(/^0/, '44')}`} target="_blank" rel="noreferrer">💬 WhatsApp</a>}
                           {phone && isMobile && <a className="btn btn-sm" href={`sms:${phone}`}>💬 Text {phone}</a>}
-                          {emailFolder === 'INBOX' && <>
+                          {emailFolder === 'INBOX' && (
                             <button className="btn btn-sm" onClick={markMessageContacted}>✓ Mark contacted → Enquiries</button>
-                            <button className="btn btn-sm" onClick={() => { moveMessageToNotes(openMessage); setOpenMessage(null) }}>📝 Move to Notes</button>
-                            <button className="btn btn-sm" style={{ color: '#E24B4A' }} onClick={deleteOpenMessage}>🗑️ Delete</button>
-                          </>}
+                          )}
+                          {emailFolder !== 'INBOX' && (
+                            <button className="btn btn-sm" onClick={() => { addToEnquiries(openMessage); setOpenMessage(null) }}>✓ Add to Enquiries</button>
+                          )}
+                          {emailFolder !== 'INBOX' && (
+                            <button className="btn btn-sm" onClick={() => { moveMessageToFolderWithUndo(openMessage, 'INBOX'); setOpenMessage(null) }}>📥 Move to Inbox</button>
+                          )}
+                          {emailFolder !== 'Notes' && (
+                            <button className="btn btn-sm" onClick={() => { moveMessageToFolderWithUndo(openMessage, 'Notes'); setOpenMessage(null) }}>📝 Move to Notes</button>
+                          )}
+                          {emailFolder !== 'Contacted' && (
+                            <button className="btn btn-sm" onClick={() => { moveMessageToFolderWithUndo(openMessage, 'Contacted'); setOpenMessage(null) }}>📇 Move to Contacted</button>
+                          )}
+                          <button className="btn btn-sm" style={{ color: '#E24B4A' }} onClick={deleteOpenMessage}>🗑️ Delete</button>
                         </div>
                       )
                     })()}

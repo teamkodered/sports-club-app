@@ -11,13 +11,14 @@ exports.handler = async (event) => {
     return { statusCode: 405, body: 'Method not allowed' }
   }
 
-  let uid
+  let uid, folder
   try {
-    ;({ uid } = JSON.parse(event.body || '{}'))
+    ;({ uid, folder } = JSON.parse(event.body || '{}'))
   } catch {
     return { statusCode: 400, body: JSON.stringify({ error: 'Invalid request body' }) }
   }
   if (!uid) return { statusCode: 400, body: JSON.stringify({ error: 'uid is required' }) }
+  folder = folder || 'INBOX'
 
   const authHeader = event.headers.authorization || event.headers.Authorization
   if (!authHeader) return { statusCode: 401, body: JSON.stringify({ error: 'Missing session' }) }
@@ -64,7 +65,7 @@ exports.handler = async (event) => {
     }
 
     try {
-      const lock = await client.getMailboxLock('INBOX')
+      const lock = await client.getMailboxLock(folder)
       try {
         // messageDelete moves to Trash if the server supports it,
         // otherwise flags \Deleted and expunges -- imapflow picks the
