@@ -2648,6 +2648,7 @@ export default function CRM() {
               <option value="trial_booked">Trial booked</option>
               <option value="joined">Joined</option>
               <option value="not_interested">Not interested</option>
+              <option value="waiting_list">Waiting list</option>
             </select>
             <button className="btn btn-sm btn-primary" onClick={() => { setShowNewEnquiryForm(true); setEnquiryDraft({ name: '', contact_phone: '', contact_email: '', contact_method: 'call', enquiry_date: new Date().toISOString().split('T')[0], notes: '' }) }}>+ Log new enquiry</button>
             <button className="btn btn-sm" onClick={() => exportToExcel(enquiries.map(e => ({
@@ -2717,7 +2718,7 @@ export default function CRM() {
               {enquiries.filter(e => (enquiryStatusFilter === 'all' || e.status === enquiryStatusFilter) && (enquiryMethodFilter === 'all' || e.contact_method === enquiryMethodFilter)).map(enq => {
                 const stageIdx = ENQUIRY_STAGES.findIndex(s => s.key === enq.status)
                 const stage = stageIdx >= 0 ? ENQUIRY_STAGES[stageIdx] : ENQUIRY_STAGES[0]
-                const borderColour = enq.status === 'not_interested' ? '#9CA3AF' : stage.colour
+                const borderColour = enq.status === 'not_interested' ? '#9CA3AF' : enq.status === 'waiting_list' ? '#EF9F27' : stage.colour
                 return (
                 <div key={enq.id} className="card" style={{ padding: 14, borderLeft: `4px solid ${borderColour}`, cursor: 'pointer' }}
                   onClick={() => setViewingEnquiry(enq)}>
@@ -2726,6 +2727,11 @@ export default function CRM() {
                       {enq.status === 'not_interested' ? (
                         <>
                           <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Not interested</span>
+                          <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => updateEnquiryStatus(enq.id, 'not_started')}>↺ Reopen</button>
+                        </>
+                      ) : enq.status === 'waiting_list' ? (
+                        <>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: '#EF9F27' }}>Waiting list</span>
                           <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => updateEnquiryStatus(enq.id, 'not_started')}>↺ Reopen</button>
                         </>
                       ) : (
@@ -2738,6 +2744,9 @@ export default function CRM() {
                           </button>
                           {enq.status !== 'joined' && (
                             <button className="btn btn-sm" style={{ fontSize: 10, color: 'var(--text-tertiary)' }} onClick={() => updateEnquiryStatus(enq.id, 'not_interested')}>Not interested</button>
+                          )}
+                          {enq.status !== 'joined' && (
+                            <button className="btn btn-sm" style={{ fontSize: 10, color: 'var(--text-tertiary)' }} onClick={() => updateEnquiryStatus(enq.id, 'waiting_list')}>Waiting list</button>
                           )}
                         </>
                       )}
