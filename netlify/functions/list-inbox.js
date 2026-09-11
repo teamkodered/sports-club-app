@@ -15,6 +15,34 @@ const CLUB_EMAIL_ADDRESS = 'info@derbykickboxing.org.uk'
 const IMAP_HOST = 'mail.derbykickboxing.org.uk'
 const IMAP_PORT = 993
 
+// Some website "enquiry" forms generate genuinely malformed envelopes --
+// both From AND Reply-To pointing back at the club's own address, with
+// the actual visitor's real email jammed into the display-name text
+// instead (e.g. "KaiusBaileyAlexciabailey@hotmail.com |"). When the
+// structured address fields are useless, this pulls a real-looking
+// email address out of whatever text is available as a last resort.
+function extractEmailFromText(text) {
+  if (!text) return null
+  const match = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/)
+  return match ? match[0] : null
+}
+
+function resolveContact(from, replyTo) {
+  const isClubAddress = addr => addr && addr.toLowerCase() === CLUB_EMAIL_ADDRESS.toLowerCase()
+  // Prefer Reply-To over From whenever it's a real, different address.
+  if (replyTo?.address && !isClubAddress(replyTo.address) && replyTo.address.toLowerCase() !== from?.address?.toLowerCase()) {
+    return { address: replyTo.address, name: replyTo.name || '' }
+  }
+  // Both From and Reply-To are the club's own address (or From has no
+  // useful alternative) -- last resort is digging a real email address
+  // out of whichever display name text is available.
+  if (isClubAddress(from?.address)) {
+    const dug = extractEmailFromText(replyTo?.name) || extractEmailFromText(from?.name)
+    if (dug) return { address: dug, name: (from?.name || replyTo?.name || '').replace(dug, '').trim() }
+  }
+  return { address: from?.address, name: from?.name || '' }
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod !== 'GET') {
     return { statusCode: 405, body: 'Method not allowed' }
@@ -142,18 +170,11 @@ exports.handler = async (event) => {
 
           const replyTo = full.envelope?.replyTo?.[0]
           const from = full.envelope?.from?.[0]
-          // Contact-form-style emails (e.g. a website's "Website Enquiry"
-          // notifications) are often sent FROM the site/club's own
-          // address for deliverability reasons, with the actual visitor
-          // set as Reply-To instead -- using that whenever it's present
-          // and different from the From address, rather than always
-          // taking From at face value, which was quietly recording the
-          // club's own address as the "sender" for these.
-          const effectiveContact = (replyTo && replyTo.address && replyTo.address.toLowerCase() !== from?.address?.toLowerCase()) ? replyTo : from
+          const effectiveContact = resolveContact(from, replyTo)
           const message = {
             uid: full.uid,
-            from: effectiveContact?.address || 'unknown',
-            fromName: effectiveContact?.name || '',
+            from: effectiveContact.address || 'unknown',
+            fromName: effectiveContact.name || '',
             to: (full.envelope?.to || []).map(t => t.address).filter(Boolean),
             subject: full.envelope?.subject || '(no subject)',
             date: full.envelope?.date,
@@ -176,11 +197,11 @@ exports.handler = async (event) => {
             for await (const msg of client.fetch(`${start}:${total}`, { envelope: true, flags: true }, { uid: false })) {
               const replyTo = msg.envelope?.replyTo?.[0]
               const from = msg.envelope?.from?.[0]
-              const effectiveContact = (replyTo && replyTo.address && replyTo.address.toLowerCase() !== from?.address?.toLowerCase()) ? replyTo : from
+              const effectiveContact = resolveContact(from, replyTo)
               messages.push({
                 uid: msg.uid,
-                from: effectiveContact?.address || 'unknown',
-                fromName: effectiveContact?.name || '',
+                from: effectiveContact.address || 'unknown',
+                fromName: effectiveContact.name || '',
                 subject: msg.envelope?.subject || '(no subject)',
                 date: msg.envelope?.date,
                 seen: (msg.flags || new Set()).has('\\Seen'),
