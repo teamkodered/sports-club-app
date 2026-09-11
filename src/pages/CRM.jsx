@@ -2743,10 +2743,10 @@ export default function CRM() {
                             {stage.label}
                           </button>
                           {enq.status !== 'joined' && (
-                            <button className="btn btn-sm" style={{ fontSize: 10, color: 'var(--text-tertiary)' }} onClick={() => updateEnquiryStatus(enq.id, 'not_interested')}>Not interested</button>
+                            <button className="btn btn-sm" style={{ fontSize: 10, color: 'var(--text-tertiary)' }} onClick={() => updateEnquiryStatus(enq.id, 'waiting_list')}>Waiting list</button>
                           )}
                           {enq.status !== 'joined' && (
-                            <button className="btn btn-sm" style={{ fontSize: 10, color: 'var(--text-tertiary)' }} onClick={() => updateEnquiryStatus(enq.id, 'waiting_list')}>Waiting list</button>
+                            <button className="btn btn-sm" style={{ fontSize: 10, color: 'var(--text-tertiary)' }} onClick={() => updateEnquiryStatus(enq.id, 'not_interested')}>Not interested</button>
                           )}
                         </>
                       )}
