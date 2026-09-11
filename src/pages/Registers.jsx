@@ -1389,10 +1389,7 @@ export default function Registers() {
                       </span>
                     </td>}
                     {visibleCols.includes('points') && <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
-                      <div style={{ fontSize: 11, lineHeight: 1.4 }}>
-                        <div><span style={{ color: 'var(--text-tertiary)', fontSize: 10 }}>H </span><strong>{s.house_points || 0}</strong></div>
-                        <div><span style={{ color: 'var(--text-tertiary)', fontSize: 10 }}>I </span><strong>{s.individual_points || 0}</strong></div>
-                      </div>
+                      <div style={{ fontSize: 13 }}><strong>{s.individual_points || 0}</strong></div>
                       {(() => {
                         const dayEntries = pointsByStudent[s.id] || []
                         const dayTotal = dayEntries.reduce((sum, p) => sum + (p.points_awarded || 0), 0)
