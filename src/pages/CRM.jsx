@@ -2567,11 +2567,12 @@ export default function CRM() {
                   onPointerUp={() => handleTabPointerUp(key)}
                   onPointerLeave={() => clearTimeout(tabHoldTimerRef.current)}
                   style={{
-                    padding: '8px 16px', fontSize: 13, border: 'none', cursor: 'pointer', flexShrink: 0,
-                    background: draggingTab === key ? 'var(--bg-secondary)' : 'none',
+                    padding: '8px 16px', fontSize: 13, cursor: 'pointer', flexShrink: 0,
+                    borderRadius: 'var(--radius)',
+                    border: `1px solid ${active ? def.colour : 'transparent'}`,
+                    background: draggingTab === key ? 'var(--bg-secondary)' : active ? `${def.colour}18` : 'none',
                     opacity: draggingTab === key ? 0.6 : 1,
-                    borderBottom: `2px solid ${active ? def.colour : 'transparent'}`,
-                    color: active ? def.colour : 'var(--text-secondary)',
+                    color: def.colour,
                     fontWeight: active ? 600 : 400,
                     userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none',
                   }}>{def.label}</button>
