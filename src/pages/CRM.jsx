@@ -1199,13 +1199,13 @@ export default function CRM() {
   // Adds (or updates) this sender as an Enquiries entry marked
   // "Contacted" -- a manual equivalent to the automatic add-on-inbox-
   // load, for explicitly logging that this exact email was dealt with.
-  async function moveEmailToFolder(uid, targetFolder) {
+  async function moveEmailToFolder(uid, targetFolder, sourceFolder = emailFolder) {
     const { data: sessionData } = await supabase.auth.getSession()
     const accessToken = sessionData?.session?.access_token
     const res = await fetch('/.netlify/functions/move-email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-      body: JSON.stringify({ uid, targetFolder, sourceFolder: emailFolder }),
+      body: JSON.stringify({ uid, targetFolder, sourceFolder }),
     })
     const result = await res.json().catch(() => ({}))
     if (!res.ok || result.error) throw new Error(result.error || res.statusText || 'Unknown error')
@@ -1935,6 +1935,33 @@ export default function CRM() {
     if (!confirm('Delete this enquiry? This cannot be undone.')) return
     const { error } = await supabase.from('enquiries').delete().eq('id', id)
     if (error) { alert('Error deleting: ' + error.message); return }
+    loadEnquiries()
+  }
+
+  // For an enquiry that was added by mistake (e.g. a non-enquiry email
+  // that got "Added to Enquiries") -- tries to find the matching email
+  // still sitting in the Contacted folder (there's no stored link back
+  // to a specific message, so this matches by contact_email) and moves
+  // it to Notes, then removes the mistaken enquiry record either way.
+  async function moveEnquiryToNotes(enq) {
+    if (!confirm(`Move this to Notes and remove it from Enquiries?`)) return
+    try {
+      if (enq.contact_email) {
+        const { data: sessionData } = await supabase.auth.getSession()
+        const accessToken = sessionData?.session?.access_token
+        const res = await fetch('/.netlify/functions/list-inbox?folder=Contacted', {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
+        const result = await res.json()
+        const match = (result.messages || []).find(m => m.from?.toLowerCase() === enq.contact_email.toLowerCase())
+        if (match) await moveEmailToFolder(match.uid, 'Notes', 'Contacted')
+      }
+    } catch (err) {
+      alert("Couldn't move the underlying email (it may already have been moved) -- removing the enquiry entry anyway: " + err.message)
+    }
+    const { error } = await supabase.from('enquiries').delete().eq('id', enq.id)
+    if (error) { alert('Error removing enquiry: ' + error.message); return }
+    setViewingEnquiry(null)
     loadEnquiries()
   }
 
@@ -2840,6 +2867,10 @@ export default function CRM() {
                       ✉️ Email
                     </button>
                   )}
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                  <button className="btn btn-sm" title="For an enquiry that came through by mistake -- moves the underlying email to Notes and removes this entry" onClick={() => moveEnquiryToNotes(viewingEnquiry)}>📝 Move to Notes</button>
+                  <button className="btn btn-sm" style={{ color: '#E24B4A' }} onClick={() => { setViewingEnquiry(null); deleteEnquiry(viewingEnquiry.id) }}>🗑️ Delete</button>
                 </div>
               </div>
             </div>
