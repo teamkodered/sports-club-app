@@ -3,10 +3,19 @@ import { supabase } from '../../lib/supabase.js'
 import FightFootagePlayer from './FightFootagePlayer.jsx'
 
 // Shows an athlete the fight footage a coach has shared with them
-// (tagged specifically, or sent to the whole team) -- RLS on
-// fight_footage already scopes this correctly, so this just displays
-// whatever comes back. Renders nothing at all if there's none, so it
-// never adds clutter for an athlete with nothing shared yet.
+// (tagged specifically, or sent to the whole team).
+//
+// IMPORTANT: this deliberately does NOT rely on RLS alone to scope
+// what's visible here. RLS on fight_footage correctly grants staff
+// (admin/captain) full access to everything -- which is the right
+// behaviour generally, but it also means a coach who's *also*
+// registered as a student (a common setup, training under their own
+// account) would see every coach-only clip when using this
+// athlete-facing view too, since their account genuinely has staff
+// privileges. This component is specifically the "what would a plain
+// athlete see" experience, so it explicitly filters to only
+// access_mode 'all' or clips this exact student is tagged in,
+// regardless of what the signed-in account's broader role can reach.
 export default function AthleteFightFootage({ studentId }) {
   const [footage, setFootage] = useState([])
   const [loaded, setLoaded] = useState(false)
@@ -16,8 +25,11 @@ export default function AthleteFightFootage({ studentId }) {
 
   useEffect(() => {
     if (!studentId) return
-    supabase.from('fight_footage').select('*').order('uploaded_at', { ascending: false }).then(({ data }) => {
-      setFootage(data || [])
+    supabase.from('fight_footage').select('*, fight_footage_athletes(student_id)').order('uploaded_at', { ascending: false }).then(({ data }) => {
+      const visible = (data || []).filter(item =>
+        item.access_mode === 'all' || (item.fight_footage_athletes || []).some(a => a.student_id === studentId)
+      )
+      setFootage(visible)
       setLoaded(true)
     })
   }, [studentId])
