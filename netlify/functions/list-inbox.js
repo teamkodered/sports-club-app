@@ -140,10 +140,20 @@ exports.handler = async (event) => {
             }
           }
 
+          const replyTo = full.envelope?.replyTo?.[0]
+          const from = full.envelope?.from?.[0]
+          // Contact-form-style emails (e.g. a website's "Website Enquiry"
+          // notifications) are often sent FROM the site/club's own
+          // address for deliverability reasons, with the actual visitor
+          // set as Reply-To instead -- using that whenever it's present
+          // and different from the From address, rather than always
+          // taking From at face value, which was quietly recording the
+          // club's own address as the "sender" for these.
+          const effectiveContact = (replyTo && replyTo.address && replyTo.address.toLowerCase() !== from?.address?.toLowerCase()) ? replyTo : from
           const message = {
             uid: full.uid,
-            from: full.envelope?.from?.[0]?.address || 'unknown',
-            fromName: full.envelope?.from?.[0]?.name || '',
+            from: effectiveContact?.address || 'unknown',
+            fromName: effectiveContact?.name || '',
             to: (full.envelope?.to || []).map(t => t.address).filter(Boolean),
             subject: full.envelope?.subject || '(no subject)',
             date: full.envelope?.date,
@@ -164,10 +174,13 @@ exports.handler = async (event) => {
           const start = Math.max(1, total - 29)
           try {
             for await (const msg of client.fetch(`${start}:${total}`, { envelope: true, flags: true }, { uid: false })) {
+              const replyTo = msg.envelope?.replyTo?.[0]
+              const from = msg.envelope?.from?.[0]
+              const effectiveContact = (replyTo && replyTo.address && replyTo.address.toLowerCase() !== from?.address?.toLowerCase()) ? replyTo : from
               messages.push({
                 uid: msg.uid,
-                from: msg.envelope?.from?.[0]?.address || 'unknown',
-                fromName: msg.envelope?.from?.[0]?.name || '',
+                from: effectiveContact?.address || 'unknown',
+                fromName: effectiveContact?.name || '',
                 subject: msg.envelope?.subject || '(no subject)',
                 date: msg.envelope?.date,
                 seen: (msg.flags || new Set()).has('\\Seen'),
