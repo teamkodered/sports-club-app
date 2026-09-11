@@ -1224,15 +1224,37 @@ export default function CRM() {
   async function addToEnquiries(msg) {
     if (!msg?.from) return
     try {
-      const { data: existing, error: selectErr } = await supabase.from('enquiries').select('id').ilike('contact_email', msg.from).maybeSingle()
+      // The row-level button only has the list-mode message (no body),
+      // so a phone number mentioned in the message text couldn't be
+      // picked up at all -- fetches the full message first whenever
+      // the body isn't already present (e.g. the modal's own call
+      // already has it, from opening the message to read it).
+      let body = msg.body
+      if (body === undefined) {
+        const { data: sessionData } = await supabase.auth.getSession()
+        const accessToken = sessionData?.session?.access_token
+        const res = await fetch(`/.netlify/functions/list-inbox?uid=${msg.uid}&folder=${encodeURIComponent(emailFolder)}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
+        const result = await res.json()
+        body = result.message?.body || ''
+      }
+      const detectedPhone = extractPhoneNumber(body)
+
+      const { data: existing, error: selectErr } = await supabase.from('enquiries').select('id, contact_phone').ilike('contact_email', msg.from).maybeSingle()
       if (selectErr) throw selectErr
       if (existing) {
-        const { error: updateErr } = await supabase.from('enquiries').update({ status: 'contacted', updated_at: new Date().toISOString() }).eq('id', existing.id)
+        const { error: updateErr } = await supabase.from('enquiries').update({
+          status: 'contacted',
+          updated_at: new Date().toISOString(),
+          contact_phone: existing.contact_phone || detectedPhone || null, // don't overwrite an already-known number
+        }).eq('id', existing.id)
         if (updateErr) throw updateErr
       } else {
         const { error: insertErr } = await supabase.from('enquiries').insert({
           name: msg.fromName || msg.from.split('@')[0],
           contact_email: msg.from,
+          contact_phone: detectedPhone || null,
           contact_method: 'email',
           enquiry_date: msg.date ? new Date(msg.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
           notes: msg.subject ? `From email: "${msg.subject}"` : 'From email',
