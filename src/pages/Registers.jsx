@@ -884,7 +884,12 @@ export default function Registers() {
           return
         }
       }
-      await supabase.rpc('adjust_student_points', { p_student_id: sid, p_house_delta: total, p_individual_delta: total })
+      const { error: adjustErr } = await supabase.rpc('adjust_student_points', { p_student_id: sid, p_house_delta: total, p_individual_delta: total })
+      if (adjustErr) {
+        alert(`"${points.map(p => p.label).join(', ')}" was logged for ${s.members?.first_name}, but updating their points total failed: ${adjustErr.message} -- their running total will be wrong until this is fixed.`)
+        setSaving(false)
+        return
+      }
       if (isChamp) {
         const { error: champErr } = await supabase.from('students').update({ class_champion_count: (s.class_champion_count || 0) + 1 }).eq('id', sid)
         if (champErr) alert(`Points saved for ${s.members?.first_name}, but updating class champion count failed: ${champErr.message}`)
