@@ -166,4 +166,5 @@ tbody tr:hover td { background: var(--bg-secondary); }
 @media (max-width: 768px) {
   .register-name-cell { min-width: 150px; padding-top: 12px !important; padding-bottom: 12px !important; }
   .register-name-text { font-size: 16px !important; font-weight: 600 !important; }
+  .desktop-only-zoom-controls { display: none !important; }
 }

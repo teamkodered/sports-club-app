@@ -184,6 +184,8 @@ export default function Registers() {
   const [adhocPills, setAdhocPills]     = useState([]) // { id, name, student_ref }
   const oneOffStudentsRef = useRef([]) // full student objects added via "one-off" this session -- kept separately so a reload (date/regType change, or a slow fetch resolving after they were added) can never silently wipe them back out
   const tableRef = useRef(null)
+  const [registerZoom, setRegisterZoom] = useState(() => Number(localStorage.getItem('register_zoom')) || 100)
+  useEffect(() => { localStorage.setItem('register_zoom', String(registerZoom)) }, [registerZoom])
   // Distinguishes a horizontal swipe (to see other columns) from a
   // genuine tap-to-select -- mobile browsers can still fire a click
   // after a touch that moved a little, so this tracks the actual
@@ -1141,8 +1143,15 @@ export default function Registers() {
 
 
       {/* Table */}
-      {loading ? <div className="loading">Loading…</div> : (
-        <div className="card" style={{ padding: 0, overflowX: 'auto' }} ref={tableRef}
+      {loading ? <div className="loading">Loading…</div> : (<>
+        <div className="desktop-only-zoom-controls" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Zoom:</span>
+          <button className="btn btn-sm" onClick={() => setRegisterZoom(z => Math.max(70, z - 10))}>−</button>
+          <span style={{ fontSize: 12, minWidth: 40, textAlign: 'center' }}>{registerZoom}%</span>
+          <button className="btn btn-sm" onClick={() => setRegisterZoom(z => Math.min(200, z + 10))}>+</button>
+          {registerZoom !== 100 && <button className="btn btn-sm" onClick={() => setRegisterZoom(100)}>Reset</button>}
+        </div>
+        <div className="card" style={{ padding: 0, overflowX: 'auto', zoom: `${registerZoom}%` }} ref={tableRef}
           tabIndex={0}
           onKeyDown={e => {
             const ids = displayStudents.map(s => s.id)
@@ -1406,7 +1415,7 @@ export default function Registers() {
             </tbody>
           </table>
         </div>
-      )}
+      </>)}
 
       {/* One-off student addition */}
       <OneOffStudent displayStudents={displayStudents} date={date}
