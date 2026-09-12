@@ -67,6 +67,8 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   const [showMarkerChoice, setShowMarkerChoice] = useState(false)
   const [addingNoteText, setAddingNoteText] = useState('') // optional note text, combined with a colour in the same form now
   const [selectedColour, setSelectedColour] = useState(HIGHLIGHT_COLOURS[0])
+  const colourHoldTimerRef = useRef(null)
+  const colourHoldFiredRef = useRef(false)
   const [markerRangeStart, setMarkerRangeStart] = useState(null) // set once "Add marker" is first tapped, awaiting the end point
   const [viewingMarkerNote, setViewingMarkerNote] = useState(null)
   const [colourFilter, setColourFilter] = useState(null) // when set, playback auto-skips to only play sections marked in this colour
@@ -251,6 +253,40 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
     } else {
       wrapperRef.current?.requestFullscreen?.().catch(() => {})
     }
+  }
+
+  // Holding a colour swatch (instead of a quick tap, which toggles the
+  // highlight-reel filter) jumps straight to the next marker of that
+  // colour ahead of the current playhead -- wraps back around to the
+  // first one of that colour if there isn't a later one, rather than
+  // doing nothing once you're past the last one. The note/highlight
+  // overlay then shows itself automatically, same as it already does
+  // during normal playback, since that's driven purely by the current
+  // time matching a marker's range, not by anything this needs to set.
+  function jumpToNextMarkerOfColour(colour) {
+    const v = videoRef.current
+    if (!v) return
+    const matches = markersRef.current
+      .filter(m => m.marker_type === 'highlight' && m.highlight_color === colour)
+      .sort((a, b) => a.start_seconds - b.start_seconds)
+    if (matches.length === 0) return
+    const next = matches.find(m => m.start_seconds > v.currentTime) || matches[0]
+    v.currentTime = next.start_seconds
+  }
+
+  function handleColourSwatchPointerDown(colour) {
+    colourHoldFiredRef.current = false
+    colourHoldTimerRef.current = setTimeout(() => {
+      colourHoldFiredRef.current = true
+      jumpToNextMarkerOfColour(colour)
+    }, VIDEO_HOLD_THRESHOLD_MS)
+  }
+  function handleColourSwatchPointerUp() {
+    clearTimeout(colourHoldTimerRef.current)
+  }
+  function handleColourSwatchClick(colour) {
+    if (colourHoldFiredRef.current) return // hold already jumped to the next marker -- don't also toggle the filter
+    setColourFilter(prev => prev === colour ? null : colour)
   }
 
   useEffect(() => {
@@ -932,8 +968,9 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
           return (
             <div style={{ position: 'absolute', top: 40, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 6 }}>
               {distinctColours.map(c => (
-                <button key={c} title={colourFilter === c ? 'Show full video again' : 'Play only this colour'}
-                  onClick={() => setColourFilter(prev => prev === c ? null : c)}
+                <button key={c} title={colourFilter === c ? 'Show full video again (hold: jump to next marker of this colour)' : 'Play only this colour (hold: jump to next marker of this colour)'}
+                  onClick={() => handleColourSwatchClick(c)}
+                  onPointerDown={() => handleColourSwatchPointerDown(c)} onPointerUp={handleColourSwatchPointerUp} onPointerLeave={handleColourSwatchPointerUp}
                   style={{
                     width: 22, height: 22, borderRadius: '50%', background: c, cursor: 'pointer', padding: 0,
                     border: colourFilter === c ? '3px solid #fff' : '1px solid rgba(255,255,255,0.5)',
