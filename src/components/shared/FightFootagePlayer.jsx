@@ -895,7 +895,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
           )}
 
           {controlsVisible && (
-            <button title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+            <button className="view-it-btn" title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
               style={{ position: 'absolute', top: 8, left: 8, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer' }}
               onClick={toggleFullscreen}>
               {isFullscreen ? '⤢' : '⛶'}
@@ -904,19 +904,19 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
 
           {controlsVisible && isCoach && footageId && !showMarkerChoice && (
             markerRangeStart === null ? (
-              <button title="Add marker here"
+              <button className="view-it-btn" title="Add marker here"
                 style={{ position: 'absolute', top: 52, left: 8, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer' }}
                 onPointerDown={handleAddMarkerButtonPointerDown} onPointerUp={handleAddMarkerButtonPointerUp}
                 onPointerLeave={() => { if (addMarkerHoldEngagedRef.current) handleAddMarkerButtonPointerUp() }}>📍</button>
             ) : (
-              <button title="End marker here"
+              <button className="view-it-btn" title="End marker here"
                 style={{ position: 'absolute', top: 52, left: 8, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer' }}
                 onClick={handleMarkerButtonPress}>🏁</button>
             )
           )}
 
           {controlsVisible && isCoach && footageId && !showMarkerChoice && markerRangeStart === null && (
-            <button title="Add photo"
+            <button className="view-it-btn" title="Add photo"
               style={{ position: 'absolute', top: 8, right: 8, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer' }}
               onClick={capturePhotoMarker}>📷</button>
           )}
@@ -938,7 +938,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
             <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
               <button className="view-it-btn btn btn-sm" onPointerDown={() => startStepRepeat(-5)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>⏪ 5s</button>
               <button className="view-it-btn btn btn-sm" onPointerDown={() => startStepRepeat(-FRAME_SECONDS)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>⏮ Frame</button>
-              <button style={{ minWidth: 72, height: 72, borderRadius: '50%', justifyContent: 'center', fontSize: 26, cursor: 'pointer', color: '#fff' }}
+              <button className="view-it-btn" style={{ minWidth: 72, height: 72, borderRadius: '50%', justifyContent: 'center', fontSize: 26, cursor: 'pointer', color: '#fff' }}
                 onPointerDown={handlePlayButtonPointerDown} onPointerMove={handlePlayButtonPointerMove} onPointerUp={handlePlayButtonPointerUp}
                 onPointerLeave={() => { if (isHoldingRef.current) handlePlayButtonPointerUp() }}>{playing ? '⏸' : '▶️'}</button>
               <button className="view-it-btn btn btn-sm" onPointerDown={() => startStepRepeat(FRAME_SECONDS)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>Frame ⏭</button>
@@ -946,7 +946,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
               {SPEEDS.map(s => (
-                <button key={s} onClick={() => setPlaybackSpeed(s)}
+                <button key={s} className="view-it-btn" onClick={() => setPlaybackSpeed(s)}
                   style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)',
                                         border: speed === s ? '1px solid #fff' : '1px solid rgba(255,255,255,0.3)',
                     color: speed === s ? '#fff' : 'rgba(255,255,255,0.7)', fontWeight: speed === s ? 600 : 400 }}>
