@@ -873,6 +873,37 @@ export default function Registers() {
     for (const sid of studentIds) {
       const s = students.find(x => x.id === sid)
       if (!s) continue
+
+      // Awarding points via this side button implies the student was
+      // actually there -- if they're not already marked on the
+      // register at all, mark them attended too (same insert +
+      // standard attendance-point award as ticking "Attended"
+      // directly), rather than leaving them logged with points but
+      // silently absent from the register.
+      if (!attendance[sid] || attendance[sid] === 'none') {
+        const scopedToClass = classFilter && classFilter !== 'all'
+        const detectedClassId = scopedToClass ? classFilter : detectClassIdForStudent(sid)
+        const { error: attendErr } = await supabase.from('attendance').insert({
+          student_id: sid,
+          present: true,
+          attendance_type: 'attended',
+          session_date: date,
+          attended_at: new Date(date + 'T12:00:00').toISOString(),
+          class_id: detectedClassId,
+        })
+        if (attendErr) {
+          alert(`Couldn't mark ${s.members?.first_name} as attended: ${attendErr.message} -- continuing to award the selected points anyway.`)
+        } else {
+          setAttendance(prev => ({ ...prev, [sid]: 'attended' }))
+          await ensureClassAssignment(sid)
+          await awardAttendancePoints(s, 'attended', detectedClassId)
+          if (scopedToClass) {
+            const cascaded = await cascadeDoubleSession(s, 'attended')
+            if (cascaded) setCascadedEntries(prev => [...prev, cascaded])
+          }
+        }
+      }
+
       for (const pt of points) {
         const { error: logError } = await supabase.from('points_log').insert({
           student_id: sid, point_type: pt.label,
