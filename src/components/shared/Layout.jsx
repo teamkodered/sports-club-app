@@ -18,6 +18,22 @@ export default function Layout() {
   const hideMobileMenuButton = location.pathname.startsWith('/fit2fight') || location.pathname.startsWith('/boxing-tpt') || location.pathname.startsWith('/kickboxing-tpt')
   const [mobileOpen, setMobileOpen]   = useState(false)
   const [collapsed, setCollapsed]     = useState(false)
+
+  // Android Chrome shows its own native long-press "Open in new tab /
+  // Copy link / Share link" menu on any <a> tag, including ones
+  // styled to look like plain cards for internal navigation (e.g. the
+  // Dashboard's stat cards) -- not useful there, and actively breaks
+  // hold-gesture interactions layered on top of them (like hold-to-
+  // cycle). -webkit-touch-callout only covers iOS Safari's equivalent,
+  // so this handles Android's separately, app-wide, rather than
+  // needing this added individually to every card-as-link anywhere.
+  useEffect(() => {
+    function suppressCardLinkContextMenu(e) {
+      if (e.target.closest?.('a.card')) e.preventDefault()
+    }
+    document.addEventListener('contextmenu', suppressCardLinkContextMenu)
+    return () => document.removeEventListener('contextmenu', suppressCardLinkContextMenu)
+  }, [])
   const [profileMenu, setProfileMenu] = useState(false)
   const [hovered, setHovered]         = useState(false)
   const [clubName, setClubName]       = useState('KR Centre')

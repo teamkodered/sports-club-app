@@ -1331,6 +1331,20 @@ function HoldToDelete({ onDelete, children }) {
 export default function AthleteApp() {
   const { profile, isStaff } = useAuth()
   const navigate = useNavigate()
+
+  // Same fix as the staff-side Layout -- this page isn't nested under
+  // that shared Layout wrapper, so it needs its own copy of this.
+  // Android Chrome's native long-press "Open in new tab / Copy link"
+  // menu appears on any <a> tag, including ones styled as plain cards
+  // for internal navigation, which breaks hold-gesture interactions
+  // layered on top and isn't useful for in-app navigation anyway.
+  useEffect(() => {
+    function suppressCardLinkContextMenu(e) {
+      if (e.target.closest?.('a.card')) e.preventDefault()
+    }
+    document.addEventListener('contextmenu', suppressCardLinkContextMenu)
+    return () => document.removeEventListener('contextmenu', suppressCardLinkContextMenu)
+  }, [])
   const [tab, setTab]           = useBackableTab('home')
   const [termsChecked, setTermsChecked] = useState(false) // the checkbox inside the modal
   const [acceptingTerms, setAcceptingTerms] = useState(false)
