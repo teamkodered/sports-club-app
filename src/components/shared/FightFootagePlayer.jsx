@@ -897,7 +897,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
           {controlsVisible && (
             <button className="view-it-btn" title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
               style={{ position: 'absolute', top: 8, left: 8, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer' }}
-              onClick={toggleFullscreen}>
+              onClick={e => { e.stopPropagation(); toggleFullscreen() }}>
               {isFullscreen ? '⤢' : '⛶'}
             </button>
           )}
@@ -906,19 +906,20 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
             markerRangeStart === null ? (
               <button className="view-it-btn" title="Add marker here"
                 style={{ position: 'absolute', top: 52, left: 8, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer' }}
-                onPointerDown={handleAddMarkerButtonPointerDown} onPointerUp={handleAddMarkerButtonPointerUp}
+                onPointerDown={e => { e.stopPropagation(); handleAddMarkerButtonPointerDown() }}
+                onPointerUp={e => { e.stopPropagation(); handleAddMarkerButtonPointerUp() }}
                 onPointerLeave={() => { if (addMarkerHoldEngagedRef.current) handleAddMarkerButtonPointerUp() }}>📍</button>
             ) : (
               <button className="view-it-btn" title="End marker here"
                 style={{ position: 'absolute', top: 52, left: 8, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer' }}
-                onClick={handleMarkerButtonPress}>🏁</button>
+                onClick={e => { e.stopPropagation(); handleMarkerButtonPress() }}>🏁</button>
             )
           )}
 
           {controlsVisible && isCoach && footageId && !showMarkerChoice && markerRangeStart === null && (
             <button className="view-it-btn" title="Add photo"
               style={{ position: 'absolute', top: 8, right: 8, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer' }}
-              onClick={capturePhotoMarker}>📷</button>
+              onClick={e => { e.stopPropagation(); capturePhotoMarker() }}>📷</button>
           )}
         </div>
 
