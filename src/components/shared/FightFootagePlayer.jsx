@@ -10,7 +10,6 @@ const FRAME_SECONDS = 1 / 30
 const HOLD_THRESHOLD_MS = 220 // how long a press must last before it counts as "hold" rather than a tap
 const MOVE_CANCEL_THRESHOLD = 12 // px of movement that cancels a pending hold -- this is a swipe, not a hold
 const SLOW_MO_SPEED = 0.5
-const CONTROLS_AUTOHIDE_MS = 3000
 const HIGHLIGHT_COLOURS = ['#E24B4A', '#EF9F27', '#1D9E75', '#378ADD', '#8B5CF6']
 const ZOOM_LEVELS = [1, 2, 4, 8]
 // Shared "glass" look for popups/buttons in this player -- light grey,
@@ -323,16 +322,16 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   }
 
   // --- Controls visibility (tap to show, auto-hide) -------------------
+  // Auto-hide removed entirely -- controls now only toggle on an
+  // explicit tap, never disappear on their own after a delay. Kept as
+  // a no-op function (rather than removing every one of its many call
+  // sites throughout this file) so nothing else needs touching.
   function scheduleAutoHide() {
     clearTimeout(autoHideTimerRef.current)
-    autoHideTimerRef.current = setTimeout(() => {
-      if (!scrubbingRef.current) setControlsVisible(false)
-    }, CONTROLS_AUTOHIDE_MS)
   }
 
   function showControls() {
     setControlsVisible(true)
-    scheduleAutoHide()
   }
 
   // Holding an area outside the video itself (the letterbox bars, or
