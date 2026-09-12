@@ -920,6 +920,19 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
               style={{ position: 'absolute', top: 8, right: 8, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer' }}
               onClick={capturePhotoMarker}>📷</button>
           )}
+
+          {controlsVisible && (
+            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 2, display: 'flex', gap: 10, alignItems: 'center' }}
+              onClick={e => e.stopPropagation()}>
+              <button className="btn btn-sm" onPointerDown={() => startStepRepeat(-5)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>⏪ 5s</button>
+              <button className="btn btn-sm" onPointerDown={() => startStepRepeat(-FRAME_SECONDS)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>⏮ Frame</button>
+              <button className="btn btn-primary" style={{ minWidth: 56, justifyContent: 'center' }}
+                onPointerDown={handlePlayButtonPointerDown} onPointerMove={handlePlayButtonPointerMove} onPointerUp={handlePlayButtonPointerUp}
+                onPointerLeave={() => { if (isHoldingRef.current) handlePlayButtonPointerUp() }}>{playing ? '⏸' : '▶️'}</button>
+              <button className="btn btn-sm" onPointerDown={() => startStepRepeat(FRAME_SECONDS)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>Frame ⏭</button>
+              <button className="btn btn-sm" onPointerDown={() => startStepRepeat(5)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>5s ⏩</button>
+            </div>
+          )}
         </div>
 
         <canvas ref={canvasRef} style={{ display: 'none' }} />
@@ -1089,16 +1102,6 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
           <button className="btn btn-sm" disabled={zoomLevel === ZOOM_LEVELS[0]} onClick={() => setZoomLevel(z => ZOOM_LEVELS[Math.max(0, ZOOM_LEVELS.indexOf(z) - 1)])}>🔍− Zoom out</button>
           <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', alignSelf: 'center' }}>{zoomLevel}x</span>
           <button className="btn btn-sm" disabled={zoomLevel === ZOOM_LEVELS[ZOOM_LEVELS.length - 1]} onClick={() => setZoomLevel(z => ZOOM_LEVELS[Math.min(ZOOM_LEVELS.length - 1, ZOOM_LEVELS.indexOf(z) + 1)])}>🔍+ Zoom in</button>
-        </div>
-
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', alignItems: 'center', marginTop: 8 }}>
-          <button className="btn btn-sm" onPointerDown={() => startStepRepeat(-5)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>⏪ 5s</button>
-          <button className="btn btn-sm" onPointerDown={() => startStepRepeat(-FRAME_SECONDS)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>⏮ Frame</button>
-          <button className="btn btn-primary" style={{ minWidth: 56, justifyContent: 'center' }}
-            onPointerDown={handlePlayButtonPointerDown} onPointerMove={handlePlayButtonPointerMove} onPointerUp={handlePlayButtonPointerUp}
-            onPointerLeave={() => { if (isHoldingRef.current) handlePlayButtonPointerUp() }}>{playing ? '⏸' : '▶️'}</button>
-          <button className="btn btn-sm" onPointerDown={() => startStepRepeat(FRAME_SECONDS)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>Frame ⏭</button>
-          <button className="btn btn-sm" onPointerDown={() => startStepRepeat(5)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>5s ⏩</button>
         </div>
 
         {isCoach && footageId && !showMarkerChoice && (
