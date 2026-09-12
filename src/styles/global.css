@@ -185,3 +185,22 @@ tbody tr:hover td { background: var(--bg-secondary); }
     flex-shrink: 0;
   }
 }
+
+/* View IT player controls: no browser-default focus outline (shows up
+   yellow/orange on some Android browsers when a button is pressed and
+   held, e.g. the frame/5s step buttons), and no grey hover background
+   -- these buttons float directly over the video, so anything but a
+   transparent background looks out of place here specifically.
+   Excludes .btn-primary (the play/pause button), which keeps its own
+   intentional solid background. */
+.view-it-btn:not(.btn-primary) {
+  outline: none !important;
+  background: transparent !important;
+}
+.view-it-btn:not(.btn-primary):hover, .view-it-btn:not(.btn-primary):focus, .view-it-btn:not(.btn-primary):active {
+  outline: none !important;
+  background: transparent !important;
+}
+.view-it-btn.btn-primary {
+  outline: none !important;
+}

@@ -924,13 +924,13 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
           {controlsVisible && (
             <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 2, display: 'flex', gap: 10, alignItems: 'center' }}
               onClick={e => e.stopPropagation()}>
-              <button className="btn btn-sm" onPointerDown={() => startStepRepeat(-5)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>⏪ 5s</button>
-              <button className="btn btn-sm" onPointerDown={() => startStepRepeat(-FRAME_SECONDS)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>⏮ Frame</button>
-              <button className="btn btn-primary" style={{ minWidth: 56, justifyContent: 'center' }}
+              <button className="view-it-btn btn btn-sm" onPointerDown={() => startStepRepeat(-5)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>⏪ 5s</button>
+              <button className="view-it-btn btn btn-sm" onPointerDown={() => startStepRepeat(-FRAME_SECONDS)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>⏮ Frame</button>
+              <button className="view-it-btn btn btn-primary" style={{ minWidth: 56, justifyContent: 'center' }}
                 onPointerDown={handlePlayButtonPointerDown} onPointerMove={handlePlayButtonPointerMove} onPointerUp={handlePlayButtonPointerUp}
                 onPointerLeave={() => { if (isHoldingRef.current) handlePlayButtonPointerUp() }}>{playing ? '⏸' : '▶️'}</button>
-              <button className="btn btn-sm" onPointerDown={() => startStepRepeat(FRAME_SECONDS)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>Frame ⏭</button>
-              <button className="btn btn-sm" onPointerDown={() => startStepRepeat(5)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>5s ⏩</button>
+              <button className="view-it-btn btn btn-sm" onPointerDown={() => startStepRepeat(FRAME_SECONDS)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>Frame ⏭</button>
+              <button className="view-it-btn btn btn-sm" onPointerDown={() => startStepRepeat(5)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>5s ⏩</button>
             </div>
           )}
         </div>
@@ -969,7 +969,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
           position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', maxWidth: '70%',
           color: '#fff', fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>{title}</span>
-        <button className="btn btn-sm" style={{ position: 'absolute', top: 12, right: 12 }} onClick={onClose}>✕ Close</button>
+        <button className="view-it-btn btn btn-sm" style={{ position: 'absolute', top: 12, right: 12 }} onClick={onClose}>✕ Close</button>
 
         {/* One swatch per colour actually in use on the timeline --
             tapping one plays only that colour's sections (a highlight
@@ -1099,15 +1099,15 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 6 }}>
-          <button className="btn btn-sm" disabled={zoomLevel === ZOOM_LEVELS[0]} onClick={() => setZoomLevel(z => ZOOM_LEVELS[Math.max(0, ZOOM_LEVELS.indexOf(z) - 1)])}>🔍− Zoom out</button>
+          <button className="view-it-btn btn btn-sm" disabled={zoomLevel === ZOOM_LEVELS[0]} onClick={() => setZoomLevel(z => ZOOM_LEVELS[Math.max(0, ZOOM_LEVELS.indexOf(z) - 1)])}>🔍− Zoom out</button>
           <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', alignSelf: 'center' }}>{zoomLevel}x</span>
-          <button className="btn btn-sm" disabled={zoomLevel === ZOOM_LEVELS[ZOOM_LEVELS.length - 1]} onClick={() => setZoomLevel(z => ZOOM_LEVELS[Math.min(ZOOM_LEVELS.length - 1, ZOOM_LEVELS.indexOf(z) + 1)])}>🔍+ Zoom in</button>
+          <button className="view-it-btn btn btn-sm" disabled={zoomLevel === ZOOM_LEVELS[ZOOM_LEVELS.length - 1]} onClick={() => setZoomLevel(z => ZOOM_LEVELS[Math.min(ZOOM_LEVELS.length - 1, ZOOM_LEVELS.indexOf(z) + 1)])}>🔍+ Zoom in</button>
         </div>
 
         {isCoach && footageId && !showMarkerChoice && (
           <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 10 }}>
             {markerRangeStart === null ? null : (
-              <button className="btn btn-sm" onClick={cancelMarkerRange}>✕ Cancel</button>
+              <button className="view-it-btn btn btn-sm" onClick={cancelMarkerRange}>✕ Cancel</button>
             )}
           </div>
         )}
