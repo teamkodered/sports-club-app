@@ -8,6 +8,7 @@ const SPEEDS = [0.25, 0.5, 1, 1.5, 2]
 // scrubbing to the right moment rather than a frame-perfect step.
 const FRAME_SECONDS = 1 / 30
 const HOLD_THRESHOLD_MS = 220 // how long a press must last before it counts as "hold" rather than a tap
+const VIDEO_HOLD_THRESHOLD_MS = 450 // same idea, specifically for tapping/holding the video itself -- longer, since a normal tap-to-toggle-controls tap was easily exceeding the shorter shared threshold
 const MOVE_CANCEL_THRESHOLD = 12 // px of movement that cancels a pending hold -- this is a swipe, not a hold
 const SLOW_MO_SPEED = 0.5
 const HIGHLIGHT_COLOURS = ['#E24B4A', '#EF9F27', '#1D9E75', '#378ADD', '#8B5CF6']
@@ -503,7 +504,13 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
     e.target.setPointerCapture?.(e.pointerId)
     holdStartPosRef.current = { x: e.clientX, y: e.clientY }
     clearTimeout(holdTimerRef.current)
-    holdTimerRef.current = setTimeout(engageHoldSlowMo, HOLD_THRESHOLD_MS)
+    // Uses its own longer threshold (not the shared HOLD_THRESHOLD_MS
+    // used elsewhere) -- a normal tap-to-show/hide-controls tap,
+    // especially on a touchscreen, was easily lasting longer than the
+    // shorter shared threshold, engaging slow-mo instead of registering
+    // as a simple tap, which meant the tap-toggle logic in
+    // handlePointerUp never ran and controls never hid.
+    holdTimerRef.current = setTimeout(engageHoldSlowMo, VIDEO_HOLD_THRESHOLD_MS)
   }
 
   // A swipe (finger genuinely moving, not just resting) shouldn't
