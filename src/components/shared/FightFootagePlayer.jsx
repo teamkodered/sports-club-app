@@ -865,6 +865,19 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
               {isFullscreen ? '⤢' : '⛶'}
             </button>
           )}
+
+          {controlsVisible && isCoach && footageId && !showMarkerChoice && markerRangeStart === null && (
+            <button title="Add marker here"
+              style={{ position: 'absolute', top: 52, left: 8, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer' }}
+              onPointerDown={handleAddMarkerButtonPointerDown} onPointerUp={handleAddMarkerButtonPointerUp}
+              onPointerLeave={() => { if (addMarkerHoldEngagedRef.current) handleAddMarkerButtonPointerUp() }}>📍</button>
+          )}
+
+          {controlsVisible && isCoach && footageId && !showMarkerChoice && markerRangeStart === null && (
+            <button title="Add photo"
+              style={{ position: 'absolute', top: 8, right: 8, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer' }}
+              onClick={capturePhotoMarker}>📷</button>
+          )}
         </div>
 
         <canvas ref={canvasRef} style={{ display: 'none' }} />
@@ -1047,14 +1060,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
 
         {isCoach && footageId && !showMarkerChoice && (
           <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 10 }}>
-            {markerRangeStart === null ? (
-              <>
-                <button className="btn btn-sm"
-                  onPointerDown={handleAddMarkerButtonPointerDown} onPointerUp={handleAddMarkerButtonPointerUp}
-                  onPointerLeave={() => { if (addMarkerHoldEngagedRef.current) handleAddMarkerButtonPointerUp() }}>📍 Add marker here</button>
-                <button className="btn btn-sm" onClick={capturePhotoMarker}>📷 Add photo</button>
-              </>
-            ) : (
+            {markerRangeStart === null ? null : (
               <>
                 <button className="btn btn-sm" onClick={handleMarkerButtonPress}>🏁 End marker here</button>
                 <button className="btn btn-sm" onClick={cancelMarkerRange}>✕ Cancel</button>
