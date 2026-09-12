@@ -866,11 +866,17 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
             </button>
           )}
 
-          {controlsVisible && isCoach && footageId && !showMarkerChoice && markerRangeStart === null && (
-            <button title="Add marker here"
-              style={{ position: 'absolute', top: 52, left: 8, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer' }}
-              onPointerDown={handleAddMarkerButtonPointerDown} onPointerUp={handleAddMarkerButtonPointerUp}
-              onPointerLeave={() => { if (addMarkerHoldEngagedRef.current) handleAddMarkerButtonPointerUp() }}>📍</button>
+          {controlsVisible && isCoach && footageId && !showMarkerChoice && (
+            markerRangeStart === null ? (
+              <button title="Add marker here"
+                style={{ position: 'absolute', top: 52, left: 8, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer' }}
+                onPointerDown={handleAddMarkerButtonPointerDown} onPointerUp={handleAddMarkerButtonPointerUp}
+                onPointerLeave={() => { if (addMarkerHoldEngagedRef.current) handleAddMarkerButtonPointerUp() }}>📍</button>
+            ) : (
+              <button title="End marker here"
+                style={{ position: 'absolute', top: 52, left: 8, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer' }}
+                onClick={handleMarkerButtonPress}>🏁</button>
+            )
           )}
 
           {controlsVisible && isCoach && footageId && !showMarkerChoice && markerRangeStart === null && (
@@ -1061,10 +1067,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
         {isCoach && footageId && !showMarkerChoice && (
           <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 10 }}>
             {markerRangeStart === null ? null : (
-              <>
-                <button className="btn btn-sm" onClick={handleMarkerButtonPress}>🏁 End marker here</button>
-                <button className="btn btn-sm" onClick={cancelMarkerRange}>✕ Cancel</button>
-              </>
+              <button className="btn btn-sm" onClick={cancelMarkerRange}>✕ Cancel</button>
             )}
           </div>
         )}
