@@ -920,33 +920,30 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
               style={{ position: 'absolute', top: 8, right: 8, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer' }}
               onClick={capturePhotoMarker}>📷</button>
           )}
-
-          {controlsVisible && (
-            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 2, display: 'flex', gap: 10, alignItems: 'center' }}
-              onClick={e => e.stopPropagation()}>
-              <button className="view-it-btn btn btn-sm" onPointerDown={() => startStepRepeat(-5)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>⏪ 5s</button>
-              <button className="view-it-btn btn btn-sm" onPointerDown={() => startStepRepeat(-FRAME_SECONDS)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>⏮ Frame</button>
-              <button className="view-it-btn btn btn-primary" style={{ minWidth: 56, justifyContent: 'center' }}
-                onPointerDown={handlePlayButtonPointerDown} onPointerMove={handlePlayButtonPointerMove} onPointerUp={handlePlayButtonPointerUp}
-                onPointerLeave={() => { if (isHoldingRef.current) handlePlayButtonPointerUp() }}>{playing ? '⏸' : '▶️'}</button>
-              <button className="view-it-btn btn btn-sm" onPointerDown={() => startStepRepeat(FRAME_SECONDS)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>Frame ⏭</button>
-              <button className="view-it-btn btn btn-sm" onPointerDown={() => startStepRepeat(5)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>5s ⏩</button>
-            </div>
-          )}
         </div>
 
         <canvas ref={canvasRef} style={{ display: 'none' }} />
         <video ref={filmstripVideoRef} src={videoUrl} crossOrigin="anonymous" muted playsInline style={{ display: 'none' }} />
         <canvas ref={filmstripCanvasRef} style={{ display: 'none' }} />
 
-        {/* Middle overlay -- just play/pause and speed, tap the video
-            to show/hide (same tap-to-show as the bottom bar now). */}
+        {/* Middle overlay -- play/pause (flanked by the 5s/Frame skip
+            buttons) and speed, tap the video to show/hide (same
+            tap-to-show as the bottom bar now). Just the one play
+            button here -- there used to be a second, smaller one
+            added alongside the skip buttons in their own separate row,
+            which just duplicated this one once both were centered. */}
         {controlsVisible && (
           <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, transform: 'translateY(-50%)', padding: '16px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}
             onClick={e => e.stopPropagation()}>
-            <button style={{ minWidth: 72, height: 72, borderRadius: '50%', justifyContent: 'center', fontSize: 26, cursor: 'pointer', color: '#fff' }}
-              onPointerDown={handlePlayButtonPointerDown} onPointerMove={handlePlayButtonPointerMove} onPointerUp={handlePlayButtonPointerUp}
-              onPointerLeave={() => { if (isHoldingRef.current) handlePlayButtonPointerUp() }}>{playing ? '⏸' : '▶️'}</button>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <button className="view-it-btn btn btn-sm" onPointerDown={() => startStepRepeat(-5)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>⏪ 5s</button>
+              <button className="view-it-btn btn btn-sm" onPointerDown={() => startStepRepeat(-FRAME_SECONDS)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>⏮ Frame</button>
+              <button style={{ minWidth: 72, height: 72, borderRadius: '50%', justifyContent: 'center', fontSize: 26, cursor: 'pointer', color: '#fff' }}
+                onPointerDown={handlePlayButtonPointerDown} onPointerMove={handlePlayButtonPointerMove} onPointerUp={handlePlayButtonPointerUp}
+                onPointerLeave={() => { if (isHoldingRef.current) handlePlayButtonPointerUp() }}>{playing ? '⏸' : '▶️'}</button>
+              <button className="view-it-btn btn btn-sm" onPointerDown={() => startStepRepeat(FRAME_SECONDS)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>Frame ⏭</button>
+              <button className="view-it-btn btn btn-sm" onPointerDown={() => startStepRepeat(5)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>5s ⏩</button>
+            </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
               {SPEEDS.map(s => (
                 <button key={s} onClick={() => setPlaybackSpeed(s)}
