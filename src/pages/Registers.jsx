@@ -583,7 +583,8 @@ export default function Registers() {
       awarded_at: new Date(date).toISOString(),
       class_id: classId || null,
     })
-    await supabase.rpc('adjust_student_points', { p_student_id: student.id, p_house_delta: netChange, p_individual_delta: netChange })
+    const { error: adjustErr } = await supabase.rpc('adjust_student_points', { p_student_id: student.id, p_house_delta: netChange, p_individual_delta: netChange })
+    if (adjustErr) alert(`Attendance points logged for ${student.members?.first_name}, but updating their points total failed: ${adjustErr.message}`)
 
     const houseName = student.house_name || student.members?.houses?.name
     if (houseName && netChange !== 0) {
