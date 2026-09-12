@@ -257,7 +257,9 @@ export default function Dashboard() {
             { label: athleteStep.label, value: athleteBreakdownValue, icon: '🏅', colour: '#EF9F27', to: '/athletes', isAthleteCard: true },
             { label: 'Houses',         value: standings.length,   icon: '🛡️', colour: '#E24B4A', to: '/league' },
           ].map(s => (
-            <Link key={s.label === step.label ? 'members' : (s.isAthleteCard ? 'athletes' : s.label)} to={s.to} className="card" style={{ textAlign: 'center', borderTop: `3px solid ${s.colour}`, textDecoration: 'none', color: 'inherit', display: 'block', WebkitTouchCallout: 'none' }}>
+            <Link key={s.label === step.label ? 'members' : (s.isAthleteCard ? 'athletes' : s.label)} to={s.to} className="card"
+              onContextMenu={e => { if (s.isMemberCard || s.isAthleteCard) e.preventDefault() }}
+              style={{ textAlign: 'center', borderTop: `3px solid ${s.colour}`, textDecoration: 'none', color: 'inherit', display: 'block', WebkitTouchCallout: 'none' }}>
               {s.isMemberCard ? (
                 <div style={{ fontSize: 26, marginBottom: 4, userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
                   onPointerDown={handleMemberIconDown} onPointerUp={handleMemberIconUp} onPointerLeave={() => clearTimeout(memberHoldTimerRef.current)}
