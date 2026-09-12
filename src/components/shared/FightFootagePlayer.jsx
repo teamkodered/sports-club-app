@@ -662,10 +662,13 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   // captures the end point and opens the Highlight/Note choice for
   // that whole span.
   function handleMarkerButtonPress() {
+    console.log('handleMarkerButtonPress called, markerRangeStart is currently:', markerRangeStart)
     videoRef.current?.pause()
     if (markerRangeStart === null) {
+      console.log('  -> setting markerRangeStart to', currentTime)
       setMarkerRangeStart(currentTime)
     } else {
+      console.log('  -> showing marker choice popup')
       setShowMarkerChoice(true)
     }
   }
@@ -684,8 +687,10 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   const addMarkerHoldEngagedRef = useRef(false)
 
   function handleAddMarkerButtonPointerDown() {
+    console.log('handleAddMarkerButtonPointerDown fired')
     clearTimeout(addMarkerHoldTimerRef.current)
     addMarkerHoldTimerRef.current = setTimeout(() => {
+      console.log('  -> hold threshold reached, engaging hold-marker mode')
       const v = videoRef.current
       if (!v) return
       addMarkerHoldEngagedRef.current = true
@@ -695,6 +700,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   }
 
   function handleAddMarkerButtonPointerUp() {
+    console.log('handleAddMarkerButtonPointerUp fired, addMarkerHoldEngagedRef was:', addMarkerHoldEngagedRef.current)
     clearTimeout(addMarkerHoldTimerRef.current)
     if (addMarkerHoldEngagedRef.current) {
       addMarkerHoldEngagedRef.current = false
