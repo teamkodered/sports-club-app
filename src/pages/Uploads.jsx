@@ -29,6 +29,7 @@ export default function Uploads({
   const [expandedPreviewId, setExpandedPreviewId] = useState(null)
   const [previewUrl, setPreviewUrl] = useState(null)
   const [previewLoading, setPreviewLoading] = useState(false)
+  const [justPublishedId, setJustPublishedId] = useState(null)
 
   // Resolves whatever the coach picked in the Event dropdown into a
   // real event_id -- creating a brand new event row first if "+ New
@@ -164,7 +165,12 @@ export default function Uploads({
   async function publishItem(item) {
     const { error } = await supabase.from('fight_footage').update({ published: true }).eq('id', item.id)
     if (error) { alert('Could not publish: ' + error.message); return }
-    load()
+    // Flashes a green confirmation on the button briefly before the
+    // item disappears from this pending list (it's no longer pending
+    // once published), rather than it just vanishing instantly with no
+    // visible confirmation that it actually worked.
+    setJustPublishedId(item.id)
+    setTimeout(() => { load(); setJustPublishedId(null) }, 900)
   }
 
   async function deletePendingItem(item) {
@@ -399,7 +405,9 @@ export default function Uploads({
                       </div>
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button className="btn btn-sm" onClick={() => startEditPending(item)}>Edit</button>
-                        <button className="btn btn-sm btn-primary" onClick={() => publishItem(item)}>✓ Publish to View IT</button>
+                        <button className="btn btn-sm btn-primary" style={justPublishedId === item.id ? { background: '#1D9E75', borderColor: '#1D9E75' } : undefined} onClick={() => publishItem(item)}>
+                          {justPublishedId === item.id ? '✓ Published' : '✓ Publish to View IT'}
+                        </button>
                         <button className="btn btn-sm" style={{ color: '#E24B4A' }} onClick={() => deletePendingItem(item)}>Delete</button>
                       </div>
                     </div>
