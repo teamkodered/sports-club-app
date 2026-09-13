@@ -670,11 +670,26 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
   // waits; the button then reads "End marker here" -- tapping again
   // captures the end point and opens the Highlight/Note choice for
   // that whole span.
+  // Guards against a genuine race: setting markerRangeStart below also
+  // swaps the visible button from Add marker to End marker, which can
+  // happen while a finger is still technically mid-release -- the
+  // browser's separate, slightly-delayed native "click" event (fired
+  // after pointerUp, once React has already re-rendered) then lands on
+  // that NEW button instead of the one actually pressed, firing this
+  // same function again immediately and jumping straight to the popup
+  // on what was really only ever one single tap. A genuine second tap
+  // takes noticeably longer than this to actually happen, so anything
+  // arriving within this window is treated as that same phantom click.
+  const MARKER_BUTTON_SWAP_GUARD_MS = 400
+  const markerButtonSwappedAtRef = useRef(0)
+
   function handleMarkerButtonPress() {
     videoRef.current?.pause()
     if (markerRangeStart === null) {
       setMarkerRangeStart(currentTime)
+      markerButtonSwappedAtRef.current = Date.now()
     } else {
+      if (Date.now() - markerButtonSwappedAtRef.current < MARKER_BUTTON_SWAP_GUARD_MS) return
       setShowMarkerChoice(true)
     }
   }
