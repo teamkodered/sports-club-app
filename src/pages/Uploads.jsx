@@ -30,6 +30,7 @@ export default function Uploads({
   const [previewUrl, setPreviewUrl] = useState(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [justPublishedId, setJustPublishedId] = useState(null)
+  const [selectedPendingIds, setSelectedPendingIds] = useState(() => new Set())
 
   // Resolves whatever the coach picked in the Event dropdown into a
   // real event_id -- creating a brand new event row first if "+ New
@@ -179,6 +180,26 @@ export default function Uploads({
     load()
   }
 
+  function toggleSelectAllPending() {
+    setSelectedPendingIds(prev => prev.size === pendingFootage.length ? new Set() : new Set(pendingFootage.map(i => i.id)))
+  }
+
+  async function bulkPublishSelected() {
+    const ids = [...selectedPendingIds]
+    const { error } = await supabase.from('fight_footage').update({ published: true }).in('id', ids)
+    if (error) { alert('Could not publish: ' + error.message); return }
+    setSelectedPendingIds(new Set())
+    load()
+  }
+
+  async function bulkDeleteSelected() {
+    if (!confirm(`Delete ${selectedPendingIds.size} selected upload${selectedPendingIds.size === 1 ? '' : 's'}? This cannot be undone.`)) return
+    const ids = [...selectedPendingIds]
+    await supabase.from('fight_footage').delete().in('id', ids)
+    setSelectedPendingIds(new Set())
+    load()
+  }
+
   const filteredStudents = students.filter(s => !studentSearch.trim() || studentName(s).toLowerCase().includes(studentSearch.trim().toLowerCase()))
   const currentTags = parsedTags()
   const tagSuggestions = allTags.filter(t => !currentTags.includes(t))
@@ -318,9 +339,28 @@ export default function Uploads({
         <div className="card" style={{ padding: 12, marginBottom: 16 }}>
           <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Awaiting publish ({pendingFootage.length})</h3>
           <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10 }}>Uploaded here, but not yet visible in the View IT tab — review or edit the details, then publish when ready.</p>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}>
+              <input type="checkbox" checked={selectedPendingIds.size === pendingFootage.length && pendingFootage.length > 0} onChange={toggleSelectAllPending} />
+              Select all
+            </label>
+            {selectedPendingIds.size > 0 && (
+              <>
+                <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{selectedPendingIds.size} selected</span>
+                <button className="btn btn-sm btn-primary" onClick={bulkPublishSelected}>✓ Publish selected</button>
+                <button className="btn btn-sm" style={{ color: '#E24B4A' }} onClick={bulkDeleteSelected}>Delete selected</button>
+              </>
+            )}
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {pendingFootage.map(item => (
-              <div key={item.id} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
+              <div key={item.id} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 10, display: 'flex', gap: 10 }}>
+                <input type="checkbox" style={{ marginTop: 3, flexShrink: 0 }} checked={selectedPendingIds.has(item.id)} onChange={e => setSelectedPendingIds(prev => {
+                  const next = new Set(prev)
+                  if (e.target.checked) next.add(item.id); else next.delete(item.id)
+                  return next
+                })} />
+                <div style={{ flex: 1, minWidth: 0 }}>
                 {editingPendingId === item.id ? (
                   <div>
                     <div className="field"><label>Title</label>
@@ -422,6 +462,7 @@ export default function Uploads({
                     )}
                   </div>
                 )}
+                </div>
               </div>
             ))}
           </div>
