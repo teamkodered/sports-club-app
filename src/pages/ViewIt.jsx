@@ -231,7 +231,16 @@ export default function ViewIt({ embedded = false }) {
     <div>
       {!embedded && (
         <>
-          <button className="btn btn-sm" style={{ marginBottom: 12 }} onClick={() => navigate(-1)}>← Back</button>
+          <button className="btn btn-sm" style={{ marginBottom: 12 }} onClick={() => {
+            // Prefers the actual previous page (e.g. wherever this was
+            // linked from) via normal browser back -- but if there's
+            // nothing meaningful to go back to in this session's
+            // history (arrived via a direct link or bookmark),
+            // View IT is logically part of Media now, so that's a
+            // better fallback than landing on the dashboard.
+            if (window.history.state?.idx > 0) navigate(-1)
+            else navigate('/media')
+          }}>← Back</button>
 
           <div className="page-header">
             <h1>View IT</h1>
