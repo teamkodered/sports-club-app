@@ -4,18 +4,32 @@ import { supabase } from '../lib/supabase.js'
 import { useFightFootageUpload } from '../hooks/useFightFootageUpload.jsx'
 import FightFootagePlayer from '../components/shared/FightFootagePlayer.jsx'
 
-export default function ViewIt() {
+// Full flat list of every belt name used across all PKA age bands --
+// this tag is just for categorising a clip's technique level, not tied
+// to any specific student's own age-banded progression, so one flat
+// list covering everything is simplest.
+const ALL_GRADES = ['Red', 'Yellow', 'Yellow tag', 'Orange', 'Orange tag', 'Green', 'Green tag', 'Blue', 'Blue tag', 'Purple', 'Purple tag', 'Brown', 'Brown tag', 'Black']
+const EVENT_TYPES = [
+  { value: 'competition', label: 'Competition' },
+  { value: 'grading', label: 'Grading' },
+  { value: 'training', label: 'Training' },
+  { value: 'other', label: 'Other' },
+]
+
+export default function ViewIt({ embedded = false }) {
   const navigate = useNavigate()
   const { upload, startUpload, startBulkUpload } = useFightFootageUpload()
   const [footage, setFootage] = useState([])
   const [events, setEvents] = useState([])
+  const [allTags, setAllTags] = useState([]) // every distinct tag already in use, for autocomplete
   const [loaded, setLoaded] = useState(false)
   const [students, setStudents] = useState([])
   const [showUpload, setShowUpload] = useState(false)
   const [bulkMode, setBulkMode] = useState(false)
   const [bulkFiles, setBulkFiles] = useState([])
   const [bulkTotalSelected, setBulkTotalSelected] = useState(0)
-  const [uploadForm, setUploadForm] = useState({ title: '', description: '', accessMode: 'coach_only', studentIds: new Set(), eventId: '', newEventName: '' })
+  const [uploadForm, setUploadForm] = useState({ title: '', description: '', accessMode: 'coach_only', studentIds: new Set(), eventId: '', newEventName: '', newEventType: 'other', tagsInput: '', gradeTag: '' })
+  const [tagSuggestOpen, setTagSuggestOpen] = useState(false)
   const [studentSearch, setStudentSearch] = useState('')
   const [file, setFile] = useState(null)
   const [playingUrl, setPlayingUrl] = useState(null)
@@ -27,6 +41,12 @@ export default function ViewIt() {
   const [editStudentSearch, setEditStudentSearch] = useState('')
   const [filterEventId, setFilterEventId] = useState('')
   const [filterStudentId, setFilterStudentId] = useState('')
+  const [filterTag, setFilterTag] = useState('')
+  const [filterGrade, setFilterGrade] = useState('')
+  const [filterEventType, setFilterEventType] = useState('')
+  const [searchText, setSearchText] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   useEffect(() => { load() }, [])
 
@@ -41,14 +61,29 @@ export default function ViewIt() {
   }, [upload?.status])
 
   async function load() {
-    const [{ data: f }, { data: s }, { data: e }] = await Promise.all([
-      supabase.from('fight_footage').select('*, fight_footage_athletes(student_id, students(members(first_name, last_name))), events(id, name)').order('uploaded_at', { ascending: false }),
+    const [{ data: f }, { data: s }, { data: e }, { data: markerNotes }] = await Promise.all([
+      supabase.from('fight_footage').select('*, fight_footage_athletes(student_id, students(members(first_name, last_name))), events(id, name, event_type)').order('uploaded_at', { ascending: false }),
       supabase.from('students').select('id, members(first_name, last_name)'),
       supabase.from('events').select('*').order('event_date', { ascending: false }),
+      // Marker notes are searched alongside title/description -- often
+      // the richest description of what's actually in a clip lives in
+      // a note made while marking it up (e.g. "great roundhouse here"),
+      // so a coach doesn't need to separately re-tag something already
+      // described in detail while reviewing it.
+      supabase.from('fight_footage_markers').select('footage_id, note_text').not('note_text', 'is', null),
     ])
-    setFootage(f || [])
+    const notesByFootage = {}
+    for (const m of (markerNotes || [])) {
+      if (!m.note_text) continue
+      notesByFootage[m.footage_id] = notesByFootage[m.footage_id] ? `${notesByFootage[m.footage_id]} ${m.note_text}` : m.note_text
+    }
+    const withNotes = (f || []).map(item => ({ ...item, _searchableNotes: notesByFootage[item.id] || '' }))
+    setFootage(withNotes)
     setStudents(s || [])
     setEvents(e || [])
+    const tagSet = new Set()
+    for (const item of withNotes) for (const t of (item.tags || [])) tagSet.add(t)
+    setAllTags([...tagSet].sort())
     setLoaded(true)
   }
 
@@ -62,12 +97,16 @@ export default function ViewIt() {
   async function resolveEventId() {
     if (uploadForm.eventId === '__new__') {
       if (!uploadForm.newEventName.trim()) return null
-      const { data: newEvent, error } = await supabase.from('events').insert({ name: uploadForm.newEventName.trim() }).select().single()
+      const { data: newEvent, error } = await supabase.from('events').insert({ name: uploadForm.newEventName.trim(), event_type: uploadForm.newEventType }).select().single()
       if (error) { alert('Could not create event: ' + error.message); return null }
       setEvents(prev => [newEvent, ...prev])
       return newEvent.id
     }
     return uploadForm.eventId || null
+  }
+
+  function parsedTags() {
+    return uploadForm.tagsInput.split(',').map(t => t.trim()).filter(Boolean)
   }
 
   async function handleUpload() {
@@ -83,6 +122,8 @@ export default function ViewIt() {
       accessMode: uploadForm.accessMode,
       studentIds: uploadForm.studentIds,
       eventId,
+      tags: parsedTags(),
+      gradeTag: uploadForm.gradeTag,
     })
     resetUploadForm()
   }
@@ -94,6 +135,8 @@ export default function ViewIt() {
       accessMode: uploadForm.accessMode,
       studentIds: uploadForm.studentIds,
       eventId,
+      tags: parsedTags(),
+      gradeTag: uploadForm.gradeTag,
     })
     resetUploadForm()
   }
@@ -101,14 +144,13 @@ export default function ViewIt() {
   function resetUploadForm() {
     setShowUpload(false)
     setBulkMode(false)
-    setUploadForm({ title: '', description: '', accessMode: 'coach_only', studentIds: new Set(), eventId: '', newEventName: '' })
+    setUploadForm({ title: '', description: '', accessMode: 'coach_only', studentIds: new Set(), eventId: '', newEventName: '', newEventType: 'other', tagsInput: '', gradeTag: '' })
     setFile(null)
     setBulkFiles([])
   }
 
   function handleFolderSelect(e) {
     const totalSelected = e.target.files.length
-    console.log('Files selected:', [...e.target.files].map(f => ({ name: f.name, type: f.type, size: f.size })))
     const files = [...e.target.files].filter(f => f.type.startsWith('video/') || /\.(mp4|mkv|avi|mov|wmv|flv|3gp|webm|m4v)$/i.test(f.name))
     setBulkFiles(files)
     setBulkTotalSelected(totalSelected)
@@ -164,21 +206,39 @@ export default function ViewIt() {
   }
 
   const filteredStudents = students.filter(s => !studentSearch.trim() || studentName(s).toLowerCase().includes(studentSearch.trim().toLowerCase()))
+  const currentTags = parsedTags()
+  const tagSuggestions = allTags.filter(t => !currentTags.includes(t) && (currentTags.length === 0 || true))
 
   const visibleFootage = footage.filter(item => {
     if (filterEventId && item.event_id !== filterEventId) return false
     if (filterStudentId && !(item.fight_footage_athletes || []).some(a => a.student_id === filterStudentId)) return false
+    if (filterTag && !(item.tags || []).includes(filterTag)) return false
+    if (filterGrade && item.grade_tag !== filterGrade) return false
+    if (filterEventType && item.events?.event_type !== filterEventType) return false
+    if (dateFrom && item.uploaded_at < dateFrom) return false
+    if (dateTo && item.uploaded_at > dateTo + 'T23:59:59') return false
+    if (searchText.trim()) {
+      const q = searchText.trim().toLowerCase()
+      const haystack = `${item.title} ${item.description || ''} ${item._searchableNotes || ''}`.toLowerCase()
+      if (!haystack.includes(q)) return false
+    }
     return true
   })
 
+  const hasAnyFilter = filterEventId || filterStudentId || filterTag || filterGrade || filterEventType || searchText || dateFrom || dateTo
+
   return (
     <div>
-      <button className="btn btn-sm" style={{ marginBottom: 12 }} onClick={() => navigate(-1)}>← Back</button>
+      {!embedded && (
+        <>
+          <button className="btn btn-sm" style={{ marginBottom: 12 }} onClick={() => navigate(-1)}>← Back</button>
 
-      <div className="page-header">
-        <h1>View IT</h1>
-        <p>Record, review, and share fight/sparring footage with athletes or the team</p>
-      </div>
+          <div className="page-header">
+            <h1>View IT</h1>
+            <p>Record, review, and share fight/sparring footage with athletes or the team</p>
+          </div>
+        </>
+      )}
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
         <button className="btn btn-primary" onClick={() => { setBulkMode(false); setShowUpload(true) }}>+ Upload footage</button>
@@ -230,8 +290,43 @@ export default function ViewIt() {
               {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
             </select>
             {uploadForm.eventId === '__new__' && (
-              <input style={{ marginTop: 6 }} value={uploadForm.newEventName} onChange={e => setUploadForm(f => ({ ...f, newEventName: e.target.value }))} placeholder="Event name, e.g. Regionals 2026" />
+              <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                <input style={{ flex: 1 }} value={uploadForm.newEventName} onChange={e => setUploadForm(f => ({ ...f, newEventName: e.target.value }))} placeholder="Event name, e.g. Regionals 2026" />
+                <select value={uploadForm.newEventType} onChange={e => setUploadForm(f => ({ ...f, newEventType: e.target.value }))} style={{ width: 130 }}>
+                  {EVENT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </select>
+              </div>
             )}
+          </div>
+
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div className="field" style={{ flex: 1, position: 'relative' }}>
+              <label>Technique tags (optional)</label>
+              <input value={uploadForm.tagsInput}
+                onChange={e => setUploadForm(f => ({ ...f, tagsInput: e.target.value }))}
+                onFocus={() => setTagSuggestOpen(true)}
+                onBlur={() => setTimeout(() => setTagSuggestOpen(false), 150)}
+                placeholder="e.g. roundhouse, jab-cross" />
+              {tagSuggestOpen && tagSuggestions.length > 0 && (
+                <div style={{ position: 'absolute', zIndex: 5, top: '100%', left: 0, right: 0, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, maxHeight: 140, overflowY: 'auto' }}>
+                  {tagSuggestions.slice(0, 8).map(t => (
+                    <div key={t} onMouseDown={() => setUploadForm(f => ({ ...f, tagsInput: currentTags.length > 0 ? `${f.tagsInput.replace(/,\s*[^,]*$/, '')}, ${t}` : t }))}
+                      style={{ padding: '6px 10px', fontSize: 12, cursor: 'pointer' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                      {t}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 3 }}>Comma-separated, any words you like — existing tags are suggested as you type to keep things consistent.</p>
+            </div>
+            <div className="field" style={{ width: 140 }}>
+              <label>Grade (optional)</label>
+              <select value={uploadForm.gradeTag} onChange={e => setUploadForm(f => ({ ...f, gradeTag: e.target.value }))}>
+                <option value="">—</option>
+                {ALL_GRADES.map(g => <option key={g}>{g}</option>)}
+              </select>
+            </div>
           </div>
 
           <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 6 }}>Who can see this?</label>
@@ -274,21 +369,42 @@ export default function ViewIt() {
         </div>
       )}
 
-      {events.length > 0 && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-          <select value={filterEventId} onChange={e => setFilterEventId(e.target.value)} style={{ fontSize: 13 }}>
-            <option value="">All events</option>
-            {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
+      <div className="card" style={{ padding: 12, marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+          <input type="text" placeholder="🔍 Search title, notes, marker notes…" value={searchText} onChange={e => setSearchText(e.target.value)} style={{ flex: '1 1 220px', fontSize: 13 }} />
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} title="From date" style={{ fontSize: 13 }} />
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} title="To date" style={{ fontSize: 13 }} />
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          {events.length > 0 && (
+            <select value={filterEventId} onChange={e => setFilterEventId(e.target.value)} style={{ fontSize: 13 }}>
+              <option value="">All events</option>
+              {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
+            </select>
+          )}
+          <select value={filterEventType} onChange={e => setFilterEventType(e.target.value)} style={{ fontSize: 13 }}>
+            <option value="">All event types</option>
+            {EVENT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
           </select>
           <select value={filterStudentId} onChange={e => setFilterStudentId(e.target.value)} style={{ fontSize: 13 }}>
             <option value="">All athletes</option>
             {students.map(s => <option key={s.id} value={s.id}>{studentName(s)}</option>)}
           </select>
-          {(filterEventId || filterStudentId) && (
-            <button className="btn btn-sm" onClick={() => { setFilterEventId(''); setFilterStudentId('') }}>✕ Clear filters</button>
+          {allTags.length > 0 && (
+            <select value={filterTag} onChange={e => setFilterTag(e.target.value)} style={{ fontSize: 13 }}>
+              <option value="">All techniques</option>
+              {allTags.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          )}
+          <select value={filterGrade} onChange={e => setFilterGrade(e.target.value)} style={{ fontSize: 13 }}>
+            <option value="">All grades</option>
+            {ALL_GRADES.map(g => <option key={g}>{g}</option>)}
+          </select>
+          {hasAnyFilter && (
+            <button className="btn btn-sm" onClick={() => { setFilterEventId(''); setFilterStudentId(''); setFilterTag(''); setFilterGrade(''); setFilterEventType(''); setSearchText(''); setDateFrom(''); setDateTo('') }}>✕ Clear filters</button>
           )}
         </div>
-      )}
+      </div>
 
       {!loaded ? (
         <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Loading…</p>
@@ -303,10 +419,18 @@ export default function ViewIt() {
                   <div style={{ fontSize: 14, fontWeight: 500 }}>▶️ {item.title}</div>
                   <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
                     {new Date(item.uploaded_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    {item.events?.name && <> · 🏆 {item.events.name}</>}
+                    {item.events?.name && <> · 🏆 {item.events.name}{item.events.event_type ? ` (${EVENT_TYPES.find(t => t.value === item.events.event_type)?.label})` : ''}</>}
                     {' · '}{item.access_mode === 'all' ? 'Whole team' : item.access_mode === 'coach_only' ? 'Coach only' : `${item.fight_footage_athletes?.length || 0} athlete${item.fight_footage_athletes?.length === 1 ? '' : 's'}`}
                   </div>
                   {item.description && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{item.description}</div>}
+                  {(item.tags?.length > 0 || item.grade_tag) && (
+                    <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
+                      {item.grade_tag && <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 10, background: '#8B5CF622', color: '#8B5CF6' }}>🥋 {item.grade_tag}</span>}
+                      {(item.tags || []).map(t => (
+                        <span key={t} style={{ fontSize: 10, padding: '2px 7px', borderRadius: 10, background: 'var(--bg-secondary)', color: 'var(--text-tertiary)' }}>{t}</span>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button className="btn btn-sm" onClick={() => startEditAccess(item)}>Who can see this?</button>

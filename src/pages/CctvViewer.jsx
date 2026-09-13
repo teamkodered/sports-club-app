@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase.js'
+import FightFootagePlayer from '../components/shared/FightFootagePlayer.jsx'
 
 const ACCESS_MODES = [
   { value: 'staff_only', label: 'Staff only' },
@@ -15,7 +16,7 @@ function formatDuration(seconds) {
   return h > 0 ? `${h}h ${m}m` : `${m}m`
 }
 
-export default function CctvViewer() {
+export default function CctvViewer({ embedded = false }) {
   const [cameras, setCameras] = useState([])
   const [activityFilter, setActivityFilter] = useState('all') // 'all' | 'during' | 'unmatched'
   const [classSchedule, setClassSchedule] = useState([])
@@ -25,6 +26,7 @@ export default function CctvViewer() {
   const [clips, setClips] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedClip, setSelectedClip] = useState(null)
+  const [showPlayer, setShowPlayer] = useState(false)
   const [playbackUrl, setPlaybackUrl] = useState(null)
   const [playbackLoading, setPlaybackLoading] = useState(false)
   const [playbackError, setPlaybackError] = useState(null)
@@ -108,6 +110,7 @@ export default function CctvViewer() {
 
   async function openClip(clip) {
     setSelectedClip(clip)
+    setShowPlayer(false)
     setPlaybackUrl(null)
     setPlaybackError(null)
     setFlagText(clip.flagged_reason || '')
@@ -233,9 +236,13 @@ export default function CctvViewer() {
     : clips
 
   return (
-    <div style={{ padding: 20, maxWidth: 1100, margin: '0 auto' }}>
-      <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 4 }}>📹 CCTV</h1>
-      <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20 }}>Browse recorded clips, control who can see each one, and tag athletes.</p>
+    <div style={{ padding: embedded ? 0 : 20, maxWidth: 1100, margin: '0 auto' }}>
+      {!embedded && (
+        <>
+          <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 4 }}>📹 CCTV</h1>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20 }}>Browse recorded clips, control who can see each one, and tag athletes.</p>
+        </>
+      )}
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
         <select value={cameraFilter} onChange={e => setCameraFilter(e.target.value)} style={{ fontSize: 13 }}>
@@ -349,7 +356,9 @@ export default function CctvViewer() {
                 <p style={{ fontSize: 13, color: '#E24B4A' }}>Couldn't load this clip: {playbackError}</p>
               ) : playbackUrl ? (
                 <>
-                  <video src={playbackUrl} controls style={{ width: '100%', borderRadius: 8, background: '#000' }} />
+                  <button className="btn btn-primary" onClick={() => setShowPlayer(true)} style={{ width: '100%', padding: '14px 0', justifyContent: 'center' }}>
+                    ▶️ Play clip
+                  </button>
                   <a href={playbackUrl} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: 'var(--text-tertiary)', display: 'block', marginTop: 6 }}>Open clip directly (for troubleshooting)</a>
                 </>
               ) : null}
@@ -411,6 +420,12 @@ export default function CctvViewer() {
           </div>
         )}
       </div>
+
+      {showPlayer && playbackUrl && selectedClip && (
+        <FightFootagePlayer videoUrl={playbackUrl} title={`${selectedClip.camera_name} — ${new Date(selectedClip.recorded_at).toLocaleString('en-GB')}`}
+          storagePath={selectedClip.storage_path} isCoach
+          onClose={() => setShowPlayer(false)} />
+      )}
     </div>
   )
 }

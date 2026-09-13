@@ -13,7 +13,7 @@ const FightFootageUploadContext = createContext(null)
 export function FightFootageUploadProvider({ children }) {
   const [upload, setUpload] = useState(null) // { title, current, total, progress, status: 'uploading'|'processing'|'done'|'error', error }
 
-  const uploadSingleFile = useCallback(async (file, { title, description, accessMode, studentIds, eventId }) => {
+  const uploadSingleFile = useCallback(async (file, { title, description, accessMode, studentIds, eventId, tags, gradeTag }) => {
     const { data: sessionData } = await supabase.auth.getSession()
     const accessToken = sessionData?.session?.access_token
 
@@ -41,6 +41,8 @@ export function FightFootageUploadProvider({ children }) {
       file_size_bytes: file.size,
       access_mode: accessMode,
       event_id: eventId || null,
+      tags: tags && tags.length > 0 ? tags : null,
+      grade_tag: gradeTag || null,
     }).select().single()
     if (insertErr) throw insertErr
 
@@ -52,10 +54,10 @@ export function FightFootageUploadProvider({ children }) {
     return newFootage
   }, [])
 
-  const startUpload = useCallback(async ({ file, title, description, accessMode, studentIds, eventId }) => {
+  const startUpload = useCallback(async ({ file, title, description, accessMode, studentIds, eventId, tags, gradeTag }) => {
     setUpload({ title, current: 1, total: 1, progress: 0, status: 'uploading', error: null })
     try {
-      const result = await uploadSingleFile(file, { title, description, accessMode, studentIds, eventId })
+      const result = await uploadSingleFile(file, { title, description, accessMode, studentIds, eventId, tags, gradeTag })
       setUpload(u => u ? { ...u, status: 'done' } : u)
       setTimeout(() => setUpload(u => (u?.status === 'done' ? null : u)), 5000) // auto-clears the "done" banner after a few seconds, but leaves an error banner up until dismissed
       return result
@@ -65,11 +67,11 @@ export function FightFootageUploadProvider({ children }) {
     }
   }, [uploadSingleFile])
 
-  // Bulk: one shared accessMode/studentIds/eventId applied to every
-  // file, each titled from its own filename, uploaded one at a time
-  // (sequentially) rather than all at once so a big backlog doesn't
+  // Bulk: one shared accessMode/studentIds/eventId/tags/gradeTag applied
+  // to every file, each titled from its own filename, uploaded one at a
+  // time (sequentially) rather than all at once so a big backlog doesn't
   // hammer the connection with dozens of simultaneous large uploads.
-  const startBulkUpload = useCallback(async (files, { accessMode, studentIds, eventId }) => {
+  const startBulkUpload = useCallback(async (files, { accessMode, studentIds, eventId, tags, gradeTag }) => {
     const total = files.length
     setUpload({ title: `${total} file${total === 1 ? '' : 's'}`, current: 0, total, progress: 0, status: 'uploading', error: null })
     let successCount = 0
@@ -84,6 +86,8 @@ export function FightFootageUploadProvider({ children }) {
           accessMode,
           studentIds,
           eventId,
+          tags,
+          gradeTag,
         })
         successCount++
       } catch (err) {
