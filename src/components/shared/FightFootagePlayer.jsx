@@ -25,7 +25,14 @@ function hexToRgba(hex, alpha) {
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`
 }
 
-export default function FightFootagePlayer({ videoUrl, title, footageId, storagePath, isCoach = false, onClose }) {
+export default function FightFootagePlayer({ videoUrl, title, footageId, cctvClipId, storagePath, isCoach = false, onClose }) {
+  // Markers can belong to either a View IT fight_footage row or a CCTV
+  // clip -- whichever id was actually passed in is "the" source for
+  // this whole component. fight_footage_clips (saved/extracted
+  // highlight clips, a separate feature from markers) still only
+  // supports footageId, since extracting "a clip from a clip" doesn't
+  // really apply to CCTV footage the same way.
+  const sourceId = footageId || cctvClipId
   const videoRef = useRef(null)
   const wrapperRef = useRef(null)
   const [playing, setPlaying] = useState(false)
@@ -290,9 +297,9 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   }
 
   useEffect(() => {
-    if (!footageId) return
+    if (!sourceId) return
     loadClipsAndMarkers()
-  }, [footageId])
+  }, [sourceId])
 
   useEffect(() => {
     scheduleAutoHide() // controls start visible, but should still fade out on their own if left alone
@@ -301,8 +308,10 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
 
   async function loadClipsAndMarkers() {
     const [{ data: c }, { data: m }] = await Promise.all([
-      supabase.from('fight_footage_clips').select('*').eq('source_footage_id', footageId).order('created_at', { ascending: false }),
-      supabase.from('fight_footage_markers').select('*').eq('footage_id', footageId).order('start_seconds'),
+      footageId ? supabase.from('fight_footage_clips').select('*').eq('source_footage_id', footageId).order('created_at', { ascending: false }) : Promise.resolve({ data: [] }),
+      footageId
+        ? supabase.from('fight_footage_markers').select('*').eq('footage_id', footageId).order('start_seconds')
+        : supabase.from('fight_footage_markers').select('*').eq('cctv_clip_id', cctvClipId).order('start_seconds'),
     ])
     setClips(c || [])
     setMarkers(m || [])
@@ -530,7 +539,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   // Video gestures: tap toggles controls / double-tap skips / hold
   // slows down (see engage/releaseHoldSlowMo above).
   function handlePointerDown(e) {
-    if (!footageId) return
+    if (!sourceId) return
     // Pointer capture keeps move/up events targeting this element for
     // the whole gesture, regardless of where the finger physically
     // travels -- without it, a swipe that drifts outside the video's
@@ -582,7 +591,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
   // normal; holding it does the same slow-mo effect as holding the
   // video itself.
   function handlePlayButtonPointerDown(e) {
-    if (!footageId) return
+    if (!sourceId) return
     e.target.setPointerCapture?.(e.pointerId)
     holdStartPosRef.current = { x: e.clientX, y: e.clientY }
     clearTimeout(holdTimerRef.current)
@@ -731,7 +740,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
       const { data: { user } } = await supabase.auth.getUser()
       const { data: member } = await supabase.from('members').select('id').eq('auth_id', user.id).single()
       const { data: newMarker, error } = await supabase.from('fight_footage_markers').insert({
-        footage_id: footageId,
+        ...(footageId ? { footage_id: footageId } : { cctv_clip_id: cctvClipId }),
         start_seconds: currentTime,
         end_seconds: currentTime,
         marker_type: 'photo',
@@ -752,7 +761,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
     const { data: { user } } = await supabase.auth.getUser()
     const { data: member } = await supabase.from('members').select('id').eq('auth_id', user.id).single()
     const { data: newMarker } = await supabase.from('fight_footage_markers').insert({
-      footage_id: footageId,
+      ...(footageId ? { footage_id: footageId } : { cctv_clip_id: cctvClipId }),
       start_seconds: start,
       end_seconds: end,
       marker_type: 'highlight',
@@ -762,7 +771,11 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
     }).select().single()
     if (newMarker) setMarkers(prev => [...prev, newMarker].sort((a, b) => a.start_seconds - b.start_seconds))
 
-    if (isSlowMoClipPendingRef.current && newMarker) {
+    // Saving an extracted highlight clip is a footage-only feature --
+    // fight_footage_clips has no CCTV equivalent, so this step is
+    // simply skipped for a CCTV marker rather than erroring; the
+    // marker/note itself is still saved fine either way.
+    if (isSlowMoClipPendingRef.current && newMarker && footageId) {
       isSlowMoClipPendingRef.current = false
       saveClipForMarker(newMarker, start, end)
     }
@@ -810,7 +823,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
     const { data: { user } } = await supabase.auth.getUser()
     const { data: member } = await supabase.from('members').select('id').eq('auth_id', user.id).single()
     const { data: copy } = await supabase.from('fight_footage_markers').insert({
-      footage_id: footageId,
+      ...(footageId ? { footage_id: footageId } : { cctv_clip_id: cctvClipId }),
       start_seconds: m.start_seconds,
       end_seconds: m.end_seconds,
       marker_type: m.marker_type,
@@ -902,7 +915,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
             </button>
           )}
 
-          {controlsVisible && isCoach && footageId && !showMarkerChoice && (
+          {controlsVisible && isCoach && sourceId && !showMarkerChoice && (
             (markerRangeStart === null || addMarkerHoldEngagedRef.current) ? (
               <button className="view-it-btn" title="Add marker here"
                 style={{ position: 'absolute', top: 52, left: 8, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer' }}
@@ -916,7 +929,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
             )
           )}
 
-          {controlsVisible && isCoach && footageId && !showMarkerChoice && markerRangeStart === null && (
+          {controlsVisible && isCoach && sourceId && !showMarkerChoice && markerRangeStart === null && (
             <button className="view-it-btn" title="Add photo"
               style={{ position: 'absolute', top: 8, right: 8, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer' }}
               onClick={e => { e.stopPropagation(); capturePhotoMarker() }}>📷</button>
@@ -1102,7 +1115,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, storage
           <button className="view-it-btn btn btn-sm" disabled={zoomLevel === ZOOM_LEVELS[ZOOM_LEVELS.length - 1]} onClick={() => setZoomLevel(z => ZOOM_LEVELS[Math.min(ZOOM_LEVELS.length - 1, ZOOM_LEVELS.indexOf(z) + 1)])}>🔍+ Zoom in</button>
         </div>
 
-        {isCoach && footageId && !showMarkerChoice && (
+        {isCoach && sourceId && !showMarkerChoice && (
           <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 10 }}>
             {markerRangeStart === null ? null : (
               <button className="view-it-btn btn btn-sm" onClick={cancelMarkerRange}>✕ Cancel</button>
