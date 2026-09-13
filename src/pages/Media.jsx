@@ -85,6 +85,7 @@ export default function Media() {
   }
 
   const visibleFootage = footage.filter(item => {
+    if (!item.published) return false // sits in the Uploads pending list until explicitly published
     if (filterEventId && item.event_id !== filterEventId) return false
     if (filterStudentId && !(item.fight_footage_athletes || []).some(a => a.student_id === filterStudentId)) return false
     if (filterTag && !(item.tags || []).includes(filterTag)) return false
@@ -100,13 +101,15 @@ export default function Media() {
     return true
   })
 
+  const pendingFootage = footage.filter(item => !item.published)
+
   const hasAnyFilter = filterEventId || filterStudentId || filterTag || filterGrade || filterEventType || searchText || dateFrom || dateTo
   function clearFilters() {
     setFilterEventId(''); setFilterStudentId(''); setFilterTag(''); setFilterGrade(''); setFilterEventType(''); setSearchText(''); setDateFrom(''); setDateTo('')
   }
 
   const sharedProps = {
-    footage, visibleFootage, events, setEvents, allTags, students, studentName, loaded, load,
+    footage, visibleFootage, pendingFootage, events, setEvents, allTags, students, studentName, loaded, load,
     filterEventId, setFilterEventId, filterStudentId, setFilterStudentId, filterTag, setFilterTag,
     filterGrade, setFilterGrade, filterEventType, setFilterEventType, searchText, setSearchText,
     dateFrom, setDateFrom, dateTo, setDateTo, hasAnyFilter, clearFilters,

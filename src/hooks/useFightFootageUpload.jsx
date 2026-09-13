@@ -43,6 +43,7 @@ export function FightFootageUploadProvider({ children }) {
       event_id: eventId || null,
       tags: tags && tags.length > 0 ? tags : null,
       grade_tag: gradeTag || null,
+      published: false, // sits in the Uploads tab's pending list first -- an explicit "Publish to View IT" action is what makes it show there
     }).select().single()
     if (insertErr) throw insertErr
 

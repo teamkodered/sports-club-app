@@ -8,7 +8,7 @@ import { ALL_GRADES, EVENT_TYPES } from '../lib/mediaConstants.js'
 // up how things are organised (tags, events, filters) is naturally a
 // different moment than watching something you've already found.
 export default function Uploads({
-  events, setEvents, allTags, students, studentName, load,
+  pendingFootage, events, setEvents, allTags, students, studentName, load,
   filterEventId, setFilterEventId, filterStudentId, setFilterStudentId, filterTag, setFilterTag,
   filterGrade, setFilterGrade, filterEventType, setFilterEventType, searchText, setSearchText,
   dateFrom, setDateFrom, dateTo, setDateTo, hasAnyFilter, clearFilters,
@@ -22,6 +22,9 @@ export default function Uploads({
   const [tagSuggestOpen, setTagSuggestOpen] = useState(false)
   const [studentSearch, setStudentSearch] = useState('')
   const [file, setFile] = useState(null)
+  const [editingPendingId, setEditingPendingId] = useState(null)
+  const [pendingEdit, setPendingEdit] = useState(null) // { title, description, eventId, tagsInput, gradeTag }
+  const [pendingTagSuggestOpen, setPendingTagSuggestOpen] = useState(false)
 
   // Resolves whatever the coach picked in the Event dropdown into a
   // real event_id -- creating a brand new event row first if "+ New
@@ -95,6 +98,42 @@ export default function Uploads({
     if (folderName && !uploadForm.newEventName) {
       setUploadForm(f => ({ ...f, eventId: '__new__', newEventName: folderName }))
     }
+  }
+
+  function startEditPending(item) {
+    setEditingPendingId(item.id)
+    setPendingEdit({
+      title: item.title,
+      description: item.description || '',
+      eventId: item.event_id || '',
+      tagsInput: (item.tags || []).join(', '),
+      gradeTag: item.grade_tag || '',
+    })
+  }
+
+  async function savePendingEdit(item) {
+    const { error } = await supabase.from('fight_footage').update({
+      title: pendingEdit.title.trim(),
+      description: pendingEdit.description?.trim() || null,
+      event_id: pendingEdit.eventId || null,
+      tags: pendingEdit.tagsInput.split(',').map(t => t.trim()).filter(Boolean),
+      grade_tag: pendingEdit.gradeTag || null,
+    }).eq('id', item.id)
+    if (error) { alert('Could not save changes: ' + error.message); return }
+    setEditingPendingId(null)
+    load()
+  }
+
+  async function publishItem(item) {
+    const { error } = await supabase.from('fight_footage').update({ published: true }).eq('id', item.id)
+    if (error) { alert('Could not publish: ' + error.message); return }
+    load()
+  }
+
+  async function deletePendingItem(item) {
+    if (!confirm(`Delete "${item.title}"? This cannot be undone.`)) return
+    await supabase.from('fight_footage').delete().eq('id', item.id)
+    load()
   }
 
   const filteredStudents = students.filter(s => !studentSearch.trim() || studentName(s).toLowerCase().includes(studentSearch.trim().toLowerCase()))
@@ -228,6 +267,83 @@ export default function Uploads({
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn btn-primary" onClick={bulkMode ? handleBulkUpload : handleUpload}>⬆️ Upload</button>
             <button className="btn" onClick={resetUploadForm}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {pendingFootage.length > 0 && (
+        <div className="card" style={{ padding: 12, marginBottom: 16 }}>
+          <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Awaiting publish ({pendingFootage.length})</h3>
+          <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10 }}>Uploaded here, but not yet visible in the View IT tab — review or edit the details, then publish when ready.</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {pendingFootage.map(item => (
+              <div key={item.id} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
+                {editingPendingId === item.id ? (
+                  <div>
+                    <div className="field"><label>Title</label>
+                      <input value={pendingEdit.title} onChange={e => setPendingEdit(f => ({ ...f, title: e.target.value }))} />
+                    </div>
+                    <div className="field"><label>Notes</label>
+                      <textarea value={pendingEdit.description} onChange={e => setPendingEdit(f => ({ ...f, description: e.target.value }))} style={{ minHeight: 50 }} />
+                    </div>
+                    <div className="field"><label>Event</label>
+                      <select value={pendingEdit.eventId} onChange={e => setPendingEdit(f => ({ ...f, eventId: e.target.value }))}>
+                        <option value="">No event</option>
+                        {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
+                      </select>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <div className="field" style={{ flex: 1, position: 'relative' }}>
+                        <label>Technique tags</label>
+                        <input value={pendingEdit.tagsInput} onChange={e => setPendingEdit(f => ({ ...f, tagsInput: e.target.value }))}
+                          onFocus={() => setPendingTagSuggestOpen(true)} onBlur={() => setTimeout(() => setPendingTagSuggestOpen(false), 150)} />
+                        {pendingTagSuggestOpen && allTags.filter(t => !pendingEdit.tagsInput.includes(t)).length > 0 && (
+                          <div style={{ position: 'absolute', zIndex: 5, top: '100%', left: 0, right: 0, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, maxHeight: 140, overflowY: 'auto' }}>
+                            {allTags.filter(t => !pendingEdit.tagsInput.includes(t)).slice(0, 8).map(t => (
+                              <div key={t} onMouseDown={() => setPendingEdit(f => ({ ...f, tagsInput: f.tagsInput.trim() ? `${f.tagsInput.replace(/,\s*[^,]*$/, '')}, ${t}` : t }))}
+                                style={{ padding: '6px 10px', fontSize: 12, cursor: 'pointer' }}
+                                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>{t}</div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="field" style={{ width: 140 }}>
+                        <label>Grade</label>
+                        <select value={pendingEdit.gradeTag} onChange={e => setPendingEdit(f => ({ ...f, gradeTag: e.target.value }))}>
+                          <option value="">—</option>
+                          {ALL_GRADES.map(g => <option key={g}>{g}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                      <button className="btn btn-sm btn-primary" onClick={() => savePendingEdit(item)}>Save</button>
+                      <button className="btn btn-sm" onClick={() => setEditingPendingId(null)}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500 }}>{item.title}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
+                        {new Date(item.uploaded_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        {item.events?.name && <> · 🏆 {item.events.name}</>}
+                      </div>
+                      {(item.tags?.length > 0 || item.grade_tag) && (
+                        <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
+                          {item.grade_tag && <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 10, background: '#8B5CF622', color: '#8B5CF6' }}>🥋 {item.grade_tag}</span>}
+                          {(item.tags || []).map(t => <span key={t} style={{ fontSize: 10, padding: '2px 7px', borderRadius: 10, background: 'var(--bg-secondary)', color: 'var(--text-tertiary)' }}>{t}</span>)}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button className="btn btn-sm" onClick={() => startEditPending(item)}>Edit</button>
+                      <button className="btn btn-sm btn-primary" onClick={() => publishItem(item)}>✓ Publish to View IT</button>
+                      <button className="btn btn-sm" style={{ color: '#E24B4A' }} onClick={() => deletePendingItem(item)}>Delete</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       )}
