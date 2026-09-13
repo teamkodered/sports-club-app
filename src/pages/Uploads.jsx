@@ -25,6 +25,7 @@ export default function Uploads({
   const [editingPendingId, setEditingPendingId] = useState(null)
   const [pendingEdit, setPendingEdit] = useState(null) // { title, description, eventId, tagsInput, gradeTag }
   const [pendingTagSuggestOpen, setPendingTagSuggestOpen] = useState(false)
+  const [pendingStudentSearch, setPendingStudentSearch] = useState('')
 
   // Resolves whatever the coach picked in the Event dropdown into a
   // real event_id -- creating a brand new event row first if "+ New
@@ -108,7 +109,10 @@ export default function Uploads({
       eventId: item.event_id || '',
       tagsInput: (item.tags || []).join(', '),
       gradeTag: item.grade_tag || '',
+      accessMode: item.access_mode,
+      studentIds: new Set((item.fight_footage_athletes || []).map(a => a.student_id)),
     })
+    setPendingStudentSearch('')
   }
 
   async function savePendingEdit(item) {
@@ -118,8 +122,16 @@ export default function Uploads({
       event_id: pendingEdit.eventId || null,
       tags: pendingEdit.tagsInput.split(',').map(t => t.trim()).filter(Boolean),
       grade_tag: pendingEdit.gradeTag || null,
+      access_mode: pendingEdit.accessMode,
     }).eq('id', item.id)
     if (error) { alert('Could not save changes: ' + error.message); return }
+    // Simplest correct approach: replace the whole tagged-athletes set
+    // rather than trying to diff it, since this is a small,
+    // infrequent action, not a hot path worth optimising.
+    await supabase.from('fight_footage_athletes').delete().eq('footage_id', item.id)
+    if (pendingEdit.accessMode === 'select_athletes' && pendingEdit.studentIds.size > 0) {
+      await supabase.from('fight_footage_athletes').insert([...pendingEdit.studentIds].map(student_id => ({ footage_id: item.id, student_id })))
+    }
     setEditingPendingId(null)
     load()
   }
@@ -315,6 +327,29 @@ export default function Uploads({
                         </select>
                       </div>
                     </div>
+                    <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Who can see this?</label>
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                      <button className={pendingEdit.accessMode === 'coach_only' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setPendingEdit(f => ({ ...f, accessMode: 'coach_only' }))}>Coach only</button>
+                      <button className={pendingEdit.accessMode === 'select_athletes' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setPendingEdit(f => ({ ...f, accessMode: 'select_athletes' }))}>Specific athletes</button>
+                      <button className={pendingEdit.accessMode === 'all' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setPendingEdit(f => ({ ...f, accessMode: 'all' }))}>Whole team</button>
+                    </div>
+                    {pendingEdit.accessMode === 'select_athletes' && (
+                      <div style={{ marginBottom: 10 }}>
+                        <input type="text" placeholder="🔍 Search by name…" value={pendingStudentSearch} onChange={e => setPendingStudentSearch(e.target.value)} style={{ width: '100%', fontSize: 13, marginBottom: 8 }} />
+                        <div style={{ maxHeight: 140, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6 }}>
+                          {students.filter(s => !pendingStudentSearch.trim() || studentName(s).toLowerCase().includes(pendingStudentSearch.trim().toLowerCase())).map(s => (
+                            <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, padding: '4px 8px' }}>
+                              <input type="checkbox" checked={pendingEdit.studentIds.has(s.id)} onChange={e => setPendingEdit(f => {
+                                const next = new Set(f.studentIds)
+                                if (e.target.checked) next.add(s.id); else next.delete(s.id)
+                                return { ...f, studentIds: next }
+                              })} />
+                              {studentName(s)}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
                       <button className="btn btn-sm btn-primary" onClick={() => savePendingEdit(item)}>Save</button>
                       <button className="btn btn-sm" onClick={() => setEditingPendingId(null)}>Cancel</button>
@@ -327,6 +362,7 @@ export default function Uploads({
                       <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
                         {new Date(item.uploaded_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                         {item.events?.name && <> · 🏆 {item.events.name}</>}
+                        {' · '}{item.access_mode === 'all' ? 'Whole team' : item.access_mode === 'coach_only' ? 'Coach only' : `${item.fight_footage_athletes?.length || 0} athlete${item.fight_footage_athletes?.length === 1 ? '' : 's'}`}
                       </div>
                       {(item.tags?.length > 0 || item.grade_tag) && (
                         <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
