@@ -276,6 +276,40 @@ export default function CctvViewer() {
                 : activityFilter === 'unmatched' ? 'No unmatched clips -- everything recorded lines up with a check-in or scheduled class. 👍'
                 : 'No clips found for this filter.'}
             </p>
+          ) : cameraFilter === 'all' && cameras.length > 1 ? (
+            // Side-by-side columns, one per camera, so the same time
+            // period across different cameras can be compared/switched
+            // between at a glance instead of scrolling through one
+            // long mixed list to find the matching moment on another camera.
+            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(cameras.length, 3)}, 1fr)`, gap: 12 }}>
+              {cameras.map(cam => (
+                <div key={cam}>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>{cam}</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 600, overflowY: 'auto' }}>
+                    {visibleClips.filter(c => c.camera_name === cam).map(clip => (
+                      <div key={clip.id} onClick={() => openClip(clip)}
+                        className="card"
+                        style={{ padding: '8px 10px', cursor: 'pointer', border: selectedClip?.id === clip.id ? '2px solid var(--text)' : undefined, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                        <input type="checkbox" checked={bulkSelected.has(clip.id)} onClick={e => e.stopPropagation()} onChange={() => toggleBulkSelect(clip.id)} style={{ marginTop: 3, flexShrink: 0 }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                            {new Date(clip.recorded_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{formatDuration(clip.duration_seconds)}</div>
+                          <div style={{ display: 'flex', gap: 4, marginTop: 3, flexWrap: 'wrap' }}>
+                            {clip.flagged_reason && <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 10, background: '#E24B4A22', color: '#E24B4A' }}>🚩</span>}
+                            {clip.allow_download && <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 10, background: '#1D9E7522', color: '#1D9E75' }}>⬇</span>}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {visibleClips.filter(c => c.camera_name === cam).length === 0 && (
+                      <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No clips</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 600, overflowY: 'auto' }}>
               {visibleClips.map(clip => (
