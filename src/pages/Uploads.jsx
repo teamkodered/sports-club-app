@@ -26,6 +26,9 @@ export default function Uploads({
   const [pendingEdit, setPendingEdit] = useState(null) // { title, description, eventId, tagsInput, gradeTag }
   const [pendingTagSuggestOpen, setPendingTagSuggestOpen] = useState(false)
   const [pendingStudentSearch, setPendingStudentSearch] = useState('')
+  const [expandedPreviewId, setExpandedPreviewId] = useState(null)
+  const [previewUrl, setPreviewUrl] = useState(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
 
   // Resolves whatever the coach picked in the Event dropdown into a
   // real event_id -- creating a brand new event row first if "+ New
@@ -99,6 +102,28 @@ export default function Uploads({
     if (folderName && !uploadForm.newEventName) {
       setUploadForm(f => ({ ...f, eventId: '__new__', newEventName: folderName }))
     }
+  }
+
+  async function togglePreview(item) {
+    if (expandedPreviewId === item.id) {
+      setExpandedPreviewId(null)
+      setPreviewUrl(null)
+      return
+    }
+    setExpandedPreviewId(item.id)
+    setPreviewUrl(null)
+    setPreviewLoading(true)
+    const { data: sessionData } = await supabase.auth.getSession()
+    const accessToken = sessionData?.session?.access_token
+    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fight-footage-url`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ mode: 'read', footage_id: item.id }),
+    })
+    const data = await res.json()
+    setPreviewLoading(false)
+    if (data.error) { alert('Could not load preview: ' + data.error); setExpandedPreviewId(null); return }
+    setPreviewUrl(data.url)
   }
 
   function startEditPending(item) {
@@ -356,26 +381,37 @@ export default function Uploads({
                     </div>
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 500 }}>{item.title}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
-                        {new Date(item.uploaded_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                        {item.events?.name && <> · 🏆 {item.events.name}</>}
-                        {' · '}{item.access_mode === 'all' ? 'Whole team' : item.access_mode === 'coach_only' ? 'Coach only' : `${item.fight_footage_athletes?.length || 0} athlete${item.fight_footage_athletes?.length === 1 ? '' : 's'}`}
-                      </div>
-                      {(item.tags?.length > 0 || item.grade_tag) && (
-                        <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
-                          {item.grade_tag && <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 10, background: '#8B5CF622', color: '#8B5CF6' }}>🥋 {item.grade_tag}</span>}
-                          {(item.tags || []).map(t => <span key={t} style={{ fontSize: 10, padding: '2px 7px', borderRadius: 10, background: 'var(--bg-secondary)', color: 'var(--text-tertiary)' }}>{t}</span>)}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                      <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => togglePreview(item)}>
+                        <div style={{ fontSize: 13, fontWeight: 500 }}>{expandedPreviewId === item.id ? '▾' : '▸'} {item.title}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
+                          {new Date(item.uploaded_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          {item.events?.name && <> · 🏆 {item.events.name}</>}
+                          {' · '}{item.access_mode === 'all' ? 'Whole team' : item.access_mode === 'coach_only' ? 'Coach only' : `${item.fight_footage_athletes?.length || 0} athlete${item.fight_footage_athletes?.length === 1 ? '' : 's'}`}
                         </div>
-                      )}
+                        {(item.tags?.length > 0 || item.grade_tag) && (
+                          <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
+                            {item.grade_tag && <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 10, background: '#8B5CF622', color: '#8B5CF6' }}>🥋 {item.grade_tag}</span>}
+                            {(item.tags || []).map(t => <span key={t} style={{ fontSize: 10, padding: '2px 7px', borderRadius: 10, background: 'var(--bg-secondary)', color: 'var(--text-tertiary)' }}>{t}</span>)}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button className="btn btn-sm" onClick={() => startEditPending(item)}>Edit</button>
+                        <button className="btn btn-sm btn-primary" onClick={() => publishItem(item)}>✓ Publish to View IT</button>
+                        <button className="btn btn-sm" style={{ color: '#E24B4A' }} onClick={() => deletePendingItem(item)}>Delete</button>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="btn btn-sm" onClick={() => startEditPending(item)}>Edit</button>
-                      <button className="btn btn-sm btn-primary" onClick={() => publishItem(item)}>✓ Publish to View IT</button>
-                      <button className="btn btn-sm" style={{ color: '#E24B4A' }} onClick={() => deletePendingItem(item)}>Delete</button>
-                    </div>
+                    {expandedPreviewId === item.id && (
+                      <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+                        {previewLoading ? (
+                          <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Loading preview…</p>
+                        ) : previewUrl ? (
+                          <video src={previewUrl} controls style={{ width: '100%', maxHeight: 360, borderRadius: 8, background: '#000' }} />
+                        ) : null}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
