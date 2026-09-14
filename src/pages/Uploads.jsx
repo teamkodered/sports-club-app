@@ -8,8 +8,8 @@ import { ALL_GRADES, EVENT_TYPES } from '../lib/mediaConstants.js'
 // up how things are organised (tags, events, filters) is naturally a
 // different moment than watching something you've already found.
 export default function Uploads({
-  pendingFootage, events, setEvents, allTags, students, studentName, load,
-  filterEventId, setFilterEventId, filterStudentId, setFilterStudentId, filterTag, setFilterTag,
+  pendingFootage, events, setEvents, folders, setFolders, allTags, students, studentName, load,
+  filterEventId, setFilterEventId, filterFolderId, setFilterFolderId, filterStudentId, setFilterStudentId, filterTag, setFilterTag,
   filterGrade, setFilterGrade, filterEventType, setFilterEventType, searchText, setSearchText,
   dateFrom, setDateFrom, dateTo, setDateTo, hasAnyFilter, clearFilters,
   startUpload, startBulkUpload,
@@ -18,7 +18,7 @@ export default function Uploads({
   const [bulkMode, setBulkMode] = useState(false)
   const [bulkFiles, setBulkFiles] = useState([])
   const [bulkTotalSelected, setBulkTotalSelected] = useState(0)
-  const [uploadForm, setUploadForm] = useState({ title: '', description: '', accessMode: 'coach_only', studentIds: new Set(), eventId: '', newEventName: '', newEventType: 'other', tagsInput: '', gradeTag: '' })
+  const [uploadForm, setUploadForm] = useState({ title: '', description: '', accessMode: 'coach_only', studentIds: new Set(), eventId: '', newEventName: '', newEventType: 'other', folderId: '', newFolderName: '', tagsInput: '', gradeTag: '' })
   const [tagSuggestOpen, setTagSuggestOpen] = useState(false)
   const [studentSearch, setStudentSearch] = useState('')
   const [file, setFile] = useState(null)
@@ -46,6 +46,35 @@ export default function Uploads({
     return uploadForm.eventId || null
   }
 
+  // Folders are deliberately a separate concept from Events -- this
+  // find-or-create is what lets uploading more files into the same
+  // folder later actually add to it rather than creating a duplicate:
+  // if the typed name already matches an existing folder (case-
+  // insensitive), that existing one is reused instead of inserting a
+  // new row -- footage_folders.name also has a unique constraint as a
+  // backstop against a race between two near-simultaneous uploads.
+  async function resolveFolderId() {
+    if (uploadForm.folderId === '__new__') {
+      const typedName = uploadForm.newFolderName.trim()
+      if (!typedName) return null
+      const existing = folders.find(fo => fo.name.toLowerCase() === typedName.toLowerCase())
+      if (existing) return existing.id
+      const { data: newFolder, error } = await supabase.from('footage_folders').insert({ name: typedName }).select().single()
+      if (error) {
+        // Someone else's upload just created the same folder name
+        // between the check above and this insert -- re-check once
+        // rather than failing outright.
+        const { data: raceWinner } = await supabase.from('footage_folders').select('*').ilike('name', typedName).maybeSingle()
+        if (raceWinner) { setFolders(prev => [...prev, raceWinner].sort((a, b) => a.name.localeCompare(b.name))); return raceWinner.id }
+        alert('Could not create folder: ' + error.message)
+        return null
+      }
+      setFolders(prev => [...prev, newFolder].sort((a, b) => a.name.localeCompare(b.name)))
+      return newFolder.id
+    }
+    return uploadForm.folderId || null
+  }
+
   function parsedTags() {
     return uploadForm.tagsInput.split(',').map(t => t.trim()).filter(Boolean)
   }
@@ -53,6 +82,7 @@ export default function Uploads({
   async function handleUpload() {
     if (!file || !uploadForm.title.trim()) { alert('Add a title and choose a video file first.'); return }
     const eventId = await resolveEventId()
+    const folderId = await resolveFolderId()
     // Fire-and-forget into the shared upload context -- closing this
     // panel and even navigating away/switching tabs doesn't interrupt
     // it, it'll keep going and show progress via the floating
@@ -64,6 +94,7 @@ export default function Uploads({
       accessMode: uploadForm.accessMode,
       studentIds: uploadForm.studentIds,
       eventId,
+      folderId,
       tags: parsedTags(),
       gradeTag: uploadForm.gradeTag,
     })
@@ -73,10 +104,12 @@ export default function Uploads({
   async function handleBulkUpload() {
     if (bulkFiles.length === 0) { alert('Choose a folder with video files first.'); return }
     const eventId = await resolveEventId()
+    const folderId = await resolveFolderId()
     startBulkUpload(bulkFiles, {
       accessMode: uploadForm.accessMode,
       studentIds: uploadForm.studentIds,
       eventId,
+      folderId,
       tags: parsedTags(),
       gradeTag: uploadForm.gradeTag,
     })
@@ -86,7 +119,7 @@ export default function Uploads({
   function resetUploadForm() {
     setShowUpload(false)
     setBulkMode(false)
-    setUploadForm({ title: '', description: '', accessMode: 'coach_only', studentIds: new Set(), eventId: '', newEventName: '', newEventType: 'other', tagsInput: '', gradeTag: '' })
+    setUploadForm({ title: '', description: '', accessMode: 'coach_only', studentIds: new Set(), eventId: '', newEventName: '', newEventType: 'other', folderId: '', newFolderName: '', tagsInput: '', gradeTag: '' })
     setFile(null)
     setBulkFiles([])
   }
@@ -96,13 +129,20 @@ export default function Uploads({
     const files = [...e.target.files].filter(f => f.type.startsWith('video/') || /\.(mp4|mkv|avi|mov|wmv|flv|3gp|webm|m4v)$/i.test(f.name))
     setBulkFiles(files)
     setBulkTotalSelected(totalSelected)
-    // Suggests the containing folder's name as the event, since that's
-    // usually exactly what it's organised by (e.g. Dropbox event
-    // folders) -- easy to change before uploading if it's not right.
+    // Suggests the containing folder's name as the Folder (a separate
+    // concept from Event) -- if a folder with that exact name already
+    // exists from a previous upload, it's auto-selected directly so
+    // this batch joins it, rather than always proposing a brand new
+    // one. Easy to change before uploading if it's not right.
     const relPath = files[0]?.webkitRelativePath
     const folderName = relPath ? relPath.split('/')[0] : ''
-    if (folderName && !uploadForm.newEventName) {
-      setUploadForm(f => ({ ...f, eventId: '__new__', newEventName: folderName }))
+    if (folderName && !uploadForm.newFolderName && !uploadForm.folderId) {
+      const existing = folders.find(fo => fo.name.toLowerCase() === folderName.toLowerCase())
+      if (existing) {
+        setUploadForm(f => ({ ...f, folderId: existing.id }))
+      } else {
+        setUploadForm(f => ({ ...f, folderId: '__new__', newFolderName: folderName }))
+      }
     }
   }
 
@@ -134,6 +174,7 @@ export default function Uploads({
       title: item.title,
       description: item.description || '',
       eventId: item.event_id || '',
+      folderId: item.folder_id || '',
       tagsInput: (item.tags || []).join(', '),
       gradeTag: item.grade_tag || '',
       accessMode: item.access_mode,
@@ -147,6 +188,7 @@ export default function Uploads({
       title: pendingEdit.title.trim(),
       description: pendingEdit.description?.trim() || null,
       event_id: pendingEdit.eventId || null,
+      folder_id: pendingEdit.folderId || null,
       tags: pendingEdit.tagsInput.split(',').map(t => t.trim()).filter(Boolean),
       grade_tag: pendingEdit.gradeTag || null,
       access_mode: pendingEdit.accessMode,
@@ -265,6 +307,18 @@ export default function Uploads({
             )}
           </div>
 
+          <div className="field"><label>Folder (optional)</label>
+            <select value={uploadForm.folderId} onChange={e => setUploadForm(f => ({ ...f, folderId: e.target.value }))}>
+              <option value="">No folder</option>
+              <option value="__new__">+ New folder…</option>
+              {folders.map(fo => <option key={fo.id} value={fo.id}>{fo.name}</option>)}
+            </select>
+            {uploadForm.folderId === '__new__' && (
+              <input style={{ marginTop: 6 }} value={uploadForm.newFolderName} onChange={e => setUploadForm(f => ({ ...f, newFolderName: e.target.value }))} placeholder="Folder name" />
+            )}
+            <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 3 }}>A separate way to organise clips from Event — uploading more into the same folder name later automatically joins this same folder rather than making a duplicate.</p>
+          </div>
+
           <div style={{ display: 'flex', gap: 8 }}>
             <div className="field" style={{ flex: 1, position: 'relative' }}>
               <label>Technique tags (optional)</label>
@@ -375,6 +429,12 @@ export default function Uploads({
                         {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
                       </select>
                     </div>
+                    <div className="field"><label>Folder</label>
+                      <select value={pendingEdit.folderId} onChange={e => setPendingEdit(f => ({ ...f, folderId: e.target.value }))}>
+                        <option value="">No folder</option>
+                        {folders.map(fo => <option key={fo.id} value={fo.id}>{fo.name}</option>)}
+                      </select>
+                    </div>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <div className="field" style={{ flex: 1, position: 'relative' }}>
                         <label>Technique tags</label>
@@ -434,6 +494,7 @@ export default function Uploads({
                         <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
                           {new Date(item.uploaded_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                           {item.events?.name && <> · 🏆 {item.events.name}</>}
+                          {item.footage_folders?.name && <> · 📁 {item.footage_folders.name}</>}
                           {' · '}{item.access_mode === 'all' ? 'Whole team' : item.access_mode === 'coach_only' ? 'Coach only' : `${item.fight_footage_athletes?.length || 0} athlete${item.fight_footage_athletes?.length === 1 ? '' : 's'}`}
                         </div>
                         {(item.tags?.length > 0 || item.grade_tag) && (
@@ -482,6 +543,12 @@ export default function Uploads({
             <select value={filterEventId} onChange={e => setFilterEventId(e.target.value)} style={{ fontSize: 13 }}>
               <option value="">All events</option>
               {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
+            </select>
+          )}
+          {folders.length > 0 && (
+            <select value={filterFolderId} onChange={e => setFilterFolderId(e.target.value)} style={{ fontSize: 13 }}>
+              <option value="">All folders</option>
+              {folders.map(fo => <option key={fo.id} value={fo.id}>{fo.name}</option>)}
             </select>
           )}
           <select value={filterEventType} onChange={e => setFilterEventType(e.target.value)} style={{ fontSize: 13 }}>

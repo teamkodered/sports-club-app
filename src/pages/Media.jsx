@@ -26,11 +26,13 @@ export default function Media() {
 
   const [footage, setFootage] = useState([])
   const [events, setEvents] = useState([])
+  const [folders, setFolders] = useState([])
   const [allTags, setAllTags] = useState([]) // every distinct tag already in use, for autocomplete
   const [students, setStudents] = useState([])
   const [loaded, setLoaded] = useState(false)
 
   const [filterEventId, setFilterEventId] = useState('')
+  const [filterFolderId, setFilterFolderId] = useState('')
   const [filterStudentId, setFilterStudentId] = useState('')
   const [filterTag, setFilterTag] = useState('')
   const [filterGrade, setFilterGrade] = useState('')
@@ -54,10 +56,11 @@ export default function Media() {
   }, [upload?.status])
 
   async function load() {
-    const [{ data: f }, { data: s }, { data: e }, { data: markerNotes }] = await Promise.all([
-      supabase.from('fight_footage').select('*, fight_footage_athletes(student_id, students(members(first_name, last_name))), events(id, name, event_type)').order('uploaded_at', { ascending: false }),
+    const [{ data: f }, { data: s }, { data: e }, { data: fo }, { data: markerNotes }] = await Promise.all([
+      supabase.from('fight_footage').select('*, fight_footage_athletes(student_id, students(members(first_name, last_name))), events(id, name, event_type), footage_folders(id, name)').order('uploaded_at', { ascending: false }),
       supabase.from('students').select('id, members(first_name, last_name)'),
       supabase.from('events').select('*').order('event_date', { ascending: false }),
+      supabase.from('footage_folders').select('*').order('name'),
       // Marker notes are searched alongside title/description -- often
       // the richest description of what's actually in a clip lives in
       // a note made while marking it up (e.g. "great roundhouse here"),
@@ -74,6 +77,7 @@ export default function Media() {
     setFootage(withNotes)
     setStudents(s || [])
     setEvents(e || [])
+    setFolders(fo || [])
     const tagSet = new Set()
     for (const item of withNotes) for (const t of (item.tags || [])) tagSet.add(t)
     setAllTags([...tagSet].sort())
@@ -87,6 +91,7 @@ export default function Media() {
   const visibleFootage = footage.filter(item => {
     if (!item.published) return false // sits in the Uploads pending list until explicitly published
     if (filterEventId && item.event_id !== filterEventId) return false
+    if (filterFolderId && item.folder_id !== filterFolderId) return false
     if (filterStudentId && !(item.fight_footage_athletes || []).some(a => a.student_id === filterStudentId)) return false
     if (filterTag && !(item.tags || []).includes(filterTag)) return false
     if (filterGrade && item.grade_tag !== filterGrade) return false
@@ -103,14 +108,14 @@ export default function Media() {
 
   const pendingFootage = footage.filter(item => !item.published)
 
-  const hasAnyFilter = filterEventId || filterStudentId || filterTag || filterGrade || filterEventType || searchText || dateFrom || dateTo
+  const hasAnyFilter = filterEventId || filterFolderId || filterStudentId || filterTag || filterGrade || filterEventType || searchText || dateFrom || dateTo
   function clearFilters() {
-    setFilterEventId(''); setFilterStudentId(''); setFilterTag(''); setFilterGrade(''); setFilterEventType(''); setSearchText(''); setDateFrom(''); setDateTo('')
+    setFilterEventId(''); setFilterFolderId(''); setFilterStudentId(''); setFilterTag(''); setFilterGrade(''); setFilterEventType(''); setSearchText(''); setDateFrom(''); setDateTo('')
   }
 
   const sharedProps = {
-    footage, visibleFootage, pendingFootage, events, setEvents, allTags, students, studentName, loaded, load,
-    filterEventId, setFilterEventId, filterStudentId, setFilterStudentId, filterTag, setFilterTag,
+    footage, visibleFootage, pendingFootage, events, setEvents, folders, setFolders, allTags, students, studentName, loaded, load,
+    filterEventId, setFilterEventId, filterFolderId, setFilterFolderId, filterStudentId, setFilterStudentId, filterTag, setFilterTag,
     filterGrade, setFilterGrade, filterEventType, setFilterEventType, searchText, setSearchText,
     dateFrom, setDateFrom, dateTo, setDateTo, hasAnyFilter, clearFilters,
     upload, startUpload, startBulkUpload,

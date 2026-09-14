@@ -73,6 +73,7 @@ export default function ViewIt({ visibleFootage, footage, students, studentName,
                   <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
                     {new Date(item.uploaded_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                     {item.events?.name && <> · 🏆 {item.events.name}{item.events.event_type ? ` (${EVENT_TYPES.find(t => t.value === item.events.event_type)?.label})` : ''}</>}
+                    {item.footage_folders?.name && <> · 📁 {item.footage_folders.name}</>}
                     {' · '}{item.access_mode === 'all' ? 'Whole team' : item.access_mode === 'coach_only' ? 'Coach only' : `${item.fight_footage_athletes?.length || 0} athlete${item.fight_footage_athletes?.length === 1 ? '' : 's'}`}
                   </div>
                   {item.description && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{item.description}</div>}
