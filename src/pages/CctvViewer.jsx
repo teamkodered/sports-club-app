@@ -88,6 +88,17 @@ export default function CctvViewer({ embedded = false }) {
   // contain an actual check-in? Class end time defaults to 1 hour
   // after start if a class has no explicit end_time set.
   function clipHasActivity(clip) {
+    // motion_detected comes from analysing the actual downloaded video
+    // file itself (see the sync script) -- a genuinely reliable signal
+    // once present, unlike check-ins (which not every session has, and
+    // aren't always on time) or class-schedule overlap (which only
+    // covers scheduled sessions at all). Only falls back to that older
+    // heuristic for clips synced before this existed, which won't have
+    // this field populated at all.
+    if (clip.motion_detected !== null && clip.motion_detected !== undefined) {
+      return clip.motion_detected
+    }
+
     const clipStart = new Date(clip.recorded_at)
     const clipEnd = new Date(clipStart.getTime() + (clip.duration_seconds || 0) * 1000)
 
