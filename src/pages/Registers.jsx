@@ -764,11 +764,10 @@ export default function Registers() {
 
     const targets = displayStudents.filter(s => selectedStudents.includes(s.id))
     const newAtt = {}
+    const failures = []
     const scopedToClass = classFilter && classFilter !== 'all'
 
     for (const s of targets) {
-      newAtt[s.id] = type
-
       // Clear any existing row for this student on THIS class (not just
       // this date) first -- prevents duplicate rows piling up if they
       // were already marked something else for this specific session,
@@ -778,9 +777,15 @@ export default function Registers() {
       if (scopedToClass) delQuery = delQuery.eq('class_id', classFilter)
       await delQuery
 
-      // Log to attendance table
+      // Log to attendance table -- only marks this student as changed
+      // locally (newAtt) if this actually succeeds. Multi-select
+      // marking every selected student as Attended/Full Kit
+      // optimistically regardless of whether each individual insert
+      // actually landed was found to be the same bug already caught
+      // and fixed elsewhere (points-awarding silently failing while
+      // the UI still showed success) -- same fix applied here.
       const detectedClassId = scopedToClass ? classFilter : detectClassIdForStudent(s.id)
-      await supabase.from('attendance').insert({
+      const { error: insertErr } = await supabase.from('attendance').insert({
         student_id: s.id,
         present: true,
         late: false,
@@ -789,6 +794,11 @@ export default function Registers() {
         attended_at: new Date(date + 'T12:00:00').toISOString(),
         class_id: detectedClassId,
       })
+      if (insertErr) {
+        failures.push(`${s.members?.first_name} ${s.members?.last_name}`)
+        continue
+      }
+      newAtt[s.id] = type
 
       await awardAttendancePoints(s, type, detectedClassId)
       await ensureClassAssignment(s.id)
@@ -799,6 +809,9 @@ export default function Registers() {
     }
 
     setAttendance(prev => ({ ...prev, ...newAtt }))
+    if (failures.length > 0) {
+      alert(`Marked everyone else, but this failed for: ${failures.join(', ')} -- try marking them again individually.`)
+    }
     // Keep selection at current position - don't clear
     setSaving(false)
   }
