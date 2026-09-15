@@ -2830,7 +2830,7 @@ export default function CRM() {
                           <button className="btn btn-sm" style={{ marginTop: 4 }} onClick={() => { setLinkingEnquiryId(null); setMemberLinkSearch(''); setMemberLinkResults([]) }}>Cancel</button>
                         </div>
                       ) : (
-                        <button className="btn btn-sm" onClick={() => setLinkingEnquiryId(enq.id)}>Link to member (once they've joined)</button>
+                        <button className="btn btn-sm" title="Link to member (once they've joined)" onClick={() => setLinkingEnquiryId(enq.id)}>🔗</button>
                       )}
                     </div>
                   )}
