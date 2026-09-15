@@ -418,6 +418,7 @@ export default function CRM() {
   const [showNewEnquiryForm, setShowNewEnquiryForm] = useState(false)
   const [editingEnquiryId, setEditingEnquiryId] = useState(null)
   const [viewingEnquiry, setViewingEnquiry] = useState(null)
+  const [expandedEnquiryId, setExpandedEnquiryId] = useState(null)
   const [contactPopupFor, setContactPopupFor] = useState(null)
   const [standingOrderCheckMonth, setStandingOrderCheckMonth] = useState(null)
   const [enquiryDraft, setEnquiryDraft] = useState(null)
@@ -2739,8 +2740,7 @@ export default function CRM() {
                 const stage = stageIdx >= 0 ? ENQUIRY_STAGES[stageIdx] : ENQUIRY_STAGES[0]
                 const borderColour = enq.status === 'not_interested' ? '#9CA3AF' : enq.status === 'waiting_list' ? '#EF9F27' : stage.colour
                 return (
-                <div key={enq.id} className="card" style={{ padding: 14, borderLeft: `4px solid ${borderColour}`, cursor: 'pointer' }}
-                  onClick={() => setViewingEnquiry(enq)}>
+                <div key={enq.id} className="card" style={{ padding: 14, borderLeft: `4px solid ${borderColour}` }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 10, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       {enq.status === 'not_interested' ? (
@@ -2776,17 +2776,29 @@ export default function CRM() {
                     </div>
                   </div>
                   <div style={{ textAlign: 'left' }}>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-                      <div style={{ fontSize: 15, fontWeight: 600 }}>{enq.name}</div>
-                      {enq.contact_phone && <div style={{ fontSize: 14, fontWeight: 600, color: '#378ADD' }}>📞 {enq.contact_phone}</div>}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+                          <div style={{ fontSize: 15, fontWeight: 600 }}>{enq.name}</div>
+                          {enq.contact_phone && <div style={{ fontSize: 14, fontWeight: 600, color: '#378ADD' }}>📞 {enq.contact_phone}</div>}
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+                          {new Date(enq.enquiry_date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          {' · '}{{ call: 'Phone call', text: 'Text message', email: 'Email', in_person: 'In person', other: 'Other', facebook_ad: 'Facebook/Instagram ad' }[enq.contact_method]}
+                          {enq.contact_email ? ` · ${enq.contact_email}` : ''}
+                        </div>
+                      </div>
+                      {enq.notes && (
+                        <button onClick={() => setExpandedEnquiryId(prev => prev === enq.id ? null : enq.id)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--text-tertiary)', padding: 4, flexShrink: 0 }}
+                          title={expandedEnquiryId === enq.id ? 'Hide message' : 'Show message'}>
+                          {expandedEnquiryId === enq.id ? '▾' : '▸'}
+                        </button>
+                      )}
                     </div>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
-                      {new Date(enq.enquiry_date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      {' · '}{{ call: 'Phone call', text: 'Text message', email: 'Email', in_person: 'In person', other: 'Other', facebook_ad: 'Facebook/Instagram ad' }[enq.contact_method]}
-                      {enq.contact_email ? ` · ${enq.contact_email}` : ''}
-                    </div>
-                    {enq.notes && (
-                      <div style={{ fontSize: 13, color: 'var(--text)', marginTop: 8, padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 6, maxWidth: '85%', textAlign: 'left', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
+                    {enq.notes && expandedEnquiryId === enq.id && (
+                      <div onClick={() => setViewingEnquiry(enq)}
+                        style={{ fontSize: 13, color: 'var(--text)', marginTop: 8, padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 6, maxWidth: '85%', textAlign: 'left', cursor: 'pointer' }}>
                         {enq.notes}
                       </div>
                     )}
@@ -2796,7 +2808,7 @@ export default function CRM() {
                       </div>
                     )}
                   </div>
-                  <div onClick={e => e.stopPropagation()}>
+                  <div>
                   {enq.contact_email && (
                     <div style={{ marginTop: 8 }}>
                       <button className="btn btn-sm" onClick={() => { setEmailingEnquiry(enq); setEnquiryEmailDraft({ subject: 'Following up from KR Centre', body: `Hi ${enq.name.split(' ')[0]},\n\n` }) }}>
