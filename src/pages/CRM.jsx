@@ -321,7 +321,6 @@ function NoticeTargetedSend({ notice, students, sendRealEmail, studentFullName }
 export default function CRM() {
   const { isAdmin } = useAuth()
   const location = useLocation()
-  const [tab, setTab] = useBackableTab('standing_orders')
   const DEFAULT_TAB_ORDER = ['standing_orders', 'missed_training', 'stopped_training', 'grading_requests', 'birthdays', 'enquiries', 'trackers', 'messages', 'email', 'courses']
   const [tabOrder, setTabOrder] = useState(() => {
     const saved = localStorage.getItem('crm_tab_order')
@@ -336,6 +335,12 @@ export default function CRM() {
       return [...stillValid, ...missing]
     } catch { return DEFAULT_TAB_ORDER }
   })
+  // Opens on whichever tab is actually first in the (possibly
+  // reordered) tab order, rather than a hardcoded 'standing_orders' --
+  // previously always opened there regardless of how the tabs had
+  // been dragged around, since this default never looked at tabOrder
+  // at all.
+  const [tab, setTab] = useBackableTab(tabOrder[0])
   useEffect(() => { localStorage.setItem('crm_tab_order', JSON.stringify(tabOrder)) }, [tabOrder])
   const [draggingTab, setDraggingTab] = useState(null)
   const tabHoldTimerRef = useRef(null)
