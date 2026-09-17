@@ -964,7 +964,7 @@ export default function Registers() {
   const isKR = regType === 'kr'
 
   return (
-    <div onClick={e => {
+    <div style={{ zoom: `${registerZoom}%` }} onClick={e => {
       if (!e.target.closest('tr') && !e.target.closest('button') && !e.target.closest('input') && !e.target.closest('select'))
         setSelectedStudents([])
       if (groupFilterOpen) setGroupFilterOpen(false)
@@ -1201,7 +1201,7 @@ export default function Registers() {
           <button className="btn btn-sm" onClick={() => setRegisterZoom(z => Math.min(200, z + 10))}>+</button>
           {registerZoom !== 100 && <button className="btn btn-sm" onClick={() => setRegisterZoom(100)}>Reset</button>}
         </div>
-        <div className="card" style={{ padding: 0, overflowX: 'auto', zoom: `${registerZoom}%` }} ref={tableRef}
+        <div className="card" style={{ padding: 0, overflowX: 'auto' }} ref={tableRef}
           tabIndex={0}
           onKeyDown={e => {
             const ids = displayStudents.map(s => s.id)
