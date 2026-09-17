@@ -1842,6 +1842,7 @@ export default function CRM() {
       { key: 'trained', label: 'Students trained', colour: '#EF9F27' },
     ]
     const [visible, setVisible] = useState(() => new Set(SERIES.map(s => s.key)))
+    const [tappedBar, setTappedBar] = useState(null) // { label, value, date } -- shown on tap, since SVG's native <title> tooltip only works on hover (desktop), not touch
 
     function toggleSeries(key) {
       setVisible(prev => {
@@ -1864,6 +1865,10 @@ export default function CRM() {
     }))
     const activeSeries = SERIES.filter(s => visible.has(s.key))
     const maxVal = Math.max(1, ...data.flatMap(d => activeSeries.map(s => d[s.key])))
+    // Total across the whole 30-day window, shown on each pill button
+    // (e.g. "Enquiries (17)") so the count is visible at a glance on
+    // both mobile and desktop, not just discoverable by reading the bars.
+    const seriesTotals = Object.fromEntries(SERIES.map(s => [s.key, data.reduce((sum, d) => sum + d[s.key], 0)]))
 
     const w = 700, h = 180, pad = { t: 10, r: 10, b: 24, l: 28 }
     const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b
@@ -1886,7 +1891,7 @@ export default function CRM() {
                 border: `1px solid ${visible.has(s.key) ? s.colour : 'var(--border)'}`,
                 background: visible.has(s.key) ? s.colour + '18' : 'transparent',
                 color: visible.has(s.key) ? s.colour : 'var(--text-tertiary)', fontWeight: visible.has(s.key) ? 600 : 400 }}>
-              {s.label}
+              {seriesTotals[s.key]} {s.label}
             </button>
           ))}
         </div>
@@ -1895,6 +1900,11 @@ export default function CRM() {
           <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Select at least one to display.</p>
         ) : (
           <div style={{ overflowX: 'auto' }}>
+            {tappedBar && (
+              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, color: tappedBar.colour }}>
+                {tappedBar.label}: {tappedBar.value} on {new Date(tappedBar.date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+              </div>
+            )}
             <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', minWidth: 500, height: 'auto' }}>
               {[0, 0.5, 1].map((t, i) => {
                 const yv = pad.t + ih * (1 - t)
@@ -1910,7 +1920,8 @@ export default function CRM() {
                     const barH = (val / maxVal) * ih
                     return (
                       <rect key={s.key} x={pad.l + i * groupW + si * barW + 1} y={pad.t + ih - barH}
-                        width={Math.max(1, barW - 1)} height={barH} fill={s.colour} rx="1">
+                        width={Math.max(1, barW - 1)} height={barH} fill={s.colour} rx="1" style={{ cursor: 'pointer' }}
+                        onClick={() => setTappedBar({ label: s.label, value: val, date: d.date, colour: s.colour })}>
                         <title>{`${s.label}: ${val} on ${d.date}`}</title>
                       </rect>
                     )
