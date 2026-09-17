@@ -33,6 +33,7 @@ export default function Classes() {
 
   const [holidays, setHolidays] = useState([])
   const [showAddHoliday, setShowAddHoliday] = useState(false)
+  const [showClosuresList, setShowClosuresList] = useState(false)
   const [holidayForm, setHolidayForm] = useState({ name: '', start_date: '', end_date: '', class_id: '' })
   const [savingHoliday, setSavingHoliday] = useState(false)
 
@@ -228,8 +229,10 @@ export default function Classes() {
       {isAdmin && (
         <div className="card" style={{ marginBottom: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: holidays.length || showAddHoliday ? 12 : 0 }}>
-            <div>
-              <h2 style={{ fontSize: 15, fontWeight: 600 }}>🏖️ Holiday mode</h2>
+            <div style={{ cursor: holidays.length > 0 ? 'pointer' : 'default' }} onClick={() => holidays.length > 0 && setShowClosuresList(v => !v)}>
+              <h2 style={{ fontSize: 15, fontWeight: 600 }}>
+                {holidays.length > 0 && (showClosuresList ? '▾ ' : '▸ ')}🏖️ Holiday mode
+              </h2>
               <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Closed periods are excluded from attendance % — no one's marked as having missed a session that never ran.</p>
             </div>
             <button className="btn btn-sm" onClick={() => setShowAddHoliday(v => !v)}>{showAddHoliday ? 'Cancel' : '+ Add holiday'}</button>
@@ -260,10 +263,10 @@ export default function Classes() {
             </div>
           )}
 
-          {holidays.length > 0 && (
+          {holidays.length > 0 && showClosuresList && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {holidays.map(h => (
-                <div key={h.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)' }}>
+                <div key={h.id} style={{ padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)' }}>
                   <div>
                     <span style={{ fontSize: 13, fontWeight: 600 }}>{h.name}</span>
                     <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginLeft: 8 }}>
@@ -273,7 +276,7 @@ export default function Classes() {
                       {h.class_id ? h.classes?.name || 'Specific class' : 'Club-wide'}
                     </span>
                   </div>
-                  <button className="btn btn-sm" onClick={() => deleteHoliday(h.id)}>Remove</button>
+                  <button className="btn btn-sm" style={{ marginTop: 6 }} onClick={() => deleteHoliday(h.id)}>Remove</button>
                 </div>
               ))}
             </div>
@@ -289,14 +292,14 @@ export default function Classes() {
               const colour = cls.discipline === 'PKA' ? '#378add' : cls.discipline === 'KRBA' ? '#e24b4a' : '#1d9e75'
               return (
                 <div key={cls.id} id={`class-${cls.id}`} className="card" style={{
-                  display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px',
+                  display: 'flex', flexDirection: 'column', gap: 10, padding: '12px 16px',
                   opacity: cls.active ? 1 : 0.5,
                   borderLeft: `3px solid ${colour}`,
                   borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0',
                   boxShadow: highlightedClassId === cls.id ? `0 0 0 3px ${colour}` : 'none',
                   transition: 'box-shadow 0.3s',
                 }}>
-                  <div style={{ flex: 1 }}>
+                  <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: 14, fontWeight: 600 }}>{cls.name}</span>
                       <span className="badge badge-blue" style={{ fontSize: 10, background: colour + '18', color: colour }}>{cls.discipline}</span>
@@ -312,7 +315,7 @@ export default function Classes() {
                     )}
                   </div>
                   {isAdmin && (
-                    <div style={{ display: 'flex', gap: 6 }}>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                       <button className="btn btn-sm" onClick={() => openClassStudents(cls)}>View</button>
                       <button className="btn btn-sm" onClick={() => startEdit(cls)}>Edit</button>
                       <button className="btn btn-sm" onClick={() => duplicateClass(cls)}>Duplicate</button>
