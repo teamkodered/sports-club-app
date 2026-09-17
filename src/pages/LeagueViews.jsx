@@ -211,11 +211,25 @@ export default function LeagueViews() {
     await supabase.from('settings').upsert({ key: 'league_date_to', value: to }, { onConflict: 'key' })
   }
 
+  const loadRequestIdRef = useRef(0)
+
   async function loadAll() {
+    // Two separate things can trigger this in quick succession on
+    // first load: the default date range firing immediately on mount,
+    // then the saved league_date_from/to settings arriving shortly
+    // after and changing dateFrom/dateTo again. Both kick off their
+    // own full round of async Supabase queries -- if the FIRST (now
+    // stale) one happens to resolve AFTER the second, it would
+    // overwrite the screen with numbers for a date range that no
+    // longer matches what's actually showing in the date inputs. This
+    // tags each call with an id and only applies results from
+    // whichever call is still the most recent by the time it finishes.
+    const requestId = ++loadRequestIdRef.current
     setLoading(true)
     const { data: houseData } = await supabase.from('houses').select('*').order('points', { ascending: false })
+    await Promise.all([loadHouseStandings(requestId), loadIndividual(requestId), loadPointsLog(requestId)])
+    if (requestId !== loadRequestIdRef.current) return // a newer date range has since been selected -- discard this stale result
     setHouses(houseData || [])
-    await Promise.all([loadHouseStandings(), loadIndividual(), loadPointsLog()])
     setLoading(false)
   }
 
@@ -251,7 +265,7 @@ export default function LeagueViews() {
     return allRows
   }
 
-  async function loadHouseStandings() {
+  async function loadHouseStandings(requestId) {
     // Fetch points_log, students, and members SEPARATELY to avoid unreliable nested joins
     const [ptsData, studentsData, { data: housesData }] = await Promise.all([
       fetchAllRows(() => supabase.from('points_log')
@@ -262,6 +276,7 @@ export default function LeagueViews() {
       fetchAllRows(() => supabase.from('students').select('id, house_name, member_id, is_kr, is_pts, is_leader, discipline, members(houses(name))')),
       supabase.from('houses').select('id, name, points, wins, draws, losses, members(count)'),
     ])
+    if (requestId !== loadRequestIdRef.current) return // superseded by a newer date range since this started -- don't apply stale results
 
     // Build student → house lookup, respecting the class/group filter
     const studentHouseMap = {}
@@ -289,7 +304,7 @@ export default function LeagueViews() {
     setHouseStandings(merged)
   }
 
-  async function loadIndividual() {
+  async function loadIndividual(requestId) {
     const [ptsData, studentsData] = await Promise.all([
       fetchAllRows(() => supabase.from('points_log')
         .select('points_awarded, point_scope, point_type, student_id')
@@ -347,10 +362,11 @@ export default function LeagueViews() {
       .sort((a, b) => b.total - a.total)
       .map((s, i) => ({ ...s, rank: i + 1 }))
 
+    if (requestId !== loadRequestIdRef.current) return // superseded by a newer date range since this started -- don't apply stale results
     setIndividualRankings(ranked)
   }
 
-  async function loadPointsLog() {
+  async function loadPointsLog(requestId) {
     const [{ data: logData }, studentsData] = await Promise.all([
       supabase.from('points_log')
         .select('*')
@@ -388,6 +404,7 @@ export default function LeagueViews() {
         students: studentMap[row.student_id] || { id: row.student_id, student_ref: '', is_kr: false, is_pts: false, discipline: '', members: { first_name: '', last_name: '', houses: { name: '' } } },
       }))
 
+    if (requestId !== loadRequestIdRef.current) return // superseded by a newer date range since this started -- don't apply stale results
     setPointsLog(enriched)
   }
 
