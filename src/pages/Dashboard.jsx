@@ -259,24 +259,13 @@ export default function Dashboard() {
           ].map(s => (
             <Link key={s.label === step.label ? 'members' : (s.isAthleteCard ? 'athletes' : s.label)} to={s.to} className="card"
               onContextMenu={e => { if (s.isMemberCard || s.isAthleteCard) e.preventDefault() }}
-              style={{ textAlign: 'center', borderTop: `3px solid ${s.colour}`, textDecoration: 'none', color: 'inherit', display: 'block', WebkitTouchCallout: 'none' }}>
-              {s.isMemberCard ? (
-                <div style={{ fontSize: 26, marginBottom: 4, userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
-                  onPointerDown={handleMemberIconDown} onPointerUp={handleMemberIconUp} onPointerLeave={() => clearTimeout(memberHoldTimerRef.current)}
-                  onClick={handleMemberIconClick}
-                  title="Hold to cycle: All / PKA / KR Centre PKA / Derby Moore / Moorways / KR / KRBA">
-                  {s.icon}
-                </div>
-              ) : s.isAthleteCard ? (
-                <div style={{ fontSize: 26, marginBottom: 4, userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
-                  onPointerDown={handleAthleteIconDown} onPointerUp={handleAthleteIconUp} onPointerLeave={() => clearTimeout(athleteHoldTimerRef.current)}
-                  onClick={handleAthleteIconClick}
-                  title="Hold to cycle: Total Athletes / KR Athletes / KRBA Athletes">
-                  {s.icon}
-                </div>
-              ) : (
-                <div style={{ fontSize: 26, marginBottom: 4 }}>{s.icon}</div>
-              )}
+              onPointerDown={s.isMemberCard ? handleMemberIconDown : s.isAthleteCard ? handleAthleteIconDown : undefined}
+              onPointerUp={s.isMemberCard ? handleMemberIconUp : s.isAthleteCard ? handleAthleteIconUp : undefined}
+              onPointerLeave={s.isMemberCard ? () => clearTimeout(memberHoldTimerRef.current) : s.isAthleteCard ? () => clearTimeout(athleteHoldTimerRef.current) : undefined}
+              onClick={s.isMemberCard ? handleMemberIconClick : s.isAthleteCard ? handleAthleteIconClick : undefined}
+              title={s.isMemberCard ? 'Hold to cycle: All / PKA / KR Centre PKA / Derby Moore / Moorways / KR / KRBA' : s.isAthleteCard ? 'Hold to cycle: Total Athletes / KR Athletes / KRBA Athletes' : undefined}
+              style={{ textAlign: 'center', borderTop: `3px solid ${s.colour}`, textDecoration: 'none', color: 'inherit', display: 'block', WebkitTouchCallout: 'none', userSelect: (s.isMemberCard || s.isAthleteCard) ? 'none' : undefined, WebkitUserSelect: (s.isMemberCard || s.isAthleteCard) ? 'none' : undefined }}>
+              <div style={{ fontSize: 26, marginBottom: 4 }}>{s.icon}</div>
               <div style={{ fontSize: 26, fontWeight: 700, color: (s.isMemberCard && trendColours.members) || (s.isAthleteCard && trendColours.athletes) || s.colour }}>{s.value}</div>
               <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{s.label}</div>
             </Link>
