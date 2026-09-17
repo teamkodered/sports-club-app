@@ -4627,7 +4627,7 @@ export default function CRM() {
                 {testEmailStatus === 'sent' && <span style={{ fontSize: 13, color: '#1D9E75', marginLeft: 8 }}>✓ Sent — check the inbox below</span>}
                 {testEmailStatus === 'error' && <span style={{ fontSize: 13, color: '#a32d2d', marginLeft: 8 }}>✕ Failed to send</span>}
               </div>
-              <button className="btn btn-sm" onClick={loadInbox} disabled={inboxLoading} style={{ alignSelf: 'flex-end', marginLeft: 'auto' }}>
+              <button className="btn btn-sm" onClick={() => loadInbox()} disabled={inboxLoading} style={{ alignSelf: 'flex-end', marginLeft: 'auto' }}>
                 ↻ Refresh inbox
               </button>
             </div>
