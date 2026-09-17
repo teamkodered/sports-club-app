@@ -418,10 +418,11 @@ export default function CRM() {
   const [joinsStopsMembers, setJoinsStopsMembers] = useState([])
   const [joinsStopsLoaded, setJoinsStopsLoaded] = useState(false)
   const [trackersStats, setTrackersStats] = useState(null)
-  // Same hold-to-cycle pattern as the Dashboard's Active Members card
-  // -- one shared timer/index-map since only one card is realistically
-  // held at a time, keyed by which card's breakdown is currently showing.
-  const [trackersBreakdownIndices, setTrackersBreakdownIndices] = useState({})
+  // One shared breakdown selection for all 5 stat cards AND the graph
+  // together -- holding any card cycles this same index, so e.g.
+  // selecting PKA on one card shows PKA everywhere at once, rather
+  // than each card being independently toggleable.
+  const [trackersBreakdownIndex, setTrackersBreakdownIndex] = useState(0)
   const trackersHoldTimerRef = useRef(null)
   const trackersHoldFiredRef = useRef(false)
   const TRACKERS_BREAKDOWN_STEPS = [
@@ -433,17 +434,26 @@ export default function CRM() {
     { key: 'kr', label: 'KR' },
     { key: 'krba', label: 'KRBA' },
   ]
-  function handleTrackersCardHoldDown(cardKey) {
+  function handleTrackersCardHoldDown() {
     trackersHoldFiredRef.current = false
     trackersHoldTimerRef.current = setTimeout(() => {
       trackersHoldFiredRef.current = true
-      setTrackersBreakdownIndices(prev => ({ ...prev, [cardKey]: ((prev[cardKey] || 0) + 1) % TRACKERS_BREAKDOWN_STEPS.length }))
+      setTrackersBreakdownIndex(i => (i + 1) % TRACKERS_BREAKDOWN_STEPS.length)
     }, 450)
   }
   function handleTrackersCardHoldUp() {
     clearTimeout(trackersHoldTimerRef.current)
   }
+  // A separate, unfiltered fetch just for the group lookup used by the
+  // graph filter below -- the existing `students` state only keeps
+  // active members, which would wrongly exclude Stopped members from
+  // ever showing up in a filtered "Stopped" series.
+  const [studentsForBreakdown, setStudentsForBreakdown] = useState([])
+  useEffect(() => {
+    supabase.from('students').select('id, member_id, discipline, is_kr, class_schedule').then(({ data }) => setStudentsForBreakdown(data || []))
+  }, [])
   const [trainedPerDay, setTrainedPerDay] = useState([])
+  const [attendanceRowsForChart, setAttendanceRowsForChart] = useState([]) // raw rows (with student_id), so the chart can re-filter per-group rather than only using the pre-aggregated by-day totals
   const [trainedPerDayLoaded, setTrainedPerDayLoaded] = useState(false)
   const [showNewEnquiryForm, setShowNewEnquiryForm] = useState(false)
   const [editingEnquiryId, setEditingEnquiryId] = useState(null)
@@ -1715,6 +1725,7 @@ export default function CRM() {
   function loadTrainedPerDay() {
     const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 30)
     supabase.from('attendance').select('student_id, session_date').gte('session_date', cutoff.toISOString().split('T')[0]).then(({ data }) => {
+      setAttendanceRowsForChart(data || [])
       const byDay = {}
       for (const row of data || []) {
         if (!row.session_date) continue
@@ -1834,7 +1845,7 @@ export default function CRM() {
   // "Where they came from" stays a completely separate card below --
   // it's a percentage breakdown by category, not a time series, so it
   // was never going to sensibly overlay with the others.
-  function CombinedDailyChart({ enquiries, joinsStopsMembers, trainedPerDay }) {
+  function CombinedDailyChart({ enquiries, joinsStopsMembers, attendanceRows, studentsForBreakdown, selectedGroupKey, selectedGroupLabel }) {
     const SERIES = [
       { key: 'enquiries', label: 'Enquiries', colour: '#378ADD' },
       { key: 'joined', label: 'Joined', colour: '#1D9E75' },
@@ -1852,16 +1863,48 @@ export default function CRM() {
       })
     }
 
+    // member_id/student_id -> whether that person belongs to the
+    // currently-selected breakdown group, mirroring the same group
+    // definitions used by the Dashboard's Active Members card and the
+    // stat cards above. Enquiries deliberately aren't filtered by this
+    // -- someone who's only enquired hasn't joined a discipline yet,
+    // so "PKA enquiries" isn't a meaningful distinction the way
+    // "PKA joins" or "PKA training" is.
+    function studentMatchesGroup(s) {
+      if (selectedGroupKey === 'all') return true
+      if (selectedGroupKey === 'pka') return s.discipline === 'PKA'
+      if (selectedGroupKey === 'krCentrePka') return s.discipline === 'PKA' && s.class_schedule && s.class_schedule !== 'Moorways' && s.class_schedule !== 'Derby Moore'
+      if (selectedGroupKey === 'derbyMoore') return s.class_schedule === 'Derby Moore'
+      if (selectedGroupKey === 'moorways') return s.class_schedule === 'Moorways'
+      if (selectedGroupKey === 'kr') return !!s.is_kr
+      if (selectedGroupKey === 'krba') return s.discipline === 'KRBA'
+      return true
+    }
+    const memberIdMatchesGroup = {}
+    const studentIdMatchesGroup = {}
+    for (const s of studentsForBreakdown) {
+      const matches = studentMatchesGroup(s)
+      studentIdMatchesGroup[s.id] = matches
+      if (s.member_id) memberIdMatchesGroup[s.member_id] = matches
+    }
+    const filteredJoinsStopsMembers = selectedGroupKey === 'all' ? joinsStopsMembers : joinsStopsMembers.filter(m => memberIdMatchesGroup[m.id])
+    const filteredAttendanceRows = selectedGroupKey === 'all' ? attendanceRows : attendanceRows.filter(a => studentIdMatchesGroup[a.student_id])
+
     const days = Array.from({ length: 30 }, (_, i) => {
       const d = new Date(); d.setDate(d.getDate() - (29 - i)); return d.toISOString().split('T')[0]
     })
-    const trainedByDay = Object.fromEntries(trainedPerDay.map(t => [t.date, t.count]))
+    const trainedByDay = {}
+    for (const row of filteredAttendanceRows) {
+      if (!row.session_date) continue
+      trainedByDay[row.session_date] = trainedByDay[row.session_date] || new Set()
+      trainedByDay[row.session_date].add(row.student_id)
+    }
     const data = days.map(day => ({
       date: day,
       enquiries: enquiries.filter(e => e.enquiry_date === day).length,
-      joined: joinsStopsMembers.filter(m => m.joined_date === day).length,
-      stopped: joinsStopsMembers.filter(m => m.stopped_at?.split('T')[0] === day).length,
-      trained: trainedByDay[day] || 0,
+      joined: filteredJoinsStopsMembers.filter(m => m.joined_date === day).length,
+      stopped: filteredJoinsStopsMembers.filter(m => m.stopped_at?.split('T')[0] === day).length,
+      trained: trainedByDay[day]?.size || 0,
     }))
     const activeSeries = SERIES.filter(s => visible.has(s.key))
     const maxVal = Math.max(1, ...data.flatMap(d => activeSeries.map(s => d[s.key])))
@@ -1877,7 +1920,10 @@ export default function CRM() {
 
     return (
       <div className="card" style={{ padding: 14, marginBottom: 16 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Enquiries, Joins/Stops & Training — last 30 days</div>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>
+          Enquiries, Joins/Stops & Training — last 30 days
+          {selectedGroupKey !== 'all' && <span style={{ color: 'var(--text-secondary)', fontWeight: 400 }}> · showing {selectedGroupLabel} (Enquiries still shows everyone, since an enquiry hasn't joined a discipline yet)</span>}
+        </div>
         <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
           <button onClick={() => setVisible(new Set(SERIES.map(s => s.key)))}
             style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)',
@@ -2999,14 +3045,14 @@ export default function CRM() {
                   warning: trackersStats.missingStopDates > 0 ? `⚠️ ${trackersStats.missingStopDates} missing a stop date` : null,
                 },
               ].map(s => {
-                const step = TRACKERS_BREAKDOWN_STEPS[(trackersBreakdownIndices[s.cardKey] || 0) % TRACKERS_BREAKDOWN_STEPS.length]
+                const step = TRACKERS_BREAKDOWN_STEPS[trackersBreakdownIndex % TRACKERS_BREAKDOWN_STEPS.length]
                 const showingBreakdown = step.key !== 'all' && s.breakdown
                 const rawValue = showingBreakdown ? s.breakdown[step.key] : undefined
                 const displayValue = showingBreakdown ? (s.breakdownFormat ? s.breakdownFormat(rawValue) : (rawValue ?? '—')) : s.value
                 const displayLabel = showingBreakdown ? step.label : s.defaultLabel
                 return (
                   <div key={s.cardKey} className="card" style={{ textAlign: 'center', userSelect: 'none', WebkitTouchCallout: 'none' }} title={s.warning || undefined}
-                    onPointerDown={() => handleTrackersCardHoldDown(s.cardKey)} onPointerUp={handleTrackersCardHoldUp} onPointerLeave={handleTrackersCardHoldUp}>
+                    onPointerDown={handleTrackersCardHoldDown} onPointerUp={handleTrackersCardHoldUp} onPointerLeave={handleTrackersCardHoldUp}>
                     <div style={{ fontSize: 28, marginBottom: 4 }}>{s.icon}</div>
                     <div style={{ fontSize: 26, fontWeight: 700, color: s.colour }}>{displayValue}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{displayLabel}</div>
@@ -3020,7 +3066,10 @@ export default function CRM() {
           <CombinedDailyChart
             enquiries={enquiries}
             joinsStopsMembers={joinsStopsMembers}
-            trainedPerDay={trainedPerDay}
+            attendanceRows={attendanceRowsForChart}
+            studentsForBreakdown={studentsForBreakdown}
+            selectedGroupKey={TRACKERS_BREAKDOWN_STEPS[trackersBreakdownIndex % TRACKERS_BREAKDOWN_STEPS.length].key}
+            selectedGroupLabel={TRACKERS_BREAKDOWN_STEPS[trackersBreakdownIndex % TRACKERS_BREAKDOWN_STEPS.length].label}
           />
           <div className="card" style={{ padding: 14, marginBottom: 16 }}>
             <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Where members actually said they found us</div>
