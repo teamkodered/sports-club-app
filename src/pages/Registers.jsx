@@ -558,8 +558,18 @@ export default function Registers() {
     // different classes on the same day -- e.g. via the double-session
     // auto-cascade -- gets points for both, instead of the second
     // class's award wiping out the first's.
+    //
+    // Only entries that genuinely applied to the running total
+    // (applied_to_total = true) are counted as "reversed" here -- a
+    // past adjust_student_points call can fail (network hiccup etc.)
+    // even though its points_log row still got written, and blindly
+    // trusting every log row as if its points had definitely landed
+    // caused a real case of a student ending up short: an award that
+    // never actually applied got subtracted anyway when a later award
+    // replaced it. Un-applied entries are still deleted below along
+    // with everything else, just never counted against the new total.
     let reverseQuery = supabase.from('points_log')
-      .select('id, points_awarded, point_type')
+      .select('id, points_awarded, point_type, applied_to_total')
       .eq('student_id', student.id)
       .in('point_type', ['Attendance', 'Full Kit'])
       .gte('awarded_at', date + 'T00:00:00')
@@ -568,7 +578,7 @@ export default function Registers() {
     const { data: previousEntries } = await reverseQuery
     let reversedPts = 0
     if (previousEntries?.length) {
-      reversedPts = previousEntries.reduce((sum, e) => sum + (e.points_awarded || 0), 0)
+      reversedPts = previousEntries.filter(e => e.applied_to_total).reduce((sum, e) => sum + (e.points_awarded || 0), 0)
       await supabase.from('points_log').delete().in('id', previousEntries.map(e => e.id))
     }
 
@@ -577,22 +587,34 @@ export default function Registers() {
     const pts = pt ? pt.points : (type === 'full_kit' ? 2 : 1)
     const netChange = pts - reversedPts
 
-    await supabase.from('points_log').insert({
+    const { data: newLogEntry, error: logInsertErr } = await supabase.from('points_log').insert({
       student_id: student.id, point_type: pointLabel,
       points_awarded: pts, point_scope: 'both',
       awarded_at: new Date(date).toISOString(),
       class_id: classId || null,
-    })
+    }).select().single()
+
     const { error: adjustErr } = await supabase.rpc('adjust_student_points', { p_student_id: student.id, p_house_delta: netChange, p_individual_delta: netChange })
-    if (adjustErr) alert(`Attendance points logged for ${student.members?.first_name}, but updating their points total failed: ${adjustErr.message}`)
+    if (adjustErr) {
+      alert(`Attendance points logged for ${student.members?.first_name}, but updating their points total failed: ${adjustErr.message}`)
+      // Marks this specific row so a future award change (e.g.
+      // switching Attended <-> Full Kit later) knows not to count
+      // these points as something that needs reversing -- they never
+      // actually landed in the total to begin with.
+      if (!logInsertErr && newLogEntry) {
+        await supabase.from('points_log').update({ applied_to_total: false }).eq('id', newLogEntry.id)
+      }
+    }
 
     const houseName = student.house_name || student.members?.houses?.name
-    if (houseName && netChange !== 0) {
+    if (houseName && netChange !== 0 && !adjustErr) {
       const { error: houseErr } = await supabase.rpc('adjust_house_points', { p_house_name: houseName, p_delta: netChange })
       if (houseErr) alert(`Attendance points saved for ${student.members?.first_name}, but the house total failed to update: ${houseErr.message}`)
     }
 
-    setStudents(prev => prev.map(s => s.id === student.id ? { ...s, house_points: (s.house_points || 0) + netChange, individual_points: (s.individual_points || 0) + netChange } : s))
+    if (!adjustErr) {
+      setStudents(prev => prev.map(s => s.id === student.id ? { ...s, house_points: (s.house_points || 0) + netChange, individual_points: (s.individual_points || 0) + netChange } : s))
+    }
     return netChange
   }
 
