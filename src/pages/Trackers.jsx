@@ -259,9 +259,55 @@ export default function Trackers({ onStatsReady } = {}) {
 
   const houses = [...new Set(students.map(s => s.members?.houses?.name).filter(Boolean))].sort()
 
-  // Dashboard stats
+  // Dashboard stats -- breakdown groups match the Dashboard's Active
+  // Members card hold-to-cycle exactly, so the same breakdown language
+  // is used consistently across the app. A student can match several
+  // groups at once (e.g. PKA AND KR simultaneously), so this checks
+  // each condition independently rather than picking one exclusive bucket.
+  function studentBreakdownGroups(s) {
+    return {
+      all: true,
+      pka: s.discipline === 'PKA',
+      krCentrePka: s.discipline === 'PKA' && s.class_schedule && s.class_schedule !== 'Moorways' && s.class_schedule !== 'Derby Moore',
+      derbyMoore: s.class_schedule === 'Derby Moore',
+      moorways: s.class_schedule === 'Moorways',
+      kr: !!s.is_kr,
+      krba: s.discipline === 'KRBA',
+    }
+  }
+  const BREAKDOWN_KEYS = ['all', 'pka', 'krCentrePka', 'derbyMoore', 'moorways', 'kr', 'krba']
+  function emptyBreakdown() {
+    return Object.fromEntries(BREAKDOWN_KEYS.map(k => [k, 0]))
+  }
+  // student_id -> that student's breakdown groups, for cross-
+  // referencing attendance/session rows (which only carry a
+  // student_id) back to discipline/location/group.
+  const studentGroupsById = {}
+  // member_id -> the linked student's breakdown groups, for cross-
+  // referencing members-table rows (new joins, stopped durations),
+  // which don't carry discipline/location/group themselves at all.
+  const studentGroupsByMemberId = {}
+  for (const s of students) {
+    const groups = studentBreakdownGroups(s)
+    studentGroupsById[s.id] = groups
+    if (s.member_id) studentGroupsByMemberId[s.member_id] = groups
+  }
+
   const totalStudents = students.filter(s => s.members?.status !== 'stopped' && s.members?.status !== 'not_started').length
+  const activeStudents = students.filter(s => s.members?.status !== 'stopped' && s.members?.status !== 'not_started')
+  const totalStudentsBreakdown = emptyBreakdown()
+  for (const s of activeStudents) {
+    const groups = studentGroupsById[s.id]
+    for (const k of BREAKDOWN_KEYS) if (groups[k]) totalStudentsBreakdown[k]++
+  }
+
   const avgSessions = totalStudents > 0 ? (sessions.length / totalStudents).toFixed(1) : 0
+  const avgSessionsBreakdown = emptyBreakdown()
+  for (const k of BREAKDOWN_KEYS) {
+    const groupStudentCount = activeStudents.filter(s => studentGroupsById[s.id][k]).length
+    const groupSessionCount = sessions.filter(f => studentGroupsById[f.student_id]?.[k]).length
+    avgSessionsBreakdown[k] = groupStudentCount > 0 ? (groupSessionCount / groupStudentCount).toFixed(1) : '0.0'
+  }
 
   // "Trained this month" -- real attendance (attended + full kit), not
   // Fit II Fight logs, plus a per-day breakdown for the graph below
@@ -273,6 +319,12 @@ export default function Trackers({ onStatsReady } = {}) {
   const attendedCount = attendanceThisMonth.filter(a => a.attendance_type !== 'full_kit').length
   const fullKitCount = attendanceThisMonth.filter(a => a.attendance_type === 'full_kit').length
   const trainedThisMonth = attendedCount + fullKitCount
+  const trainedThisMonthBreakdown = emptyBreakdown()
+  for (const a of attendanceThisMonth) {
+    const groups = studentGroupsById[a.student_id]
+    if (!groups) continue
+    for (const k of BREAKDOWN_KEYS) if (groups[k]) trainedThisMonthBreakdown[k]++
+  }
 
   // New members this month
   const newMembersThisMonth = allMembers.filter(m => {
@@ -280,6 +332,15 @@ export default function Trackers({ onStatsReady } = {}) {
     const d = new Date(m.joined_date)
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
   }).length
+  const newMembersThisMonthBreakdown = emptyBreakdown()
+  for (const m of allMembers) {
+    if (!m.joined_date) continue
+    const d = new Date(m.joined_date)
+    if (d.getMonth() !== now.getMonth() || d.getFullYear() !== now.getFullYear()) continue
+    const groups = studentGroupsByMemberId[m.id]
+    if (!groups) continue
+    for (const k of BREAKDOWN_KEYS) if (groups[k]) newMembersThisMonthBreakdown[k]++
+  }
 
   // Average length of training: joined_date -> stopped_at, for members who
   // have actually stopped and have a recorded stop date. Members stopped
@@ -288,12 +349,17 @@ export default function Trackers({ onStatsReady } = {}) {
     .filter(m => m.status === 'stopped' && m.joined_date && m.stopped_at)
     .map(m => {
       const months = (new Date(m.stopped_at) - new Date(m.joined_date)) / (1000*60*60*24*30.44)
-      return months
+      return { id: m.id, months }
     })
-    .filter(m => m >= 0)
+    .filter(m => m.months >= 0)
   const avgMonthsTrained = completedDurations.length > 0
-    ? (completedDurations.reduce((a,b) => a+b, 0) / completedDurations.length).toFixed(1)
+    ? (completedDurations.reduce((a,b) => a+b.months, 0) / completedDurations.length).toFixed(1)
     : null
+  const avgMonthsTrainedBreakdown = emptyBreakdown()
+  for (const k of BREAKDOWN_KEYS) {
+    const inGroup = completedDurations.filter(d => studentGroupsByMemberId[d.id]?.[k])
+    avgMonthsTrainedBreakdown[k] = inGroup.length > 0 ? (inGroup.reduce((a,b) => a+b.months, 0) / inGroup.length).toFixed(1) : null
+  }
   const missingStopDates = allMembers.filter(m => m.status === 'stopped' && (!m.stopped_at || !m.joined_date)).length
 
   // Reports these up to CRM.jsx, which now renders the actual stat
@@ -302,7 +368,11 @@ export default function Trackers({ onStatsReady } = {}) {
   // just to move where the cards visually sit.
   useEffect(() => {
     if (loading) return
-    onStatsReady?.({ totalStudents, newMembersThisMonth, trainedThisMonth, avgSessions, avgMonthsTrained, completedDurationsCount: completedDurations.length, missingStopDates })
+    onStatsReady?.({
+      totalStudents, newMembersThisMonth, trainedThisMonth, avgSessions, avgMonthsTrained,
+      completedDurationsCount: completedDurations.length, missingStopDates,
+      totalStudentsBreakdown, newMembersThisMonthBreakdown, trainedThisMonthBreakdown, avgSessionsBreakdown, avgMonthsTrainedBreakdown,
+    })
   }, [loading, totalStudents, newMembersThisMonth, trainedThisMonth, avgSessions, avgMonthsTrained, completedDurations.length, missingStopDates])
 
   if (loading) return <div className="loading">Loading trackers…</div>

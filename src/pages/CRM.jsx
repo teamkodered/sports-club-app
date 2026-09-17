@@ -418,6 +418,31 @@ export default function CRM() {
   const [joinsStopsMembers, setJoinsStopsMembers] = useState([])
   const [joinsStopsLoaded, setJoinsStopsLoaded] = useState(false)
   const [trackersStats, setTrackersStats] = useState(null)
+  // Same hold-to-cycle pattern as the Dashboard's Active Members card
+  // -- one shared timer/index-map since only one card is realistically
+  // held at a time, keyed by which card's breakdown is currently showing.
+  const [trackersBreakdownIndices, setTrackersBreakdownIndices] = useState({})
+  const trackersHoldTimerRef = useRef(null)
+  const trackersHoldFiredRef = useRef(false)
+  const TRACKERS_BREAKDOWN_STEPS = [
+    { key: 'all', label: null }, // null label means "use the card's own default label"
+    { key: 'pka', label: 'PKA' },
+    { key: 'krCentrePka', label: 'KR Centre PKA' },
+    { key: 'derbyMoore', label: 'Derby Moore' },
+    { key: 'moorways', label: 'Moorways' },
+    { key: 'kr', label: 'KR' },
+    { key: 'krba', label: 'KRBA' },
+  ]
+  function handleTrackersCardHoldDown(cardKey) {
+    trackersHoldFiredRef.current = false
+    trackersHoldTimerRef.current = setTimeout(() => {
+      trackersHoldFiredRef.current = true
+      setTrackersBreakdownIndices(prev => ({ ...prev, [cardKey]: ((prev[cardKey] || 0) + 1) % TRACKERS_BREAKDOWN_STEPS.length }))
+    }, 450)
+  }
+  function handleTrackersCardHoldUp() {
+    clearTimeout(trackersHoldTimerRef.current)
+  }
   const [trainedPerDay, setTrainedPerDay] = useState([])
   const [trainedPerDayLoaded, setTrainedPerDayLoaded] = useState(false)
   const [showNewEnquiryForm, setShowNewEnquiryForm] = useState(false)
@@ -2950,25 +2975,35 @@ export default function CRM() {
           {trackersStats && (
             <div className="template-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 16 }}>
               {[
-                { label: 'Total students', value: trackersStats.totalStudents, colour: '#378ADD', icon: '🎽' },
-                { label: 'New members this month', value: trackersStats.newMembersThisMonth, colour: '#E24B4A', icon: '🆕' },
-                { label: 'Trained this month', value: trackersStats.trainedThisMonth, colour: '#1D9E75', icon: '💪' },
-                { label: 'Avg sessions/student', value: trackersStats.avgSessions, colour: '#EF9F27', icon: '📈' },
+                { cardKey: 'totalStudents', defaultLabel: 'Total students', value: trackersStats.totalStudents, breakdown: trackersStats.totalStudentsBreakdown, colour: '#378ADD', icon: '🎽' },
+                { cardKey: 'newMembers', defaultLabel: 'New members this month', value: trackersStats.newMembersThisMonth, breakdown: trackersStats.newMembersThisMonthBreakdown, colour: '#E24B4A', icon: '🆕' },
+                { cardKey: 'trainedThisMonth', defaultLabel: 'Trained this month', value: trackersStats.trainedThisMonth, breakdown: trackersStats.trainedThisMonthBreakdown, colour: '#1D9E75', icon: '💪' },
+                { cardKey: 'avgSessions', defaultLabel: 'Avg sessions/student', value: trackersStats.avgSessions, breakdown: trackersStats.avgSessionsBreakdown, colour: '#EF9F27', icon: '📈' },
                 {
-                  label: 'Avg length of training', colour: '#8B5CF6', icon: '⏱️',
+                  cardKey: 'avgLength', defaultLabel: 'Avg length of training', colour: '#8B5CF6', icon: '⏱️',
                   value: trackersStats.avgMonthsTrained !== null ? `${trackersStats.avgMonthsTrained}mo` : '—',
+                  breakdown: trackersStats.avgMonthsTrainedBreakdown,
+                  breakdownFormat: v => v !== null && v !== undefined ? `${v}mo` : '—',
                   caption: `Joined → stopped, based on ${trackersStats.completedDurationsCount} member${trackersStats.completedDurationsCount === 1 ? '' : 's'}`,
                   warning: trackersStats.missingStopDates > 0 ? `⚠️ ${trackersStats.missingStopDates} missing a stop date` : null,
                 },
-              ].map(s => (
-                <div key={s.label} className="card" style={{ textAlign: 'center' }} title={s.warning || undefined}>
-                  <div style={{ fontSize: 28, marginBottom: 4 }}>{s.icon}</div>
-                  <div style={{ fontSize: 26, fontWeight: 700, color: s.colour }}>{s.value}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{s.label}</div>
-                  {s.caption && <div style={{ fontSize: 9, color: 'var(--text-tertiary)', marginTop: 4 }}>{s.caption}</div>}
-                  {s.warning && <div style={{ fontSize: 9, color: '#EF9F27', marginTop: 2 }}>{s.warning}</div>}
-                </div>
-              ))}
+              ].map(s => {
+                const step = TRACKERS_BREAKDOWN_STEPS[(trackersBreakdownIndices[s.cardKey] || 0) % TRACKERS_BREAKDOWN_STEPS.length]
+                const showingBreakdown = step.key !== 'all' && s.breakdown
+                const rawValue = showingBreakdown ? s.breakdown[step.key] : undefined
+                const displayValue = showingBreakdown ? (s.breakdownFormat ? s.breakdownFormat(rawValue) : (rawValue ?? '—')) : s.value
+                const displayLabel = showingBreakdown ? step.label : s.defaultLabel
+                return (
+                  <div key={s.cardKey} className="card" style={{ textAlign: 'center', userSelect: 'none', WebkitTouchCallout: 'none' }} title={s.warning || undefined}
+                    onPointerDown={() => handleTrackersCardHoldDown(s.cardKey)} onPointerUp={handleTrackersCardHoldUp} onPointerLeave={handleTrackersCardHoldUp}>
+                    <div style={{ fontSize: 28, marginBottom: 4 }}>{s.icon}</div>
+                    <div style={{ fontSize: 26, fontWeight: 700, color: s.colour }}>{displayValue}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{displayLabel}</div>
+                    {s.caption && !showingBreakdown && <div style={{ fontSize: 9, color: 'var(--text-tertiary)', marginTop: 4 }}>{s.caption}</div>}
+                    {s.warning && !showingBreakdown && <div style={{ fontSize: 9, color: '#EF9F27', marginTop: 2 }}>{s.warning}</div>}
+                  </div>
+                )
+              })}
             </div>
           )}
           <CombinedDailyChart
