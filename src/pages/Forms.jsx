@@ -356,27 +356,29 @@ export default function Forms() {
               </div>
 
               {/* Action buttons */}
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <a href={f.path} target="_blank" rel="noreferrer" className="btn btn-sm"
-                  style={{ flex: 1, justifyContent: 'center', fontSize: 11 }}>
+                  style={{ justifyContent: 'center', fontSize: 11 }}>
                   Open
                 </a>
                 <button className="btn btn-sm btn-primary" onClick={() => setShareForm(f)}
-                  style={{ flex: 1, justifyContent: 'center', fontSize: 11 }}>
+                  style={{ justifyContent: 'center', fontSize: 11 }}>
                   Share
                 </button>
-                <a href={f.path} target="_blank" rel="noreferrer" className="btn btn-sm"
-                  onClick={e => { e.preventDefault(); const w = window.open(f.path, '_blank'); setTimeout(() => w?.print(), 1000) }}
-                  style={{ justifyContent: 'center', fontSize: 11 }} title="Print">
-                  🖨️
-                </a>
-                <button className="btn btn-sm" onClick={() => setSelectedForm(selectedForm?.key === f.key ? null : f)}
-                  style={{ justifyContent: 'center', fontSize: 11,
-                    background: selectedForm?.key === f.key ? f.colour : '',
-                    color: selectedForm?.key === f.key ? '#fff' : '',
-                    borderColor: f.colour }}>
-                  📋 Responses
-                </button>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <a href={f.path} target="_blank" rel="noreferrer" className="btn btn-sm"
+                    onClick={e => { e.preventDefault(); const w = window.open(f.path, '_blank'); setTimeout(() => w?.print(), 1000) }}
+                    style={{ flex: 1, justifyContent: 'center', fontSize: 11 }} title="Print">
+                    🖨️
+                  </a>
+                  <button className="btn btn-sm" onClick={() => setSelectedForm(selectedForm?.key === f.key ? null : f)}
+                    style={{ flex: 1, justifyContent: 'center', fontSize: 11,
+                      background: selectedForm?.key === f.key ? f.colour : '',
+                      color: selectedForm?.key === f.key ? '#fff' : '',
+                      borderColor: f.colour }}>
+                    📋 Responses
+                  </button>
+                </div>
               </div>
             </div>
           ))}
