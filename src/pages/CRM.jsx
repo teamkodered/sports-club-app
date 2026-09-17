@@ -2086,7 +2086,7 @@ export default function CRM() {
   // a card at 'contacted' shows "Trial booked?" as the next thing to
   // confirm, not the stage's own past-tense name.
   const ENQUIRY_STAGES = [
-    { key: 'not_started', label: 'Contact', colour: '#EF9F27' },
+    { key: 'not_started', label: 'Contact', colour: '#E24B4A' },
     { key: 'contacted', label: 'Trial booked?', colour: '#378ADD' },
     { key: 'trial_booked', label: 'Joined?', colour: '#8B5CF6' },
     { key: 'joined', label: '✓ Joined', colour: '#1D9E75' },
