@@ -2945,6 +2945,7 @@ export default function AthleteProfiles() {
   const [editingNoteId, setEditingNoteId] = useState(null) // athlete_notes_log.id being edited, or null
   const [showNotesList, setShowNotesList] = useState(false)
   const [showTargetsList, setShowTargetsList] = useState(false)
+  const [showTeamNotesList, setShowTeamNotesList] = useState(false)
   const [editingNoteText, setEditingNoteText] = useState('')
   const [savingNote, setSavingNote] = useState(false)
   const [allClasses, setAllClasses] = useState([])
@@ -7374,8 +7375,10 @@ export default function AthleteProfiles() {
 
             {/* Team notes */}
             <div className="card" style={{ padding: 0, marginBottom: 14 }}>
-              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: teamNotes.length > 0 ? 'pointer' : 'default' }}
+                onClick={() => teamNotes.length > 0 && setShowTeamNotesList(v => !v)}>
                 <h2 style={{ fontSize: 14, fontWeight: 600 }}>📝 Notes</h2>
+                {teamNotes.length > 0 && <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{showTeamNotesList ? '▾' : '▸'} {teamNotes.length}</span>}
               </div>
               <div style={{ padding: 16 }}>
                 <textarea value={dashNoteText} onChange={e => setDashNoteText(e.target.value)}
@@ -7383,7 +7386,7 @@ export default function AthleteProfiles() {
                   placeholder="Write a note…" rows={2} readOnly
                   style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8, cursor: 'pointer' }} />
 
-                {teamNotes.length > 0 && (
+                {showTeamNotesList && teamNotes.length > 0 && (
                   <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {teamNotes.map(note => {
                       const sentIds = note.sent_to_student_ids || []
