@@ -5547,7 +5547,7 @@ export default function AthleteProfiles() {
             </div>
 
             {(showKrRegister || showKrbaRegister) ? (
-              <Registers initialRegType={showKrRegister ? 'kr' : 'krba'} />
+              <Registers key={showKrRegister ? 'kr' : 'krba'} initialRegType={showKrRegister ? 'kr' : 'krba'} />
             ) : (
             <>
 

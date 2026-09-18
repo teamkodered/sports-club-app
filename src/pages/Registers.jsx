@@ -1075,9 +1075,12 @@ export default function Registers({ initialRegType } = {}) {
         </div>
       )}
 
-      {/* Register tabs */}
+      {/* Register tabs -- restricted to just KR/KRBA when embedded within
+          the Athlete Profile page (signalled by initialRegType being
+          set), since that's the only context Team KR/KRBA buttons there
+          are meant to offer, not the full set of registers. */}
       <div style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
-        {REGISTER_TYPES.map(r => (
+        {(initialRegType ? REGISTER_TYPES.filter(r => r.key === 'kr' || r.key === 'krba') : REGISTER_TYPES).map(r => (
           <button key={r.key} onClick={() => setRegType(r.key)} style={{
             padding: '8px 14px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
             borderBottom: `2px solid ${regType === r.key ? 'var(--text)' : 'transparent'}`,
