@@ -2943,6 +2943,7 @@ export default function AthleteProfiles() {
   const [newNoteTitle, setNewNoteTitle] = useState('')
   const [newNoteShared, setNewNoteShared] = useState(false)
   const [editingNoteId, setEditingNoteId] = useState(null) // athlete_notes_log.id being edited, or null
+  const [showNotesList, setShowNotesList] = useState(false)
   const [editingNoteText, setEditingNoteText] = useState('')
   const [savingNote, setSavingNote] = useState(false)
   const [allClasses, setAllClasses] = useState([])
@@ -12097,7 +12098,13 @@ export default function AthleteProfiles() {
                   </label>
                 </div>
 
-                {notesLog.length === 0 ? (
+                <div className="card" style={{ cursor: 'pointer', marginBottom: notesLog.length > 0 && showNotesList ? 10 : 0 }} onClick={() => setShowNotesList(v => !v)}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{showNotesList ? '▾' : '▸'} All notes ({notesLog.length})</h2>
+                  </div>
+                </div>
+
+                {showNotesList && (notesLog.length === 0 ? (
                   <div className="empty-state"><h3>No notes yet</h3><p>Notes logged here can be sent to any PDP category</p></div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -12136,7 +12143,7 @@ export default function AthleteProfiles() {
                       </div>
                     ))}
                   </div>
-                )}
+                ))}
               </div>
             )}
 
