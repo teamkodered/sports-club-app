@@ -1342,7 +1342,6 @@ export default function Registers() {
                 {isKR && <>
                   <SortTh col="competition_team" label="Experience" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                   <SortTh col="discipline_codes" label="Discipline" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-                  <SortTh col="weight_kg" label="Weight" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                   <SortTh col="age_category_kr" label="Age cat." sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                 </>}
                 {(regType === 'kr' || regType === 'krba') && <>
@@ -1460,7 +1459,6 @@ export default function Registers() {
                       <>
                         <td><span className={`badge ${s.competition_team==='Advanced'?'badge-purple':s.competition_team==='Intermediate'?'badge-blue':'badge-gray'}`} style={{ fontSize: 10 }}>{s.competition_team || '—'}</span></td>
                         <td style={{ fontSize: 11 }}>{s.discipline_codes || '—'}</td>
-                        <td style={{ fontSize: 12 }}>{s.weight_kg ? `${s.weight_kg}kg` : '—'}</td>
                         <td style={{ fontSize: 11 }}>{s.age_category_kr || s.age_category || '—'}</td>
                       </>
                     )}
@@ -1468,8 +1466,25 @@ export default function Registers() {
                       const wd = weightDataByStudent[s.id]
                       return <>
                         {visibleCols.includes('weight_trend') && (
-                          <td style={{ textAlign: 'center', fontSize: 14 }} title={wd?.trend ? `${wd.trend === 'up' ? 'Up' : wd.trend === 'down' ? 'Down' : 'Same'} since previous weigh-in` : 'Not enough weigh-ins yet'}>
-                            {wd?.trend === 'up' ? <span style={{ color: '#E24B4A' }}>▲</span> : wd?.trend === 'down' ? <span style={{ color: '#1D9E75' }}>▼</span> : wd?.trend === 'same' ? <span style={{ color: 'var(--text-tertiary)' }}>—</span> : <span style={{ color: 'var(--text-tertiary)' }}>—</span>}
+                          <td style={{ textAlign: 'center' }} title={wd?.last5?.length > 1 ? `Last ${wd.last5.length} weigh-ins: ${wd.last5.map(e => `${e.weight}kg`).join(' → ')}` : 'Not enough weigh-ins yet'}>
+                            {wd?.last5?.length > 1 ? (() => {
+                              const vals = wd.last5.map(e => e.weight)
+                              const min = Math.min(...vals), max = Math.max(...vals)
+                              const range = max - min || 1
+                              const w = 50, h = 20, pad = 2
+                              const points = vals.map((v, i) => {
+                                const x = pad + (i / (vals.length - 1)) * (w - pad * 2)
+                                const y = pad + (1 - (v - min) / range) * (h - pad * 2)
+                                return `${x},${y}`
+                              })
+                              const lineColour = wd.trend === 'up' ? '#E24B4A' : wd.trend === 'down' ? '#1D9E75' : 'var(--text-tertiary)'
+                              return (
+                                <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ display: 'block', margin: '0 auto' }}>
+                                  <polyline points={points.join(' ')} fill="none" stroke={lineColour} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+                                  <circle cx={points[points.length - 1].split(',')[0]} cy={points[points.length - 1].split(',')[1]} r="2" fill={lineColour} />
+                                </svg>
+                              )
+                            })() : <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>—</span>}
                           </td>
                         )}
                         {visibleCols.includes('weight_last5') && (
