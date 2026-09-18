@@ -274,15 +274,26 @@ export default function LeagueViews() {
         .lte('awarded_at', dateTo + 'T23:59:59')
         .in('point_scope', ['house', 'both'])),
       fetchAllRows(() => supabase.from('students').select('id, house_name, member_id, is_kr, is_pts, is_leader, discipline, members(houses(name))')),
-      supabase.from('houses').select('id, name, points, wins, draws, losses, members(count)'),
+      supabase.from('houses').select('id, name, points, wins, draws, losses'),
     ])
     if (requestId !== loadRequestIdRef.current) return // superseded by a newer date range since this started -- don't apply stale results
 
-    // Build student → house lookup, respecting the class/group filter
+    // Build student → house lookup, respecting the class/group filter.
+    // Also tallies a member count per house from this same lookup --
+    // house assignment actually happens via students.house_name (see
+    // Student Database's house dropdown), NOT via a members.house_id
+    // foreign key, so a members(count) aggregate from the houses table
+    // itself was silently stale: it never reflected new house
+    // assignments made that way, since nothing about assigning someone
+    // a house through that dropdown ever touches that separate
+    // relationship at all.
     const studentHouseMap = {}
+    const countByHouse = {}
     for (const s of (studentsData || [])) {
       if (!studentMatchesClassFilter(s)) continue
-      studentHouseMap[s.id] = s.members?.houses?.name || s.house_name || null
+      const house = s.members?.houses?.name || s.house_name || null
+      studentHouseMap[s.id] = house
+      if (house) countByHouse[house] = (countByHouse[house] || 0) + 1
     }
 
     // Aggregate points by house
@@ -297,7 +308,7 @@ export default function LeagueViews() {
     const merged = (housesData || []).map(h => ({
       ...h,
       sessionPoints: totals[h.name] || 0,
-      memberCount: h.members?.[0]?.count || 0,
+      memberCount: countByHouse[h.name] || 0,
     })).sort((a, b) => b.sessionPoints - a.sessionPoints)
       .map((h, i) => ({ ...h, rank: i + 1 }))
 
