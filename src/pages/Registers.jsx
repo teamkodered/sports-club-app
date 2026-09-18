@@ -1123,8 +1123,10 @@ export default function Registers({ initialRegType } = {}) {
         </div>
       )}
 
-      {/* Class time pills — KR Centre classes, with Derby Moore nested under, Moorways nested under Derby Moore */}
-      {(todayClasses.length > 0 || derbyMooreClasses.length > 0 || moorwaysClasses.length > 0) && (
+      {/* Class time pills — KR Centre classes, with Derby Moore nested under, Moorways nested under Derby Moore.
+          Hidden entirely when embedded in the Athlete Profile (initialRegType set) -- always shows the full
+          KR/KRBA register there for now, rather than narrowing down to one specific class time. */}
+      {!initialRegType && (todayClasses.length > 0 || derbyMooreClasses.length > 0 || moorwaysClasses.length > 0) && (
         <div style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {todayClasses.map(c => (
