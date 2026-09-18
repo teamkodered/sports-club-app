@@ -1381,6 +1381,21 @@ export default function Registers() {
                     </td>}
                     {visibleCols.includes('grade') && <td style={{ fontSize: 12 }}>{s.pka_belt || s.krba_level || '—'}</td>}
                     {visibleCols.includes('weight') && !isKR && regType !== 'krba' && <td style={{ fontSize: 12, textAlign: 'center' }}>{s.weight_kg ? `${s.weight_kg}kg` : '—'}</td>}
+                    {visibleCols.includes('record') && (regType === 'kr' || regType === 'krba') && (
+                      <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()} onTouchStart={e => e.stopPropagation()} onTouchEnd={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', gap: 2, alignItems: 'center', justifyContent: 'center' }}>
+                          <input type="number" min="0" defaultValue={s.wins || 0} title="Wins"
+                            onBlur={e => { const v = parseInt(e.target.value) || 0; if (v !== (s.wins || 0)) updateWLD(s.id, 'wins', v) }}
+                            style={{ width: 30, fontSize: 11, padding: '2px 2px', textAlign: 'center', border: '1px solid var(--border-strong)', borderRadius: 4, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+                          <input type="number" min="0" defaultValue={s.losses || 0} title="Losses"
+                            onBlur={e => { const v = parseInt(e.target.value) || 0; if (v !== (s.losses || 0)) updateWLD(s.id, 'losses', v) }}
+                            style={{ width: 30, fontSize: 11, padding: '2px 2px', textAlign: 'center', border: '1px solid var(--border-strong)', borderRadius: 4, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+                          <input type="number" min="0" defaultValue={s.draws || 0} title="Draws"
+                            onBlur={e => { const v = parseInt(e.target.value) || 0; if (v !== (s.draws || 0)) updateWLD(s.id, 'draws', v) }}
+                            style={{ width: 30, fontSize: 11, padding: '2px 2px', textAlign: 'center', border: '1px solid var(--border-strong)', borderRadius: 4, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+                        </div>
+                      </td>
+                    )}
                     {visibleCols.includes('class_time') && <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{s.class_time || '—'}</td>}
                     {isKR && (
                       <>
@@ -1398,21 +1413,6 @@ export default function Registers() {
                           title={s.in_comp ? 'Click to mark out of comp' : 'Click to mark in comp'}>
                           {s.in_comp ? 'In comp' : 'Out of comp'}
                         </button>
-                      </td>
-                    )}
-                    {visibleCols.includes('record') && (regType === 'kr' || regType === 'krba') && (
-                      <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()} onTouchStart={e => e.stopPropagation()} onTouchEnd={e => e.stopPropagation()}>
-                        <div style={{ display: 'flex', gap: 2, alignItems: 'center', justifyContent: 'center' }}>
-                          <input type="number" min="0" defaultValue={s.wins || 0} title="Wins"
-                            onBlur={e => { const v = parseInt(e.target.value) || 0; if (v !== (s.wins || 0)) updateWLD(s.id, 'wins', v) }}
-                            style={{ width: 30, fontSize: 11, padding: '2px 2px', textAlign: 'center', border: '1px solid var(--border-strong)', borderRadius: 4, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
-                          <input type="number" min="0" defaultValue={s.losses || 0} title="Losses"
-                            onBlur={e => { const v = parseInt(e.target.value) || 0; if (v !== (s.losses || 0)) updateWLD(s.id, 'losses', v) }}
-                            style={{ width: 30, fontSize: 11, padding: '2px 2px', textAlign: 'center', border: '1px solid var(--border-strong)', borderRadius: 4, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
-                          <input type="number" min="0" defaultValue={s.draws || 0} title="Draws"
-                            onBlur={e => { const v = parseInt(e.target.value) || 0; if (v !== (s.draws || 0)) updateWLD(s.id, 'draws', v) }}
-                            style={{ width: 30, fontSize: 11, padding: '2px 2px', textAlign: 'center', border: '1px solid var(--border-strong)', borderRadius: 4, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
-                        </div>
                       </td>
                     )}
                     {visibleCols.includes('groups') && <td onClick={e => e.stopPropagation()}>
