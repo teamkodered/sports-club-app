@@ -2944,6 +2944,7 @@ export default function AthleteProfiles() {
   const [newNoteShared, setNewNoteShared] = useState(false)
   const [editingNoteId, setEditingNoteId] = useState(null) // athlete_notes_log.id being edited, or null
   const [showNotesList, setShowNotesList] = useState(false)
+  const [showTargetsList, setShowTargetsList] = useState(false)
   const [editingNoteText, setEditingNoteText] = useState('')
   const [savingNote, setSavingNote] = useState(false)
   const [allClasses, setAllClasses] = useState([])
@@ -7734,9 +7735,10 @@ export default function AthleteProfiles() {
 
             {/* Targets management -- all existing targets in one place; use the "+ Target"/"+ Set target" buttons on each card above to add a new one right where you need it */}
             <div className="card" style={{ padding: 0, marginBottom: 14, marginTop: 14 }}>
-              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
-                <h2 style={{ fontSize: 14, fontWeight: 600 }}>🎯 All Targets</h2>
+              <div style={{ padding: '12px 16px', borderBottom: showTargetsList ? '1px solid var(--border)' : 'none', cursor: 'pointer' }} onClick={() => setShowTargetsList(v => !v)}>
+                <h2 style={{ fontSize: 14, fontWeight: 600 }}>{showTargetsList ? '▾' : '▸'} 🎯 All Targets ({teamTargets.length})</h2>
               </div>
+              {showTargetsList && (
               <div style={{ padding: 16 }}>
                 {teamTargets.length === 0 ? (
                   <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No targets set yet. Use the "+ Target" button on any card above to add one.</p>
@@ -7763,6 +7765,7 @@ export default function AthleteProfiles() {
                   </div>
                 )}
               </div>
+              )}
             </div>
           </div>
         ) : (
