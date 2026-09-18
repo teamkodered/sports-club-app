@@ -231,6 +231,12 @@ export default function Registers() {
     { key: 'weight',      label: 'Weight' },
     { key: 'record',      label: 'Record' },
     { key: 'class_time',  label: 'Class time' },
+    { key: 'weight_trend',   label: 'Trend' },
+    { key: 'weight_last5',   label: 'Last 5 weights' },
+    { key: 'weight_current', label: 'Current weight' },
+    { key: 'weight_comp',    label: 'Comp weight' },
+    { key: 'weight_pctdiff', label: '% diff' },
+    { key: 'weight_entries', label: 'Entries' },
     { key: 'groups',      label: 'Groups' },
     { key: 'attendance',  label: 'Attend.' },
     { key: 'champ',       label: '🏆' },
@@ -257,6 +263,8 @@ export default function Registers() {
     const { data } = await supabase.from('settings').select('value').eq('key', 'point_types').single()
     setPointTypes(data?.value || [])
   }
+
+  const [weightDataByStudent, setWeightDataByStudent] = useState({})
 
   async function loadStudents() {
     setLoading(true)
@@ -314,6 +322,49 @@ export default function Registers() {
     // indication anything had gone wrong.
     const stillMissing = oneOffStudentsRef.current.filter(s => !filteredStudents.find(x => x.id === s.id))
     setStudents([...filteredStudents, ...stillMissing])
+
+    // Weight tracker columns (Trend/Last 5 weights/Current/Comp/% diff/
+    // Entries) only apply to KR/KRBA registers -- same underlying data
+    // as the weight graph on each athlete's own profile (Fit II Fight
+    // sessions' weight_before/weight_after, and athlete_profiles'
+    // free-text weight_division for comp weight), computed here per
+    // student for the whole visible list at once.
+    if (regType === 'kr' || regType === 'krba') {
+      const allStudentIds = [...filteredStudents, ...stillMissing].map(s => s.id)
+      if (allStudentIds.length > 0) {
+        const [{ data: sessions }, { data: profiles }] = await Promise.all([
+          supabase.from('fit2fight_sessions').select('student_id, session_date, weight_before, weight_after').in('student_id', allStudentIds).order('session_date'),
+          supabase.from('athlete_profiles').select('student_id, weight_division').in('student_id', allStudentIds),
+        ])
+        const compWeightByStudent = Object.fromEntries((profiles || []).map(p => {
+          const match = p.weight_division?.match(/[\d.]+/)
+          return [p.student_id, match ? parseFloat(match[0]) : null]
+        }))
+        const entriesByStudent = {}
+        for (const s of (sessions || [])) {
+          const w = s.weight_after ?? s.weight_before
+          if (w == null) continue
+          entriesByStudent[s.student_id] = entriesByStudent[s.student_id] || []
+          entriesByStudent[s.student_id].push({ date: s.session_date, weight: w })
+        }
+        const computed = {}
+        for (const id of allStudentIds) {
+          const entries = (entriesByStudent[id] || []).sort((a, b) => new Date(a.date) - new Date(b.date))
+          const last5 = entries.slice(-5)
+          const current = last5.length > 0 ? last5[last5.length - 1].weight : null
+          const previous = last5.length > 1 ? last5[last5.length - 2].weight : null
+          const trend = previous == null || current == null ? null : current > previous ? 'up' : current < previous ? 'down' : 'same'
+          const compWeight = compWeightByStudent[id] ?? null
+          const pctDiff = compWeight && current != null ? ((current - compWeight) / compWeight * 100) : null
+          computed[id] = { entries, last5, current, trend, compWeight, pctDiff, entryCount: entries.length }
+        }
+        setWeightDataByStudent(computed)
+      } else {
+        setWeightDataByStudent({})
+      }
+    } else {
+      setWeightDataByStudent({})
+    }
 
     // Also fetch explicit class assignments (student_class_assignments)
     // for these students -- this is a second, independent source of
@@ -1012,7 +1063,7 @@ export default function Registers() {
         <div className="card" style={{ marginBottom: 10, padding: 12 }}>
           <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Show / hide columns</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
-            {ALL_REG_COLS.filter(c => c.key !== 'record' || regType === 'kr' || regType === 'krba').map(c => (
+            {ALL_REG_COLS.filter(c => (regType === 'kr' || regType === 'krba') || !['record', 'weight_trend', 'weight_last5', 'weight_current', 'weight_comp', 'weight_pctdiff', 'weight_entries'].includes(c.key)).map(c => (
               <button key={c.key} onClick={() => toggleRegCol(c.key)} style={{
                 padding: '4px 10px', borderRadius: 20, fontSize: 11, cursor: 'pointer',
                 border: `1px solid ${visibleCols.includes(c.key) ? 'var(--text)' : 'var(--border-strong)'}`,
@@ -1294,6 +1345,14 @@ export default function Registers() {
                   <SortTh col="weight_kg" label="Weight" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                   <SortTh col="age_category_kr" label="Age cat." sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                 </>}
+                {(regType === 'kr' || regType === 'krba') && <>
+                  {visibleCols.includes('weight_trend')   && <th style={{ background: 'var(--bg)', textAlign: 'center' }} title="Since the previous weigh-in">Trend</th>}
+                  {visibleCols.includes('weight_last5')   && <th style={{ background: 'var(--bg)' }}>Last 5 weights</th>}
+                  {visibleCols.includes('weight_current') && <th style={{ background: 'var(--bg)', textAlign: 'center' }}>Current weight</th>}
+                  {visibleCols.includes('weight_comp')    && <th style={{ background: 'var(--bg)', textAlign: 'center' }}>Comp weight</th>}
+                  {visibleCols.includes('weight_pctdiff') && <th style={{ background: 'var(--bg)', textAlign: 'center' }} title="Current weight vs comp weight">% diff</th>}
+                  {visibleCols.includes('weight_entries') && <th style={{ background: 'var(--bg)', textAlign: 'center' }} title="Total weigh-ins on record">Entries</th>}
+                </>}
                 {(regType === 'kr' || regType === 'krba') && (() => {
                   const inCount = displayStudents.filter(s => s.in_comp).length
                   const outCount = displayStudents.length - inCount
@@ -1405,6 +1464,35 @@ export default function Registers() {
                         <td style={{ fontSize: 11 }}>{s.age_category_kr || s.age_category || '—'}</td>
                       </>
                     )}
+                    {(regType === 'kr' || regType === 'krba') && (() => {
+                      const wd = weightDataByStudent[s.id]
+                      return <>
+                        {visibleCols.includes('weight_trend') && (
+                          <td style={{ textAlign: 'center', fontSize: 14 }} title={wd?.trend ? `${wd.trend === 'up' ? 'Up' : wd.trend === 'down' ? 'Down' : 'Same'} since previous weigh-in` : 'Not enough weigh-ins yet'}>
+                            {wd?.trend === 'up' ? <span style={{ color: '#E24B4A' }}>▲</span> : wd?.trend === 'down' ? <span style={{ color: '#1D9E75' }}>▼</span> : wd?.trend === 'same' ? <span style={{ color: 'var(--text-tertiary)' }}>—</span> : <span style={{ color: 'var(--text-tertiary)' }}>—</span>}
+                          </td>
+                        )}
+                        {visibleCols.includes('weight_last5') && (
+                          <td style={{ fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                            {wd?.last5?.length > 0 ? wd.last5.map(e => `${e.weight}kg`).join(' → ') : '—'}
+                          </td>
+                        )}
+                        {visibleCols.includes('weight_current') && (
+                          <td style={{ textAlign: 'center', fontSize: 12, fontWeight: 600 }}>{wd?.current != null ? `${wd.current}kg` : '—'}</td>
+                        )}
+                        {visibleCols.includes('weight_comp') && (
+                          <td style={{ textAlign: 'center', fontSize: 12 }}>{wd?.compWeight != null ? `${wd.compWeight}kg` : '—'}</td>
+                        )}
+                        {visibleCols.includes('weight_pctdiff') && (
+                          <td style={{ textAlign: 'center', fontSize: 12, fontWeight: 600, color: wd?.pctDiff == null ? 'var(--text-tertiary)' : wd.pctDiff > 0 ? '#E24B4A' : '#1D9E75' }}>
+                            {wd?.pctDiff != null ? `${wd.pctDiff > 0 ? '+' : ''}${wd.pctDiff.toFixed(1)}%` : '—'}
+                          </td>
+                        )}
+                        {visibleCols.includes('weight_entries') && (
+                          <td style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-secondary)' }}>{wd?.entryCount ?? 0}</td>
+                        )}
+                      </>
+                    })()}
                     {(regType === 'kr' || regType === 'krba') && (
                       <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
                         <button onClick={() => toggleInComp(s)}
