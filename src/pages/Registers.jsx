@@ -134,11 +134,11 @@ const DOUBLE_SESSION_PAIRS = [
   { first: 'cb4623b1-0113-450f-ae44-1f990d73d17a', second: 'c2e674e8-8360-4817-aef9-e5bf1b62f4f9', secondLabel: 'KRBA Register 19:00' },
 ]
 
-export default function Registers() {
+export default function Registers({ initialRegType } = {}) {
   const { isAdmin, isCoach, isLeader, isStaff } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const [regType, setRegType]           = useState('class')
+  const [regType, setRegType]           = useState(initialRegType || 'class')
   const [date, setDate]                 = useState(new Date().toISOString().split('T')[0])
   const [classFilter, setClassFilter]   = useState(() => searchParams.get('class_id') || 'all')
   const [students, setStudents]         = useState([])

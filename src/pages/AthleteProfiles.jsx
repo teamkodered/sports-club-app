@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useBackableTab } from '../hooks/useBackableTab.js'
 import StudentProfile from '../components/students/StudentProfile.jsx'
+import Registers from './Registers.jsx'
 import * as XLSX from 'xlsx'
 
 const HOUSE_COLOURS = {
@@ -2878,10 +2879,12 @@ export default function AthleteProfiles() {
   const [showRecordAsPct, setShowRecordAsPct] = useState(false)
   const recordPressTimer = useRef(null)
   const [showTeamKrDropdown, setShowTeamKrDropdown] = useState(false)
+  const [showKrRegister, setShowKrRegister] = useState(false)
   const metricSwipeStart = useRef(null)
   const [showExportModal, setShowExportModal] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [showTeamKrbaDropdown, setShowTeamKrbaDropdown] = useState(false)
+  const [showKrbaRegister, setShowKrbaRegister] = useState(false)
   const [teamKrSearch, setTeamKrSearch] = useState('')
   const [teamCalMonth, setTeamCalMonth] = useState(() => ({ year: new Date().getFullYear(), month: new Date().getMonth() }))
   const [calDayModal, setCalDayModal] = useState(null) // dateStr when a calendar day is clicked
@@ -5520,96 +5523,33 @@ export default function AthleteProfiles() {
               swipeStartX.current = null
             }}>
             <div className="empty-state swipe-zone" style={{ paddingTop: 20, paddingBottom: 20 }}>
-              <h3>Athlete Dashboard</h3>
+              {(showKrRegister || showKrbaRegister) ? (
+                <button className="btn btn-sm" onClick={() => { setShowKrRegister(false); setShowKrbaRegister(false) }} style={{ marginBottom: 4 }}>
+                  ← Athlete Dashboard
+                </button>
+              ) : (
+                <h3>Athlete Dashboard</h3>
+              )}
             </div>
 
-            {/* Team KR / KRBA -- dropdown of respective athletes, positioned above the row below */}
+            {/* Team KR / KRBA -- slides down the full Registers page for that
+                register type in place of the dashboard below, rather than
+                the small athlete-picker dropdown this used to open. */}
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
-              <div ref={teamKrDropdownRef} style={{ position: 'relative' }}>
-                <button className="btn btn-sm" onClick={() => setShowTeamKrDropdown(v => !v)}>
-                  👥 Team KR {showTeamKrDropdown ? '▲' : '▼'}
-                </button>
-                {showTeamKrDropdown && (() => {
-                  const krAthletes = students.filter(s => s.is_kr)
-                    .filter(s => !teamKrSearch || `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.toLowerCase().includes(teamKrSearch.toLowerCase()))
-                    .sort((a, b) => `${a.members?.first_name} ${a.members?.last_name}`.localeCompare(`${b.members?.first_name} ${b.members?.last_name}`))
-                  return (
-                    <div className="card" style={{ position: 'absolute', top: '100%', left: 0, zIndex: 20, width: 320, marginTop: 4, padding: 12, maxHeight: 420, overflowY: 'auto' }}>
-                      <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>Team KR athletes</p>
-                      <input value={teamKrSearch} onChange={e => setTeamKrSearch(e.target.value)}
-                        placeholder="Search athletes…" autoFocus
-                        style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 14, background: 'var(--bg-secondary)', color: 'var(--text)', marginBottom: 10 }} />
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {krAthletes.length === 0 ? (
-                          <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No KR athletes found.</p>
-                        ) : krAthletes.map(s => {
-                          const col = HOUSE_COLOURS[s.members?.houses?.name] || '#888'
-                          return (
-                            <div key={s.id} onClick={() => { selectStudent(s); setShowTeamKrDropdown(false); setTeamKrSearch('') }} style={{
-                              padding: '12px 14px', borderRadius: 'var(--border-radius-lg)', cursor: 'pointer',
-                              background: 'var(--bg)', border: '1px solid var(--border)',
-                              display: 'flex', alignItems: 'center', gap: 10,
-                            }}>
-                              <div style={{ width: 36, height: 36, borderRadius: '50%', background: col + '22', color: col, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
-                                {(s.members?.first_name?.[0] || '') + (s.members?.last_name?.[0] || '')}
-                              </div>
-                              <div style={{ minWidth: 0 }}>
-                                <div style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {s.members?.first_name} {s.members?.last_name}
-                                </div>
-                                <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{s.student_ref}</div>
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )
-                })()}
-              </div>
-              <div ref={teamKrbaDropdownRef} style={{ position: 'relative' }}>
-                <button className="btn btn-sm" onClick={() => setShowTeamKrbaDropdown(v => !v)}>
-                  👥 KRBA {showTeamKrbaDropdown ? '▲' : '▼'}
-                </button>
-                {showTeamKrbaDropdown && (() => {
-                  const krbaAthletes = students.filter(s => s.discipline === 'KRBA')
-                    .filter(s => !teamKrbaSearch || `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.toLowerCase().includes(teamKrbaSearch.toLowerCase()))
-                    .sort((a, b) => `${a.members?.first_name} ${a.members?.last_name}`.localeCompare(`${b.members?.first_name} ${b.members?.last_name}`))
-                  return (
-                    <div className="card" style={{ position: 'absolute', top: '100%', right: 0, zIndex: 20, width: 320, marginTop: 4, padding: 12, maxHeight: 420, overflowY: 'auto' }}>
-                      <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>KRBA athletes</p>
-                      <input value={teamKrbaSearch} onChange={e => setTeamKrbaSearch(e.target.value)}
-                        placeholder="Search athletes…" autoFocus
-                        style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 14, background: 'var(--bg-secondary)', color: 'var(--text)', marginBottom: 10 }} />
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {krbaAthletes.length === 0 ? (
-                          <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No KRBA athletes found.</p>
-                        ) : krbaAthletes.map(s => {
-                          const col = HOUSE_COLOURS[s.members?.houses?.name] || '#888'
-                          return (
-                            <div key={s.id} onClick={() => { selectStudent(s); setShowTeamKrbaDropdown(false); setTeamKrbaSearch('') }} style={{
-                              padding: '12px 14px', borderRadius: 'var(--border-radius-lg)', cursor: 'pointer',
-                              background: 'var(--bg)', border: '1px solid var(--border)',
-                              display: 'flex', alignItems: 'center', gap: 10,
-                            }}>
-                              <div style={{ width: 36, height: 36, borderRadius: '50%', background: col + '22', color: col, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
-                                {(s.members?.first_name?.[0] || '') + (s.members?.last_name?.[0] || '')}
-                              </div>
-                              <div style={{ minWidth: 0 }}>
-                                <div style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {s.members?.first_name} {s.members?.last_name}
-                                </div>
-                                <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{s.student_ref}</div>
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )
-                })()}
-              </div>
+              <button className={showKrRegister ? 'btn btn-sm btn-primary' : 'btn btn-sm'}
+                onClick={() => { setShowKrRegister(v => !v); setShowKrbaRegister(false) }}>
+                👥 Team KR {showKrRegister ? '▲' : '▼'}
+              </button>
+              <button className={showKrbaRegister ? 'btn btn-sm btn-primary' : 'btn btn-sm'}
+                onClick={() => { setShowKrbaRegister(v => !v); setShowKrRegister(false) }}>
+                👥 KRBA {showKrbaRegister ? '▲' : '▼'}
+              </button>
             </div>
+
+            {(showKrRegister || showKrbaRegister) ? (
+              <Registers initialRegType={showKrRegister ? 'kr' : 'krba'} />
+            ) : (
+            <>
 
             {/* All sessions / F2F sessions / PDP -- above Physical, side by side */}
             {(() => {
@@ -7770,6 +7710,8 @@ export default function AthleteProfiles() {
               </div>
               )}
             </div>
+            </>
+            )}
           </div>
         ) : (
           <div style={{ maxWidth: 640, margin: '0 auto' }}
