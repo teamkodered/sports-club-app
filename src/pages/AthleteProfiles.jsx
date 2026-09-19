@@ -5,7 +5,11 @@ import { useAuth } from '../hooks/useAuth.jsx'
 import { useBackableTab } from '../hooks/useBackableTab.js'
 import StudentProfile from '../components/students/StudentProfile.jsx'
 import Registers from './Registers.jsx'
-import * as XLSX from 'xlsx'
+import * as XLSXModule from 'xlsx'
+// See CRM.jsx for why this exists -- some bundlers wrap xlsx's exports
+// under .default instead of directly on the namespace, and which one
+// happens can differ between dev and production builds.
+const XLSX = XLSXModule.utils ? XLSXModule : XLSXModule.default
 
 const HOUSE_COLOURS = {
   'Dragon House': '#E24B4A', 'Super House': '#378ADD',

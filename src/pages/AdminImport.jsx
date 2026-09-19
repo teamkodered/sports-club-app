@@ -1,6 +1,10 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase.js'
-import * as XLSX from 'xlsx'
+import * as XLSXModule from 'xlsx'
+// See CRM.jsx for why this exists -- some bundlers wrap xlsx's exports
+// under .default instead of directly on the namespace, and which one
+// happens can differ between dev and production builds.
+const XLSX = XLSXModule.utils ? XLSXModule : XLSXModule.default
 
 // Mirrors PDP_SECTIONS in AthleteProfiles.jsx -- combines category +
 // column type into one unambiguous human-readable label per section,

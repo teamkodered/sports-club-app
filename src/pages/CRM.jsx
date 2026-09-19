@@ -3,7 +3,15 @@ import { useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useBackableTab } from '../hooks/useBackableTab.js'
-import * as XLSX from 'xlsx'
+import * as XLSXModule from 'xlsx'
+// Some bundlers wrap a CommonJS module like xlsx so the actual exports
+// (read, utils, writeFile, ...) end up nested under a .default property
+// instead of directly on the imported namespace -- which one actually
+// happens can differ between a local dev build and the deployed
+// production build. Checking for .utils and falling back to .default
+// makes this work correctly either way, rather than assuming one shape
+// and silently breaking on whichever bundler produces the other.
+const XLSX = XLSXModule.utils ? XLSXModule : XLSXModule.default
 import Trackers from './Trackers.jsx'
 
 // Loosely finds the "name" and "amount" columns in an uploaded
