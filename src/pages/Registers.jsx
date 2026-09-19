@@ -336,9 +336,16 @@ export default function Registers({ initialRegType, onStudentNameClick } = {}) {
           supabase.from('fit2fight_sessions').select('student_id, session_date, weight_before, weight_after').in('student_id', allStudentIds).order('session_date'),
           supabase.from('athlete_profiles').select('student_id, weight_division').in('student_id', allStudentIds),
         ])
+        // Preserves the +/- sign for display (standard combat-sports
+        // weight-class notation, e.g. "-69kg" means "under 69kg",
+        // matching exactly how the athlete's own profile shows this
+        // same field) -- but % diff below needs the plain numeric
+        // value regardless of sign, since that's a genuine magnitude
+        // comparison, not a weight-class label.
         const compWeightByStudent = Object.fromEntries((profiles || []).map(p => {
-          const match = p.weight_division?.match(/[\d.]+/)
-          return [p.student_id, match ? parseFloat(match[0]) : null]
+          const match = p.weight_division?.match(/([+-]?)\s*([\d.]+)/)
+          if (!match) return [p.student_id, null]
+          return [p.student_id, { sign: match[1] || '', value: parseFloat(match[2]) }]
         }))
         const entriesByStudent = {}
         for (const s of (sessions || [])) {
@@ -354,9 +361,11 @@ export default function Registers({ initialRegType, onStudentNameClick } = {}) {
           const current = last5.length > 0 ? last5[last5.length - 1].weight : null
           const previous = last5.length > 1 ? last5[last5.length - 2].weight : null
           const trend = previous == null || current == null ? null : current > previous ? 'up' : current < previous ? 'down' : 'same'
-          const compWeight = compWeightByStudent[id] ?? null
+          const compWeightInfo = compWeightByStudent[id] ?? null
+          const compWeight = compWeightInfo?.value ?? null
+          const compWeightLabel = compWeightInfo ? `${compWeightInfo.sign}${compWeightInfo.value}kg` : null
           const pctDiff = compWeight && current != null ? ((current - compWeight) / compWeight * 100) : null
-          computed[id] = { entries, last5, current, trend, compWeight, pctDiff, entryCount: entries.length }
+          computed[id] = { entries, last5, current, trend, compWeight, compWeightLabel, pctDiff, entryCount: entries.length }
         }
         setWeightDataByStudent(computed)
       } else {
@@ -1504,7 +1513,7 @@ export default function Registers({ initialRegType, onStudentNameClick } = {}) {
                           <td style={{ textAlign: 'center', fontSize: 12, fontWeight: 600 }}>{wd?.current != null ? `${wd.current}kg` : '—'}</td>
                         )}
                         {visibleCols.includes('weight_comp') && (
-                          <td style={{ textAlign: 'center', fontSize: 12 }}>{wd?.compWeight != null ? `${wd.compWeight}kg` : '—'}</td>
+                          <td style={{ textAlign: 'center', fontSize: 12 }}>{wd?.compWeightLabel || '—'}</td>
                         )}
                         {visibleCols.includes('weight_pctdiff') && (
                           <td style={{ textAlign: 'center', fontSize: 12, fontWeight: 600, color: wd?.pctDiff == null ? 'var(--text-tertiary)' : wd.pctDiff > 0 ? '#E24B4A' : '#1D9E75' }}>
