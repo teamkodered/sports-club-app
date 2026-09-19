@@ -2887,22 +2887,6 @@ export default function AthleteProfiles() {
   const [showKrbaRegister, setShowKrbaRegister] = useState(false)
   const [cameFromRegisterType, setCameFromRegisterType] = useState(null) // 'kr' | 'krba' | null -- if set, the back button on an individual profile should return to that register instead of the dashboard
   const [pendingWeightNavStudentId, setPendingWeightNavStudentId] = useState(null)
-
-  // Runs strictly AFTER selectStudent has actually taken effect (i.e.
-  // once `selected` genuinely is the student we asked for), rather
-  // than firing setTab immediately alongside selectStudent and hoping
-  // it wins a timing race against selectStudent's own async work and
-  // the URL-tab-sync effect elsewhere reacting to selectStudent's own
-  // URL update. That race was real and intermittent -- reacting to the
-  // actual state change instead of guessing at timing removes it entirely.
-  useEffect(() => {
-    if (pendingWeightNavStudentId && selected?.id === pendingWeightNavStudentId) {
-      setTab('fit2fight')
-      setResultsGraphSection(1) // 1 = Weight section, not 0 = All entries
-      setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('tab', 'fit2fight'); return next })
-      setPendingWeightNavStudentId(null)
-    }
-  }, [selected, pendingWeightNavStudentId])
   const [teamKrSearch, setTeamKrSearch] = useState('')
   const [teamCalMonth, setTeamCalMonth] = useState(() => ({ year: new Date().getFullYear(), month: new Date().getMonth() }))
   const [calDayModal, setCalDayModal] = useState(null) // dateStr when a calendar day is clicked
@@ -3692,6 +3676,26 @@ export default function AthleteProfiles() {
 
   const [f2fFrom, setF2fFrom]         = useState('')
   const [resultsGraphSection, setResultsGraphSection] = useState(0)
+
+  // Runs strictly AFTER selectStudent has actually taken effect (i.e.
+  // once `selected` genuinely is the student we asked for), rather
+  // than firing setTab immediately alongside selectStudent and hoping
+  // it wins a timing race against selectStudent's own async work and
+  // the URL-tab-sync effect elsewhere reacting to selectStudent's own
+  // URL update. That race was real and intermittent -- reacting to the
+  // actual state change instead of guessing at timing removes it entirely.
+  // Placed after every state variable it references (selected, tab,
+  // resultsGraphSection, searchParams) are all declared, since an
+  // earlier attempt referenced several of these before their own
+  // declaration further down the component and crashed the whole page.
+  useEffect(() => {
+    if (pendingWeightNavStudentId && selected?.id === pendingWeightNavStudentId) {
+      setTab('fit2fight')
+      setResultsGraphSection(1) // 1 = Weight section, not 0 = All entries
+      setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('tab', 'fit2fight'); return next })
+      setPendingWeightNavStudentId(null)
+    }
+  }, [selected, pendingWeightNavStudentId])
   const resultsGraphSwipeStart = useRef(null)
   const [f2fTo, setF2fTo]             = useState('')
   const [wattChartFilter, setWattChartFilter] = useState('all')
