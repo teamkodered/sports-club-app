@@ -2187,8 +2187,19 @@ export default function CRM() {
     setImportingFacebookLeads(true)
     setFacebookImportResult(null)
     try {
-      const buf = await file.arrayBuffer()
-      const wb = XLSX.read(buf, { type: 'array', cellDates: true })
+      // Facebook's export is a plain CSV, so this reads it as text and
+      // parses it as a string, rather than as binary array-buffer data
+      // (which is really meant for genuine .xls/.xlsx files) -- that
+      // mismatch is what was actually causing "Cannot read properties
+      // of undefined (reading 'utils')": XLSX.read choked on a CSV
+      // handed to it as an array buffer for a file with a .csv
+      // extension, in a way that left the module in a state where the
+      // next line's XLSX.utils call failed instead of surfacing a
+      // clearer parsing error.
+      const isCsv = file.name?.toLowerCase().endsWith('.csv')
+      const wb = isCsv
+        ? XLSX.read(await file.text(), { type: 'string' })
+        : XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true })
       const sheet = wb.Sheets[wb.SheetNames[0]]
       const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' })
 
