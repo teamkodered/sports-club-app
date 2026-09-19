@@ -273,7 +273,7 @@ export default function LeagueViews() {
         .gte('awarded_at', dateFrom)
         .lte('awarded_at', dateTo + 'T23:59:59')
         .in('point_scope', ['house', 'both'])),
-      fetchAllRows(() => supabase.from('students').select('id, house_name, member_id, is_kr, is_pts, is_leader, discipline, members(houses(name))')),
+      fetchAllRows(() => supabase.from('students').select('id, house_name, member_id, is_kr, is_pts, is_leader, discipline, members(status, houses(name))')),
       supabase.from('houses').select('id, name, points, wins, draws, losses'),
     ])
     if (requestId !== loadRequestIdRef.current) return // superseded by a newer date range since this started -- don't apply stale results
@@ -287,13 +287,23 @@ export default function LeagueViews() {
     // assignments made that way, since nothing about assigning someone
     // a house through that dropdown ever touches that separate
     // relationship at all.
+    //
+    // Excludes stopped/not_started members from the count only (not
+    // the points map below), matching the same population Trackers'
+    // "Total students" uses -- these two figures should describe the
+    // same group of people, not silently different ones just because
+    // they're computed in different places. Points themselves stay
+    // keyed off every student regardless of status, since someone who
+    // stopped partway through the selected date range should still
+    // have their earlier points counted for that period.
     const studentHouseMap = {}
     const countByHouse = {}
     for (const s of (studentsData || [])) {
       if (!studentMatchesClassFilter(s)) continue
       const house = s.members?.houses?.name || s.house_name || null
       studentHouseMap[s.id] = house
-      if (house) countByHouse[house] = (countByHouse[house] || 0) + 1
+      const isActive = s.members?.status !== 'stopped' && s.members?.status !== 'not_started'
+      if (house && isActive) countByHouse[house] = (countByHouse[house] || 0) + 1
     }
 
     // Aggregate points by house
