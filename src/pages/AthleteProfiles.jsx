@@ -2886,6 +2886,23 @@ export default function AthleteProfiles() {
   const [showTeamKrbaDropdown, setShowTeamKrbaDropdown] = useState(false)
   const [showKrbaRegister, setShowKrbaRegister] = useState(false)
   const [cameFromRegisterType, setCameFromRegisterType] = useState(null) // 'kr' | 'krba' | null -- if set, the back button on an individual profile should return to that register instead of the dashboard
+  const [pendingWeightNavStudentId, setPendingWeightNavStudentId] = useState(null)
+
+  // Runs strictly AFTER selectStudent has actually taken effect (i.e.
+  // once `selected` genuinely is the student we asked for), rather
+  // than firing setTab immediately alongside selectStudent and hoping
+  // it wins a timing race against selectStudent's own async work and
+  // the URL-tab-sync effect elsewhere reacting to selectStudent's own
+  // URL update. That race was real and intermittent -- reacting to the
+  // actual state change instead of guessing at timing removes it entirely.
+  useEffect(() => {
+    if (pendingWeightNavStudentId && selected?.id === pendingWeightNavStudentId) {
+      setTab('fit2fight')
+      setResultsGraphSection(1) // 1 = Weight section, not 0 = All entries
+      setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('tab', 'fit2fight'); return next })
+      setPendingWeightNavStudentId(null)
+    }
+  }, [selected, pendingWeightNavStudentId])
   const [teamKrSearch, setTeamKrSearch] = useState('')
   const [teamCalMonth, setTeamCalMonth] = useState(() => ({ year: new Date().getFullYear(), month: new Date().getMonth() }))
   const [calDayModal, setCalDayModal] = useState(null) // dateStr when a calendar day is clicked
@@ -5575,22 +5592,7 @@ export default function AthleteProfiles() {
                   if (!full) return
                   setCameFromRegisterType(showKrRegister ? 'kr' : 'krba')
                   selectStudent(full)
-                  // Matches the same "tap weight to view graph" behaviour
-                  // already used on the athlete's own profile Weight field.
-                  //
-                  // Also updates the URL's own tab param, not just the
-                  // React state -- a separate effect elsewhere re-applies
-                  // whatever tab is currently in the URL whenever
-                  // searchParams changes, which selectStudent's own id
-                  // update triggers. Only setting state here left a race:
-                  // if that effect re-ran after this and the URL still
-                  // had a stale/different tab value in it, it would
-                  // silently override fit2fight back to whatever was
-                  // there before, which is exactly why this only failed
-                  // sometimes rather than every time.
-                  setTab('fit2fight')
-                  setResultsGraphSection(1) // 1 = Weight section, not 0 = All entries
-                  setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('tab', 'fit2fight'); return next })
+                  setPendingWeightNavStudentId(full.id)
                 }} />
             ) : (
             <>
