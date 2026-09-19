@@ -95,22 +95,43 @@ export default function Trackers({ onStatsReady } = {}) {
 
   useEffect(() => { load() }, [])
 
+  // Supabase caps any unpaginated query at 1000 rows by default -- with
+  // 977 students, 986 members and (worst of all) 1809 attendance rows
+  // already on file, several of these queries were silently getting
+  // truncated to whichever 1000 rows happened to sort first, undercounting
+  // real numbers without any visible error. This pages through in
+  // batches of 1000 until a batch comes back short, guaranteeing every
+  // row is actually fetched regardless of table size.
+  async function fetchAllRows(buildQuery) {
+    const pageSize = 1000
+    let allRows = []
+    let from = 0
+    while (true) {
+      const { data, error } = await buildQuery().range(from, from + pageSize - 1)
+      if (error) { console.error('Pagination fetch error:', error); break }
+      allRows = allRows.concat(data || [])
+      if (!data || data.length < pageSize) break
+      from += pageSize
+    }
+    return allRows
+  }
+
   async function load() {
-    const [{ data: s }, { data: f }, { data: m }, { data: ap }] = await Promise.all([
-      supabase.from('students').select('*, members(first_name, last_name, date_of_birth, status, houses(name))'),
-      supabase.from('fit2fight_sessions').select('*').order('session_date', { ascending: false }),
-      supabase.from('members').select('id, first_name, last_name, joined_date, status, stopped_at'),
-      supabase.from('athlete_profiles').select('student_id, weight_division'),
+    const [s, f, m, ap] = await Promise.all([
+      fetchAllRows(() => supabase.from('students').select('*, members(first_name, last_name, date_of_birth, status, houses(name))')),
+      fetchAllRows(() => supabase.from('fit2fight_sessions').select('*').order('session_date', { ascending: false })),
+      fetchAllRows(() => supabase.from('members').select('id, first_name, last_name, joined_date, status, stopped_at')),
+      fetchAllRows(() => supabase.from('athlete_profiles').select('student_id, weight_division')),
     ])
-    setStudents(s || [])
-    setSessions(f || [])
-    setAllMembers(m || [])
-    setWeightDivisions(Object.fromEntries((ap || []).map(r => [r.student_id, r.weight_division])))
-    const { data: att } = await supabase
+    setStudents(s)
+    setSessions(f)
+    setAllMembers(m)
+    setWeightDivisions(Object.fromEntries(ap.map(r => [r.student_id, r.weight_division])))
+    const att = await fetchAllRows(() => supabase
       .from('attendance')
       .select('student_id, session_date, attended_at, attendance_type, class_id')
-      .order('attended_at', { ascending: false })
-    setAttendance(att || [])
+      .order('attended_at', { ascending: false }))
+    setAttendance(att)
     setLoading(false)
   }
 

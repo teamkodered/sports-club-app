@@ -319,6 +319,25 @@ function NoticeTargetedSend({ notice, students, sendRealEmail, studentFullName }
 }
 
 export default function CRM() {
+  // Supabase caps any unpaginated query at 1000 rows by default -- the
+  // members table already has 986 rows, close enough to that limit
+  // that a plain unpaginated fetch risks silently truncating and
+  // undercounting as soon as a few more members join. This pages
+  // through in batches of 1000 until a batch comes back short,
+  // guaranteeing every row is actually fetched regardless of table size.
+  async function fetchAllRows(buildQuery) {
+    const pageSize = 1000
+    let allRows = []
+    let from = 0
+    while (true) {
+      const { data, error } = await buildQuery().range(from, from + pageSize - 1)
+      if (error) { console.error('Pagination fetch error:', error); break }
+      allRows = allRows.concat(data || [])
+      if (!data || data.length < pageSize) break
+      from += pageSize
+    }
+    return allRows
+  }
   const { isAdmin } = useAuth()
   const location = useLocation()
   const DEFAULT_TAB_ORDER = ['standing_orders', 'missed_training', 'stopped_training', 'grading_requests', 'birthdays', 'enquiries', 'trackers', 'messages', 'email', 'courses']
@@ -450,7 +469,7 @@ export default function CRM() {
   // ever showing up in a filtered "Stopped" series.
   const [studentsForBreakdown, setStudentsForBreakdown] = useState([])
   useEffect(() => {
-    supabase.from('students').select('id, member_id, discipline, is_kr, class_schedule').then(({ data }) => setStudentsForBreakdown(data || []))
+    fetchAllRows(() => supabase.from('students').select('id, member_id, discipline, is_kr, class_schedule')).then(data => setStudentsForBreakdown(data))
   }, [])
   const [trainedPerDay, setTrainedPerDay] = useState([])
   const [attendanceRowsForChart, setAttendanceRowsForChart] = useState([]) // raw rows (with student_id), so the chart can re-filter per-group rather than only using the pre-aggregated by-day totals
@@ -1716,8 +1735,8 @@ export default function CRM() {
   // Moved here from Trackers -- same underlying data/logic, just
   // living alongside the other Enquiries-tab charts now instead.
   function loadJoinsVsStops() {
-    supabase.from('members').select('id, first_name, last_name, joined_date, status, stopped_at').then(({ data }) => {
-      setJoinsStopsMembers(data || [])
+    fetchAllRows(() => supabase.from('members').select('id, first_name, last_name, joined_date, status, stopped_at')).then(data => {
+      setJoinsStopsMembers(data)
       setJoinsStopsLoaded(true)
     })
   }
