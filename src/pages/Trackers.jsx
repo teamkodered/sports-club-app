@@ -347,17 +347,20 @@ export default function Trackers({ onStatsReady } = {}) {
     for (const k of BREAKDOWN_KEYS) if (groups[k]) trainedThisMonthBreakdown[k]++
   }
 
-  // New members this month
-  const newMembersThisMonth = allMembers.filter(m => {
-    if (!m.joined_date) return false
-    const d = new Date(m.joined_date)
-    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
-  }).length
+  // New members this month -- compares the plain "YYYY-MM" prefix of
+  // joined_date directly, rather than parsing it with `new Date(...)`
+  // and reading back .getMonth()/.getFullYear(). joined_date is a
+  // date-only column with no time component, and new Date() parses a
+  // bare date string as UTC midnight -- reading it back with local
+  // timezone getters can then shift it into the wrong day (and, right
+  // at a month boundary, the wrong month entirely) whenever the local
+  // timezone differs from UTC. Comparing the string directly sidesteps
+  // that mismatch altogether.
+  const currentMonthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const newMembersThisMonth = allMembers.filter(m => m.joined_date?.startsWith(currentMonthPrefix)).length
   const newMembersThisMonthBreakdown = emptyBreakdown()
   for (const m of allMembers) {
-    if (!m.joined_date) continue
-    const d = new Date(m.joined_date)
-    if (d.getMonth() !== now.getMonth() || d.getFullYear() !== now.getFullYear()) continue
+    if (!m.joined_date?.startsWith(currentMonthPrefix)) continue
     const groups = studentGroupsByMemberId[m.id]
     if (!groups) continue
     for (const k of BREAKDOWN_KEYS) if (groups[k]) newMembersThisMonthBreakdown[k]++
