@@ -5577,8 +5577,20 @@ export default function AthleteProfiles() {
                   selectStudent(full)
                   // Matches the same "tap weight to view graph" behaviour
                   // already used on the athlete's own profile Weight field.
+                  //
+                  // Also updates the URL's own tab param, not just the
+                  // React state -- a separate effect elsewhere re-applies
+                  // whatever tab is currently in the URL whenever
+                  // searchParams changes, which selectStudent's own id
+                  // update triggers. Only setting state here left a race:
+                  // if that effect re-ran after this and the URL still
+                  // had a stale/different tab value in it, it would
+                  // silently override fit2fight back to whatever was
+                  // there before, which is exactly why this only failed
+                  // sometimes rather than every time.
                   setTab('fit2fight')
                   setResultsGraphSection(1) // 1 = Weight section, not 0 = All entries
+                  setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('tab', 'fit2fight'); return next })
                 }} />
             ) : (
             <>
