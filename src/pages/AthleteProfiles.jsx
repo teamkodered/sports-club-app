@@ -5578,7 +5578,7 @@ export default function AthleteProfiles() {
                   // Matches the same "tap weight to view graph" behaviour
                   // already used on the athlete's own profile Weight field.
                   setTab('fit2fight')
-                  setResultsGraphSection(0)
+                  setResultsGraphSection(1) // 1 = Weight section, not 0 = All entries
                 }} />
             ) : (
             <>
@@ -8077,14 +8077,14 @@ export default function AthleteProfiles() {
                                 onBlur={e => { const v = e.target.value ? parseFloat(e.target.value) : null; if (v !== selected.weight_kg) updateSelectedField('weight_kg', v) }}
                                 style={{ width: 70, fontSize: 12, padding: '4px 6px', textAlign: 'right', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: targetWeight ? (isOverTarget ? '#E24B4A' : '#1D9E75') : 'var(--text)', fontWeight: targetWeight ? 700 : 400 }} />
                             ) : (
-                              <span onClick={() => { setTab('fit2fight'); setResultsGraphSection(0) }}
+                              <span onClick={() => { setTab('fit2fight'); setResultsGraphSection(1) }}
                                 style={{ cursor: 'pointer', color: targetWeight ? (isOverTarget ? '#E24B4A' : '#1D9E75') : 'inherit', fontWeight: targetWeight ? 700 : 400 }}
                                 title="Tap to view weight graph and entry list">
                                 {selected.weight_kg ? `${selected.weight_kg}kg${selected.weight_category ? ` (${selected.weight_category})` : ''}` : '—'}
                               </span>
                             )}
                             {targetWeight && (
-                              <span onClick={() => { setTab('fit2fight'); setResultsGraphSection(0) }}
+                              <span onClick={() => { setTab('fit2fight'); setResultsGraphSection(1) }}
                                 style={{ fontSize: 11, color: override ? colour : 'var(--text-tertiary)', fontWeight: override ? 600 : 400, cursor: 'pointer' }} title={targetTitle}>
                                 {targetWeight}kg{override && ' *'}
                               </span>
