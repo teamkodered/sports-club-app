@@ -2885,6 +2885,7 @@ export default function AthleteProfiles() {
   const [exporting, setExporting] = useState(false)
   const [showTeamKrbaDropdown, setShowTeamKrbaDropdown] = useState(false)
   const [showKrbaRegister, setShowKrbaRegister] = useState(false)
+  const [cameFromRegisterType, setCameFromRegisterType] = useState(null) // 'kr' | 'krba' | null -- if set, the back button on an individual profile should return to that register instead of the dashboard
   const [teamKrSearch, setTeamKrSearch] = useState('')
   const [teamCalMonth, setTeamCalMonth] = useState(() => ({ year: new Date().getFullYear(), month: new Date().getMonth() }))
   const [calDayModal, setCalDayModal] = useState(null) // dateStr when a calendar day is clicked
@@ -5122,6 +5123,13 @@ export default function AthleteProfiles() {
   function goHome() {
     setSelected(null)
     if (searchParams.get('id')) setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('id'); next.delete('tab'); return next })
+    // If this profile was opened by pressing a name in the embedded
+    // Team KR/KRBA register, "back" should return to that register --
+    // just clearing selected would otherwise silently drop straight
+    // to the dashboard, losing the register that was actually open.
+    if (cameFromRegisterType === 'kr') { setShowKrRegister(true); setShowKrbaRegister(false) }
+    else if (cameFromRegisterType === 'krba') { setShowKrbaRegister(true); setShowKrRegister(false) }
+    setCameFromRegisterType(null)
   }
 
   async function selectStudent(s) {
@@ -5547,7 +5555,21 @@ export default function AthleteProfiles() {
             </div>
 
             {(showKrRegister || showKrbaRegister) ? (
-              <Registers key={showKrRegister ? 'kr' : 'krba'} initialRegType={showKrRegister ? 'kr' : 'krba'} />
+              <Registers key={showKrRegister ? 'kr' : 'krba'} initialRegType={showKrRegister ? 'kr' : 'krba'}
+                onStudentNameClick={registerStudent => {
+                  // Registers.jsx fetches its own students with a
+                  // different query shape than this page's own
+                  // `students` array -- looking the full record up
+                  // here by id (shared across both, since both query
+                  // the same students table) rather than passing the
+                  // register's own version through, so the profile
+                  // that opens has everything this page's own views
+                  // expect on a selected student.
+                  const full = students.find(x => x.id === registerStudent.id)
+                  if (!full) return
+                  setCameFromRegisterType(showKrRegister ? 'kr' : 'krba')
+                  selectStudent(full)
+                }} />
             ) : (
             <>
 

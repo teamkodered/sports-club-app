@@ -134,7 +134,7 @@ const DOUBLE_SESSION_PAIRS = [
   { first: 'cb4623b1-0113-450f-ae44-1f990d73d17a', second: 'c2e674e8-8360-4817-aef9-e5bf1b62f4f9', secondLabel: 'KRBA Register 19:00' },
 ]
 
-export default function Registers({ initialRegType } = {}) {
+export default function Registers({ initialRegType, onStudentNameClick } = {}) {
   const { isAdmin, isCoach, isLeader, isStaff } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -1420,7 +1420,10 @@ export default function Registers({ initialRegType } = {}) {
                     </td>}
                     {visibleCols.includes('name') && <td className="register-name-cell" style={{ position: 'sticky', left: visibleCols.includes('checkbox') ? 32 : 0, zIndex: 1, background: isSelected ? '#e6f1fb' : 'var(--bg)' }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ color: 'var(--text)', fontWeight: 500, fontSize: 13 }} className="register-name-text">
+                        <span
+                          onClick={onStudentNameClick ? (e => { e.stopPropagation(); onStudentNameClick(s) }) : undefined}
+                          style={{ color: onStudentNameClick ? 'var(--text-link, #378ADD)' : 'var(--text)', fontWeight: 500, fontSize: 13, cursor: onStudentNameClick ? 'pointer' : 'default', textDecoration: onStudentNameClick ? 'underline' : 'none' }}
+                          className="register-name-text">
                           {m?.first_name} {m?.last_name}
                         </span>
                         {(() => {
