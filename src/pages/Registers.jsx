@@ -1511,7 +1511,10 @@ export default function Registers({ initialRegType, onStudentNameClick } = {}) {
                           </td>
                         )}
                         {visibleCols.includes('weight_current') && (
-                          <td style={{ textAlign: 'center', fontSize: 12, fontWeight: 600 }}>{wd?.current != null ? `${wd.current}kg` : '—'}</td>
+                          <td style={{ textAlign: 'center', fontSize: 12, fontWeight: 600, color: wd?.pctDiff == null ? undefined : wd.isPlusDivision ? '#1D9E75' : wd.pctDiff > 0 ? '#E24B4A' : '#1D9E75' }}
+                            title={wd?.isPlusDivision ? "Plus division (no upper weight limit) -- always shown as fine" : wd?.pctDiff != null ? "Green if in line with comp weight, red if not" : undefined}>
+                            {wd?.current != null ? `${wd.current}kg` : '—'}
+                          </td>
                         )}
                         {visibleCols.includes('weight_comp') && (
                           <td style={{ textAlign: 'center', fontSize: 12 }}>{wd?.compWeightLabel || '—'}</td>
