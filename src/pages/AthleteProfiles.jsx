@@ -8041,8 +8041,9 @@ export default function AthleteProfiles() {
                         // text field (e.g. "-52kg", "-37kg kickboxing, 35kg boxing"), so
                         // pull out the first number found; fall back to current weight
                         // if Comp weight isn't set or has no parseable number.
-                        const compWeightMatch = apData?.weight_division?.match(/[\d.]+/)
-                        const baseWeight = compWeightMatch ? parseFloat(compWeightMatch[0]) : selected.weight_kg
+                        const compWeightMatch = apData?.weight_division?.match(/([+-]?)\s*([\d.]+)/)
+                        const isPlusDivision = compWeightMatch?.[1] === '+'
+                        const baseWeight = compWeightMatch ? parseFloat(compWeightMatch[2]) : selected.weight_kg
                         const override = apData?.weight_target_override
                         let targetWeight = baseWeight ? (baseWeight * (1 + pct)).toFixed(1) : null
                         let targetTitle = `Target: ${compWeightMatch ? 'comp weight' : 'current weight'} (${baseWeight}kg) + ${pct} (${weightTargetActiveMode === 'in_comp' ? 'in camp' : 'out of camp'})`
@@ -8053,7 +8054,12 @@ export default function AthleteProfiles() {
                           targetWeight = (baseWeight * (1 + parseFloat(override.value))).toFixed(1)
                           targetTitle = `Target: ${compWeightMatch ? 'comp weight' : 'current weight'} (${baseWeight}kg) + ${override.value} (custom % for this athlete, overrides team target)`
                         }
-                        const isOverTarget = targetWeight && selected.weight_kg != null && parseFloat(selected.weight_kg) > parseFloat(targetWeight)
+                        // For a '+' (plus/open) division there's no upper
+                        // weight limit to worry about -- being "over" is
+                        // actually the point, not a problem -- so this
+                        // only ever flags genuinely red for a '-' (minus)
+                        // division, where staying under really does matter.
+                        const isOverTarget = !isPlusDivision && targetWeight && selected.weight_kg != null && parseFloat(selected.weight_kg) > parseFloat(targetWeight)
                         return (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                             {isAdmin ? (
