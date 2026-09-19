@@ -1484,7 +1484,9 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                       const wd = weightDataByStudent[s.id]
                       return <>
                         {visibleCols.includes('weight_trend') && (
-                          <td style={{ textAlign: 'center' }} title={wd?.last5?.length > 1 ? `Last ${wd.last5.length} weigh-ins: ${wd.last5.map(e => `${e.weight}kg`).join(' → ')}` : 'Not enough weigh-ins yet'}>
+                          <td style={{ textAlign: 'center', cursor: onWeightClick ? 'pointer' : undefined }}
+                            onClick={onWeightClick ? (e => { e.stopPropagation(); onWeightClick(s) }) : undefined}
+                            title={onWeightClick ? 'View full weight history and graph' : wd?.last5?.length > 1 ? `Last ${wd.last5.length} weigh-ins: ${wd.last5.map(e => `${e.weight}kg`).join(' → ')}` : 'Not enough weigh-ins yet'}>
                             {wd?.last5?.length > 1 ? (() => {
                               const vals = wd.last5.map(e => e.weight)
                               const min = Math.min(...vals), max = Math.max(...vals)
