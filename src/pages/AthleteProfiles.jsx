@@ -5569,6 +5569,16 @@ export default function AthleteProfiles() {
                   if (!full) return
                   setCameFromRegisterType(showKrRegister ? 'kr' : 'krba')
                   selectStudent(full)
+                }}
+                onWeightClick={registerStudent => {
+                  const full = students.find(x => x.id === registerStudent.id)
+                  if (!full) return
+                  setCameFromRegisterType(showKrRegister ? 'kr' : 'krba')
+                  selectStudent(full)
+                  // Matches the same "tap weight to view graph" behaviour
+                  // already used on the athlete's own profile Weight field.
+                  setTab('fit2fight')
+                  setResultsGraphSection(0)
                 }} />
             ) : (
             <>

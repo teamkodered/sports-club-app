@@ -134,7 +134,7 @@ const DOUBLE_SESSION_PAIRS = [
   { first: 'cb4623b1-0113-450f-ae44-1f990d73d17a', second: 'c2e674e8-8360-4817-aef9-e5bf1b62f4f9', secondLabel: 'KRBA Register 19:00' },
 ]
 
-export default function Registers({ initialRegType, onStudentNameClick } = {}) {
+export default function Registers({ initialRegType, onStudentNameClick, onWeightClick } = {}) {
   const { isAdmin, isCoach, isLeader, isStaff } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -1506,13 +1506,16 @@ export default function Registers({ initialRegType, onStudentNameClick } = {}) {
                           </td>
                         )}
                         {visibleCols.includes('weight_last5') && (
-                          <td style={{ fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                          <td style={{ fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap', cursor: onWeightClick ? 'pointer' : undefined, textDecoration: onWeightClick ? 'underline' : undefined }}
+                            onClick={onWeightClick ? (e => { e.stopPropagation(); onWeightClick(s) }) : undefined}
+                            title={onWeightClick ? 'View full weight history and graph' : undefined}>
                             {wd?.last5?.length > 0 ? wd.last5.map(e => `${e.weight}kg`).join(' → ') : '—'}
                           </td>
                         )}
                         {visibleCols.includes('weight_current') && (
-                          <td style={{ textAlign: 'center', fontSize: 12, fontWeight: 600, color: wd?.pctDiff == null ? undefined : wd.isPlusDivision ? '#1D9E75' : wd.pctDiff > 0 ? '#E24B4A' : '#1D9E75' }}
-                            title={wd?.isPlusDivision ? "Plus division (no upper weight limit) -- always shown as fine" : wd?.pctDiff != null ? "Green if in line with comp weight, red if not" : undefined}>
+                          <td style={{ textAlign: 'center', fontSize: 12, fontWeight: 600, color: wd?.pctDiff == null ? undefined : wd.isPlusDivision ? '#1D9E75' : wd.pctDiff > 0 ? '#E24B4A' : '#1D9E75', cursor: onWeightClick ? 'pointer' : undefined, textDecoration: onWeightClick ? 'underline' : undefined }}
+                            onClick={onWeightClick ? (e => { e.stopPropagation(); onWeightClick(s) }) : undefined}
+                            title={onWeightClick ? 'View full weight history and graph' : wd?.isPlusDivision ? "Plus division (no upper weight limit) -- always shown as fine" : wd?.pctDiff != null ? "Green if in line with comp weight, red if not" : undefined}>
                             {wd?.current != null ? `${wd.current}kg` : '—'}
                           </td>
                         )}
