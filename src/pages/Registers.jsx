@@ -364,8 +364,9 @@ export default function Registers({ initialRegType, onStudentNameClick } = {}) {
           const compWeightInfo = compWeightByStudent[id] ?? null
           const compWeight = compWeightInfo?.value ?? null
           const compWeightLabel = compWeightInfo ? `${compWeightInfo.sign}${compWeightInfo.value}kg` : null
+          const isPlusDivision = compWeightInfo?.sign === '+'
           const pctDiff = compWeight && current != null ? ((current - compWeight) / compWeight * 100) : null
-          computed[id] = { entries, last5, current, trend, compWeight, compWeightLabel, pctDiff, entryCount: entries.length }
+          computed[id] = { entries, last5, current, trend, compWeight, compWeightLabel, isPlusDivision, pctDiff, entryCount: entries.length }
         }
         setWeightDataByStudent(computed)
       } else {
@@ -1516,7 +1517,8 @@ export default function Registers({ initialRegType, onStudentNameClick } = {}) {
                           <td style={{ textAlign: 'center', fontSize: 12 }}>{wd?.compWeightLabel || '—'}</td>
                         )}
                         {visibleCols.includes('weight_pctdiff') && (
-                          <td style={{ textAlign: 'center', fontSize: 12, fontWeight: 600, color: wd?.pctDiff == null ? 'var(--text-tertiary)' : wd.pctDiff > 0 ? '#E24B4A' : '#1D9E75' }}>
+                          <td style={{ textAlign: 'center', fontSize: 12, fontWeight: 600, color: wd?.pctDiff == null ? 'var(--text-tertiary)' : wd.isPlusDivision ? '#1D9E75' : wd.pctDiff > 0 ? '#E24B4A' : '#1D9E75' }}
+                            title={wd?.isPlusDivision ? "Plus division (no upper weight limit) -- always shown as fine" : undefined}>
                             {wd?.pctDiff != null ? `${wd.pctDiff > 0 ? '+' : ''}${wd.pctDiff.toFixed(1)}%` : '—'}
                           </td>
                         )}
