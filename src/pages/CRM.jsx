@@ -2882,7 +2882,7 @@ export default function CRM() {
             )}
           </div>
 
-          <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             {[['all', 'All'], ['call', 'Call'], ['text', 'Text'], ['email', 'Email'], ['facebook_ad', 'Social media']].map(([val, label]) => (
               <button key={val} onClick={() => setEnquiryMethodFilter(val)}
                 style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)',
@@ -2892,6 +2892,24 @@ export default function CRM() {
                 {label}
               </button>
             ))}
+            <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 2px' }} />
+            {/* Stage counts -- reflect whichever method pill above is
+                selected (e.g. pressing "Call" shows how many phone
+                enquiries are at each stage, not the club-wide total),
+                and doubles as the status filter itself when pressed. */}
+            {[['not_started', 'Enquiries', '#EF9F27'], ['contacted', 'Contacted', '#378ADD'], ['trial_booked', 'Booked', '#8B5CF6'], ['joined', 'Joined', '#1D9E75']].map(([val, label, colour]) => {
+              const count = enquiries.filter(e => e.status === val && (enquiryMethodFilter === 'all' || e.contact_method === enquiryMethodFilter)).length
+              const active = enquiryStatusFilter === val
+              return (
+                <button key={val} onClick={() => setEnquiryStatusFilter(active ? 'all' : val)}
+                  style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                    border: `1px solid ${active ? colour : 'var(--border)'}`,
+                    background: active ? colour + '18' : 'transparent',
+                    color: active ? colour : 'var(--text-secondary)', fontWeight: active ? 600 : 400 }}>
+                  {count} {label}
+                </button>
+              )
+            })}
           </div>
           {(showNewEnquiryForm || editingEnquiryId) && (
             <div className="card" style={{ marginBottom: 16, padding: 16 }}>
