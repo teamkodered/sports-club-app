@@ -1616,20 +1616,36 @@ export default function CRM() {
 
   async function loadMissedTraining() {
     setMissedTrainingLoading(true)
-    const [{ data: assignments }, { data: attendance }, { data: holidayRows }] = await Promise.all([
+    const [{ data: assignments }, attendance, { data: holidayRows }] = await Promise.all([
       supabase.from('student_class_assignments').select('student_id'),
-      supabase.from('attendance').select('student_id, session_date').order('session_date', { ascending: false }),
+      // Paginated -- attendance already has 1800+ rows, well past
+      // Supabase's default 1000-row cap on an unpaginated query.
+      // Ordered newest-first, an unpaginated fetch here would keep
+      // only the 1000 most recent attendance rows overall, so anyone
+      // who genuinely hasn't trained in a long time could have their
+      // real last-attended date fall outside that window and get
+      // wrongly treated as having "never attended at all" instead of
+      // showing how long they've actually been missing.
+      fetchAllRows(() => supabase.from('attendance').select('student_id, session_date').order('session_date', { ascending: false })),
       supabase.from('holidays').select('student_id, start_date, end_date'),
     ])
     const assignedStudentIds = new Set((assignments || []).map(a => a.student_id))
     const lastAttendedByStudent = {}
-    ;(attendance || []).forEach(a => {
+    attendance.forEach(a => {
       if (!lastAttendedByStudent[a.student_id]) lastAttendedByStudent[a.student_id] = a.session_date
     })
+    // Uses local date components rather than toISOString(), which
+    // converts to UTC first -- during BST (UTC+1), anything in the
+    // first hour after midnight would otherwise read back as
+    // yesterday's date, subtly shifting the cutoff and the holiday
+    // check for that narrow window each day.
+    function localDateStr(d) {
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    }
     const cutoff = new Date()
     cutoff.setDate(cutoff.getDate() - 28)
-    const cutoffStr = cutoff.toISOString().split('T')[0]
-    const todayStr = new Date().toISOString().split('T')[0]
+    const cutoffStr = localDateStr(cutoff)
+    const todayStr = localDateStr(new Date())
     const onHolidayStudentIds = new Set(
       (holidayRows || []).filter(h => h.start_date <= todayStr && todayStr <= h.end_date).map(h => h.student_id)
     )
