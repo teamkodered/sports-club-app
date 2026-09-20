@@ -7,9 +7,25 @@ function OneOffStudent({ displayStudents, onAdd, date }) {
   useEffect(() => {
     if (search.length < 2) { setResults([]); return }
     const t = setTimeout(async () => {
-      const { data: memberData } = await supabase
+      // A single .or() only ever checked whether the WHOLE typed
+      // string matched one field or the other, so a full-name search
+      // like "Anthony Piorkowski" could never match anyone, since
+      // neither their first name nor their last name alone contains
+      // both words together. Fetches a broader candidate set (anyone
+      // matching ANY word) via one combined .or(), then filters
+      // client-side to require every word to match first_name,
+      // last_name, or the full name somewhere -- avoiding any
+      // uncertainty about whether chaining multiple .or() calls
+      // ANDs them together the way a single query needs here.
+      const words = search.trim().split(/\s+/).filter(Boolean)
+      const orClause = words.map(w => `first_name.ilike.%${w}%,last_name.ilike.%${w}%`).join(',')
+      const { data: candidates } = await supabase
         .from('members').select('id, first_name, last_name, status')
-        .or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%`).limit(8)
+        .or(orClause).limit(50)
+      const memberData = (candidates || []).filter(m => {
+        const full = `${m.first_name} ${m.last_name}`.toLowerCase()
+        return words.every(w => full.includes(w.toLowerCase()))
+      }).slice(0, 8)
       if (!memberData?.length) { setResults([]); return }
       const eligibleMembers = memberData.filter(m => m.status !== 'stopped' && m.status !== 'not_started')
       const { data: stuData } = await supabase
