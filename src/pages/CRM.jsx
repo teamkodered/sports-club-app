@@ -2236,18 +2236,22 @@ export default function CRM() {
 
       if (rows.length === 0) { setFacebookImportResult({ error: 'No rows found in that file.' }); return }
 
-      // Rewritten to match the actual export from Meta's Leads Center
-      // (business.facebook.com/latest/leads_center), which is a real,
-      // different, much simpler format than what this function
-      // originally expected (id, created_time, full name, phone_number,
-      // campaign_name, ad_name, platform -- likely written for the
-      // older Graph API / Ads Manager bulk-download format instead).
-      // Leads Center's actual columns: Created, Name, Email, Source,
-      // Form, Channel, Stage, Owner, Labels, Phone, Secondary phone
-      // number, WhatsApp number.
-      //
-      // Cleans up phone numbers -- Meta's CSV export strips the "+" a
-      // UK number would normally show (e.g. "+4407435390511" becomes
+      // Facebook/Meta exports leads in more than one shape depending on
+      // where you download from -- this detects which one was handed
+      // in and reads it accordingly, rather than assuming only one
+      // format, so neither download path breaks the other.
+      // Format A ("id" format, likely from an older Ads Manager /
+      // Graph API bulk-download): id, created_time, full name /
+      // full_name, phone_number, email, campaign_name, ad_name,
+      // platform.
+      // Format B (Meta's newer Leads Center, business.facebook.com/
+      // latest/leads_center): Created, Name, Email, Source, Form,
+      // Channel, Stage, Owner, Labels, Phone, Secondary phone number,
+      // WhatsApp number.
+      const isIdFormat = 'id' in rows[0]
+
+      // Cleans up phone numbers -- Meta's CSV export can strip the "+"
+      // a UK number would normally show (e.g. "+4407435390511" becomes
       // the plain digits "4407435390511" once XLSX parses the cell),
       // and can leave the UK leading 0 alongside the 44 country code,
       // producing 13 raw digits instead of a genuinely valid number
@@ -2263,35 +2267,34 @@ export default function CRM() {
         return p || null
       }
 
-      // Created is "MM/DD/YYYY h:mmam/pm" (US-style month-first, since
-      // e.g. "09/20/2026" can't be read as day-first -- there's no
-      // 20th month).
-      function parseCreatedDate(raw) {
+      // Leads Center's Created column is "MM/DD/YYYY h:mmam/pm"
+      // (US-style month-first, since e.g. "09/20/2026" can't be
+      // read as day-first -- there's no 20th month).
+      function parseLeadsCenterDate(raw) {
         const m = String(raw || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
         if (!m) return new Date().toISOString().split('T')[0]
         const [, month, day, year] = m
         return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
       }
 
-      // No stable unique id in this export to dedupe against (unlike
-      // the old assumed format's "id" column), so this builds one from
-      // name + email + the date they came in -- good enough to stop
-      // importing the exact same row twice on a re-upload, without
-      // needing Facebook to provide an ID at all.
-      function makeExternalId(r, dateStr) {
-        return `fb_leadscenter_${(r.Name || '').trim().toLowerCase()}_${(r.Email || '').trim().toLowerCase()}_${dateStr}`
-      }
-
-      const withDates = rows.map(r => ({ r, dateStr: parseCreatedDate(r.Created) }))
-      const externalIds = withDates.map(({ r, dateStr }) => makeExternalId(r, dateStr))
-      const { data: existing } = await supabase.from('enquiries').select('external_id').in('external_id', externalIds)
-      const existingIds = new Set((existing || []).map(e => e.external_id))
-
-      const toInsert = withDates
-        .filter(({ r }) => r.Name || r.Email || r.Phone)
-        .map(({ r, dateStr }) => {
-          const external_id = makeExternalId(r, dateStr)
-          if (existingIds.has(external_id)) return null
+      const parsed = rows.map(r => {
+        if (isIdFormat) {
+          const created = r.created_time instanceof Date ? r.created_time : new Date(r.created_time)
+          const dateStr = isNaN(created) ? new Date().toISOString().split('T')[0] : created.toISOString().split('T')[0]
+          const notesParts = []
+          if (r.campaign_name) notesParts.push(`Campaign: ${r.campaign_name}`)
+          if (r.ad_name) notesParts.push(`Ad: ${r.ad_name}`)
+          if (r.platform) notesParts.push(`Platform: ${r.platform === 'ig' ? 'Instagram' : r.platform === 'fb' ? 'Facebook' : r.platform}`)
+          return {
+            name: r['full name'] || r.full_name || 'Unknown',
+            contact_phone: cleanPhone(r.phone_number),
+            contact_email: r.email || null,
+            enquiry_date: dateStr,
+            notes: notesParts.join(' · ') || null,
+            external_id: r.id ? String(r.id) : null,
+          }
+        } else {
+          const dateStr = parseLeadsCenterDate(r.Created)
           const notesParts = []
           if (r.Form) notesParts.push(`Form: ${r.Form}`)
           if (r.Source) notesParts.push(`Source: ${r.Source}`)
@@ -2299,14 +2302,25 @@ export default function CRM() {
             name: r.Name || 'Unknown',
             contact_phone: cleanPhone(r.Phone) || cleanPhone(r['WhatsApp number']),
             contact_email: r.Email || null,
-            contact_method: 'facebook_ad',
             enquiry_date: dateStr,
             notes: notesParts.join(' · ') || null,
-            status: 'not_started',
-            external_id,
+            // No stable unique id in this export to dedupe against
+            // (unlike Format A's "id" column), so this builds one from
+            // name + email + the date they came in -- good enough to
+            // stop importing the exact same row twice on a re-upload,
+            // without needing Facebook to provide an ID at all.
+            external_id: `fb_leadscenter_${(r.Name || '').trim().toLowerCase()}_${(r.Email || '').trim().toLowerCase()}_${dateStr}`,
           }
-        })
-        .filter(Boolean)
+        }
+      }).filter(p => p.external_id)
+
+      const externalIds = parsed.map(p => p.external_id)
+      const { data: existing } = await supabase.from('enquiries').select('external_id').in('external_id', externalIds)
+      const existingIds = new Set((existing || []).map(e => e.external_id))
+
+      const toInsert = parsed
+        .filter(p => !existingIds.has(p.external_id))
+        .map(p => ({ ...p, contact_method: 'facebook_ad', status: 'not_started' }))
 
       if (toInsert.length === 0) {
         setFacebookImportResult({ added: 0, skipped: rows.length })
