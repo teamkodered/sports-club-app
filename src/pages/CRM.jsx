@@ -2221,38 +2221,92 @@ export default function CRM() {
       // next line's XLSX.utils call failed instead of surfacing a
       // clearer parsing error.
       const isCsv = file.name?.toLowerCase().endsWith('.csv')
+      let text = isCsv ? await file.text() : null
+      // Strips a leading UTF-8 byte-order-mark -- Meta's Leads Center
+      // export includes one, which otherwise silently attaches itself
+      // to the first column's name (turning "Created" into an
+      // unmatchable "\uFEFFCreated"), so every row's date parsing
+      // failed without any visible error.
+      if (text) text = text.replace(/^\uFEFF/, '')
       const wb = isCsv
-        ? XLSX.read(await file.text(), { type: 'string' })
+        ? XLSX.read(text, { type: 'string' })
         : XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true })
       const sheet = wb.Sheets[wb.SheetNames[0]]
       const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' })
 
       if (rows.length === 0) { setFacebookImportResult({ error: 'No rows found in that file.' }); return }
 
-      const externalIds = rows.map(r => String(r.id || '')).filter(Boolean)
+      // Rewritten to match the actual export from Meta's Leads Center
+      // (business.facebook.com/latest/leads_center), which is a real,
+      // different, much simpler format than what this function
+      // originally expected (id, created_time, full name, phone_number,
+      // campaign_name, ad_name, platform -- likely written for the
+      // older Graph API / Ads Manager bulk-download format instead).
+      // Leads Center's actual columns: Created, Name, Email, Source,
+      // Form, Channel, Stage, Owner, Labels, Phone, Secondary phone
+      // number, WhatsApp number.
+      //
+      // Cleans up phone numbers -- Meta's CSV export strips the "+" a
+      // UK number would normally show (e.g. "+4407435390511" becomes
+      // the plain digits "4407435390511" once XLSX parses the cell),
+      // and can leave the UK leading 0 alongside the 44 country code,
+      // producing 13 raw digits instead of a genuinely valid number
+      // either way. This strips whichever form of the 44 prefix is
+      // present and always ensures the result starts with a single 0.
+      function cleanPhone(raw) {
+        if (!raw) return null
+        let p = String(raw).trim().replace(/[\s()-]/g, '')
+        if (p.startsWith('+44')) p = p.slice(3)
+        else if (p.startsWith('0044')) p = p.slice(4)
+        else if (p.startsWith('44')) p = p.slice(2)
+        if (!p.startsWith('0')) p = '0' + p
+        return p || null
+      }
+
+      // Created is "MM/DD/YYYY h:mmam/pm" (US-style month-first, since
+      // e.g. "09/20/2026" can't be read as day-first -- there's no
+      // 20th month).
+      function parseCreatedDate(raw) {
+        const m = String(raw || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+        if (!m) return new Date().toISOString().split('T')[0]
+        const [, month, day, year] = m
+        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+      }
+
+      // No stable unique id in this export to dedupe against (unlike
+      // the old assumed format's "id" column), so this builds one from
+      // name + email + the date they came in -- good enough to stop
+      // importing the exact same row twice on a re-upload, without
+      // needing Facebook to provide an ID at all.
+      function makeExternalId(r, dateStr) {
+        return `fb_leadscenter_${(r.Name || '').trim().toLowerCase()}_${(r.Email || '').trim().toLowerCase()}_${dateStr}`
+      }
+
+      const withDates = rows.map(r => ({ r, dateStr: parseCreatedDate(r.Created) }))
+      const externalIds = withDates.map(({ r, dateStr }) => makeExternalId(r, dateStr))
       const { data: existing } = await supabase.from('enquiries').select('external_id').in('external_id', externalIds)
       const existingIds = new Set((existing || []).map(e => e.external_id))
 
-      const toInsert = rows
-        .filter(r => r.id && !existingIds.has(String(r.id)))
-        .map(r => {
-          const created = r.created_time instanceof Date ? r.created_time : new Date(r.created_time)
-          const dateStr = isNaN(created) ? new Date().toISOString().split('T')[0] : created.toISOString().split('T')[0]
+      const toInsert = withDates
+        .filter(({ r }) => r.Name || r.Email || r.Phone)
+        .map(({ r, dateStr }) => {
+          const external_id = makeExternalId(r, dateStr)
+          if (existingIds.has(external_id)) return null
           const notesParts = []
-          if (r.campaign_name) notesParts.push(`Campaign: ${r.campaign_name}`)
-          if (r.ad_name) notesParts.push(`Ad: ${r.ad_name}`)
-          if (r.platform) notesParts.push(`Platform: ${r.platform === 'ig' ? 'Instagram' : r.platform === 'fb' ? 'Facebook' : r.platform}`)
+          if (r.Form) notesParts.push(`Form: ${r.Form}`)
+          if (r.Source) notesParts.push(`Source: ${r.Source}`)
           return {
-            name: r['full name'] || r.full_name || 'Unknown',
-            contact_phone: r.phone_number || null,
-            contact_email: r.email || null,
+            name: r.Name || 'Unknown',
+            contact_phone: cleanPhone(r.Phone) || cleanPhone(r['WhatsApp number']),
+            contact_email: r.Email || null,
             contact_method: 'facebook_ad',
             enquiry_date: dateStr,
             notes: notesParts.join(' · ') || null,
             status: 'not_started',
-            external_id: String(r.id),
+            external_id,
           }
         })
+        .filter(Boolean)
 
       if (toInsert.length === 0) {
         setFacebookImportResult({ added: 0, skipped: rows.length })
