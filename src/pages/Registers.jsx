@@ -171,6 +171,26 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   const [awardingFor, setAwardingFor]   = useState(null)
   const [multiAward, setMultiAward]     = useState(false)
   const [selectedStudents, setSelectedStudents] = useState([])
+  // The table header below is sticky, positioned just under this
+  // toolbar -- it previously assumed a hardcoded 46px gap, but the
+  // toolbar can genuinely wrap onto two lines (narrow screens, or once
+  // "+ Points (N)"/"Deselect all" appear after selecting students),
+  // making it taller than that guess and causing the header -- and the
+  // first row of students -- to end up partially hidden underneath it.
+  // Measuring the toolbar's real height keeps the header positioned
+  // correctly regardless of how many lines it's actually wrapped to.
+  const registerToolbarRef = useRef(null)
+  const [registerToolbarHeight, setRegisterToolbarHeight] = useState(46)
+  useEffect(() => {
+    const el = registerToolbarRef.current
+    if (!el) return
+    const observer = new ResizeObserver(entries => {
+      const h = entries[0]?.contentRect?.height
+      if (h) setRegisterToolbarHeight(Math.ceil(h))
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
   const [selectedPoints, setSelectedPoints]     = useState([])
   const [customLabel, setCustomLabel]           = useState('')
   const [customPoints, setCustomPoints]         = useState('')
@@ -1238,7 +1258,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
           Sticky so these stay reachable while scrolling through a long
           student list -- picking students, then attendance/points,
           without scrolling back up each time. */}
-      <div style={{
+      <div ref={registerToolbarRef} style={{
         display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap', alignItems: 'center',
         position: 'sticky', top: 0, zIndex: 15, background: 'var(--bg)', padding: '8px 0',
       }}>
@@ -1349,7 +1369,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
             </div>
           )}
           <table style={{ minWidth: isKR ? 900 : 680 }}>
-            <thead style={{ position: 'sticky', top: 46, zIndex: 12, background: 'var(--bg)' }}>
+            <thead style={{ position: 'sticky', top: registerToolbarHeight, zIndex: 12, background: 'var(--bg)' }}>
               <tr>
                 {visibleCols.includes('checkbox') && <th style={{ width: 32, paddingLeft: 12, background: 'var(--bg)', position: 'sticky', left: 0, zIndex: 13 }}></th>}
                 {visibleCols.includes('student_ref') && <SortTh col="student_ref" label="ID" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
