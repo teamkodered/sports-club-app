@@ -43,6 +43,32 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
   const [videoAspect, setVideoAspect] = useState(16 / 9) // updated once real metadata loads; used to keep overlays aligned to the actual visible video, not the full (possibly letterboxed) screen
   const [isFullscreen, setIsFullscreen] = useState(false)
 
+  // Pushes a history entry when the player opens, so the device/browser
+  // back button closes the player first (returning to Media/CCTV/View
+  // IT) instead of skipping straight past it to wherever the browser's
+  // history was before the player opened -- without this, back could
+  // jump all the way out to the app's home screen in one press, since
+  // opening the player here doesn't otherwise change the URL at all.
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+  useEffect(() => {
+    window.history.pushState({ fightFootagePlayerOpen: true }, '')
+    function handlePopState() {
+      onCloseRef.current?.()
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => {
+      window.removeEventListener('popstate', handlePopState)
+      // If the player is closing for a reason other than the user
+      // pressing back (e.g. its own ✕ button), the history entry
+      // pushed above is still sitting there unused -- clean it up so
+      // a later, unrelated back press doesn't land on a stale entry
+      // that does nothing.
+      if (window.history.state?.fightFootagePlayerOpen) window.history.back()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Controls visibility -- tap the video to show, auto-hides after a
   // few seconds of no interaction. Never hides while actively
   // scrubbing, so dragging the timeline always stays responsive.

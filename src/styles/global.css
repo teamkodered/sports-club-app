@@ -196,8 +196,11 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .view-it-btn {
   outline: none !important;
   background: rgba(60, 60, 60, 0.45) !important;
+  color: #fff !important;
+  border-color: rgba(255, 255, 255, 0.35) !important;
 }
 .view-it-btn:hover, .view-it-btn:focus, .view-it-btn:active {
   outline: none !important;
   background: rgba(60, 60, 60, 0.45) !important;
+  color: #fff !important;
 }
