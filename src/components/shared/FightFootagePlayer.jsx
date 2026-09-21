@@ -621,7 +621,13 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
     e.target.setPointerCapture?.(e.pointerId)
     holdStartPosRef.current = { x: e.clientX, y: e.clientY }
     clearTimeout(holdTimerRef.current)
-    holdTimerRef.current = setTimeout(engageHoldSlowMo, HOLD_THRESHOLD_MS)
+    // Uses the same longer VIDEO_HOLD_THRESHOLD_MS as tapping the video
+    // itself, not the shorter shared HOLD_THRESHOLD_MS -- a normal tap
+    // on the play/pause button was intermittently taking long enough
+    // to cross that shorter threshold, misfiring as a hold-for-slow-mo
+    // gesture instead of a genuine tap, which is exactly why pause
+    // wasn't reacting every single time.
+    holdTimerRef.current = setTimeout(engageHoldSlowMo, VIDEO_HOLD_THRESHOLD_MS)
   }
 
   function handlePlayButtonPointerMove(e) {
