@@ -1895,7 +1895,21 @@ export default function CRM() {
       { key: 'stopped', label: 'Stopped', colour: '#E24B4A' },
       { key: 'trained', label: 'Students trained', colour: '#EF9F27' },
     ]
-    const [visible, setVisible] = useState(() => new Set(SERIES.map(s => s.key)))
+    // Remembers which series pills were switched on/off across
+    // sessions -- if "Students trained" was turned off last time,
+    // it should still be off next time the app opens, not silently
+    // reset back to everything visible.
+    const [visible, setVisible] = useState(() => {
+      const saved = localStorage.getItem('trackers_chart_visible_series')
+      if (!saved) return new Set(SERIES.map(s => s.key))
+      try {
+        const parsed = JSON.parse(saved)
+        // Only keeps keys that still genuinely exist as a series,
+        // in case the set of series ever changes later.
+        return new Set(parsed.filter(k => SERIES.some(s => s.key === k)))
+      } catch { return new Set(SERIES.map(s => s.key)) }
+    })
+    useEffect(() => { localStorage.setItem('trackers_chart_visible_series', JSON.stringify([...visible])) }, [visible])
     const [tappedBar, setTappedBar] = useState(null) // { label, value, date } -- shown on tap, since SVG's native <title> tooltip only works on hover (desktop), not touch
 
     function toggleSeries(key) {
