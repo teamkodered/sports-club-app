@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useBackableTab } from '../hooks/useBackableTab.js'
+import { useSyncedPreference } from '../hooks/useSyncedPreference.js'
 import * as XLSXModule from 'xlsx'
 // Some bundlers wrap a CommonJS module like xlsx so the actual exports
 // (read, utils, writeFile, ...) end up nested under a .default property
@@ -349,26 +350,25 @@ export default function CRM() {
   const { isAdmin } = useAuth()
   const location = useLocation()
   const DEFAULT_TAB_ORDER = ['standing_orders', 'missed_training', 'stopped_training', 'grading_requests', 'birthdays', 'enquiries', 'trackers', 'messages', 'email', 'courses']
-  const [tabOrder, setTabOrder] = useState(() => {
-    const saved = localStorage.getItem('crm_tab_order')
-    if (!saved) return DEFAULT_TAB_ORDER
-    try {
-      const parsed = JSON.parse(saved)
-      // Adds any newly-introduced tab that predates a saved order,
-      // and drops any that no longer exist, rather than silently
-      // hiding/crashing on a stale list.
-      const stillValid = parsed.filter(k => DEFAULT_TAB_ORDER.includes(k))
-      const missing = DEFAULT_TAB_ORDER.filter(k => !stillValid.includes(k))
-      return [...stillValid, ...missing]
-    } catch { return DEFAULT_TAB_ORDER }
-  })
+  const [tabOrder, setTabOrder] = useSyncedPreference('crm_tab_order', DEFAULT_TAB_ORDER)
+  // Adds any newly-introduced tab that predates a saved order, and
+  // drops any that no longer exist, rather than silently hiding/
+  // crashing on a stale list -- runs once the (possibly synced-from-
+  // another-device) value is actually in place.
+  useEffect(() => {
+    const stillValid = tabOrder.filter(k => DEFAULT_TAB_ORDER.includes(k))
+    const missing = DEFAULT_TAB_ORDER.filter(k => !stillValid.includes(k))
+    if (missing.length > 0 || stillValid.length !== tabOrder.length) {
+      setTabOrder([...stillValid, ...missing])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabOrder])
   // Opens on whichever tab is actually first in the (possibly
   // reordered) tab order, rather than a hardcoded 'standing_orders' --
   // previously always opened there regardless of how the tabs had
   // been dragged around, since this default never looked at tabOrder
   // at all.
   const [tab, setTab] = useBackableTab(tabOrder[0])
-  useEffect(() => { localStorage.setItem('crm_tab_order', JSON.stringify(tabOrder)) }, [tabOrder])
   const [draggingTab, setDraggingTab] = useState(null)
   const tabHoldTimerRef = useRef(null)
   const tabDragStartXRef = useRef(0)
@@ -1899,35 +1899,12 @@ export default function CRM() {
     // individual staff member, following them across their own
     // devices -- if "Students trained" was turned off last time on
     // their phone, it should still be off next time they open the app
-    // on their laptop too, not just on that one device (localStorage
-    // alone can't do that, since it never leaves the browser it was
-    // set in).
-    const { profile: chartProfile } = useAuth()
-    const [visible, setVisible] = useState(() => {
-      const saved = chartProfile?.trackers_chart_visible_series
-      if (!saved) return new Set(SERIES.map(s => s.key))
-      return new Set(saved.filter(k => SERIES.some(s => s.key === k)))
-    })
-    // Applies the profile's saved value once it actually finishes
-    // loading -- useAuth's profile starts out null while the request
-    // is in flight, so the useState initializer above may have already
-    // fallen back to "everything visible" before the real saved value
-    // was available.
-    const chartVisibleAppliedRef = useRef(false)
-    useEffect(() => {
-      if (chartVisibleAppliedRef.current) return
-      if (chartProfile?.trackers_chart_visible_series) {
-        chartVisibleAppliedRef.current = true
-        setVisible(new Set(chartProfile.trackers_chart_visible_series.filter(k => SERIES.some(s => s.key === k))))
-      }
-    }, [chartProfile])
-    useEffect(() => {
-      const arr = [...visible]
-      localStorage.setItem('trackers_chart_visible_series', JSON.stringify(arr))
-      if (chartProfile?.id) {
-        supabase.from('members').update({ trackers_chart_visible_series: arr }).eq('id', chartProfile.id).then(() => {})
-      }
-    }, [visible])
+    // on their laptop too, not just on that one device.
+    const [visibleArr, setVisibleArr] = useSyncedPreference('trackers_chart_visible_series', SERIES.map(s => s.key))
+    const visible = new Set(visibleArr.filter(k => SERIES.some(s => s.key === k)))
+    function setVisible(next) {
+      setVisibleArr([...(typeof next === 'function' ? next(visible) : next)])
+    }
     const [tappedBar, setTappedBar] = useState(null) // { label, value, date } -- shown on tap, since SVG's native <title> tooltip only works on hover (desktop), not touch
 
     function toggleSeries(key) {

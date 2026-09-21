@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useBackableTab } from '../hooks/useBackableTab.js'
+import { useSyncedPreference } from '../hooks/useSyncedPreference.js'
 import StudentProfile from '../components/students/StudentProfile.jsx'
 import Registers from './Registers.jsx'
 import * as XLSXModule from 'xlsx'
@@ -2725,17 +2726,12 @@ export default function AthleteProfiles() {
   // behind a different trigger later.
   const flameHoldTimer = useRef(null)
   const [showQuickLoggerPicker, setShowQuickLoggerPicker] = useState(false)
-  // Remembers the last-entered date range across visits (per browser) --
-  // defaults to the last 30 days only the very first time, before
-  // anything's been saved.
-  const [radarDateFrom, setRadarDateFrom] = useState(() => {
-    try { const saved = localStorage.getItem('perfOverview_dateFrom'); if (saved) return saved } catch {}
-    const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split('T')[0]
-  })
-  const [radarDateTo, setRadarDateTo] = useState(() => {
-    try { const saved = localStorage.getItem('perfOverview_dateTo'); if (saved) return saved } catch {}
-    return new Date().toISOString().split('T')[0]
-  })
+  // Remembers the last-entered date range, following the logged-in
+  // person across their own devices -- defaults to the last 30 days
+  // only the very first time, before anything's been saved anywhere.
+  const defaultRadarDateFromAP = (() => { const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split('T')[0] })()
+  const [radarDateFrom, setRadarDateFrom] = useSyncedPreference('perfOverview_dateFrom', defaultRadarDateFromAP)
+  const [radarDateTo, setRadarDateTo] = useSyncedPreference('perfOverview_dateTo', new Date().toISOString().split('T')[0])
   const [radarDrilldown, setRadarDrilldown] = useState(null)
   // Sweep the Sheds -- coach assigns a task to any number of athletes
   // at once, independent of whichever athlete is currently selected.
@@ -2779,9 +2775,7 @@ export default function AthleteProfiles() {
   const [todaysAllSessions, setTodaysAllSessions] = useState([])
   const [allTeamSessions, setAllTeamSessions] = useState([])
   const [showResultsColPicker, setShowResultsColPicker] = useState(false)
-  const [resultsVisibleCols, setResultsVisibleCols] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('results_visible_cols')) || RESULTS_DEFAULT_VISIBLE } catch { return RESULTS_DEFAULT_VISIBLE }
-  })
+  const [resultsVisibleCols, setResultsVisibleCols] = useSyncedPreference('results_visible_cols', RESULTS_DEFAULT_VISIBLE)
   const [resultsSortKey, setResultsSortKey] = useState('date')
   const [resultsMetricSection, setResultsMetricSection] = useState('Physical') // 'Physical' | 'Test'
   // Briefly highlights a results-table row after jumping to it from a
@@ -6595,11 +6589,7 @@ export default function AthleteProfiles() {
                   else { setResultsSortKey(key); setResultsSortDir('asc') }
                 }
                 function toggleResultsCol(key) {
-                  setResultsVisibleCols(prev => {
-                    const next = prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
-                    localStorage.setItem('results_visible_cols', JSON.stringify(next))
-                    return next
-                  })
+                  setResultsVisibleCols(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key])
                 }
                 const visibleColumns = RESULTS_ALL_COLUMNS.filter(c => resultsVisibleCols.includes(c.key) || (c.key === 'metric_value' && metricReady))
 
@@ -6781,7 +6771,7 @@ export default function AthleteProfiles() {
                           ))}
                         </div>
                         <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => {
-                          setResultsVisibleCols(RESULTS_DEFAULT_VISIBLE); localStorage.setItem('results_visible_cols', JSON.stringify(RESULTS_DEFAULT_VISIBLE))
+                          setResultsVisibleCols(RESULTS_DEFAULT_VISIBLE)
                         }}>Reset to default</button>
                       </div>
                     )}
@@ -11113,9 +11103,9 @@ export default function AthleteProfiles() {
                       <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>🕸️ Performance Overview</h2>
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}>
                         <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>From</label>
-                        <input type="date" value={radarDateFrom} onChange={e => { setRadarDateFrom(e.target.value); try { localStorage.setItem('perfOverview_dateFrom', e.target.value) } catch {} }} style={{ fontSize: 12 }} />
+                        <input type="date" value={radarDateFrom} onChange={e => setRadarDateFrom(e.target.value)} style={{ fontSize: 12 }} />
                         <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>To</label>
-                        <input type="date" value={radarDateTo} onChange={e => { setRadarDateTo(e.target.value); try { localStorage.setItem('perfOverview_dateTo', e.target.value) } catch {} }} style={{ fontSize: 12 }} />
+                        <input type="date" value={radarDateTo} onChange={e => setRadarDateTo(e.target.value)} style={{ fontSize: 12 }} />
                       </div>
                       <RadarChart axes={axes} onAxisClick={label => setRadarDrilldown(d => d === label ? null : label)} activeLabel={radarDrilldown} />
                       <p style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center', marginTop: -4, marginBottom: 8 }}>Tap an axis label to see the numbers behind it</p>

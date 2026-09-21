@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth.jsx'
+import { useSyncedPreference } from '../hooks/useSyncedPreference.js'
 import { supabase } from '../lib/supabase.js'
 import { studentProfileLink } from '../lib/studentLinks.js'
 
@@ -47,23 +48,31 @@ export default function Dashboard() {
 
   // Colours the number green/orange/red depending on whether it's gone
   // up, stayed the same, or gone down since the last time this same
-  // stat was viewed -- tracked per browser via localStorage, since
-  // there's no dedicated history table for these dashboard counts.
+  // stat was viewed -- there's no dedicated history table for these
+  // dashboard counts, so the previous value itself is what's tracked
+  // and synced per staff member (via the same synced-preference
+  // mechanism as other settings), so "since I last looked" reflects
+  // whichever device they actually last checked from, not just this
+  // one browser.
   // Computed once per real data load (not per render), otherwise
   // cycling the breakdown view would re-trigger this and immediately
   // make "previous" equal "current", losing the actual trend.
+  const [prevMemberCount, setPrevMemberCount] = useSyncedPreference('dash_trend_members', null)
+  const [prevAthleteCount, setPrevAthleteCount] = useSyncedPreference('dash_trend_athletes', null)
   const [trendColours, setTrendColours] = useState({})
   useEffect(() => {
     if (stats.memberCount == null && stats.athleteCount == null) return
     const next = {}
-    for (const [key, value] of Object.entries({ members: stats.memberCount, athletes: stats.athleteCount })) {
+    for (const [key, value, prev, setPrev] of [
+      ['members', stats.memberCount, prevMemberCount, setPrevMemberCount],
+      ['athletes', stats.athleteCount, prevAthleteCount, setPrevAthleteCount],
+    ]) {
       if (value == null) continue
-      const stored = localStorage.getItem(`dash_trend_${key}`)
-      const prev = stored != null ? Number(stored) : null
-      localStorage.setItem(`dash_trend_${key}`, String(value))
+      if (value !== prev) setPrev(value)
       next[key] = prev == null ? undefined : value > prev ? '#1D9E75' : value < prev ? '#E24B4A' : '#EF9F27'
     }
     setTrendColours(next)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stats.memberCount, stats.athleteCount])
   const [standings, setStandings] = useState([])
   const [topStudents, setTopStudents] = useState([])

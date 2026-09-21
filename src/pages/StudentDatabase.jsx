@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useBackableTab } from '../hooks/useBackableTab.js'
+import { useSyncedPreference } from '../hooks/useSyncedPreference.js'
 import StudentProfile from '../components/students/StudentProfile.jsx'
 import { studentProfileLink } from '../lib/studentLinks.js'
 
@@ -105,18 +106,11 @@ export default function StudentDatabase() {
   const [stopping, setStopping]       = useState(null)
   const [roleEdit, setRoleEdit]       = useState(null)
   const [sortKey, setSortKey]         = useState('last_name')
-  const [studentsZoom, setStudentsZoom] = useState(() => Number(localStorage.getItem('students_zoom')) || 100)
-  useEffect(() => { localStorage.setItem('students_zoom', String(studentsZoom)) }, [studentsZoom])
+  const [studentsZoom, setStudentsZoom] = useSyncedPreference('students_zoom', 100)
   const [sortDir, setSortDir]         = useState('asc')
-  const [visibleCols, setVisibleCols] = useState(DEFAULT_VISIBLE)
+  const [visibleCols, setVisibleCols] = useSyncedPreference('students_visible_cols', DEFAULT_VISIBLE)
   const [showColPicker, setShowColPicker] = useState(false)
   const [belts, setBelts] = useState({ junior: [], senior: [], krba: [] })
-
-  // Load column prefs from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem('students_visible_cols')
-    if (saved) setVisibleCols(JSON.parse(saved))
-  }, [])
 
   // Load belt/level options for inline grade editing
   useEffect(() => {
@@ -128,11 +122,7 @@ export default function StudentDatabase() {
   }, [])
 
   function toggleCol(key) {
-    setVisibleCols(prev => {
-      const next = prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
-      localStorage.setItem('students_visible_cols', JSON.stringify(next))
-      return next
-    })
+    setVisibleCols(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key])
   }
 
   useEffect(() => { load() }, [])
@@ -379,7 +369,7 @@ export default function StudentDatabase() {
               }}>{c.label}</button>
             ))}
           </div>
-          <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => { setVisibleCols(DEFAULT_VISIBLE); localStorage.setItem('students_visible_cols', JSON.stringify(DEFAULT_VISIBLE)) }}>Reset to default</button>
+          <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => setVisibleCols(DEFAULT_VISIBLE)}>Reset to default</button>
         </div>
       )}
 

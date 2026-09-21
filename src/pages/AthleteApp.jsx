@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase.js'
 import { supabasePublic } from '../lib/supabasePublic.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useBackableTab } from '../hooks/useBackableTab.js'
+import { useSyncedPreference } from '../hooks/useSyncedPreference.js'
 import AthleteFightFootage from '../components/shared/AthleteFightFootage.jsx'
 
 const HOUSE_COLOURS = {
@@ -1438,17 +1439,14 @@ export default function AthleteApp() {
   // for Performance/Attendance reporting, so the radar's date range
   // never goes earlier than this, regardless of the "last 30 days" default.
   const SOFT_LAUNCH_DATE = '2026-08-01'
-  // Remembers the last-entered date range across visits (per browser) --
-  // defaults to the last 30 days only the very first time, before
-  // anything's been saved.
-  const [radarDateFrom, setRadarDateFrom] = useState(() => {
-    try { const saved = localStorage.getItem('perfOverview_dateFrom'); if (saved) return saved } catch {}
+  // Remembers the last-entered date range, following the logged-in
+  // person across their own devices -- defaults to the last 30 days
+  // only the very first time, before anything's been saved anywhere.
+  const defaultRadarDateFrom = (() => {
     const d = new Date(); d.setDate(d.getDate() - 30); const iso = d.toISOString().split('T')[0]; return iso < SOFT_LAUNCH_DATE ? SOFT_LAUNCH_DATE : iso
-  })
-  const [radarDateTo, setRadarDateTo] = useState(() => {
-    try { const saved = localStorage.getItem('perfOverview_dateTo'); if (saved) return saved } catch {}
-    return new Date().toISOString().split('T')[0]
-  })
+  })()
+  const [radarDateFrom, setRadarDateFrom] = useSyncedPreference('perfOverview_dateFrom', defaultRadarDateFrom)
+  const [radarDateTo, setRadarDateTo] = useSyncedPreference('perfOverview_dateTo', new Date().toISOString().split('T')[0])
   const [radarDrilldown, setRadarDrilldown] = useState(null) // which axis label is expanded, or null
   const [f2fQuickLogSection, setF2fQuickLogSection] = useState(null) // which F2F section header is expanded to show its target questions
   const [f2fQuickLogQuestion, setF2fQuickLogQuestion] = useState(null) // which question within that section is expanded to show the log control
@@ -7079,10 +7077,10 @@ export default function AthleteApp() {
                   <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>From</label>
                   <input type="date" value={radarDateFrom} min={SOFT_LAUNCH_DATE} onChange={e => {
                     const v = e.target.value < SOFT_LAUNCH_DATE ? SOFT_LAUNCH_DATE : e.target.value
-                    setRadarDateFrom(v); try { localStorage.setItem('perfOverview_dateFrom', v) } catch {}
+                    setRadarDateFrom(v)
                   }} style={{ fontSize: 12 }} />
                   <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>To</label>
-                  <input type="date" value={radarDateTo} onChange={e => { setRadarDateTo(e.target.value); try { localStorage.setItem('perfOverview_dateTo', e.target.value) } catch {} }} style={{ fontSize: 12 }} />
+                  <input type="date" value={radarDateTo} onChange={e => setRadarDateTo(e.target.value)} style={{ fontSize: 12 }} />
                 </div>
                 <RadarChart axes={axes} onAxisClick={label => setRadarDrilldown(d => d === label ? null : label)} activeLabel={radarDrilldown} />
                 <p style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center', marginTop: -4, marginBottom: 8 }}>Tap an axis label to see the numbers behind it</p>

@@ -77,6 +77,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
+import { useSyncedPreference } from '../hooks/useSyncedPreference.js'
 import { studentProfileLink } from '../lib/studentLinks.js'
 
 const HOUSE_COLOURS = {
@@ -200,8 +201,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   const [adhocPills, setAdhocPills]     = useState([]) // { id, name, student_ref }
   const oneOffStudentsRef = useRef([]) // full student objects added via "one-off" this session -- kept separately so a reload (date/regType change, or a slow fetch resolving after they were added) can never silently wipe them back out
   const tableRef = useRef(null)
-  const [registerZoom, setRegisterZoom] = useState(() => Number(localStorage.getItem('register_zoom')) || 100)
-  useEffect(() => { localStorage.setItem('register_zoom', String(registerZoom)) }, [registerZoom])
+  const [registerZoom, setRegisterZoom] = useSyncedPreference('register_zoom', 100)
   // Distinguishes a horizontal swipe (to see other columns) from a
   // genuine tap-to-select -- mobile browsers can still fire a click
   // after a touch that moved a little, so this tracks the actual
@@ -224,18 +224,12 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     setSelectedStudents(prev => prev.includes(studentId) ? prev.filter(x => x !== studentId) : [...prev, studentId])
   }
   const [showColPicker, setShowColPicker] = useState(false)
-  const [visibleCols, setVisibleCols] = useState(() => {
-    const saved = localStorage.getItem('register_cols')
-    if (saved) {
-      // "record" wasn't a toggleable option before -- it was always
-      // shown for KR/KRBA regardless of any saved preference, so an
-      // existing saved list predating this change shouldn't be read
-      // as "the user chose to hide it".
-      const parsed = JSON.parse(saved)
-      return parsed.includes('record') ? parsed : [...parsed, 'record']
-    }
-    return ['checkbox','student_ref','name','age','house','grade','groups','attendance','media','points','record']
-  })
+  const [visibleColsRaw, setVisibleCols] = useSyncedPreference('register_cols', ['checkbox','student_ref','name','age','house','grade','groups','attendance','media','points','record'])
+  // "record" wasn't a toggleable option before -- it was always shown
+  // for KR/KRBA regardless of any saved preference, so an existing
+  // saved list predating this change shouldn't be read as "the user
+  // chose to hide it".
+  const visibleCols = visibleColsRaw.includes('record') ? visibleColsRaw : [...visibleColsRaw, 'record']
 
   const ALL_REG_COLS = [
     { key: 'checkbox',    label: 'Select' },
@@ -261,11 +255,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   ]
 
   function toggleRegCol(key) {
-    setVisibleCols(prev => {
-      const next = prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
-      localStorage.setItem('register_cols', JSON.stringify(next))
-      return next
-    })
+    setVisibleCols(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key])
   }
 
   useEffect(() => { loadPointTypes() }, [])
