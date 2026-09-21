@@ -558,7 +558,7 @@ export default function CRM() {
   const [courses, setCourses] = useState([])
   const [coursesLoaded, setCoursesLoaded] = useState(false)
   const [editingCourse, setEditingCourse] = useState(null) // {} for new, or the course object
-  const [courseForm, setCourseForm] = useState({ title: '', description: '', poster_url: '', start_date: '', end_date: '', location: '', price: '', message_text: '', repeat_type: 'none', repeat_count: 8 })
+  const [courseForm, setCourseForm] = useState({ title: '', description: '', poster_url: '', start_date: '', end_date: '', location: '', price: '', message_text: '', repeat_type: 'none', repeat_count: 8, repeat_ends: 'count', repeat_until: '' })
   const [courseInterest, setCourseInterest] = useState({}) // course_id -> array of responses
   const [loadingInterestFor, setLoadingInterestFor] = useState(null)
   const [savingCourse, setSavingCourse] = useState(false)
@@ -689,8 +689,8 @@ export default function CRM() {
   function startEditCourse(course) {
     setEditingCourse(course || {})
     setCourseForm(course
-      ? { title: course.title, description: course.description || '', poster_url: course.poster_url || '', start_date: course.start_date, end_date: course.end_date || '', location: course.location || '', price: course.price || '', message_text: course.message_text || '', repeat_type: 'none', repeat_count: 8 }
-      : { title: '', description: '', poster_url: '', start_date: '', end_date: '', location: '', price: '', message_text: '', repeat_type: 'none', repeat_count: 8 })
+      ? { title: course.title, description: course.description || '', poster_url: course.poster_url || '', start_date: course.start_date, end_date: course.end_date || '', location: course.location || '', price: course.price || '', message_text: course.message_text || '', repeat_type: 'none', repeat_count: 8, repeat_ends: 'count', repeat_until: '' }
+      : { title: '', description: '', poster_url: '', start_date: '', end_date: '', location: '', price: '', message_text: '', repeat_type: 'none', repeat_count: 8, repeat_ends: 'count', repeat_until: '' })
   }
 
   async function uploadCoursePoster(file) {
@@ -708,8 +708,12 @@ export default function CRM() {
 
   async function saveCourse() {
     if (!courseForm.title || !courseForm.start_date) { alert('Please fill in at least a title and start date.'); return }
+    if (courseForm.repeat_type !== 'none' && courseForm.repeat_ends === 'until' && !courseForm.repeat_until) {
+      alert('Please pick an end date for the repeat, or switch it to "After N occurrences".')
+      return
+    }
     setSavingCourse(true)
-    const { repeat_type, repeat_count, ...base } = courseForm
+    const { repeat_type, repeat_count, repeat_ends, repeat_until, ...base } = courseForm
     const payload = { ...base, end_date: base.end_date || null }
     let error
 
@@ -726,11 +730,29 @@ export default function CRM() {
       const groupId = crypto.randomUUID()
       const startBase = new Date(payload.start_date + 'T00:00:00')
       const endBase = payload.end_date ? new Date(payload.end_date + 'T00:00:00') : null
-      const rows = Array.from({ length: Math.max(1, repeat_count || 1) }, (_, i) => {
+      function occurrenceDate(i) {
         const s = new Date(startBase)
         const e = endBase ? new Date(endBase) : null
-        if (repeat_type === 'weekly') { s.setDate(s.getDate() + i * 7); if (e) e.setDate(e.getDate() + i * 7) }
-        else { s.setMonth(s.getMonth() + i); if (e) e.setMonth(e.getMonth() + i) }
+        if (repeat_type === 'daily') { s.setDate(s.getDate() + i); if (e) e.setDate(e.getDate() + i) }
+        else if (repeat_type === 'weekly') { s.setDate(s.getDate() + i * 7); if (e) e.setDate(e.getDate() + i * 7) }
+        else if (repeat_type === 'monthly') { s.setMonth(s.getMonth() + i); if (e) e.setMonth(e.getMonth() + i) }
+        else if (repeat_type === 'yearly') { s.setFullYear(s.getFullYear() + i); if (e) e.setFullYear(e.getFullYear() + i) }
+        return { s, e }
+      }
+      // "Ends on a date" needs the actual occurrence count worked out
+      // first, since the insert below builds a fixed-length array --
+      // counts forward from the start date until an occurrence would
+      // land past the chosen end date.
+      let count
+      if (repeat_ends === 'until') {
+        const until = new Date(repeat_until + 'T00:00:00')
+        count = 0
+        while (occurrenceDate(count).s <= until && count < 260) count++ // 260 ~= 5 years of weekly notices, a sane upper bound against a mistyped far-future date
+      } else {
+        count = Math.max(1, repeat_count || 1)
+      }
+      const rows = Array.from({ length: count }, (_, i) => {
+        const { s, e } = occurrenceDate(i)
         return { ...payload, start_date: s.toISOString().split('T')[0], end_date: e ? e.toISOString().split('T')[0] : null, recurring_group_id: groupId }
       })
       ;({ error } = await supabase.from('courses').insert(rows))
@@ -5136,19 +5158,35 @@ export default function CRM() {
                 </div>
 
                 {!editingCourse?.id && (
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-                    <div style={{ flex: 1 }}>
-                      <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Repeat</label>
-                      <select value={courseForm.repeat_type} onChange={e => setCourseForm(f => ({ ...f, repeat_type: e.target.value }))} style={{ width: '100%' }}>
-                        <option value="none">Doesn't repeat</option>
-                        <option value="weekly">Weekly (same day)</option>
-                        <option value="monthly">Monthly (same date)</option>
-                      </select>
-                    </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Repeat</label>
+                    <select value={courseForm.repeat_type} onChange={e => setCourseForm(f => ({ ...f, repeat_type: e.target.value }))} style={{ width: '100%', marginBottom: courseForm.repeat_type !== 'none' ? 8 : 0 }}>
+                      <option value="none">Doesn't repeat</option>
+                      <option value="daily">Every day</option>
+                      <option value="weekly">Every week (same day)</option>
+                      <option value="monthly">Every month (same date)</option>
+                      <option value="yearly">Every year (same date)</option>
+                    </select>
                     {courseForm.repeat_type !== 'none' && (
-                      <div style={{ flex: 1 }}>
-                        <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Number of occurrences</label>
-                        <input type="number" min="2" max="52" value={courseForm.repeat_count} onChange={e => setCourseForm(f => ({ ...f, repeat_count: Number(e.target.value) }))} style={{ width: '100%' }} />
+                      <div>
+                        <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Ends</label>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13 }}>
+                            <input type="radio" checked={courseForm.repeat_ends === 'count'} onChange={() => setCourseForm(f => ({ ...f, repeat_ends: 'count' }))} />
+                            After
+                          </label>
+                          <input type="number" min="2" max="260" value={courseForm.repeat_count} disabled={courseForm.repeat_ends !== 'count'}
+                            onChange={e => setCourseForm(f => ({ ...f, repeat_count: Number(e.target.value), repeat_ends: 'count' }))} style={{ width: 70 }} />
+                          <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>occurrences</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13 }}>
+                            <input type="radio" checked={courseForm.repeat_ends === 'until'} onChange={() => setCourseForm(f => ({ ...f, repeat_ends: 'until' }))} />
+                            On
+                          </label>
+                          <input type="date" value={courseForm.repeat_until} disabled={courseForm.repeat_ends !== 'until'}
+                            onChange={e => setCourseForm(f => ({ ...f, repeat_until: e.target.value, repeat_ends: 'until' }))} style={{ flex: 1 }} />
+                        </div>
                       </div>
                     )}
                   </div>
