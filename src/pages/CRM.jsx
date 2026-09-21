@@ -1895,21 +1895,39 @@ export default function CRM() {
       { key: 'stopped', label: 'Stopped', colour: '#E24B4A' },
       { key: 'trained', label: 'Students trained', colour: '#EF9F27' },
     ]
-    // Remembers which series pills were switched on/off across
-    // sessions -- if "Students trained" was turned off last time,
-    // it should still be off next time the app opens, not silently
-    // reset back to everything visible.
+    // Remembers which series pills were switched on/off, per
+    // individual staff member, following them across their own
+    // devices -- if "Students trained" was turned off last time on
+    // their phone, it should still be off next time they open the app
+    // on their laptop too, not just on that one device (localStorage
+    // alone can't do that, since it never leaves the browser it was
+    // set in).
+    const { profile: chartProfile } = useAuth()
     const [visible, setVisible] = useState(() => {
-      const saved = localStorage.getItem('trackers_chart_visible_series')
+      const saved = chartProfile?.trackers_chart_visible_series
       if (!saved) return new Set(SERIES.map(s => s.key))
-      try {
-        const parsed = JSON.parse(saved)
-        // Only keeps keys that still genuinely exist as a series,
-        // in case the set of series ever changes later.
-        return new Set(parsed.filter(k => SERIES.some(s => s.key === k)))
-      } catch { return new Set(SERIES.map(s => s.key)) }
+      return new Set(saved.filter(k => SERIES.some(s => s.key === k)))
     })
-    useEffect(() => { localStorage.setItem('trackers_chart_visible_series', JSON.stringify([...visible])) }, [visible])
+    // Applies the profile's saved value once it actually finishes
+    // loading -- useAuth's profile starts out null while the request
+    // is in flight, so the useState initializer above may have already
+    // fallen back to "everything visible" before the real saved value
+    // was available.
+    const chartVisibleAppliedRef = useRef(false)
+    useEffect(() => {
+      if (chartVisibleAppliedRef.current) return
+      if (chartProfile?.trackers_chart_visible_series) {
+        chartVisibleAppliedRef.current = true
+        setVisible(new Set(chartProfile.trackers_chart_visible_series.filter(k => SERIES.some(s => s.key === k))))
+      }
+    }, [chartProfile])
+    useEffect(() => {
+      const arr = [...visible]
+      localStorage.setItem('trackers_chart_visible_series', JSON.stringify(arr))
+      if (chartProfile?.id) {
+        supabase.from('members').update({ trackers_chart_visible_series: arr }).eq('id', chartProfile.id).then(() => {})
+      }
+    }, [visible])
     const [tappedBar, setTappedBar] = useState(null) // { label, value, date } -- shown on tap, since SVG's native <title> tooltip only works on hover (desktop), not touch
 
     function toggleSeries(key) {
