@@ -1375,7 +1375,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
               )}
             </div>
           )}
-          <table style={{ minWidth: isKR ? 900 : 680 }}>
+          <table style={{ minWidth: isKR ? 900 : 680, borderCollapse: 'separate', borderSpacing: 0 }}>
             <thead style={{ position: 'sticky', top: registerToolbarHeight, zIndex: 12, background: 'var(--bg)' }}>
               <tr>
                 {visibleCols.includes('checkbox') && <th style={{ width: 32, paddingLeft: 12, background: 'var(--bg)', position: 'sticky', left: 0, zIndex: 13 }}></th>}
@@ -1483,7 +1483,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                     </td>}
                     {visibleCols.includes('age') && (
                       <td style={{ fontSize: 13, color: 'var(--text-secondary)', position: 'relative' }}>
-                        <span style={{ cursor: 'pointer', borderBottom: '1px dotted var(--text-tertiary)' }}
+                        <span style={{ cursor: 'pointer' }}
                           onClick={e => { e.stopPropagation(); setDobPopupStudentId(prev => prev === s.id ? null : s.id) }}>
                           {age}
                         </span>
