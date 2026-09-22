@@ -1483,7 +1483,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                     </td>}
                     {visibleCols.includes('age') && (
                       <td style={{ fontSize: 13, color: 'var(--text-secondary)', position: 'relative' }}>
-                        <span style={{ cursor: 'pointer', textDecoration: 'underline dotted' }}
+                        <span style={{ cursor: 'pointer', borderBottom: '1px dotted var(--text-tertiary)' }}
                           onClick={e => { e.stopPropagation(); setDobPopupStudentId(prev => prev === s.id ? null : s.id) }}>
                           {age}
                         </span>
