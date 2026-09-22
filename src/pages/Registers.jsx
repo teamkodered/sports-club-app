@@ -171,6 +171,13 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   const [awardingFor, setAwardingFor]   = useState(null)
   const [multiAward, setMultiAward]     = useState(false)
   const [selectedStudents, setSelectedStudents] = useState([])
+  const [dobPopupStudentId, setDobPopupStudentId] = useState(null)
+  useEffect(() => {
+    if (!dobPopupStudentId) return
+    function handleOutsideClick() { setDobPopupStudentId(null) }
+    document.addEventListener('click', handleOutsideClick)
+    return () => document.removeEventListener('click', handleOutsideClick)
+  }, [dobPopupStudentId])
   // The table header below is sticky, positioned just under this
   // toolbar -- it previously assumed a hardcoded 46px gap, but the
   // toolbar can genuinely wrap onto two lines (narrow screens, or once
@@ -1474,7 +1481,21 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                         })()}
                       </span>
                     </td>}
-                    {visibleCols.includes('age') && <td style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{age}</td>}
+                    {visibleCols.includes('age') && (
+                      <td style={{ fontSize: 13, color: 'var(--text-secondary)', position: 'relative' }}>
+                        <span style={{ cursor: 'pointer', textDecoration: 'underline dotted' }}
+                          onClick={e => { e.stopPropagation(); setDobPopupStudentId(prev => prev === s.id ? null : s.id) }}>
+                          {age}
+                        </span>
+                        {dobPopupStudentId === s.id && (
+                          <div onClick={e => e.stopPropagation()}
+                            style={{ position: 'absolute', top: '100%', left: 0, zIndex: 20, marginTop: 4, padding: '6px 10px', borderRadius: 'var(--radius)', background: 'var(--bg)', border: '1px solid var(--border-strong)', boxShadow: '0 2px 8px rgba(0,0,0,0.15)', whiteSpace: 'nowrap', fontSize: 12 }}>
+                            <div style={{ fontWeight: 600, marginBottom: 2 }}>Date of birth</div>
+                            <div>{m?.date_of_birth ? new Date(m.date_of_birth + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Not on record'}</div>
+                          </div>
+                        )}
+                      </td>
+                    )}
                     {visibleCols.includes('house') && <td>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12 }}>
                         <span style={{ width: 8, height: 8, borderRadius: '50%', background: colour, display: 'inline-block' }} />
