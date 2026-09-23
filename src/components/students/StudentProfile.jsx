@@ -52,8 +52,15 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
     if (uploadErr) { alert('Error uploading document: ' + uploadErr.message); setUploadingMembershipDoc(false); return }
     const { data: urlData } = supabase.storage.from('athlete-media').getPublicUrl(path)
     if (membershipForm?.id) {
-      const { error } = await supabase.from('membership_forms').update({ document_url: urlData.publicUrl }).eq('id', membershipForm.id)
+      // .select() after an update returns the actual updated row(s) --
+      // an empty array here means the update genuinely matched zero
+      // rows (e.g. a missing RLS update policy silently blocking it),
+      // which Postgres/Supabase does NOT treat as an error by default.
+      // Checking only for `error` previously meant this could silently
+      // "succeed" while nothing was actually ever saved.
+      const { data: updated, error } = await supabase.from('membership_forms').update({ document_url: urlData.publicUrl }).eq('id', membershipForm.id).select()
       if (error) { alert('Error saving document link: ' + error.message); setUploadingMembershipDoc(false); return }
+      if (!updated || updated.length === 0) { alert('The document uploaded, but saving the link failed silently (matched 0 rows) -- likely a missing update permission. Please tell your admin.'); setUploadingMembershipDoc(false); return }
       setMembershipForm(f => ({ ...f, document_url: urlData.publicUrl }))
     } else {
       const { data, error } = await supabase.from('membership_forms').insert({

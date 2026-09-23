@@ -146,8 +146,16 @@ export default function AdminImport() {
         const { data: urlData } = supabase.storage.from('athlete-media').getPublicUrl(path)
         const { data: existing } = await supabase.from('membership_forms').select('id').eq('member_id', m.student.member_id).order('submitted_at', { ascending: false }).limit(1).maybeSingle()
         if (existing?.id) {
-          const { error } = await supabase.from('membership_forms').update({ document_url: urlData.publicUrl }).eq('id', existing.id)
+          // .select() after an update returns the actual updated
+          // row(s) -- an empty array here means the update genuinely
+          // matched zero rows (e.g. a missing RLS update policy
+          // silently blocking it), which Postgres/Supabase does NOT
+          // treat as an error by default. Checking only for `error`
+          // was exactly why every earlier attempt reported "success"
+          // while nothing was actually ever saved.
+          const { data: updated, error } = await supabase.from('membership_forms').update({ document_url: urlData.publicUrl }).eq('id', existing.id).select()
           if (error) throw error
+          if (!updated || updated.length === 0) throw new Error('Update matched 0 rows (check RLS update policy on membership_forms)')
         } else {
           // form_type has a not-null constraint -- 'unknown' since a
           // scanned file on its own doesn't actually tell us which
