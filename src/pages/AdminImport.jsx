@@ -78,10 +78,14 @@ export default function AdminImport() {
       const nameLower = file.name.toLowerCase().replace(/[_\-.]/g, ' ')
       // Requires both first AND last name to appear somewhere in the
       // filename -- a first-name-only match is too likely to hit the
-      // wrong person given how common many first names are.
+      // wrong person given how common many first names are. Normalizes
+      // hyphens in the student's own name the same way the filename
+      // was normalized above (e.g. "Rhule-Taylor" -> "rhule taylor"),
+      // otherwise a hyphenated surname would never match, since the
+      // filename's hyphens already became plain spaces.
       const candidates = (students || []).filter(s => {
-        const first = (s.members?.first_name || '').toLowerCase()
-        const last = (s.members?.last_name || '').toLowerCase()
+        const first = (s.members?.first_name || '').toLowerCase().replace(/[_\-.]/g, ' ')
+        const last = (s.members?.last_name || '').toLowerCase().replace(/[_\-.]/g, ' ')
         return first && last && nameLower.includes(first) && nameLower.includes(last)
       })
       const alreadyHasDoc = candidates.length === 1 && hasDocByMemberId.has(candidates[0].member_id)
