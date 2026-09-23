@@ -23,6 +23,18 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
   const [addingClass, setAddingClass] = useState(false)
   const [addClassSelection, setAddClassSelection] = useState('')
   const [savingClassAdd, setSavingClassAdd] = useState(false)
+  const [showMembershipForm, setShowMembershipForm] = useState(false)
+  const [membershipForm, setMembershipForm] = useState(null)
+  const [membershipFormLoading, setMembershipFormLoading] = useState(false)
+
+  async function openMembershipForm() {
+    setShowMembershipForm(true)
+    if (membershipForm || !localStudent.members?.id) return
+    setMembershipFormLoading(true)
+    const { data } = await supabase.from('membership_forms').select('*').eq('member_id', localStudent.members.id).order('submitted_at', { ascending: false }).limit(1).maybeSingle()
+    setMembershipForm(data)
+    setMembershipFormLoading(false)
+  }
 
   useEffect(() => { setLocalStudent(student) }, [student?.id])
 
@@ -181,6 +193,7 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
   const currentBelt = localStudent.discipline === 'KRBA' ? localStudent.krba_level : localStudent.pka_belt
 
   return (
+    <>
     <div style={embedded ? {} : { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
       onClick={embedded ? undefined : onClose}>
       <div style={embedded
@@ -260,6 +273,9 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
               📋 Register
             </button>
           )}
+          <button className="btn btn-sm" onClick={openMembershipForm} style={{ marginLeft: 8, flexShrink: 0 }}>
+            📄 View Membership
+          </button>
           {!embedded && (
             <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text-secondary)', marginLeft: 8, padding: 8, lineHeight: 1 }}>✕</button>
           )}
@@ -559,5 +575,98 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
         </div>
       </div>
     </div>
+
+    {showMembershipForm && (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 16 }}
+        onClick={() => setShowMembershipForm(false)}>
+        <div style={{ background: '#fff', color: '#111', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 680, maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+          onClick={e => e.stopPropagation()}>
+          <div className="no-print" style={{ padding: '14px 20px', borderBottom: '1px solid #ddd', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Membership Form</h2>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {membershipForm && <button className="btn btn-sm" onClick={() => window.print()}>🖨️ Print</button>}
+              <button onClick={() => setShowMembershipForm(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', padding: 4, lineHeight: 1 }}>✕</button>
+            </div>
+          </div>
+          <div id="membership-form-printable" style={{ padding: 24, overflowY: 'auto' }}>
+            {membershipFormLoading ? (
+              <p style={{ fontSize: 13, color: '#666' }}>Loading…</p>
+            ) : !membershipForm ? (
+              <p style={{ fontSize: 13, color: '#666' }}>No membership form on file for this student.</p>
+            ) : (() => {
+              const f = membershipForm
+              // Shows the form as it was actually submitted -- the
+              // name/DOB/contact fields are a snapshot taken at
+              // signup time, which can genuinely differ from the
+              // student's current record if any of that was corrected
+              // or updated since (e.g. a typo fixed, a new phone
+              // number) -- this is deliberately the original
+              // submission, not a live view of today's record.
+              const goalScores = [
+                ['Health — Physical Fitness, Stress Reduction, Relaxation', f.goal_health],
+                ['Appearance — Weight Control, Muscle Tone, Posture', f.goal_appearance],
+                ['Performance — Endurance, Flexibility, Mental Focus', f.goal_performance],
+                ['Self Defence — Safety, Confidence, Awareness', f.goal_selfdefence],
+              ].filter(([, v]) => v != null)
+              const row = (label, value) => (
+                <div style={{ display: 'flex', gap: 8, padding: '5px 0', borderBottom: '1px solid #eee', fontSize: 13 }}>
+                  <div style={{ width: 200, flexShrink: 0, color: '#555' }}>{label}</div>
+                  <div style={{ fontWeight: 500 }}>{value || value === 0 ? value : '—'}</div>
+                </div>
+              )
+              return (
+                <div style={{ fontFamily: 'var(--font-sans)' }}>
+                  <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                    <div style={{ fontSize: 18, fontWeight: 700 }}>Membership Application</div>
+                    <div style={{ fontSize: 12, color: '#666' }}>
+                      {f.form_type?.replace(/_/g, ' ')} · Submitted {f.submitted_at ? new Date(f.submitted_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}
+                    </div>
+                  </div>
+                  {row('Student name', `${f.first_name || ''} ${f.last_name || ''}`.trim())}
+                  {row('Date of birth', f.date_of_birth ? new Date(f.date_of_birth + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : null)}
+                  {row('Sponsor name', f.sponsor_name)}
+                  {row('Parents/Carers', f.parents_carers)}
+                  {row('Email', f.email)}
+                  {row('Phone', f.phone)}
+                  {row('Emergency contact', [f.emergency_contact_name, f.emergency_contact_phone].filter(Boolean).join(' — '))}
+                  {row('How did you hear about us?', f.hear_about)}
+                  {row('Promo code', f.promo_code)}
+                  {row('School', f.school)}
+                  {row('Year', f.school_year || f.year)}
+                  {row('Other activities', f.other_activities)}
+                  {row('Previous club', f.previous_club)}
+                  {row('Fitness level', f.fitness_level)}
+                  {row('What would you like to accomplish?', f.goal_description)}
+                  {row('Additional needs', f.additional_needs)}
+                  {row('Medical concerns', f.medical_concerns || f.medical)}
+                  {row('Medication', f.medication)}
+                  {row('Other contact', f.other_contact)}
+
+                  {goalScores.length > 0 && (
+                    <div style={{ marginTop: 14 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Main reason for attending (scored out of 5)</div>
+                      {goalScores.map(([label, score]) => (
+                        <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', borderBottom: '1px solid #eee' }}>
+                          <div>{label}</div>
+                          <div style={{ fontWeight: 700 }}>{score}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {f.goal_notes && (
+                    <div style={{ marginTop: 10, fontSize: 12, color: '#555', fontStyle: 'italic' }}>{f.goal_notes}</div>
+                  )}
+
+                  <div style={{ marginTop: 16, paddingTop: 12, borderTop: '2px solid #333', fontSize: 13 }}>
+                    <strong>Waiver agreed:</strong> {f.waiver_agreed ? '✓ Yes' : 'Not recorded'}
+                  </div>
+                </div>
+              )
+            })()}
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }

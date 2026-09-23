@@ -204,3 +204,15 @@ tbody tr:hover td { background: var(--bg-secondary); }
   background: rgba(60, 60, 60, 0.45) !important;
   color: #fff !important;
 }
+
+/* Printing just one on-screen element (e.g. the membership form
+   popup) rather than the whole page behind it -- hides everything
+   else, then makes the target element (and everything inside it) the
+   only thing still visible, repositioned to the actual page origin
+   since its normal on-screen position doesn't matter once printed. */
+@media print {
+  body * { visibility: hidden; }
+  #membership-form-printable, #membership-form-printable * { visibility: visible; }
+  #membership-form-printable { position: absolute; top: 0; left: 0; width: 100%; }
+  .no-print { display: none !important; }
+}
