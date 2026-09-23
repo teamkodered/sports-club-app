@@ -144,7 +144,15 @@ export default function AdminImport() {
         const { error: uploadErr } = await supabase.storage.from('athlete-media').upload(path, m.file)
         if (uploadErr) throw uploadErr
         const { data: urlData } = supabase.storage.from('athlete-media').getPublicUrl(path)
-        const { data: existing } = await supabase.from('membership_forms').select('id').eq('member_id', m.student.member_id).order('submitted_at', { ascending: false }).limit(1).maybeSingle()
+        // Fetches every row for this member rather than picking one
+        // via a database-level ORDER BY -- sorting by submitted_at is
+        // unreliable once any row has a null value there (which one
+        // of a student's own rows commonly does), and picking the
+        // wrong one here is exactly what created a genuine duplicate
+        // row for at least one student instead of updating their real
+        // existing one.
+        const { data: existingRows } = await supabase.from('membership_forms').select('id, document_url').eq('member_id', m.student.member_id)
+        const existing = (existingRows || []).find(f => f.document_url) || (existingRows || [])[0] || null
         if (existing?.id) {
           // .select() after an update returns the actual updated
           // row(s) -- an empty array here means the update genuinely

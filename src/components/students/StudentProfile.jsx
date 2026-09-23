@@ -32,8 +32,19 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
     setShowMembershipForm(true)
     if (membershipForm || !localStudent.members?.id) return
     setMembershipFormLoading(true)
-    const { data } = await supabase.from('membership_forms').select('*').eq('member_id', localStudent.members.id).order('submitted_at', { ascending: false }).limit(1).maybeSingle()
-    setMembershipForm(data)
+    // Fetches every row for this member rather than picking one via a
+    // database-level ORDER BY -- a student can genuinely end up with
+    // more than one row (e.g. one holding the original structured
+    // submission, another created separately just to hold an attached
+    // scan), and sorting by submitted_at is unreliable once any row
+    // has a null value there, which is exactly what caused a student
+    // with a newly-attached scan to still show "no form on file": the
+    // wrong row (or neither) got picked. Prefers whichever row
+    // actually has a document attached, since that's the most
+    // recently-added, most complete one to show.
+    const { data } = await supabase.from('membership_forms').select('*').eq('member_id', localStudent.members.id)
+    const best = (data || []).find(f => f.document_url) || (data || [])[0] || null
+    setMembershipForm(best)
     setMembershipFormLoading(false)
   }
 
