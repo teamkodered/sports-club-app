@@ -79,6 +79,7 @@ export default function JoinPKAAdult() {
 
       const { error: mfErr } = await supabase.from('membership_forms').insert({
         member_id: memberId, form_type: 'pka_adult',
+        first_name: form.first_name, last_name: form.last_name, email: form.email, phone: form.mobile_phone, date_of_birth: form.dob,
         hear_about: form.hear_about, promo_code: form.promo_code,
         goals: form.goals, goal_notes: form.goal_notes,
         fitness_level: form.fitness_level, other_activities: form.other_activities,

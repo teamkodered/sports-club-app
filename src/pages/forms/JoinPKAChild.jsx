@@ -94,6 +94,7 @@ export default function JoinPKAChild() {
 
       const { error: mfErr } = await supabase.from('membership_forms').insert({
         member_id: memberId, form_type: 'pka_child',
+        first_name: form.first_name, last_name: form.last_name, email: form.email, phone: form.mobile_phone, date_of_birth: form.dob,
         sponsor_name: form.sponsor_name, school: form.school, year: form.year,
         other_activities: form.other_activities, hear_about: form.hear_about,
         promo_code: form.promo_code, goals: form.goals, goal_notes: form.goal_notes,

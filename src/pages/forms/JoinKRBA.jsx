@@ -63,6 +63,7 @@ export default function JoinKRBA() {
 
       const { error: mfErr } = await supabase.from('membership_forms').insert({
         member_id: memberId, form_type: 'krba',
+        first_name, last_name, email: form.email, phone: form.mobile_phone, date_of_birth: form.dob,
         additional_needs: form.additional_needs,
         previous_club: form.previous_club,
         emergency_contact_name: form.emergency_contact,
