@@ -648,12 +648,23 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
                   <div style={{ fontWeight: 500 }}>{value || value === 0 ? value : '—'}</div>
                 </div>
               )
+              const isKrba = f.form_type === 'krba'
+              const isChild = f.form_type === 'pka_child'
+              const formTitle = isKrba ? 'Membership Application' : isChild ? 'Child Future Student Personal Analysis' : 'Adult Future Student Personal Analysis'
               return (
                 <div style={{ fontFamily: 'var(--font-sans)' }}>
-                  <div style={{ textAlign: 'center', marginBottom: 16 }}>
-                    <div style={{ fontSize: 18, fontWeight: 700 }}>Membership Application</div>
+                  <div style={{ textAlign: 'center', marginBottom: 18 }}>
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 14, marginBottom: 6 }}>
+                      {!isKrba && <img src="/images/pka-logo.png" alt="" style={{ height: 44 }} />}
+                      {isKrba && <img src="/logos/krba-logo.png" alt="" style={{ height: 44 }} />}
+                      <div style={{ fontSize: 20, fontWeight: 800, color: '#111', letterSpacing: 0.3 }}>
+                        {isKrba ? 'KR Boxing Academy' : 'Derby PKA Kickboxing'}
+                      </div>
+                      {!isKrba && <img src="/images/pka-logo.png" alt="" style={{ height: 44 }} />}
+                    </div>
+                    <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{formTitle}</div>
                     <div style={{ fontSize: 12, color: '#666' }}>
-                      {f.form_type?.replace(/_/g, ' ') || 'Form type not recorded'} · Submitted {f.submitted_at ? new Date(f.submitted_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}
+                      Submitted {f.submitted_at ? new Date(f.submitted_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}
                     </div>
                     {f.document_url && (
                       <div className="no-print" style={{ marginTop: 6 }}>
