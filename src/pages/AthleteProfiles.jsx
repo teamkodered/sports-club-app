@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useBackableTab } from '../hooks/useBackableTab.js'
 import { useSyncedPreference } from '../hooks/useSyncedPreference.js'
+import { matchesSearch } from '../lib/searchMatch.js'
 import StudentProfile from '../components/students/StudentProfile.jsx'
 import Registers from './Registers.jsx'
 import * as XLSXModule from 'xlsx'
@@ -5482,11 +5483,7 @@ export default function AthleteProfiles() {
       const bn = `${b.members?.first_name || ''} ${b.members?.last_name || ''}`.trim().toLowerCase()
       return an.localeCompare(bn)
     })
-  const filtered = athletes.filter(s => {
-    if (!search) return true
-    const q = search.toLowerCase()
-    return `${s.members?.first_name} ${s.members?.last_name} ${s.student_ref}`.toLowerCase().includes(q)
-  })
+  const filtered = athletes.filter(s => matchesSearch(search, s.members?.first_name, s.members?.last_name, s.student_ref))
 
   const m = selected?.members
   const houseName = m?.houses?.name
@@ -7101,7 +7098,7 @@ export default function AthleteProfiles() {
                                 })
                                 const search = (questionLogSearch[subKey] || '').toLowerCase()
                                 const filteredAthletes = [...teamAthletes]
-                                  .filter(ath => !search || `${ath.members?.first_name} ${ath.members?.last_name}`.toLowerCase().includes(search))
+                                  .filter(ath => matchesSearch(search, ath.members?.first_name, ath.members?.last_name))
                                   .sort((a, b) => (a.members?.first_name || '').localeCompare(b.members?.first_name || ''))
                                 return (
                                   <div style={{ marginTop: 8 }}>

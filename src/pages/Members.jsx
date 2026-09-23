@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { supabase } from '../lib/supabase.js'
+import { matchesSearch } from '../lib/searchMatch.js'
 
 const HOUSE_COLOURS = { 'Dragon House': '#E24B4A', 'Super House': '#378ADD', 'Ice House': '#1D9E75', 'Jet House': '#EF9F27' }
 
@@ -49,8 +50,7 @@ export default function Members() {
   useEffect(() => {
     let list = [...members]
     if (search) {
-      const q = search.toLowerCase()
-      list = list.filter(m => `${m.first_name} ${m.last_name} ${m.email}`.toLowerCase().includes(q))
+      list = list.filter(m => matchesSearch(search, m.first_name, m.last_name, m.email))
     }
     if (houseFilter)  list = list.filter(m => m.house_id === houseFilter)
     if (roleFilter)   list = list.filter(m => m.role === roleFilter)

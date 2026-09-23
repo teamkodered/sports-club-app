@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useFightFootageUpload } from '../hooks/useFightFootageUpload.jsx'
 import { ALL_GRADES, EVENT_TYPES } from '../lib/mediaConstants.js'
+import { matchesSearch } from '../lib/searchMatch.js'
 import CctvViewer from './CctvViewer.jsx'
 import Uploads from './Uploads.jsx'
 import ViewIt from './ViewIt.jsx'
@@ -98,11 +99,7 @@ export default function Media() {
     if (filterEventType && item.events?.event_type !== filterEventType) return false
     if (dateFrom && item.uploaded_at < dateFrom) return false
     if (dateTo && item.uploaded_at > dateTo + 'T23:59:59') return false
-    if (searchText.trim()) {
-      const q = searchText.trim().toLowerCase()
-      const haystack = `${item.title} ${item.description || ''} ${item._searchableNotes || ''}`.toLowerCase()
-      if (!haystack.includes(q)) return false
-    }
+    if (searchText.trim() && !matchesSearch(searchText, item.title, item.description, item._searchableNotes)) return false
     return true
   })
 

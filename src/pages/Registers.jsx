@@ -22,10 +22,7 @@ function OneOffStudent({ displayStudents, onAdd, date }) {
       const { data: candidates } = await supabase
         .from('members').select('id, first_name, last_name, status')
         .or(orClause).limit(50)
-      const memberData = (candidates || []).filter(m => {
-        const full = `${m.first_name} ${m.last_name}`.toLowerCase()
-        return words.every(w => full.includes(w.toLowerCase()))
-      }).slice(0, 8)
+      const memberData = (candidates || []).filter(m => matchesSearch(search, m.first_name, m.last_name)).slice(0, 8)
       if (!memberData?.length) { setResults([]); return }
       const eligibleMembers = memberData.filter(m => m.status !== 'stopped' && m.status !== 'not_started')
       const { data: stuData } = await supabase
@@ -76,6 +73,7 @@ function OneOffStudent({ displayStudents, onAdd, date }) {
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
+import { matchesSearch } from '../lib/searchMatch.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useSyncedPreference } from '../hooks/useSyncedPreference.js'
 import { studentProfileLink } from '../lib/studentLinks.js'
@@ -583,11 +581,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
         || fullSchedule.split('/').map(p => p.trim()).some(p => p === selectedClass.day_of_week || p === shortDay || p === fullDay2)
       return timeMatch && schedMatch
     })
-    .filter(s => {
-      if (!search) return true
-      const q = search.toLowerCase()
-      return `${s.members?.first_name} ${s.members?.last_name} ${s.student_ref}`.toLowerCase().includes(q)
-    })
+    .filter(s => matchesSearch(search, s.members?.first_name, s.members?.last_name, s.student_ref))
     .sort((a, b) => {
       let aVal, bVal
       const am = a.members, bm = b.members

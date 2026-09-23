@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useBackableTab } from '../hooks/useBackableTab.js'
+import { matchesSearch } from '../lib/searchMatch.js'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { studentProfileLink } from '../lib/studentLinks.js'
@@ -259,7 +260,7 @@ export default function Trackers({ onStatsReady } = {}) {
   const COL_KEYS = ['student_ref', 'name', 'age', 'house', 'grade', 'class_schedule', 'class_time', 'trained_for_months', 'total_sessions', 'house_points', 'individual_points', 'class_champ', 'weight_change', 'media']
   const filtered = stats
     .filter(s => !houseFilter || s.house === houseFilter)
-    .filter(s => !search || s.name.toLowerCase().includes(search.toLowerCase()) || s.student_ref?.toLowerCase().includes(search.toLowerCase()))
+    .filter(s => matchesSearch(search, s.name, s.student_ref))
     .filter(s => COL_KEYS.every(k => {
       const f = colFilters[k]
       if (!f) return true

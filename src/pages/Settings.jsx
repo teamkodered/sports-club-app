@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase.js'
+import { matchesSearch } from '../lib/searchMatch.js'
 
 export default function Settings() {
   const [settings, setSettings] = useState({})
@@ -514,11 +515,7 @@ export default function Settings() {
           {members
             .slice()
             .sort((a, b) => `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`))
-            .filter(m => {
-              if (!roleSearch) return true
-              const q = roleSearch.toLowerCase()
-              return `${m.first_name} ${m.last_name} ${m.email}`.toLowerCase().includes(q)
-            })
+            .filter(m => matchesSearch(roleSearch, m.first_name, m.last_name, m.email))
             .map(m => (
             <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
               <div style={{ flex: 1, minWidth: 0 }}>

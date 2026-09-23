@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useBackableTab } from '../hooks/useBackableTab.js'
 import { useSyncedPreference } from '../hooks/useSyncedPreference.js'
+import { matchesSearch } from '../lib/searchMatch.js'
 import * as XLSXModule from 'xlsx'
 // Some bundlers wrap a CommonJS module like xlsx so the actual exports
 // (read, utils, writeFile, ...) end up nested under a .default property
@@ -226,7 +227,7 @@ function NoticeTargetedSend({ notice, students, sendRealEmail, studentFullName }
     return <button className="btn btn-sm" style={{ marginBottom: 14 }} onClick={() => setOpen(true)}>🎯 Send to specific students</button>
   }
 
-  const filtered = students.filter(s => !search.trim() || studentFullName(s).toLowerCase().includes(search.trim().toLowerCase()))
+  const filtered = students.filter(s => matchesSearch(search, studentFullName(s)))
   const messageBody = notice.message_text || `Check out our upcoming notice: ${notice.title}`
 
   async function handleSend() {

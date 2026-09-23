@@ -6,6 +6,7 @@ import { useBackableTab } from '../hooks/useBackableTab.js'
 import { useSyncedPreference } from '../hooks/useSyncedPreference.js'
 import StudentProfile from '../components/students/StudentProfile.jsx'
 import { studentProfileLink } from '../lib/studentLinks.js'
+import { matchesSearch } from '../lib/searchMatch.js'
 
 const HOUSE_COLOURS = {
   'Dragon House': '#E24B4A', 'Super House': '#378ADD',
@@ -205,9 +206,8 @@ export default function StudentDatabase() {
       return tab === 'All' ? true : s.discipline === tab
     })
     if (search) {
-      const q = search.toLowerCase()
       list = list.filter(s =>
-        `${s.members?.first_name} ${s.members?.last_name} ${s.student_ref} ${s.members?.email} ${s.members?.phone}`.toLowerCase().includes(q)
+        matchesSearch(search, s.members?.first_name, s.members?.last_name, s.student_ref, s.members?.email, s.members?.phone)
       )
     }
     if (houseFilter) list = list.filter(s => (s.house_name || s.members?.houses?.name || '').trim().toLowerCase() === houseFilter.trim().toLowerCase())
