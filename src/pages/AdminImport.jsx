@@ -53,6 +53,78 @@ export default function AdminImport() {
   const [pdpImporting, setPdpImporting] = useState(false)
   const [pdpResult, setPdpResult] = useState(null)
 
+  // Bulk membership-form-scan upload -- matches each selected file to a
+  // student by name found in the filename, previews the match before
+  // anything is actually uploaded (so mismatches can be caught and
+  // fixed by hand first), and skips anyone who already has a scan
+  // attached rather than silently overwriting it.
+  const [scanFiles, setScanFiles] = useState([])
+  const [scanMatches, setScanMatches] = useState([])
+  const [scanMatching, setScanMatching] = useState(false)
+  const [scanUploading, setScanUploading] = useState(false)
+  const [scanResult, setScanResult] = useState(null)
+
+  async function matchScanFiles(files) {
+    setScanFiles(files)
+    setScanResult(null)
+    setScanMatching(true)
+    const { data: students } = await supabase
+      .from('students')
+      .select('id, member_id, members(first_name, last_name)')
+    const { data: existingForms } = await supabase.from('membership_forms').select('member_id, document_url')
+    const hasDocByMemberId = new Set((existingForms || []).filter(f => f.document_url).map(f => f.member_id))
+
+    const matches = files.map(file => {
+      const nameLower = file.name.toLowerCase().replace(/[_\-.]/g, ' ')
+      // Requires both first AND last name to appear somewhere in the
+      // filename -- a first-name-only match is too likely to hit the
+      // wrong person given how common many first names are.
+      const candidates = (students || []).filter(s => {
+        const first = (s.members?.first_name || '').toLowerCase()
+        const last = (s.members?.last_name || '').toLowerCase()
+        return first && last && nameLower.includes(first) && nameLower.includes(last)
+      })
+      const alreadyHasDoc = candidates.length === 1 && hasDocByMemberId.has(candidates[0].member_id)
+      return {
+        file,
+        status: candidates.length === 1 ? (alreadyHasDoc ? 'already_has_scan' : 'matched') : candidates.length === 0 ? 'no_match' : 'ambiguous',
+        student: candidates.length === 1 ? candidates[0] : null,
+        candidateCount: candidates.length,
+      }
+    })
+    setScanMatches(matches)
+    setScanMatching(false)
+  }
+
+  async function uploadMatchedScans() {
+    setScanUploading(true)
+    let success = 0, failed = 0
+    const errors = []
+    for (const m of scanMatches) {
+      if (m.status !== 'matched') continue
+      try {
+        const path = `membership-forms/${m.student.member_id}-${Date.now()}-${m.file.name}`
+        const { error: uploadErr } = await supabase.storage.from('athlete-media').upload(path, m.file)
+        if (uploadErr) throw uploadErr
+        const { data: urlData } = supabase.storage.from('athlete-media').getPublicUrl(path)
+        const { data: existing } = await supabase.from('membership_forms').select('id').eq('member_id', m.student.member_id).order('submitted_at', { ascending: false }).limit(1).maybeSingle()
+        if (existing?.id) {
+          const { error } = await supabase.from('membership_forms').update({ document_url: urlData.publicUrl }).eq('id', existing.id)
+          if (error) throw error
+        } else {
+          const { error } = await supabase.from('membership_forms').insert({ member_id: m.student.member_id, document_url: urlData.publicUrl, submitted_at: new Date().toISOString() })
+          if (error) throw error
+        }
+        success++
+      } catch (err) {
+        failed++
+        errors.push(`${m.file.name}: ${err.message}`)
+      }
+    }
+    setScanResult({ success, failed, skipped: scanMatches.length - scanMatches.filter(m => m.status === 'matched').length, errors })
+    setScanUploading(false)
+  }
+
   const [syncingClasses, setSyncingClasses] = useState(false)
   const [syncResult, setSyncResult] = useState(null)
 
@@ -476,6 +548,69 @@ export default function AdminImport() {
           )}
         </div>
       )}
+
+      <div className="card" style={{ marginTop: 16 }}>
+        <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Bulk upload — membership form scans</h2>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
+          Select every scanned/photographed original form at once (e.g. everything from a downloaded Drive folder). Each file is matched to a student by their first + last name appearing in the filename -- nothing uploads until you review the matches below.
+        </p>
+        <input type="file" multiple accept="image/*,application/pdf"
+          onChange={e => { if (e.target.files.length) matchScanFiles(Array.from(e.target.files)) }} />
+
+        {scanMatching && <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 10 }}>Matching {scanFiles.length} files against students…</p>}
+
+        {scanMatches.length > 0 && !scanMatching && (
+          <div style={{ marginTop: 14 }}>
+            {(() => {
+              const matched = scanMatches.filter(m => m.status === 'matched').length
+              const alreadyHas = scanMatches.filter(m => m.status === 'already_has_scan').length
+              const noMatch = scanMatches.filter(m => m.status === 'no_match').length
+              const ambiguous = scanMatches.filter(m => m.status === 'ambiguous').length
+              return (
+                <div style={{ display: 'flex', gap: 16, marginBottom: 12, fontSize: 12 }}>
+                  <span style={{ color: 'var(--success)' }}>{matched} ready to upload</span>
+                  {alreadyHas > 0 && <span style={{ color: 'var(--text-tertiary)' }}>{alreadyHas} already have a scan (skipped)</span>}
+                  {noMatch > 0 && <span style={{ color: '#a32d2d' }}>{noMatch} no matching student found</span>}
+                  {ambiguous > 0 && <span style={{ color: '#EF9F27' }}>{ambiguous} matched more than one student (skipped)</span>}
+                </div>
+              )
+            })()}
+            <div style={{ maxHeight: 300, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+              {scanMatches.map((m, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', fontSize: 12, borderBottom: '1px solid var(--border)' }}>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{m.file.name}</span>
+                  <span style={{
+                    color: m.status === 'matched' ? 'var(--success)' : m.status === 'already_has_scan' ? 'var(--text-tertiary)' : m.status === 'ambiguous' ? '#EF9F27' : '#a32d2d',
+                    fontWeight: 500, flexShrink: 0, marginLeft: 10,
+                  }}>
+                    {m.status === 'matched' ? `→ ${m.student.members.first_name} ${m.student.members.last_name}` :
+                     m.status === 'already_has_scan' ? `${m.student.members.first_name} ${m.student.members.last_name} (already has scan)` :
+                     m.status === 'ambiguous' ? `${m.candidateCount} possible matches` : 'No match'}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <button className="btn btn-primary" style={{ marginTop: 12 }} disabled={scanUploading || !scanMatches.some(m => m.status === 'matched')} onClick={uploadMatchedScans}>
+              {scanUploading ? 'Uploading…' : `Upload ${scanMatches.filter(m => m.status === 'matched').length} matched scans`}
+            </button>
+          </div>
+        )}
+
+        {scanResult && (
+          <div className="card" style={{ marginTop: 14, borderLeft: `3px solid ${scanResult.failed === 0 ? 'var(--success)' : '#e24b4a'}`, borderRadius: '0 var(--radius-lg) var(--radius-lg) 0' }}>
+            <div style={{ display: 'flex', gap: 16 }}>
+              <div><span style={{ fontSize: 20, fontWeight: 700, color: 'var(--success)' }}>{scanResult.success}</span><div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>uploaded</div></div>
+              {scanResult.failed > 0 && <div><span style={{ fontSize: 20, fontWeight: 700, color: '#a32d2d' }}>{scanResult.failed}</span><div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>failed</div></div>}
+              <div><span style={{ fontSize: 20, fontWeight: 700 }}>{scanResult.skipped}</span><div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>skipped</div></div>
+            </div>
+            {scanResult.errors.length > 0 && (
+              <div style={{ marginTop: 10, background: '#fcebeb', borderRadius: 'var(--radius)', padding: '10px 12px', fontSize: 12, color: '#a32d2d' }}>
+                {scanResult.errors.map((e, i) => <div key={i}>{e}</div>)}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
