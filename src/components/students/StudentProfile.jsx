@@ -26,6 +26,7 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
   const [showMembershipForm, setShowMembershipForm] = useState(false)
   const [membershipForm, setMembershipForm] = useState(null)
   const [membershipFormLoading, setMembershipFormLoading] = useState(false)
+  const [uploadingMembershipDoc, setUploadingMembershipDoc] = useState(false)
 
   async function openMembershipForm() {
     setShowMembershipForm(true)
@@ -34,6 +35,34 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
     const { data } = await supabase.from('membership_forms').select('*').eq('member_id', localStudent.members.id).order('submitted_at', { ascending: false }).limit(1).maybeSingle()
     setMembershipForm(data)
     setMembershipFormLoading(false)
+  }
+
+  // Attaches a scanned/photographed copy of the actual original form
+  // (e.g. downloaded from wherever it was originally kept, like an old
+  // Google Drive folder) to this student's record. If there's no
+  // membership_forms row at all yet, this creates a minimal one just
+  // to hold the document, rather than requiring a full structured
+  // record to exist first -- some students may only ever have the
+  // scanned original, with no separately-captured structured data.
+  async function uploadMembershipDocument(file) {
+    if (!localStudent.members?.id) return
+    setUploadingMembershipDoc(true)
+    const path = `membership-forms/${localStudent.members.id}-${Date.now()}-${file.name}`
+    const { error: uploadErr } = await supabase.storage.from('athlete-media').upload(path, file)
+    if (uploadErr) { alert('Error uploading document: ' + uploadErr.message); setUploadingMembershipDoc(false); return }
+    const { data: urlData } = supabase.storage.from('athlete-media').getPublicUrl(path)
+    if (membershipForm?.id) {
+      const { error } = await supabase.from('membership_forms').update({ document_url: urlData.publicUrl }).eq('id', membershipForm.id)
+      if (error) { alert('Error saving document link: ' + error.message); setUploadingMembershipDoc(false); return }
+      setMembershipForm(f => ({ ...f, document_url: urlData.publicUrl }))
+    } else {
+      const { data, error } = await supabase.from('membership_forms').insert({
+        member_id: localStudent.members.id, document_url: urlData.publicUrl, submitted_at: new Date().toISOString(),
+      }).select().single()
+      if (error) { alert('Error creating record: ' + error.message); setUploadingMembershipDoc(false); return }
+      setMembershipForm(data)
+    }
+    setUploadingMembershipDoc(false)
   }
 
   useEffect(() => { setLocalStudent(student) }, [student?.id])
@@ -583,7 +612,12 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
           onClick={e => e.stopPropagation()}>
           <div className="no-print" style={{ padding: '14px 20px', borderBottom: '1px solid #ddd', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Membership Form</h2>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8 }} className="no-print">
+              <label className="btn btn-sm" style={{ cursor: 'pointer' }}>
+                {uploadingMembershipDoc ? 'Uploading…' : membershipForm?.document_url ? '📎 Replace scan' : '📎 Attach scan'}
+                <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} disabled={uploadingMembershipDoc}
+                  onChange={e => { if (e.target.files[0]) uploadMembershipDocument(e.target.files[0]); e.target.value = '' }} />
+              </label>
               {membershipForm && <button className="btn btn-sm" onClick={() => window.print()}>🖨️ Print</button>}
               <button onClick={() => setShowMembershipForm(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', padding: 4, lineHeight: 1 }}>✕</button>
             </div>
@@ -592,7 +626,7 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
             {membershipFormLoading ? (
               <p style={{ fontSize: 13, color: '#666' }}>Loading…</p>
             ) : !membershipForm ? (
-              <p style={{ fontSize: 13, color: '#666' }}>No membership form on file for this student.</p>
+              <p style={{ fontSize: 13, color: '#666' }}>No membership form on file for this student. If you have the original scanned/photographed copy, use "Attach scan" above to add it.</p>
             ) : (() => {
               const f = membershipForm
               // Shows the form as it was actually submitted -- the
@@ -619,8 +653,13 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
                   <div style={{ textAlign: 'center', marginBottom: 16 }}>
                     <div style={{ fontSize: 18, fontWeight: 700 }}>Membership Application</div>
                     <div style={{ fontSize: 12, color: '#666' }}>
-                      {f.form_type?.replace(/_/g, ' ')} · Submitted {f.submitted_at ? new Date(f.submitted_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}
+                      {f.form_type?.replace(/_/g, ' ') || 'Form type not recorded'} · Submitted {f.submitted_at ? new Date(f.submitted_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}
                     </div>
+                    {f.document_url && (
+                      <div className="no-print" style={{ marginTop: 6 }}>
+                        <a href={f.document_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#378ADD' }}>📎 View original scanned/photographed form</a>
+                      </div>
+                    )}
                   </div>
                   {row('Student name', `${f.first_name || ''} ${f.last_name || ''}`.trim())}
                   {row('Date of birth', f.date_of_birth ? new Date(f.date_of_birth + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : null)}
