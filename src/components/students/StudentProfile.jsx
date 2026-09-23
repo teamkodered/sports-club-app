@@ -57,7 +57,7 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
       setMembershipForm(f => ({ ...f, document_url: urlData.publicUrl }))
     } else {
       const { data, error } = await supabase.from('membership_forms').insert({
-        member_id: localStudent.members.id, document_url: urlData.publicUrl, submitted_at: new Date().toISOString(),
+        member_id: localStudent.members.id, form_type: 'unknown', document_url: urlData.publicUrl, submitted_at: new Date().toISOString(),
       }).select().single()
       if (error) { alert('Error creating record: ' + error.message); setUploadingMembershipDoc(false); return }
       setMembershipForm(data)
@@ -650,7 +650,13 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
               )
               const isKrba = f.form_type === 'krba'
               const isChild = f.form_type === 'pka_child'
-              const formTitle = isKrba ? 'Membership Application' : isChild ? 'Child Future Student Personal Analysis' : 'Adult Future Student Personal Analysis'
+              const isAdult = f.form_type === 'pka_adult'
+              // 'unknown' means this record only exists to hold an
+              // attached scan with no separately-captured structured
+              // data behind it -- shown plainly rather than
+              // incorrectly defaulting to "Adult" just because it's
+              // neither Child nor KRBA specifically.
+              const formTitle = isKrba ? 'Membership Application' : isChild ? 'Child Future Student Personal Analysis' : isAdult ? 'Adult Future Student Personal Analysis' : 'Membership Form'
               return (
                 <div style={{ fontFamily: 'var(--font-sans)' }}>
                   <div style={{ textAlign: 'center', marginBottom: 18 }}>

@@ -123,6 +123,16 @@ export default function AdminImport() {
     setScanMatching(false)
   }
 
+  // Strips accents (é -> e) and anything else Supabase Storage keys
+  // don't allow (spaces, parentheses, etc.), since a raw filename like
+  // "P.K.A Membership Application for (Tréon Martin).pdf" produced a
+  // genuine "Invalid key" error on upload -- storage paths need to
+  // stay to a safe, plain character set regardless of what the
+  // original file was actually named.
+  function safeStorageFilename(name) {
+    return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]/g, '_')
+  }
+
   async function uploadMatchedScans() {
     setScanUploading(true)
     let success = 0, failed = 0
@@ -130,7 +140,7 @@ export default function AdminImport() {
     for (const m of scanMatches) {
       if (m.status !== 'matched') continue
       try {
-        const path = `membership-forms/${m.student.member_id}-${Date.now()}-${m.file.name}`
+        const path = `membership-forms/${m.student.member_id}-${Date.now()}-${safeStorageFilename(m.file.name)}`
         const { error: uploadErr } = await supabase.storage.from('athlete-media').upload(path, m.file)
         if (uploadErr) throw uploadErr
         const { data: urlData } = supabase.storage.from('athlete-media').getPublicUrl(path)
@@ -139,7 +149,11 @@ export default function AdminImport() {
           const { error } = await supabase.from('membership_forms').update({ document_url: urlData.publicUrl }).eq('id', existing.id)
           if (error) throw error
         } else {
-          const { error } = await supabase.from('membership_forms').insert({ member_id: m.student.member_id, document_url: urlData.publicUrl, submitted_at: new Date().toISOString() })
+          // form_type has a not-null constraint -- 'unknown' since a
+          // scanned file on its own doesn't actually tell us which
+          // form this genuinely was (unlike a proper structured
+          // membership_forms row already carrying that information).
+          const { error } = await supabase.from('membership_forms').insert({ member_id: m.student.member_id, form_type: 'unknown', document_url: urlData.publicUrl, submitted_at: new Date().toISOString() })
           if (error) throw error
         }
         success++
