@@ -96,6 +96,29 @@ export default function AdminImport() {
         candidateCount: candidates.length,
       }
     })
+
+    // If several files all matched the same student (e.g. someone
+    // submitted the same form multiple times, each upload getting its
+    // own auto-numbered filename), only the most recently modified
+    // one is actually kept as "matched" -- otherwise every one of them
+    // would upload to storage in turn and silently overwrite the same
+    // student's document link each time, wasting space on the earlier
+    // ones for nothing while still keeping only the last.
+    const byStudent = {}
+    for (const m of matches) {
+      if (m.status !== 'matched') continue
+      const key = m.student.member_id
+      if (!byStudent[key]) byStudent[key] = []
+      byStudent[key].push(m)
+    }
+    for (const group of Object.values(byStudent)) {
+      if (group.length <= 1) continue
+      group.sort((a, b) => (b.file.lastModified || 0) - (a.file.lastModified || 0))
+      for (const m of group.slice(1)) {
+        m.status = 'duplicate_skipped'
+        m.keptInstead = group[0].file.name
+      }
+    }
     setScanMatches(matches)
     setScanMatching(false)
   }
@@ -570,10 +593,12 @@ export default function AdminImport() {
               const alreadyHas = scanMatches.filter(m => m.status === 'already_has_scan').length
               const noMatch = scanMatches.filter(m => m.status === 'no_match').length
               const ambiguous = scanMatches.filter(m => m.status === 'ambiguous').length
+              const duplicates = scanMatches.filter(m => m.status === 'duplicate_skipped').length
               return (
-                <div style={{ display: 'flex', gap: 16, marginBottom: 12, fontSize: 12 }}>
+                <div style={{ display: 'flex', gap: 16, marginBottom: 12, fontSize: 12, flexWrap: 'wrap' }}>
                   <span style={{ color: 'var(--success)' }}>{matched} ready to upload</span>
                   {alreadyHas > 0 && <span style={{ color: 'var(--text-tertiary)' }}>{alreadyHas} already have a scan (skipped)</span>}
+                  {duplicates > 0 && <span style={{ color: 'var(--text-tertiary)' }}>{duplicates} duplicate copies of the same student (only the newest kept)</span>}
                   {noMatch > 0 && <span style={{ color: '#a32d2d' }}>{noMatch} no matching student found</span>}
                   {ambiguous > 0 && <span style={{ color: '#EF9F27' }}>{ambiguous} matched more than one student (skipped)</span>}
                 </div>
@@ -584,11 +609,12 @@ export default function AdminImport() {
                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', fontSize: 12, borderBottom: '1px solid var(--border)' }}>
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{m.file.name}</span>
                   <span style={{
-                    color: m.status === 'matched' ? 'var(--success)' : m.status === 'already_has_scan' ? 'var(--text-tertiary)' : m.status === 'ambiguous' ? '#EF9F27' : '#a32d2d',
+                    color: m.status === 'matched' ? 'var(--success)' : m.status === 'ambiguous' ? '#EF9F27' : m.status === 'no_match' ? '#a32d2d' : 'var(--text-tertiary)',
                     fontWeight: 500, flexShrink: 0, marginLeft: 10,
                   }}>
                     {m.status === 'matched' ? `→ ${m.student.members.first_name} ${m.student.members.last_name}` :
                      m.status === 'already_has_scan' ? `${m.student.members.first_name} ${m.student.members.last_name} (already has scan)` :
+                     m.status === 'duplicate_skipped' ? `Duplicate -- keeping "${m.keptInstead}" instead` :
                      m.status === 'ambiguous' ? `${m.candidateCount} possible matches` : 'No match'}
                   </span>
                 </div>
