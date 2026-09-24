@@ -56,6 +56,13 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
   // record to exist first -- some students may only ever have the
   // scanned original, with no separately-captured structured data.
   async function uploadMembershipDocument(file) {
+    // Temporary diagnostic -- confirms whether this function is even
+    // being reached at all, and what member id it would try to use,
+    // since the guard right below returns completely silently (no
+    // error, nothing) if localStudent.members.id is missing for any
+    // reason, which would otherwise look identical to "nothing
+    // happened" from the outside.
+    alert('Attach scan started. member id: ' + (localStudent.members?.id || 'MISSING'))
     if (!localStudent.members?.id) return
     setUploadingMembershipDoc(true)
     try {
