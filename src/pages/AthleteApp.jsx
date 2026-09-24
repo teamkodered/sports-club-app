@@ -1821,6 +1821,7 @@ export default function AthleteApp() {
   const [todaysBodyweight, setTodaysBodyweight] = useState([])
   const [todaysStretches, setTodaysStretches] = useState(['', '', ''])
   const [expandedStretchFlow, setExpandedStretchFlow] = useState(null) // index of the stretch flow card opened full-size
+  const [stretchRangesOpen, setStretchRangesOpen] = useState(false) // Stretch ranges list starts collapsed
   const [todaysSnc, setTodaysSnc] = useState([])
   const [showSncCards, setShowSncCards] = useState(false)
   const [sncRoutineDraft, setSncRoutineDraft] = useState('')
@@ -4099,13 +4100,21 @@ export default function AthleteApp() {
                 const renderMovedTest = (catKeys) => {
                   const cats = TEST_CATEGORIES.filter(c => catKeys.includes(c.key))
                   if (!cats.length) return null
-                  return cats.map(cat => (
+                  return cats.map(cat => {
+                    // Stretch ranges is collapsible (starts collapsed) -- tap its header to show / hide
+                    const collapsible = cat.key === 'stretches'
+                    const open = !collapsible || stretchRangesOpen
+                    return (
                     <div key={cat.key} className="card" style={{ marginBottom: 8 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>{cat.icon} {cat.key === 'stretches' ? 'Ranges' : cat.label}</span>
-                        <button type="button" className="btn btn-sm" onClick={() => clearTestCategory(cat.key)} style={{ fontSize: 11 }}>✕ Clear</button>
+                      <div onClick={collapsible ? () => setStretchRangesOpen(o => !o) : undefined}
+                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: open ? 8 : 0, cursor: collapsible ? 'pointer' : undefined }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>
+                          {collapsible && <span style={{ display: 'inline-block', width: 14 }}>{open ? '▾' : '▸'}</span>}
+                          {cat.icon} {cat.key === 'stretches' ? 'Stretch ranges' : cat.label}
+                        </span>
+                        {open && <button type="button" className="btn btn-sm" onClick={e => { e.stopPropagation(); clearTestCategory(cat.key) }} style={{ fontSize: 11 }}>✕ Clear</button>}
                       </div>
-                      {cat.tests.map(t => {
+                      {open && cat.tests.map(t => {
                         const allValues = sorted.map(s => parseFloat(s.test?.[t.name])).filter(v => !isNaN(v))
                         const mostRecentSession = [...sorted].reverse().find(s => s.test?.[t.name] != null && s.test[t.name] !== '')
                         const mostRecent = mostRecentSession ? mostRecentSession.test[t.name] : null
@@ -4128,9 +4137,10 @@ export default function AthleteApp() {
                           </div>
                         )
                       })}
-                      {savingTest && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>Saving…</p>}
+                      {open && savingTest && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>Saving…</p>}
                     </div>
-                  ))
+                    )
+                  })
                 }
                 const scopeOptions = ['All sessions', student.discipline, [student.class_schedule, student.class_time].filter(Boolean).join(' ')]
                   .filter(Boolean).filter((v, i, a) => a.indexOf(v) === i)
@@ -4614,8 +4624,8 @@ export default function AthleteApp() {
                       return (
                         <div style={{ marginBottom: 8 }}>
                           <button type="button" className="btn btn-sm" style={{ marginBottom: 8 }} onClick={() => setExpandedStretchFlow(null)}>← All stretch flows</button>
-                          <div style={{
-                            padding: '18px 16px', borderRadius: 'var(--radius)',
+                          <div onClick={() => setExpandedStretchFlow(null)} title="Tap to minimise" style={{
+                            padding: '18px 16px', borderRadius: 'var(--radius)', cursor: 'pointer',
                             border: `2px solid ${complete ? '#EF9F27' : 'var(--border)'}`,
                             background: complete ? '#EF9F2712' : 'var(--bg-secondary)',
                           }}>
@@ -4628,7 +4638,7 @@ export default function AthleteApp() {
                               {flow.stretches.map(st => <li key={st}>{st}</li>)}
                             </ol>
                             {complete ? (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }} onClick={e => e.stopPropagation()}>
                                 <div style={{ textAlign: 'center', padding: '12px', borderRadius: 'var(--radius)', background: '#EF9F27', color: '#fff', fontWeight: 700, fontSize: 15 }}>✓ Completed today</div>
                                 <button type="button" className="btn btn-sm" style={{ justifyContent: 'center' }} disabled={savingPhysical}
                                   onClick={() => { if (window.confirm(`Mark "${flow.label}" as not done? This removes today's entry.`)) setDone(false) }}>
@@ -4638,7 +4648,7 @@ export default function AthleteApp() {
                             ) : (
                               <button type="button" className="btn btn-primary" disabled={savingPhysical}
                                 style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: 15, fontWeight: 700 }}
-                                onClick={() => setDone(true)}>
+                                onClick={e => { e.stopPropagation(); setDone(true) }}>
                                 {savingPhysical ? 'Saving…' : 'Done'}
                               </button>
                             )}
