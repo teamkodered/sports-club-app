@@ -1820,6 +1820,7 @@ export default function AthleteApp() {
   const [todaysWattBike, setTodaysWattBike] = useState([])
   const [todaysBodyweight, setTodaysBodyweight] = useState([])
   const [todaysStretches, setTodaysStretches] = useState(['', '', ''])
+  const [expandedStretchFlow, setExpandedStretchFlow] = useState(null) // index of the stretch flow card opened full-size
   const [todaysSnc, setTodaysSnc] = useState([])
   const [showSncCards, setShowSncCards] = useState(false)
   const [sncRoutineDraft, setSncRoutineDraft] = useState('')
@@ -2815,7 +2816,7 @@ export default function AthleteApp() {
     })
   }
 
-  async function savePhysicalField(dbField, newValue, localSetter) {
+  async function savePhysicalField(dbField, newValue, localSetter, confirmMsg) {
     if (!student) return
     const todaysDateForCheck = new Date().toISOString().split('T')[0]
     const existingForCheck = sessions.find(s => s.session_date === todaysDateForCheck)
@@ -2841,7 +2842,7 @@ export default function AthleteApp() {
         if (!error && data) { todaysSessionIdRef.current = data.id; setSessions(prev => [data, ...prev]) }
       }
       if (error) alert('Error saving: ' + error.message)
-      else flashSaved()
+      else flashSaved(confirmMsg)
     }
     physicalSaveQueueRef.current = physicalSaveQueueRef.current.then(runSave, runSave)
     await physicalSaveQueueRef.current
@@ -4603,27 +4604,55 @@ export default function AthleteApp() {
 
                     {showStretchCards && (
                     <div ref={stretchPanelRef}>
+                    {expandedStretchFlow != null && STRETCH_FLOWS[expandedStretchFlow] ? (() => {
+                      // One flow opened full-size: the full list, easy to read
+                      // mid-stretch, with a Done button at the bottom
+                      const i = expandedStretchFlow
+                      const flow = STRETCH_FLOWS[i]
+                      const complete = !!todaysStretches[i]
+                      const setDone = done => { const next = [...todaysStretches]; next[i] = done ? flow.label : ''; savePhysicalField('stretch_flows', next, setTodaysStretches, done ? `🤸 ${flow.label} completed` : `${flow.label} marked as not done`) }
+                      return (
+                        <div style={{ marginBottom: 8 }}>
+                          <button type="button" className="btn btn-sm" style={{ marginBottom: 8 }} onClick={() => setExpandedStretchFlow(null)}>← All stretch flows</button>
+                          <div style={{
+                            padding: '18px 16px', borderRadius: 'var(--radius)',
+                            border: `2px solid ${complete ? '#EF9F27' : 'var(--border)'}`,
+                            background: complete ? '#EF9F2712' : 'var(--bg-secondary)',
+                          }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, marginBottom: 14 }}>
+                              <span style={{ fontSize: 28 }}>{complete ? '✓' : '🤸'}</span>
+                              <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', textAlign: 'center' }}>{flow.label}</span>
+                              <span style={{ fontSize: 12, color: 'var(--text-tertiary)', textAlign: 'center' }}>{flow.timing}</span>
+                            </div>
+                            <ol style={{ margin: '0 0 18px', paddingLeft: 22, fontSize: 15, lineHeight: 1.8, color: 'var(--text)' }}>
+                              {flow.stretches.map(st => <li key={st}>{st}</li>)}
+                            </ol>
+                            {complete ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                <div style={{ textAlign: 'center', padding: '12px', borderRadius: 'var(--radius)', background: '#EF9F27', color: '#fff', fontWeight: 700, fontSize: 15 }}>✓ Completed today</div>
+                                <button type="button" className="btn btn-sm" style={{ justifyContent: 'center' }} disabled={savingPhysical}
+                                  onClick={() => { if (window.confirm(`Mark "${flow.label}" as not done? This removes today's entry.`)) setDone(false) }}>
+                                  Undo
+                                </button>
+                              </div>
+                            ) : (
+                              <button type="button" className="btn btn-primary" disabled={savingPhysical}
+                                style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: 15, fontWeight: 700 }}
+                                onClick={() => setDone(true)}>
+                                {savingPhysical ? 'Saving…' : 'Done'}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })() : (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 8 }}>
                       {STRETCH_FLOWS.map((flow, i) => {
                         const complete = !!todaysStretches[i]
                         return (
                           <button key={i} type="button"
-                            onClick={() => {
-                              // Marking complete is a plain tap, but
-                              // un-marking an already-completed flow
-                              // needs a deliberate confirmation --
-                              // previously a second tap on the same
-                              // spot silently undid it, which is an
-                              // easy accidental double-tap away
-                              // (especially with any save delay before
-                              // the ✓ shows), and looked identical to
-                              // "it never saved" to anyone checking
-                              // later.
-                              if (complete) {
-                                if (!window.confirm(`Mark "${flow.label}" as not done? This removes today's entry.`)) return
-                              }
-                              const next = [...todaysStretches]; next[i] = complete ? '' : flow.label; savePhysicalField('stretch_flows', next, setTodaysStretches)
-                            }}
+                            // Tapping a card opens it full-size; completing is done with its Done button
+                            onClick={() => setExpandedStretchFlow(i)}
                             style={{
                               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 8px',
                               borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
@@ -4642,6 +4671,7 @@ export default function AthleteApp() {
                         )
                       })}
                     </div>
+                    )}
                     {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8 }}>Saving…</p>}
                     {/* Stretches, moved here from the old Test tab and relabelled Ranges */}
                     {renderMovedTest(['stretches'])}
