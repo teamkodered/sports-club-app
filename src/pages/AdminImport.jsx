@@ -650,8 +650,8 @@ export default function AdminImport() {
                 </div>
               ))}
             </div>
-            <button className="btn btn-primary" style={{ marginTop: 12 }} disabled={scanUploading || !scanMatches.some(m => m.status === 'matched')} onClick={uploadMatchedScans}>
-              {scanUploading ? 'Uploading…' : `Upload ${scanMatches.filter(m => m.status === 'matched').length} matched scans`}
+            <button className="btn btn-primary" style={{ marginTop: 12 }} disabled={scanUploading || scanResult || !scanMatches.some(m => m.status === 'matched')} onClick={uploadMatchedScans}>
+              {scanResult ? '✓ Complete' : scanUploading ? 'Uploading…' : `Upload ${scanMatches.filter(m => m.status === 'matched').length} matched scans`}
             </button>
           </div>
         )}
