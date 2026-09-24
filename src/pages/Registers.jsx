@@ -1622,7 +1622,14 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                       </td>
                     )}
                     {visibleCols.includes('att_pct') && (
-                      <td style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-secondary)' }}>{attendanceStats[s.id]?.pct ?? 0}%</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 70 }}>
+                          <div style={{ flex: 1, height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
+                            <div style={{ width: `${attendanceStats[s.id]?.pct ?? 0}%`, height: '100%', background: colour, borderRadius: 3 }} />
+                          </div>
+                          <span style={{ fontSize: 11, color: 'var(--text-secondary)', minWidth: 30 }}>{attendanceStats[s.id]?.pct ?? 0}%</span>
+                        </div>
+                      </td>
                     )}
                     {(regType === 'kr' || regType === 'krba') && (
                       <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
