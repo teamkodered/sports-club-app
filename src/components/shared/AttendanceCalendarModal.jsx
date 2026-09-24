@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase.js'
+import { toLocalISO, classesDueOn } from '../../lib/attendanceDays.js'
 
 // Popup attendance calendar for one student -- same colours, rules and
 // database writes as the calendar on the athlete profile's Sessions tab:
@@ -11,20 +12,7 @@ import { supabase } from '../../lib/supabase.js'
 // or opens a per-class picker on days with more than one class.
 // Closes with the X button, a click outside, or Escape.
 
-const DAY_TO_JS_DAYS = {
-  Monday: [1], Tuesday: [2], Wednesday: [3], Thursday: [4], Friday: [5], Saturday: [6], Sunday: [0],
-  'Mon/Fri': [1, 5], 'Tue/Thu': [2, 4],
-}
-
-function isDateOnHoliday(dateStr, holidays, classIds, studentId) {
-  if (holidays.some(h => !h.class_id && !h.student_id && h.start_date <= dateStr && h.end_date >= dateStr)) return true
-  if (studentId && holidays.some(h => h.student_id === studentId && h.start_date <= dateStr && h.end_date >= dateStr)) return true
-  if (!classIds || classIds.length === 0) return false
-  return classIds.every(cid => holidays.some(h => h.class_id === cid && h.start_date <= dateStr && h.end_date >= dateStr))
-}
-
 const pad = n => String(n).padStart(2, '0')
-const toLocalISO = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 
 export default function AttendanceCalendarModal({ student, onClose, onChanged }) {
   const studentId = student.id
@@ -153,17 +141,13 @@ export default function AttendanceCalendarModal({ student, onClose, onChanged })
     }
   })
 
-  const classesOn = (dateStr, jsDay) => assignedClasses.filter(a =>
-    (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay) &&
-    !isDateOnHoliday(dateStr, holidays, a.classes?.id ? [a.classes.id] : [], studentId))
 
   let attendedCount = 0, missedCount = 0
   const cells = []
   for (let i = 0; i < startWeekday; i++) cells.push(null)
   for (let d = 1; d <= daysInMonth; d++) {
     const dateStr = `${year}-${pad(month + 1)}-${pad(d)}`
-    const jsDay = new Date(year, month, d).getDay()
-    const classesToday = classesOn(dateStr, jsDay)
+    const classesToday = classesDueOn(dateStr, assignedClasses, holidays, studentId)
     const attended = attendedDays.has(dateStr)
     const absent = absentDays.has(dateStr)
     const excused = excusedDays.has(dateStr)

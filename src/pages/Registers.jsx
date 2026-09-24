@@ -78,6 +78,7 @@ import { useAuth } from '../hooks/useAuth.jsx'
 import { useSyncedPreference } from '../hooks/useSyncedPreference.js'
 import { studentProfileLink } from '../lib/studentLinks.js'
 import AttendanceCalendarModal from '../components/shared/AttendanceCalendarModal.jsx'
+import { ownAttendanceRate, isAttendedType, toLocalISO as toLocalISODate } from '../lib/attendanceDays.js'
 
 const HOUSE_COLOURS = {
   'Dragon House': '#E24B4A', 'Super House': '#378ADD',
@@ -315,27 +316,50 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   // attendance history view, not tied to today specifically.
   const [attendanceStats, setAttendanceStats] = useState({})
   const [calendarStudent, setCalendarStudent] = useState(null) // student whose attendance calendar popup is open
+  // Total sessions / Last attended / Attendance % for the chosen range.
+  // Attendance % is each student's OWN rate -- days attended out of days
+  // attended + missed -- using the same rules as the attendance calendar
+  // popup (src/lib/attendanceDays.js), so the bar and the calendar agree.
   async function loadAttendanceStats() {
-    const pageSize = 1000
-    let all = [], from = 0
-    while (true) {
-      let q = supabase.from('attendance').select('student_id, session_date').range(from, from + pageSize - 1)
-      if (attStatsDateFrom) q = q.gte('session_date', attStatsDateFrom)
-      if (attStatsDateTo) q = q.lte('session_date', attStatsDateTo)
-      const { data, error } = await q
-      if (error) { console.error('Attendance stats fetch error:', error); break }
-      all = all.concat(data || [])
-      if (!data || data.length < pageSize) break
-      from += pageSize
+    const fetchAll = async build => {
+      const pageSize = 1000
+      let all = [], from = 0
+      while (true) {
+        const { data, error } = await build().range(from, from + pageSize - 1)
+        if (error) { console.error('Attendance stats fetch error:', error); break }
+        all = all.concat(data || [])
+        if (!data || data.length < pageSize) break
+        from += pageSize
+      }
+      return all
     }
+    const [att, assignments, { data: holidays }] = await Promise.all([
+      fetchAll(() => {
+        let q = supabase.from('attendance').select('id, student_id, session_date, attendance_type').order('id')
+        if (attStatsDateFrom) q = q.gte('session_date', attStatsDateFrom)
+        if (attStatsDateTo) q = q.lte('session_date', attStatsDateTo)
+        return q
+      }),
+      fetchAll(() => supabase.from('student_class_assignments').select('id, student_id, classes(id, day_of_week)').order('id')),
+      supabase.from('holidays').select('*'),
+    ])
+    const rowsByStudent = {}, assignByStudent = {}
+    att.forEach(a => { (rowsByStudent[a.student_id] ||= []).push(a) })
+    assignments.forEach(a => { (assignByStudent[a.student_id] ||= []).push(a) })
+    const today = toLocalISODate(new Date())
     const byStudent = {}
-    all.forEach(a => {
-      if (!byStudent[a.student_id]) byStudent[a.student_id] = { total: 0, last: null }
-      byStudent[a.student_id].total++
-      if (!byStudent[a.student_id].last || a.session_date > byStudent[a.student_id].last) byStudent[a.student_id].last = a.session_date
+    new Set([...Object.keys(rowsByStudent), ...Object.keys(assignByStudent)]).forEach(sid => {
+      const rows = rowsByStudent[sid] || []
+      const attendedRows = rows.filter(r => isAttendedType(r.attendance_type))
+      // All-time: rate starts from the student's first record
+      const from = attStatsDateFrom || rows.map(r => r.session_date).filter(Boolean).sort()[0] || null
+      const rate = ownAttendanceRate({ rows, assignments: assignByStudent[sid] || [], holidays: holidays || [], studentId: (rows[0] || assignByStudent[sid]?.[0])?.student_id ?? sid, from, to: attStatsDateTo || null, today })
+      byStudent[sid] = {
+        total: attendedRows.length,
+        last: attendedRows.reduce((m, r) => (!m || r.session_date > m ? r.session_date : m), null),
+        pct: rate.pct, attendedDays: rate.attended, missedDays: rate.missed,
+      }
     })
-    const maxSessions = Math.max(...Object.values(byStudent).map(x => x.total), 1)
-    Object.values(byStudent).forEach(s => { s.pct = Math.round((s.total / maxSessions) * 100) })
     setAttendanceStats(byStudent)
   }
 
@@ -1458,7 +1482,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                 </>}
                 {visibleCols.includes('att_total') && <th style={{ background: 'var(--bg)', textAlign: 'center' }} title="All-time sessions attended">Total sessions</th>}
                 {visibleCols.includes('att_last') && <th style={{ background: 'var(--bg)', textAlign: 'center' }}>Last attended</th>}
-                {visibleCols.includes('att_pct') && <th style={{ background: 'var(--bg)', textAlign: 'center' }} title="Relative to the highest-attending student in the system">Attendance %</th>}
+                {visibleCols.includes('att_pct') && <th style={{ background: 'var(--bg)', textAlign: 'center' }} title="Days attended out of days attended + missed (same rules as the attendance calendar)">Attendance %</th>}
                 {(regType === 'kr' || regType === 'krba') && (() => {
                   const inCount = displayStudents.filter(s => s.in_comp).length
                   const outCount = displayStudents.length - inCount
@@ -1650,13 +1674,13 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                       </td>
                     )}
                     {visibleCols.includes('att_pct') && (
-                      <td style={{ textAlign: 'center', cursor: 'pointer' }} title="Tap to view attendance calendar"
+                      <td style={{ textAlign: 'center', cursor: 'pointer' }} title={`${attendanceStats[s.id]?.attendedDays ?? 0} days attended, ${attendanceStats[s.id]?.missedDays ?? 0} missed — tap to view calendar`}
                         onClick={e => { e.stopPropagation(); setCalendarStudent(s) }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 70 }}>
                           <div style={{ flex: 1, height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
                             <div style={{ width: `${attendanceStats[s.id]?.pct ?? 0}%`, height: '100%', background: colour, borderRadius: 3 }} />
                           </div>
-                          <span style={{ fontSize: 11, color: 'var(--text-secondary)', minWidth: 30 }}>{attendanceStats[s.id]?.pct ?? 0}%</span>
+                          <span style={{ fontSize: 11, color: 'var(--text-secondary)', minWidth: 30 }}>{attendanceStats[s.id]?.pct == null ? '—' : `${attendanceStats[s.id].pct}%`}</span>
                         </div>
                       </td>
                     )}
