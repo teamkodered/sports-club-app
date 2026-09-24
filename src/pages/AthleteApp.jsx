@@ -1562,7 +1562,49 @@ export default function AthleteApp() {
   function flashSaved(msg = '✓ Saved') {
     setSaveConfirmation(msg)
     clearTimeout(saveConfirmationTimer.current)
-    saveConfirmationTimer.current = setTimeout(() => setSaveConfirmation(null), 1400)
+    saveConfirmationTimer.current = setTimeout(() => setSaveConfirmation(null), 2200)
+  }
+  // Specific confirmation text for a wellbeing entry, e.g. "30 mins outdoors added"
+  function describeWellbeingChange(field, cur, next) {
+    const label = WELLBEING_QUESTIONS.find(q => q.key === field)?.label || 'Entry'
+    const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`
+    const diff = k => +(((next?.[k] || 0) - (cur?.[k] || 0)).toFixed(2))
+    const cleared = k => (next?.[k] || 0) === 0 && (cur?.[k] || 0) > 0
+    switch (field) {
+      case 'outdoors':
+        if (cleared('totalMinutes')) return '🌳 Outdoors reset'
+        if (diff('totalMinutes') > 0) return `🌳 ${diff('totalMinutes')} mins outdoors added`
+        break
+      case 'hydration':
+        if (cleared('total')) return '💧 Hydration reset'
+        if (diff('total') > 0) return `💧 ${diff('total')}L water added`
+        break
+      case 'talk':
+        if (cleared('count')) return '💬 Talk reset'
+        if (diff('count') > 0) return `💬 ${plural(diff('count'), 'talk')} added`
+        break
+      case 'journal':
+        if (next?.privateJournal !== cur?.privateJournal && diff('count') === 0) return next?.privateJournal ? '📓 Journal set to private' : '📓 Journal set to shared'
+        if (cleared('count')) return '📓 Journal cleared'
+        if (diff('count') > 0) return '📓 Journal entry added'
+        break
+      case 'creative':
+        if (cleared('count')) return '🎨 Creative tasks cleared'
+        if (diff('count') > 0) return `🎨 ${plural(diff('count'), 'creative task')} added`
+        break
+      case 'productivity':
+        if (cleared('count')) return '✅ Productivity cleared'
+        if (diff('count') > 0) return `✅ ${plural(diff('count'), 'productive task')} added`
+        break
+      case 'screenFree':
+        if (next?.hours || next?.custom) return `📵 ${next.hours || next.custom} screen free added`
+        return '📵 Screen free cleared'
+      case 'sleep':
+        if (next?.hours !== cur?.hours && next?.hours) return `😴 ${next.hours} hours sleep added`
+        if (next?.efficiency !== cur?.efficiency && next?.efficiency) return `😴 Sleep efficiency ${next.efficiency}% added`
+        break
+    }
+    return `✓ ${label} saved`
   }
   const [hydrationCustomAdd, setHydrationCustomAdd] = useState('')
   const [outdoorsCustomAdd, setOutdoorsCustomAdd] = useState('')
@@ -2304,6 +2346,7 @@ export default function AthleteApp() {
       if (!error && data) setSessions(prev => [data, ...prev])
     }
     if (error) alert('Error saving: ' + error.message)
+    else flashSaved(`✓ ${field.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase())} logged`)
   }
 
   function handleNoteMediaSelect(e) {
@@ -2349,6 +2392,7 @@ export default function AthleteApp() {
       .insert({ student_id: student.id, note_text: newNoteText.trim(), logged_at: new Date().toISOString(), author_role: 'athlete', visible_to_athlete: true, media_storage_path: mediaStoragePath, media_type: mediaType })
       .select().single()
     if (error) { alert('Error saving note: ' + error.message); setSavingNote(false); return }
+    flashSaved('📝 Note added')
     setMyNotesLog(prev => [data, ...prev])
     setNewNoteText('')
     clearPendingNoteMedia()
@@ -2525,6 +2569,7 @@ export default function AthleteApp() {
       if (!error && data) setSessions(prev => [data, ...prev])
     }
     if (error) alert('Error saving: ' + error.message)
+    else flashSaved('🧘 Stretch added')
   }
 
   // Save a single wellbeing question's data directly from the Home page,
@@ -2554,7 +2599,7 @@ export default function AthleteApp() {
       if (!error && data) setSessions(prev => [data, ...prev])
     }
     if (error) alert('Error saving: ' + error.message)
-    else flashSaved()
+    else flashSaved(describeWellbeingChange(field, current, updatedField))
     setSavingWellbeing(false)
   }
 
@@ -3743,11 +3788,13 @@ export default function AthleteApp() {
 
       {saveConfirmation && (
         <div style={{
-          position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 300,
-          background: '#1D9E75', color: '#fff', fontWeight: 600, fontSize: 13,
-          padding: '9px 18px', borderRadius: 20, boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
-          pointerEvents: 'none',
-        }}>
+          position: 'fixed', top: 'calc(env(safe-area-inset-top, 0px) + 16px)', left: '50%', transform: 'translateX(-50%)', zIndex: 300,
+          background: '#1D9E75', color: '#fff', fontWeight: 600, fontSize: 15,
+          padding: '12px 22px', borderRadius: 24, boxShadow: '0 6px 20px rgba(0,0,0,0.3)',
+          pointerEvents: 'none', maxWidth: 'calc(100vw - 32px)', textAlign: 'center',
+          animation: 'toastIn 0.18s ease-out',
+        }} role="status" aria-live="polite">
+          <style>{'@keyframes toastIn { from { opacity: 0; transform: translate(-50%, -8px) } to { opacity: 1; transform: translate(-50%, 0) } }'}</style>
           {saveConfirmation}
         </div>
       )}
