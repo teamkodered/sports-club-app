@@ -70,7 +70,7 @@ export default function AdminImport() {
     setScanMatching(true)
     const { data: students } = await supabase
       .from('students')
-      .select('id, member_id, members(first_name, last_name)')
+      .select('id, member_id, discipline, members(first_name, last_name, date_of_birth)')
     const { data: existingForms } = await supabase.from('membership_forms').select('member_id, document_url')
     const hasDocByMemberId = new Set((existingForms || []).filter(f => f.document_url).map(f => f.member_id))
 
@@ -165,11 +165,17 @@ export default function AdminImport() {
           if (error) throw error
           if (!updated || updated.length === 0) throw new Error('Update matched 0 rows (check RLS update policy on membership_forms)')
         } else {
-          // form_type has a not-null constraint -- 'unknown' since a
-          // scanned file on its own doesn't actually tell us which
-          // form this genuinely was (unlike a proper structured
-          // membership_forms row already carrying that information).
-          const { error } = await supabase.from('membership_forms').insert({ member_id: m.student.member_id, form_type: 'unknown', document_url: urlData.publicUrl, submitted_at: new Date().toISOString() })
+          // form_type has a not-null CHECK constraint restricted to
+          // 'pka_child' / 'pka_adult' / 'krba' -- 'unknown' isn't a
+          // valid value at all, which is exactly what caused every
+          // one of these inserts to fail. Best-guesses the correct
+          // one from the student's own discipline and age, since a
+          // scanned file alone doesn't carry this information the way
+          // a proper structured submission would.
+          const dob = m.student.members?.date_of_birth
+          const age = dob ? Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 24 * 3600 * 1000)) : null
+          const formType = m.student.discipline === 'KRBA' ? 'krba' : (age != null && age < 18) ? 'pka_child' : 'pka_adult'
+          const { error } = await supabase.from('membership_forms').insert({ member_id: m.student.member_id, form_type: formType, document_url: urlData.publicUrl, submitted_at: new Date().toISOString() })
           if (error) throw error
         }
         success++

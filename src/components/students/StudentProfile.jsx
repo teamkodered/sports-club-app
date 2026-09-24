@@ -84,8 +84,18 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
         if (!updated || updated.length === 0) { alert('The document uploaded, but saving the link failed silently (matched 0 rows) -- likely a missing update permission. Please tell your admin.'); setUploadingMembershipDoc(false); return }
         setMembershipForm(f => ({ ...f, document_url: urlData.publicUrl }))
       } else {
+        // form_type has a not-null CHECK constraint restricted to
+        // 'pka_child' / 'pka_adult' / 'krba' -- 'unknown' isn't a
+        // valid value at all, which is exactly what caused this to
+        // fail. Best-guesses the correct one from the student's own
+        // discipline and age, since a scanned file alone doesn't
+        // carry this information the way a proper structured
+        // submission would.
+        const dob = localStudent.members?.date_of_birth
+        const age = dob ? Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 24 * 3600 * 1000)) : null
+        const formType = localStudent.discipline === 'KRBA' ? 'krba' : (age != null && age < 18) ? 'pka_child' : 'pka_adult'
         const { data, error } = await supabase.from('membership_forms').insert({
-          member_id: localStudent.members.id, form_type: 'unknown', document_url: urlData.publicUrl, submitted_at: new Date().toISOString(),
+          member_id: localStudent.members.id, form_type: formType, document_url: urlData.publicUrl, submitted_at: new Date().toISOString(),
         }).select().single()
         if (error) { alert('Error creating record: ' + error.message); setUploadingMembershipDoc(false); return }
         setMembershipForm(data)
