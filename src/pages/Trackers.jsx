@@ -4,6 +4,7 @@ import { matchesSearch } from '../lib/searchMatch.js'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { studentProfileLink } from '../lib/studentLinks.js'
+import { ownAttendanceRate, isAttendedType, toLocalISO } from '../lib/attendanceDays.js'
 
 const HOUSE_COLOURS = { 'Dragon House': '#E24B4A', 'Super House': '#378ADD', 'Ice House': '#1D9E75', 'Jet House': '#EF9F27' }
 
@@ -72,6 +73,8 @@ export default function Trackers({ onStatsReady } = {}) {
   const [tab, setTab]               = useBackableTab('dashboard')
   const [attendance, setAttendance]   = useState([])
   const [attFilter, setAttFilter]     = useState('all')
+  const [assignments, setAssignments] = useState([])
+  const [holidays, setHolidays] = useState([])
   const [attDateFrom, setAttDateFrom] = useState('')
   const [attDateTo, setAttDateTo]     = useState('')
   const [attSortKey, setAttSortKey]   = useState('total')
@@ -133,6 +136,13 @@ export default function Trackers({ onStatsReady } = {}) {
       .select('student_id, session_date, attended_at, attendance_type, class_id')
       .order('attended_at', { ascending: false }))
     setAttendance(att)
+    // Class assignments + holidays, for each student's own attendance rate
+    const [asg, { data: hol }] = await Promise.all([
+      fetchAllRows(() => supabase.from('student_class_assignments').select('id, student_id, classes(id, day_of_week)')),
+      supabase.from('holidays').select('*'),
+    ])
+    setAssignments(asg)
+    setHolidays(hol || [])
     setLoading(false)
   }
 
@@ -591,8 +601,9 @@ export default function Trackers({ onStatsReady } = {}) {
               <tbody>
                 {(() => {
                   // Apply type + date filters before grouping
-                  let filteredAttendance = attFilter === 'all' 
-                    ? attendance 
+                  // 'All' = every attended session (absent / cleared records aren't sessions)
+                  let filteredAttendance = attFilter === 'all'
+                    ? attendance.filter(a => isAttendedType(a.attendance_type))
                     : attendance.filter(a => a.attendance_type === attFilter)
                   if (attDateFrom) filteredAttendance = filteredAttendance.filter(a => (a.session_date || a.attended_at?.split('T')[0]) >= attDateFrom)
                   if (attDateTo) filteredAttendance = filteredAttendance.filter(a => (a.session_date || a.attended_at?.split('T')[0]) <= attDateTo)
@@ -609,9 +620,27 @@ export default function Trackers({ onStatsReady } = {}) {
                   // Total unique session dates = total possible sessions
                   const uniqueDates = new Set(filteredAttendance.map(a => a.session_date || a.attended_at?.split('T')[0])).size
                   const maxSessions = uniqueDates || Math.max(...Object.values(byStudent).map(x => x.total), 1)
+                  // Attendance % = each student's OWN rate (days attended / days
+                  // attended + missed), same rules as the Registers column and
+                  // the attendance calendar (src/lib/attendanceDays.js). Uses all
+                  // record types in the date range, whatever the type filter.
+                  const dateOf = a => a.session_date || a.attended_at?.split('T')[0]
+                  const inRange = a => (!attDateFrom || dateOf(a) >= attDateFrom) && (!attDateTo || dateOf(a) <= attDateTo)
+                  const rateRowsByStudent = {}, asgByStudent = {}
+                  attendance.forEach(a => { if (inRange(a)) (rateRowsByStudent[a.student_id] ||= []).push({ session_date: dateOf(a), attendance_type: a.attendance_type }) })
+                  assignments.forEach(a => { (asgByStudent[a.student_id] ||= []).push(a) })
+                  const today = toLocalISO(new Date())
+                  const rateFor = id => {
+                    const r = rateRowsByStudent[id] || []
+                    return ownAttendanceRate({
+                      rows: r, assignments: asgByStudent[id] || [], holidays, studentId: id,
+                      from: attDateFrom || r.map(x => x.session_date).filter(Boolean).sort()[0] || null,
+                      to: attDateTo || null, today,
+                    })
+                  }
                   const rows = stats
                     .filter(s => byStudent[s.id])
-                    .map(s => ({ s, att: byStudent[s.id] || { total: 0, fullKit: 0, last: null }, pct: Math.round(((byStudent[s.id]?.total || 0) / maxSessions) * 100) }))
+                    .map(s => { const rate = rateFor(s.id); return { s, att: byStudent[s.id] || { total: 0, fullKit: 0, last: null }, pct: rate.pct, rate } })
                   rows.sort((a, b) => {
                     let av, bv
                     if (attSortKey === 'name') { av = a.s.name; bv = b.s.name }
@@ -619,12 +648,12 @@ export default function Trackers({ onStatsReady } = {}) {
                     else if (attSortKey === 'total') { av = a.att.total; bv = b.att.total }
                     else if (attSortKey === 'fullKit') { av = a.att.fullKit; bv = b.att.fullKit }
                     else if (attSortKey === 'last') { av = a.att.last || ''; bv = b.att.last || '' }
-                    else { av = a.pct; bv = b.pct }
+                    else { av = a.pct ?? -1; bv = b.pct ?? -1 }
                     if (av < bv) return attSortDir === 'asc' ? -1 : 1
                     if (av > bv) return attSortDir === 'asc' ? 1 : -1
                     return 0
                   })
-                  return rows.map(({ s, att, pct }) => {
+                  return rows.map(({ s, att, pct, rate }) => {
                       const colour = HOUSE_COLOURS[s.house] || '#888'
                       return (
                         <tr key={s.id}>
@@ -643,12 +672,12 @@ export default function Trackers({ onStatsReady } = {}) {
                           <td style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-secondary)' }}>
                             {att.last ? new Date(att.last).toLocaleDateString('en-GB') : '—'}
                           </td>
-                          <td style={{ textAlign: 'center' }}>
+                          <td style={{ textAlign: 'center' }} title={`${rate.attended} days attended, ${rate.missed} missed`}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                               <div style={{ flex: 1, height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
-                                <div style={{ width: `${pct}%`, height: '100%', background: colour, borderRadius: 3 }} />
+                                <div style={{ width: `${pct ?? 0}%`, height: '100%', background: colour, borderRadius: 3 }} />
                               </div>
-                              <span style={{ fontSize: 11, color: 'var(--text-secondary)', minWidth: 30 }}>{pct}%</span>
+                              <span style={{ fontSize: 11, color: 'var(--text-secondary)', minWidth: 30 }}>{pct == null ? '—' : `${pct}%`}</span>
                             </div>
                           </td>
                         </tr>
