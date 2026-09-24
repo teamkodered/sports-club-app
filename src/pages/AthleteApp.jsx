@@ -2362,7 +2362,7 @@ export default function AthleteApp() {
   }
 
   async function addNote() {
-    if (!newNoteText.trim() || !student) return
+    if ((!newNoteText.trim() && !pendingNoteMedia) || !student) return
     setSavingNote(true)
 
     let mediaStoragePath = null
@@ -2383,13 +2383,18 @@ export default function AthleteApp() {
         mediaStoragePath = urlData.storage_path
         mediaType = pendingNoteMedia.type
       } catch (err) {
+        if (!newNoteText.trim()) {
+          // Photo-only note (e.g. scanned written notes) -- nothing to save without the photo
+          alert('Could not upload the photo: ' + err.message + ' — please try again.')
+          setUploadingNoteMedia(false); setSavingNote(false); return
+        }
         alert('Could not attach photo/video: ' + err.message + ' — saving the note without it.')
       }
       setUploadingNoteMedia(false)
     }
 
     const { data, error } = await supabase.from('athlete_notes_log')
-      .insert({ student_id: student.id, note_text: newNoteText.trim(), logged_at: new Date().toISOString(), author_role: 'athlete', visible_to_athlete: true, media_storage_path: mediaStoragePath, media_type: mediaType })
+      .insert({ student_id: student.id, note_text: newNoteText.trim() || (mediaType === 'video' ? '🎬 Video note' : '📷 Scanned note'), logged_at: new Date().toISOString(), author_role: 'athlete', visible_to_athlete: true, media_storage_path: mediaStoragePath, media_type: mediaType })
       .select().single()
     if (error) { alert('Error saving note: ' + error.message); setSavingNote(false); return }
     flashSaved('📝 Note added')
@@ -6742,6 +6747,15 @@ export default function AthleteApp() {
               onFocus={() => setShowFullscreenNoteComposer(true)} onClick={() => setShowFullscreenNoteComposer(true)}
               placeholder="Write a note for yourself…" rows={3} readOnly
               style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8, cursor: 'pointer' }} />
+            {/* Written notes on paper: snap a photo of the page and save it as a note */}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input type="file" accept="image/*" capture="environment" id="note-scan-input" style={{ display: 'none' }}
+                onChange={e => { if (!e.target.files?.[0]) return; handleNoteMediaSelect(e); e.target.value = ''; setShowFullscreenNoteComposer(true) }} />
+              <label htmlFor="note-scan-input" className="btn btn-sm" style={{ cursor: 'pointer', flex: 1, justifyContent: 'center' }}>📷 Scan written notes</label>
+              <input type="file" accept="image/*" id="note-scan-upload-input" style={{ display: 'none' }}
+                onChange={e => { if (!e.target.files?.[0]) return; handleNoteMediaSelect(e); e.target.value = ''; setShowFullscreenNoteComposer(true) }} />
+              <label htmlFor="note-scan-upload-input" className="btn btn-sm" style={{ cursor: 'pointer', flex: 1, justifyContent: 'center' }}>🖼️ Upload photo</label>
+            </div>
           </div>
           {myNotesLog.length === 0 ? (
             <div className="empty-state"><h3>No notes yet</h3></div>
@@ -6790,7 +6804,7 @@ export default function AthleteApp() {
             <h2 style={{ fontSize: 15, fontWeight: 600 }}>Write a note</h2>
           </div>
           <textarea autoFocus value={newNoteText} onChange={e => setNewNoteText(e.target.value)}
-            placeholder="Write a note for yourself…"
+            placeholder={pendingNoteMedia ? 'Add a title or summary (optional)…' : 'Write a note for yourself…'}
             style={{ flex: 1, width: '100%', padding: 14, border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 15, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'none', marginBottom: 14 }} />
 
           {pendingNoteMedia && (
@@ -6811,7 +6825,7 @@ export default function AthleteApp() {
             <label htmlFor="note-gallery-input" className="btn btn-sm" style={{ cursor: 'pointer', flex: 1, justifyContent: 'center' }}>🖼️ Upload</label>
           </div>
 
-          <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={!newNoteText.trim() || savingNote}
+          <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={(!newNoteText.trim() && !pendingNoteMedia) || savingNote}
             onClick={async () => { await addNote(); setShowFullscreenNoteComposer(false) }}>
             {savingNote ? (uploadingNoteMedia ? 'Uploading…' : 'Saving…') : '+ Log note'}
           </button>
