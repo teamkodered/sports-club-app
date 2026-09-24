@@ -1451,10 +1451,10 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                   {visibleCols.includes('weight_comp')    && <th style={{ background: 'var(--bg)', textAlign: 'center' }}>Comp weight</th>}
                   {visibleCols.includes('weight_pctdiff') && <th style={{ background: 'var(--bg)', textAlign: 'center' }} title="Current weight vs comp weight">% diff</th>}
                   {visibleCols.includes('weight_entries') && <th style={{ background: 'var(--bg)', textAlign: 'center' }} title="Total weigh-ins on record">Entries</th>}
-                  {visibleCols.includes('att_total') && <th style={{ background: 'var(--bg)', textAlign: 'center' }} title="All-time sessions attended">Total sessions</th>}
-                  {visibleCols.includes('att_last') && <th style={{ background: 'var(--bg)', textAlign: 'center' }}>Last attended</th>}
-                  {visibleCols.includes('att_pct') && <th style={{ background: 'var(--bg)', textAlign: 'center' }} title="Relative to the highest-attending student in the system">Attendance %</th>}
                 </>}
+                {visibleCols.includes('att_total') && <th style={{ background: 'var(--bg)', textAlign: 'center' }} title="All-time sessions attended">Total sessions</th>}
+                {visibleCols.includes('att_last') && <th style={{ background: 'var(--bg)', textAlign: 'center' }}>Last attended</th>}
+                {visibleCols.includes('att_pct') && <th style={{ background: 'var(--bg)', textAlign: 'center' }} title="Relative to the highest-attending student in the system">Attendance %</th>}
                 {(regType === 'kr' || regType === 'krba') && (() => {
                   const inCount = displayStudents.filter(s => s.in_comp).length
                   const outCount = displayStudents.length - inCount
