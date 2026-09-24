@@ -4500,7 +4500,7 @@ export default function AthleteProfiles() {
     const [{ data }, { data: houseData }, { data: ptsLog }] = await Promise.all([
       supabase
         .from('students')
-        .select('*, members(first_name, last_name, email, phone, date_of_birth, status, house_id, role, joined_date, houses(name, colour))')
+        .select('*, members(id, first_name, last_name, email, phone, date_of_birth, status, house_id, role, joined_date, houses(name, colour))')
         .order('created_at'),
       supabase.from('houses').select('id, name, points').order('points', { ascending: false }),
       supabase.from('points_log').select('student_id, points_awarded'),

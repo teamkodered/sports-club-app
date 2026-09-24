@@ -153,7 +153,7 @@ export default function StudentDatabase() {
   async function load() {
     const { data } = await supabase
       .from('students')
-      .select('*, members(first_name, last_name, email, phone, date_of_birth, house_id, status, role, joined_date, houses(name))')
+      .select('*, members(id, first_name, last_name, email, phone, date_of_birth, house_id, status, role, joined_date, houses(name))')
       .order('created_at')
     setStudents(data || [])
     setLoading(false)
