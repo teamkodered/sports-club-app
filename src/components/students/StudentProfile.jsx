@@ -58,27 +58,45 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
   async function uploadMembershipDocument(file) {
     if (!localStudent.members?.id) return
     setUploadingMembershipDoc(true)
-    const path = `membership-forms/${localStudent.members.id}-${Date.now()}-${file.name}`
-    const { error: uploadErr } = await supabase.storage.from('athlete-media').upload(path, file)
-    if (uploadErr) { alert('Error uploading document: ' + uploadErr.message); setUploadingMembershipDoc(false); return }
-    const { data: urlData } = supabase.storage.from('athlete-media').getPublicUrl(path)
-    if (membershipForm?.id) {
-      // .select() after an update returns the actual updated row(s) --
-      // an empty array here means the update genuinely matched zero
-      // rows (e.g. a missing RLS update policy silently blocking it),
-      // which Postgres/Supabase does NOT treat as an error by default.
-      // Checking only for `error` previously meant this could silently
-      // "succeed" while nothing was actually ever saved.
-      const { data: updated, error } = await supabase.from('membership_forms').update({ document_url: urlData.publicUrl }).eq('id', membershipForm.id).select()
-      if (error) { alert('Error saving document link: ' + error.message); setUploadingMembershipDoc(false); return }
-      if (!updated || updated.length === 0) { alert('The document uploaded, but saving the link failed silently (matched 0 rows) -- likely a missing update permission. Please tell your admin.'); setUploadingMembershipDoc(false); return }
-      setMembershipForm(f => ({ ...f, document_url: urlData.publicUrl }))
-    } else {
-      const { data, error } = await supabase.from('membership_forms').insert({
-        member_id: localStudent.members.id, form_type: 'unknown', document_url: urlData.publicUrl, submitted_at: new Date().toISOString(),
-      }).select().single()
-      if (error) { alert('Error creating record: ' + error.message); setUploadingMembershipDoc(false); return }
-      setMembershipForm(data)
+    try {
+      // Sanitized the same way as the bulk-upload tool -- a raw
+      // filename with spaces/parentheses/punctuation (e.g. "P.K.A
+      // Membership Application for (De-Reece Williams).pdf") can
+      // produce an invalid storage key and silently throw, rather
+      // than returning a normal {error}, which is exactly the kind of
+      // failure the try/catch below is now here to actually catch and
+      // show, instead of failing with nothing visible to the user at
+      // all.
+      const safeName = file.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]/g, '_')
+      const path = `membership-forms/${localStudent.members.id}-${Date.now()}-${safeName}`
+      const { error: uploadErr } = await supabase.storage.from('athlete-media').upload(path, file)
+      if (uploadErr) { alert('Error uploading document: ' + uploadErr.message); setUploadingMembershipDoc(false); return }
+      const { data: urlData } = supabase.storage.from('athlete-media').getPublicUrl(path)
+      if (membershipForm?.id) {
+        // .select() after an update returns the actual updated row(s) --
+        // an empty array here means the update genuinely matched zero
+        // rows (e.g. a missing RLS update policy silently blocking it),
+        // which Postgres/Supabase does NOT treat as an error by default.
+        // Checking only for `error` previously meant this could silently
+        // "succeed" while nothing was actually ever saved.
+        const { data: updated, error } = await supabase.from('membership_forms').update({ document_url: urlData.publicUrl }).eq('id', membershipForm.id).select()
+        if (error) { alert('Error saving document link: ' + error.message); setUploadingMembershipDoc(false); return }
+        if (!updated || updated.length === 0) { alert('The document uploaded, but saving the link failed silently (matched 0 rows) -- likely a missing update permission. Please tell your admin.'); setUploadingMembershipDoc(false); return }
+        setMembershipForm(f => ({ ...f, document_url: urlData.publicUrl }))
+      } else {
+        const { data, error } = await supabase.from('membership_forms').insert({
+          member_id: localStudent.members.id, form_type: 'unknown', document_url: urlData.publicUrl, submitted_at: new Date().toISOString(),
+        }).select().single()
+        if (error) { alert('Error creating record: ' + error.message); setUploadingMembershipDoc(false); return }
+        setMembershipForm(data)
+      }
+    } catch (err) {
+      // A genuine, previously-uncaught exception (as opposed to a
+      // normal {error} response) would otherwise fail completely
+      // silently here -- this is exactly the gap that let earlier
+      // attempts show no error message at all despite nothing actually
+      // saving.
+      alert('Unexpected error: ' + (err?.message || String(err)))
     }
     setUploadingMembershipDoc(false)
   }
