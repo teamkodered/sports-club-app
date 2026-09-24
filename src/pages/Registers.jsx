@@ -287,7 +287,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   }
 
   useEffect(() => { loadPointTypes() }, [])
-  useEffect(() => { loadAttendanceStats() }, [])
+  useEffect(() => { loadAttendanceStats() }, [attStatsDateFrom, attStatsDateTo])
   useEffect(() => { loadStudents() }, [regType, date])
   useEffect(() => { oneOffStudentsRef.current = [] }, [date]) // one-off additions are "for this session only" -- shouldn't carry over to a genuinely different day
   // Clear the double-session undo banner when switching date/class --
@@ -299,20 +299,26 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     setPointTypes(data?.value || [])
   }
 
-  // All-time attendance stats (total sessions, last attended, %) --
-  // same calculation as Trackers' attendance table: total sessions per
-  // student, their most recent session_date, and attendance % as
-  // their sessions attended out of the highest number any single
-  // student in the whole system has attended (used as the "maximum
-  // possible" benchmark, exactly as Trackers does it). Loaded once on
-  // mount, independent of the currently-selected register date, since
-  // this is a person's whole attendance history, not tied to today.
+  // Attendance stats (total sessions, last attended, %) -- same
+  // calculation as Trackers' attendance table: total sessions per
+  // student within the chosen date range, their most recent
+  // session_date, and attendance % as their sessions attended out of
+  // the highest number any single student in the range has attended
+  // (used as the "maximum possible" benchmark, exactly as Trackers
+  // does it). Defaults to all-time (no range set) but is independent
+  // of the currently-selected register date, since this is a broader
+  // attendance history view, not tied to today specifically.
+  const [attStatsDateFrom, setAttStatsDateFrom] = useState('')
+  const [attStatsDateTo, setAttStatsDateTo] = useState('')
   const [attendanceStats, setAttendanceStats] = useState({})
   async function loadAttendanceStats() {
     const pageSize = 1000
     let all = [], from = 0
     while (true) {
-      const { data, error } = await supabase.from('attendance').select('student_id, session_date').range(from, from + pageSize - 1)
+      let q = supabase.from('attendance').select('student_id, session_date').range(from, from + pageSize - 1)
+      if (attStatsDateFrom) q = q.gte('session_date', attStatsDateFrom)
+      if (attStatsDateTo) q = q.lte('session_date', attStatsDateTo)
+      const { data, error } = await q
       if (error) { console.error('Attendance stats fetch error:', error); break }
       all = all.concat(data || [])
       if (!data || data.length < pageSize) break
@@ -1320,6 +1326,24 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search students…"
           style={{ flex: 1, minWidth: 160, padding: '7px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
       </div>
+
+      {/* Date range for the Total sessions / Last attended / Attendance %
+          columns -- only shown when at least one of those is actually
+          visible, since it has no effect otherwise. Defaults to
+          all-time when left blank. */}
+      {(visibleCols.includes('att_total') || visibleCols.includes('att_last') || visibleCols.includes('att_pct')) && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Attendance stats:</span>
+          <input type="date" value={attStatsDateFrom} onChange={e => setAttStatsDateFrom(e.target.value)}
+            style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+          <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>to</span>
+          <input type="date" value={attStatsDateTo} onChange={e => setAttStatsDateTo(e.target.value)}
+            style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+          {(attStatsDateFrom || attStatsDateTo) && (
+            <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => { setAttStatsDateFrom(''); setAttStatsDateTo('') }}>Clear (all-time)</button>
+          )}
+        </div>
+      )}
 
       {/* Double-session cascade undo banner -- appears when marking
           attendance for the first half of a known double-session pair
