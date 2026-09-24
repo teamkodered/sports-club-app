@@ -272,6 +272,9 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     { key: 'weight_comp',    label: 'Comp weight' },
     { key: 'weight_pctdiff', label: '% diff' },
     { key: 'weight_entries', label: 'Entries' },
+    { key: 'att_total',   label: 'Total sessions' },
+    { key: 'att_last',    label: 'Last attended' },
+    { key: 'att_pct',     label: 'Attendance %' },
     { key: 'groups',      label: 'Groups' },
     { key: 'attendance',  label: 'Attend.' },
     { key: 'champ',       label: '🏆' },
@@ -284,6 +287,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   }
 
   useEffect(() => { loadPointTypes() }, [])
+  useEffect(() => { loadAttendanceStats() }, [])
   useEffect(() => { loadStudents() }, [regType, date])
   useEffect(() => { oneOffStudentsRef.current = [] }, [date]) // one-off additions are "for this session only" -- shouldn't carry over to a genuinely different day
   // Clear the double-session undo banner when switching date/class --
@@ -293,6 +297,36 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   async function loadPointTypes() {
     const { data } = await supabase.from('settings').select('value').eq('key', 'point_types').single()
     setPointTypes(data?.value || [])
+  }
+
+  // All-time attendance stats (total sessions, last attended, %) --
+  // same calculation as Trackers' attendance table: total sessions per
+  // student, their most recent session_date, and attendance % as
+  // their sessions attended out of the highest number any single
+  // student in the whole system has attended (used as the "maximum
+  // possible" benchmark, exactly as Trackers does it). Loaded once on
+  // mount, independent of the currently-selected register date, since
+  // this is a person's whole attendance history, not tied to today.
+  const [attendanceStats, setAttendanceStats] = useState({})
+  async function loadAttendanceStats() {
+    const pageSize = 1000
+    let all = [], from = 0
+    while (true) {
+      const { data, error } = await supabase.from('attendance').select('student_id, session_date').range(from, from + pageSize - 1)
+      if (error) { console.error('Attendance stats fetch error:', error); break }
+      all = all.concat(data || [])
+      if (!data || data.length < pageSize) break
+      from += pageSize
+    }
+    const byStudent = {}
+    all.forEach(a => {
+      if (!byStudent[a.student_id]) byStudent[a.student_id] = { total: 0, last: null }
+      byStudent[a.student_id].total++
+      if (!byStudent[a.student_id].last || a.session_date > byStudent[a.student_id].last) byStudent[a.student_id].last = a.session_date
+    })
+    const maxSessions = Math.max(...Object.values(byStudent).map(x => x.total), 1)
+    Object.values(byStudent).forEach(s => { s.pct = Math.round((s.total / maxSessions) * 100) })
+    setAttendanceStats(byStudent)
   }
 
   const [weightDataByStudent, setWeightDataByStudent] = useState({})
@@ -1393,6 +1427,9 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                   {visibleCols.includes('weight_comp')    && <th style={{ background: 'var(--bg)', textAlign: 'center' }}>Comp weight</th>}
                   {visibleCols.includes('weight_pctdiff') && <th style={{ background: 'var(--bg)', textAlign: 'center' }} title="Current weight vs comp weight">% diff</th>}
                   {visibleCols.includes('weight_entries') && <th style={{ background: 'var(--bg)', textAlign: 'center' }} title="Total weigh-ins on record">Entries</th>}
+                  {visibleCols.includes('att_total') && <th style={{ background: 'var(--bg)', textAlign: 'center' }} title="All-time sessions attended">Total sessions</th>}
+                  {visibleCols.includes('att_last') && <th style={{ background: 'var(--bg)', textAlign: 'center' }}>Last attended</th>}
+                  {visibleCols.includes('att_pct') && <th style={{ background: 'var(--bg)', textAlign: 'center' }} title="Relative to the highest-attending student in the system">Attendance %</th>}
                 </>}
                 {(regType === 'kr' || regType === 'krba') && (() => {
                   const inCount = displayStudents.filter(s => s.in_comp).length
@@ -1576,6 +1613,17 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                         )}
                       </>
                     })()}
+                    {visibleCols.includes('att_total') && (
+                      <td style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-secondary)' }}>{attendanceStats[s.id]?.total ?? 0}</td>
+                    )}
+                    {visibleCols.includes('att_last') && (
+                      <td style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-secondary)' }}>
+                        {attendanceStats[s.id]?.last ? new Date(attendanceStats[s.id].last + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+                      </td>
+                    )}
+                    {visibleCols.includes('att_pct') && (
+                      <td style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-secondary)' }}>{attendanceStats[s.id]?.pct ?? 0}%</td>
+                    )}
                     {(regType === 'kr' || regType === 'krba') && (
                       <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
                         <button onClick={() => toggleInComp(s)}
