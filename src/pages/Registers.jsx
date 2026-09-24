@@ -287,6 +287,8 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   }
 
   useEffect(() => { loadPointTypes() }, [])
+  const [attStatsDateFrom, setAttStatsDateFrom] = useState('')
+  const [attStatsDateTo, setAttStatsDateTo] = useState('')
   useEffect(() => { loadAttendanceStats() }, [attStatsDateFrom, attStatsDateTo])
   useEffect(() => { loadStudents() }, [regType, date])
   useEffect(() => { oneOffStudentsRef.current = [] }, [date]) // one-off additions are "for this session only" -- shouldn't carry over to a genuinely different day
@@ -308,8 +310,6 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   // does it). Defaults to all-time (no range set) but is independent
   // of the currently-selected register date, since this is a broader
   // attendance history view, not tied to today specifically.
-  const [attStatsDateFrom, setAttStatsDateFrom] = useState('')
-  const [attStatsDateTo, setAttStatsDateTo] = useState('')
   const [attendanceStats, setAttendanceStats] = useState({})
   async function loadAttendanceStats() {
     const pageSize = 1000
