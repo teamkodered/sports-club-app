@@ -77,6 +77,7 @@ import { matchesSearch } from '../lib/searchMatch.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useSyncedPreference } from '../hooks/useSyncedPreference.js'
 import { studentProfileLink } from '../lib/studentLinks.js'
+import AttendanceCalendarModal from '../components/shared/AttendanceCalendarModal.jsx'
 
 const HOUSE_COLOURS = {
   'Dragon House': '#E24B4A', 'Super House': '#378ADD',
@@ -313,6 +314,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   // of the currently-selected register date, since this is a broader
   // attendance history view, not tied to today specifically.
   const [attendanceStats, setAttendanceStats] = useState({})
+  const [calendarStudent, setCalendarStudent] = useState(null) // student whose attendance calendar popup is open
   async function loadAttendanceStats() {
     const pageSize = 1000
     let all = [], from = 0
@@ -1648,7 +1650,8 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                       </td>
                     )}
                     {visibleCols.includes('att_pct') && (
-                      <td style={{ textAlign: 'center' }}>
+                      <td style={{ textAlign: 'center', cursor: 'pointer' }} title="Tap to view attendance calendar"
+                        onClick={e => { e.stopPropagation(); setCalendarStudent(s) }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 70 }}>
                           <div style={{ flex: 1, height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
                             <div style={{ width: `${attendanceStats[s.id]?.pct ?? 0}%`, height: '100%', background: colour, borderRadius: 3 }} />
@@ -1767,6 +1770,10 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
         </div>
       )}
 
+      {calendarStudent && (
+        <AttendanceCalendarModal student={calendarStudent} onClose={() => setCalendarStudent(null)}
+          onChanged={changedDate => { loadAttendanceStats(); if (changedDate === date) loadStudents() }} />
+      )}
       {contactModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
           <div className="card" style={{ width: '100%', maxWidth: 380 }}>
