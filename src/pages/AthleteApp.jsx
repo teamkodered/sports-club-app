@@ -6951,13 +6951,13 @@ export default function AthleteApp() {
                         {conn.status === 'needs_reauth' ? '⚠️ Needs reconnecting' : '✓ Connected'}
                         {conn.last_sync_at && <span style={{ color: 'var(--text-tertiary)' }}> · synced {new Date(conn.last_sync_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>}
                       </div>
+                    ) : (
+                      <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{p.blurb}</div>
                     )}
                     {conn?.body_data && (conn.body_data.weight_kg || conn.body_data.height_cm || conn.body_data.max_heart_rate) && (
                       <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
                         {conn.body_data.weight_kg ? `${conn.body_data.weight_kg}kg` : ''}{conn.body_data.height_cm ? ` · ${conn.body_data.height_cm}cm` : ''}{conn.body_data.max_heart_rate ? ` · max HR ${conn.body_data.max_heart_rate}` : ''}
                       </div>
-                    ) : (
-                      <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{p.blurb}</div>
                     )}
                   </div>
                   {conn && conn.status !== 'needs_reauth' ? (
