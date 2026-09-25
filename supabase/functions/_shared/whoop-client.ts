@@ -76,10 +76,12 @@ export const whoopProvider: WearableProvider = {
   name: 'whoop',
   refresh: (rt) => refreshWhoopToken(rt),
   async sync(conn: Connection, accessToken: string, since: Date) {
-    const [workouts, recoveries, sleeps] = await Promise.all([
+    const [workouts, recoveries, sleeps, cycles, body] = await Promise.all([
       whoopList('/v2/activity/workout', accessToken, since),
       whoopList('/v2/recovery', accessToken, since).catch(e => { console.warn('whoop recovery:', e.message); return [] }),
       whoopList('/v2/activity/sleep', accessToken, since).catch(e => { console.warn('whoop sleep:', e.message); return [] }),
+      whoopList('/v2/cycle', accessToken, since).catch(e => { console.warn('whoop cycle:', e.message); return [] }),
+      whoopGet('/v2/user/measurement/body', accessToken).catch(e => { console.warn('whoop body:', e.message); return null }),
     ])
     const daily = new Map<string, DailyRow>()
     const dayRow = (day: string) => {
@@ -106,7 +108,25 @@ export const whoopProvider: WearableProvider = {
       row.sleep_score = sc.sleep_performance_percentage ?? null
       ;(row.raw_data as any).sleep = s
     }
-    return { workouts: workouts.map(w => mapWhoopWorkout(conn.student_id, w)), daily: [...daily.values()] }
+    // Cycles = Whoop's physiological day: whole-day strain, calories, heart rate
+    for (const c of cycles) {
+      const day = dayOf(c.start); if (!day) continue
+      const sc = c.score || {}
+      const row = dayRow(day)
+      row.day_strain = sc.strain ?? null
+      row.active_calories = kjToKcal(sc.kilojoule)
+      row.avg_heart_rate = sc.average_heart_rate ?? null
+      row.max_heart_rate = sc.max_heart_rate ?? null
+      ;(row.raw_data as any).cycle = c
+    }
+    // Body measurements (height / weight / max HR) live on the connection
+    const bodyData = body ? {
+      height_cm: body.height_meter != null ? Math.round(body.height_meter * 100) : null,
+      weight_kg: body.weight_kilogram ?? null,
+      max_heart_rate: body.max_heart_rate ?? null,
+      updated_at: new Date().toISOString(),
+    } : undefined
+    return { workouts: workouts.map(w => mapWhoopWorkout(conn.student_id, w)), daily: [...daily.values()], bodyData }
   },
 }
 

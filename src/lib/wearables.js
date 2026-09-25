@@ -10,12 +10,12 @@ import { supabase } from './supabase.js'
 export const PROVIDERS = {
   whoop: {
     key: 'whoop', label: 'Whoop', icon: '⌚', colour: '#1D9E75', enabled: true,
-    provides: ['workouts', 'strain', 'recovery', 'sleep', 'heart rate'],
-    blurb: 'Workout strain, heart rate, calories, plus daily recovery and sleep.',
+    provides: ['workouts', 'strain', 'recovery', 'sleep', 'heart rate', 'body measurements'],
+    blurb: 'Workout strain, heart rate, calories, plus daily strain, recovery, sleep and body measurements.',
     connectUrl: studentId => {
       const clientId = import.meta.env.VITE_WHOOP_CLIENT_ID
       const redirectUri = import.meta.env.VITE_WHOOP_REDIRECT_URI
-      const scope = 'read:workout read:recovery read:sleep read:profile offline'
+      const scope = 'read:workout read:recovery read:sleep read:cycles read:body_measurement read:profile offline'
       return `https://api.prod.whoop.com/oauth/oauth2/auth?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${studentId}`
     },
   },

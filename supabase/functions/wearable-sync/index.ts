@@ -40,10 +40,10 @@ Deno.serve(async (req) => {
       const since = opts.days ? new Date(Date.now() - opts.days * 86_400_000)
         : conn.last_sync_at ? new Date(new Date(conn.last_sync_at).getTime() - 2 * 86_400_000)
         : new Date(Date.now() - 30 * 86_400_000)
-      const { workouts, daily } = await provider.sync(conn, token, since)
+      const { workouts, daily, bodyData } = await provider.sync(conn, token, since)
       await upsertWorkouts(sb, workouts)
       await upsertDaily(sb, daily)
-      await markSynced(sb, conn.id)
+      await markSynced(sb, conn.id, bodyData)
       results.push({ id: conn.id, provider: conn.provider, workouts: workouts.length, daily: daily.length })
     } catch (err) {
       console.error(`wearable-sync ${conn.provider} ${conn.id}:`, err)

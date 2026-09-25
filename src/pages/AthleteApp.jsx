@@ -6951,6 +6951,11 @@ export default function AthleteApp() {
                         {conn.status === 'needs_reauth' ? '⚠️ Needs reconnecting' : '✓ Connected'}
                         {conn.last_sync_at && <span style={{ color: 'var(--text-tertiary)' }}> · synced {new Date(conn.last_sync_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>}
                       </div>
+                    )}
+                    {conn?.body_data && (conn.body_data.weight_kg || conn.body_data.height_cm || conn.body_data.max_heart_rate) && (
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+                        {conn.body_data.weight_kg ? `${conn.body_data.weight_kg}kg` : ''}{conn.body_data.height_cm ? ` · ${conn.body_data.height_cm}cm` : ''}{conn.body_data.max_heart_rate ? ` · max HR ${conn.body_data.max_heart_rate}` : ''}
+                      </div>
                     ) : (
                       <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{p.blurb}</div>
                     )}
@@ -6985,19 +6990,20 @@ export default function AthleteApp() {
                       <thead>
                         <tr style={{ color: 'var(--text-tertiary)', fontSize: 10, textAlign: 'right' }}>
                           <th style={{ textAlign: 'left', padding: '2px 4px' }}>Day</th>
-                          <th style={{ padding: '2px 4px' }}>Sleep</th><th style={{ padding: '2px 4px' }}>Recovery</th>
-                          <th style={{ padding: '2px 4px' }}>Rest HR</th><th style={{ padding: '2px 4px' }}>HRV</th><th style={{ padding: '2px 4px' }}>Steps</th>
+                          <th style={{ padding: '2px 4px' }}>Strain</th><th style={{ padding: '2px 4px' }}>Sleep</th><th style={{ padding: '2px 4px' }}>Recovery</th>
+                          <th style={{ padding: '2px 4px' }}>Rest HR</th><th style={{ padding: '2px 4px' }}>HRV</th><th style={{ padding: '2px 4px' }}>Cals</th>
                         </tr>
                       </thead>
                       <tbody>
                         {wearableDaily.slice(0, 7).map(d => (
                           <tr key={d.id} style={{ borderTop: '1px solid var(--border)', textAlign: 'right' }}>
                             <td style={{ textAlign: 'left', padding: '4px' }}>{new Date(d.day + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</td>
+                            <td style={{ padding: '4px', fontWeight: 600, color: '#1D9E75' }}>{d.day_strain != null ? Number(d.day_strain).toFixed(1) : '—'}</td>
                             <td style={{ padding: '4px' }}>{fmtSleep(d.sleep_seconds)}</td>
                             <td style={{ padding: '4px', fontWeight: 600, color: d.recovery_score == null ? undefined : d.recovery_score >= 67 ? '#1D9E75' : d.recovery_score >= 34 ? '#EF9F27' : '#E24B4A' }}>{d.recovery_score != null ? `${Math.round(d.recovery_score)}%` : '—'}</td>
                             <td style={{ padding: '4px' }}>{d.resting_heart_rate ?? '—'}</td>
                             <td style={{ padding: '4px' }}>{d.hrv != null ? Math.round(d.hrv) : '—'}</td>
-                            <td style={{ padding: '4px' }}>{d.steps != null ? d.steps.toLocaleString() : '—'}</td>
+                            <td style={{ padding: '4px' }}>{d.active_calories != null ? Math.round(d.active_calories).toLocaleString() : '—'}</td>
                           </tr>
                         ))}
                       </tbody>

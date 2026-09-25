@@ -45,8 +45,13 @@ export type DailyRow = {
   sleep_score?: number | null
   recovery_score?: number | null
   active_calories?: number | null
+  day_strain?: number | null
+  avg_heart_rate?: number | null
+  max_heart_rate?: number | null
   raw_data?: unknown
 }
+
+export type BodyData = { height_cm?: number | null; weight_kg?: number | null; max_heart_rate?: number | null; updated_at: string }
 
 export type Tokens = { access_token: string; refresh_token: string; expires_in: number }
 
@@ -55,7 +60,7 @@ export interface WearableProvider {
   // Get a fresh access token (refreshing + saving if expired)
   refresh(refreshToken: string): Promise<Tokens>
   // Pull everything since `since` for one connection
-  sync(conn: Connection, accessToken: string, since: Date): Promise<{ workouts: WorkoutRow[]; daily: DailyRow[] }>
+  sync(conn: Connection, accessToken: string, since: Date): Promise<{ workouts: WorkoutRow[]; daily: DailyRow[]; bodyData?: BodyData }>
 }
 
 export function serviceClient(): SupabaseClient {
@@ -99,8 +104,8 @@ export async function upsertDaily(sb: SupabaseClient, rows: DailyRow[]) {
   if (error) throw new Error('wearable_daily upsert: ' + error.message)
 }
 
-export async function markSynced(sb: SupabaseClient, connId: string) {
-  await sb.from('wearable_connections').update({ last_sync_at: new Date().toISOString(), last_error: null, updated_at: new Date().toISOString() }).eq('id', connId)
+export async function markSynced(sb: SupabaseClient, connId: string, bodyData?: BodyData) {
+  await sb.from('wearable_connections').update({ last_sync_at: new Date().toISOString(), last_error: null, updated_at: new Date().toISOString(), ...(bodyData ? { body_data: bodyData } : {}) }).eq('id', connId)
 }
 
 export async function markError(sb: SupabaseClient, connId: string, err: unknown) {

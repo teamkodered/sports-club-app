@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
       access_token: tokenData.access_token,
       refresh_token: tokenData.refresh_token,
       token_expires_at: expiresAt,
-      scopes: 'read:workout read:recovery read:sleep read:profile offline',
+      scopes: 'read:workout read:recovery read:sleep read:cycles read:body_measurement read:profile offline',
     })
 
     if (dbError) {
