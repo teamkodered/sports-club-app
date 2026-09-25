@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { submitJoinApplication } from '../../lib/submitJoinApplication.js'
 import { supabase } from '../../lib/supabase.js'
 import { generateStudentId } from '../../lib/studentId.js'
 import FormLogo from '../../components/shared/FormLogo.jsx'
@@ -73,26 +74,23 @@ export default function JoinPKAChild() {
       // session yet, so that read-back would fail RLS even though the
       // insert itself is correctly allowed for anonymous submissions.
       const memberId = crypto.randomUUID()
-      const { error: mErr } = await supabase.from('members').insert({
+      await submitJoinApplication({
+        member: {
         id: memberId,
         member_id: ref, first_name: form.first_name, last_name: form.last_name,
         email: form.email, phone: form.mobile_phone,
         date_of_birth: form.dob, address_line1: form.address,
         role: 'member', status: 'pending', joined_date: new Date().toISOString().split('T')[0],
-      })
-      if (mErr) throw mErr
-
-      const { error: sErr } = await supabase.from('students').insert({
+      },
+        student: {
         member_id: memberId, student_ref: ref, discipline: 'PKA',
         age_category: ageCategory,
         guardian_name: form.guardian_name, guardian_phone: form.mobile_phone,
         media_restriction: form.media_permission === 'Yes' ? 'Yes' : 'No',
         medical_conditions: form.medical_concerns || null,
         school: form.school,
-      })
-      if (sErr) throw sErr
-
-      const { error: mfErr } = await supabase.from('membership_forms').insert({
+      },
+        form: {
         member_id: memberId, form_type: 'pka_child',
         first_name: form.first_name, last_name: form.last_name, email: form.email, phone: form.mobile_phone, date_of_birth: form.dob,
         sponsor_name: form.sponsor_name, school: form.school, year: form.year,
@@ -100,8 +98,8 @@ export default function JoinPKAChild() {
         promo_code: form.promo_code, goals: form.goals, goal_notes: form.goal_notes,
         emergency_contact_name: form.emergency_name, emergency_contact_phone: form.emergency_phone,
         waiver_agreed: form.waiver_agreed, submitted_at: new Date().toISOString(),
+      },
       })
-      if (mfErr) console.error('Error saving membership_forms entry:', mfErr)
 
       await draft.clearOnSubmit()
       setSubmitted(true)

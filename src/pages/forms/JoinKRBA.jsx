@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { submitJoinApplication } from '../../lib/submitJoinApplication.js'
 import { supabase } from '../../lib/supabase.js'
 import FormLogo from '../../components/shared/FormLogo.jsx'
 import { generateStudentId } from '../../lib/studentId.js'
@@ -44,24 +45,21 @@ export default function JoinKRBA() {
       setStudentRef(ref)
 
       const memberId = crypto.randomUUID()
-      const { error: mErr } = await supabase.from('members').insert({
+      await submitJoinApplication({
+        member: {
         id: memberId,
         member_id: ref, first_name, last_name,
         email: form.email, phone: form.mobile_phone, date_of_birth: form.dob,
         address_line1: form.address, role: 'member', status: 'pending',
         joined_date: new Date().toISOString().split('T')[0],
-      })
-      if (mErr) throw mErr
-
-      const { error: sErr } = await supabase.from('students').insert({
+      },
+        student: {
         member_id: memberId, student_ref: ref, discipline: 'KRBA',
         media_restriction: form.media_permission === 'Yes' ? 'Yes' : 'No',
         medical_conditions: form.medical_concerns || null,
         medication: form.medication || null,
-      })
-      if (sErr) throw sErr
-
-      const { error: mfErr } = await supabase.from('membership_forms').insert({
+      },
+        form: {
         member_id: memberId, form_type: 'krba',
         first_name, last_name, email: form.email, phone: form.mobile_phone, date_of_birth: form.dob,
         additional_needs: form.additional_needs,
@@ -70,8 +68,8 @@ export default function JoinKRBA() {
         waiver_agreed: form.waiver_agreed,
         hear_about: form.hear_about,
         submitted_at: new Date().toISOString(),
+      },
       })
-      if (mfErr) console.error('Error saving membership_forms entry:', mfErr)
       await draft.clearOnSubmit()
       setSubmitted(true)
     } catch (err) { alert('Error: ' + err.message) }

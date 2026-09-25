@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { submitJoinApplication } from '../../lib/submitJoinApplication.js'
 import { supabase } from '../../lib/supabase.js'
 import { generateStudentId } from '../../lib/studentId.js'
 import FormLogo from '../../components/shared/FormLogo.jsx'
@@ -61,31 +62,28 @@ export default function JoinPKAAdult() {
       const ageCategory = age < 18 ? '16-17' : '18+'
 
       const memberId = crypto.randomUUID()
-      const { error: mErr } = await supabase.from('members').insert({
+      await submitJoinApplication({
+        member: {
         id: memberId,
         member_id: ref, first_name: form.first_name, last_name: form.last_name,
         email: form.email, phone: form.mobile_phone, date_of_birth: form.dob,
         address_line1: form.address, role: 'member', status: 'pending',
         joined_date: new Date().toISOString().split('T')[0],
-      })
-      if (mErr) throw mErr
-
-      const { error: sErr } = await supabase.from('students').insert({
+      },
+        student: {
         member_id: memberId, student_ref: ref, discipline: 'PKA', age_category: ageCategory,
         media_restriction: form.media_permission === 'Yes' ? 'Yes' : 'No',
         medical_conditions: form.medical_concerns || null,
-      })
-      if (sErr) throw sErr
-
-      const { error: mfErr } = await supabase.from('membership_forms').insert({
+      },
+        form: {
         member_id: memberId, form_type: 'pka_adult',
         first_name: form.first_name, last_name: form.last_name, email: form.email, phone: form.mobile_phone, date_of_birth: form.dob,
         hear_about: form.hear_about, promo_code: form.promo_code,
         goals: form.goals, goal_notes: form.goal_notes,
         fitness_level: form.fitness_level, other_activities: form.other_activities,
         waiver_agreed: form.waiver_agreed, submitted_at: new Date().toISOString(),
+      },
       })
-      if (mfErr) console.error('Error saving membership_forms entry:', mfErr)
       await draft.clearOnSubmit()
       setSubmitted(true)
     } catch (err) { alert('Error: ' + err.message) }
