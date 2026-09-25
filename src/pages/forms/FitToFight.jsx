@@ -435,7 +435,7 @@ export default function FitToFight() {
   // defaulting to the most recent one.
   useEffect(() => {
     if (!student.id) { setWhoopSessionOptions([]); setSelectedWhoopSessionId(''); return }
-    supabase.from('whoop_sessions').select('id, sport_name, start_time, strain, avg_heart_rate')
+    supabase.from('wearable_workouts').select('id, sport_name, start_time, strain, avg_heart_rate, provider')
       .eq('student_id', student.id)
       .order('start_time', { ascending: false })
       .limit(20)

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, Fragment } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
+import { loadConnections, loadWorkouts, providerLabel } from '../lib/wearables.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useBackableTab } from '../hooks/useBackableTab.js'
 import { useSyncedPreference } from '../hooks/useSyncedPreference.js'
@@ -5213,10 +5214,9 @@ export default function AthleteProfiles() {
     if (selectingIdRef.current !== s.id) return // a newer selection has since started; don't apply this stale response
     setApData(data || null)
     setAlterEgoWorkbook(data?.alter_ego_workbook || {})
-    supabase.from('whoop_connections').select('*').eq('student_id', s.id).maybeSingle()
-      .then(({ data: wc }) => { if (selectingIdRef.current === s.id) setWhoopConnection(wc || null) })
-    supabase.from('whoop_sessions').select('*').eq('student_id', s.id).order('start_time', { ascending: false }).limit(20)
-      .then(({ data: ws, error }) => { if (!error && selectingIdRef.current === s.id) setWhoopSessions(ws || []) })
+    // Shared wearable backend: any provider (Whoop today, others later)
+    loadConnections(s.id).then(cs => { if (selectingIdRef.current === s.id) setWhoopConnection(cs.length ? cs : null) })
+    loadWorkouts(s.id).then(ws => { if (selectingIdRef.current === s.id) setWhoopSessions(ws) })
     if (data) {
       setEditForm({
         age_division_kickboxing: data.age_division_kickboxing || '',
@@ -11869,14 +11869,14 @@ export default function AthleteProfiles() {
             {tab === 'whoop' && (
               <div>
                 {!whoopConnection ? (
-                  <div className="empty-state"><h3>Whoop not connected</h3><p>{selected?.members?.first_name} hasn't connected their Whoop account yet — this can only be done from their own athlete app.</p></div>
+                  <div className="empty-state"><h3>No wearable connected</h3><p>{selected?.members?.first_name} hasn't connected a wearable yet — this can only be done from their own athlete app.</p></div>
                 ) : (
                   <>
                     <div className="card" style={{ marginBottom: 12 }}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: '#1D9E75' }}>✓ Whoop connected</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: '#1D9E75' }}>✓ Connected: {(Array.isArray(whoopConnection) ? whoopConnection : []).map(c => providerLabel(c.provider)).join(', ')}</span>
                     </div>
                     {whoopSessions.length === 0 ? (
-                      <div className="empty-state"><h3>No Whoop sessions yet</h3><p>Summaries appear here shortly after each completed workout</p></div>
+                      <div className="empty-state"><h3>No workouts yet</h3><p>Summaries appear here shortly after each completed workout</p></div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                         {whoopSessions.map(s => (

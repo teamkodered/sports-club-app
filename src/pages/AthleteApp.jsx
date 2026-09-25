@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
+import { enabledProviders, PROVIDERS, providerLabel, loadConnections, loadWorkouts, loadDaily, disconnect as disconnectWearable, fmtSleep } from '../lib/wearables.js'
 import { supabasePublic } from '../lib/supabasePublic.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useBackableTab } from '../hooks/useBackableTab.js'
@@ -1366,11 +1367,11 @@ export default function AthleteApp() {
   // Handle the redirect back from Whoop's OAuth flow
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    if (params.get('whoop_connected')) {
+    if (params.get('whoop_connected') || params.get('wearable_connected')) {
       setTab('whoop')
       window.history.replaceState({}, '', window.location.pathname)
-    } else if (params.get('whoop_error')) {
-      alert('There was a problem connecting Whoop: ' + params.get('whoop_error'))
+    } else if (params.get('whoop_error') || params.get('wearable_error')) {
+      alert('There was a problem connecting your wearable: ' + (params.get('whoop_error') || params.get('wearable_error')))
       setTab('whoop')
       window.history.replaceState({}, '', window.location.pathname)
     } else if (params.get('tab')) {
@@ -1463,8 +1464,9 @@ export default function AthleteApp() {
   const [schedWizardValue, setSchedWizardValue] = useState('')
   const [schedWizardSubType, setSchedWizardSubType] = useState(null) // 'time' | 'reps' | null -- only when metricType is 'rounds'
   const [schedWizardSubValue, setSchedWizardSubValue] = useState('')
-  const [whoopConnection, setWhoopConnection] = useState(null)
-  const [whoopSessions, setWhoopSessions] = useState([])
+  const [wearableConnections, setWearableConnections] = useState([]) // all providers, from the shared wearable backend
+  const [whoopSessions, setWhoopSessions] = useState([]) // workouts from any provider
+  const [wearableDaily, setWearableDaily] = useState([])  // steps / sleep / recovery per day
   const [newNoteText, setNewNoteText] = useState('')
   const [showFullscreenNoteComposer, setShowFullscreenNoteComposer] = useState(false)
   const [openNoteId, setOpenNoteId] = useState(null) // which existing note is open full-screen (view/edit), or null
@@ -1913,10 +1915,9 @@ export default function AthleteApp() {
           .order('set_at', { ascending: false }).limit(1)
           .then(({ data, error }) => { if (!error) setTtpBenchmarkKB(data?.[0] || null) })
 
-        supabase.from('whoop_connections').select('*').eq('student_id', s.id).maybeSingle()
-          .then(({ data }) => setWhoopConnection(data || null))
-        supabase.from('whoop_sessions').select('*').eq('student_id', s.id).order('start_time', { ascending: false }).limit(20)
-          .then(({ data, error }) => { if (!error) setWhoopSessions(data || []) })
+        loadConnections(s.id).then(setWearableConnections)
+        loadWorkouts(s.id).then(setWhoopSessions)
+        loadDaily(s.id).then(setWearableDaily)
 
         supabase.from('classes').select('*').eq('active', true).order('day_of_week').order('start_time')
           .then(({ data, error }) => { if (!error) setAllClasses(data || []) })
@@ -5715,7 +5716,7 @@ export default function AthleteApp() {
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8 }}>
                 {[
-                  { label: 'Whoop', icon: '⌚', colour: '#1D9E75', tab: 'whoop' },
+                  { label: 'Wearables', icon: '⌚', colour: '#1D9E75', tab: 'whoop' },
                   { label: 'MTP', icon: '📊', colour: '#E24B4A', tab: 'tpt' },
                 ].map(l => (
                   <button key={l.label} onClick={() => l.tab && setTab(l.tab)} style={{
@@ -6936,45 +6937,88 @@ export default function AthleteApp() {
       {tab === 'whoop' && (
         <div>
           <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
-          {!whoopConnection ? (
-            <div className="card" style={{ textAlign: 'center', padding: 24 }}>
-              <div style={{ fontSize: 40, marginBottom: 10 }}>⌚</div>
-              <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Connect your Whoop</h3>
-              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
-                Link your Whoop account to bring your workout summaries (strain, heart rate, calories) into your profile.
-                Data appears here shortly after each workout ends — not live during the session.
-              </p>
-              <button className="btn btn-primary" onClick={() => {
-                const clientId = import.meta.env.VITE_WHOOP_CLIENT_ID
-                const redirectUri = import.meta.env.VITE_WHOOP_REDIRECT_URI
-                const scope = 'read:workout read:profile offline'
-                const authUrl = `https://api.prod.whoop.com/oauth/oauth2/auth?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${student.id}`
-                window.location.href = authUrl
-              }}>Connect Whoop →</button>
-            </div>
-          ) : (
+
+          {/* Connected devices + connect buttons, one card per provider */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+            {enabledProviders().map(p => {
+              const conn = wearableConnections.find(c => c.provider === p.key)
+              return (
+                <div key={p.key} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, borderLeft: `3px solid ${p.colour}` }}>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 600 }}>{p.icon} {p.label}</div>
+                    {conn ? (
+                      <div style={{ fontSize: 11, color: conn.status === 'needs_reauth' ? '#E24B4A' : '#1D9E75' }}>
+                        {conn.status === 'needs_reauth' ? '⚠️ Needs reconnecting' : '✓ Connected'}
+                        {conn.last_sync_at && <span style={{ color: 'var(--text-tertiary)' }}> · synced {new Date(conn.last_sync_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{p.blurb}</div>
+                    )}
+                  </div>
+                  {conn && conn.status !== 'needs_reauth' ? (
+                    <button className="btn btn-sm" onClick={async () => {
+                      if (!confirm(`Disconnect ${p.label}? Past data will stay, but new data will stop coming in.`)) return
+                      await disconnectWearable(student.id, p.key)
+                      setWearableConnections(cs => cs.filter(c => c.provider !== p.key))
+                    }}>Disconnect</button>
+                  ) : (
+                    <button className="btn btn-primary btn-sm" onClick={() => { window.location.href = p.connectUrl(student.id) }}>
+                      {conn ? 'Reconnect' : 'Connect →'}
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+            <p style={{ fontSize: 11, color: 'var(--text-tertiary)', padding: '0 4px' }}>
+              More devices (Fitbit, Garmin, Oura, Apple Health, Samsung Health) are on the way. Data appears shortly after each workout or sleep is processed — not live.
+            </p>
+          </div>
+
+          {wearableConnections.length > 0 && (
             <>
-              <div className="card" style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: '#1D9E75' }}>✓ Whoop connected</span>
-                <button className="btn btn-sm" onClick={async () => {
-                  if (!confirm('Disconnect Whoop? Past session summaries will stay, but new ones will stop coming in.')) return
-                  await supabase.from('whoop_connections').delete().eq('student_id', student.id)
-                  setWhoopConnection(null)
-                }}>Disconnect</button>
-              </div>
+              {/* Daily: sleep / recovery / resting HR / steps */}
+              {wearableDaily.length > 0 && (
+                <div className="card" style={{ marginBottom: 12 }}>
+                  <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Last 7 days</h3>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ color: 'var(--text-tertiary)', fontSize: 10, textAlign: 'right' }}>
+                          <th style={{ textAlign: 'left', padding: '2px 4px' }}>Day</th>
+                          <th style={{ padding: '2px 4px' }}>Sleep</th><th style={{ padding: '2px 4px' }}>Recovery</th>
+                          <th style={{ padding: '2px 4px' }}>Rest HR</th><th style={{ padding: '2px 4px' }}>HRV</th><th style={{ padding: '2px 4px' }}>Steps</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {wearableDaily.slice(0, 7).map(d => (
+                          <tr key={d.id} style={{ borderTop: '1px solid var(--border)', textAlign: 'right' }}>
+                            <td style={{ textAlign: 'left', padding: '4px' }}>{new Date(d.day + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</td>
+                            <td style={{ padding: '4px' }}>{fmtSleep(d.sleep_seconds)}</td>
+                            <td style={{ padding: '4px', fontWeight: 600, color: d.recovery_score == null ? undefined : d.recovery_score >= 67 ? '#1D9E75' : d.recovery_score >= 34 ? '#EF9F27' : '#E24B4A' }}>{d.recovery_score != null ? `${Math.round(d.recovery_score)}%` : '—'}</td>
+                            <td style={{ padding: '4px' }}>{d.resting_heart_rate ?? '—'}</td>
+                            <td style={{ padding: '4px' }}>{d.hrv != null ? Math.round(d.hrv) : '—'}</td>
+                            <td style={{ padding: '4px' }}>{d.steps != null ? d.steps.toLocaleString() : '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
               {whoopSessions.length === 0 ? (
-                <div className="empty-state"><h3>No Whoop sessions yet</h3><p>Summaries appear here shortly after each completed workout</p></div>
+                <div className="empty-state"><h3>No workouts yet</h3><p>Summaries appear here shortly after each completed workout</p></div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {whoopSessions.map(s => (
                     <div key={s.id} className="card">
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                        <h3 style={{ fontSize: 13, fontWeight: 600 }}>{s.sport_name || 'Workout'}</h3>
+                        <h3 style={{ fontSize: 13, fontWeight: 600 }}>{s.sport_name || 'Workout'} <span style={{ fontSize: 10, fontWeight: 400, color: PROVIDERS[s.provider]?.colour || 'var(--text-tertiary)' }}>{providerLabel(s.provider)}</span></h3>
                         <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{s.start_time ? new Date(s.start_time).toLocaleDateString('en-GB') : '—'}</span>
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, textAlign: 'center' }}>
                         <div>
-                          <div style={{ fontSize: 16, fontWeight: 700, color: '#1D9E75' }}>{s.strain != null ? s.strain.toFixed(1) : '—'}</div>
+                          <div style={{ fontSize: 16, fontWeight: 700, color: '#1D9E75' }}>{s.strain != null ? Number(s.strain).toFixed(1) : '—'}</div>
                           <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Strain</div>
                         </div>
                         <div>

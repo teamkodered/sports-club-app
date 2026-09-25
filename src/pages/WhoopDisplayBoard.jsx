@@ -18,10 +18,10 @@ export default function WhoopDisplayBoard() {
   const [loading, setLoading] = useState(true)
 
   async function load() {
-    // Most recent whoop_sessions row per student, joined with their
+    // Most recent wearable_workouts row per student (any provider), joined with their
     // name/house for display.
     const { data, error } = await supabase
-      .from('whoop_sessions')
+      .from('wearable_workouts')
       .select('*, students(id, members(first_name, last_name, houses(name)))')
       .order('start_time', { ascending: false })
       .limit(200)
@@ -44,8 +44,8 @@ export default function WhoopDisplayBoard() {
     // for near-instant updates when a new session lands.
     const interval = setInterval(load, 30000)
     const channel = supabase
-      .channel('whoop_sessions_board')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'whoop_sessions' }, load)
+      .channel('wearable_workouts_board')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'wearable_workouts' }, load)
       .subscribe()
     return () => { clearInterval(interval); supabase.removeChannel(channel) }
   }, [])

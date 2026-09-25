@@ -4,14 +4,14 @@
 // Exchanges the auth code for access/refresh tokens (server-side
 // only -- the client secret must never be exposed to the browser),
 // fetches the Whoop user's profile to get their whoop_user_id, and
-// stores/updates the connection for that student.
+// stores/updates the connection in the shared wearable backend.
 //
 // Deploy: supabase functions deploy whoop-oauth-callback
 // Required secrets (set via `supabase secrets set`):
 //   WHOOP_CLIENT_ID, WHOOP_CLIENT_SECRET, WHOOP_REDIRECT_URI
 //   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (usually auto-available)
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { serviceClient, saveConnection } from '../_shared/wearables.ts'
 import { exchangeWhoopCode, fetchWhoopUserProfile } from '../_shared/whoop-client.ts'
 
 Deno.serve(async (req) => {
@@ -24,10 +24,10 @@ Deno.serve(async (req) => {
     const appBaseUrl = Deno.env.get('APP_BASE_URL') || 'https://klasschamp.netlify.app'
 
     if (error) {
-      return Response.redirect(`${appBaseUrl}/athlete-app?whoop_error=${encodeURIComponent(error)}`, 302)
+      return Response.redirect(`${appBaseUrl}/athlete-app?wearable_error=${encodeURIComponent(error)}`, 302)
     }
     if (!code || !state) {
-      return Response.redirect(`${appBaseUrl}/athlete-app?whoop_error=missing_code_or_state`, 302)
+      return Response.redirect(`${appBaseUrl}/athlete-app?wearable_error=missing_code_or_state`, 302)
     }
 
     const studentId = state
@@ -38,31 +38,29 @@ Deno.serve(async (req) => {
     const tokenData = await exchangeWhoopCode(code, redirectUri, clientId, clientSecret)
     const profile = await fetchWhoopUserProfile(tokenData.access_token)
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    )
-
+    const supabase = serviceClient()
     const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
 
-    const { error: dbError } = await supabase.from('whoop_connections').upsert({
+    // Stored in the shared wearable backend (wearable_connections)
+    const { error: dbError } = await saveConnection(supabase, {
       student_id: studentId,
-      whoop_user_id: String(profile.user_id ?? profile.id ?? ''),
+      provider: 'whoop',
+      provider_user_id: String(profile.user_id ?? profile.id ?? ''),
       access_token: tokenData.access_token,
       refresh_token: tokenData.refresh_token,
       token_expires_at: expiresAt,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'student_id' })
+      scopes: 'read:workout read:recovery read:sleep read:profile offline',
+    })
 
     if (dbError) {
-      console.error('Error saving whoop_connections:', dbError)
-      return Response.redirect(`${appBaseUrl}/athlete-app?whoop_error=save_failed`, 302)
+      console.error('Error saving wearable connection:', dbError)
+      return Response.redirect(`${appBaseUrl}/athlete-app?wearable_error=save_failed`, 302)
     }
 
-    return Response.redirect(`${appBaseUrl}/athlete-app?whoop_connected=1`, 302)
+    return Response.redirect(`${appBaseUrl}/athlete-app?wearable_connected=whoop`, 302)
   } catch (err) {
     console.error('whoop-oauth-callback error:', err)
     const appBaseUrl = Deno.env.get('APP_BASE_URL') || 'https://klasschamp.netlify.app'
-    return Response.redirect(`${appBaseUrl}/athlete-app?whoop_error=unexpected`, 302)
+    return Response.redirect(`${appBaseUrl}/athlete-app?wearable_error=unexpected`, 302)
   }
 })
