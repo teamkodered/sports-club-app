@@ -1603,7 +1603,7 @@ export default function AthleteApp() {
         return '📵 Screen free cleared'
       case 'sleep':
         if (next?.hours !== cur?.hours && next?.hours) return `😴 ${next.hours} hours sleep added`
-        if (next?.efficiency !== cur?.efficiency && next?.efficiency) return `😴 Sleep efficiency ${next.efficiency}% added`
+        if (next?.efficiency !== cur?.efficiency && next?.efficiency) return `😴 Sleep performance ${next.efficiency}% added`
         break
     }
     return `✓ ${label} saved`
@@ -2256,6 +2256,29 @@ export default function AthleteApp() {
     setEditingOpponentNoteId(null)
   }
 
+  // Wearable auto-fill: if a connected wearable (e.g. Whoop) has today's
+  // sleep, fill the Sleep question card automatically -- hours slept and
+  // sleep performance -- so the athlete doesn't have to type it. Only fills
+  // when the card is still empty and only once per day; the athlete can
+  // still edit it afterwards.
+  const wearableAutoFillDayRef = useRef(null)
+  useEffect(() => {
+    if (!student || !sessions || !wearableDaily.length) return
+    const todaysDate = new Date().toISOString().split('T')[0]
+    if (wearableAutoFillDayRef.current === todaysDate) return
+    const todaysSession = sessions.find(s => s.session_date === todaysDate)
+    const sleepNow = todaysSession?.wellbeing?.sleep || {}
+    if (sleepNow.hours || sleepNow.efficiency) return
+    const today = wearableDaily.find(d => d.day === todaysDate && (d.sleep_seconds || d.sleep_score != null))
+    if (!today) return
+    wearableAutoFillDayRef.current = todaysDate
+    const hours = today.sleep_seconds ? String(+(today.sleep_seconds / 3600).toFixed(1)) : ''
+    const efficiency = today.sleep_score != null ? String(Math.round(today.sleep_score)) : ''
+    const from = providerLabel(today.provider)
+    saveWellbeingField('sleep', cur => ({ ...cur, hours, efficiency, source: today.provider }),
+      `😴 ${hours ? `${hours}h sleep` : 'Sleep'}${efficiency ? ` · ${efficiency}% performance` : ''} added from ${from}`)
+  }, [student, sessions, wearableDaily])
+
   useEffect(() => {
     const todaysDate = new Date().toISOString().split('T')[0]
     const todaysSession = sessions.find(s => s.session_date === todaysDate)
@@ -2583,7 +2606,7 @@ export default function AthleteApp() {
   // Save a single wellbeing question's data directly from the Home page,
   // without needing to open the full Fit2Fight log form. Updates today's
   // session if one already exists, otherwise creates one.
-  async function saveWellbeingField(field, updater) {
+  async function saveWellbeingField(field, updater, confirmMsg) {
     if (!student) return
     setSavingWellbeing(true)
     const todaysDate = new Date().toISOString().split('T')[0]
@@ -2607,7 +2630,7 @@ export default function AthleteApp() {
       if (!error && data) setSessions(prev => [data, ...prev])
     }
     if (error) alert('Error saving: ' + error.message)
-    else flashSaved(describeWellbeingChange(field, current, updatedField))
+    else flashSaved(confirmMsg || describeWellbeingChange(field, current, updatedField))
     setSavingWellbeing(false)
   }
 
@@ -5375,10 +5398,13 @@ export default function AthleteApp() {
                               <SavableField key={todaysWellbeing.sleep ? 'loaded' : 'empty'} type="number" defaultValue={todaysWellbeing.sleep?.hours ?? lastWellbeing.sleep?.hours} placeholder="e.g. 8"
                                 onSave={val => saveWellbeingField('sleep', cur => ({ ...cur, hours: val }))} />
                             </div>
-                            <div className="field" style={{ marginBottom: 0 }}><label>Whoop sleep % (target 70%+)</label>
+                            <div className="field" style={{ marginBottom: 0 }}><label>Whoop sleep performance (target 70%+)</label>
                               <SavableField key={todaysWellbeing.sleep ? 'loaded' : 'empty'} type="number" defaultValue={todaysWellbeing.sleep?.efficiency ?? lastWellbeing.sleep?.efficiency} placeholder="e.g. 75"
                                 onSave={val => saveWellbeingField('sleep', cur => ({ ...cur, efficiency: val }))} />
                             </div>
+                            {todaysWellbeing.sleep?.source && (
+                              <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 6 }}>⌚ Filled automatically from {providerLabel(todaysWellbeing.sleep.source)} — you can still change it.</p>
+                            )}
                           </>
                         )}
                         {expandedHomeWb === 'nutrition' && (

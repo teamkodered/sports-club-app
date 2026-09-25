@@ -9590,7 +9590,7 @@ export default function AthleteProfiles() {
                             <SavableField type="number" defaultValue={todaysWellbeing.sleep?.hours} placeholder="e.g. 8"
                               onSave={val => saveWellbeingField('sleep', cur => ({ ...cur, hours: val }))} />
                           </div>
-                          <div className="field" style={{ marginBottom: 0 }}><label>Whoop sleep % (target 70%+)</label>
+                          <div className="field" style={{ marginBottom: 0 }}><label>Whoop sleep performance (target 70%+)</label>
                             <SavableField type="number" defaultValue={todaysWellbeing.sleep?.efficiency} placeholder="e.g. 75"
                               onSave={val => saveWellbeingField('sleep', cur => ({ ...cur, efficiency: val }))} />
                           </div>

@@ -959,7 +959,7 @@ export default function FitToFight() {
                   <div className="field"><label>Hours slept</label>
                     <input type="number" step="0.5" value={wellbeing.sleep.hours} onChange={e => setWellbeing(w => ({ ...w, sleep: { ...w.sleep, hours: e.target.value } }))} placeholder="e.g. 8" />
                   </div>
-                  <div className="field" style={{ marginBottom: 0 }}><label>Whoop sleep % (target 70%+)</label>
+                  <div className="field" style={{ marginBottom: 0 }}><label>Whoop sleep performance (target 70%+)</label>
                     <input type="number" min="0" max="100" value={wellbeing.sleep.efficiency} onChange={e => setWellbeing(w => ({ ...w, sleep: { ...w.sleep, efficiency: e.target.value } }))} placeholder="e.g. 75" />
                   </div>
                 </div>
