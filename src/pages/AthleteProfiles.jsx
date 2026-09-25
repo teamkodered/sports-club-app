@@ -9857,6 +9857,17 @@ export default function AthleteProfiles() {
                       <span style={{ fontSize: 24 }}>💪</span>
                       <span style={{ fontSize: 12, fontWeight: 500, color: '#EF9F27' }}>Fit II Fight — log session</span>
                     </a>
+                    <button onClick={() => setTab('whoop')} style={{
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                      padding: '14px 8px', background: '#0EA5E912',
+                      border: '1px solid #0EA5E930', borderRadius: 'var(--border-radius-lg)',
+                      cursor: 'pointer', fontFamily: 'var(--font-sans)', gridColumn: 'span 2',
+                    }} title="View this athlete's wearable data">
+                      <span style={{ fontSize: 24 }}>⌚</span>
+                      <span style={{ fontSize: 12, fontWeight: 500, color: '#0EA5E9' }}>
+                        Wearables{Array.isArray(whoopConnection) && whoopConnection.length ? ` — ${whoopConnection.map(c => providerLabel(c.provider)).join(', ')} linked` : ' — none linked'}
+                      </span>
+                    </button>
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 14 }}>
