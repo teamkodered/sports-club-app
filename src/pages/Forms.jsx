@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth.jsx'
+import JoinApplicationsPanel from '../components/shared/JoinApplicationsPanel.jsx'
 import { supabase } from '../lib/supabase.js'
 
 function SortTh({ children, col, sortKey, sortDir, onSort, style = {} }) {
@@ -216,7 +217,7 @@ function ShareModal({ form, onClose }) {
 
 
 export default function Forms() {
-  const { isAdmin } = useAuth()
+  const { isAdmin, isStaff } = useAuth()
   const navigate = useNavigate()
   const [shareForm, setShareForm] = useState(null)
   const [selectedForm, setSelectedForm] = useState(null)
@@ -333,6 +334,8 @@ export default function Forms() {
         <h1>Forms</h1>
         <p>Membership forms and analysis tools</p>
       </div>
+
+      {isStaff && <JoinApplicationsPanel />}
 
       <div style={{ display: 'grid', gridTemplateColumns: selectedForm ? '280px 1fr' : '1fr', gap: 16, alignItems: 'start' }}>
 
