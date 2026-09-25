@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, Fragment } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
-import { loadConnections, loadWorkouts, providerLabel } from '../lib/wearables.js'
+import { loadConnections, loadWorkouts, loadDaily, providerLabel, fmtSleep } from '../lib/wearables.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useBackableTab } from '../hooks/useBackableTab.js'
 import { useSyncedPreference } from '../hooks/useSyncedPreference.js'
@@ -2820,6 +2820,7 @@ export default function AthleteProfiles() {
   const [expandedDashSection, setExpandedDashSection] = useState(null)
   const [dashClubFilter, setDashClubFilter] = useState('all') // 'all' | 'PKA' | 'KRBA'
   const [dashboardTab, setDashboardTab] = useState('overview') // 'overview' | 'calendar' | 'results' | 'pdp'
+  const [wearableAthletes, setWearableAthletes] = useState(null) // [{ student_id, providers: [...], last_sync_at }] for the Wearables list
   const [teamTemplateStudent, setTeamTemplateStudent] = useState(null)
   const [teamPdpApData, setTeamPdpApData] = useState(null)
   const [showPushPdp, setShowPushPdp] = useState(false)
@@ -2834,6 +2835,7 @@ export default function AthleteProfiles() {
   const [weightTargetActiveMode, setWeightTargetActiveMode] = useState('in_comp') // 'in_comp' | 'out_comp' -- global toggle, overrides each athlete's own in_comp status
   const [showWeightOverridePopup, setShowWeightOverridePopup] = useState(false)
   const [whoopConnection, setWhoopConnection] = useState(null)
+  const [wearableDaily, setWearableDaily] = useState([])
   const [whoopSessions, setWhoopSessions] = useState([])
   const [showAllWeightsGraph, setShowAllWeightsGraph] = useState(false)
   const [weightOverrideType, setWeightOverrideType] = useState('actual') // 'actual' | 'percent'
@@ -5153,6 +5155,20 @@ export default function AthleteProfiles() {
     setCameFromRegisterType(null)
   }
 
+  // Every athlete with a wearable linked (any provider), for the team Wearables list
+  async function loadWearableAthletes() {
+    const { data, error } = await supabase.from('wearable_connections_public').select('student_id, provider, status, last_sync_at')
+    if (error) { console.error('wearable athletes:', error); setWearableAthletes([]); return }
+    const byStudent = {}
+    ;(data || []).forEach(c => {
+      const e = (byStudent[c.student_id] ||= { student_id: c.student_id, providers: [], last_sync_at: null, needsReauth: false })
+      e.providers.push(c.provider)
+      if (c.last_sync_at && (!e.last_sync_at || c.last_sync_at > e.last_sync_at)) e.last_sync_at = c.last_sync_at
+      if (c.status === 'needs_reauth') e.needsReauth = true
+    })
+    setWearableAthletes(Object.values(byStudent))
+  }
+
   async function selectStudent(s) {
     selectingIdRef.current = s.id
     setSelected(s)
@@ -5217,6 +5233,7 @@ export default function AthleteProfiles() {
     // Shared wearable backend: any provider (Whoop today, others later)
     loadConnections(s.id).then(cs => { if (selectingIdRef.current === s.id) setWhoopConnection(cs.length ? cs : null) })
     loadWorkouts(s.id).then(ws => { if (selectingIdRef.current === s.id) setWhoopSessions(ws) })
+    loadDaily(s.id).then(d => { if (selectingIdRef.current === s.id) setWearableDaily(d) })
     if (data) {
       setEditForm({
         age_division_kickboxing: data.age_division_kickboxing || '',
@@ -7235,7 +7252,7 @@ export default function AthleteProfiles() {
               )
             })()}
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 14 }}>
               <button onClick={() => { setDashboardTab('sweep'); loadShedTasksAll() }} style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
                 padding: '14px 8px', background: '#1D9E7512',
@@ -7244,6 +7261,15 @@ export default function AthleteProfiles() {
               }}>
                 <span style={{ fontSize: 24 }}>🧹</span>
                 <span style={{ fontSize: 12, fontWeight: 500, color: '#1D9E75' }}>Sweep the sheds</span>
+              </button>
+              <button onClick={() => { setDashboardTab('wearables'); loadWearableAthletes() }} style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                padding: '14px 8px', background: '#0EA5E912',
+                border: '1px solid #0EA5E930', borderRadius: 'var(--border-radius-lg)',
+                cursor: 'pointer', fontFamily: 'var(--font-sans)',
+              }}>
+                <span style={{ fontSize: 24 }}>⌚</span>
+                <span style={{ fontSize: 12, fontWeight: 500, color: '#0EA5E9' }}>Wearables</span>
               </button>
               <button onClick={() => setDashboardTab('leagues')} style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
@@ -7692,6 +7718,42 @@ export default function AthleteProfiles() {
             )}
 
             {/* ── Leagues (team dashboard) ── */}
+            {dashboardTab === 'wearables' && (
+              <div>
+                <button onClick={() => setDashboardTab('overview')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
+                <div className="card" style={{ padding: 0 }}>
+                  <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+                    <h2 style={{ fontSize: 14, fontWeight: 600 }}>⌚ Athletes with wearables</h2>
+                    <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Tap a name to view their workouts, sleep and recovery</p>
+                  </div>
+                  {wearableAthletes === null ? (
+                    <p style={{ padding: 16, fontSize: 12, color: 'var(--text-tertiary)' }}>Loading…</p>
+                  ) : wearableAthletes.length === 0 ? (
+                    <p style={{ padding: 16, fontSize: 12, color: 'var(--text-tertiary)' }}>No athletes have linked a wearable yet. They connect from their own athlete app → Wearables.</p>
+                  ) : (
+                    wearableAthletes
+                      .map(w => ({ ...w, student: students.find(st => st.id === w.student_id) }))
+                      .filter(w => w.student)
+                      .sort((a, b) => `${a.student.members?.first_name} ${a.student.members?.last_name}`.localeCompare(`${b.student.members?.first_name} ${b.student.members?.last_name}`))
+                      .map(w => (
+                        <button key={w.student_id} type="button"
+                          onClick={() => { selectStudent(w.student); setTab('whoop') }}
+                          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', padding: '12px 16px', borderTop: '1px solid var(--border)', background: 'none', border: 'none', borderTopStyle: 'solid', cursor: 'pointer', fontFamily: 'var(--font-sans)', textAlign: 'left' }}>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{w.student.members?.first_name} {w.student.members?.last_name}</div>
+                            <div style={{ fontSize: 11, color: w.needsReauth ? '#E24B4A' : 'var(--text-tertiary)' }}>
+                              {w.providers.map(p => providerLabel(p)).join(', ')}
+                              {w.needsReauth ? ' · ⚠️ needs reconnecting' : w.last_sync_at ? ` · synced ${new Date(w.last_sync_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : ''}
+                            </div>
+                          </div>
+                          <span style={{ color: 'var(--text-tertiary)' }}>›</span>
+                        </button>
+                      ))
+                  )}
+                </div>
+              </div>
+            )}
+
             {dashboardTab === 'leagues' && (
               <div>
                 <button onClick={() => setDashboardTab('overview')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
@@ -8288,7 +8350,7 @@ export default function AthleteProfiles() {
                   borderBottom: `2px solid ${tab === t ? 'var(--text)' : 'transparent'}`,
                   color: tab === t ? 'var(--text)' : 'var(--text-secondary)',
                   fontWeight: tab === t ? 500 : 400, textTransform: 'capitalize', whiteSpace: 'nowrap', flexShrink: 0,
-                }}>{t === 'tpt' ? 'MTP' : t === 'whoop' ? 'Whoop' : t === 'sessions' ? 'Attendance' : t === 'fit2fight' ? 'Fit II Fight' : t === 'sweep' ? 'Sweep the Sheds' : t}</button>
+                }}>{t === 'tpt' ? 'MTP' : t === 'whoop' ? 'Wearables' : t === 'sessions' ? 'Attendance' : t === 'fit2fight' ? 'Fit II Fight' : t === 'sweep' ? 'Sweep the Sheds' : t}</button>
               ))}
             </div>
 
@@ -11875,6 +11937,35 @@ export default function AthleteProfiles() {
                     <div className="card" style={{ marginBottom: 12 }}>
                       <span style={{ fontSize: 13, fontWeight: 600, color: '#1D9E75' }}>✓ Connected: {(Array.isArray(whoopConnection) ? whoopConnection : []).map(c => providerLabel(c.provider)).join(', ')}</span>
                     </div>
+                    {wearableDaily.length > 0 && (
+                      <div className="card" style={{ marginBottom: 12 }}>
+                        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Last 14 days</h3>
+                        <div style={{ overflowX: 'auto' }}>
+                          <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                            <thead>
+                              <tr style={{ color: 'var(--text-tertiary)', fontSize: 10, textAlign: 'right' }}>
+                                <th style={{ textAlign: 'left', padding: '2px 4px' }}>Day</th>
+                                <th style={{ padding: '2px 4px' }}>Strain</th><th style={{ padding: '2px 4px' }}>Sleep</th><th style={{ padding: '2px 4px' }}>Recovery</th>
+                                <th style={{ padding: '2px 4px' }}>Rest HR</th><th style={{ padding: '2px 4px' }}>HRV</th><th style={{ padding: '2px 4px' }}>Cals</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {wearableDaily.slice(0, 14).map(d => (
+                                <tr key={d.id} style={{ borderTop: '1px solid var(--border)', textAlign: 'right' }}>
+                                  <td style={{ textAlign: 'left', padding: '4px' }}>{new Date(d.day + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</td>
+                                  <td style={{ padding: '4px', fontWeight: 600, color: '#1D9E75' }}>{d.day_strain != null ? Number(d.day_strain).toFixed(1) : '—'}</td>
+                                  <td style={{ padding: '4px' }}>{fmtSleep(d.sleep_seconds)}</td>
+                                  <td style={{ padding: '4px', fontWeight: 600, color: d.recovery_score == null ? undefined : d.recovery_score >= 67 ? '#1D9E75' : d.recovery_score >= 34 ? '#EF9F27' : '#E24B4A' }}>{d.recovery_score != null ? `${Math.round(d.recovery_score)}%` : '—'}</td>
+                                  <td style={{ padding: '4px' }}>{d.resting_heart_rate ?? '—'}</td>
+                                  <td style={{ padding: '4px' }}>{d.hrv != null ? Math.round(d.hrv) : '—'}</td>
+                                  <td style={{ padding: '4px' }}>{d.active_calories != null ? Math.round(d.active_calories).toLocaleString() : '—'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
                     {whoopSessions.length === 0 ? (
                       <div className="empty-state"><h3>No workouts yet</h3><p>Summaries appear here shortly after each completed workout</p></div>
                     ) : (
