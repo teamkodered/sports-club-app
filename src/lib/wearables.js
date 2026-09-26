@@ -22,11 +22,25 @@ export const PROVIDERS = {
   fitbit:        { key: 'fitbit',        label: 'Fitbit',         icon: '⌚', colour: '#00B0B9', enabled: false, provides: ['steps', 'heart rate', 'sleep', 'workouts'] },
   garmin:        { key: 'garmin',        label: 'Garmin',         icon: '⌚', colour: '#007CC3', enabled: false, provides: ['steps', 'heart rate', 'sleep', 'workouts'] },
   oura:          { key: 'oura',          label: 'Oura',           icon: '💍', colour: '#7B61FF', enabled: false, provides: ['sleep', 'readiness', 'heart rate'] },
-  apple_health:  { key: 'apple_health',  label: 'Apple Health',   icon: '🍎', colour: '#FF2D55', enabled: false, provides: ['steps', 'heart rate', 'sleep', 'workouts'] },
-  samsung_health:{ key: 'samsung_health',label: 'Samsung Health', icon: '📱', colour: '#1428A0', enabled: false, provides: ['steps', 'heart rate', 'sleep', 'workouts'] },
+  // Phone health apps: no web API, so the phone SENDS data to us (wearable-ingest)
+  apple_health:  { key: 'apple_health',  label: 'Apple Health',   icon: '🍎', colour: '#FF2D55', enabled: true, kind: 'ingest',
+    provides: ['steps', 'heart rate', 'sleep', 'workouts'],
+    blurb: 'Steps, sleep, resting heart rate and workouts from your iPhone / Apple Watch, sent each morning by a Shortcut.' },
+  samsung_health:{ key: 'samsung_health',label: 'Samsung Health', icon: '📱', colour: '#1428A0', enabled: true, kind: 'ingest', comingSoon: true,
+    provides: ['steps', 'heart rate', 'sleep', 'workouts'],
+    blurb: 'Coming soon — needs the club\'s Android app, which is the next build.' },
 }
 
 export const enabledProviders = () => Object.values(PROVIDERS).filter(p => p.enabled)
+
+export const INGEST_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wearable-ingest`
+
+// Link code for a phone-based provider (creates one the first time)
+export async function getOrCreateLinkCode(provider) {
+  const { data, error } = await supabase.rpc('create_wearable_link', { p_provider: provider })
+  if (error) throw error
+  return data
+}
 export const providerLabel = key => PROVIDERS[key]?.label || key
 
 // Connections (non-secret columns only, via the wearable_connections_public view)

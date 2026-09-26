@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
-import { enabledProviders, PROVIDERS, providerLabel, loadConnections, loadWorkouts, loadDaily, disconnect as disconnectWearable, fmtSleep } from '../lib/wearables.js'
+import { enabledProviders, PROVIDERS, providerLabel, loadConnections, loadWorkouts, loadDaily, disconnect as disconnectWearable, fmtSleep, getOrCreateLinkCode, INGEST_URL } from '../lib/wearables.js'
 import { supabasePublic } from '../lib/supabasePublic.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useBackableTab } from '../hooks/useBackableTab.js'
@@ -1467,6 +1467,7 @@ export default function AthleteApp() {
   const [wearableConnections, setWearableConnections] = useState([]) // all providers, from the shared wearable backend
   const [whoopSessions, setWhoopSessions] = useState([]) // workouts from any provider
   const [wearableDaily, setWearableDaily] = useState([])  // steps / sleep / recovery per day
+  const [wearableSetup, setWearableSetup] = useState(null) // { provider, code } -- set-up guide open for a phone health app
   const [newNoteText, setNewNoteText] = useState('')
   const [showFullscreenNoteComposer, setShowFullscreenNoteComposer] = useState(false)
   const [openNoteId, setOpenNoteId] = useState(null) // which existing note is open full-screen (view/edit), or null
@@ -7004,7 +7005,21 @@ export default function AthleteApp() {
                       </div>
                     )}
                   </div>
-                  {conn && conn.status !== 'needs_reauth' ? (
+                  {p.comingSoon ? (
+                    <span style={{ fontSize: 11, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>Coming soon</span>
+                  ) : p.kind === 'ingest' ? (
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button className={conn ? 'btn btn-sm' : 'btn btn-primary btn-sm'} onClick={async () => {
+                        try { const code = await getOrCreateLinkCode(p.key); setWearableSetup({ provider: p.key, code }); loadConnections(student.id).then(setWearableConnections) }
+                        catch (err) { alert('Could not create your link code: ' + err.message) }
+                      }}>{conn ? 'Set-up guide' : 'Set up →'}</button>
+                      {conn && <button className="btn btn-sm" onClick={async () => {
+                        if (!confirm(`Disconnect ${p.label}? Past data will stay. Your phone will stop being able to send new data until you set it up again.`)) return
+                        await disconnectWearable(student.id, p.key)
+                        setWearableConnections(cs => cs.filter(c => c.provider !== p.key))
+                      }}>Disconnect</button>}
+                    </div>
+                  ) : conn && conn.status !== 'needs_reauth' ? (
                     <button className="btn btn-sm" onClick={async () => {
                       if (!confirm(`Disconnect ${p.label}? Past data will stay, but new data will stop coming in.`)) return
                       await disconnectWearable(student.id, p.key)
@@ -7019,9 +7034,55 @@ export default function AthleteApp() {
               )
             })}
             <p style={{ fontSize: 11, color: 'var(--text-tertiary)', padding: '0 4px' }}>
-              More devices (Fitbit, Garmin, Oura, Apple Health, Samsung Health) are on the way. Data appears shortly after each workout or sleep is processed — not live.
+              More devices (Fitbit, Garmin, Oura) are on the way. Data appears shortly after each workout or sleep is processed — not live.
             </p>
           </div>
+
+          {wearableSetup && (() => {
+            const p = PROVIDERS[wearableSetup.provider]
+            const code = wearableSetup.code
+            const copy = async (text, what) => { try { await navigator.clipboard.writeText(text); flashSaved(`✓ ${what} copied`) } catch { prompt(`Copy this ${what}:`, text) } }
+            return (
+              <div onClick={() => setWearableSetup(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 250, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+                <div className="card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 480, maxHeight: '88vh', overflowY: 'auto', borderRadius: '16px 16px 0 0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <h3 style={{ fontSize: 15, fontWeight: 700 }}>{p.icon} Set up {p.label}</h3>
+                    <button className="btn btn-sm" onClick={() => setWearableSetup(null)}>✕</button>
+                  </div>
+                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10 }}>
+                    {p.label} can't be linked with a login like Whoop — your phone has to send the data to the app. This takes about 5 minutes, once.
+                  </p>
+                  <div style={{ background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', padding: 10, marginBottom: 10 }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Your private link code (don't share it)</div>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <code style={{ fontSize: 12, wordBreak: 'break-all', flex: 1 }}>{code}</code>
+                      <button className="btn btn-sm" onClick={() => copy(code, 'link code')}>Copy</button>
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 6 }}>Send-to address</div>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <code style={{ fontSize: 11, wordBreak: 'break-all', flex: 1 }}>{INGEST_URL}</code>
+                      <button className="btn btn-sm" onClick={() => copy(INGEST_URL, 'address')}>Copy</button>
+                    </div>
+                  </div>
+                  {wearableSetup.provider === 'apple_health' && (
+                    <ol style={{ fontSize: 13, lineHeight: 1.6, paddingLeft: 20, margin: 0 }}>
+                      <li>Open the <b>Shortcuts</b> app on your iPhone and tap <b>+</b> to make a new shortcut. Name it <b>KR Health Sync</b>.</li>
+                      <li>Add the action <b>Find Health Samples</b>: Type <b>Steps</b>, Start Date <b>is today</b>. Then add <b>Calculate Statistics</b> → <b>Sum</b> of the samples. Rename the result <b>Steps</b> (tap the variable → Rename).</li>
+                      <li>Add another <b>Find Health Samples</b>: Type <b>Sleep Analysis</b>, value <b>is Asleep</b>, Start Date <b>is in the last 1 day</b>. Add <b>Calculate Statistics</b> → <b>Sum</b> → rename it <b>SleepMinutes</b>.</li>
+                      <li>Add <b>Find Health Samples</b>: Type <b>Resting Heart Rate</b>, Start Date <b>is today</b>, Limit <b>1</b>. Rename it <b>RestHR</b>.</li>
+                      <li>Add <b>Dictionary</b> with these text keys: <b>token</b> = your link code above · <b>steps</b> = Steps · <b>sleep_minutes</b> = SleepMinutes · <b>resting_heart_rate</b> = RestHR.</li>
+                      <li>Add <b>Get Contents of URL</b>: paste the send-to address above, Method <b>POST</b>, Request Body <b>JSON</b>, and choose the Dictionary as the body.</li>
+                      <li>Tap ▶ once to test — allow Health access when asked. Then come back here: your steps should appear under Time outdoors within a minute.</li>
+                      <li>Make it automatic: Shortcuts → <b>Automation</b> → <b>+</b> → <b>Time of Day</b> (e.g. 9:00am, daily) → run <b>KR Health Sync</b>, and turn <b>off</b> "Ask Before Running".</li>
+                    </ol>
+                  )}
+                  <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 10 }}>
+                    Only the totals you choose are sent (steps, sleep, resting heart rate). Nothing else from Health leaves your phone.
+                  </p>
+                </div>
+              </div>
+            )
+          })()}
 
           {wearableConnections.length > 0 && (
             <>
