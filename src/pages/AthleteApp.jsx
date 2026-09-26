@@ -5500,6 +5500,24 @@ export default function AthleteApp() {
                         {expandedHomeWb === 'outdoors' && (
                           <>
                             <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysWellbeing.outdoors?.totalMinutes || 0} mins <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>today (target 20+)</span></div>
+                            {/* Step count from a connected wearable, when it provides one (Whoop doesn't; Fitbit / Garmin / phone health apps do) */}
+                            {(() => {
+                              const todaysDate = new Date().toISOString().split('T')[0]
+                              const withSteps = wearableDaily.filter(d => d.steps != null).sort((a, b) => b.day.localeCompare(a.day))
+                              const today = withSteps.find(d => d.day === todaysDate)
+                              const latest = today || withSteps[0]
+                              if (!latest) return null
+                              const weekAvg = (() => { const w = withSteps.slice(0, 7); return w.length ? Math.round(w.reduce((n, d) => n + d.steps, 0) / w.length) : null })()
+                              return (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 'var(--radius)', background: 'var(--bg-secondary)', marginBottom: 10 }}>
+                                  <span style={{ fontSize: 20 }}>👣</span>
+                                  <div>
+                                    <div style={{ fontSize: 15, fontWeight: 700 }}>{latest.steps.toLocaleString()} steps <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-secondary)' }}>{today ? 'today' : `on ${new Date(latest.day + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short' })}`}</span></div>
+                                    <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>from {providerLabel(latest.provider)}{weekAvg ? ` · 7-day avg ${weekAvg.toLocaleString()}` : ''}</div>
+                                  </div>
+                                </div>
+                              )
+                            })()}
                             <div className="field">
                               <label>Add</label>
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
