@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Klass Champ</string>
+    <string name="title_activity_main">Klass Champ</string>
+    <string name="package_name">uk.org.derbykickboxing.klasschamp</string>
+    <string name="custom_url_scheme">uk.org.derbykickboxing.klasschamp</string>
+</resources>

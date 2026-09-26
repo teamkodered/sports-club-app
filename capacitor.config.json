@@ -1,0 +1,13 @@
+{
+  "appId": "uk.org.derbykickboxing.klasschamp",
+  "appName": "Klass Champ",
+  "webDir": "dist",
+  "server": {
+    "url": "https://klasschamp.netlify.app",
+    "cleartext": false,
+    "allowNavigation": ["klasschamp.netlify.app", "*.supabase.co", "*.netlify.app"]
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}

@@ -26,9 +26,10 @@ export const PROVIDERS = {
   apple_health:  { key: 'apple_health',  label: 'Apple Health',   icon: '🍎', colour: '#FF2D55', enabled: true, kind: 'ingest',
     provides: ['steps', 'heart rate', 'sleep', 'workouts'],
     blurb: 'Steps, sleep, resting heart rate and workouts from your iPhone / Apple Watch, sent each morning by a Shortcut.' },
-  samsung_health:{ key: 'samsung_health',label: 'Samsung Health', icon: '📱', colour: '#1428A0', enabled: true, kind: 'ingest', comingSoon: true,
+  samsung_health:{ key: 'samsung_health',label: 'Samsung Health', icon: '📱', colour: '#1428A0', enabled: true, kind: 'health_connect',
     provides: ['steps', 'heart rate', 'sleep', 'workouts'],
-    blurb: 'Coming soon — needs the club\'s Android app, which is the next build.' },
+    blurb: 'Steps, sleep, heart rate and workouts via Android Health Connect — also covers Google Fit, Fitbit, Garmin and Oura on Android.',
+    appOnlyNote: 'Available in the Klass Champ Android app (not in the browser).' },
 }
 
 export const enabledProviders = () => Object.values(PROVIDERS).filter(p => p.enabled)

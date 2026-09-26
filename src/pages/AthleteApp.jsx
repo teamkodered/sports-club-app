@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { enabledProviders, PROVIDERS, providerLabel, loadConnections, loadWorkouts, loadDaily, disconnect as disconnectWearable, fmtSleep, getOrCreateLinkCode, INGEST_URL } from '../lib/wearables.js'
+import * as healthConnect from '../lib/healthConnect.js'
 import { supabasePublic } from '../lib/supabasePublic.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useBackableTab } from '../hooks/useBackableTab.js'
@@ -1468,6 +1469,7 @@ export default function AthleteApp() {
   const [whoopSessions, setWhoopSessions] = useState([]) // workouts from any provider
   const [wearableDaily, setWearableDaily] = useState([])  // steps / sleep / recovery per day
   const [wearableSetup, setWearableSetup] = useState(null) // { provider, code } -- set-up guide open for a phone health app
+  const [hcBusy, setHcBusy] = useState(false) // Health Connect connect/sync in progress
   const [newNoteText, setNewNoteText] = useState('')
   const [showFullscreenNoteComposer, setShowFullscreenNoteComposer] = useState(false)
   const [openNoteId, setOpenNoteId] = useState(null) // which existing note is open full-screen (view/edit), or null
@@ -1919,6 +1921,8 @@ export default function AthleteApp() {
         loadConnections(s.id).then(setWearableConnections)
         loadWorkouts(s.id).then(setWhoopSessions)
         loadDaily(s.id).then(setWearableDaily)
+        // Inside the Android app: quietly push the latest Health Connect data, then refresh
+        healthConnect.autoSyncIfLinked().then(r => { if (r) { loadDaily(s.id).then(setWearableDaily); loadWorkouts(s.id).then(setWhoopSessions); loadConnections(s.id).then(setWearableConnections) } })
 
         supabase.from('classes').select('*').eq('active', true).order('day_of_week').order('start_time')
           .then(({ data, error }) => { if (!error) setAllClasses(data || []) })
@@ -7005,8 +7009,29 @@ export default function AthleteApp() {
                       </div>
                     )}
                   </div>
-                  {p.comingSoon ? (
-                    <span style={{ fontSize: 11, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>Coming soon</span>
+                  {p.kind === 'health_connect' ? (
+                    !healthConnect.isAndroidApp() ? (
+                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'right', maxWidth: 130 }}>{p.appOnlyNote}</span>
+                    ) : (
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button className={conn ? 'btn btn-sm' : 'btn btn-primary btn-sm'} disabled={hcBusy} onClick={async () => {
+                          setHcBusy(true)
+                          try {
+                            const avail = await healthConnect.isAvailable()
+                            if (!avail.available) { alert(avail.status === 'update_required' ? 'Please update Health Connect from the Play Store, then try again.' : 'Health Connect isn\'t available on this phone. Install "Health Connect" from the Play Store (or check Settings → Health Connect) and try again.'); return }
+                            const r = conn ? await healthConnect.sync({ days: 30 }) : await healthConnect.connect()
+                            flashSaved(`📱 Synced ${r.days} days · ${r.workouts} workouts`)
+                            loadConnections(student.id).then(setWearableConnections); loadDaily(student.id).then(setWearableDaily); loadWorkouts(student.id).then(setWhoopSessions)
+                          } catch (err) { alert('Health Connect: ' + err.message) }
+                          finally { setHcBusy(false) }
+                        }}>{hcBusy ? 'Working…' : conn ? 'Sync now' : 'Connect →'}</button>
+                        {conn && <button className="btn btn-sm" disabled={hcBusy} onClick={async () => {
+                          if (!confirm(`Disconnect ${p.label}? Past data will stay, but new data will stop coming in.`)) return
+                          await disconnectWearable(student.id, p.key); healthConnect.forget()
+                          setWearableConnections(cs => cs.filter(c => c.provider !== p.key))
+                        }}>Disconnect</button>}
+                      </div>
+                    )
                   ) : p.kind === 'ingest' ? (
                     <div style={{ display: 'flex', gap: 6 }}>
                       <button className={conn ? 'btn btn-sm' : 'btn btn-primary btn-sm'} onClick={async () => {
