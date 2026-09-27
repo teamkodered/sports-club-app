@@ -297,3 +297,8 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .neon-home .neon-stat img { height: 46px !important; width: auto !important; max-width: 80%; margin-bottom: 6px !important; }
 .neon-home .neon-stat .neon-stat-value { font-size: 24px !important; line-height: 1.1; }
 .neon-home .neon-stat .neon-stat-label { font-size: 10px !important; }
+/* Pillar cards square while collapsed (an open card spans the full width, so it keeps its natural height) */
+.neon-home div:not([style*="grid-column: 1 / -1"]) > .neon-tl,
+.neon-home div:not([style*="grid-column: 1 / -1"]) > .neon-tr,
+.neon-home div:not([style*="grid-column: 1 / -1"]) > .neon-bl,
+.neon-home div:not([style*="grid-column: 1 / -1"]) > .neon-br { aspect-ratio: 1 / 1; min-height: 0; height: auto; }
