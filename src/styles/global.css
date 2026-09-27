@@ -416,3 +416,6 @@ tbody tr:hover td { background: var(--bg-secondary); }
   .neon-home .neon-bl [style*="Anton"] { left: 44px; bottom: 46px; }
   .neon-home .neon-br [style*="Anton"] { right: 44px; bottom: 46px; }
 }
+/* Rank chip: position in house large, overall position small in the lower right */
+.neon-chip-right { position: relative; }
+.neon-chip-sub { position: absolute; right: 6px; bottom: 2px; font-family: 'Orbitron', sans-serif; font-style: normal; font-weight: 500; font-size: 9px; letter-spacing: 0; color: #C8C8C8; }

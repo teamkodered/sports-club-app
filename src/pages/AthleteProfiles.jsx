@@ -7880,7 +7880,8 @@ export default function AthleteProfiles() {
                   <button type="button" className="neon-chip neon-chip-right" style={{ '--house': NEON_HOUSE_COLOURS[houseName] || colour }}
                     onClick={e => { e.stopPropagation(); setShowOverallPos(v => !v) }}
                     title={showOverallPos ? 'Overall position — click for position in house' : 'Position in house — click for overall position'}>
-                    #{(showOverallPos ? overallPosition : positionInHouse) || '—'}
+                    #{positionInHouse || '—'}
+                    <span className="neon-chip-sub" title="Overall position">#{overallPosition || '—'}</span>
                   </button>
                 </div>
                 <div className="neon-header-row">
