@@ -419,3 +419,9 @@ tbody tr:hover td { background: var(--bg-secondary); }
 /* Rank chip: position in house large, overall position small in the lower right */
 .neon-chip-right { position: relative; }
 .neon-chip-sub { position: absolute; right: 6px; bottom: 2px; font-family: 'Orbitron', sans-serif; font-style: normal; font-weight: 500; font-size: 9px; letter-spacing: 0; color: #C8C8C8; }
+/* Header card: enough room for the house stats line at the bottom */
+.neon-banner:has(.neon-header) { padding: 16px 14px 22px !important; overflow: visible; }
+.neon-header { gap: 14px; }
+.neon-header-row { padding-bottom: 4px; align-items: flex-end; }
+.neon-housebox { gap: 3px; }
+.neon-house-stats { line-height: 1.4; }
