@@ -7869,8 +7869,8 @@ export default function AthleteProfiles() {
                   details), and the house with its position/points and this athlete's points. */}
               <div className="neon-header">
                 <div className="neon-header-chips">
-                  <div className="neon-chip neon-chip-left" style={{ '--house': NEON_HOUSE_COLOURS[houseName] || colour }} title="House points">
-                    {houseTotalPoints != null ? Number(houseTotalPoints).toLocaleString() : '—'}
+                  <div className="neon-chip neon-chip-left" style={{ '--house': NEON_HOUSE_COLOURS[houseName] || colour }} title="Monthly score / monthly target set by the coach">
+                    {(() => { const t = ['mentality', 'tactical', 'technique', 'physical', 'wellbeing'].reduce((acc, k) => { const m = (getCoachSectionProgressByPeriod(k) || {}).month || {}; return { done: acc.done + (m.done || 0), target: acc.target + (m.target || 0) } }, { done: 0, target: 0 }); return `${t.done}/${t.target}` })()}
                   </div>
                   <span className="neon-hex neon-hex-centre">
                     {selected.is_kr && <img src="/logos/kr-dragon.gif" alt="Kode Red Kickboxing" />}
