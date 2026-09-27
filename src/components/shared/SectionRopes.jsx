@@ -50,20 +50,25 @@ export default function SectionRopes({ byPeriod, accent: _accent, corner = 'tl',
                 running up/down the post, round the corner and out along the rope.
                 Cards are square, so post and rope are about the same length: the first
                 half of the progress fills the post, the second half the rope. */}
-            {/* Top cards: solid glowing post; rope charges from the centre gap towards the post.
-                Bottom cards (Technical, Physical): one L that charges from the BOTTOM MIDDLE --
-                along the bottom rope to the post (first half), then up the post (second half). */}
+            {/* Every pillar line is one L that charges from the BOTTOM:
+                - Mentality / Tactical (top cards): up the post from the bottom (first half),
+                  then along the top rope from the post towards the centre gap (second half).
+                - Technical / Physical (bottom cards): from the bottom middle along the bottom
+                  rope to the post (first half), then up the post (second half).
+                Cards are square, so post and rope are the same length and the lit length
+                always equals the true done/target ratio. */}
             {(() => {
               const isBottom = vert === 'bottom'
-              const ropePct = isBottom ? Math.min(100, pct * 2) : pct
-              const postPct = isBottom ? Math.max(0, pct * 2 - 100) : 100
+              const first = Math.min(100, pct * 2), second = Math.max(0, pct * 2 - 100)
+              const postPct = isBottom ? second : first
+              const ropePct = isBottom ? first : second
               return (
                 <>
-                  <div style={{ position: 'absolute', [side]: o, [vert]: o, [vother]: 0, width: 4, background: isBottom ? track : accent, boxShadow: isBottom ? 'none' : glow, borderRadius: 2 }}>
-                    {isBottom && <div style={{ position: 'absolute', left: 0, bottom: 0, width: '100%', height: `${postPct}%`, background: accent, boxShadow: glow, borderRadius: 2, transition: 'height 0.3s' }} />}
+                  <div style={{ position: 'absolute', [side]: o, [vert]: o, [vother]: 0, width: 4, background: track, borderRadius: 2 }}>
+                    <div style={{ position: 'absolute', left: 0, bottom: 0, width: '100%', height: `${postPct}%`, background: accent, boxShadow: glow, borderRadius: 2, transition: 'height 0.3s' }} />
                   </div>
                   <div style={{ position: 'absolute', [side]: o, [other]: 0, [vert]: o, height: 4, background: track, borderRadius: 2 }}>
-                    <div style={{ position: 'absolute', [other]: 0, top: 0, height: '100%', width: `${ropePct}%`, background: accent, boxShadow: glow, borderRadius: 2, transition: 'width 0.3s' }} />
+                    <div style={{ position: 'absolute', [isBottom ? other : side]: 0, top: 0, height: '100%', width: `${ropePct}%`, background: accent, boxShadow: glow, borderRadius: 2, transition: 'width 0.3s' }} />
                   </div>
                 </>
               )
