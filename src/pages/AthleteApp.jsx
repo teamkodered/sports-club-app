@@ -4360,7 +4360,7 @@ export default function AthleteApp() {
                   setExpandedHomeStretch(panel === 'stretch' ? value : null)
                 }
                 const togglePhysicalSection = () => {
-                  setShowPhysicalSection(v => {
+                  setShowPhysicalSection(v => { if (!v) setTimeout(() => physicalSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
                     if (v) { openOnlyPhysicalPanel(null, null); setActivePhysicalCategory(null) } // closing -- reset any open detail panel/category too
                     return !v
                   })
@@ -4854,7 +4854,7 @@ export default function AthleteApp() {
                     </div>
 
                     <div ref={techniqueSectionRef} style={{ order: showTechniqueSection ? 0 : 3, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showTechniqueSection ? '1 / -1' : 'auto' }}>
-                    <button type="button" className="neon-pillar neon-bl" onClick={() => { setShowTechniqueSection(v => { if (v) setExpandedTechniqueCategory(null); return !v }) }} style={showTechniqueSection ? {
+                    <button type="button" className="neon-pillar neon-bl" onClick={() => { setShowTechniqueSection(v => { if (!v) setTimeout(() => techniqueSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150); if (v) setExpandedTechniqueCategory(null); return !v }) }} style={showTechniqueSection ? {
                       width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
                       textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
@@ -4964,7 +4964,7 @@ export default function AthleteApp() {
                     </div>
 
                     <div ref={tacticalSectionRef} style={{ order: showTacticalSection ? 0 : 2, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showTacticalSection ? '1 / -1' : 'auto' }}>
-                    <button type="button" className="neon-pillar neon-tr" onClick={() => { setShowTacticalSection(v => { if (v) setExpandedTacticalCategory(null); return !v }) }} style={showTacticalSection ? {
+                    <button type="button" className="neon-pillar neon-tr" onClick={() => { setShowTacticalSection(v => { if (!v) setTimeout(() => tacticalSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150); if (v) setExpandedTacticalCategory(null); return !v }) }} style={showTacticalSection ? {
                       width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
                       textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
@@ -5078,7 +5078,7 @@ export default function AthleteApp() {
                     </div>
 
                     <div ref={mentalitySectionRef} style={{ order: showMentalitySection ? 0 : 1, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showMentalitySection ? '1 / -1' : 'auto' }}>
-                    <button type="button" className="neon-pillar neon-tl" onClick={() => { setShowMentalitySection(v => { if (v) setExpandedHomeMentality(null); return !v }) }} style={showMentalitySection ? {
+                    <button type="button" className="neon-pillar neon-tl" onClick={() => { setShowMentalitySection(v => { if (!v) setTimeout(() => mentalitySectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150); if (v) setExpandedHomeMentality(null); return !v }) }} style={showMentalitySection ? {
                       width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
                       textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
@@ -5423,7 +5423,7 @@ export default function AthleteApp() {
                     })()}
 
                     <div ref={wellbeingSectionRef}>
-                    <button type="button" className="neon-pillar neon-bottom" onClick={() => { setShowWellbeingSection(v => { if (v) setExpandedHomeWb(null); return !v }) }} style={{
+                    <button type="button" className="neon-pillar neon-bottom" onClick={() => { setShowWellbeingSection(v => { if (!v) setTimeout(() => wellbeingSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150); if (v) setExpandedHomeWb(null); return !v }) }} style={{
                       width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 12,
                       textAlign: 'center', padding: '18px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',

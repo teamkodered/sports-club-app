@@ -425,3 +425,5 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .neon-header-row { padding-bottom: 4px; align-items: flex-end; }
 .neon-housebox { gap: 3px; }
 .neon-house-stats { line-height: 1.4; }
+/* Opened pillar sections scroll to the top of the screen with a little breathing room */
+.neon-home [class*="neon-pillar"] { scroll-margin-top: 12px; }
