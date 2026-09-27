@@ -38,7 +38,7 @@ export default function SectionRopes({ byPeriod, accent: _accent, corner = 'tl',
                 <div style={{ width: `${pct}%`, height: '100%', background: accent, boxShadow: glow, borderRadius: 2, transition: 'width 0.3s' }} />
               </div>
               <div style={{ ...letterStyle, left: 4, bottom: o - 4, padding: '0 3px', background: '#1A1F24' }}>{letter}</div>
-              {hasTarget && <div style={{ position: 'absolute', right: 4, bottom: o - 4, padding: '0 3px', background: '#1A1F24', fontFamily: 'Orbitron, sans-serif', fontSize: 9, letterSpacing: 1, lineHeight: '11px', color: labelColour }}>{done}/{target}</div>}
+              <div style={{ position: 'absolute', right: 4, bottom: o - 4, padding: '0 3px', background: '#1A1F24', fontFamily: 'Orbitron, sans-serif', fontSize: 9, letterSpacing: 1, lineHeight: '11px', color: labelColour }}>{done}/{target}</div>
             </div>
           )
         }
@@ -74,7 +74,7 @@ export default function SectionRopes({ byPeriod, accent: _accent, corner = 'tl',
               )
             })()}
             {/* count on the line, at its open end */}
-            {hasTarget && <div style={{ position: 'absolute', [other]: 0, [vert]: o - 4, padding: '0 4px', background: '#1A1F24', fontFamily: 'Orbitron, sans-serif', fontSize: 11, fontWeight: 500, letterSpacing: 0, lineHeight: '12px', textAlign: side === 'left' ? 'right' : 'left', color: labelColour }}>{done}/{target}</div>}
+            <div style={{ position: 'absolute', [other]: 0, [vert]: o - 4, padding: '0 4px', background: '#1A1F24', fontFamily: 'Orbitron, sans-serif', fontSize: 11, fontWeight: 500, letterSpacing: 0, lineHeight: '12px', textAlign: side === 'left' ? 'right' : 'left', color: labelColour }}>{done}/{target}</div>
             {/* one D / W / M letter per rope row, in the gap between the two cards (left-hand card draws it) */}
             {side === 'left' && <div style={{ ...letterStyle, left: 'calc(100% + 10px)', transform: 'translateX(-50%)', [vert]: o - 4 }}>{letter}</div>}
           </div>
