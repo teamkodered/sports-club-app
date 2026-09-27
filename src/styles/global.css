@@ -308,3 +308,18 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .neon-home .neon-tl .neon-pillar-icon, .neon-home .neon-tr .neon-pillar-icon,
 .neon-home .neon-bl .neon-pillar-icon, .neon-home .neon-br .neon-pillar-icon { height: 72px !important; max-width: 46%; object-fit: contain; }
 .neon-home .neon-pillar [style*="Anton"] { font-size: 22px !important; line-height: 1 !important; }
+/* Bigger artwork + titles; content clear of the wider-spaced ropes (outer rope at 36px + 4px) */
+.neon-home .neon-tl .neon-pillar-icon, .neon-home .neon-tr .neon-pillar-icon,
+.neon-home .neon-bl .neon-pillar-icon, .neon-home .neon-br .neon-pillar-icon { height: auto !important; width: 48% !important; max-width: 48%; max-height: 42%; }
+.neon-home .neon-pillar [style*="Anton"] { font-size: 28px !important; }
+.neon-home .neon-tl [style*="Anton"] { left: 52px; top: 52px; }
+.neon-home .neon-tr [style*="Anton"] { right: 52px; top: 52px; }
+.neon-home .neon-bl [style*="Anton"] { left: 52px; bottom: 52px; }
+.neon-home .neon-br [style*="Anton"] { right: 52px; bottom: 52px; }
+.neon-home .neon-tl .neon-pillar-icon { right: 14px; bottom: 14px; }
+.neon-home .neon-tr .neon-pillar-icon { left: 14px; bottom: 14px; }
+.neon-home .neon-bl .neon-pillar-icon { right: 14px; top: 14px; }
+.neon-home .neon-br .neon-pillar-icon { left: 14px; top: 14px; }
+.neon-home div:has(> div > .neon-pillar) { column-gap: 20px !important; row-gap: 20px !important; }
+.neon-home .neon-bottom { padding-bottom: 60px !important; }
+.neon-home .neon-bottom [style*="Anton"] { font-size: 28px !important; }
