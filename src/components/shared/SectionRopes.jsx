@@ -34,12 +34,26 @@ export default function SectionRopes({ byPeriod, accent: _accent, corner = 'tl',
         }
         return (
           <div key={key}>
-            {/* post on the outer side */}
-            <div style={{ position: 'absolute', [side]: o, [vert]: o, [vother]: 0, width: 3, background: accent, boxShadow: glow, borderRadius: 2 }} />
-            {/* rope along the outer top/bottom edge, filling from the post */}
-            <div style={{ position: 'absolute', [side]: o, [other]: 0, [vert]: o, height: 3, background: track, borderRadius: 2 }}>
-              <div style={{ position: 'absolute', [side]: 0, top: 0, height: '100%', width: `${pct}%`, background: accent, boxShadow: glow, borderRadius: 2, transition: 'width 0.3s' }} />
-            </div>
+            {/* Each rope is one L-shaped line: the post down the outer side plus the rope
+                along the outer edge. Progress charges along the whole L, starting at the
+                FAR end of the post (bottom for the top cards, top for the bottom cards),
+                running up/down the post, round the corner and out along the rope.
+                Cards are square, so post and rope are about the same length: the first
+                half of the progress fills the post, the second half the rope. */}
+            {(() => {
+              const postPct = Math.min(100, pct * 2)
+              const ropePct = Math.max(0, pct * 2 - 100)
+              return (
+                <>
+                  <div style={{ position: 'absolute', [side]: o, [vert]: o, [vother]: 0, width: 3, background: track, borderRadius: 2 }}>
+                    <div style={{ position: 'absolute', left: 0, [vother]: 0, width: '100%', height: `${postPct}%`, background: accent, boxShadow: glow, borderRadius: 2, transition: 'height 0.3s' }} />
+                  </div>
+                  <div style={{ position: 'absolute', [side]: o, [other]: 0, [vert]: o, height: 3, background: track, borderRadius: 2 }}>
+                    <div style={{ position: 'absolute', [side]: 0, top: 0, height: '100%', width: `${ropePct}%`, background: accent, boxShadow: glow, borderRadius: 2, transition: 'width 0.3s' }} />
+                  </div>
+                </>
+              )
+            })()}
             {/* count on the line, at its open end */}
             {hasTarget && <div style={{ position: 'absolute', [other]: 6, [vert]: o - 4, padding: '0 4px', background: '#1A1F24', fontFamily: 'Orbitron, sans-serif', fontSize: 9, fontWeight: 500, letterSpacing: 0, lineHeight: '11px', textAlign: side === 'left' ? 'right' : 'left', color: labelColour }}>{done}/{target}</div>}
             {/* one D / W / M letter per rope row, in the gap between the two cards (left-hand card draws it) */}

@@ -304,3 +304,7 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .neon-home div:not([style*="grid-column: 1 / -1"]) > .neon-br { aspect-ratio: 1 / 1; min-height: 0; height: auto; }
 /* Wider gap between the pillar pairs so the single D/W/M column sits cleanly between the rope ends */
 .neon-home div:has(> div > .neon-pillar) { column-gap: 16px !important; }
+/* Match the mockup sizes */
+.neon-home .neon-tl .neon-pillar-icon, .neon-home .neon-tr .neon-pillar-icon,
+.neon-home .neon-bl .neon-pillar-icon, .neon-home .neon-br .neon-pillar-icon { height: 72px !important; max-width: 46%; object-fit: contain; }
+.neon-home .neon-pillar [style*="Anton"] { font-size: 22px !important; line-height: 1 !important; }
