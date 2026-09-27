@@ -2,8 +2,11 @@
 // Three glowing lines on the card's OUTER two edges = the D / W / M bars.
 // corner: 'tl' | 'tr' | 'bl' | 'br' | 'bottom' (Foundation: three lines along the bottom)
 // byPeriod: { day: {done,target}, week: {...}, month: {...} }
-export default function SectionRopes({ byPeriod, accent, corner = 'tl', dim }) {
-  const track = dim || `${accent}33`
+const NEON = { tl: '#22B14C', tr: '#FF2A2A', bl: '#2F6BFF', br: '#E6B800', bottom: '#C93BFF' }
+
+export default function SectionRopes({ byPeriod, accent: _accent, corner = 'tl', dim }) {
+  const accent = NEON[corner] || _accent
+  const track = dim || `${accent}55`
   const periods = [['day', 'D', 0], ['week', 'W', 14], ['month', 'M', 28]]
   const side = corner.includes('r') ? 'right' : 'left'
   const other = side === 'right' ? 'left' : 'right'

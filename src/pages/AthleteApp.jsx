@@ -1059,7 +1059,7 @@ function TopStatCard({ onNavigate, icon, iconImg, value, pctValue, hasPct, label
       {(() => { const pct = Math.max(0, Math.min(100, parseFloat(String(pctValue)) || 0)); const P = 379; return (
         <svg className="neon-stat-outline" viewBox="0 0 110 96" preserveAspectRatio="none" aria-hidden="true">
           <rect x="2" y="2" width="106" height="92" rx="10" fill="none" stroke="#2A3138" strokeWidth="4" />
-          <rect x="2" y="2" width="106" height="92" rx="10" fill="none" stroke="#FFFFFF" strokeWidth="4" strokeLinecap="round" strokeDasharray={`${(P * pct / 100).toFixed(0)} ${P}`} pathLength={P} transform="rotate(-90 55 48)" style={{ filter: 'drop-shadow(0 0 6px #FFFFFF)' }} />
+          {pct > 0 && <rect x="2" y="2" width="106" height="92" rx="10" fill="none" stroke="#FFFFFF" strokeWidth="4" strokeLinecap="round" strokeDasharray={`${(P * pct / 100).toFixed(0)} ${P}`} strokeDashoffset={-43} pathLength={P} style={{ filter: 'drop-shadow(0 0 6px #FFFFFF)' }} />}
         </svg>) })()}
       {iconImg ? <img src={iconImg} alt="" style={{ height: 26, width: 'auto', marginBottom: 4, objectFit: 'contain', position: 'relative' }} /> : <div style={{ fontSize: 22, marginBottom: 4, position: 'relative' }}>{icon}</div>}
       <div className="neon-stat-value" style={{ fontSize: 22, fontWeight: 700, color: colour, position: 'relative' }}>

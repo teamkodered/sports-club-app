@@ -247,3 +247,13 @@ tbody tr:hover td { background: var(--bg-secondary); }
 /* Check-in side tab: silver in the neon theme */
 .neon-checkin { background: #C0C4CC !important; color: #0A0A0A !important; font-family: 'Saira Condensed', sans-serif !important; font-style: italic; font-weight: 800 !important; font-size: 15px !important; letter-spacing: 2px !important; box-shadow: 0 0 14px rgba(192,196,204,0.6) !important; }
 .neon-checkin.is-checked-in { background: #22B14C !important; color: #FFFFFF !important; }
+/* Neon theme, second pass: room for the ropes, icon size, title colours per the agreed swap */
+.neon-home .neon-pillar { padding: 42px 34px 42px 34px !important; gap: 10px !important; }
+.neon-home .neon-pillar > div:first-child { align-items: center; }
+.neon-home .neon-pillar-icon { height: 60px !important; width: auto !important; }
+.neon-home .neon-pillar [style*="Anton"] { font-size: 22px !important; }
+/* Mentality title green, Foundation title purple (ropes + icons already are) */
+.neon-home .neon-pillar [style*="Anton"][style*="rgb(139, 92, 246)"] { color: #22B14C !important; }
+.neon-home .neon-pillar [style*="Anton"][style*="rgb(29, 158, 117)"] { color: #C93BFF !important; }
+.neon-home .neon-tile span { font-size: 16px !important; line-height: 1.1; text-align: center; }
+.neon-home .neon-tile { padding: 12px 8px !important; }
