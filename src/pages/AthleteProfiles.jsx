@@ -7852,7 +7852,7 @@ export default function AthleteProfiles() {
                 and House info), avatar stays fixed on the left in both.
                 Not part of the page-level swipe-zone (which navigates
                 between athletes) -- this has its own local swipe. */}
-            <div className="card" style={{ marginBottom: 12, borderLeft: `3px solid ${colour}`, borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0', cursor: 'pointer' }}
+            <div className="card neon-banner" style={{ marginBottom: 12, borderLeft: `3px solid ${colour}`, borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0', cursor: 'pointer' }}
               onTouchStart={e => { e.stopPropagation(); headerSwipeStartX.current = e.touches[0].clientX; headerWasSwipe.current = false }}
               onTouchEnd={e => {
                 e.stopPropagation()
@@ -7872,7 +7872,7 @@ export default function AthleteProfiles() {
                       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8 }}>
                         <div>
                           <div ref={nameDropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
-                            <button onClick={e => { e.stopPropagation(); setShowNameDropdown(v => !v) }} title="Click to switch athlete"
+                            <button className="neon-name" onClick={e => { e.stopPropagation(); setShowNameDropdown(v => !v) }} title="Click to switch athlete"
                               style={{ fontSize: 21, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-sans)', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
                               {m?.first_name} {m?.last_name} <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{showNameDropdown ? '▲' : '▼'}</span>
                             </button>
@@ -7900,8 +7900,12 @@ export default function AthleteProfiles() {
                             {selected.pka_belt || selected.krba_level ? ` · ${selected.pka_belt || selected.krba_level}` : ''}
                           </div>
                         </div>
-                        {selected.is_kr && <img src="/logos/kr-dragon.gif" alt="Kode Red Kickboxing" style={{ height: 56, width: 'auto', flexShrink: 0 }} />}
-                        {selected.discipline === 'KRBA' && <img src="/logos/krba-logo.png" alt="Kode Red Boxing Academy" style={{ height: 44, width: 'auto', flexShrink: 0 }} />}
+                        {(selected.is_kr || selected.discipline === 'KRBA') && (
+                          <span className="neon-hex">
+                            {selected.is_kr && <img src="/logos/kr-dragon.gif" alt="Kode Red Kickboxing" style={{ height: 56, width: 'auto', flexShrink: 0 }} />}
+                            {selected.discipline === 'KRBA' && <img src="/logos/krba-logo.png" alt="Kode Red Boxing Academy" style={{ height: 44, width: 'auto', flexShrink: 0 }} />}
+                          </span>
+                        )}
                       </div>
                     </>
                   ) : (
@@ -8048,7 +8052,7 @@ export default function AthleteProfiles() {
 
                   <div style={{ height: 4 }} />
 
-                  <div ref={profileHeaderRef} className="card" style={{ padding: 0, marginBottom: 14 }}>
+                  <div ref={profileHeaderRef} className="card neon-banner" style={{ padding: 0, marginBottom: 14 }}>
                     <div onClick={() => setProfileInfoExpanded(v => !v)}
                       style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -8349,7 +8353,7 @@ export default function AthleteProfiles() {
                   )}
 
             {/* Tabs */}
-            <div className="hide-scrollbar hscroll-area" style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 14, overflowX: 'auto' }}>
+            <div className="hide-scrollbar hscroll-area neon-tabs" style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 14, overflowX: 'auto' }}>
               {['home', 'sessions', 'fit2fight', 'pdp', 'tpt', 'whoop', 'sweep', 'leagues', 'media', 'notes', 'report'].map(t => (
                 <button key={t} onClick={() => { setTab(t); if (t === 'sweep') loadShedTasksAll() }} style={{
                   padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',

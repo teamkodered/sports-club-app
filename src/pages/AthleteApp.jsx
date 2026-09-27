@@ -3943,7 +3943,7 @@ export default function AthleteApp() {
           Tap (not swipe) slides the full profile details down from
           underneath, replacing the separate "Profile" card that used
           to sit below this as its own tile. */}
-      <div className="card" style={{ marginBottom: 14, borderLeft: `4px solid ${colour}`, cursor: 'pointer' }}
+      <div className="card neon-banner" style={{ marginBottom: 14, borderLeft: `4px solid ${colour}`, cursor: 'pointer' }}
         onTouchStart={e => { headerSwipeStartX.current = e.touches[0].clientX; headerWasSwipe.current = false }}
         onTouchEnd={e => {
           if (headerSwipeStartX.current == null || !student) return
@@ -3968,13 +3968,17 @@ export default function AthleteApp() {
                 <>
                   <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8 }}>
                     <div>
-                      <div style={{ fontSize: 20, fontWeight: 700 }}>{m?.first_name} {m?.last_name}</div>
+                      <div className="neon-name" style={{ fontSize: 20, fontWeight: 700 }}>{m?.first_name} {m?.last_name}</div>
                       <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 3 }}>
                         {student.discipline}{age ? ` · Age ${age}` : ''}{student.pka_belt || student.krba_level ? ` · ${student.pka_belt || student.krba_level}` : ''}
                       </div>
                     </div>
-                    {student.is_kr && <img src="/logos/kr-dragon.gif" alt="Kode Red Kickboxing" style={{ height: 56, width: 'auto', flexShrink: 0 }} />}
-                    {student.discipline === 'KRBA' && <img src="/logos/krba-logo.png" alt="Kode Red Boxing Academy" style={{ height: 44, width: 'auto', flexShrink: 0 }} />}
+                    {(student.is_kr || student.discipline === 'KRBA') && (
+                      <span className="neon-hex">
+                        {student.is_kr && <img src="/logos/kr-dragon.gif" alt="Kode Red Kickboxing" style={{ height: 56, width: 'auto', flexShrink: 0 }} />}
+                        {student.discipline === 'KRBA' && <img src="/logos/krba-logo.png" alt="Kode Red Boxing Academy" style={{ height: 44, width: 'auto', flexShrink: 0 }} />}
+                      </span>
+                    )}
                   </div>
                 </>
               ) : (
