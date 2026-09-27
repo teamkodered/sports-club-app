@@ -1436,6 +1436,16 @@ export default function AthleteApp() {
   // equivalent card on the Coaches Dashboard. No editing here -- this
   // is purely a visibility toggle for the athlete's own info.
   const [myProfileExpanded, setMyProfileExpanded] = useState(false)
+  // Neon header: this athlete's house points earned this calendar month
+  const [monthHousePoints, setMonthHousePoints] = useState(null)
+  useEffect(() => {
+    const sid = student?.id
+    if (!sid) { setMonthHousePoints(null); return }
+    const d = new Date(); const monthStart = new Date(d.getFullYear(), d.getMonth(), 1).toISOString()
+    supabase.from('points_log').select('points_awarded').eq('student_id', sid)
+      .in('point_scope', ['both', 'house']).gte('awarded_at', monthStart)
+      .then(({ data, error }) => { if (!error) setMonthHousePoints((data || []).reduce((n, r) => n + (r.points_awarded || 0), 0)) })
+  }, [student?.id])
   const [recentPointsExpanded, setRecentPointsExpanded] = useState(false)
   const [myNotesLog, setMyNotesLog] = useState([])
   const [pendingNoteDelete, setPendingNoteDelete] = useState(null)
@@ -3965,8 +3975,8 @@ export default function AthleteApp() {
              (tap for profile details) and the house (tap for your points). */
           <div className="neon-header">
             <div className="neon-header-chips">
-              <div className="neon-chip neon-chip-left" style={{ '--house': NEON_HOUSE_COLOURS[houseName] || colour }} title="Monthly score / monthly target set by the coach">
-                    {(() => { const t = ['mentality', 'tactical', 'technique', 'physical', 'wellbeing'].reduce((acc, k) => { const m = (getSectionProgressByPeriod(k) || {}).month || {}; return { done: acc.done + (m.done || 0), target: acc.target + (m.target || 0) } }, { done: 0, target: 0 }); return `${t.done}/${t.target}` })()}
+              <div className="neon-chip neon-chip-left" style={{ '--house': NEON_HOUSE_COLOURS[houseName] || colour }} title="House points earned this month">
+                    {monthHousePoints != null ? monthHousePoints.toLocaleString() : '—'}
                   </div>
               <span className="neon-hex neon-hex-centre" onClick={e => { e.stopPropagation(); setTab('home') }}>
                 {student.is_kr && <img src="/logos/kr-dragon.gif" alt="Kode Red Kickboxing" />}

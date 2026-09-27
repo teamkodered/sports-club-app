@@ -3731,6 +3731,16 @@ export default function AthleteProfiles() {
   const [tptData, setTptData]         = useState({ kickboxing: [], boxing: [] })
   const [attendanceData, setAttendanceData] = useState([])
   const [sessionPoints, setSessionPoints]   = useState([])
+  // Neon header: this athlete's house points earned this calendar month
+  const [monthHousePoints, setMonthHousePoints] = useState(null)
+  useEffect(() => {
+    const sid = selected?.id
+    if (!sid) { setMonthHousePoints(null); return }
+    const d = new Date(); const monthStart = new Date(d.getFullYear(), d.getMonth(), 1).toISOString()
+    supabase.from('points_log').select('points_awarded').eq('student_id', sid)
+      .in('point_scope', ['both', 'house']).gte('awarded_at', monthStart)
+      .then(({ data, error }) => { if (!error) setMonthHousePoints((data || []).reduce((n, r) => n + (r.points_awarded || 0), 0)) })
+  }, [selected?.id])
   const [openSession, setOpenSession]       = useState(null)
   const [sessionNoteDraft, setSessionNoteDraft] = useState('')
   const [savingSessionNote, setSavingSessionNote] = useState(false)
@@ -7869,8 +7879,8 @@ export default function AthleteProfiles() {
                   details), and the house with its position/points and this athlete's points. */}
               <div className="neon-header">
                 <div className="neon-header-chips">
-                  <div className="neon-chip neon-chip-left" style={{ '--house': NEON_HOUSE_COLOURS[houseName] || colour }} title="Monthly score / monthly target set by the coach">
-                    {(() => { const t = ['mentality', 'tactical', 'technique', 'physical', 'wellbeing'].reduce((acc, k) => { const m = (getCoachSectionProgressByPeriod(k) || {}).month || {}; return { done: acc.done + (m.done || 0), target: acc.target + (m.target || 0) } }, { done: 0, target: 0 }); return `${t.done}/${t.target}` })()}
+                  <div className="neon-chip neon-chip-left" style={{ '--house': NEON_HOUSE_COLOURS[houseName] || colour }} title="House points earned this month">
+                    {monthHousePoints != null ? monthHousePoints.toLocaleString() : '—'}
                   </div>
                   <span className="neon-hex neon-hex-centre">
                     {selected.is_kr && <img src="/logos/kr-dragon.gif" alt="Kode Red Kickboxing" />}
