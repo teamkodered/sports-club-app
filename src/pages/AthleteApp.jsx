@@ -1057,7 +1057,7 @@ function TopStatCard({ onNavigate, icon, iconImg, value, pctValue, hasPct, label
       }}
       title={title || (hasPct ? 'Tap to view — hold to toggle %' : 'Tap to view')}
       className="card neon-stat" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'manipulation' }}>
-      <StatOutline pct={parseFloat(String(pctValue)) || 0} />
+      <StatOutline pct={hasPct ? (parseFloat(String(pctValue)) || 0) : 0} />
       {iconImg ? <img src={iconImg} alt="" style={{ height: 26, width: 'auto', marginBottom: 4, objectFit: 'contain', position: 'relative' }} /> : <div style={{ fontSize: 22, marginBottom: 4, position: 'relative' }}>{icon}</div>}
       <div className="neon-stat-value" style={{ fontSize: 22, fontWeight: 700, color: colour, position: 'relative' }}>
         {hasPct && showPct ? pctValue : value}
