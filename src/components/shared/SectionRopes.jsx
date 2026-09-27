@@ -19,15 +19,16 @@ export default function SectionRopes({ byPeriod, accent: _accent, corner = 'tl',
         const { done, target } = byPeriod[key] || { done: 0, target: 0 }
         const hasTarget = target > 0
         const pct = hasTarget ? Math.min(100, Math.round((done / target) * 100)) : 0
-        const labelText = hasTarget ? `${letter} ${done}/${target}` : letter
         const labelColour = hasTarget ? accent : '#666'
+        const letterStyle = { position: 'absolute', fontFamily: 'Orbitron, sans-serif', fontSize: 9, lineHeight: '11px', color: '#9A9A9A' }
         if (corner === 'bottom') {
           return (
             <div key={key}>
               <div style={{ position: 'absolute', left: 0, right: 0, bottom: o, height: 3, background: track, borderRadius: 2 }}>
                 <div style={{ width: `${pct}%`, height: '100%', background: accent, boxShadow: glow, borderRadius: 2, transition: 'width 0.3s' }} />
               </div>
-              <div style={{ position: 'absolute', left: 4, bottom: o - 4, padding: '0 3px', background: '#1A1F24', fontFamily: 'Orbitron, sans-serif', fontSize: 9, letterSpacing: 1, lineHeight: '11px', color: labelColour }}>{labelText}</div>
+              <div style={{ ...letterStyle, left: 4, bottom: o - 4, padding: '0 3px', background: '#1A1F24' }}>{letter}</div>
+              {hasTarget && <div style={{ position: 'absolute', right: 4, bottom: o - 4, padding: '0 3px', background: '#1A1F24', fontFamily: 'Orbitron, sans-serif', fontSize: 9, letterSpacing: 1, lineHeight: '11px', color: labelColour }}>{done}/{target}</div>}
             </div>
           )
         }
@@ -39,8 +40,10 @@ export default function SectionRopes({ byPeriod, accent: _accent, corner = 'tl',
             <div style={{ position: 'absolute', [side]: o, [other]: 0, [vert]: o, height: 3, background: track, borderRadius: 2 }}>
               <div style={{ position: 'absolute', [side]: 0, top: 0, height: '100%', width: `${pct}%`, background: accent, boxShadow: glow, borderRadius: 2, transition: 'width 0.3s' }} />
             </div>
-            {/* label on the line, at its open end */}
-            <div style={{ position: 'absolute', [other]: 4, [vert]: o - 4, padding: '0 3px', background: '#1A1F24', fontFamily: 'Orbitron, sans-serif', fontSize: 9, letterSpacing: 1, lineHeight: '11px', color: labelColour }}>{labelText}</div>
+            {/* count on the line, at its open end */}
+            {hasTarget && <div style={{ position: 'absolute', [other]: 4, [vert]: o - 4, padding: '0 3px', background: '#1A1F24', fontFamily: 'Orbitron, sans-serif', fontSize: 9, letterSpacing: 1, lineHeight: '11px', color: labelColour }}>{done}/{target}</div>}
+            {/* one D / W / M letter per rope row, in the gap between the two cards (left-hand card draws it) */}
+            {side === 'left' && <div style={{ ...letterStyle, left: 'calc(100% + 5px)', transform: 'translateX(-50%)', [vert]: o - 4 }}>{letter}</div>}
           </div>
         )
       })}
