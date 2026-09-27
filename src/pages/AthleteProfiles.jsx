@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, Fragment } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import SectionRopes from '../components/shared/SectionRopes.jsx'
+import NeonTileIcon from '../components/shared/NeonTileIcon.jsx'
 import StatOutline from '../components/shared/StatOutline.jsx'
 import { loadConnections, loadWorkouts, loadDaily, providerLabel, fmtSleep } from '../lib/wearables.js'
 import { useAuth } from '../hooks/useAuth.jsx'
@@ -9814,7 +9815,7 @@ export default function AthleteProfiles() {
                         border: `1px solid ${l.colour}30`, borderRadius: 'var(--border-radius-lg)',
                         cursor: 'pointer', fontFamily: 'var(--font-sans)',
                       }}>
-                        <span style={{ fontSize: 24 }}>{l.icon}</span>
+                        <span className="neon-emoji" style={{ fontSize: 24 }}>{l.icon}</span><NeonTileIcon name={l.label} />
                         <span style={{ fontSize: 12, fontWeight: 500, color: l.colour }}>{l.label}</span>
                       </button>
                     ))}
@@ -9860,7 +9861,7 @@ export default function AthleteProfiles() {
                       border: '1px solid #EF9F2730', borderRadius: 'var(--border-radius-lg)',
                       cursor: 'pointer', fontFamily: 'var(--font-sans)', textDecoration: 'none', gridColumn: 'span 2',
                     }} title="Log a Fit II Fight session">
-                      <span style={{ fontSize: 24 }}>💪</span>
+                      <span className="neon-emoji" className="neon-tile" style={{ fontSize: 24 }}>💪</span><NeonTileIcon name="Fit II Fight — log session" />
                       <span style={{ fontSize: 12, fontWeight: 500, color: '#EF9F27' }}>Fit II Fight — log session</span>
                     </a>
                     <button onClick={() => setTab('whoop')} className="neon-tile" style={{
@@ -9869,7 +9870,7 @@ export default function AthleteProfiles() {
                       border: '1px solid #0EA5E930', borderRadius: 'var(--border-radius-lg)',
                       cursor: 'pointer', fontFamily: 'var(--font-sans)', gridColumn: 'span 2',
                     }} title="View this athlete's wearable data">
-                      <span style={{ fontSize: 24 }}>⌚</span>
+                      <span className="neon-emoji" className="neon-tile" style={{ fontSize: 24 }}>⌚</span><NeonTileIcon name="Wearables" />
                       <span style={{ fontSize: 12, fontWeight: 500, color: '#0EA5E9' }}>
                         Wearables{Array.isArray(whoopConnection) && whoopConnection.length ? ` — ${whoopConnection.map(c => providerLabel(c.provider)).join(', ')} linked` : ' — none linked'}
                       </span>
@@ -9877,13 +9878,13 @@ export default function AthleteProfiles() {
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 14 }}>
-                    <button onClick={() => { setTab('sweep'); loadShedTasksAll() }} style={{
+                    <button onClick={() => { setTab('sweep'); loadShedTasksAll() }} className="neon-tile" style={{
                       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
                       padding: '14px 8px', background: '#1D9E7512',
                       border: '1px solid #1D9E7530', borderRadius: 'var(--border-radius-lg)',
                       cursor: 'pointer', fontFamily: 'var(--font-sans)',
                     }}>
-                      <span style={{ fontSize: 24 }}>🧹</span>
+                      <span className="neon-emoji" style={{ fontSize: 24 }}>🧹</span><NeonTileIcon name="Sweep the sheds" />
                       <span style={{ fontSize: 12, fontWeight: 500, color: '#1D9E75' }}>Sweep the sheds</span>
                     </button>
                     <button onClick={() => setTab('leagues')} className="neon-tile" style={{
@@ -9892,7 +9893,7 @@ export default function AthleteProfiles() {
                       border: '1px solid #8B5CF630', borderRadius: 'var(--border-radius-lg)',
                       cursor: 'pointer', fontFamily: 'var(--font-sans)',
                     }}>
-                      <span style={{ fontSize: 24 }}>🏆</span>
+                      <span className="neon-emoji" style={{ fontSize: 24 }}>🏆</span><NeonTileIcon name="Leagues" />
                       <span style={{ fontSize: 12, fontWeight: 500, color: '#8B5CF6' }}>Leagues</span>
                     </button>
                   </div>

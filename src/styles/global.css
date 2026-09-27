@@ -323,3 +323,9 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .neon-home div:has(> div > .neon-pillar) { column-gap: 20px !important; row-gap: 20px !important; }
 .neon-home .neon-bottom { padding-bottom: 60px !important; }
 .neon-home .neon-bottom [style*="Anton"] { font-size: 28px !important; }
+/* Small tiles as the mockup: charcoal, icon left + white italic title right */
+.neon-tile-icon { display: none; }
+.neon-home .neon-tile { flex-direction: row !important; justify-content: flex-start !important; align-items: center !important; gap: 12px !important; padding: 14px !important; border-radius: 10px !important; background: #1A1F24 !important; border: 1px solid #2A3138 !important; text-align: left !important; }
+.neon-home .neon-tile .neon-emoji { display: none !important; }
+.neon-home .neon-tile .neon-tile-icon { display: block; flex-shrink: 0; }
+.neon-home .neon-tile span { color: #FFFFFF !important; font-family: 'Saira Condensed', sans-serif !important; font-style: italic; font-weight: 800 !important; font-size: 19px !important; letter-spacing: 1px; text-transform: uppercase; text-align: left !important; }

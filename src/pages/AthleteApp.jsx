@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import SectionRopes from '../components/shared/SectionRopes.jsx'
+import NeonTileIcon from '../components/shared/NeonTileIcon.jsx'
 import StatOutline from '../components/shared/StatOutline.jsx'
 import { enabledProviders, PROVIDERS, providerLabel, loadConnections, loadWorkouts, loadDaily, disconnect as disconnectWearable, fmtSleep, getOrCreateLinkCode, INGEST_URL } from '../lib/wearables.js'
 import * as healthConnect from '../lib/healthConnect.js'
@@ -5737,7 +5738,7 @@ export default function AthleteApp() {
                     border: `1px solid ${l.colour}30`, borderRadius: 'var(--border-radius-lg)',
                     cursor: 'pointer', fontFamily: 'var(--font-sans)',
                   }}>
-                    <span style={{ fontSize: 24 }}>{l.icon}</span>
+                    <span className="neon-emoji" style={{ fontSize: 24 }}>{l.icon}</span><NeonTileIcon name={l.label} />
                     <span style={{ fontSize: 12, fontWeight: 500, color: l.colour }}>{l.label}</span>
                   </button>
                 ))}
@@ -5753,7 +5754,7 @@ export default function AthleteApp() {
                   border: '1px solid #E24B4A30', borderRadius: 'var(--border-radius-lg)',
                   cursor: 'pointer', fontFamily: 'var(--font-sans)',
                 }}>
-                  <span style={{ fontSize: 24 }}>🥊</span>
+                  <span className="neon-emoji" style={{ fontSize: 24 }}>🥊</span><NeonTileIcon name="Opponents" />
                   <span style={{ fontSize: 12, fontWeight: 500, color: '#E24B4A' }}>Opponents</span>
                 </button>
                 <button onClick={() => setTab('reports')} className="neon-tile" style={{
@@ -5762,7 +5763,7 @@ export default function AthleteApp() {
                   border: '1px solid #378ADD30', borderRadius: 'var(--border-radius-lg)',
                   cursor: 'pointer', fontFamily: 'var(--font-sans)',
                 }}>
-                  <span style={{ fontSize: 24 }}>📄</span>
+                  <span className="neon-emoji" style={{ fontSize: 24 }}>📄</span><NeonTileIcon name="Reports" />
                   <span style={{ fontSize: 12, fontWeight: 500, color: '#378ADD' }}>Reports</span>
                 </button>
               </div>
@@ -5792,7 +5793,7 @@ export default function AthleteApp() {
                   border: '1px solid #1D9E7530', borderRadius: 'var(--border-radius-lg)',
                   cursor: 'pointer', fontFamily: 'var(--font-sans)',
                 }}>
-                  <span style={{ fontSize: 24 }}>🧹</span>
+                  <span className="neon-emoji" style={{ fontSize: 24 }}>🧹</span><NeonTileIcon name="Sweep the sheds" />
                   <span style={{ fontSize: 12, fontWeight: 500, color: '#1D9E75' }}>Sweep the sheds</span>
                 </button>
                 <button onClick={() => setTab('leagues')} className="neon-tile" style={{
@@ -5801,7 +5802,7 @@ export default function AthleteApp() {
                   border: '1px solid #8B5CF630', borderRadius: 'var(--border-radius-lg)',
                   cursor: 'pointer', fontFamily: 'var(--font-sans)',
                 }}>
-                  <span style={{ fontSize: 24 }}>🏆</span>
+                  <span className="neon-emoji" style={{ fontSize: 24 }}>🏆</span><NeonTileIcon name="Leagues" />
                   <span style={{ fontSize: 12, fontWeight: 500, color: '#8B5CF6' }}>Leagues</span>
                 </button>
               </div>
