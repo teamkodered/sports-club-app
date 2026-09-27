@@ -257,3 +257,11 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .neon-home .neon-pillar [style*="Anton"][style*="rgb(29, 158, 117)"] { color: #C93BFF !important; }
 .neon-home .neon-tile span { font-size: 16px !important; line-height: 1.1; text-align: center; }
 .neon-home .neon-tile { padding: 12px 8px !important; }
+
+/* Neon theme, third pass (desktop check) */
+/* Sessions: the inner card sits inside the outlined wrapper -- no second box */
+.neon-home .neon-stat .card { background: transparent !important; border: none !important; box-shadow: none !important; }
+/* Expand/collapse chevron moves out of the rope corner to the bottom of the card */
+.neon-home .neon-pillar > span[style*="position: absolute"] { position: static !important; order: 99; margin-top: 2px; color: #9A9A9A !important; }
+/* Stat-card values on one line even with arrows */
+.neon-home .neon-stat .neon-stat-value { white-space: nowrap; }

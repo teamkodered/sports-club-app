@@ -6,7 +6,7 @@ const NEON = { tl: '#22B14C', tr: '#FF2A2A', bl: '#2F6BFF', br: '#E6B800', botto
 
 export default function SectionRopes({ byPeriod, accent: _accent, corner = 'tl', dim }) {
   const accent = NEON[corner] || _accent
-  const track = dim || `${accent}55`
+  const track = dim || `${accent}80`
   const periods = [['day', 'D', 0], ['week', 'W', 14], ['month', 'M', 28]]
   const side = corner.includes('r') ? 'right' : 'left'
   const other = side === 'right' ? 'left' : 'right'

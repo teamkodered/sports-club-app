@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, Fragment } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import SectionRopes from '../components/shared/SectionRopes.jsx'
+import StatOutline from '../components/shared/StatOutline.jsx'
 import { loadConnections, loadWorkouts, loadDaily, providerLabel, fmtSleep } from '../lib/wearables.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useBackableTab } from '../hooks/useBackableTab.js'
@@ -236,11 +237,11 @@ function SessionsMiniCard({ onNavigate, attended, possible, colour, label }) {
       onClick={() => { if (heldRef.current) { heldRef.current = false; return } onNavigate() }}
       title={hasPct ? 'Tap to view — hold to toggle %' : 'Tap to view'}
       style={{ flex: 1, cursor: 'pointer', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'manipulation' }}>
-      <div style={{ fontSize: 20, marginBottom: 2 }}>📅</div>
-      <div style={{ fontSize: 19, fontWeight: 700, color: colour }}>
+      <img src="/logos/neon/sessions.png" alt="" style={{ height: 26, width: 'auto', marginBottom: 2, objectFit: 'contain', position: 'relative' }} />
+      <div className="neon-stat-value" style={{ fontSize: 19, fontWeight: 700, color: colour, position: 'relative' }}>
         {hasPct && showPct ? `${Math.round((attended / possible) * 100)}%` : `${attended}/${possible || attended}`}
       </div>
-      <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>{label}</div>
+      <div className="neon-stat-label" style={{ fontSize: 9, color: 'var(--text-secondary)', position: 'relative' }}>{label}</div>
     </div>
   )
 }
@@ -269,13 +270,14 @@ function PdpMiniCard({ onNavigate, completedCount, totalSent }) {
       onPointerCancel={() => clearTimeout(holdTimer.current)}
       onContextMenu={e => e.preventDefault()}
       onClick={() => { if (heldRef.current) { heldRef.current = false; return } onNavigate() }}
-      className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'manipulation' }}
+      className="card neon-stat" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'manipulation' }}
       title={hasPct ? 'Tap to view — hold to toggle %' : 'Tap to view'}>
-      <div style={{ fontSize: 22, marginBottom: 4 }}>🎯</div>
-      <div style={{ fontSize: 22, fontWeight: 700, color: '#EF9F27' }}>
+      <StatOutline pct={hasPct ? (completedCount / totalSent) * 100 : 0} />
+      <img src="/logos/neon/pdp.png" alt="" style={{ height: 26, width: 'auto', marginBottom: 4, objectFit: 'contain', position: 'relative' }} />
+      <div className="neon-stat-value" style={{ fontSize: 22, fontWeight: 700, color: '#EF9F27', position: 'relative' }}>
         {hasPct && showPct ? `${Math.round((completedCount / totalSent) * 100)}%` : (hasPct ? `${completedCount}/${totalSent}` : completedCount)}
       </div>
-      <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>PDP</div>
+      <div className="neon-stat-label" style={{ fontSize: 10, color: 'var(--text-secondary)', position: 'relative' }}>PDP</div>
     </button>
   )
 }
@@ -8517,8 +8519,9 @@ export default function AthleteProfiles() {
               return (
                 <div className="neon-home">
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 8 }}>
-                    <div className="card" style={{ textAlign: 'center', padding: '10px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, background: 'var(--bg-secondary)' }}>
+                    <div className="card neon-stat" style={{ textAlign: 'center', padding: '10px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, background: 'var(--bg-secondary)' }}>
                       <button onClick={() => setF2fStatsScope(v => v - 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4, appearance: 'none', WebkitAppearance: 'none', fontFamily: 'var(--font-sans)' }}>◀</button>
+                      <StatOutline pct={possibleSessions ? (scopedAttendedDayCount / possibleSessions) * 100 : 0} />
                       <SessionsMiniCard onNavigate={() => setTab('sessions')} attended={scopedAttendedDayCount} possible={possibleSessions} colour={colour} label={scopeLabel} />
                       <button onClick={() => setF2fStatsScope(v => v + 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4, appearance: 'none', WebkitAppearance: 'none', fontFamily: 'var(--font-sans)' }}>▶</button>
                     </div>
