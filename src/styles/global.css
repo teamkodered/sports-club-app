@@ -216,3 +216,34 @@ tbody tr:hover td { background: var(--bg-secondary); }
   #membership-form-printable { position: absolute; top: 0; left: 0; width: 100%; }
   .no-print { display: none !important; }
 }
+
+/* ── Neon "ring" theme for the athlete home (athlete app + coach's athlete view) ──
+   Scoped to .neon-home so nothing else in the app changes. Design: black page,
+   charcoal cards, italic condensed titles, pillar cards framed by three glowing
+   ring ropes (the D/W/M progress bars) on their outer two edges. */
+.neon-home {
+  --neon-bg: #000000; --neon-card: #1A1F24; --neon-line: #2A3138;
+  --neon-text: #F2F2F2; --neon-muted: #9A9A9A;
+  background: var(--neon-bg); color: var(--neon-text);
+  margin: -8px -8px 0; padding: 12px 8px 16px; border-radius: 12px;
+  font-family: 'Rajdhani', var(--font-sans);
+}
+.neon-home .card, .neon-home [class*="card"] { background: var(--neon-card) !important; border-color: var(--neon-line) !important; color: var(--neon-text); }
+.neon-home button, .neon-home input, .neon-home select, .neon-home textarea { color: var(--neon-text); }
+.neon-home input, .neon-home select, .neon-home textarea { background: #0A0A0A; border-color: var(--neon-line); }
+/* Section titles set inline in Anton become the Snap-style italic condensed face */
+.neon-home [style*="Anton"] { font-family: 'Saira Condensed', sans-serif !important; font-style: italic; font-weight: 800; letter-spacing: 1px; }
+/* Pillar cards + Foundation: charcoal, square-ish, room for the ropes */
+.neon-home .neon-pillar { background: var(--neon-card) !important; border: 1px solid var(--neon-line) !important; border-radius: 6px !important; overflow: visible; }
+/* Small tiles (Media, Notes, ...): charcoal with white labels, icon keeps its colour */
+.neon-home .neon-tile { background: var(--neon-card) !important; border: 1px solid var(--neon-line) !important; }
+.neon-home .neon-tile span { color: #FFFFFF !important; font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800; font-size: 18px !important; letter-spacing: 1px; text-transform: uppercase; }
+/* Stat cards: outline progress bar drawn by TopStatCard */
+.neon-home .neon-stat { position: relative; background: var(--neon-card) !important; border: 1px solid var(--neon-line) !important; border-radius: 10px !important; overflow: visible; }
+.neon-home .neon-stat .neon-stat-outline { display: block; }
+.neon-stat-outline { display: none; position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.neon-home .neon-stat .neon-stat-value { font-family: 'Orbitron', sans-serif !important; color: #FFFFFF !important; font-size: 16px !important; }
+.neon-home .neon-stat .neon-stat-label { font-family: 'Rajdhani', sans-serif; letter-spacing: 2px; text-transform: uppercase; color: var(--neon-muted) !important; }
+/* Check-in side tab: silver in the neon theme */
+.neon-checkin { background: #C0C4CC !important; color: #0A0A0A !important; font-family: 'Saira Condensed', sans-serif !important; font-style: italic; font-weight: 800 !important; font-size: 15px !important; letter-spacing: 2px !important; box-shadow: 0 0 14px rgba(192,196,204,0.6) !important; }
+.neon-checkin.is-checked-in { background: #22B14C !important; color: #FFFFFF !important; }

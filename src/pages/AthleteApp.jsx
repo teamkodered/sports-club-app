@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
+import SectionRopes from '../components/shared/SectionRopes.jsx'
 import { enabledProviders, PROVIDERS, providerLabel, loadConnections, loadWorkouts, loadDaily, disconnect as disconnectWearable, fmtSleep, getOrCreateLinkCode, INGEST_URL } from '../lib/wearables.js'
 import * as healthConnect from '../lib/healthConnect.js'
 import { supabasePublic } from '../lib/supabasePublic.js'
@@ -1053,12 +1054,18 @@ function TopStatCard({ onNavigate, icon, iconImg, value, pctValue, hasPct, label
         onNavigate()
       }}
       title={title || (hasPct ? 'Tap to view — hold to toggle %' : 'Tap to view')}
-      className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'manipulation' }}>
-      {iconImg ? <img src={iconImg} alt="" style={{ height: 22, width: 'auto', marginBottom: 4, objectFit: 'contain' }} /> : <div style={{ fontSize: 22, marginBottom: 4 }}>{icon}</div>}
-      <div style={{ fontSize: 22, fontWeight: 700, color: colour }}>
+      className="card neon-stat" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'manipulation' }}>
+      {/* Neon theme: progress runs around the card outline (P = rounded-rect perimeter in viewBox units) */}
+      {(() => { const pct = Math.max(0, Math.min(100, parseFloat(String(pctValue)) || 0)); const P = 379; return (
+        <svg className="neon-stat-outline" viewBox="0 0 110 96" preserveAspectRatio="none" aria-hidden="true">
+          <rect x="2" y="2" width="106" height="92" rx="10" fill="none" stroke="#2A3138" strokeWidth="4" />
+          <rect x="2" y="2" width="106" height="92" rx="10" fill="none" stroke="#FFFFFF" strokeWidth="4" strokeLinecap="round" strokeDasharray={`${(P * pct / 100).toFixed(0)} ${P}`} pathLength={P} transform="rotate(-90 55 48)" style={{ filter: 'drop-shadow(0 0 6px #FFFFFF)' }} />
+        </svg>) })()}
+      {iconImg ? <img src={iconImg} alt="" style={{ height: 26, width: 'auto', marginBottom: 4, objectFit: 'contain', position: 'relative' }} /> : <div style={{ fontSize: 22, marginBottom: 4, position: 'relative' }}>{icon}</div>}
+      <div className="neon-stat-value" style={{ fontSize: 22, fontWeight: 700, color: colour, position: 'relative' }}>
         {hasPct && showPct ? pctValue : value}
       </div>
-      <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{label}</div>
+      <div className="neon-stat-label" style={{ fontSize: 10, color: 'var(--text-secondary)', position: 'relative' }}>{label}</div>
     </button>
   )
 }
@@ -3185,9 +3192,10 @@ export default function AthleteApp() {
   // header -- fills as tasks are completed against whatever targets
   // exist for that period; greyed out/empty if no target is set for
   // that particular period.
-  function SectionProgressBars({ sectionKey, compact = false, vertical = false }) {
+  function SectionProgressBars({ sectionKey, compact = false, vertical = false, ropes = null }) {
     const byPeriod = getSectionProgressByPeriod(sectionKey)
     const accent = SECTION_ACCENT_COLOURS[sectionKey] || '#1D9E75'
+    if (ropes) return <SectionRopes byPeriod={byPeriod} accent={accent} corner={ropes} />
     const periods = [['day', 'D'], ['week', 'W'], ['month', 'M']]
     if (vertical) {
       return (
@@ -4107,7 +4115,7 @@ export default function AthleteApp() {
 
       {/* ── Home ── */}
       {tab === 'home' && (
-        <div>
+        <div className="neon-home">
           {student ? (
             <>
               {pushPermission === 'default' && (
@@ -4343,11 +4351,11 @@ export default function AthleteApp() {
                   <>
                     <AthleteFightFootage studentId={student?.id} />
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 8 }}>
-                      <TopStatCard onNavigate={() => setTab('sessions')} icon="📅" value={sessionsValue} pctValue={`${sessionsPct}%`}
+                      <TopStatCard onNavigate={() => setTab('sessions')} iconImg="/logos/neon/sessions.png" value={sessionsValue} pctValue={`${sessionsPct}%`}
                         hasPct={possibleSessions > 0} label="Sessions" colour={colour} />
                       <TopStatCard onNavigate={() => setTab('fit2fight')} iconImg="/logos/f2f-logo-red.png" value={f2fValue} pctValue={f2fPct}
                         hasPct={f2fHasPct} label="Results" colour="#378ADD" />
-                      <TopStatCard onNavigate={() => setTab('pdp')} icon="🎯" value={pdpValue} pctValue={pdpPct}
+                      <TopStatCard onNavigate={() => setTab('pdp')} iconImg="/logos/neon/pdp.png" value={pdpValue} pctValue={pdpPct}
                         hasPct={pdpHasPct} label="PDP" colour="#EF9F27" />
                     </div>
 
@@ -4358,7 +4366,7 @@ export default function AthleteApp() {
                         side by side, then Technique+Physical side by side. */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, alignItems: 'start', width: '100%' }}>
                     <div ref={physicalSectionRef} style={{ order: showPhysicalSection ? 0 : 4, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showPhysicalSection ? '1 / -1' : 'auto' }}>
-                    <button type="button" onClick={togglePhysicalSection} style={showPhysicalSection ? {
+                    <button type="button" className="neon-pillar" onClick={togglePhysicalSection} style={showPhysicalSection ? {
                       width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
                       textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
@@ -4369,9 +4377,9 @@ export default function AthleteApp() {
                     }}>
                       <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, width: '100%' }}>
                         <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showPhysicalSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#EF9F27' }}>PHYSICAL</span>
-                        <img src="/logos/char-physical.png" alt="" style={{ height: showPhysicalSection ? 64 : 42, width: 'auto', flexShrink: 0 }} />
+                        <img src="/logos/neon/physical.png" alt="" className="neon-pillar-icon" style={{ height: showPhysicalSection ? 64 : 42, width: 'auto', flexShrink: 0 }} />
                       </div>
-                      <SectionProgressBars sectionKey="physical" vertical />
+                      <SectionProgressBars sectionKey="physical" ropes="br" />
                     </button>
 
                     <div style={{
@@ -4786,7 +4794,7 @@ export default function AthleteApp() {
                     </div>
 
                     <div ref={techniqueSectionRef} style={{ order: showTechniqueSection ? 0 : 3, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showTechniqueSection ? '1 / -1' : 'auto' }}>
-                    <button type="button" onClick={() => { setShowTechniqueSection(v => { if (v) setExpandedTechniqueCategory(null); return !v }) }} style={showTechniqueSection ? {
+                    <button type="button" className="neon-pillar" onClick={() => { setShowTechniqueSection(v => { if (v) setExpandedTechniqueCategory(null); return !v }) }} style={showTechniqueSection ? {
                       width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
                       textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
@@ -4797,9 +4805,9 @@ export default function AthleteApp() {
                     }}>
                       <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, width: '100%' }}>
                         <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showTechniqueSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#378ADD' }}>TECHNICAL</span>
-                        <img src="/logos/char-technical.png" alt="" style={{ height: showTechniqueSection ? 64 : 42, width: 'auto', flexShrink: 0 }} />
+                        <img src="/logos/neon/technical.png" alt="" className="neon-pillar-icon" style={{ height: showTechniqueSection ? 64 : 42, width: 'auto', flexShrink: 0 }} />
                       </div>
-                      <SectionProgressBars sectionKey="technique" vertical />
+                      <SectionProgressBars sectionKey="technique" ropes="bl" />
                     </button>
 
                     <div style={{
@@ -4896,7 +4904,7 @@ export default function AthleteApp() {
                     </div>
 
                     <div ref={tacticalSectionRef} style={{ order: showTacticalSection ? 0 : 2, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showTacticalSection ? '1 / -1' : 'auto' }}>
-                    <button type="button" onClick={() => { setShowTacticalSection(v => { if (v) setExpandedTacticalCategory(null); return !v }) }} style={showTacticalSection ? {
+                    <button type="button" className="neon-pillar" onClick={() => { setShowTacticalSection(v => { if (v) setExpandedTacticalCategory(null); return !v }) }} style={showTacticalSection ? {
                       width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
                       textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
@@ -4907,9 +4915,9 @@ export default function AthleteApp() {
                     }}>
                       <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, width: '100%' }}>
                         <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showTacticalSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#E24B4A' }}>TACTICAL</span>
-                        <img src="/logos/char-tactical.png" alt="" style={{ height: showTacticalSection ? 64 : 42, width: 'auto', flexShrink: 0 }} />
+                        <img src="/logos/neon/tactical.png" alt="" className="neon-pillar-icon" style={{ height: showTacticalSection ? 64 : 42, width: 'auto', flexShrink: 0 }} />
                       </div>
-                      <SectionProgressBars sectionKey="tactical" vertical />
+                      <SectionProgressBars sectionKey="tactical" ropes="tr" />
                     </button>
 
                     <div style={{
@@ -5010,7 +5018,7 @@ export default function AthleteApp() {
                     </div>
 
                     <div ref={mentalitySectionRef} style={{ order: showMentalitySection ? 0 : 1, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showMentalitySection ? '1 / -1' : 'auto' }}>
-                    <button type="button" onClick={() => { setShowMentalitySection(v => { if (v) setExpandedHomeMentality(null); return !v }) }} style={showMentalitySection ? {
+                    <button type="button" className="neon-pillar" onClick={() => { setShowMentalitySection(v => { if (v) setExpandedHomeMentality(null); return !v }) }} style={showMentalitySection ? {
                       width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
                       textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
@@ -5021,9 +5029,9 @@ export default function AthleteApp() {
                     }}>
                       <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, width: '100%' }}>
                         <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showMentalitySection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#8B5CF6' }}>MENTALITY</span>
-                        <img src="/logos/char-mentality.png" alt="" style={{ height: showMentalitySection ? 64 : 42, width: 'auto', flexShrink: 0 }} />
+                        <img src="/logos/neon/mentality.png" alt="" className="neon-pillar-icon" style={{ height: showMentalitySection ? 64 : 42, width: 'auto', flexShrink: 0 }} />
                       </div>
-                      <SectionProgressBars sectionKey="mentality" vertical />
+                      <SectionProgressBars sectionKey="mentality" ropes="tl" />
                     </button>
 
                     <div style={{
@@ -5355,16 +5363,16 @@ export default function AthleteApp() {
                     })()}
 
                     <div ref={wellbeingSectionRef}>
-                    <button type="button" onClick={() => { setShowWellbeingSection(v => { if (v) setExpandedHomeWb(null); return !v }) }} style={{
+                    <button type="button" className="neon-pillar" onClick={() => { setShowWellbeingSection(v => { if (v) setExpandedHomeWb(null); return !v }) }} style={{
                       width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 12,
                       textAlign: 'center', padding: '18px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                     }}>
                       <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, width: '100%' }}>
                         <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showWellbeingSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#1D9E75' }}>FOUNDATION</span>
-                        <img src="/logos/char-foundation.png" alt="" style={{ height: showWellbeingSection ? 64 : 42, width: 'auto', flexShrink: 0 }} />
+                        <img src="/logos/neon/foundation.png" alt="" className="neon-pillar-icon" style={{ height: showWellbeingSection ? 64 : 42, width: 'auto', flexShrink: 0 }} />
                       </div>
-                      <SectionProgressBars sectionKey="wellbeing" vertical />
+                      <SectionProgressBars sectionKey="wellbeing" ropes="bottom" />
                     </button>
 
                     <div style={{
@@ -5727,7 +5735,7 @@ export default function AthleteApp() {
                   { label: 'Media', icon: '🖼', colour: '#8B5CF6', tab: 'media' },
                   { label: 'Notes', icon: '📝', colour: '#378ADD', tab: 'notes' },
                 ].map(l => (
-                  <button key={l.label} onClick={() => setTab(l.tab)} style={{
+                  <button key={l.label} className="neon-tile" onClick={() => setTab(l.tab)} style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
                     padding: '14px 8px', background: l.colour + '12',
                     border: `1px solid ${l.colour}30`, borderRadius: 'var(--border-radius-lg)',
@@ -5743,7 +5751,7 @@ export default function AthleteApp() {
                   screens, instead of Opponents being a large card
                   embedded directly in the Home tab. */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginTop: 8, marginBottom: 8 }}>
-                <button onClick={() => setTab('opponents')} style={{
+                <button onClick={() => setTab('opponents')} className="neon-tile" style={{
                   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
                   padding: '14px 8px', background: '#E24B4A12',
                   border: '1px solid #E24B4A30', borderRadius: 'var(--border-radius-lg)',
@@ -5752,7 +5760,7 @@ export default function AthleteApp() {
                   <span style={{ fontSize: 24 }}>🥊</span>
                   <span style={{ fontSize: 12, fontWeight: 500, color: '#E24B4A' }}>Opponents</span>
                 </button>
-                <button onClick={() => setTab('reports')} style={{
+                <button onClick={() => setTab('reports')} className="neon-tile" style={{
                   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
                   padding: '14px 8px', background: '#378ADD12',
                   border: '1px solid #378ADD30', borderRadius: 'var(--border-radius-lg)',
@@ -5782,7 +5790,7 @@ export default function AthleteApp() {
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginTop: 8 }}>
-                <button onClick={() => setTab('sweep')} style={{
+                <button onClick={() => setTab('sweep')} className="neon-tile" style={{
                   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
                   padding: '14px 8px', background: '#1D9E7512',
                   border: '1px solid #1D9E7530', borderRadius: 'var(--border-radius-lg)',
@@ -5791,7 +5799,7 @@ export default function AthleteApp() {
                   <span style={{ fontSize: 24 }}>🧹</span>
                   <span style={{ fontSize: 12, fontWeight: 500, color: '#1D9E75' }}>Sweep the sheds</span>
                 </button>
-                <button onClick={() => setTab('leagues')} style={{
+                <button onClick={() => setTab('leagues')} className="neon-tile" style={{
                   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
                   padding: '14px 8px', background: '#8B5CF612',
                   border: '1px solid #8B5CF630', borderRadius: 'var(--border-radius-lg)',
@@ -6328,7 +6336,7 @@ export default function AthleteApp() {
         const todaysSessions = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(todayJsDay) && a.classes?.id)
         return (
           <>
-            <button onClick={() => setCheckInDrawerOpen(v => !v)} style={{
+            <button onClick={() => setCheckInDrawerOpen(v => !v)} className={`neon-checkin${activeCheckIn ? ' is-checked-in' : ''}`} style={{
               position: 'fixed', left: 0, top: '50%', transform: 'translateY(-50%) rotate(180deg)', writingMode: 'vertical-rl',
               background: activeCheckIn ? '#1D9E75' : '#E24B4A', color: '#fff', border: 'none', borderRadius: '0 8px 8px 0',
               padding: '14px 8px', fontSize: 12, fontWeight: 700, letterSpacing: 1, cursor: 'pointer', zIndex: 90,

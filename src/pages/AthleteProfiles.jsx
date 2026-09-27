@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, Fragment } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
+import SectionRopes from '../components/shared/SectionRopes.jsx'
 import { loadConnections, loadWorkouts, loadDaily, providerLabel, fmtSleep } from '../lib/wearables.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useBackableTab } from '../hooks/useBackableTab.js'
@@ -192,12 +193,18 @@ function TopStatCard({ onNavigate, icon, iconImg, value, pctValue, hasPct, label
         onNavigate()
       }}
       title={title || (hasPct ? 'Tap to view — hold to toggle %' : 'Tap to view')}
-      className="card" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'manipulation' }}>
-      {iconImg ? <img src={iconImg} alt="" style={{ height: 22, width: 'auto', marginBottom: 4, objectFit: 'contain' }} /> : <div style={{ fontSize: 22, marginBottom: 4 }}>{icon}</div>}
-      <div style={{ fontSize: 22, fontWeight: 700, color: colour }}>
+      className="card neon-stat" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'manipulation' }}>
+      {/* Neon theme: progress runs around the card outline (P = rounded-rect perimeter in viewBox units) */}
+      {(() => { const pct = Math.max(0, Math.min(100, parseFloat(String(pctValue)) || 0)); const P = 379; return (
+        <svg className="neon-stat-outline" viewBox="0 0 110 96" preserveAspectRatio="none" aria-hidden="true">
+          <rect x="2" y="2" width="106" height="92" rx="10" fill="none" stroke="#2A3138" strokeWidth="4" />
+          <rect x="2" y="2" width="106" height="92" rx="10" fill="none" stroke="#FFFFFF" strokeWidth="4" strokeLinecap="round" strokeDasharray={`${(P * pct / 100).toFixed(0)} ${P}`} pathLength={P} transform="rotate(-90 55 48)" style={{ filter: 'drop-shadow(0 0 6px #FFFFFF)' }} />
+        </svg>) })()}
+      {iconImg ? <img src={iconImg} alt="" style={{ height: 26, width: 'auto', marginBottom: 4, objectFit: 'contain', position: 'relative' }} /> : <div style={{ fontSize: 22, marginBottom: 4, position: 'relative' }}>{icon}</div>}
+      <div className="neon-stat-value" style={{ fontSize: 22, fontWeight: 700, color: colour, position: 'relative' }}>
         {hasPct && showPct ? pctValue : value}
       </div>
-      <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{label}</div>
+      <div className="neon-stat-label" style={{ fontSize: 10, color: 'var(--text-secondary)', position: 'relative' }}>{label}</div>
     </button>
   )
 }
@@ -3355,9 +3362,10 @@ export default function AthleteProfiles() {
   // header -- fills as tasks are completed against whatever targets
   // exist for that period; greyed out/empty if no target is set for
   // that particular period.
-  function CoachSectionProgressBars({ sectionKey, compact = false, vertical = false }) {
+  function CoachSectionProgressBars({ sectionKey, compact = false, vertical = false, ropes = null }) {
     const byPeriod = getCoachSectionProgressByPeriod(sectionKey)
     const accent = SECTION_ACCENT_COLOURS[sectionKey] || '#1D9E75'
+    if (ropes) return <SectionRopes byPeriod={byPeriod} accent={accent} corner={ropes} />
     const periods = [['day', 'D'], ['week', 'W'], ['month', 'M']]
     if (vertical) {
       return (
@@ -8507,7 +8515,7 @@ export default function AthleteProfiles() {
               }
 
               return (
-                <div>
+                <div className="neon-home">
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 8 }}>
                     <div className="card" style={{ textAlign: 'center', padding: '10px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, background: 'var(--bg-secondary)' }}>
                       <button onClick={() => setF2fStatsScope(v => v - 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4, appearance: 'none', WebkitAppearance: 'none', fontFamily: 'var(--font-sans)' }}>◀</button>
@@ -8574,7 +8582,7 @@ export default function AthleteProfiles() {
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, alignItems: 'start', width: '100%' }}>
                   <div ref={physicalSectionRef} style={{ order: showPhysicalSection ? 0 : 4, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showPhysicalSection ? '1 / -1' : 'auto' }}>
-                  <button type="button" onClick={togglePhysicalSection} style={showPhysicalSection ? {
+                  <button type="button" className="neon-pillar" onClick={togglePhysicalSection} style={showPhysicalSection ? {
                     width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
                     textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
@@ -8585,9 +8593,9 @@ export default function AthleteProfiles() {
                   }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: showPhysicalSection ? 6 : 4, width: '100%' }}>
                       <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showPhysicalSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#EF9F27' }}>PHYSICAL</span>
-                      <img src="/logos/char-physical.png" alt="" style={{ height: showPhysicalSection ? 36 : 22, width: 'auto' }} />
+                      <img src="/logos/neon/physical.png" alt="" className="neon-pillar-icon" style={{ height: showPhysicalSection ? 36 : 22, width: 'auto' }} />
                     </div>
-                    <CoachSectionProgressBars sectionKey="physical" vertical />
+                    <CoachSectionProgressBars sectionKey="physical" ropes="br" />
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showPhysicalSection ? '▲' : '▼'}</span>
                   </button>
 
@@ -8982,7 +8990,7 @@ export default function AthleteProfiles() {
                   </div>
 
                   <div ref={techniqueSectionRef} style={{ order: showTechniqueSection ? 0 : 3, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showTechniqueSection ? '1 / -1' : 'auto' }}>
-                  <button type="button" onClick={() => { setShowTechniqueSection(v => { if (v) setExpandedTechniqueCategory(null); return !v }) }} style={showTechniqueSection ? {
+                  <button type="button" className="neon-pillar" onClick={() => { setShowTechniqueSection(v => { if (v) setExpandedTechniqueCategory(null); return !v }) }} style={showTechniqueSection ? {
                     width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
                     textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
@@ -8993,9 +9001,9 @@ export default function AthleteProfiles() {
                   }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: showTechniqueSection ? 6 : 4, width: '100%' }}>
                       <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showTechniqueSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#378ADD' }}>TECHNICAL</span>
-                      <img src="/logos/char-technical.png" alt="" style={{ height: showTechniqueSection ? 36 : 22, width: 'auto' }} />
+                      <img src="/logos/neon/technical.png" alt="" className="neon-pillar-icon" style={{ height: showTechniqueSection ? 36 : 22, width: 'auto' }} />
                     </div>
-                    <CoachSectionProgressBars sectionKey="technique" vertical />
+                    <CoachSectionProgressBars sectionKey="technique" ropes="bl" />
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showTechniqueSection ? '▲' : '▼'}</span>
                   </button>
 
@@ -9087,7 +9095,7 @@ export default function AthleteProfiles() {
                   </div>
 
                   <div ref={tacticalSectionRef} style={{ order: showTacticalSection ? 0 : 2, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showTacticalSection ? '1 / -1' : 'auto' }}>
-                  <button type="button" onClick={() => { setShowTacticalSection(v => { if (v) setExpandedTacticalCategory(null); return !v }) }} style={showTacticalSection ? {
+                  <button type="button" className="neon-pillar" onClick={() => { setShowTacticalSection(v => { if (v) setExpandedTacticalCategory(null); return !v }) }} style={showTacticalSection ? {
                     width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
                     textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
@@ -9098,9 +9106,9 @@ export default function AthleteProfiles() {
                   }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: showTacticalSection ? 6 : 4, width: '100%' }}>
                       <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showTacticalSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#E24B4A' }}>TACTICAL</span>
-                      <img src="/logos/char-tactical.png" alt="" style={{ height: showTacticalSection ? 36 : 22, width: 'auto' }} />
+                      <img src="/logos/neon/tactical.png" alt="" className="neon-pillar-icon" style={{ height: showTacticalSection ? 36 : 22, width: 'auto' }} />
                     </div>
-                    <CoachSectionProgressBars sectionKey="tactical" vertical />
+                    <CoachSectionProgressBars sectionKey="tactical" ropes="tr" />
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showTacticalSection ? '▲' : '▼'}</span>
                   </button>
 
@@ -9196,7 +9204,7 @@ export default function AthleteProfiles() {
                   </div>
 
                   <div ref={mentalitySectionRef} style={{ order: showMentalitySection ? 0 : 1, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showMentalitySection ? '1 / -1' : 'auto' }}>
-                  <button type="button" onClick={() => { setShowMentalitySection(v => { if (v) setExpandedHomeMentality(null); return !v }) }} style={showMentalitySection ? {
+                  <button type="button" className="neon-pillar" onClick={() => { setShowMentalitySection(v => { if (v) setExpandedHomeMentality(null); return !v }) }} style={showMentalitySection ? {
                     width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
                     textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
@@ -9207,9 +9215,9 @@ export default function AthleteProfiles() {
                   }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: showMentalitySection ? 6 : 4, width: '100%' }}>
                       <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showMentalitySection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#8B5CF6' }}>MENTALITY</span>
-                      <img src="/logos/char-mentality.png" alt="" style={{ height: showMentalitySection ? 36 : 22, width: 'auto' }} />
+                      <img src="/logos/neon/mentality.png" alt="" className="neon-pillar-icon" style={{ height: showMentalitySection ? 36 : 22, width: 'auto' }} />
                     </div>
-                    <CoachSectionProgressBars sectionKey="mentality" vertical />
+                    <CoachSectionProgressBars sectionKey="mentality" ropes="tl" />
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showMentalitySection ? '▲' : '▼'}</span>
                   </button>
 
@@ -9541,16 +9549,16 @@ export default function AthleteProfiles() {
                   })()}
 
                   <div ref={wellbeingSectionRef}>
-                  <button type="button" onClick={() => { setShowWellbeingSection(v => { if (v) setExpandedHomeWb(null); return !v }) }} style={{
+                  <button type="button" className="neon-pillar" onClick={() => { setShowWellbeingSection(v => { if (v) setExpandedHomeWb(null); return !v }) }} style={{
                     width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 12,
                     textAlign: 'center', padding: '18px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: showWellbeingSection ? 6 : 4, width: '100%' }}>
                       <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showWellbeingSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#1D9E75' }}>FOUNDATION</span>
-                      <img src="/logos/char-foundation.png" alt="" style={{ height: showWellbeingSection ? 36 : 22, width: 'auto' }} />
+                      <img src="/logos/neon/foundation.png" alt="" className="neon-pillar-icon" style={{ height: showWellbeingSection ? 36 : 22, width: 'auto' }} />
                     </div>
-                    <CoachSectionProgressBars sectionKey="wellbeing" vertical />
+                    <CoachSectionProgressBars sectionKey="wellbeing" ropes="bottom" />
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showWellbeingSection ? '▲' : '▼'}</span>
                   </button>
 
@@ -9802,7 +9810,7 @@ export default function AthleteProfiles() {
                       { label: 'Media', icon: '🖼', colour: '#8B5CF6', tab: 'media' },
                       { label: 'Notes', icon: '📝', colour: '#378ADD', tab: 'notes' },
                     ].map(l => (
-                      <button key={l.label} onClick={() => setTab(l.tab)} style={{
+                      <button key={l.label} className="neon-tile" onClick={() => setTab(l.tab)} style={{
                         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
                         padding: '14px 8px', background: l.colour + '12',
                         border: `1px solid ${l.colour}30`, borderRadius: 'var(--border-radius-lg)',
@@ -9857,7 +9865,7 @@ export default function AthleteProfiles() {
                       <span style={{ fontSize: 24 }}>💪</span>
                       <span style={{ fontSize: 12, fontWeight: 500, color: '#EF9F27' }}>Fit II Fight — log session</span>
                     </a>
-                    <button onClick={() => setTab('whoop')} style={{
+                    <button onClick={() => setTab('whoop')} className="neon-tile" style={{
                       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
                       padding: '14px 8px', background: '#0EA5E912',
                       border: '1px solid #0EA5E930', borderRadius: 'var(--border-radius-lg)',
@@ -9880,7 +9888,7 @@ export default function AthleteProfiles() {
                       <span style={{ fontSize: 24 }}>🧹</span>
                       <span style={{ fontSize: 12, fontWeight: 500, color: '#1D9E75' }}>Sweep the sheds</span>
                     </button>
-                    <button onClick={() => setTab('leagues')} style={{
+                    <button onClick={() => setTab('leagues')} className="neon-tile" style={{
                       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
                       padding: '14px 8px', background: '#8B5CF612',
                       border: '1px solid #8B5CF630', borderRadius: 'var(--border-radius-lg)',
