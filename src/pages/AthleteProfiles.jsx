@@ -8580,7 +8580,7 @@ export default function AthleteProfiles() {
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, alignItems: 'start', width: '100%' }}>
                   <div ref={physicalSectionRef} style={{ order: showPhysicalSection ? 0 : 4, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showPhysicalSection ? '1 / -1' : 'auto' }}>
-                  <button type="button" className="neon-pillar" onClick={togglePhysicalSection} style={showPhysicalSection ? {
+                  <button type="button" className="neon-pillar neon-br" onClick={togglePhysicalSection} style={showPhysicalSection ? {
                     width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
                     textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
@@ -8988,7 +8988,7 @@ export default function AthleteProfiles() {
                   </div>
 
                   <div ref={techniqueSectionRef} style={{ order: showTechniqueSection ? 0 : 3, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showTechniqueSection ? '1 / -1' : 'auto' }}>
-                  <button type="button" className="neon-pillar" onClick={() => { setShowTechniqueSection(v => { if (v) setExpandedTechniqueCategory(null); return !v }) }} style={showTechniqueSection ? {
+                  <button type="button" className="neon-pillar neon-bl" onClick={() => { setShowTechniqueSection(v => { if (v) setExpandedTechniqueCategory(null); return !v }) }} style={showTechniqueSection ? {
                     width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
                     textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
@@ -9093,7 +9093,7 @@ export default function AthleteProfiles() {
                   </div>
 
                   <div ref={tacticalSectionRef} style={{ order: showTacticalSection ? 0 : 2, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showTacticalSection ? '1 / -1' : 'auto' }}>
-                  <button type="button" className="neon-pillar" onClick={() => { setShowTacticalSection(v => { if (v) setExpandedTacticalCategory(null); return !v }) }} style={showTacticalSection ? {
+                  <button type="button" className="neon-pillar neon-tr" onClick={() => { setShowTacticalSection(v => { if (v) setExpandedTacticalCategory(null); return !v }) }} style={showTacticalSection ? {
                     width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
                     textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
@@ -9202,7 +9202,7 @@ export default function AthleteProfiles() {
                   </div>
 
                   <div ref={mentalitySectionRef} style={{ order: showMentalitySection ? 0 : 1, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showMentalitySection ? '1 / -1' : 'auto' }}>
-                  <button type="button" className="neon-pillar" onClick={() => { setShowMentalitySection(v => { if (v) setExpandedHomeMentality(null); return !v }) }} style={showMentalitySection ? {
+                  <button type="button" className="neon-pillar neon-tl" onClick={() => { setShowMentalitySection(v => { if (v) setExpandedHomeMentality(null); return !v }) }} style={showMentalitySection ? {
                     width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
                     textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
@@ -9547,7 +9547,7 @@ export default function AthleteProfiles() {
                   })()}
 
                   <div ref={wellbeingSectionRef}>
-                  <button type="button" className="neon-pillar" onClick={() => { setShowWellbeingSection(v => { if (v) setExpandedHomeWb(null); return !v }) }} style={{
+                  <button type="button" className="neon-pillar neon-bottom" onClick={() => { setShowWellbeingSection(v => { if (v) setExpandedHomeWb(null); return !v }) }} style={{
                     width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 12,
                     textAlign: 'center', padding: '18px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
