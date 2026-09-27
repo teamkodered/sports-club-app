@@ -5779,6 +5779,10 @@ export default function AthleteApp() {
                }
               })()}
 
+              {/* CHECK IN sits under Foundation in the neon home (opens the same check-in drawer as the side tab) */}
+              <button type="button" className={`neon-checkin-cta${activeCheckIn ? ' is-checked-in' : ''}`} onClick={() => setCheckInDrawerOpen(v => !v)}>
+                {activeCheckIn ? 'CHECKED IN' : 'CHECK IN'}
+              </button>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginTop: 14, marginBottom: 8 }}>
                 {[
                   { label: 'Media', icon: '🖼', colour: '#8B5CF6', tab: 'media' },
@@ -6385,7 +6389,7 @@ export default function AthleteApp() {
         const todaysSessions = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(todayJsDay) && a.classes?.id)
         return (
           <>
-            <button onClick={() => setCheckInDrawerOpen(v => !v)} className={`neon-checkin${activeCheckIn ? ' is-checked-in' : ''}`} style={{
+            <button onClick={() => setCheckInDrawerOpen(v => !v)} className={`neon-checkin${activeCheckIn ? ' is-checked-in' : ''}${tab === 'home' ? ' neon-checkin-hidden' : ''}`} style={{
               position: 'fixed', left: 0, top: '50%', transform: 'translateY(-50%) rotate(180deg)', writingMode: 'vertical-rl',
               background: activeCheckIn ? '#1D9E75' : '#E24B4A', color: '#fff', border: 'none', borderRadius: '0 8px 8px 0',
               padding: '14px 8px', fontSize: 12, fontWeight: 700, letterSpacing: 1, cursor: 'pointer', zIndex: 90,

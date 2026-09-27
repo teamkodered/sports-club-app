@@ -381,3 +381,11 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .neon-house-stats b { color: var(--house); font-weight: 500; }
 .neon-house-hint { font-size: 11px; color: #666; }
 .neon-house-mine { margin-top: 4px; background: #1A1F24; border: 1px solid #3A424B; border-radius: 14px; padding: 3px 10px; font-size: 12px; font-weight: 600; color: #F2F2F2; cursor: pointer; }
+/* CHECK IN under Foundation (Snap-style chevron button, silver) */
+.neon-checkin-cta { display: none; }
+.neon-home .neon-checkin-cta { display: flex; align-items: center; justify-content: center; width: calc(100% - 48px); height: 54px; margin: 4px 24px 12px; border: none; cursor: pointer;
+  clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 14px 100%, 0 50%);
+  background: #C0C4CC; box-shadow: 0 0 22px #C0C4CC; color: #0A0A0A;
+  font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800; font-size: 24px; letter-spacing: 2px; }
+.neon-home .neon-checkin-cta.is-checked-in { background: #22B14C; color: #FFFFFF; }
+.neon-checkin-hidden { display: none !important; }
