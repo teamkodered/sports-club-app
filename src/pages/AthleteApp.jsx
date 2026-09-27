@@ -4008,7 +4008,6 @@ export default function AthleteApp() {
                 <span className="neon-house-stats">
                   {houseRank ? <b>{ordinal(houseRank)}</b> : null}{houseRank && houseTotalPoints != null ? ' · ' : ''}{houseTotalPoints != null ? <><b>{houseTotalPoints.toLocaleString()}</b> PTS</> : null}
                 </span>
-                <span className="neon-house-hint">{housePointsExpanded ? 'Tap to hide your points' : 'Tap to view your points'}</span>
               </button>
             </div>
           </div>
