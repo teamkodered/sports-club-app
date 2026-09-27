@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase.js'
+import { saveFootageAthletes } from '../lib/fightFootageTags.js'
 
 const FightFootageUploadContext = createContext(null)
 
@@ -13,7 +14,7 @@ const FightFootageUploadContext = createContext(null)
 export function FightFootageUploadProvider({ children }) {
   const [upload, setUpload] = useState(null) // { title, current, total, progress, status: 'uploading'|'processing'|'done'|'error', error }
 
-  const uploadSingleFile = useCallback(async (file, { title, description, accessMode, studentIds, eventId, folderId, tags, gradeTag }) => {
+  const uploadSingleFile = useCallback(async (file, { title, description, accessMode, featuredIds, viewerIds, eventId, folderId, tags, gradeTag }) => {
     const { data: sessionData } = await supabase.auth.getSession()
     const accessToken = sessionData?.session?.access_token
 
@@ -48,18 +49,14 @@ export function FightFootageUploadProvider({ children }) {
     }).select().single()
     if (insertErr) throw insertErr
 
-    if (accessMode === 'select_athletes' && studentIds?.size > 0) {
-      await supabase.from('fight_footage_athletes').insert(
-        [...studentIds].map(student_id => ({ footage_id: newFootage.id, student_id }))
-      )
-    }
+    await saveFootageAthletes(newFootage.id, { accessMode, featuredIds, viewerIds })
     return newFootage
   }, [])
 
-  const startUpload = useCallback(async ({ file, title, description, accessMode, studentIds, eventId, folderId, tags, gradeTag }) => {
+  const startUpload = useCallback(async ({ file, title, description, accessMode, featuredIds, viewerIds, eventId, folderId, tags, gradeTag }) => {
     setUpload({ title, current: 1, total: 1, progress: 0, status: 'uploading', error: null })
     try {
-      const result = await uploadSingleFile(file, { title, description, accessMode, studentIds, eventId, folderId, tags, gradeTag })
+      const result = await uploadSingleFile(file, { title, description, accessMode, featuredIds, viewerIds, eventId, folderId, tags, gradeTag })
       setUpload(u => u ? { ...u, status: 'done' } : u)
       setTimeout(() => setUpload(u => (u?.status === 'done' ? null : u)), 5000) // auto-clears the "done" banner after a few seconds, but leaves an error banner up until dismissed
       return result
@@ -69,24 +66,26 @@ export function FightFootageUploadProvider({ children }) {
     }
   }, [uploadSingleFile])
 
-  // Bulk: one shared accessMode/studentIds/eventId/tags/gradeTag applied
-  // to every file, each titled from its own filename, uploaded one at a
-  // time (sequentially) rather than all at once so a big backlog doesn't
-  // hammer the connection with dozens of simultaneous large uploads.
-  const startBulkUpload = useCallback(async (files, { accessMode, studentIds, eventId, folderId, tags, gradeTag }) => {
-    const total = files.length
+  // Bulk: event/folder/access/tags/grade are shared across the batch, but
+  // each item carries its own title and "athletes in this fight" -- so one
+  // batch can hold several athletes' fights from the same event. Uploaded
+  // one at a time (sequentially) so a big backlog doesn't hammer the
+  // connection with dozens of simultaneous large uploads.
+  const startBulkUpload = useCallback(async (items, { accessMode, viewerIds, eventId, folderId, tags, gradeTag }) => {
+    const total = items.length
     setUpload({ title: `${total} file${total === 1 ? '' : 's'}`, current: 0, total, progress: 0, status: 'uploading', error: null })
     let successCount = 0
     let firstError = null
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i]
-      setUpload(u => u ? { ...u, current: i + 1, progress: 0, title: file.name } : u)
+    for (let i = 0; i < items.length; i++) {
+      const { file, title, featuredIds } = items[i]
+      setUpload(u => u ? { ...u, current: i + 1, progress: 0, title: title || file.name } : u)
       try {
         await uploadSingleFile(file, {
-          title: file.name.replace(/\.[^.]+$/, ''),
+          title: title?.trim() || file.name.replace(/\.[^.]+$/, ''),
           description: '',
           accessMode,
-          studentIds,
+          featuredIds,
+          viewerIds,
           eventId,
           folderId,
           tags,

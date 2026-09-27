@@ -14,7 +14,8 @@ import FightFootagePlayer from './FightFootagePlayer.jsx'
 // athlete-facing view too, since their account genuinely has staff
 // privileges. This component is specifically the "what would a plain
 // athlete see" experience, so it explicitly filters to only
-// access_mode 'all' or clips this exact student is tagged in,
+// published clips that are whole-team, or that this exact student is on
+// the viewer list for / tagged as being in (depending on access_mode),
 // regardless of what the signed-in account's broader role can reach.
 export default function AthleteFightFootage({ studentId }) {
   const [footage, setFootage] = useState([])
@@ -25,10 +26,15 @@ export default function AthleteFightFootage({ studentId }) {
 
   useEffect(() => {
     if (!studentId) return
-    supabase.from('fight_footage').select('*, fight_footage_athletes(student_id)').order('uploaded_at', { ascending: false }).then(({ data }) => {
-      const visible = (data || []).filter(item =>
-        item.access_mode === 'all' || (item.fight_footage_athletes || []).some(a => a.student_id === studentId)
-      )
+    supabase.from('fight_footage').select('*, fight_footage_athletes(student_id), fight_footage_featured(student_id)').order('uploaded_at', { ascending: false }).then(({ data }) => {
+      // Mirrors the fight_footage_athlete_read policy exactly: published,
+      // and either whole team, on the viewer list, or in the fight.
+      const has = (rows) => (rows || []).some(a => a.student_id === studentId)
+      const visible = (data || []).filter(item => item.published && (
+        item.access_mode === 'all'
+        || (item.access_mode === 'select_athletes' && has(item.fight_footage_athletes))
+        || (item.access_mode === 'featured' && has(item.fight_footage_featured))
+      ))
       setFootage(visible)
       setLoaded(true)
     })

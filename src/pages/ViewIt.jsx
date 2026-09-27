@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase.js'
-import { EVENT_TYPES } from '../lib/mediaConstants.js'
+import { EVENT_TYPES, FOOTAGE_ACCESS_MODES, footageAccessLabel } from '../lib/mediaConstants.js'
+import { saveFootageAthletes } from '../lib/fightFootageTags.js'
+import AthletePicker from '../components/shared/AthletePicker.jsx'
 import FightFootagePlayer from '../components/shared/FightFootagePlayer.jsx'
 
 // The browse/watch list for the shared fight_footage library --
@@ -9,14 +11,15 @@ import FightFootagePlayer from '../components/shared/FightFootagePlayer.jsx'
 // state below); this page just displays whatever that filtering
 // currently resolves to, plus per-item access control, delete, and the
 // actual player.
-export default function ViewIt({ visibleFootage, footage, students, studentName, load }) {
+export default function ViewIt({ visibleFootage, footage, events, students, studentName, load }) {
   const [playingUrl, setPlayingUrl] = useState(null)
   const [playingTitle, setPlayingTitle] = useState('')
   const [playingItem, setPlayingItem] = useState(null)
   const [editingAccessId, setEditingAccessId] = useState(null)
   const [editAccessMode, setEditAccessMode] = useState('coach_only')
-  const [editStudentIds, setEditStudentIds] = useState(() => new Set())
-  const [editStudentSearch, setEditStudentSearch] = useState('')
+  const [editFeaturedIds, setEditFeaturedIds] = useState(() => new Set())
+  const [editViewerIds, setEditViewerIds] = useState(() => new Set())
+  const [collapsedEvents, setCollapsedEvents] = useState(() => new Set())
 
   async function openFootage(item) {
     const { data: sessionData } = await supabase.auth.getSession()
@@ -36,19 +39,16 @@ export default function ViewIt({ visibleFootage, footage, students, studentName,
   function startEditAccess(item) {
     setEditingAccessId(item.id)
     setEditAccessMode(item.access_mode)
-    setEditStudentIds(new Set((item.fight_footage_athletes || []).map(a => a.student_id)))
-    setEditStudentSearch('')
+    setEditFeaturedIds(new Set((item.fight_footage_featured || []).map(a => a.student_id)))
+    setEditViewerIds(new Set((item.fight_footage_athletes || []).map(a => a.student_id)))
   }
 
   async function saveEditAccess(item) {
-    await supabase.from('fight_footage').update({ access_mode: editAccessMode }).eq('id', item.id)
-    // Simplest correct approach: replace the whole tagged-athletes set
-    // rather than trying to diff it, since this is a small, infrequent
-    // admin action, not a hot path worth optimising.
-    await supabase.from('fight_footage_athletes').delete().eq('footage_id', item.id)
-    if (editAccessMode === 'select_athletes' && editStudentIds.size > 0) {
-      await supabase.from('fight_footage_athletes').insert([...editStudentIds].map(student_id => ({ footage_id: item.id, student_id })))
-    }
+    const { error } = await supabase.from('fight_footage').update({ access_mode: editAccessMode }).eq('id', item.id)
+    if (error) { alert('Could not save: ' + error.message); return }
+    try {
+      await saveFootageAthletes(item.id, { accessMode: editAccessMode, featuredIds: editFeaturedIds, viewerIds: editViewerIds })
+    } catch (err) { alert('Could not save athletes: ' + err.message); return }
     setEditingAccessId(null)
     load()
   }
@@ -59,23 +59,71 @@ export default function ViewIt({ visibleFootage, footage, students, studentName,
     load()
   }
 
+  // Group by event, newest event first; clips with no event go last.
+  const studentById = Object.fromEntries(students.map(s => [s.id, s]))
+  const groups = []
+  const byKey = {}
+  for (const item of visibleFootage) {
+    const key = item.event_id || 'none'
+    if (!byKey[key]) {
+      byKey[key] = { key, event: item.events || null, items: [] }
+      groups.push(byKey[key])
+    }
+    byKey[key].items.push(item)
+  }
+  groups.sort((a, b) => {
+    if (!a.event) return 1
+    if (!b.event) return -1
+    return (b.event.event_date || '').localeCompare(a.event.event_date || '')
+  })
+
+  function toggleGroup(key) {
+    setCollapsedEvents(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key); else next.add(key)
+      return next
+    })
+  }
+
   return (
     <div>
       {visibleFootage.length === 0 ? (
         <div className="empty-state"><h3>No footage yet</h3><p>{footage.length > 0 ? 'Nothing matches the filters set in the Uploads tab' : 'Upload your first clip in the Uploads tab to get started'}</p></div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {visibleFootage.map(item => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          {groups.map(group => {
+            const athleteIds = new Set(group.items.flatMap(i => (i.fight_footage_featured || []).map(a => a.student_id)))
+            const collapsed = collapsedEvents.has(group.key)
+            return (
+          <section key={group.key}>
+            <div onClick={() => toggleGroup(group.key)} style={{ cursor: 'pointer', marginBottom: 8, userSelect: 'none' }}>
+              <div style={{ fontSize: 15, fontWeight: 600 }}>
+                {collapsed ? '▸' : '▾'} {group.event ? `🏆 ${group.event.name}` : 'No event'}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>
+                {group.event?.event_date && <>{new Date(group.event.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} · </>}
+                {group.event?.event_type && <>{EVENT_TYPES.find(t => t.value === group.event.event_type)?.label} · </>}
+                {group.items.length} video{group.items.length === 1 ? '' : 's'}
+                {athleteIds.size > 0 && <> · {[...athleteIds].map(id => studentById[id]).filter(Boolean).map(studentName).join(', ')}</>}
+              </div>
+            </div>
+            {!collapsed && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {group.items.map(item => (
             <div key={item.id} className="card" style={{ padding: 14 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                 <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => openFootage(item)}>
                   <div style={{ fontSize: 14, fontWeight: 500 }}>▶️ {item.title}</div>
                   <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
                     {new Date(item.uploaded_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    {item.events?.name && <> · 🏆 {item.events.name}{item.events.event_type ? ` (${EVENT_TYPES.find(t => t.value === item.events.event_type)?.label})` : ''}</>}
                     {item.footage_folders?.name && <> · 📁 {item.footage_folders.name}</>}
-                    {' · '}{item.access_mode === 'all' ? 'Whole team' : item.access_mode === 'coach_only' ? 'Coach only' : `${item.fight_footage_athletes?.length || 0} athlete${item.fight_footage_athletes?.length === 1 ? '' : 's'}`}
+                    {' · '}👁 {footageAccessLabel(item)}
                   </div>
+                  {(item.fight_footage_featured || []).length > 0 && (
+                    <div style={{ fontSize: 12, marginTop: 3 }}>
+                      🥊 {(item.fight_footage_featured || []).map(a => studentById[a.student_id]).filter(Boolean).map(studentName).join(', ')}
+                    </div>
+                  )}
                   {item.description && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{item.description}</div>}
                   {(item.tags?.length > 0 || item.grade_tag) && (
                     <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
@@ -87,33 +135,26 @@ export default function ViewIt({ visibleFootage, footage, students, studentName,
                   )}
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button className="btn btn-sm" onClick={() => startEditAccess(item)}>Who can see this?</button>
+                  <button className="btn btn-sm" onClick={() => startEditAccess(item)}>Athletes &amp; access</button>
                   <button className="btn btn-sm" style={{ color: '#E24B4A' }} onClick={() => deleteFootage(item)}>Delete</button>
                 </div>
               </div>
 
               {editingAccessId === item.id && (
                 <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Athletes in this fight</label>
+                  <div style={{ marginBottom: 12 }}>
+                    <AthletePicker students={students} studentName={studentName} selected={editFeaturedIds} onChange={setEditFeaturedIds} maxHeight={130} />
+                  </div>
+                  <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Who can see this?</label>
                   <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-                    <button className={editAccessMode === 'coach_only' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setEditAccessMode('coach_only')}>Coach only</button>
-                    <button className={editAccessMode === 'select_athletes' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setEditAccessMode('select_athletes')}>Specific athletes</button>
-                    <button className={editAccessMode === 'all' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setEditAccessMode('all')}>Whole team</button>
+                    {FOOTAGE_ACCESS_MODES.map(m => (
+                      <button key={m.value} className={editAccessMode === m.value ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setEditAccessMode(m.value)}>{m.label}</button>
+                    ))}
                   </div>
                   {editAccessMode === 'select_athletes' && (
                     <div style={{ marginBottom: 10 }}>
-                      <input type="text" placeholder="🔍 Search by name…" value={editStudentSearch} onChange={e => setEditStudentSearch(e.target.value)} style={{ width: '100%', fontSize: 13, marginBottom: 8 }} />
-                      <div style={{ maxHeight: 160, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6 }}>
-                        {students.filter(s => !editStudentSearch.trim() || studentName(s).toLowerCase().includes(editStudentSearch.trim().toLowerCase())).map(s => (
-                          <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, padding: '4px 8px' }}>
-                            <input type="checkbox" checked={editStudentIds.has(s.id)} onChange={e => setEditStudentIds(prev => {
-                              const next = new Set(prev)
-                              if (e.target.checked) next.add(s.id); else next.delete(s.id)
-                              return next
-                            })} />
-                            {studentName(s)}
-                          </label>
-                        ))}
-                      </div>
+                      <AthletePicker students={students} studentName={studentName} selected={editViewerIds} onChange={setEditViewerIds} />
                     </div>
                   )}
                   <div style={{ display: 'flex', gap: 8 }}>
@@ -124,6 +165,11 @@ export default function ViewIt({ visibleFootage, footage, students, studentName,
               )}
             </div>
           ))}
+          </div>
+            )}
+          </section>
+            )
+          })}
         </div>
       )}
 

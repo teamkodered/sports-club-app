@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase.js'
-import { ALL_GRADES, EVENT_TYPES } from '../lib/mediaConstants.js'
+import { ALL_GRADES, EVENT_TYPES, FOOTAGE_ACCESS_MODES, footageAccessLabel, eventLabel } from '../lib/mediaConstants.js'
+import { saveFootageAthletes, guessAthletesFromFilename } from '../lib/fightFootageTags.js'
+import AthletePicker from '../components/shared/AthletePicker.jsx'
 
 // Upload forms (single + bulk) and the search/filter tools for the
 // shared fight_footage library -- these live in their own tab
@@ -16,16 +18,16 @@ export default function Uploads({
 }) {
   const [showUpload, setShowUpload] = useState(false)
   const [bulkMode, setBulkMode] = useState(false)
-  const [bulkFiles, setBulkFiles] = useState([])
+  // One row per selected file: { key, file, title, featuredIds, touched }.
+  // touched = athletes were set by hand, so filename matching leaves it alone.
+  const [bulkItems, setBulkItems] = useState([])
   const [bulkTotalSelected, setBulkTotalSelected] = useState(0)
-  const [uploadForm, setUploadForm] = useState({ title: '', description: '', accessMode: 'coach_only', studentIds: new Set(), eventId: '', newEventName: '', newEventType: 'other', folderId: '', newFolderName: '', tagsInput: '', gradeTag: '' })
+  const [uploadForm, setUploadForm] = useState({ title: '', description: '', accessMode: 'featured', featuredIds: new Set(), viewerIds: new Set(), eventId: '', newEventName: '', newEventType: 'competition', newEventDate: '', folderId: '', newFolderName: '', tagsInput: '', gradeTag: '' })
   const [tagSuggestOpen, setTagSuggestOpen] = useState(false)
-  const [studentSearch, setStudentSearch] = useState('')
   const [file, setFile] = useState(null)
   const [editingPendingId, setEditingPendingId] = useState(null)
   const [pendingEdit, setPendingEdit] = useState(null) // { title, description, eventId, tagsInput, gradeTag }
   const [pendingTagSuggestOpen, setPendingTagSuggestOpen] = useState(false)
-  const [pendingStudentSearch, setPendingStudentSearch] = useState('')
   const [expandedPreviewId, setExpandedPreviewId] = useState(null)
   const [previewUrl, setPreviewUrl] = useState(null)
   const [previewLoading, setPreviewLoading] = useState(false)
@@ -38,9 +40,12 @@ export default function Uploads({
   async function resolveEventId() {
     if (uploadForm.eventId === '__new__') {
       if (!uploadForm.newEventName.trim()) return null
-      const { data: newEvent, error } = await supabase.from('events').insert({ name: uploadForm.newEventName.trim(), event_type: uploadForm.newEventType }).select().single()
+      const { data: newEvent, error } = await supabase.from('events').insert({ name: uploadForm.newEventName.trim(), event_type: uploadForm.newEventType, event_date: uploadForm.newEventDate || null }).select().single()
       if (error) { alert('Could not create event: ' + error.message); return null }
-      setEvents(prev => [newEvent, ...prev])
+      setEvents(prev => [newEvent, ...prev].sort((a, b) => (b.event_date || '').localeCompare(a.event_date || '')))
+      // Switch the form over to the real event, so a second batch straight
+      // after this one reuses it instead of creating a duplicate.
+      setUploadForm(f => ({ ...f, eventId: newEvent.id, newEventName: '', newEventDate: '' }))
       return newEvent.id
     }
     return uploadForm.eventId || null
@@ -75,6 +80,31 @@ export default function Uploads({
     return uploadForm.folderId || null
   }
 
+  // Batch athletes -> per-file athletes. A filename that names an athlete
+  // gets that athlete; with only one athlete in the batch, every file gets
+  // them. Anything else is left for the coach to tick.
+  function matchFileToAthletes(fileName, batchIds) {
+    const candidates = students.filter(s => batchIds.has(s.id))
+    if (candidates.length === 1) return new Set([candidates[0].id])
+    return guessAthletesFromFilename(fileName, candidates, studentName)
+  }
+
+  function setBatchAthletes(next) {
+    setUploadForm(f => ({ ...f, featuredIds: next }))
+    setBulkItems(items => items.map(it => it.touched
+      ? { ...it, featuredIds: new Set([...it.featuredIds].filter(id => next.has(id))) }
+      : { ...it, featuredIds: matchFileToAthletes(it.file.name, next) }))
+  }
+
+  function toggleItemAthlete(key, studentId) {
+    setBulkItems(items => items.map(it => {
+      if (it.key !== key) return it
+      const next = new Set(it.featuredIds)
+      if (next.has(studentId)) next.delete(studentId); else next.add(studentId)
+      return { ...it, featuredIds: next, touched: true }
+    }))
+  }
+
   function parsedTags() {
     return uploadForm.tagsInput.split(',').map(t => t.trim()).filter(Boolean)
   }
@@ -92,7 +122,8 @@ export default function Uploads({
       title: uploadForm.title,
       description: uploadForm.description,
       accessMode: uploadForm.accessMode,
-      studentIds: uploadForm.studentIds,
+      featuredIds: uploadForm.featuredIds,
+      viewerIds: uploadForm.viewerIds,
       eventId,
       folderId,
       tags: parsedTags(),
@@ -102,12 +133,14 @@ export default function Uploads({
   }
 
   async function handleBulkUpload() {
-    if (bulkFiles.length === 0) { alert('Choose a folder with video files first.'); return }
+    if (bulkItems.length === 0) { alert('Choose some video files first.'); return }
+    if (uploadForm.accessMode === 'featured' && bulkItems.some(it => it.featuredIds.size === 0)
+      && !confirm("Some videos have no athlete ticked, so with \"Athletes in this fight\" nobody but coaches will be able to watch them. Upload anyway?")) return
     const eventId = await resolveEventId()
     const folderId = await resolveFolderId()
-    startBulkUpload(bulkFiles, {
+    startBulkUpload(bulkItems.map(({ file, title, featuredIds }) => ({ file, title, featuredIds })), {
       accessMode: uploadForm.accessMode,
-      studentIds: uploadForm.studentIds,
+      viewerIds: uploadForm.viewerIds,
       eventId,
       folderId,
       tags: parsedTags(),
@@ -119,15 +152,22 @@ export default function Uploads({
   function resetUploadForm() {
     setShowUpload(false)
     setBulkMode(false)
-    setUploadForm({ title: '', description: '', accessMode: 'coach_only', studentIds: new Set(), eventId: '', newEventName: '', newEventType: 'other', folderId: '', newFolderName: '', tagsInput: '', gradeTag: '' })
+    setUploadForm({ title: '', description: '', accessMode: 'featured', featuredIds: new Set(), viewerIds: new Set(), eventId: '', newEventName: '', newEventType: 'competition', newEventDate: '', folderId: '', newFolderName: '', tagsInput: '', gradeTag: '' })
     setFile(null)
-    setBulkFiles([])
+    setBulkItems([])
+    setBulkTotalSelected(0)
   }
 
   function handleFolderSelect(e) {
     const totalSelected = e.target.files.length
     const files = [...e.target.files].filter(f => f.type.startsWith('video/') || /\.(mp4|mkv|avi|mov|wmv|flv|3gp|webm|m4v)$/i.test(f.name))
-    setBulkFiles(files)
+    setBulkItems(files.map((f, i) => ({
+      key: `${f.name}-${f.size}-${i}`,
+      file: f,
+      title: f.name.replace(/\.[^.]+$/, '').replace(/[_]+/g, ' '),
+      featuredIds: matchFileToAthletes(f.name, uploadForm.featuredIds),
+      touched: false,
+    })))
     setBulkTotalSelected(totalSelected)
     // Suggests the containing folder's name as the Folder (a separate
     // concept from Event) -- if a folder with that exact name already
@@ -178,9 +218,9 @@ export default function Uploads({
       tagsInput: (item.tags || []).join(', '),
       gradeTag: item.grade_tag || '',
       accessMode: item.access_mode,
-      studentIds: new Set((item.fight_footage_athletes || []).map(a => a.student_id)),
+      featuredIds: new Set((item.fight_footage_featured || []).map(a => a.student_id)),
+      viewerIds: new Set((item.fight_footage_athletes || []).map(a => a.student_id)),
     })
-    setPendingStudentSearch('')
   }
 
   async function savePendingEdit(item) {
@@ -194,13 +234,9 @@ export default function Uploads({
       access_mode: pendingEdit.accessMode,
     }).eq('id', item.id)
     if (error) { alert('Could not save changes: ' + error.message); return }
-    // Simplest correct approach: replace the whole tagged-athletes set
-    // rather than trying to diff it, since this is a small,
-    // infrequent action, not a hot path worth optimising.
-    await supabase.from('fight_footage_athletes').delete().eq('footage_id', item.id)
-    if (pendingEdit.accessMode === 'select_athletes' && pendingEdit.studentIds.size > 0) {
-      await supabase.from('fight_footage_athletes').insert([...pendingEdit.studentIds].map(student_id => ({ footage_id: item.id, student_id })))
-    }
+    try {
+      await saveFootageAthletes(item.id, pendingEdit)
+    } catch (err) { alert('Saved details, but could not save athletes: ' + err.message); return }
     setEditingPendingId(null)
     load()
   }
@@ -242,7 +278,9 @@ export default function Uploads({
     load()
   }
 
-  const filteredStudents = students.filter(s => !studentSearch.trim() || studentName(s).toLowerCase().includes(studentSearch.trim().toLowerCase()))
+  const studentById = Object.fromEntries(students.map(s => [s.id, s]))
+  const batchAthletes = students.filter(s => uploadForm.featuredIds.has(s.id))
+  const featuredNames = item => (item.fight_footage_featured || []).map(a => studentById[a.student_id]).filter(Boolean).map(studentName)
   const currentTags = parsedTags()
   const tagSuggestions = allTags.filter(t => !currentTags.includes(t))
 
@@ -268,8 +306,8 @@ export default function Uploads({
               <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8 }}>
                 If "Select whole folder" shows nothing for a Dropbox/cloud-synced folder (a known quirk with how some cloud-sync apps interact with folder selection), use "Select multiple files" instead — same picker that already works for individual files, just hold Ctrl (or Shift for a range) to select several at once.
               </p>
-              {bulkFiles.length > 0 && <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{bulkFiles.length} video file{bulkFiles.length === 1 ? '' : 's'} selected — each will be titled from its own filename.</p>}
-              {bulkTotalSelected > 0 && bulkFiles.length === 0 && (
+              {bulkItems.length > 0 && <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{bulkItems.length} video file{bulkItems.length === 1 ? '' : 's'} selected — titles and athletes can be set per video below.</p>}
+              {bulkTotalSelected > 0 && bulkItems.length === 0 && (
                 <p style={{ fontSize: 12, color: '#E24B4A', marginTop: 4 }}>Selected {bulkTotalSelected} file{bulkTotalSelected === 1 ? '' : 's'}, but none looked like a recognised video format.</p>
               )}
               {bulkTotalSelected === 0 && (
@@ -295,17 +333,54 @@ export default function Uploads({
             <select value={uploadForm.eventId} onChange={e => setUploadForm(f => ({ ...f, eventId: e.target.value }))}>
               <option value="">No event</option>
               <option value="__new__">+ New event…</option>
-              {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
+              {events.map(ev => <option key={ev.id} value={ev.id}>{eventLabel(ev)}</option>)}
             </select>
             {uploadForm.eventId === '__new__' && (
               <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-                <input style={{ flex: 1 }} value={uploadForm.newEventName} onChange={e => setUploadForm(f => ({ ...f, newEventName: e.target.value }))} placeholder="Event name, e.g. Regionals 2026" />
+                <input style={{ flex: '1 1 180px' }} value={uploadForm.newEventName} onChange={e => setUploadForm(f => ({ ...f, newEventName: e.target.value }))} placeholder="Event name, e.g. Regionals 2026" />
+                <input type="date" value={uploadForm.newEventDate} onChange={e => setUploadForm(f => ({ ...f, newEventDate: e.target.value }))} title="Event date" style={{ width: 150 }} />
                 <select value={uploadForm.newEventType} onChange={e => setUploadForm(f => ({ ...f, newEventType: e.target.value }))} style={{ width: 130 }}>
                   {EVENT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </select>
               </div>
             )}
           </div>
+
+          <div className="field">
+            <label>{bulkMode ? 'Athletes in this batch' : 'Athletes in this fight'}</label>
+            <AthletePicker students={students} studentName={studentName} selected={uploadForm.featuredIds}
+              onChange={bulkMode ? setBatchAthletes : next => setUploadForm(f => ({ ...f, featuredIds: next }))} maxHeight={130} />
+            <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 3 }}>
+              {bulkMode
+                ? 'Pick everyone who fought in these videos, then tick who is in each one below. A filename containing an athlete\'s name is ticked for you.'
+                : 'Labels the clip for searching and filtering. On its own this doesn\'t let anyone watch it — that\'s "Who can see this?" below.'}
+            </p>
+          </div>
+
+          {bulkMode && bulkItems.length > 0 && (
+            <div className="field">
+              <label>Videos ({bulkItems.length})</label>
+              <div style={{ border: '1px solid var(--border)', borderRadius: 6, maxHeight: 320, overflowY: 'auto' }}>
+                {bulkItems.map(it => (
+                  <div key={it.key} style={{ padding: '8px 10px', borderBottom: '1px solid var(--border)' }}>
+                    <input value={it.title} onChange={e => setBulkItems(items => items.map(x => x.key === it.key ? { ...x, title: e.target.value } : x))}
+                      style={{ width: '100%', fontSize: 13, marginBottom: 4 }} />
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <span style={{ fontSize: 10, color: 'var(--text-tertiary)', marginRight: 2 }}>{it.file.name}</span>
+                      {batchAthletes.map(s => (
+                        <button key={s.id} type="button" onClick={() => toggleItemAthlete(it.key, s.id)}
+                          className={it.featuredIds.has(s.id) ? 'btn btn-sm btn-primary' : 'btn btn-sm'} style={{ fontSize: 11, padding: '2px 8px' }}>
+                          {it.featuredIds.has(s.id) ? '✓ ' : ''}{studentName(s)}
+                        </button>
+                      ))}
+                      {batchAthletes.length === 0 && <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Pick athletes above to tag this video</span>}
+                      {batchAthletes.length > 0 && it.featuredIds.size === 0 && <span style={{ fontSize: 11, color: '#E24B4A' }}>No athlete ticked</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="field"><label>Folder (optional)</label>
             <select value={uploadForm.folderId} onChange={e => setUploadForm(f => ({ ...f, folderId: e.target.value }))}>
@@ -351,30 +426,19 @@ export default function Uploads({
 
           <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 6 }}>Who can see this?</label>
           <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-            <button className={uploadForm.accessMode === 'coach_only' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setUploadForm(f => ({ ...f, accessMode: 'coach_only' }))}>Coach only</button>
-            <button className={uploadForm.accessMode === 'select_athletes' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setUploadForm(f => ({ ...f, accessMode: 'select_athletes' }))}>Specific athletes</button>
-            <button className={uploadForm.accessMode === 'all' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setUploadForm(f => ({ ...f, accessMode: 'all' }))}>Whole team</button>
+            {FOOTAGE_ACCESS_MODES.map(m => (
+              <button key={m.value} className={uploadForm.accessMode === m.value ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setUploadForm(f => ({ ...f, accessMode: m.value }))}>{m.label}</button>
+            ))}
           </div>
           <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10 }}>
-            {bulkMode ? 'This applies to every video in the folder.' : 'Uploads always start as "Coach only" — you can open it up to specific athletes or the whole team any time afterward.'}
+            {uploadForm.accessMode === 'featured' ? 'Each athlete sees only the videos they\'re tagged in. ' : ''}
+            {bulkMode ? 'Applies to every video in this batch. ' : ''}Nothing is visible to athletes until you publish it from the "Awaiting publish" list.
           </p>
 
           {uploadForm.accessMode === 'select_athletes' && (
             <div style={{ marginBottom: 14 }}>
-              <input type="text" placeholder="🔍 Search by name…" value={studentSearch} onChange={e => setStudentSearch(e.target.value)} style={{ width: '100%', fontSize: 13, marginBottom: 8 }} />
-              <div style={{ maxHeight: 160, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6 }}>
-                {filteredStudents.map(s => (
-                  <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, padding: '4px 8px' }}>
-                    <input type="checkbox" checked={uploadForm.studentIds.has(s.id)} onChange={e => setUploadForm(f => {
-                      const next = new Set(f.studentIds)
-                      if (e.target.checked) next.add(s.id); else next.delete(s.id)
-                      return { ...f, studentIds: next }
-                    })} />
-                    {studentName(s)}
-                  </label>
-                ))}
-              </div>
-              <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>{uploadForm.studentIds.size} selected</p>
+              <AthletePicker students={students} studentName={studentName} selected={uploadForm.viewerIds} onChange={next => setUploadForm(f => ({ ...f, viewerIds: next }))} />
+              <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>{uploadForm.viewerIds.size} can watch</p>
             </div>
           )}
 
@@ -426,7 +490,7 @@ export default function Uploads({
                     <div className="field"><label>Event</label>
                       <select value={pendingEdit.eventId} onChange={e => setPendingEdit(f => ({ ...f, eventId: e.target.value }))}>
                         <option value="">No event</option>
-                        {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
+                        {events.map(ev => <option key={ev.id} value={ev.id}>{eventLabel(ev)}</option>)}
                       </select>
                     </div>
                     <div className="field"><label>Folder</label>
@@ -434,6 +498,9 @@ export default function Uploads({
                         <option value="">No folder</option>
                         {folders.map(fo => <option key={fo.id} value={fo.id}>{fo.name}</option>)}
                       </select>
+                    </div>
+                    <div className="field"><label>Athletes in this fight</label>
+                      <AthletePicker students={students} studentName={studentName} selected={pendingEdit.featuredIds} onChange={next => setPendingEdit(f => ({ ...f, featuredIds: next }))} maxHeight={120} />
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <div className="field" style={{ flex: 1, position: 'relative' }}>
@@ -460,25 +527,13 @@ export default function Uploads({
                     </div>
                     <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Who can see this?</label>
                     <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-                      <button className={pendingEdit.accessMode === 'coach_only' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setPendingEdit(f => ({ ...f, accessMode: 'coach_only' }))}>Coach only</button>
-                      <button className={pendingEdit.accessMode === 'select_athletes' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setPendingEdit(f => ({ ...f, accessMode: 'select_athletes' }))}>Specific athletes</button>
-                      <button className={pendingEdit.accessMode === 'all' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setPendingEdit(f => ({ ...f, accessMode: 'all' }))}>Whole team</button>
+                      {FOOTAGE_ACCESS_MODES.map(m => (
+                        <button key={m.value} className={pendingEdit.accessMode === m.value ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setPendingEdit(f => ({ ...f, accessMode: m.value }))}>{m.label}</button>
+                      ))}
                     </div>
                     {pendingEdit.accessMode === 'select_athletes' && (
                       <div style={{ marginBottom: 10 }}>
-                        <input type="text" placeholder="🔍 Search by name…" value={pendingStudentSearch} onChange={e => setPendingStudentSearch(e.target.value)} style={{ width: '100%', fontSize: 13, marginBottom: 8 }} />
-                        <div style={{ maxHeight: 140, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6 }}>
-                          {students.filter(s => !pendingStudentSearch.trim() || studentName(s).toLowerCase().includes(pendingStudentSearch.trim().toLowerCase())).map(s => (
-                            <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, padding: '4px 8px' }}>
-                              <input type="checkbox" checked={pendingEdit.studentIds.has(s.id)} onChange={e => setPendingEdit(f => {
-                                const next = new Set(f.studentIds)
-                                if (e.target.checked) next.add(s.id); else next.delete(s.id)
-                                return { ...f, studentIds: next }
-                              })} />
-                              {studentName(s)}
-                            </label>
-                          ))}
-                        </div>
+                        <AthletePicker students={students} studentName={studentName} selected={pendingEdit.viewerIds} onChange={next => setPendingEdit(f => ({ ...f, viewerIds: next }))} maxHeight={140} />
                       </div>
                     )}
                     <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
@@ -495,7 +550,8 @@ export default function Uploads({
                           {new Date(item.uploaded_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                           {item.events?.name && <> · 🏆 {item.events.name}</>}
                           {item.footage_folders?.name && <> · 📁 {item.footage_folders.name}</>}
-                          {' · '}{item.access_mode === 'all' ? 'Whole team' : item.access_mode === 'coach_only' ? 'Coach only' : `${item.fight_footage_athletes?.length || 0} athlete${item.fight_footage_athletes?.length === 1 ? '' : 's'}`}
+                          {featuredNames(item).length > 0 && <> · 🥊 {featuredNames(item).join(', ')}</>}
+                          {' · '}👁 {footageAccessLabel(item)}
                         </div>
                         {(item.tags?.length > 0 || item.grade_tag) && (
                           <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
@@ -542,7 +598,7 @@ export default function Uploads({
           {events.length > 0 && (
             <select value={filterEventId} onChange={e => setFilterEventId(e.target.value)} style={{ fontSize: 13 }}>
               <option value="">All events</option>
-              {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
+              {events.map(ev => <option key={ev.id} value={ev.id}>{eventLabel(ev)}</option>)}
             </select>
           )}
           {folders.length > 0 && (

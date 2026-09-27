@@ -58,7 +58,7 @@ export default function Media() {
 
   async function load() {
     const [{ data: f }, { data: s }, { data: e }, { data: fo }, { data: markerNotes }] = await Promise.all([
-      supabase.from('fight_footage').select('*, fight_footage_athletes(student_id, students(members(first_name, last_name))), events(id, name, event_type), footage_folders(id, name)').order('uploaded_at', { ascending: false }),
+      supabase.from('fight_footage').select('*, fight_footage_athletes(student_id), fight_footage_featured(student_id, students(members(first_name, last_name))), events(id, name, event_type, event_date), footage_folders(id, name)').order('uploaded_at', { ascending: false }),
       supabase.from('students').select('id, members(first_name, last_name)'),
       supabase.from('events').select('*').order('event_date', { ascending: false }),
       supabase.from('footage_folders').select('*').order('name'),
@@ -74,7 +74,16 @@ export default function Media() {
       if (!m.note_text) continue
       notesByFootage[m.footage_id] = notesByFootage[m.footage_id] ? `${notesByFootage[m.footage_id]} ${m.note_text}` : m.note_text
     }
-    const withNotes = (f || []).map(item => ({ ...item, _searchableNotes: notesByFootage[item.id] || '' }))
+    // Athlete and event names are searchable too, so typing "jake regionals"
+    // finds Jake's Regionals fights without touching the dropdowns.
+    const withNotes = (f || []).map(item => ({
+      ...item,
+      _searchableNotes: [
+        notesByFootage[item.id] || '',
+        item.events?.name || '',
+        ...(item.fight_footage_featured || []).map(a => `${a.students?.members?.first_name || ''} ${a.students?.members?.last_name || ''}`),
+      ].join(' '),
+    }))
     setFootage(withNotes)
     setStudents(s || [])
     setEvents(e || [])
@@ -93,7 +102,7 @@ export default function Media() {
     if (!item.published) return false // sits in the Uploads pending list until explicitly published
     if (filterEventId && item.event_id !== filterEventId) return false
     if (filterFolderId && item.folder_id !== filterFolderId) return false
-    if (filterStudentId && !(item.fight_footage_athletes || []).some(a => a.student_id === filterStudentId)) return false
+    if (filterStudentId && !(item.fight_footage_featured || []).some(a => a.student_id === filterStudentId)) return false
     if (filterTag && !(item.tags || []).includes(filterTag)) return false
     if (filterGrade && item.grade_tag !== filterGrade) return false
     if (filterEventType && item.events?.event_type !== filterEventType) return false

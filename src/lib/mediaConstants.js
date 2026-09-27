@@ -16,3 +16,26 @@ export const EVENT_TYPES = [
   { value: 'training', label: 'Training' },
   { value: 'other', label: 'Other' },
 ]
+
+// Who can watch a fight_footage clip. 'featured' = the athletes tagged as
+// being in the fight (fight_footage_featured); 'select_athletes' = a
+// separate hand-picked viewer list (fight_footage_athletes).
+export const FOOTAGE_ACCESS_MODES = [
+  { value: 'coach_only', label: 'Coach only' },
+  { value: 'featured', label: 'Athletes in this fight' },
+  { value: 'select_athletes', label: 'Specific athletes' },
+  { value: 'all', label: 'Whole team' },
+]
+
+export function footageAccessLabel(item) {
+  if (item.access_mode === 'select_athletes') {
+    const n = item.fight_footage_athletes?.length || 0
+    return `${n} athlete${n === 1 ? '' : 's'}`
+  }
+  return FOOTAGE_ACCESS_MODES.find(m => m.value === item.access_mode)?.label || item.access_mode
+}
+
+export function eventLabel(ev) {
+  if (!ev.event_date) return ev.name
+  return `${ev.name} · ${new Date(ev.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
+}
