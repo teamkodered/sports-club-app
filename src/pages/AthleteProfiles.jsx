@@ -7862,15 +7862,28 @@ export default function AthleteProfiles() {
                 headerSwipeStartX.current = null
               }}
               onClick={() => { if (headerWasSwipe.current) { headerWasSwipe.current = false; return } setProfileInfoExpanded(v => !v) }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                <div style={{ width: 64, height: 64, borderRadius: '50%', background: colour + '22', color: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 700, flexShrink: 0 }}>
-                  {initials}
+              {/* Neon header (mockup layout): house-points chip · gold hex with group logo ·
+                  rank chip (tap to switch position in house / overall); then the name
+                  (tap to switch athlete) with club · age · grade (tap the card for profile
+                  details), and the house with its position/points and this athlete's points. */}
+              <div className="neon-header">
+                <div className="neon-header-chips">
+                  <div className="neon-chip neon-chip-left" style={{ '--house': colour }} title="House points">
+                    {houseTotalPoints != null ? Number(houseTotalPoints).toLocaleString() : '—'}
+                  </div>
+                  <span className="neon-hex neon-hex-centre">
+                    {selected.is_kr && <img src="/logos/kr-dragon.gif" alt="Kode Red Kickboxing" />}
+                    {selected.discipline === 'KRBA' && <img src="/logos/krba-logo.png" alt="Kode Red Boxing Academy" />}
+                    {!selected.is_kr && selected.discipline !== 'KRBA' && <span className="neon-hex-initials">{initials}</span>}
+                  </span>
+                  <button type="button" className="neon-chip neon-chip-right" style={{ '--house': colour }}
+                    onClick={e => { e.stopPropagation(); setShowOverallPos(v => !v) }}
+                    title={showOverallPos ? 'Overall position — click for position in house' : 'Position in house — click for overall position'}>
+                    #{(showOverallPos ? overallPosition : positionInHouse) || '—'}
+                  </button>
                 </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  {headerCardView === 0 ? (
-                    <>
-                      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8 }}>
-                        <div>
+                <div className="neon-header-row">
+                  <div className="neon-namebox">
                           <div ref={nameDropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
                             <button className="neon-name" onClick={e => { e.stopPropagation(); setShowNameDropdown(v => !v) }} title="Click to switch athlete"
                               style={{ fontSize: 21, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-sans)', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -7895,69 +7908,27 @@ export default function AthleteProfiles() {
                               </div>
                             )}
                           </div>
-                          <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 3 }}>
-                            {selected.discipline}{age ? ` · Age ${age}` : ''}
-                            {selected.pka_belt || selected.krba_level ? ` · ${selected.pka_belt || selected.krba_level}` : ''}
-                          </div>
-                        </div>
-                        {(selected.is_kr || selected.discipline === 'KRBA') && (
-                          <span className="neon-hex">
-                            {selected.is_kr && <img src="/logos/kr-dragon.gif" alt="Kode Red Kickboxing" style={{ height: 56, width: 'auto', flexShrink: 0 }} />}
-                            {selected.discipline === 'KRBA' && <img src="/logos/krba-logo.png" alt="Kode Red Boxing Academy" style={{ height: 44, width: 'auto', flexShrink: 0 }} />}
-                          </span>
-                        )}
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 6, background: colour + '15',
-                        border: `1px solid ${colour}35`, borderRadius: 20, padding: '4px 12px', marginBottom: 8,
-                      }}>
-                        {houseRank > 0 && (
-                          <span style={{ background: colour, color: '#fff', borderRadius: '50%', width: 18, height: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
-                            {houseRank}
-                          </span>
-                        )}
-                        {HOUSE_TEXT_LOGOS[houseName] ? (
-                          <img src={HOUSE_TEXT_LOGOS[houseName]} alt={houseName} style={{ height: 20, width: 'auto', objectFit: 'contain', display: 'block' }} />
-                        ) : (
-                          <span style={{ color: colour, fontWeight: 700, fontSize: 13 }}>{houseName || '—'}</span>
-                        )}
-                        {houseTotalPoints != null && <span style={{ color: colour, fontSize: 12, opacity: 0.75 }}>{houseTotalPoints} pts</span>}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        {positionInHouse > 0 && (
-                          <button onClick={e => { e.stopPropagation(); setShowOverallPos(v => !v) }}
-                            title={showOverallPos ? 'Showing overall position — click for position in house' : 'Showing position in house — click for overall position'}
-                            style={{
-                              background: 'var(--bg-secondary)', border: '1px solid var(--border-strong)', borderRadius: 20,
-                              padding: '4px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: colour,
-                            }}>
-                            {showOverallPos ? `#${overallPosition} overall` : `#${positionInHouse} in house`}
-                          </button>
-                        )}
-                        {selected.house_points != null && (
-                          <button onClick={e => { e.stopPropagation(); setShowContribution(v => !v) }}
-                            title={showContribution ? 'Showing % contribution to house — click to show points' : 'Showing house points — click to show % contribution'}
-                            style={{
-                              background: 'var(--bg-secondary)', border: '1px solid var(--border-strong)', borderRadius: 20,
-                              padding: '4px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)',
-                            }}>
-                            {showContribution ? `${contributionPct ?? 0}% of house` : `⭐ ${selected.house_points} pts`}
-                          </button>
-                        )}
-                      </div>
-                    </>
-                  )}
+                    <span className="neon-meta">
+                      {selected.discipline}{age ? ` · Age ${age}` : ''}{selected.pka_belt || selected.krba_level ? ` · ${selected.pka_belt || selected.krba_level}` : ''}
+                      <span className="neon-caret">{profileInfoExpanded ? '▲' : '▼'}</span>
+                    </span>
+                  </div>
+                  <div className="neon-housebox" style={{ '--house': colour }}>
+                    {HOUSE_TEXT_LOGOS[houseName]
+                      ? <img src={HOUSE_TEXT_LOGOS[houseName]} alt={houseName} className="neon-house-word" />
+                      : <span className="neon-house-name">{houseName || '—'}</span>}
+                    <span className="neon-house-label">HOUSE</span>
+                    <span className="neon-house-stats">
+                      {houseRank > 0 ? <b>{`${houseRank}${[, 'st', 'nd', 'rd'][houseRank % 100 >> 3 ^ 1 && houseRank % 10] || 'th'}`}</b> : null}{houseRank > 0 && houseTotalPoints != null ? ' · ' : ''}{houseTotalPoints != null ? <><b>{Number(houseTotalPoints).toLocaleString()}</b> PTS</> : null}
+                    </span>
+                    {selected.house_points != null && (
+                      <button type="button" className="neon-house-mine" onClick={e => { e.stopPropagation(); setShowContribution(v => !v) }}
+                        title={showContribution ? 'Showing % contribution to house — click to show points' : 'Showing points — click to show % contribution'}>
+                        {showContribution ? `${contributionPct ?? 0}% of house` : `⭐ ${selected.house_points} pts`}
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 10, position: 'relative' }}>
-                {[0, 1].map(v => (
-                  <button key={v} onClick={e => { e.stopPropagation(); setHeaderCardView(v) }}
-                    style={{ width: 6, height: 6, borderRadius: '50%', border: 'none', cursor: 'pointer', padding: 0, background: headerCardView === v ? colour : 'var(--border-strong)' }} />
-                ))}
-                <span style={{ position: 'absolute', right: 0, fontSize: 12, color: 'var(--text-tertiary)' }}>{profileInfoExpanded ? '▲' : '▼'}</span>
               </div>
 
               {showQuickLoggerPicker && (

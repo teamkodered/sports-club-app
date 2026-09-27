@@ -20,6 +20,7 @@ const HOUSE_LOGOS = {
   'Dragon House': '/logos/house-dragon.png', 'Super House': '/logos/house-super.png',
   'Ice House': '/logos/house-ice.png', 'Jet House': '/logos/house-jet.png',
 }
+const ordinal = n => { const v = n % 100; return n + (['th', 'st', 'nd', 'rd'][(v - 20) % 10] || ['th', 'st', 'nd', 'rd'][v] || 'th') }
 const HOUSE_TEXT_LOGOS = {
   'Dragon House': '/logos/text-dragon.png', 'Super House': '/logos/text-super.png',
   'Ice House': '/logos/text-ice.png', 'Jet House': '/logos/text-jet.png',
@@ -3957,6 +3958,50 @@ export default function AthleteApp() {
           if (headerCardView === 1) { setHousePointsExpanded(v => !v); return }
           setMyProfileExpanded(v => !v)
         }}>
+        {student ? (
+          /* Neon header (mockup layout): house-points chip · gold hex with group logo ·
+             rank chip (tap to switch position in house / overall), then the name
+             (tap for profile details) and the house (tap for your points). */
+          <div className="neon-header">
+            <div className="neon-header-chips">
+              <div className="neon-chip neon-chip-left" style={{ '--house': HOUSE_COLOURS[houseName] || colour }} title="House points">
+                {houseTotalPoints != null ? houseTotalPoints.toLocaleString() : '—'}
+              </div>
+              <span className="neon-hex neon-hex-centre" onClick={e => { e.stopPropagation(); setTab('home') }}>
+                {student.is_kr && <img src="/logos/kr-dragon.gif" alt="Kode Red Kickboxing" />}
+                {student.discipline === 'KRBA' && <img src="/logos/krba-logo.png" alt="Kode Red Boxing Academy" />}
+                {!student.is_kr && student.discipline !== 'KRBA' && <span className="neon-hex-initials">{initials}</span>}
+              </span>
+              <button type="button" className="neon-chip neon-chip-right" style={{ '--house': HOUSE_COLOURS[houseName] || colour }}
+                onClick={e => { e.stopPropagation(); setShowOverallPos(v => !v) }}
+                title={showOverallPos ? 'Overall position — tap for position in house' : 'Position in house — tap for overall position'}>
+                #{(showOverallPos ? overallPosition : positionInHouse) || '—'}
+              </button>
+            </div>
+            <div className="neon-header-row">
+              <button type="button" className="neon-namebox"
+                onClick={e => { e.stopPropagation(); setHeaderCardView(0); setHousePointsExpanded(false); setMyProfileExpanded(v => !v) }}>
+                <span className="neon-name">{m?.first_name} {m?.last_name}</span>
+                <span className="neon-meta">
+                  {student.discipline}{age ? ` · Age ${age}` : ''}{student.pka_belt || student.krba_level ? ` · ${student.pka_belt || student.krba_level}` : ''}
+                  <span className="neon-caret">{myProfileExpanded ? '▲' : '▼'}</span>
+                </span>
+              </button>
+              <button type="button" className="neon-housebox" style={{ '--house': HOUSE_COLOURS[houseName] || colour }}
+                onClick={e => { e.stopPropagation(); setHeaderCardView(1); setMyProfileExpanded(false); setHousePointsExpanded(v => !v) }}>
+                {HOUSE_TEXT_LOGOS[houseName]
+                  ? <img src={HOUSE_TEXT_LOGOS[houseName]} alt={houseName} className="neon-house-word" />
+                  : <span className="neon-house-name">{houseName || '—'}</span>}
+                <span className="neon-house-label">HOUSE</span>
+                <span className="neon-house-stats">
+                  {houseRank ? <b>{ordinal(houseRank)}</b> : null}{houseRank && houseTotalPoints != null ? ' · ' : ''}{houseTotalPoints != null ? <><b>{houseTotalPoints.toLocaleString()}</b> PTS</> : null}
+                </span>
+                <span className="neon-house-hint">{housePointsExpanded ? 'Tap to hide your points' : 'Tap to view your points'}</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="neon-legacy-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <div onClick={e => { e.stopPropagation(); setTab('home') }}
             style={{ width: 64, height: 64, borderRadius: '50%', background: colour + '22', color: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 700, flexShrink: 0, cursor: 'pointer' }}>
@@ -4015,6 +4060,9 @@ export default function AthleteApp() {
               <button key={v} onClick={e => { e.stopPropagation(); setHeaderCardView(v) }}
                 style={{ width: 6, height: 6, borderRadius: '50%', border: 'none', cursor: 'pointer', padding: 0, background: headerCardView === v ? colour : 'var(--border-strong)' }} />
             ))}
+          </div>
+        )}
+
           </div>
         )}
 

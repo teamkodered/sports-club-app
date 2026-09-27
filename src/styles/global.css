@@ -354,3 +354,30 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .neon-tabs { background: #000; border-radius: 10px; padding: 4px 6px; border-bottom: none !important; }
 .neon-tabs button { color: #9A9A9A !important; font-family: 'Rajdhani', var(--font-sans) !important; font-weight: 600 !important; letter-spacing: 0.5px; }
 .neon-tabs button[style*="solid var(--text)"], .neon-tabs button[style*="solid rgb(242, 242, 242)"] { color: #FFFFFF !important; border-bottom-color: #FFFFFF !important; box-shadow: 0 6px 8px -6px #FFFFFF; }
+
+/* ── Neon header layout (mockup): chips + gold hex, then name / house ── */
+.neon-banner:has(.neon-header) { border-left: none !important; border-radius: 12px !important; padding: 14px 12px 12px !important; }
+.neon-header { display: flex; flex-direction: column; gap: 12px; }
+.neon-header-chips { display: grid; grid-template-columns: 118px 1fr 118px; align-items: center; justify-items: center; }
+.neon-chip { width: 118px; height: 36px; box-sizing: border-box; display: flex; align-items: center; justify-content: center;
+  font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800; font-size: 20px; color: #FFFFFF;
+  background: color-mix(in srgb, var(--house, #E6B800) 22%, #000); border: none; border-top: 2px solid var(--house, #E6B800); cursor: default; }
+.neon-chip-left { clip-path: polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%); justify-self: start; }
+.neon-chip-right { clip-path: polygon(12px 0, 100% 0, 100% 100%, 0 100%); justify-self: end; cursor: pointer; }
+.neon-banner .neon-hex.neon-hex-centre { width: 96px; height: 96px; margin: -12px 0; cursor: pointer; }
+.neon-banner .neon-hex.neon-hex-centre img { max-height: 60px !important; max-width: 66px; }
+.neon-hex-initials { position: relative; z-index: 1; font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800; font-size: 28px; color: #FFFFFF; }
+.neon-header-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.neon-namebox { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; background: none; border: none; padding: 0; text-align: left; cursor: pointer; font-family: inherit; }
+.neon-namebox .neon-name { display: block; background: none; border: none; padding: 0; line-height: 1 !important; }
+.neon-namebox .neon-name span { font-family: 'Rajdhani', sans-serif; font-style: normal; font-size: 12px !important; }
+.neon-meta { font-family: 'Orbitron', sans-serif; font-size: 10px; letter-spacing: 2px; color: #9A9A9A; text-transform: uppercase; }
+.neon-caret { margin-left: 8px; color: #9A9A9A; letter-spacing: 0; }
+.neon-housebox { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; background: none; border: none; padding: 0; cursor: pointer; font-family: inherit; }
+.neon-house-word { height: 30px; width: auto; }
+.neon-house-name { font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800; font-size: 22px; color: var(--house); }
+.neon-house-label { font-family: 'Orbitron', sans-serif; font-size: 9px; letter-spacing: 4px; color: #9A9A9A; margin-top: -4px; }
+.neon-house-stats { font-family: 'Orbitron', sans-serif; font-size: 10px; letter-spacing: 2px; color: #9A9A9A; white-space: nowrap; }
+.neon-house-stats b { color: var(--house); font-weight: 500; }
+.neon-house-hint { font-size: 11px; color: #666; }
+.neon-house-mine { margin-top: 4px; background: #1A1F24; border: 1px solid #3A424B; border-radius: 14px; padding: 3px 10px; font-size: 12px; font-weight: 600; color: #F2F2F2; cursor: pointer; }
