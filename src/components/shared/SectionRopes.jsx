@@ -38,7 +38,7 @@ export default function SectionRopes({ byPeriod, accent: _accent, corner = 'tl',
                 <div style={{ width: `${pct}%`, height: '100%', background: accent, boxShadow: glow, borderRadius: 2, transition: 'width 0.3s' }} />
               </div>
               <div style={{ ...letterStyle, left: 4, bottom: o - 4, padding: '0 3px', background: '#1A1F24' }}>{letter}</div>
-              <div style={{ position: 'absolute', right: 4, bottom: o - 4, padding: '0 3px', background: '#1A1F24', fontFamily: 'Orbitron, sans-serif', fontSize: 9, letterSpacing: 1, lineHeight: '11px', color: labelColour }}>{done}/{target}</div>
+              <div style={{ position: 'absolute', left: 20, bottom: o - 4, padding: '0 3px', background: '#1A1F24', fontFamily: 'Orbitron, sans-serif', fontSize: 9, letterSpacing: 1, lineHeight: '11px', color: labelColour }}>{done}/{target}</div>
             </div>
           )
         }
