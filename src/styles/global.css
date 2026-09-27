@@ -293,3 +293,7 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .neon-home .neon-bottom > div:first-child::before { flex-shrink: 0; width: 76px; height: 60px; }
 .neon-home .neon-bottom .neon-pillar-icon { height: 60px !important; width: 76px !important; object-fit: contain; flex-shrink: 0; }
 .neon-home .neon-bottom { padding-bottom: 48px !important; }
+/* Stat cards: bigger artwork and numbers */
+.neon-home .neon-stat img { height: 46px !important; width: auto !important; max-width: 80%; margin-bottom: 6px !important; }
+.neon-home .neon-stat .neon-stat-value { font-size: 24px !important; line-height: 1.1; }
+.neon-home .neon-stat .neon-stat-label { font-size: 10px !important; }
