@@ -9861,7 +9861,7 @@ export default function AthleteProfiles() {
                       border: '1px solid #EF9F2730', borderRadius: 'var(--border-radius-lg)',
                       cursor: 'pointer', fontFamily: 'var(--font-sans)', textDecoration: 'none', gridColumn: 'span 2',
                     }} title="Log a Fit II Fight session">
-                      <span className="neon-emoji" className="neon-tile" style={{ fontSize: 24 }}>💪</span><NeonTileIcon name="Fit II Fight — log session" />
+                      <span className="neon-emoji" style={{ fontSize: 24 }}>💪</span><NeonTileIcon name="Fit II Fight — log session" />
                       <span style={{ fontSize: 12, fontWeight: 500, color: '#EF9F27' }}>Fit II Fight — log session</span>
                     </a>
                     <button onClick={() => setTab('whoop')} className="neon-tile" style={{
@@ -9870,7 +9870,7 @@ export default function AthleteProfiles() {
                       border: '1px solid #0EA5E930', borderRadius: 'var(--border-radius-lg)',
                       cursor: 'pointer', fontFamily: 'var(--font-sans)', gridColumn: 'span 2',
                     }} title="View this athlete's wearable data">
-                      <span className="neon-emoji" className="neon-tile" style={{ fontSize: 24 }}>⌚</span><NeonTileIcon name="Wearables" />
+                      <span className="neon-emoji" style={{ fontSize: 24 }}>⌚</span><NeonTileIcon name="Wearables" />
                       <span style={{ fontSize: 12, fontWeight: 500, color: '#0EA5E9' }}>
                         Wearables{Array.isArray(whoopConnection) && whoopConnection.length ? ` — ${whoopConnection.map(c => providerLabel(c.provider)).join(', ')} linked` : ' — none linked'}
                       </span>
