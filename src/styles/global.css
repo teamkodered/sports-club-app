@@ -401,3 +401,18 @@ tbody tr:hover td { background: var(--bg-secondary); }
 @media (max-width: 380px) {
   .neon-home .neon-pillar [style*="Anton"] { font-size: 16px !important; }
 }
+/* Pillar titles scale with the card and can never cross into the next card */
+.neon-home .neon-tl, .neon-home .neon-tr, .neon-home .neon-bl, .neon-home .neon-br { container-type: inline-size; overflow: hidden; }
+.neon-home .neon-tl [style*="Anton"], .neon-home .neon-tr [style*="Anton"],
+.neon-home .neon-bl [style*="Anton"], .neon-home .neon-br [style*="Anton"] {
+  font-size: clamp(13px, 11cqw, 28px) !important; white-space: nowrap; max-width: calc(100% - 50px); overflow: hidden; text-overflow: clip; }
+.neon-home .neon-tl [style*="Anton"] { left: 26cqw; top: 26cqw; }
+.neon-home .neon-tr [style*="Anton"] { right: 26cqw; top: 26cqw; }
+.neon-home .neon-bl [style*="Anton"] { left: 26cqw; bottom: 26cqw; }
+.neon-home .neon-br [style*="Anton"] { right: 26cqw; bottom: 26cqw; }
+@media (max-width: 480px) {
+  .neon-home .neon-tl [style*="Anton"] { left: 44px; top: 46px; }
+  .neon-home .neon-tr [style*="Anton"] { right: 44px; top: 46px; }
+  .neon-home .neon-bl [style*="Anton"] { left: 44px; bottom: 46px; }
+  .neon-home .neon-br [style*="Anton"] { right: 44px; bottom: 46px; }
+}
