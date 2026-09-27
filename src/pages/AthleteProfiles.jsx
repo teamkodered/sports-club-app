@@ -25,6 +25,7 @@ const HOUSE_LOGOS = {
   'Dragon House': '/logos/house-dragon.png', 'Super House': '/logos/house-super.png',
   'Ice House': '/logos/house-ice.png', 'Jet House': '/logos/house-jet.png',
 }
+const NEON_HOUSE_COLOURS = { 'Dragon House': '#E24B4A', 'Super House': '#F5821F', 'Ice House': '#378ADD', 'Jet House': '#22B14C' } // match the house wordmarks
 const HOUSE_TEXT_LOGOS = {
   'Dragon House': '/logos/text-dragon.png', 'Super House': '/logos/text-super.png',
   'Ice House': '/logos/text-ice.png', 'Jet House': '/logos/text-jet.png',
@@ -7868,7 +7869,7 @@ export default function AthleteProfiles() {
                   details), and the house with its position/points and this athlete's points. */}
               <div className="neon-header">
                 <div className="neon-header-chips">
-                  <div className="neon-chip neon-chip-left" style={{ '--house': colour }} title="House points">
+                  <div className="neon-chip neon-chip-left" style={{ '--house': NEON_HOUSE_COLOURS[houseName] || colour }} title="House points">
                     {houseTotalPoints != null ? Number(houseTotalPoints).toLocaleString() : '—'}
                   </div>
                   <span className="neon-hex neon-hex-centre">
@@ -7876,7 +7877,7 @@ export default function AthleteProfiles() {
                     {selected.discipline === 'KRBA' && <img src="/logos/krba-logo.png" alt="Kode Red Boxing Academy" />}
                     {!selected.is_kr && selected.discipline !== 'KRBA' && <span className="neon-hex-initials">{initials}</span>}
                   </span>
-                  <button type="button" className="neon-chip neon-chip-right" style={{ '--house': colour }}
+                  <button type="button" className="neon-chip neon-chip-right" style={{ '--house': NEON_HOUSE_COLOURS[houseName] || colour }}
                     onClick={e => { e.stopPropagation(); setShowOverallPos(v => !v) }}
                     title={showOverallPos ? 'Overall position — click for position in house' : 'Position in house — click for overall position'}>
                     #{(showOverallPos ? overallPosition : positionInHouse) || '—'}
@@ -7913,7 +7914,7 @@ export default function AthleteProfiles() {
                       <span className="neon-caret">{profileInfoExpanded ? '▲' : '▼'}</span>
                     </span>
                   </div>
-                  <div className="neon-housebox" style={{ '--house': colour }}>
+                  <div className="neon-housebox" style={{ '--house': NEON_HOUSE_COLOURS[houseName] || colour }}>
                     {HOUSE_TEXT_LOGOS[houseName]
                       ? <img src={HOUSE_TEXT_LOGOS[houseName]} alt={houseName} className="neon-house-word" />
                       : <span className="neon-house-name">{houseName || '—'}</span>}

@@ -21,6 +21,7 @@ const HOUSE_LOGOS = {
   'Ice House': '/logos/house-ice.png', 'Jet House': '/logos/house-jet.png',
 }
 const ordinal = n => { const v = n % 100; return n + (['th', 'st', 'nd', 'rd'][(v - 20) % 10] || ['th', 'st', 'nd', 'rd'][v] || 'th') }
+const NEON_HOUSE_COLOURS = { 'Dragon House': '#E24B4A', 'Super House': '#F5821F', 'Ice House': '#378ADD', 'Jet House': '#22B14C' } // match the house wordmarks
 const HOUSE_TEXT_LOGOS = {
   'Dragon House': '/logos/text-dragon.png', 'Super House': '/logos/text-super.png',
   'Ice House': '/logos/text-ice.png', 'Jet House': '/logos/text-jet.png',
@@ -3964,7 +3965,7 @@ export default function AthleteApp() {
              (tap for profile details) and the house (tap for your points). */
           <div className="neon-header">
             <div className="neon-header-chips">
-              <div className="neon-chip neon-chip-left" style={{ '--house': HOUSE_COLOURS[houseName] || colour }} title="House points">
+              <div className="neon-chip neon-chip-left" style={{ '--house': NEON_HOUSE_COLOURS[houseName] || colour }} title="House points">
                 {houseTotalPoints != null ? houseTotalPoints.toLocaleString() : '—'}
               </div>
               <span className="neon-hex neon-hex-centre" onClick={e => { e.stopPropagation(); setTab('home') }}>
@@ -3972,7 +3973,7 @@ export default function AthleteApp() {
                 {student.discipline === 'KRBA' && <img src="/logos/krba-logo.png" alt="Kode Red Boxing Academy" />}
                 {!student.is_kr && student.discipline !== 'KRBA' && <span className="neon-hex-initials">{initials}</span>}
               </span>
-              <button type="button" className="neon-chip neon-chip-right" style={{ '--house': HOUSE_COLOURS[houseName] || colour }}
+              <button type="button" className="neon-chip neon-chip-right" style={{ '--house': NEON_HOUSE_COLOURS[houseName] || colour }}
                 onClick={e => { e.stopPropagation(); setShowOverallPos(v => !v) }}
                 title={showOverallPos ? 'Overall position — tap for position in house' : 'Position in house — tap for overall position'}>
                 #{(showOverallPos ? overallPosition : positionInHouse) || '—'}
@@ -3987,7 +3988,7 @@ export default function AthleteApp() {
                   <span className="neon-caret">{myProfileExpanded ? '▲' : '▼'}</span>
                 </span>
               </button>
-              <button type="button" className="neon-housebox" style={{ '--house': HOUSE_COLOURS[houseName] || colour }}
+              <button type="button" className="neon-housebox" style={{ '--house': NEON_HOUSE_COLOURS[houseName] || colour }}
                 onClick={e => { e.stopPropagation(); setHeaderCardView(1); setMyProfileExpanded(false); setHousePointsExpanded(v => !v) }}>
                 {HOUSE_TEXT_LOGOS[houseName]
                   ? <img src={HOUSE_TEXT_LOGOS[houseName]} alt={houseName} className="neon-house-word" />
