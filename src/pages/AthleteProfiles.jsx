@@ -195,12 +195,7 @@ function TopStatCard({ onNavigate, icon, iconImg, value, pctValue, hasPct, label
       }}
       title={title || (hasPct ? 'Tap to view — hold to toggle %' : 'Tap to view')}
       className="card neon-stat" style={{ textAlign: 'center', padding: '12px 8px', cursor: 'pointer', width: '100%', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)', appearance: 'none', WebkitAppearance: 'none', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'manipulation' }}>
-      {/* Neon theme: progress runs around the card outline (P = rounded-rect perimeter in viewBox units) */}
-      {(() => { const pct = Math.max(0, Math.min(100, parseFloat(String(pctValue)) || 0)); const P = 379; return (
-        <svg className="neon-stat-outline" viewBox="0 0 110 96" preserveAspectRatio="none" aria-hidden="true">
-          <rect x="2" y="2" width="106" height="92" rx="10" fill="none" stroke="#2A3138" strokeWidth="4" />
-          {pct > 0 && <rect x="2" y="2" width="106" height="92" rx="10" fill="none" stroke="#FFFFFF" strokeWidth="4" strokeLinecap="round" strokeDasharray={`${(P * pct / 100).toFixed(0)} ${P}`} strokeDashoffset={-43} pathLength={P} style={{ filter: 'drop-shadow(0 0 6px #FFFFFF)' }} />}
-        </svg>) })()}
+      <StatOutline pct={parseFloat(String(pctValue)) || 0} />
       {iconImg ? <img src={iconImg} alt="" style={{ height: 26, width: 'auto', marginBottom: 4, objectFit: 'contain', position: 'relative' }} /> : <div style={{ fontSize: 22, marginBottom: 4, position: 'relative' }}>{icon}</div>}
       <div className="neon-stat-value" style={{ fontSize: 22, fontWeight: 700, color: colour, position: 'relative' }}>
         {hasPct && showPct ? pctValue : value}
