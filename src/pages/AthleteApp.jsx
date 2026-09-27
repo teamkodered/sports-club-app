@@ -2368,6 +2368,37 @@ export default function AthleteApp() {
     const houseName = s?.members?.houses?.name
     if (houseName) await supabase.rpc('adjust_house_points', { p_house_name: houseName, p_delta: amount })
     setStudent(prev => prev ? { ...prev, house_points: (prev.house_points || 0) + amount, individual_points: (prev.individual_points || 0) + amount } : prev)
+    celebrateHousePoint(amount)
+  }
+
+  // "+1 house point earned" pop-up that flies into the monthly house-points
+  // chip in the header, then bumps that number. Falls back to a simple fade
+  // if the header chip isn't on screen.
+  function celebrateHousePoint(amount) {
+    try {
+      const el = document.createElement('div')
+      el.className = 'neon-point-pop'
+      el.textContent = `+${amount} house point${amount === 1 ? '' : 's'} earned`
+      document.body.appendChild(el)
+      const target = document.querySelector('.neon-chip-left')
+      const bump = () => {
+        setMonthHousePoints(n => (n || 0) + amount)
+        if (target) { target.classList.remove('neon-chip-bump'); void target.offsetWidth; target.classList.add('neon-chip-bump') }
+      }
+      const pop = el.animate(
+        [{ opacity: 0, transform: 'translate(-50%, -50%) scale(0.6)' }, { opacity: 1, transform: 'translate(-50%, -50%) scale(1.08)' }, { opacity: 1, transform: 'translate(-50%, -50%) scale(1)' }],
+        { duration: 320, easing: 'ease-out', fill: 'forwards' })
+      pop.onfinish = () => setTimeout(() => {
+        const r = target?.getBoundingClientRect()
+        const from = el.getBoundingClientRect()
+        const dx = r ? (r.left + r.width / 2) - (from.left + from.width / 2) : 0
+        const dy = r ? (r.top + r.height / 2) - (from.top + from.height / 2) : -40
+        const fly = el.animate(
+          [{ opacity: 1, transform: 'translate(-50%, -50%) scale(1)' }, { opacity: r ? 0.9 : 0, transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(0.35)` }],
+          { duration: r ? 650 : 400, easing: 'cubic-bezier(0.5, 0, 0.75, 0.2)', fill: 'forwards' })
+        fly.onfinish = () => { el.remove(); bump() }
+      }, 800)
+    } catch { setMonthHousePoints(n => (n || 0) + amount) }
   }
 
   // Hold-to-quick-log: marks a card as "done today" without requiring

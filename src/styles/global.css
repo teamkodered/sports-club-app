@@ -427,3 +427,9 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .neon-house-stats { line-height: 1.4; }
 /* Opened pillar sections scroll to the top of the screen with a little breathing room */
 .neon-home [class*="neon-pillar"] { scroll-margin-top: 12px; }
+/* "+1 house point earned" pop-up that flies into the header's monthly points chip */
+.neon-point-pop { position: fixed; left: 50%; top: 42%; z-index: 400; pointer-events: none; transform: translate(-50%, -50%);
+  padding: 12px 22px; background: #000; border: 2px solid #E6B800; border-radius: 10px; box-shadow: 0 0 18px #E6B800;
+  color: #FFFFFF; font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800; font-size: 22px; letter-spacing: 1px; white-space: nowrap; }
+@keyframes neonChipBump { 0% { transform: scale(1); filter: brightness(1) } 40% { transform: scale(1.18); filter: brightness(1.8) } 100% { transform: scale(1); filter: brightness(1) } }
+.neon-chip-bump { animation: neonChipBump 0.5s ease-out; }
