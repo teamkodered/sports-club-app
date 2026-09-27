@@ -289,3 +289,7 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .neon-home .neon-bottom > div:first-child { justify-content: center !important; gap: 18px; }
 .neon-home .neon-bottom > div:first-child::before { content: ''; width: 76px; height: 58px; background: url(/logos/neon/foundation.png) center / contain no-repeat; }
 .neon-home .neon-bottom > div:first-child { flex-direction: row !important; }
+/* Foundation: both brick images the same size, never squashed */
+.neon-home .neon-bottom > div:first-child::before { flex-shrink: 0; width: 76px; height: 60px; }
+.neon-home .neon-bottom .neon-pillar-icon { height: 60px !important; width: 76px !important; object-fit: contain; flex-shrink: 0; }
+.neon-home .neon-bottom { padding-bottom: 48px !important; }
