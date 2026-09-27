@@ -302,3 +302,5 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .neon-home div:not([style*="grid-column: 1 / -1"]) > .neon-tr,
 .neon-home div:not([style*="grid-column: 1 / -1"]) > .neon-bl,
 .neon-home div:not([style*="grid-column: 1 / -1"]) > .neon-br { aspect-ratio: 1 / 1; min-height: 0; height: auto; }
+/* Wider gap between the pillar pairs so the single D/W/M column sits cleanly between the rope ends */
+.neon-home div:has(> div > .neon-pillar) { column-gap: 16px !important; }
