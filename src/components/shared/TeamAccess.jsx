@@ -11,6 +11,7 @@ export default function TeamAccess() {
   const [search, setSearch] = useState('')
   const [editing, setEditing] = useState(null)   // member being edited (draft copy)
   const [saving, setSaving] = useState(false)
+  const [presets, setPresets] = useState([])     // [{ name, role, access }] saved in settings 'access_presets'
 
   async function load() {
     const [{ data: ms }, { data: cs }] = await Promise.all([
@@ -18,6 +19,31 @@ export default function TeamAccess() {
       supabase.from('classes').select('id, name, day_of_week, start_time').eq('active', true).order('day_of_week').order('start_time'),
     ])
     setMembers(ms || []); setClasses(cs || [])
+    const { data: pr } = await supabase.from('settings').select('value').eq('key', 'access_presets').maybeSingle()
+    setPresets(Array.isArray(pr?.value) ? pr.value : [])
+  }
+
+  async function savePresets(next) {
+    const { error } = await supabase.from('settings').upsert({ key: 'access_presets', value: next }, { onConflict: 'key' })
+    if (error) { alert('Could not save presets: ' + error.message); return false }
+    setPresets(next); return true
+  }
+  async function saveAsPreset() {
+    const name = window.prompt('Name this preset (e.g. KRBA Coach):', '')?.trim()
+    if (!name) return
+    const entry = { name, role: editing.role, access: editing.access }
+    const exists = presets.some(p => p.name.toLowerCase() === name.toLowerCase())
+    if (exists && !window.confirm(`Replace the existing "${name}" preset?`)) return
+    if (await savePresets([...presets.filter(p => p.name.toLowerCase() !== name.toLowerCase()), entry])) alert(`Saved "${name}" — you can now apply it to anyone.`)
+  }
+  function applyPreset(name) {
+    const pr = presets.find(p => p.name === name)
+    if (!pr) return
+    setEditing(e => ({ ...e, role: pr.role, access: { pages: { ...(pr.access?.pages || {}) }, registers: { types: pr.access?.registers?.types || null, classes: pr.access?.registers?.classes || null } } }))
+  }
+  async function deletePreset(name) {
+    if (!window.confirm(`Delete the "${name}" preset? People already given it keep their access.`)) return
+    await savePresets(presets.filter(p => p.name !== name))
   }
   useEffect(() => { load() }, [])
 
@@ -87,6 +113,25 @@ export default function TeamAccess() {
               <div><b style={{ fontSize: 17 }}>{editing.first_name} {editing.last_name}</b><div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{editing.email}</div></div>
               <button type="button" className="btn btn-sm" onClick={() => setEditing(null)}>Cancel</button>
             </div>
+
+            <div className="team-presets">
+              <label htmlFor="preset-pick" className="team-label" style={{ margin: 0 }}>PRESET</label>
+              <select id="preset-pick" value="" onChange={e => e.target.value && applyPreset(e.target.value)}>
+                <option value="">{presets.length ? 'Apply a preset…' : 'No presets yet'}</option>
+                {presets.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
+              </select>
+              <button type="button" className="btn btn-sm" onClick={saveAsPreset}>Save as preset</button>
+            </div>
+            {presets.length > 0 && (
+              <div className="team-preset-chips">
+                {presets.map(p => (
+                  <span key={p.name}>
+                    <button type="button" onClick={() => applyPreset(p.name)}>{p.name}</button>
+                    <button type="button" aria-label={`Delete ${p.name} preset`} onClick={() => deletePreset(p.name)}>×</button>
+                  </span>
+                ))}
+              </div>
+            )}
 
             <div className="team-label">ROLE</div>
             <div className="team-seg">
