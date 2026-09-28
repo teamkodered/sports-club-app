@@ -28,8 +28,10 @@ export default function SectionRopes({ byPeriod, accent: _accent, corner = 'tl',
       {periods.map(([key, letter, o]) => {
         const { done, target } = byPeriod[key] || { done: 0, target: 0 }
         const hasTarget = target > 0
-        const pct = hasTarget ? Math.min(100, Math.round((done / target) * 100)) : 0
-        const labelColour = hasTarget ? accent : '#666'
+        // No target set: anything completed still shows -- the rope fills and the count shows on its own
+        const pct = hasTarget ? Math.min(100, Math.round((done / target) * 100)) : (done > 0 ? 100 : 0)
+        const labelColour = (hasTarget || done > 0) ? accent : '#666'
+        const countText = hasTarget ? `${done}/${target}` : `${done}`
         const letterStyle = { position: 'absolute', fontFamily: 'Orbitron, sans-serif', fontSize: 11, fontWeight: 500, letterSpacing: 0, lineHeight: '12px', width: 14, textAlign: 'center', color: '#9A9A9A' }
         if (corner === 'bottom') {
           return (
@@ -38,7 +40,7 @@ export default function SectionRopes({ byPeriod, accent: _accent, corner = 'tl',
                 <div style={{ width: `${pct}%`, height: '100%', background: accent, boxShadow: glow, borderRadius: 2, transition: 'width 0.3s' }} />
               </div>
               <div style={{ ...letterStyle, left: 4, bottom: o - 4, padding: '0 3px', background: '#1A1F24' }}>{letter}</div>
-              <div style={{ position: 'absolute', left: 20, bottom: o - 4, padding: '0 3px', background: '#1A1F24', fontFamily: 'Orbitron, sans-serif', fontSize: 9, letterSpacing: 1, lineHeight: '11px', color: labelColour }}>{done}/{target}</div>
+              <div style={{ position: 'absolute', left: 20, bottom: o - 4, padding: '0 3px', background: '#1A1F24', fontFamily: 'Orbitron, sans-serif', fontSize: 9, letterSpacing: 1, lineHeight: '11px', color: labelColour }}>{countText}</div>
             </div>
           )
         }
@@ -74,7 +76,7 @@ export default function SectionRopes({ byPeriod, accent: _accent, corner = 'tl',
               )
             })()}
             {/* count on the line, at its open end -- inset 4px from the card edge like the mockup so it never overshoots it */}
-            <div style={{ position: 'absolute', [other]: 4, [vert]: o - 4, padding: '0 3px', background: '#1A1F24', fontFamily: 'Orbitron, sans-serif', fontSize: 11, fontWeight: 500, letterSpacing: 0, lineHeight: '12px', textAlign: side === 'left' ? 'right' : 'left', color: labelColour }}>{done}/{target}</div>
+            <div style={{ position: 'absolute', [other]: 4, [vert]: o - 4, padding: '0 3px', background: '#1A1F24', fontFamily: 'Orbitron, sans-serif', fontSize: 11, fontWeight: 500, letterSpacing: 0, lineHeight: '12px', textAlign: side === 'left' ? 'right' : 'left', color: labelColour }}>{countText}</div>
             {/* one D / W / M letter per rope row, in the gap between the two cards (left-hand card draws it) */}
             {side === 'left' && <div className="neon-gap-letter" style={{ ...letterStyle, left: 'calc(100% + 10px)', transform: 'translateX(-50%)', [vert]: o - 4 }}>{letter}</div>}
           </div>

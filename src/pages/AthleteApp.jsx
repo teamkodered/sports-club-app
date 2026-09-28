@@ -1180,13 +1180,13 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
             {[['day', 'D'], ['week', 'W'], ['month', 'M']].map(([key, letter]) => {
               const { done, target } = questionProgressByPeriod[key]
               const hasTarget = target > 0
-              const pct = hasTarget ? Math.min(100, Math.round((done / target) * 100)) : 0
+              const pct = hasTarget ? Math.min(100, Math.round((done / target) * 100)) : (done > 0 ? 100 : 0)
               const hit = hasTarget && done >= target
               return (
                 <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                   <span style={{ fontSize: 6, fontWeight: 700, width: 6, color: hasTarget ? (hit ? '#1D9E75' : 'var(--text-tertiary)') : 'var(--border)' }}>{letter}</span>
                   <div style={{ flex: 1, height: 3, borderRadius: 2, background: 'var(--border)', overflow: 'hidden' }}>
-                    {hasTarget && <div style={{ width: `${pct}%`, height: '100%', background: hit ? '#1D9E75' : '#E24B4A', borderRadius: 2 }} />}
+                    {(hasTarget || done > 0) && <div style={{ width: `${pct}%`, height: '100%', background: hit || !hasTarget ? '#1D9E75' : '#E24B4A', borderRadius: 2 }} />}
                   </div>
                 </div>
               )
@@ -2343,7 +2343,34 @@ export default function AthleteApp() {
   // Also logs a points_log row (same as every other point award in the
   // app) so it shows up with a reason in the athlete's own points
   // history list, not just as an invisible bump to the raw totals.
-  async function awardHousePoints(reasonKey) {
+  // A cleared / removed question takes back the house point it earned today:
+  // a matching minus entry is added (history stays honest, totals net out),
+  // student + house totals go down, no animation. Only ever undoes an award
+  // actually made today for that question, and never more than once.
+  async function revokeF2fQuestionPoint(questionLabel) {
+    if (!student) return
+    const today = new Date().toISOString().split('T')[0]
+    const award = `F2F question logged: ${questionLabel}`, undo = `F2F question cleared: ${questionLabel}`
+    const { data: rows, error } = await supabase.from('points_log').select('point_type, points_awarded')
+      .eq('student_id', student.id).in('point_type', [award, undo]).gte('awarded_at', today)
+    if (error) return
+    const awards = (rows || []).filter(r => r.point_type === award)
+    const net = awards.length - (rows || []).filter(r => r.point_type === undo).length
+    if (net <= 0) return
+    const amount = awards[0]?.points_awarded || athleteHousePoints.f2f_question || 0
+    if (!amount) return
+    const { data: s } = await supabase.from('students').select('members(houses(name))').eq('id', student.id).single()
+    await supabase.rpc('adjust_student_points', { p_student_id: student.id, p_house_delta: -amount, p_individual_delta: -amount })
+    await supabase.from('points_log').insert({
+      student_id: student.id, point_type: undo, points_awarded: -amount, point_scope: 'both', awarded_at: new Date().toISOString(),
+    })
+    const houseName = s?.members?.houses?.name
+    if (houseName) await supabase.rpc('adjust_house_points', { p_house_name: houseName, p_delta: -amount })
+    setStudent(prev => prev ? { ...prev, house_points: (prev.house_points || 0) - amount, individual_points: (prev.individual_points || 0) - amount } : prev)
+    setMonthHousePoints(n => Math.max(0, (n || 0) - amount))
+  }
+
+  async function awardHousePoints(reasonKey, detail) {
     const amount = athleteHousePoints[reasonKey]
     if (!student || !amount) return
     const reasonLabels = {
@@ -2355,7 +2382,7 @@ export default function AthleteApp() {
     const { data: s } = await supabase.from('students').select('members(houses(name))').eq('id', student.id).single()
     await supabase.rpc('adjust_student_points', { p_student_id: student.id, p_house_delta: amount, p_individual_delta: amount })
     await supabase.from('points_log').insert({
-      student_id: student.id, point_type: reasonLabels[reasonKey] || reasonKey,
+      student_id: student.id, point_type: (reasonLabels[reasonKey] || reasonKey) + (detail ? `: ${detail}` : ''),
       points_awarded: amount, point_scope: 'both', awarded_at: new Date().toISOString(),
     })
     const houseName = s?.members?.houses?.name
@@ -2882,7 +2909,8 @@ export default function AthleteApp() {
       if (!isTargeted) return
       const wasLogged = questionLogged(sectionKey, questionLabel, oldSessionLike)
       const isLoggedNow = questionLogged(sectionKey, questionLabel, newSessionLike)
-      if (!wasLogged && isLoggedNow) awardHousePoints('f2f_question')
+      if (!wasLogged && isLoggedNow) awardHousePoints('f2f_question', questionLabel)
+      else if (wasLogged && !isLoggedNow) revokeF2fQuestionPoint(questionLabel)
     })
   }
 
@@ -3218,6 +3246,15 @@ export default function AthleteApp() {
         byPeriod[period].done += entryCount
         byPeriod[period].target += freq.targetNum
       }
+    }
+    // Periods with no target: still count what was completed so the ropes show progress
+    const todayStrU = new Date().toISOString().split('T')[0]
+    for (const period of ['day', 'week', 'month']) {
+      if (byPeriod[period].target > 0) continue
+      const startStr = periodStartFor(period).toISOString().split('T')[0]
+      const list = (sessions || []).filter(s => s.session_date >= startStr && s.session_date !== todayStrU)
+      const todaySaved = (sessions || []).find(s => s.session_date === todayStrU)
+      byPeriod[period].done = list.reduce((n, s) => n + countSectionDoneForDay(sectionKey, s, false), 0) + countSectionDoneForDay(sectionKey, todaySaved || {}, true)
     }
     return byPeriod
   }
@@ -3659,6 +3696,12 @@ export default function AthleteApp() {
         .reduce((sum, s) => sum + questionLoggedCount(sectionKey, questionLabel, s), 0)
       byPeriod[period] = { done: entryCount, target: freq.targetNum }
     }
+    // Periods with no target: still count completions so the bars show progress
+    for (const period of ['day', 'week', 'month']) {
+      if (byPeriod[period].target > 0) continue
+      const startStr = periodStartFor(period).toISOString().split('T')[0]
+      byPeriod[period].done = sessions.filter(s => s.session_date >= startStr).reduce((n, s) => n + questionLoggedCount(sectionKey, questionLabel, s), 0)
+    }
     return byPeriod
   }
   // Compact vertical version (3 bars stacked, not side by side) for
@@ -3674,14 +3717,14 @@ export default function AthleteApp() {
         {periods.map(([key, letter]) => {
           const { done, target } = byPeriod[key]
           const hasTarget = target > 0
-          const pct = hasTarget ? Math.min(100, Math.round((done / target) * 100)) : 0
+          const pct = hasTarget ? Math.min(100, Math.round((done / target) * 100)) : (done > 0 ? 100 : 0) // no target: completed still shows
           return (
             <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
               <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 8, width: 8, color: '#9A9A9A' }}>{letter}</span>
               <div style={{ flex: 1, height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.08)' }}>
                 <div style={{ width: `${pct}%`, height: '100%', background: accent, boxShadow: pct ? `0 0 3px ${accent}` : 'none', borderRadius: 2, transition: 'width 0.3s' }} />
               </div>
-              <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 8, minWidth: 22, textAlign: 'right', color: hasTarget ? accent : '#666' }}>{done}/{target}</span>
+              <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 8, minWidth: 22, textAlign: 'right', color: (hasTarget || done > 0) ? accent : '#666' }}>{hasTarget ? `${done}/${target}` : done}</span>
             </div>
           )
         })}

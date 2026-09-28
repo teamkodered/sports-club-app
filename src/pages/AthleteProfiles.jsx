@@ -1247,13 +1247,13 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
             {[['day', 'D'], ['week', 'W'], ['month', 'M']].map(([key, letter]) => {
               const { done, target } = questionProgressByPeriod[key]
               const hasTarget = target > 0
-              const pct = hasTarget ? Math.min(100, Math.round((done / target) * 100)) : 0
+              const pct = hasTarget ? Math.min(100, Math.round((done / target) * 100)) : (done > 0 ? 100 : 0)
               const hit = hasTarget && done >= target
               return (
                 <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                   <span style={{ fontSize: 6, fontWeight: 700, width: 6, color: hasTarget ? (hit ? '#1D9E75' : 'var(--text-tertiary)') : 'var(--border)' }}>{letter}</span>
                   <div style={{ flex: 1, height: 3, borderRadius: 2, background: 'var(--border)', overflow: 'hidden' }}>
-                    {hasTarget && <div style={{ width: `${pct}%`, height: '100%', background: hit ? '#1D9E75' : '#E24B4A', borderRadius: 2 }} />}
+                    {(hasTarget || done > 0) && <div style={{ width: `${pct}%`, height: '100%', background: hit || !hasTarget ? '#1D9E75' : '#E24B4A', borderRadius: 2 }} />}
                   </div>
                 </div>
               )
@@ -3368,6 +3368,15 @@ export default function AthleteProfiles() {
         byPeriod[period].target += freq.targetNum
       }
     }
+    // Periods with no target: still count what was completed so the ropes show progress
+    const todayStrU = new Date().toISOString().split('T')[0]
+    for (const period of ['day', 'week', 'month']) {
+      if (byPeriod[period].target > 0) continue
+      const startStr = periodStartFor(period).toISOString().split('T')[0]
+      const list = (f2fData || []).filter(s => s.session_date >= startStr && s.session_date !== todayStrU)
+      const todaySaved = (f2fData || []).find(s => s.session_date === todayStrU)
+      byPeriod[period].done = list.reduce((n, s) => n + countSectionDoneForDay(sectionKey, s, false), 0) + countSectionDoneForDay(sectionKey, todaySaved || {}, true)
+    }
     return byPeriod
   }
   // Three small progress bars (Daily/Weekly/Monthly) for a section
@@ -3877,6 +3886,16 @@ export default function AthleteProfiles() {
         .reduce((sum, s) => sum + subItemCountInSession(subItem, s), 0)
       byPeriod[period] = { done: entryCount, target: freq.targetNum }
     }
+    // Periods with no target: still count completions so the bars show progress
+    {
+      const sec = DASHBOARD_SECTIONS.find(x => x.key === sectionKey)
+      const subs = sec ? sec.subItems.filter(sub => sub.label === questionLabel) : []
+      for (const period of ['day', 'week', 'month']) {
+        if (byPeriod[period].target > 0 || !subs.length) continue
+        const startStr = periodStartFor(period).toISOString().split('T')[0]
+        byPeriod[period].done = (f2fData || []).filter(s => s.session_date >= startStr).reduce((n, s) => n + subs.reduce((m, sub) => m + subItemCountInSession(sub, s), 0), 0)
+      }
+    }
     return byPeriod
   }
   function CoachQuestionProgressBarsVertical({ sectionKey, questionLabel }) {
@@ -3889,14 +3908,14 @@ export default function AthleteProfiles() {
         {periods.map(([key, letter]) => {
           const { done, target } = byPeriod[key]
           const hasTarget = target > 0
-          const pct = hasTarget ? Math.min(100, Math.round((done / target) * 100)) : 0
+          const pct = hasTarget ? Math.min(100, Math.round((done / target) * 100)) : (done > 0 ? 100 : 0) // no target: completed still shows
           return (
             <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
               <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 8, width: 8, color: '#9A9A9A' }}>{letter}</span>
               <div style={{ flex: 1, height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.08)' }}>
                 <div style={{ width: `${pct}%`, height: '100%', background: accent, boxShadow: pct ? `0 0 3px ${accent}` : 'none', borderRadius: 2, transition: 'width 0.3s' }} />
               </div>
-              <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 8, minWidth: 22, textAlign: 'right', color: hasTarget ? accent : '#666' }}>{done}/{target}</span>
+              <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 8, minWidth: 22, textAlign: 'right', color: (hasTarget || done > 0) ? accent : '#666' }}>{hasTarget ? `${done}/${target}` : done}</span>
             </div>
           )
         })}
