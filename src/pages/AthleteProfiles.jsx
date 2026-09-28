@@ -8742,7 +8742,7 @@ export default function AthleteProfiles() {
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, alignItems: 'start', width: '100%' }}>
-                  <div ref={physicalSectionRef} className={showPhysicalSection ? 'neon-opens-up' : undefined} style={{ order: showPhysicalSection ? 11 : 4, display: 'flex', flexDirection: 'column-reverse', alignItems: 'center', minWidth: 0, gridColumn: showPhysicalSection ? '1 / -1' : 'auto' }}>
+                  <div ref={physicalSectionRef} className={showPhysicalSection ? 'neon-opens-up' : undefined} style={{ order: showPhysicalSection ? 11 : 4, display: 'flex', flexDirection: 'column-reverse', alignItems: 'center', minWidth: 0, gridColumn: showPhysicalSection ? '1 / -1' : (showTechniqueSection ? '2' : 'auto') }}>
                   <button type="button" className={`neon-pillar neon-br${showPhysicalSection ? ' is-open' : ''}`} onClick={togglePhysicalSection} style={showPhysicalSection ? {
                     width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
                     textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
@@ -9229,7 +9229,7 @@ export default function AthleteProfiles() {
                   </div>
                   </div>
 
-                  <div ref={tacticalSectionRef} style={{ order: showTacticalSection ? 0 : 2, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showTacticalSection ? '1 / -1' : 'auto' }}>
+                  <div ref={tacticalSectionRef} style={{ order: showTacticalSection ? 0 : 2, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showTacticalSection ? '1 / -1' : (showMentalitySection ? '2' : 'auto') }}>
                   <button type="button" className={`neon-pillar neon-tr${showTacticalSection ? ' is-open' : ''}`} onClick={() => { setShowTacticalSection(v => { if (!v) setTimeout(() => tacticalSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150); if (v) setExpandedTacticalCategory(null); return !v }) }} style={showTacticalSection ? {
                     width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
                     textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
