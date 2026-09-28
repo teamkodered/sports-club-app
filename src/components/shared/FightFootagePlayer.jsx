@@ -42,6 +42,52 @@ function TransportIcon({ name, size = 14 }) {
   }
 }
 
+// Marker time as m:ss.ss (the popup needs frame-level precision, unlike
+// the m:ss used on the scrub bar), and parsing it back. Accepts "1:23.4",
+// "1:23" or plain seconds like "83.4". Returns NaN if unreadable.
+function fmtPrecise(t) {
+  if (!isFinite(t)) return '0:00.00'
+  const m = Math.floor(t / 60)
+  const sec = (t - m * 60).toFixed(2).padStart(5, '0')
+  return `${m}:${sec}`
+}
+function parseTimeText(str) {
+  const txt = (str || '').trim()
+  if (!txt) return NaN
+  if (txt.includes(':')) {
+    const [mm, ss] = txt.split(':')
+    const m = parseInt(mm, 10), sec = parseFloat(ss)
+    if (!isFinite(m) || !isFinite(sec) || sec < 0 || sec >= 60) return NaN
+    return m * 60 + sec
+  }
+  const n = parseFloat(txt)
+  return isFinite(n) ? n : NaN
+}
+
+// One editable time (start or end) in the edit-marker popup: typed value
+// commits on Enter / leaving the field (and snaps back if unreadable),
+// −/+ nudge by one frame, Now takes the playhead's position.
+function TimeField({ label, value, onChange, onNow, frame }) {
+  const [text, setText] = useState(fmtPrecise(value))
+  useEffect(() => { setText(fmtPrecise(value)) }, [value])
+  function commit() {
+    const t = parseTimeText(text)
+    if (isNaN(t)) setText(fmtPrecise(value)); else onChange(t)
+  }
+  const small = { padding: '4px 9px', fontSize: 13, minWidth: 30, justifyContent: 'center', ...GLASS_STYLE }
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', width: 34 }}>{label}</span>
+      <button type="button" className="btn btn-sm" style={small} title="Back 1 frame" onClick={() => onChange(value - frame)}>−</button>
+      <input value={text} onChange={e => setText(e.target.value)} onBlur={commit}
+        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commit(); e.currentTarget.blur() } }}
+        inputMode="decimal" style={{ width: 84, fontSize: 13, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }} />
+      <button type="button" className="btn btn-sm" style={small} title="Forward 1 frame" onClick={() => onChange(value + frame)}>+</button>
+      <button type="button" className="btn btn-sm" style={small} title="Use the current playhead position" onClick={onNow}>Now</button>
+    </div>
+  )
+}
+
 // Speed picker used in both the new-note and edit-note popups, so the two
 // always offer the same options and look the same. Selected = lighter
 // see-through grey + white outline, matching the main speed row.
@@ -178,6 +224,12 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
   const [editingMarker, setEditingMarker] = useState(null)
   const [editingMarkerNoteText, setEditingMarkerNoteText] = useState('')
   const [editingMarkerColour, setEditingMarkerColour] = useState(HIGHLIGHT_COLOURS[0])
+  // Edited start/end, applied live to the marker (so its block moves on
+  // the timeline and its note shows over the new range) and restored from
+  // editOriginalRef if the edit is cancelled.
+  const [editStart, setEditStart] = useState(0)
+  const [editEnd, setEditEnd] = useState(0)
+  const editOriginalRef = useRef(null) // { id, start, end }
   const [editingMarkerSpeed, setEditingMarkerSpeed] = useState(1)
   const [editingMarkerClip, setEditingMarkerClip] = useState(null)
 
@@ -1046,6 +1098,45 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
     setEditingMarkerColour(m.highlight_color || HIGHLIGHT_COLOURS[0])
     setEditingMarkerSpeed(m.playback_speed || 1)
     setEditingMarkerClip(clips.find(c => c.marker_id === m.id) || null)
+    setEditStart(m.start_seconds)
+    setEditEnd(m.end_seconds)
+    editOriginalRef.current = { id: m.id, start: m.start_seconds, end: m.end_seconds }
+  }
+
+  const MIN_SECTION_SECONDS = 0.1
+  function setMarkerTimesLocally(id, start, end) {
+    setMarkers(prev => prev.map(x => x.id === id ? { ...x, start_seconds: start, end_seconds: end } : x).sort((a, b) => a.start_seconds - b.start_seconds))
+  }
+
+  // which: 'start' | 'end'. Keeps times inside the video, keeps end at
+  // least MIN_SECTION_SECONDS after start (a photo marker is one instant,
+  // so start and end move together), and seeks to the edge being edited
+  // so the frame is visible behind the popup.
+  function applyEditTime(which, t) {
+    const m = editingMarker
+    if (!m) return
+    const max = duration || videoRef.current?.duration || 0
+    let start = editStart, end = editEnd
+    if (m.marker_type === 'photo') {
+      start = end = Math.max(0, Math.min(max, t))
+    } else if (which === 'start') {
+      start = Math.max(0, Math.min(t, end - MIN_SECTION_SECONDS))
+    } else {
+      end = Math.min(max, Math.max(t, start + MIN_SECTION_SECONDS))
+    }
+    setEditStart(start)
+    setEditEnd(end)
+    setMarkerTimesLocally(m.id, start, end)
+    const v = videoRef.current
+    if (v) { v.pause(); seekTo(which === 'end' ? end : start) }
+  }
+
+  // Closing without saving puts the block back where it was.
+  function closeMarkerEditor() {
+    const o = editOriginalRef.current
+    if (o) setMarkerTimesLocally(o.id, o.start, o.end)
+    editOriginalRef.current = null
+    setEditingMarker(null)
   }
 
   function handleMarkerPointerDown(m) {
@@ -1074,6 +1165,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
   }
 
   async function duplicateMarker(m) {
+    closeMarkerEditor() // any unsaved time edits are dropped; the copy is of the saved marker
     const { data: { user } } = await supabase.auth.getUser()
     const { data: member } = await supabase.from('members').select('id').eq('auth_id', user.id).single()
     const { data: copy } = await supabase.from('fight_footage_markers').insert({
@@ -1093,9 +1185,13 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
   // Note text, highlight colour, and this section's own playback
   // speed all save together now, rather than as separate edit paths.
   async function saveMarkerEdits(m, colour, playbackSpeed) {
-    const updates = { note_text: editingMarkerNoteText.trim() || null, highlight_color: colour, playback_speed: playbackSpeed }
-    await supabase.from('fight_footage_markers').update(updates).eq('id', m.id)
-    setMarkers(prev => prev.map(x => x.id === m.id ? { ...x, ...updates } : x))
+    const updates = { note_text: editingMarkerNoteText.trim() || null, highlight_color: colour, playback_speed: playbackSpeed, start_seconds: editStart, end_seconds: editEnd }
+    const { error } = await supabase.from('fight_footage_markers').update(updates).eq('id', m.id)
+    if (error) { alert('Could not save marker: ' + error.message); return }
+    setMarkers(prev => prev.map(x => x.id === m.id ? { ...x, ...updates } : x).sort((a, b) => a.start_seconds - b.start_seconds))
+    // The note overlay may be showing the pre-edit copy of this marker.
+    setViewingMarkerNote(v => v?.id === m.id ? { ...v, ...updates } : v)
+    editOriginalRef.current = null
     setEditingMarker(null)
   }
 
@@ -1458,8 +1554,20 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
       {editingMarker && (
         <div data-no-toggle style={{ position: 'fixed', bottom: 90, left: 12, right: 12, zIndex: 210, padding: 16, borderRadius: 12, ...GLASS_STYLE }}>
           <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>
-            {editingMarker.marker_type === 'photo' ? 'Photo marker' : 'Edit marker'} — {fmt(editingMarker.start_seconds)}{editingMarker.marker_type !== 'photo' ? ` → ${fmt(editingMarker.end_seconds)}` : ''}
+            {editingMarker.marker_type === 'photo' ? 'Photo marker' : 'Edit marker'} — {fmt(editStart)}{editingMarker.marker_type !== 'photo' ? ` → ${fmt(editEnd)} (${(editEnd - editStart).toFixed(1)}s)` : ''}
           </h3>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center', marginBottom: 12 }}>
+            <TimeField label={editingMarker.marker_type === 'photo' ? 'Time' : 'Start'} value={editStart} frame={FRAME_SECONDS}
+              onChange={t => applyEditTime('start', t)} onNow={() => applyEditTime('start', videoRef.current?.currentTime ?? currentTime)} />
+            {editingMarker.marker_type !== 'photo' && (
+              <TimeField label="End" value={editEnd} frame={FRAME_SECONDS}
+                onChange={t => applyEditTime('end', t)} onNow={() => applyEditTime('end', videoRef.current?.currentTime ?? currentTime)} />
+            )}
+            {editingMarkerClip && (editStart !== editOriginalRef.current?.start || editEnd !== editOriginalRef.current?.end) && (
+              <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', textAlign: 'center' }}>The recorded slow-mo clip keeps its original length.</p>
+            )}
+          </div>
 
           {editingMarker.marker_type === 'photo' && (
             <div style={{ marginBottom: 12 }}>
@@ -1498,7 +1606,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn btn-sm" style={GLASS_STYLE} onClick={() => duplicateMarker(editingMarker)}>📋 Duplicate</button>
             <button className="btn btn-sm" style={{ ...GLASS_STYLE, color: '#E24B4A' }} onClick={() => deleteMarker(editingMarker)}>🗑️ Delete</button>
-            <button className="btn btn-sm" style={GLASS_STYLE} onClick={() => setEditingMarker(null)}>Cancel</button>
+            <button className="btn btn-sm" style={GLASS_STYLE} onClick={closeMarkerEditor}>Cancel</button>
           </div>
         </div>
       )}
