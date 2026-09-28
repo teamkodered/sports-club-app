@@ -2734,7 +2734,7 @@ function OpponentQuickNoteForm({ onSave, showShareToggle, disabled }) {
 }
 
 export default function AthleteProfiles() {
-  const { profile, isAdmin } = useAuth()
+  const { profile, isAdmin, registerAccess } = useAuth()
   const navigate = useNavigate()
   // Quick logger (pick another athlete to log a session for without
   // leaving this screen) is paused for now -- its old trigger (hold on
@@ -6120,14 +6120,18 @@ export default function AthleteProfiles() {
                 register type in place of the dashboard below, rather than
                 the small athlete-picker dropdown this used to open. */}
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
-              <button className={showKrRegister ? 'btn btn-sm btn-primary' : 'btn btn-sm'}
-                onClick={() => { setShowKrRegister(v => !v); setShowKrbaRegister(false) }}>
-                👥 Team KR {showKrRegister ? '▲' : '▼'}
-              </button>
-              <button className={showKrbaRegister ? 'btn btn-sm btn-primary' : 'btn btn-sm'}
-                onClick={() => { setShowKrbaRegister(v => !v); setShowKrRegister(false) }}>
-                👥 KRBA {showKrbaRegister ? '▲' : '▼'}
-              </button>
+              {(!registerAccess?.types || registerAccess.types.includes('kr')) ? (
+                <button className={showKrRegister ? 'btn btn-sm btn-primary' : 'btn btn-sm'}
+                  onClick={() => { setShowKrRegister(v => !v); setShowKrbaRegister(false) }}>
+                  👥 Team KR {showKrRegister ? '▲' : '▼'}
+                </button>
+              ) : <span />}
+              {(!registerAccess?.types || registerAccess.types.includes('krba')) && (
+                <button className={showKrbaRegister ? 'btn btn-sm btn-primary' : 'btn btn-sm'}
+                  onClick={() => { setShowKrbaRegister(v => !v); setShowKrRegister(false) }}>
+                  👥 KRBA {showKrbaRegister ? '▲' : '▼'}
+                </button>
+              )}
             </div>
 
             {(showKrRegister || showKrbaRegister) ? (

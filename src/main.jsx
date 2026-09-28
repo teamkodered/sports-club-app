@@ -64,7 +64,6 @@ function ViewOnlyScope({ page, viewOnly, children }) {
   }, [page, viewOnly])
   return (
     <>
-      {viewOnly && <div className="kc-view-only-banner" role="status">👁 View only — you can look but not change anything on this page</div>}
       {children}
     </>
   )

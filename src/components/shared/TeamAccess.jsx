@@ -115,24 +115,43 @@ export default function TeamAccess() {
                 })}
               </div>
 
-              {levelFor('registers') !== 'none' && <>
-                <div className="team-label">REGISTERS THEY CAN TAKE</div>
-                <div className="team-checks">
-                  {REGISTER_TYPE_OPTIONS.map(t => {
-                    const on = !editing.access.registers.types || editing.access.registers.types.includes(t.key)
-                    return <label key={t.key}><input type="checkbox" checked={on} onChange={() => toggleIn('types', t.key, allTypes)} />{t.label}</label>
-                  })}
-                </div>
-                {(!editing.access.registers.types || editing.access.registers.types.includes('class')) && classes.length > 0 && <>
-                  <div className="team-label">CLASSES {editing.access.registers.classes ? `(${editing.access.registers.classes.length} of ${classes.length})` : '(all)'}</div>
-                  <div className="team-checks">
-                    {classes.map(c => {
-                      const on = !editing.access.registers.classes || editing.access.registers.classes.includes(c.id)
-                      return <label key={c.id}><input type="checkbox" checked={on} onChange={() => toggleIn('classes', c.id, allClassIds)} />{c.name} <span style={{ color: 'var(--text-tertiary)' }}>{c.day_of_week} {c.start_time?.slice(0, 5)}</span></label>
-                    })}
+              {levelFor('registers') !== 'none' && (() => {
+                // One tick-list of individual registers: every class on its own, then the athlete / group registers.
+                // Stored as registers.classes (class ids) + registers.types ('class' is added automatically when any class is ticked).
+                const regs = editing.access.registers
+                const otherTypes = REGISTER_TYPE_OPTIONS.filter(t => t.key !== 'class')
+                const classOn = id => !regs.classes ? (!regs.types || regs.types.includes('class')) : regs.classes.includes(id)
+                const typeOn = k => !regs.types || regs.types.includes(k)
+                const everything = !regs.types && !regs.classes
+                const apply = (classIds, typeKeys) => {
+                  const allC = classIds.length === classes.length, allT = otherTypes.every(t => typeKeys.includes(t.key))
+                  const types = (allC && allT) ? null : [...(classIds.length ? ['class'] : []), ...typeKeys]
+                  setEditing(e => ({ ...e, access: { ...e.access, registers: { types, classes: allC ? null : classIds } } }))
+                }
+                const curClassIds = classes.filter(c => classOn(c.id)).map(c => c.id)
+                const curTypes = otherTypes.filter(t => typeOn(t.key)).map(t => t.key)
+                const toggleClass = id => apply(curClassIds.includes(id) ? curClassIds.filter(x => x !== id) : [...curClassIds, id], curTypes)
+                const toggleType = k => apply(curClassIds, curTypes.includes(k) ? curTypes.filter(x => x !== k) : [...curTypes, k])
+                return <>
+                  <div className="team-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>REGISTERS THEY CAN TAKE {everything ? '(all)' : `(${curClassIds.length + curTypes.length} of ${classes.length + otherTypes.length})`}</span>
+                    <span style={{ display: 'flex', gap: 6 }}>
+                      <button type="button" className="btn btn-sm" onClick={() => apply(classes.map(c => c.id), otherTypes.map(t => t.key))}>All</button>
+                      <button type="button" className="btn btn-sm" onClick={() => apply([], [])}>None</button>
+                    </span>
                   </div>
-                </>}
-              </>}
+                  <div className="team-checks">
+                    {classes.map(c => (
+                      <label key={c.id}><input type="checkbox" checked={classOn(c.id)} onChange={() => toggleClass(c.id)} />
+                        <b style={{ fontWeight: 600 }}>{c.day_of_week} {c.start_time?.slice(0, 5)}</b> <span style={{ color: 'var(--text-secondary)' }}>{c.name}</span></label>
+                    ))}
+                    <div className="team-label" style={{ marginTop: 4 }}>ATHLETE &amp; GROUP REGISTERS</div>
+                    {otherTypes.map(t => (
+                      <label key={t.key}><input type="checkbox" checked={typeOn(t.key)} onChange={() => toggleType(t.key)} />{t.label}</label>
+                    ))}
+                  </div>
+                </>
+              })()}
             </>}
 
             <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
