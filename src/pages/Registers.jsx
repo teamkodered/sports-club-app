@@ -1169,12 +1169,13 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
         const record = hasRecord ? `${st.wins || 0}W ${st.losses || 0}L ${st.draws || 0}D` : '0 fights'
         const level = st.pka_belt || st.krba_level || ''
         return { name: `${m?.first_name || ''} ${m?.last_name || ''}`.trim(), age: age ?? null, dob: dob || '',
-                 line: `${`${m?.first_name || ''} ${m?.last_name || ''}`.trim()} – ${age ?? '—'} – ${yob} – ${record}${level ? ` / ${level}` : ''}` }
+                 // KRBA: record only · KR: experience level only
+                 line: `${`${m?.first_name || ''} ${m?.last_name || ''}`.trim()} – ${age ?? '—'} – ${yob} – ${regType === 'krba' ? record : (level || '—')}` }
       })
     rows.sort(order === 'age'
       ? (a, b) => (a.dob && b.dob ? b.dob.localeCompare(a.dob) : a.dob ? -1 : 1) // youngest first
       : (a, b) => a.name.localeCompare(b.name))
-    const heading = `${REGISTER_TYPES.find(r => r.key === regType)?.label || 'Fighters'} fighters (${rows.length}) — ${order === 'age' ? 'by age' : 'by name'}\nName – Age – Born – Record / Level`
+    const heading = `${REGISTER_TYPES.find(r => r.key === regType)?.label || 'Fighters'} fighters (${rows.length}) — ${order === 'age' ? 'by age' : 'by name'}\nName – Age – Born – ${regType === 'krba' ? 'Record' : 'Level'}`
     const text = `${heading}\n${rows.map(r => r.line).join('\n')}`
     try {
       await navigator.clipboard.writeText(text)
