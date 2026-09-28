@@ -300,7 +300,9 @@ export default function Trackers({ onStatsReady } = {}) {
     return {
       all: true,
       pka: s.discipline === 'PKA',
-      krCentrePka: s.discipline === 'PKA' && s.class_schedule && s.class_schedule !== 'Moorways' && s.class_schedule !== 'Derby Moore',
+      // Blank class schedule counts as KR Centre (the main site) -- otherwise PKA students with no
+      // schedule yet (e.g. new joins from the forms) fell into none of the three venues
+      krCentrePka: s.discipline === 'PKA' && s.class_schedule !== 'Moorways' && s.class_schedule !== 'Derby Moore',
       derbyMoore: s.class_schedule === 'Derby Moore',
       moorways: s.class_schedule === 'Moorways',
       kr: !!s.is_kr,

@@ -1948,7 +1948,8 @@ export default function CRM() {
     function studentMatchesGroup(s) {
       if (selectedGroupKey === 'all') return true
       if (selectedGroupKey === 'pka') return s.discipline === 'PKA'
-      if (selectedGroupKey === 'krCentrePka') return s.discipline === 'PKA' && s.class_schedule && s.class_schedule !== 'Moorways' && s.class_schedule !== 'Derby Moore'
+      // Blank class schedule = KR Centre, so KR Centre + Derby Moore + Moorways always adds up to PKA
+      if (selectedGroupKey === 'krCentrePka') return s.discipline === 'PKA' && s.class_schedule !== 'Moorways' && s.class_schedule !== 'Derby Moore'
       if (selectedGroupKey === 'derbyMoore') return s.class_schedule === 'Derby Moore'
       if (selectedGroupKey === 'moorways') return s.class_schedule === 'Moorways'
       if (selectedGroupKey === 'kr') return !!s.is_kr
