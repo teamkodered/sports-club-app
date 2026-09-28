@@ -1550,8 +1550,8 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                       )}
                       <div className="reg-m-body">
                         <div className="reg-m-name">
-                          {onStudentNameClick && !selecting
-                            ? <button type="button" className="reg-m-namelink" onClick={e => { e.stopPropagation(); onStudentNameClick(st) }}>{m?.first_name} {m?.last_name}</button>
+                          {!selecting
+                            ? <button type="button" className="reg-m-namelink" onClick={e => { e.stopPropagation(); onStudentNameClick ? onStudentNameClick(st) : navigate(studentProfileLink(st)) }}>{m?.first_name} {m?.last_name}</button>
                             : <span>{m?.first_name} {m?.last_name}</span>}
                           {bday && <button type="button" className="reg-m-bday" title="Upcoming birthday" onClick={e => { e.stopPropagation(); setBirthdayPopup({ name: `${m?.first_name} ${m?.last_name}`, info: bday }) }}>🎂</button>}
                         </div>
@@ -1585,7 +1585,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           <button type="button" onClick={() => { setMultiAward(false); setAwardingFor(st) }}>+ Points</button>
                           <button type="button" onClick={() => setCalendarStudent(st)}>Calendar</button>
                           {(pointsByStudent[st.id] || []).length > 0 && <button type="button" onClick={() => setPointsPanelFor(st)}>Today's points</button>}
-                          {onStudentNameClick && <button type="button" onClick={() => onStudentNameClick(st)}>Profile</button>}
+                          <button type="button" onClick={() => onStudentNameClick ? onStudentNameClick(st) : navigate(studentProfileLink(st))}>Profile</button>
                           {onWeightClick && <button type="button" onClick={() => onWeightClick(st)}>Weights</button>}
                         </div>
                       </div>
