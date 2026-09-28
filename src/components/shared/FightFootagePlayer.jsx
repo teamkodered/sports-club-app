@@ -64,27 +64,38 @@ function parseTimeText(str) {
   return isFinite(n) ? n : NaN
 }
 
-// One editable time (start or end) in the edit-marker popup: typed value
-// commits on Enter / leaving the field (and snaps back if unreadable),
-// −/+ nudge by one frame, Now takes the playhead's position.
-function TimeField({ label, value, onChange, onNow, frame }) {
+// Marker time shown IN the edit-marker header, doing everything the old
+// time boxes did: tap to type (Enter / leave commits, unreadable snaps
+// back), the small ‹ › nudge one frame, and press-and-hold sets it to
+// the playhead ("Now").
+function InlineTime({ label, value, onChange, onNow, frame }) {
   const [text, setText] = useState(fmtPrecise(value))
+  const holdRef = useRef(null)
+  const heldRef = useRef(false)
   useEffect(() => { setText(fmtPrecise(value)) }, [value])
   function commit() {
     const t = parseTimeText(text)
     if (isNaN(t)) setText(fmtPrecise(value)); else onChange(t)
   }
-  const small = { padding: '4px 9px', fontSize: 13, minWidth: 30, justifyContent: 'center', ...GLASS_STYLE }
+  function down(e) {
+    heldRef.current = false
+    clearTimeout(holdRef.current)
+    const el = e.currentTarget
+    holdRef.current = setTimeout(() => { heldRef.current = true; el.blur(); onNow(); navigator.vibrate?.(15) }, 550)
+  }
+  function up() { clearTimeout(holdRef.current) }
+  const nudge = { background: 'none', border: 'none', color: 'rgba(255,255,255,0.75)', fontSize: 18, lineHeight: 1, padding: '6px 6px', cursor: 'pointer', minWidth: 28, minHeight: 32 }
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', width: 34 }}>{label}</span>
-      <button type="button" className="btn btn-sm" style={small} title="Back 1 frame" onClick={() => onChange(value - frame)}>−</button>
+    <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+      <button type="button" style={nudge} title={`${label}: back 1 frame`} aria-label={`${label} back 1 frame`} onClick={() => onChange(value - frame)}>‹</button>
       <input value={text} onChange={e => setText(e.target.value)} onBlur={commit}
         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commit(); e.currentTarget.blur() } }}
-        inputMode="decimal" style={{ width: 84, fontSize: 13, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }} />
-      <button type="button" className="btn btn-sm" style={small} title="Forward 1 frame" onClick={() => onChange(value + frame)}>+</button>
-      <button type="button" className="btn btn-sm" style={small} title="Use the current playhead position" onClick={onNow}>Now</button>
-    </div>
+        onPointerDown={down} onPointerUp={up} onPointerLeave={up} onPointerCancel={up}
+        onFocus={e => { if (heldRef.current) e.currentTarget.blur() }}
+        inputMode="decimal" aria-label={`${label} time (tap to type, hold for current position)`} title="Tap to type · hold to use the current position"
+        style={{ width: `${Math.max(5, text.length + 1)}ch`, padding: '2px 2px', border: 'none', borderBottom: '1px dashed rgba(255,255,255,0.45)', borderRadius: 0, background: 'transparent', color: '#fff', fontSize: 15, fontWeight: 600, textAlign: 'center', fontVariantNumeric: 'tabular-nums', fontFamily: 'inherit' }} />
+      <button type="button" style={nudge} title={`${label}: forward 1 frame`} aria-label={`${label} forward 1 frame`} onClick={() => onChange(value + frame)}>›</button>
+    </span>
   )
 }
 
@@ -1562,17 +1573,23 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
 
       {editingMarker && (
         <div data-no-toggle style={{ position: 'fixed', bottom: 90, left: 12, right: 12, zIndex: 210, padding: 16, borderRadius: 12, ...GLASS_STYLE }}>
-          <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>
-            {editingMarker.marker_type === 'photo' ? 'Photo marker' : 'Edit marker'} — {fmt(editStart)}{editingMarker.marker_type !== 'photo' ? ` → ${fmt(editEnd)} (${(editEnd - editStart).toFixed(1)}s)` : ''}
-          </h3>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center', marginBottom: 12 }}>
-            <TimeField label={editingMarker.marker_type === 'photo' ? 'Time' : 'Start'} value={editStart} frame={FRAME_SECONDS}
+          {/* Times live in the header: tap to type, ‹ › one frame, hold = playhead ("Now"). */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 2, marginBottom: 4 }}>
+            {editingMarker.marker_type === 'photo' && <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', marginRight: 4 }}>Photo at</span>}
+            <InlineTime label={editingMarker.marker_type === 'photo' ? 'Time' : 'Start'} value={editStart} frame={FRAME_SECONDS}
               onChange={t => applyEditTime('start', t)} onNow={() => applyEditTime('start', videoRef.current?.currentTime ?? currentTime)} />
             {editingMarker.marker_type !== 'photo' && (
-              <TimeField label="End" value={editEnd} frame={FRAME_SECONDS}
-                onChange={t => applyEditTime('end', t)} onNow={() => applyEditTime('end', videoRef.current?.currentTime ?? currentTime)} />
+              <>
+                <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14 }}>→</span>
+                <InlineTime label="End" value={editEnd} frame={FRAME_SECONDS}
+                  onChange={t => applyEditTime('end', t)} onNow={() => applyEditTime('end', videoRef.current?.currentTime ?? currentTime)} />
+                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginLeft: 4 }}>({(editEnd - editStart).toFixed(1)}s)</span>
+              </>
             )}
+          </div>
+          <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', textAlign: 'center', margin: '0 0 10px' }}>Tap a time to type · ‹ › one frame · hold a time to use the current position</p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center', marginBottom: 6 }}>
             {editingMarkerClip && (editStart !== editOriginalRef.current?.start || editEnd !== editOriginalRef.current?.end) && (
               <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', textAlign: 'center' }}>The recorded slow-mo clip keeps its original length.</p>
             )}
