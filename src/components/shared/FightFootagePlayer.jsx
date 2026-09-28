@@ -1488,7 +1488,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
             <button className="view-it-btn btn btn-sm" title="Zoom out" aria-label="Zoom out" style={ROUND_SM}
               disabled={zoomLevel === ZOOM_LEVELS[0]} onClick={() => setZoomLevel(z => ZOOM_LEVELS[Math.max(0, ZOOM_LEVELS.indexOf(z) - 1)])}>−</button>
 
-            <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8 }}>
+            <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, minWidth: 0 }}>
               {markers.length > 0 && (
                 <button className="view-it-btn btn btn-sm" title="Previous note start/end (hold to repeat)" aria-label="Previous note edge" style={ROUND_SM}
                   onPointerDown={() => startEdgeRepeat(-1)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat} onPointerCancel={stopStepRepeat}><TransportIcon name="rewind" /></button>
