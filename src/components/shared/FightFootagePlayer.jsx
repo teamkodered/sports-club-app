@@ -1170,13 +1170,13 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
           {controlsVisible && isCoach && sourceId && !showMarkerChoice && (
             (markerRangeStart === null || addMarkerHoldEngagedRef.current) ? (
               <button className="view-it-btn" title="Add marker here"
-                style={{ position: 'absolute', top: 52, left: 8, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer' }}
+                style={{ position: 'absolute', top: 8, left: 52, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer' }}
                 onPointerDown={e => { e.stopPropagation(); handleAddMarkerButtonPointerDown() }}
                 onPointerUp={e => { e.stopPropagation(); handleAddMarkerButtonPointerUp() }}
                 onPointerLeave={() => { if (addMarkerHoldEngagedRef.current) handleAddMarkerButtonPointerUp() }}>📍</button>
             ) : (
               <button className="view-it-btn" title="End marker here"
-                style={{ position: 'absolute', top: 52, left: 8, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer' }}
+                style={{ position: 'absolute', top: 8, left: 52, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer' }}
                 onClick={e => { e.stopPropagation(); handleMarkerButtonPress() }}>🏁</button>
             )
           )}
@@ -1233,7 +1233,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
         {/* Title sits between the fullscreen button's corner and the
             right-hand cluster, so it can't run underneath either. */}
         <span style={{
-          position: 'absolute', top: 18, left: 56, right: 190, textAlign: 'center',
+          position: 'absolute', top: 18, left: 100, right: 190, textAlign: 'center',
           color: '#fff', fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>{title}</span>
         {/* 📷 and ⟳ live in one row with Close (to its left), pinned to the
