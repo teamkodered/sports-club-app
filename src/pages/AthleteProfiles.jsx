@@ -9541,8 +9541,8 @@ export default function AthleteProfiles() {
                     )
                   })()}
 
-                  <div ref={wellbeingSectionRef}>
-                  <button type="button" className="neon-pillar neon-bottom" onClick={() => { setShowWellbeingSection(v => { if (!v) setTimeout(() => wellbeingSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150); if (v) setExpandedHomeWb(null); return !v }) }} style={{
+                  <div ref={wellbeingSectionRef} className="neon-foundation-wrap" style={{ display: 'flex', flexDirection: 'column-reverse' }}>{/* Foundation opens UPWARDS: questions render above the header */}
+                  <button type="button" className="neon-pillar neon-bottom" onClick={() => { setShowWellbeingSection(v => { if (!v) setTimeout(() => wellbeingSectionRef.current?.firstElementChild?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 380); if (v) setExpandedHomeWb(null); return !v }) }} style={{
                     width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 12,
                     textAlign: 'center', padding: '18px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',

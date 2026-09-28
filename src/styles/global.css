@@ -516,3 +516,7 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .neon-home .neon-qpanel .neon-min:focus { outline: none; border-color: var(--q-accent) !important; }
 .neon-home .neon-qpanel .neon-save { min-width: 96px; clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 10px 100%, 0 50%); }
 .neon-home .neon-qpanel .neon-save:not(:disabled) { background: var(--q-accent) !important; color: #0A0A0A !important; box-shadow: 0 0 14px var(--q-glow); }
+
+/* Foundation slides UP: keep the header where the finger is while the questions grow above it */
+.neon-home .neon-foundation-wrap > .neon-pillar { overflow-anchor: auto; }
+.neon-home .neon-foundation-wrap > div { overflow-anchor: none; }
