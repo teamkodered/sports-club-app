@@ -3434,6 +3434,99 @@ export default function AthleteProfiles() {
     )
   }
 
+  // --- Wearable suggestions ("From Whoop · 12 min Meditation · Add / ✕") ------
+  // Nothing is filled in automatically: a matching wearable workout / last
+  // night's sleep shows as a suggestion inside the question; Add saves it
+  // through the normal save (same entry shape, points and progress), ✕
+  // dismisses it for good. The saved entry carries the wearable id, so the
+  // same workout can never be added twice.
+  const [wearableDismissed, setWearableDismissed] = useState([])
+  useEffect(() => {
+    const id = selected?.id
+    if (!id) { setWearableDismissed([]); return }
+    supabase.from('wearable_suggestion_dismissals').select('suggestion_key').eq('student_id', id)
+      .then(({ data, error }) => { if (!error) setWearableDismissed((data || []).map(r => r.suggestion_key)) })
+  }, [selected?.id])
+
+  function wearableSportKind(name) {
+    const n = (name || '').toLowerCase().replace(/[^a-z]/g, '')
+    if (/breathwork|breathing/.test(n)) return 'breathwork'
+    if (/meditat|mindful/.test(n)) return 'meditation'
+    if (/icebath|coldplunge|coldwater|coldshower|cryo/.test(n)) return 'coldWater'
+    return null
+  }
+
+  function wearableSuggestionsFor(q) {
+    const todayStr = new Date().toISOString().split('T')[0]
+    const out = []
+    if (q === 'meditation' || q === 'coldWater') {
+      const used = q === 'meditation'
+        ? (todaysMentalityLog.meditation?.entries || []).map(e => e.wearable_id).filter(Boolean)
+        : (todaysMentalityLog.coldWater?.wearableIds || [])
+      ;(whoopSessions || []).forEach(w => {
+        if (!w.start_time || new Date(w.start_time).toISOString().split('T')[0] !== todayStr) return
+        const kind = wearableSportKind(w.sport_name)
+        if (!kind || (q === 'meditation') !== (kind === 'meditation' || kind === 'breathwork')) return
+        const key = `${w.provider}:${w.provider_workout_id || w.id}`
+        if (used.includes(key) || wearableDismissed.includes(key)) return
+        const secs = w.duration_seconds || (w.end_time ? (new Date(w.end_time) - new Date(w.start_time)) / 1000 : 0)
+        const minutes = Math.max(1, Math.round(secs / 60))
+        const time = new Date(w.start_time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+        if (q === 'meditation') {
+          const type = kind === 'breathwork' ? 'Breath-focused meditation' : 'Meditation'
+          out.push({ key, provider: w.provider, text: `${type} · ${minutes} min · ${time}`,
+            apply: () => saveMentalityField('meditation', cur => ({ ...cur, entries: [...(cur.entries || []), { type, duration: String(minutes), wearable_id: key, source: w.provider }] })) })
+        } else {
+          out.push({ key, provider: w.provider, text: `${w.sport_name || 'Ice bath'} · ${minutes} min · ${time}`,
+            apply: () => saveMentalityField('coldWater', cur => ({ ...cur, count: (cur.count || 0) + 1, wearableIds: [...(cur.wearableIds || []), key] })) })
+        }
+      })
+    }
+    if (q === 'sleep') {
+      const sleepNow = todaysWellbeing.sleep || {}
+      if (!sleepNow.hours && !sleepNow.efficiency) {
+        const d = (wearableDaily || []).find(x => x.day === todayStr && (x.sleep_seconds || x.sleep_score != null))
+        const key = d ? `sleep:${d.provider}:${d.day}` : null
+        if (d && !wearableDismissed.includes(key)) {
+          const hours = d.sleep_seconds ? String(+(d.sleep_seconds / 3600).toFixed(1)) : ''
+          const efficiency = d.sleep_score != null ? String(Math.round(d.sleep_score)) : ''
+          out.push({ key, provider: d.provider, text: `${hours ? `${hours}h sleep` : 'Sleep'}${efficiency ? ` · ${efficiency}% performance` : ''}`,
+            apply: () => saveWellbeingField('sleep', cur => ({ ...cur, hours, efficiency, source: d.provider, wearable_id: key })) })
+        }
+      }
+    }
+    return out
+  }
+
+  async function dismissWearableSuggestion(key) {
+    setWearableDismissed(prev => prev.includes(key) ? prev : [...prev, key])
+    const id = selected?.id
+    if (!id) return
+    const { error } = await supabase.from('wearable_suggestion_dismissals').upsert({ student_id: id, suggestion_key: key }, { onConflict: 'student_id,suggestion_key' })
+    if (error) console.warn('Could not save dismissal (hidden on this device only):', error.message)
+  }
+
+  function WearableSuggestions({ q, colour = '#22B14C' }) {
+    const list = wearableSuggestionsFor(q)
+    if (!list.length) return null
+    return (
+      <div className="neon-wear-suggest" style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+        {list.map(sg => (
+          <div key={sg.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 6, background: colour + '14', border: `1px dashed ${colour}` }}>
+            <span style={{ fontSize: 16 }} aria-hidden="true">⌚</span>
+            <span style={{ flex: 1, minWidth: 0, fontSize: 12, lineHeight: 1.3 }}>
+              <span style={{ display: 'block', fontFamily: 'Orbitron, sans-serif', fontSize: 8, letterSpacing: 1.5, color: colour }}>FROM {providerLabel(sg.provider).toUpperCase()}</span>
+              {sg.text}
+            </span>
+            <button type="button" className="btn btn-sm neon-save" onClick={() => sg.apply()} style={{ minWidth: 0 }}>Add</button>
+            <button type="button" aria-label="Dismiss suggestion" onClick={() => dismissWearableSuggestion(sg.key)}
+              style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 16, padding: '0 4px' }}>✕</button>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
   // --- VIEW: history graph + entries for a section or one question -------
   // Read-only: builds everything from saved sessions (today = live state),
   // never writes anything.
@@ -9527,7 +9620,7 @@ export default function AthleteProfiles() {
                           border: `2px solid ${active ? SECTION_ACCENT_COLOURS.mentality : complete ? '#6D28D9' : 'var(--border)'}`,
                           background: complete ? '#6D28D912' : 'var(--bg-secondary)',
                         }}>
-                          <CoachQuestionProgressBarsVertical sectionKey="mentality" questionLabel={q.label} />
+                          <CoachQuestionProgressBarsVertical sectionKey="mentality" questionLabel={q.label} />{(q.key === 'meditation' || q.key === 'coldWater' || q.key === 'sleep') && wearableSuggestionsFor(q.key).length > 0 && <em className="neon-wear-chip" aria-label="Wearable suggestion available">⌚</em>}
                           <span style={{ flex: 1, fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{q.label}</span>
                           <span style={{ fontSize: active ? 26 : 20, flexShrink: 0 }}>{q.icon}</span>
                         </button>
@@ -9541,6 +9634,7 @@ export default function AthleteProfiles() {
                         {HistoryViewButton({ view: { sectionKey: 'mentality', q: expandedHomeMentality, label: MENTALITY_QUESTIONS.find(q => q.key === expandedHomeMentality)?.label || expandedHomeMentality, colour: '#22B14C' }, style: { marginRight: 'auto' } })}
                         <button type="button" className="btn btn-sm" onClick={() => clearMentalityQuestion(expandedHomeMentality)} style={{ fontSize: 11 }}>✕ Clear</button>
                       </div>
+                      {(expandedHomeMentality === 'meditation' || expandedHomeMentality === 'coldWater') && WearableSuggestions({ q: expandedHomeMentality, colour: '#22B14C' })}
                       {expandedHomeMentality === 'meditation' && (
                         CategorizedSessionLogger({ field: 'meditation', categories: MEDITATION_CATEGORIES })
                       )}
@@ -9584,7 +9678,7 @@ export default function AthleteProfiles() {
                       {expandedHomeMentality === 'coldWater' && (
                         <>
                           <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.coldWater?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>today</span></div>
-                          {AmountPicker({ draftKey: 'HomeMentality:coldWater', presets: [1, 2, 3], unit: '', step: 1, colour: '#22B14C', onAdd: n => saveMentalityField('coldWater', cur => ({ count: (cur.count || 0) + n })) })}
+                          {AmountPicker({ draftKey: 'HomeMentality:coldWater', presets: [1, 2, 3], unit: '', step: 1, colour: '#22B14C', onAdd: n => saveMentalityField('coldWater', cur => ({ ...cur, count: (cur.count || 0) + n })) })}
                         </>
                       )}
                       {expandedHomeMentality === 'activeRecovery' && (
@@ -9829,7 +9923,7 @@ export default function AthleteProfiles() {
                           border: `2px solid ${active ? SECTION_ACCENT_COLOURS.wellbeing : complete ? '#0E9F6E' : 'var(--border)'}`,
                           background: complete ? '#0E9F6E12' : 'var(--bg-secondary)',
                         }}>
-                          <CoachQuestionProgressBarsVertical sectionKey="wellbeing" questionLabel={q.label} />
+                          <CoachQuestionProgressBarsVertical sectionKey="wellbeing" questionLabel={q.label} />{(q.key === 'meditation' || q.key === 'coldWater' || q.key === 'sleep') && wearableSuggestionsFor(q.key).length > 0 && <em className="neon-wear-chip" aria-label="Wearable suggestion available">⌚</em>}
                           <span style={{ flex: 1, fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{q.label}</span>
                           <span style={{ fontSize: active ? 26 : 20, flexShrink: 0 }}>{q.icon}</span>
                         </button>
@@ -9845,6 +9939,7 @@ export default function AthleteProfiles() {
                           <button type="button" className="btn btn-sm" onClick={() => clearWellbeingQuestion(expandedHomeWb)} style={{ fontSize: 11 }}>✕ Clear</button>
                         </div>
                       )}
+                      {expandedHomeWb === 'sleep' && WearableSuggestions({ q: 'sleep', colour: '#C93BFF' })}
                       {expandedHomeWb === 'sleep' && (
                         <>
                           <div className="field"><label>Hours slept</label>
