@@ -3301,6 +3301,169 @@ export default function AthleteApp() {
     )
   }
 
+  // --- VIEW: history graph + entries for a section or one question -------
+  // Read-only: builds everything from saved sessions (today = live state),
+  // never writes anything.
+  const [historyView, setHistoryView] = useState(null) // { sectionKey, q, label, colour }
+  const [historyRange, setHistoryRange] = useState('month')
+
+  function historySessions() {
+    const todayStr = new Date().toISOString().split('T')[0]
+    const list = (sessions || []).filter(s => s.session_date !== todayStr)
+    const saved = (sessions || []).find(s => s.session_date === todayStr) || {}
+    list.push({ ...saved, session_date: todayStr, mentality_log: todaysMentalityLog, wellbeing: todaysWellbeing, tactical: todaysTactical, techniques: todaysTechniques })
+    return list
+  }
+
+  const HISTORY_WB_METRIC = { hydration: ['total', 'L'], outdoors: ['totalMinutes', 'min'], talk: ['count', ''], sleep: ['hours', 'h'], creative: ['count', ''], productivity: ['count', ''], journal: ['count', ''] }
+
+  // -> { value, lines[] } for one session; value 0 = nothing logged that day
+  function historyForSession(view, s) {
+    const { sectionKey, q } = view
+    const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`
+    if (!q) {
+      const value = sectionKey === 'physical' ? countSectionDoneForDay('physical', s, false) : countSectionDoneForDay(sectionKey, s, false)
+      const lines = []
+      if (sectionKey === 'mentality') MENTALITY_QUESTIONS.forEach(mq => { if (mq.key !== 'alterEgo' && isMentalityQComplete(mq.key, s.mentality_log)) lines.push(mq.label) })
+      if (sectionKey === 'wellbeing') WELLBEING_QUESTIONS.forEach(wq => { if (isWellbeingQComplete(wq.key, s.wellbeing || {})) lines.push(wq.label) })
+      if (sectionKey === 'tactical') {
+        if (isMentalityQComplete('videoAnalysis', s.mentality_log)) lines.push('Video Analysis')
+        const by = {}; (Array.isArray(s.tactical) ? s.tactical : []).forEach(t => { by[t.category] = (by[t.category] || 0) + 1 })
+        Object.entries(by).forEach(([c, n]) => lines.push(`${c} (${n})`))
+      }
+      if (sectionKey === 'technique') {
+        const by = {}; (Array.isArray(s.techniques) ? s.techniques : []).forEach(t => { const k = `${t.style} · ${t.category}`; by[k] = (by[k] || 0) + 1 })
+        Object.entries(by).forEach(([c, n]) => lines.push(`${c} (${n})`))
+      }
+      if (sectionKey === 'physical') {
+        const add = (label, n) => { if (n) lines.push(`${label}${n > 1 ? ` ×${n}` : ''}`) }
+        add('Running', toEntries(s.running).length); add('Watt bike', toEntries(s.watt_bike).length); add('Bodyweight', toEntries(s.bodyweight).length)
+        if (Array.isArray(s.stretch_flows) ? s.stretch_flows.some(Boolean) : !!s.stretch_flows) lines.push('Stretch flows')
+        add('S&C', s.snc ? toEntries(s.snc).length || 1 : 0); add('Other session', s.other_session ? toEntries(s.other_session).length || 1 : 0)
+      }
+      return { value, lines }
+    }
+    if (sectionKey === 'mentality') {
+      const d = s.mentality_log?.[q]
+      if (!d) return { value: 0, lines: [] }
+      if (Array.isArray(d.entries)) return { value: d.entries.length, lines: d.entries.map(e => `${e.type}${e.duration ? ` · ${e.duration} min` : ''}`) }
+      if (q === 'coachability') {
+        const yes = Object.values(d).filter(v => v === true).length, no = Object.values(d).filter(v => v === false).length
+        return { value: yes + no ? 1 : 0, lines: yes + no ? [`${yes} yes · ${no} no`] : [] }
+      }
+      const n = d.count || 0
+      return { value: n, lines: n ? [plural(n, 'time'), ...(d.notes ? [d.notes] : [])] : [] }
+    }
+    if (sectionKey === 'wellbeing') {
+      const d = (s.wellbeing || {})[q]
+      if (!d || !isWellbeingQComplete(q, s.wellbeing || {})) return { value: 0, lines: [] }
+      const m = HISTORY_WB_METRIC[q]
+      const value = m ? (parseFloat(d[m[0]]) || 0) : 1
+      const lines = []
+      if (m && value) lines.push(`${value}${m[1] ? ` ${m[1]}` : ''}`)
+      if (q === 'sleep' && d.efficiency) lines.push(`Efficiency ${d.efficiency}`)
+      if (q === 'nutrition') { if (d.quality) lines.push(`Quality: ${d.quality}`); if (d.coffee) lines.push(`Coffee ×${d.coffee}`) }
+      if (q === 'screenFree') lines.push(d.hours || d.custom || 'Logged')
+      if (d.notes && !(q === 'journal' && (d.privateJournal || false))) lines.push(d.notes)
+      return { value: value || 1, lines: lines.length ? lines : ['Logged'] }
+    }
+    if (sectionKey === 'tactical') {
+      const items = (Array.isArray(s.tactical) ? s.tactical : []).filter(t => t.category === q)
+      return { value: items.length, lines: items.map(t => t.note ? `${t.item} — ${t.note}` : t.item) }
+    }
+    if (sectionKey === 'technique') {
+      const [style, cat] = q.split('::')
+      const items = (Array.isArray(s.techniques) ? s.techniques : []).filter(t => t.style === style && t.category === cat)
+      return { value: items.length, lines: items.map(t => t.note ? `${t.technique} — ${t.note}` : t.technique) }
+    }
+    return { value: 0, lines: [] }
+  }
+
+  function HistoryViewButton({ view, style }) {
+    return (
+      <button type="button" className="btn btn-sm neon-view-btn" onClick={e => { e.stopPropagation(); setHistoryRange('month'); setHistoryView(view) }}
+        style={{ fontSize: 11, ...style }}>📈 View</button>
+    )
+  }
+
+  function HistoryViewModal() {
+    if (!historyView) return null
+    const colour = historyView.colour || '#22B14C'
+    const now = new Date()
+    const todayStr = now.toISOString().split('T')[0]
+    const days = { week: 7, month: 30, quarter: 91, year: 365 }[historyRange] || 30
+    const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (days - 1), 12)
+    const startStr = startDate.toISOString().split('T')[0]
+    const rows = historySessions().filter(s => s.session_date >= startStr && s.session_date <= todayStr)
+      .map(s => ({ date: s.session_date, ...historyForSession(historyView, s) }))
+    const byDate = Object.fromEntries(rows.map(r => [r.date, r]))
+    // daily buckets for <= 1 month, weekly buckets beyond
+    const weekly = days > 31
+    const buckets = []
+    for (let i = 0; i < days; i++) {
+      const d = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + i, 12)
+      const ds = d.toISOString().split('T')[0]
+      const v = byDate[ds]?.value || 0
+      if (!weekly || i % 7 === 0) buckets.push({ date: ds, value: v })
+      else buckets[buckets.length - 1].value += v
+    }
+    const max = Math.max(1, ...buckets.map(b => b.value))
+    const total = rows.reduce((n, r) => n + (r.value || 0), 0)
+    const activeDays = rows.filter(r => r.value > 0).length
+    const entries = rows.filter(r => r.value > 0).sort((a, b) => b.date.localeCompare(a.date))
+    const W = 320, H = 120, bw = W / buckets.length
+    const fmtD = ds => new Date(ds + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+    return (
+      <div role="dialog" aria-modal="true" aria-label={`${historyView.label} history`} onClick={() => setHistoryView(null)}
+        style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+        <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 640, maxHeight: '88vh', overflowY: 'auto', boxSizing: 'border-box',
+          padding: '16px 16px calc(20px + env(safe-area-inset-bottom, 0px))', borderRadius: '14px 14px 0 0', background: '#111518', border: `1px solid ${colour}`, borderBottom: 'none', boxShadow: `0 -6px 24px ${colour}55`, color: '#F2F2F2' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
+            <div style={{ fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 24, letterSpacing: 1, lineHeight: 1, color: colour, textTransform: 'uppercase' }}>{historyView.label}</div>
+            <button type="button" aria-label="Close" onClick={() => setHistoryView(null)} style={{ background: 'none', border: 'none', color: '#9A9A9A', fontSize: 22, cursor: 'pointer', padding: '4px 8px' }}>✕</button>
+          </div>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+            {[['week', '7 days'], ['month', '30 days'], ['quarter', '3 months'], ['year', '12 months']].map(([k, l]) => (
+              <button key={k} type="button" onClick={() => setHistoryRange(k)} aria-pressed={historyRange === k}
+                style={{ flex: 1, height: 32, border: 'none', cursor: 'pointer', clipPath: 'polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%)',
+                  background: historyRange === k ? colour : '#2A3138', color: historyRange === k ? '#0A0A0A' : '#F2F2F2', fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 14, letterSpacing: 1 }}>{l.toUpperCase()}</button>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 16, marginBottom: 8, fontFamily: 'Orbitron, sans-serif', fontSize: 10, letterSpacing: 1, color: '#9A9A9A' }}>
+            <span>TOTAL <b style={{ color: colour, fontSize: 14 }}>{Math.round(total * 100) / 100}</b></span>
+            <span>ACTIVE DAYS <b style={{ color: colour, fontSize: 14 }}>{activeDays}</b></span>
+          </div>
+          <svg viewBox={`0 0 ${W} ${H + 18}`} width="100%" style={{ display: 'block', marginBottom: 14 }} role="img" aria-label={`${historyView.label}: ${total} over ${days} days`}>
+            <line x1="0" x2={W} y1={H} y2={H} stroke="rgba(255,255,255,0.15)" />
+            <text x="0" y="10" fontSize="9" fill="#9A9A9A" fontFamily="Orbitron, sans-serif">{Math.round(max * 100) / 100}</text>
+            {buckets.map((b, i) => {
+              const h = (b.value / max) * (H - 16)
+              return <rect key={b.date} x={i * bw + bw * 0.15} y={H - h} width={Math.max(1, bw * 0.7)} height={h} rx={Math.min(3, bw * 0.3)} fill={colour} opacity={b.date === todayStr ? 1 : 0.8}><title>{`${weekly ? 'Week of ' : ''}${fmtD(b.date)}: ${b.value}`}</title></rect>
+            })}
+            <text x="0" y={H + 14} fontSize="9" fill="#9A9A9A" fontFamily="Orbitron, sans-serif">{fmtD(startStr)}</text>
+            <text x={W} y={H + 14} fontSize="9" fill="#9A9A9A" fontFamily="Orbitron, sans-serif" textAnchor="end">TODAY</text>
+          </svg>
+          <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 9, letterSpacing: 2, color: '#9A9A9A', marginBottom: 8 }}>ENTRIES ({entries.length})</div>
+          {entries.length === 0 ? (
+            <p style={{ fontSize: 13, color: '#9A9A9A' }}>Nothing logged in this period.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {entries.map(r => (
+                <div key={r.date} style={{ padding: '8px 10px', borderRadius: 6, background: '#1A1F24', borderLeft: `3px solid ${colour}` }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700 }}>{new Date(r.date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                    <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 11, color: colour }}>{Math.round(r.value * 100) / 100}</span>
+                  </div>
+                  {r.lines.map((l, i) => <div key={i} style={{ fontSize: 12, color: '#CFCFCF', lineHeight: 1.4 }}>{l}</div>)}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   // Three small progress bars (Daily/Weekly/Monthly) for a section
   // header -- fills as tasks are completed against whatever targets
   // exist for that period; greyed out/empty if no target is set for
@@ -4382,6 +4545,7 @@ export default function AthleteApp() {
       {/* ── Home ── */}
       {tab === 'home' && (
         <div className="neon-home">
+          {HistoryViewModal()}
           {student ? (
             <>
               {pushPermission === 'default' && (
@@ -4653,6 +4817,7 @@ export default function AthleteApp() {
                       overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
                       maxHeight: showPhysicalSection ? 4000 : 0, opacity: showPhysicalSection ? 1 : 0,
                     }}>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>{HistoryViewButton({ view: { sectionKey: 'physical', label: 'Physical', colour: '#E6B800' } })}</div>
                     <div style={{ display: 'grid', gridTemplateColumns: activePhysicalCategory && (activePhysicalCategory === 'running' || activePhysicalCategory === 'watt_bike') ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 8 }}>
                       {(!activePhysicalCategory || activePhysicalCategory === 'running') && (
                         <ModuleButton b={modules[0]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={SECTION_ACCENT_COLOURS.physical} setTab={setTab} setResultsGraphSection={setResultsGraphSection} studentId={student.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'running'} questionProgressByPeriod={getQuestionProgressByPeriod('physical', 'Running')} />
@@ -5082,6 +5247,7 @@ export default function AthleteApp() {
                       overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
                       maxHeight: showTechniqueSection ? 8000 : 0, opacity: showTechniqueSection ? 1 : 0,
                     }}>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>{HistoryViewButton({ view: { sectionKey: 'technique', label: 'Technical', colour: '#2F6BFF' } })}</div>
                     {TECHNIQUE_STYLES.filter(({ style }) => {
                       // KRBA athletes only need Boxing questions, KR
                       // Kickboxing athletes only need Kickboxing ones --
@@ -5126,6 +5292,7 @@ export default function AthleteApp() {
                           if (expandedTechniqueCategory !== catKey) return null
                           return (
                             <div key={catKey} className="card neon-qpanel neon-q-technical" style={{ marginBottom: 8 }}>
+                              {HistoryViewButton({ view: { sectionKey: 'technique', q: catKey, label: cat, colour: '#2F6BFF' }, style: { marginBottom: 8 } })}
                               {ChecklistPicker({ draftKey: `tec:${style}::${cat}`, items, colour: '#2F6BFF', logged: todaysTechniques.filter(t => t.style === style && t.category === cat).map(t => ({ item: t.technique, note: t.note })), onAdd: (arr, note) => savePhysicalField('techniques', [...todaysTechniques, ...arr.map(technique => ({ style, category: cat, technique, note }))], setTodaysTechniques), onRemove: technique => savePhysicalField('techniques', todaysTechniques.filter(t => !(t.style === style && t.category === cat && t.technique === technique)), setTodaysTechniques), onUpdateNote: (technique, note) => savePhysicalField('techniques', todaysTechniques.map(t => (t.style === style && t.category === cat && t.technique === technique) ? { ...t, note } : t), setTodaysTechniques) })}
                               <QuestionMediaUpload sectionKey="technique" questionLabel={cat} />
                             </div>
@@ -5160,6 +5327,7 @@ export default function AthleteApp() {
                       overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
                       maxHeight: showTacticalSection ? 8000 : 0, opacity: showTacticalSection ? 1 : 0,
                     }}>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>{HistoryViewButton({ view: { sectionKey: 'tactical', label: 'Tactical', colour: '#FF2A2A' } })}</div>
                     <div style={{ display: 'grid', gridTemplateColumns: expandedTacticalCategory ? '1fr' : 'repeat(2, 1fr)', gap: 8, marginBottom: 8 }}>
                       {(expandedTacticalCategory ? [] : ['__videoAnalysis__']).concat(Object.keys(TACTICAL_CATEGORIES)).filter(cat => !expandedTacticalCategory || expandedTacticalCategory === cat).map(cat => {
                         if (cat === '__videoAnalysis__') {
@@ -5202,6 +5370,7 @@ export default function AthleteApp() {
                     {expandedTacticalCategory === '__videoAnalysis__' && (
                       <div className="card neon-qpanel neon-q-tactical" style={{ marginBottom: 8 }}>
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+                          {HistoryViewButton({ view: { sectionKey: 'mentality', q: 'videoAnalysis', label: 'Video Analysis', colour: '#FF2A2A' }, style: { marginRight: 'auto' } })}
                           <button type="button" className="btn btn-sm" onClick={() => clearMentalityQuestion('videoAnalysis')} style={{ fontSize: 11 }}>✕ Clear</button>
                         </div>
                         {MultiSessionTypeLogger({ field: 'videoAnalysis', options: VIDEO_ANALYSIS_OPTIONS })}
@@ -5212,6 +5381,7 @@ export default function AthleteApp() {
                       if (expandedTacticalCategory !== cat) return null
                       return (
                         <div key={cat} className="card neon-qpanel neon-q-tactical" style={{ marginBottom: 8 }}>
+                          {HistoryViewButton({ view: { sectionKey: 'tactical', q: cat, label: cat, colour: '#FF2A2A' }, style: { marginBottom: 8 } })}
                           {ChecklistPicker({ draftKey: `tac:${cat}`, items, colour: '#FF2A2A', logged: todaysTactical.filter(t => t.category === cat).map(t => ({ item: t.item, note: t.note })), onAdd: (arr, note) => savePhysicalField('tactical', [...todaysTactical, ...arr.map(item => ({ category: cat, item, note }))], setTodaysTactical), onRemove: item => savePhysicalField('tactical', todaysTactical.filter(t => !(t.category === cat && t.item === item)), setTodaysTactical), onUpdateNote: (item, note) => savePhysicalField('tactical', todaysTactical.map(t => (t.category === cat && t.item === item) ? { ...t, note } : t), setTodaysTactical) })}
                           <QuestionMediaUpload sectionKey="tactical" questionLabel={cat} />
                         </div>
@@ -5243,6 +5413,7 @@ export default function AthleteApp() {
                       overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
                       maxHeight: showMentalitySection ? 4000 : 0, opacity: showMentalitySection ? 1 : 0,
                     }}>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>{HistoryViewButton({ view: { sectionKey: 'mentality', label: 'Mentality', colour: '#22B14C' } })}</div>
                     <div style={{ display: 'grid', gridTemplateColumns: expandedHomeMentality ? '1fr' : 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeMentality ? 10 : 8 }}>
                       {MENTALITY_QUESTIONS.filter(q => !expandedHomeMentality || expandedHomeMentality === q.key).map(q => {
                         const complete = q.key === 'alterEgo' ? !!(alterEgoWorkbook.topTraits?.some(Boolean) || alterEgoWorkbook.nameOption1) : isMentalityQComplete(q.key, todaysMentalityLog)
@@ -5265,6 +5436,7 @@ export default function AthleteApp() {
                     {expandedHomeMentality && (
                       <div className="card neon-qpanel neon-q-mentality" style={{ marginBottom: 8 }}>
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+                          {HistoryViewButton({ view: { sectionKey: 'mentality', q: expandedHomeMentality, label: MENTALITY_QUESTIONS.find(q => q.key === expandedHomeMentality)?.label || expandedHomeMentality, colour: '#22B14C' }, style: { marginRight: 'auto' } })}
                           <button type="button" className="btn btn-sm" onClick={() => clearMentalityQuestion(expandedHomeMentality)} style={{ fontSize: 11 }}>✕ Clear</button>
                         </div>
                         {expandedHomeMentality === 'meditation' && (
@@ -5544,6 +5716,7 @@ export default function AthleteApp() {
                       overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
                       maxHeight: showWellbeingSection ? 6000 : 0, opacity: showWellbeingSection ? 1 : 0,
                     }}>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>{HistoryViewButton({ view: { sectionKey: 'wellbeing', label: 'Foundation', colour: '#C93BFF' } })}</div>
                     <div style={{ display: 'grid', gridTemplateColumns: expandedHomeWb ? '1fr' : 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeWb ? 10 : 8 }}>
                       {WELLBEING_QUESTIONS.filter(q => !expandedHomeWb || expandedHomeWb === q.key).map(q => {
                         const complete = isWellbeingQComplete(q.key, todaysWellbeing)
@@ -5567,6 +5740,7 @@ export default function AthleteApp() {
                       <div className="card neon-qpanel neon-q-foundation" style={{ marginBottom: 8 }}>
                         {expandedHomeWb && (
                           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+                            {HistoryViewButton({ view: { sectionKey: 'wellbeing', q: expandedHomeWb, label: WELLBEING_QUESTIONS.find(q => q.key === expandedHomeWb)?.label || expandedHomeWb, colour: '#C93BFF' }, style: { marginRight: 'auto' } })}
                             <button type="button" className="btn btn-sm" onClick={() => clearWellbeingQuestion(expandedHomeWb)} style={{ fontSize: 11 }}>✕ Clear</button>
                           </div>
                         )}

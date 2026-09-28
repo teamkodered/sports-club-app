@@ -497,7 +497,7 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .neon-home .neon-qpanel .btn[style*="border-color"] { background: var(--q-accent) !important; color: #0A0A0A !important; }
 .neon-home .neon-qpanel .btn:disabled { opacity: 0.45; }
 /* Clear sits top-right as a small outline control */
-.neon-home .neon-qpanel > div:first-child > .btn:only-child { clip-path: none; border: 1px solid #2A3138 !important; border-radius: 4px !important; background: none !important; min-height: 30px; font-family: 'Orbitron', sans-serif !important; font-style: normal; font-weight: 500 !important; font-size: 9px !important; letter-spacing: 2px; color: #9A9A9A !important; }
+.neon-home .neon-qpanel > div:first-child > .btn:last-child:not(.neon-view-btn), .neon-home .neon-view-btn { clip-path: none; border: 1px solid #2A3138 !important; border-radius: 4px !important; background: none !important; min-height: 30px; font-family: 'Orbitron', sans-serif !important; font-style: normal; font-weight: 500 !important; font-size: 9px !important; letter-spacing: 2px; color: #9A9A9A !important; }
 /* Show-on-PC / show-on-touch helpers: devices with a real hover pointer
    (mouse/trackpad) get Edit buttons; touch devices use press-and-hold. */
 .hover-only { display: none; }
