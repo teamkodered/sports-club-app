@@ -767,3 +767,27 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .reg-m-name, .reg-m-namelink { font-size: 17px !important; }
 .reg-m-open-profile { margin: 10px -12px -10px; padding: 10px 8px; border-top: 1px solid var(--border); background: var(--bg); border-radius: 0 0 12px 12px; }
 .reg-m-open-profile .card { box-shadow: none; }
+/* Settings -> Team */
+.team-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 2px; border: none; border-bottom: 1px solid var(--border); background: none; color: var(--text); cursor: pointer; font-family: inherit; }
+.team-role { flex-shrink: 0; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 12px; background: var(--bg-secondary); border: 1px solid var(--border-strong); }
+.team-role-admin { background: #E24B4A22; border-color: #E24B4A; }
+.team-role-captain, .team-role-coach { background: #378ADD22; border-color: #378ADD; }
+.team-role-leader { background: #1D9E7522; border-color: #1D9E75; }
+.team-sheet-backdrop { position: fixed; inset: 0; z-index: 70; background: rgba(0,0,0,0.5); display: flex; align-items: flex-end; justify-content: center; }
+.team-sheet { width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto; box-sizing: border-box; padding: 16px 16px calc(20px + env(safe-area-inset-bottom, 0px)); border-radius: 18px 18px 0 0; background: var(--bg); border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; }
+.team-label { font-size: 11px; font-weight: 700; letter-spacing: 1px; color: var(--text-tertiary); margin-top: 6px; }
+.team-seg { display: flex; gap: 6px; }
+.team-seg button { flex: 1; height: 40px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--bg-secondary); color: var(--text); font-size: 13px; cursor: pointer; font-family: inherit; }
+.team-seg button.on { background: var(--text); color: var(--bg); border-color: var(--text); font-weight: 700; }
+.team-seg.small { flex: 0 0 auto; gap: 4px; }
+.team-seg.small button { flex: 0 0 auto; height: 32px; padding: 0 10px; font-size: 12px; }
+.team-seg.small button.on.lvl-none { background: #6662; color: var(--text); border-color: #888; }
+.team-seg.small button.on.lvl-view { background: #378ADD; border-color: #378ADD; color: #fff; }
+.team-seg.small button.on.lvl-edit { background: #1D9E75; border-color: #1D9E75; color: #fff; }
+.team-pages { display: flex; flex-direction: column; }
+.team-page-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+.team-checks { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.team-checks label { display: flex; align-items: center; gap: 8px; }
+.team-checks input { width: 18px; height: 18px; }
+/* View-only pages */
+.kc-view-only-banner { position: sticky; top: 0; z-index: 40; margin: -4px 0 10px; padding: 8px 12px; border-radius: 10px; background: #378ADD22; border: 1px solid #378ADD; color: var(--text); font-size: 13px; font-weight: 600; }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import TeamAccess from '../components/shared/TeamAccess.jsx'
 import { supabase } from '../lib/supabase.js'
 import { matchesSearch } from '../lib/searchMatch.js'
 
@@ -431,6 +432,9 @@ export default function Settings() {
         <p>Configure club details, belt levels, age categories, point types and Fit II Fight options</p>
       </div>
 
+      {SECTION('Team — roles & access')}
+      <TeamAccess />
+
       {SECTION('Club details')}
       <div className="card" style={{ marginBottom: 10 }}>
         <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 14 }}>Club information</div>
@@ -503,38 +507,6 @@ export default function Settings() {
       <ListSetting label="Test types" settingKey="f2f_test_types" hint="One per line" />
       <ListSetting label="Technique types" settingKey="f2f_technique_types" hint="One per line" />
       <ListSetting label="Mentality activities" settingKey="f2f_mentality_types" hint="One per line" />
-
-      {SECTION('Roles & Access')}
-      <div className="card" style={{ marginBottom: 10 }}>
-        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
-          Admin — full access · Captain — coach access · Member — student access
-        </p>
-        <input value={roleSearch} onChange={e => setRoleSearch(e.target.value)} placeholder="🔍 Search by name or email…"
-          style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', marginBottom: 12 }} />
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-          {members
-            .slice()
-            .sort((a, b) => `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`))
-            .filter(m => matchesSearch(roleSearch, m.first_name, m.last_name, m.email))
-            .map(m => (
-            <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 500 }}>{m.first_name} {m.last_name}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.email}</div>
-              </div>
-              <select value={m.role} onChange={e => updateRole(m.id, e.target.value)}
-                disabled={roleSaving === m.id}
-                style={{ padding: '5px 8px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 12, background: 'var(--bg-secondary)', color: 'var(--text)', minWidth: 110 }}>
-                <option value="member">Member</option>
-                <option value="leader">Leader</option>
-                <option value="admin">Admin</option>
-              </select>
-              {roleSaving === m.id && <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>…</span>}
-            </div>
-          ))}
-          {members.length === 0 && <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No members found</p>}
-        </div>
-      </div>
 
       {SECTION('Supabase Connection')}
       <div className="card">

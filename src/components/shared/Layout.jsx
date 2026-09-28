@@ -8,7 +8,7 @@ const SIDEBAR_FULL = 220
 const SIDEBAR_ICON = 52
 
 export default function Layout() {
-  const { profile, isAdmin, isCoach, isLeader, isStaff, role, isAthlete } = useAuth()
+  const { profile, isAdmin, isCoach, isLeader, isStaff, role, isAthlete, pageAccess } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   // The Session logger (fit2fight) has its own "← Back" button and is
@@ -102,18 +102,18 @@ export default function Layout() {
 
   const NAV_ITEMS = [
     { section: 'Main' },
-    { to: '/dashboard',      icon: '🏠', label: 'Dashboard',          roles: ['admin','captain'] },
-    { to: '/registers',      icon: '📋', label: 'Registers',          roles: ['admin','captain','leader'] },
-    { to: '/league',         icon: '🏆', label: 'Houses',             roles: ['admin','captain'] },
-    { to: '/forms',          icon: '📝', label: 'Forms',              roles: ['admin','captain'] },
-    { to: '/classes',        icon: '🗓️', label: 'Classes',           roles: ['admin','captain'] },
-    { to: '/calendar',       icon: '📆', label: 'Calendar',          roles: ['admin','captain'] },
-    { to: '/crm',            icon: '💳', label: 'CRM',               roles: ['admin','captain'] },
-    { to: '/students',       icon: '🎽', label: 'Students',           roles: ['admin','captain'] },
-    { to: '/fixtures',       icon: '📅', label: 'Fixtures',           roles: ['admin','captain'] },
+    { to: '/dashboard',      icon: '🏠', label: 'Dashboard',          page: 'dashboard' },
+    { to: '/registers',      icon: '📋', label: 'Registers',          page: 'registers' },
+    { to: '/league',         icon: '🏆', label: 'Houses',             page: 'league' },
+    { to: '/forms',          icon: '📝', label: 'Forms',              page: 'forms' },
+    { to: '/classes',        icon: '🗓️', label: 'Classes',           page: 'classes' },
+    { to: '/calendar',       icon: '📆', label: 'Calendar',          page: 'calendar' },
+    { to: '/crm',            icon: '💳', label: 'CRM',               page: 'crm' },
+    { to: '/students',       icon: '🎽', label: 'Students',           page: 'students' },
+    { to: '/fixtures',       icon: '📅', label: 'Fixtures',           page: 'fixtures' },
     { to: '/athlete-app',    icon: '🎽', label: 'My app' },
-    { to: '/athletes',       icon: '🏅', label: 'Athlete profiles',   roles: ['admin','captain'] },
-    { to: '/media',          icon: '🎬', label: 'Media',              roles: ['admin','captain'] },
+    { to: '/athletes',       icon: '🏅', label: 'Athlete profiles',   page: 'athletes' },
+    { to: '/media',          icon: '🎬', label: 'Media',              page: 'media' },
     ...(isAdmin ? [
       { section: 'Admin' },
       { to: '/settings', icon: '⚙️', label: 'Settings' },
@@ -191,6 +191,7 @@ export default function Layout() {
         {/* Nav items */}
         <nav style={{ flex: 1, padding: expanded ? 8 : '8px 4px', overflowY: 'auto' }}>
           {NAV_ITEMS.filter(item => {
+              if (item.page) return pageAccess(item.page) !== 'none'   // per-person access (Settings -> Team)
               if (!item.roles) return true
               return item.roles.includes(role)
             }).map((item, i) => {

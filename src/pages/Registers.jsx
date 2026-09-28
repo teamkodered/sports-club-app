@@ -153,7 +153,12 @@ const DOUBLE_SESSION_PAIRS = [
 ]
 
 export default function Registers({ initialRegType, onStudentNameClick, onWeightClick } = {}) {
-  const { isAdmin, isCoach, isLeader, isStaff } = useAuth()
+  const { isAdmin, isCoach, isLeader, isStaff, registerAccess } = useAuth()
+  // Per-person register access (Settings -> Team): which register types and classes this person may take
+  const allowedRegTypes = registerAccess?.types || null     // null = all
+  const allowedClassIds = registerAccess?.classes || null   // null = all
+  const regTypeAllowed = k => !allowedRegTypes || allowedRegTypes.includes(k)
+  const classAllowed = c => !allowedClassIds || allowedClassIds.includes(c.id)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [regType, setRegType]           = useState(initialRegType || 'class')
@@ -1201,6 +1206,18 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     setFightersCopied(`Copied ${rows.length} in-comp fighters (${order === 'age' ? 'age order' : 'name order'}) — paste it into a message`)
     setTimeout(() => setFightersCopied(''), 3500)
   }
+  // Access limits: move to an allowed register type / class if the current one isn't
+  useEffect(() => {
+    if (allowedRegTypes && !allowedRegTypes.includes(regType)) setRegType(allowedRegTypes[0])
+  }, [allowedRegTypes?.join(','), regType])
+  useEffect(() => {
+    if (!allowedClassIds || regType !== 'class') return
+    const pool = [...todayClasses, ...derbyMooreClasses, ...moorwaysClasses].filter(classAllowed)
+    if (classFilter === 'all' || !allowedClassIds.includes(classFilter)) {
+      if (pool[0]) setClassFilter(pool[0].id)
+    }
+  }, [allowedClassIds?.join(','), todayClasses, derbyMooreClasses, moorwaysClasses, classFilter, regType])
+
   const pointsTotal = selectedPoints.reduce((s, p) => s + p.points, 0)
   const isKR = regType === 'kr'
 
@@ -1248,7 +1265,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
           set), since that's the only context Team KR/KRBA buttons there
           are meant to offer, not the full set of registers. */}
       <div className={initialRegType ? 'reg-desktop-only' : ''} style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
-        {(initialRegType ? REGISTER_TYPES.filter(r => r.key === 'kr' || r.key === 'krba') : REGISTER_TYPES).map(r => (
+        {(initialRegType ? REGISTER_TYPES.filter(r => r.key === 'kr' || r.key === 'krba') : REGISTER_TYPES).filter(r => regTypeAllowed(r.key)).map(r => (
           <button key={r.key} onClick={() => setRegType(r.key)} style={{
             padding: '8px 14px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
             borderBottom: `2px solid ${regType === r.key ? 'var(--text)' : 'transparent'}`,
@@ -1297,7 +1314,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
       {!initialRegType && (todayClasses.length > 0 || derbyMooreClasses.length > 0 || moorwaysClasses.length > 0) && (
         <div className="reg-class-pills" style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {todayClasses.map(c => (
+            {todayClasses.filter(classAllowed).map(c => (
               <div key={c.id} onClick={() => setClassFilter(c.id)} style={{
                 background: classFilter === c.id ? 'var(--text)' : 'var(--bg-secondary)',
                 color: classFilter === c.id ? 'var(--bg)' : 'var(--text)',
@@ -1308,19 +1325,19 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                 <span style={{ marginLeft: 6, opacity: 0.7 }}>{c.start_time?.slice(0,5)}–{c.end_time?.slice(0,5)}</span>
               </div>
             ))}
-            <div onClick={() => setClassFilter('all')} style={{
+            {!allowedClassIds && <div onClick={() => setClassFilter('all')} style={{
               background: classFilter === 'all' ? 'var(--text)' : 'var(--bg-secondary)',
               color: classFilter === 'all' ? 'var(--bg)' : 'var(--text)',
               border: '1px solid var(--border)', borderRadius: 'var(--radius)',
               padding: '6px 12px', fontSize: 12, cursor: 'pointer',
-            }}>All classes</div>
+            }}>All classes</div>}
           </div>
 
           {/* Derby Moore — nested under KR Centre */}
           {derbyMooreClasses.length > 0 && (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8, marginLeft: 20, paddingLeft: 10, borderLeft: '2px solid var(--border)' }}>
               <span style={{ fontSize: 10, color: 'var(--text-tertiary)', alignSelf: 'center', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Derby Moore</span>
-              {derbyMooreClasses.map(c => (
+              {derbyMooreClasses.filter(classAllowed).map(c => (
                 <div key={c.id} onClick={() => setClassFilter(c.id)} style={{
                   background: classFilter === c.id ? 'var(--text)' : 'var(--bg-secondary)',
                   color: classFilter === c.id ? 'var(--bg)' : 'var(--text)',
@@ -1336,7 +1353,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
               {moorwaysClasses.length > 0 && (
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginLeft: 16, paddingLeft: 10, borderLeft: '2px solid var(--border)' }}>
                   <span style={{ fontSize: 10, color: 'var(--text-tertiary)', alignSelf: 'center', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Moorways</span>
-                  {moorwaysClasses.map(c => (
+                  {moorwaysClasses.filter(classAllowed).map(c => (
                     <div key={c.id} onClick={() => setClassFilter(c.id)} style={{
                       background: classFilter === c.id ? 'var(--text)' : 'var(--bg-secondary)',
                       color: classFilter === c.id ? 'var(--bg)' : 'var(--text)',
@@ -1356,7 +1373,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
           {derbyMooreClasses.length === 0 && moorwaysClasses.length > 0 && (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8, marginLeft: 20, paddingLeft: 10, borderLeft: '2px solid var(--border)' }}>
               <span style={{ fontSize: 10, color: 'var(--text-tertiary)', alignSelf: 'center', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Moorways</span>
-              {moorwaysClasses.map(c => (
+              {moorwaysClasses.filter(classAllowed).map(c => (
                 <div key={c.id} onClick={() => setClassFilter(c.id)} style={{
                   background: classFilter === c.id ? 'var(--text)' : 'var(--bg-secondary)',
                   color: classFilter === c.id ? 'var(--bg)' : 'var(--text)',

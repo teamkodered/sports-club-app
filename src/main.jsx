@@ -1,7 +1,8 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './hooks/useAuth.jsx'
+import { setViewOnlyPage } from './lib/access.js'
 import { FightFootageUploadProvider } from './hooks/useFightFootageUpload.jsx'
 import { supabase } from './lib/supabase.js'
 import ErrorBoundary from './components/shared/ErrorBoundary.jsx'
@@ -55,8 +56,22 @@ import Layout from './components/shared/Layout.jsx'
 // through the coach-branded entry point.
 const ATHLETE_ONLY_PATHS = ['/athlete-app', '/my-dashboard', '/profile', '/boxing-tpt', '/kickboxing-tpt', '/fit2fight']
 
-function ProtectedRoute({ children, adminOnly = false, staffOnly = false, excludeLeader = false }) {
-  const { session, profile, profileError, isAdmin, isStaff, isLeader, loading } = useAuth()
+function ViewOnlyScope({ page, viewOnly, children }) {
+  useEffect(() => {
+    setViewOnlyPage(viewOnly ? page : null)
+    document.body.classList.toggle('kc-view-only', viewOnly)
+    return () => { setViewOnlyPage(null); document.body.classList.remove('kc-view-only') }
+  }, [page, viewOnly])
+  return (
+    <>
+      {viewOnly && <div className="kc-view-only-banner" role="status">👁 View only — you can look but not change anything on this page</div>}
+      {children}
+    </>
+  )
+}
+
+function ProtectedRoute({ children, adminOnly = false, staffOnly = false, excludeLeader = false, page = null }) {
+  const { session, profile, profileError, isAdmin, isStaff, isLeader, loading, pageAccess } = useAuth()
   const location = useLocation()
   if (loading) return <div className="loading">Loading…</div>
   if (!session) {
@@ -77,6 +92,12 @@ function ProtectedRoute({ children, adminOnly = false, staffOnly = false, exclud
     </div>
   )
   if (adminOnly && !isAdmin) return <Navigate to="/dashboard" replace />
+  if (page) {
+    // Per-person access (Settings -> Team) decides these pages
+    const level = pageAccess(page)
+    if (level === 'none') return <Navigate to={pageAccess('registers') !== 'none' ? '/registers' : '/athlete-app'} replace />
+    return <ViewOnlyScope page={page} viewOnly={level === 'view'}>{children}</ViewOnlyScope>
+  }
   if (staffOnly && !isStaff) return <Navigate to="/athlete-app" replace />
   // Leaders count as "staff" for most areas (registers, attendance,
   // points etc), but not for CRM/Email -- this is member payment,
@@ -113,26 +134,26 @@ function App() {
           <Route path="/athlete-app"     element={<ProtectedRoute><AthleteApp /></ProtectedRoute>} />
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-            <Route path="dashboard"       element={<ProtectedRoute staffOnly excludeLeader><Dashboard /></ProtectedRoute>} />
+            <Route path="dashboard"       element={<ProtectedRoute page="dashboard"><Dashboard /></ProtectedRoute>} />
             <Route path="my-dashboard"    element={<AthleteDashboard />} />
             <Route path="checkin"         element={<ProtectedRoute staffOnly><CheckIn /></ProtectedRoute>} />
-            <Route path="registers"       element={<ProtectedRoute staffOnly><Registers /></ProtectedRoute>} />
-            <Route path="students"        element={<ProtectedRoute staffOnly excludeLeader><StudentDatabase /></ProtectedRoute>} />
+            <Route path="registers"       element={<ProtectedRoute page="registers"><Registers /></ProtectedRoute>} />
+            <Route path="students"        element={<ProtectedRoute page="students"><StudentDatabase /></ProtectedRoute>} />
             <Route path="members"         element={<ProtectedRoute staffOnly><Members /></ProtectedRoute>} />
-            <Route path="fixtures"        element={<ProtectedRoute staffOnly excludeLeader><Fixtures /></ProtectedRoute>} />
-            <Route path="calendar"        element={<ProtectedRoute staffOnly excludeLeader><CalendarPage /></ProtectedRoute>} />
-            <Route path="crm"             element={<ProtectedRoute staffOnly excludeLeader><CRM /></ProtectedRoute>} />
-            <Route path="classes"         element={<ProtectedRoute staffOnly excludeLeader><Classes /></ProtectedRoute>} />
-            <Route path="league"          element={<ProtectedRoute staffOnly excludeLeader><LeagueViews /></ProtectedRoute>} />
-            <Route path="forms"           element={<ProtectedRoute staffOnly excludeLeader><Forms /></ProtectedRoute>} />
+            <Route path="fixtures"        element={<ProtectedRoute page="fixtures"><Fixtures /></ProtectedRoute>} />
+            <Route path="calendar"        element={<ProtectedRoute page="calendar"><CalendarPage /></ProtectedRoute>} />
+            <Route path="crm"             element={<ProtectedRoute page="crm"><CRM /></ProtectedRoute>} />
+            <Route path="classes"         element={<ProtectedRoute page="classes"><Classes /></ProtectedRoute>} />
+            <Route path="league"          element={<ProtectedRoute page="league"><LeagueViews /></ProtectedRoute>} />
+            <Route path="forms"           element={<ProtectedRoute page="forms"><Forms /></ProtectedRoute>} />
             <Route path="profile"         element={<Profile />} />
             <Route path="boxing-tpt"      element={<ProtectedRoute><BoxingTPT /></ProtectedRoute>} />
             <Route path="kickboxing-tpt"  element={<ProtectedRoute><KickboxingTPT /></ProtectedRoute>} />
             <Route path="fit2fight"       element={<FitToFight />} />
-            <Route path="athletes"        element={<ProtectedRoute staffOnly excludeLeader><AthleteProfiles /></ProtectedRoute>} />
-            <Route path="cctv"            element={<ProtectedRoute staffOnly excludeLeader><CctvViewer /></ProtectedRoute>} />
+            <Route path="athletes"        element={<ProtectedRoute page="athletes"><AthleteProfiles /></ProtectedRoute>} />
+            <Route path="cctv"            element={<ProtectedRoute page="cctv"><CctvViewer /></ProtectedRoute>} />
             <Route path="view-it"         element={<Navigate to="/media" replace />} />
-            <Route path="media"           element={<ProtectedRoute staffOnly excludeLeader><Media /></ProtectedRoute>} />
+            <Route path="media"           element={<ProtectedRoute page="media"><Media /></ProtectedRoute>} />
             <Route path="import"          element={<ProtectedRoute adminOnly><AdminImport /></ProtectedRoute>} />
             <Route path="settings"        element={<ProtectedRoute adminOnly><Settings /></ProtectedRoute>} />
           </Route>
