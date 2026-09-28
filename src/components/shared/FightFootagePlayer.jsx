@@ -442,21 +442,39 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
     setControlsVisible(true)
   }
 
-  // Holding an area outside the video itself (the letterbox bars, or
-  // anywhere else that isn't the video/a button/a marker) just keeps
-  // controls visible for as long as it's held, without triggering
-  // slow-mo or anything else video-specific. Only reacts when the
-  // press starts directly on this container, not bubbled up from a
-  // child element that has its own handling.
-  function handleOutsideVideoPointerDown(e) {
-    if (e.target !== e.currentTarget) return
-    clearTimeout(autoHideTimerRef.current)
-    setControlsVisible(true)
+  // Tap-to-toggle, handled once for the whole player. Any quick tap that
+  // doesn't start on something interactive (button, slider, marker, note
+  // being edited, popup, bottom control bar) toggles the controls -- on
+  // the video, the black bars around it, or the empty space around the
+  // floating buttons alike. Not a tap: moving more than
+  // MOVE_CANCEL_THRESHOLD (a swipe), a second finger joining in, or a
+  // hold that engaged slow-mo.
+  const tapRef = useRef(null) // { id, x, y, multi }
+  const gestureWasHoldRef = useRef(false)
+  const NO_TOGGLE_SELECTOR = 'button, input, select, textarea, a, label, [data-no-toggle]'
+
+  function handleWrapperPointerDown(e) {
+    // The first finger (or the mouse) is always "primary" and starts a
+    // fresh gesture -- so a release swallowed by some child can never
+    // leave this stuck. Extra fingers just mark the gesture multi-touch.
+    if (!e.isPrimary) { if (tapRef.current) tapRef.current.multi = true; return }
+    tapRef.current = { id: e.pointerId, x: e.clientX, y: e.clientY, multi: false }
+    gestureWasHoldRef.current = false
   }
 
-  function handleOutsideVideoPointerUp(e) {
-    if (e.target !== e.currentTarget) return
-    scheduleAutoHide()
+  function handleWrapperPointerUp(e) {
+    const t = tapRef.current
+    if (!t || t.id !== e.pointerId) return
+    tapRef.current = null
+    if (t.multi || gestureWasHoldRef.current) return
+    if (Math.hypot(e.clientX - t.x, e.clientY - t.y) > MOVE_CANCEL_THRESHOLD) return
+    if (e.target?.closest?.(NO_TOGGLE_SELECTOR)) return
+    if (controlsVisibleRef.current) { clearTimeout(autoHideTimerRef.current); setControlsVisible(false) }
+    else showControls()
+  }
+
+  function handleWrapperPointerCancel(e) {
+    if (tapRef.current?.id === e.pointerId) tapRef.current = null
   }
 
   function handleScrubStart() {
@@ -584,6 +602,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
     const v = videoRef.current
     if (!v) return
     isHoldingRef.current = true
+    gestureWasHoldRef.current = true // this gesture is a hold, so releasing it mustn't also toggle controls
     setIsHolding(true)
     clearTimeout(autoHideTimerRef.current) // don't let a stale timer pop controls back up mid-hold
     setControlsVisible(false) // hide the middle overlay so it doesn't block the view during slow-mo
@@ -668,14 +687,9 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
 
   function handlePointerUp(e) {
     clearTimeout(holdTimerRef.current)
-    if (!isHoldingRef.current) {
-      // A quick tap just reveals/hides the controls -- no double-tap
-      // skip gesture anymore, so this can act immediately rather than
-      // waiting to see if a second tap follows.
-      if (controlsVisibleRef.current) { clearTimeout(autoHideTimerRef.current); setControlsVisible(false) }
-      else showControls()
-      return
-    }
+    // A plain tap is handled by handleWrapperPointerUp (it toggles the
+    // controls); this only needs to finish a slow-mo hold.
+    if (!isHoldingRef.current) return
     releaseHoldSlowMo(wasActuallyASwipe(e))
   }
 
@@ -961,16 +975,17 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
       position: 'fixed', inset: 0, background: '#000', zIndex: 200,
       userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'none', overscrollBehavior: 'none',
     }}
-      onContextMenu={e => e.preventDefault()}>
+      onContextMenu={e => e.preventDefault()}
+      onPointerDown={handleWrapperPointerDown}
+      onPointerUp={handleWrapperPointerUp}
+      onPointerCancel={handleWrapperPointerCancel}>
       {/* Video always fills the entire player, full stop -- every
           control (top bar, middle overlay, bottom bar) floats on top
           of it as an absolute overlay instead of taking its own layout
           space, so nothing about the video's own size ever changes
           depending on whether controls happen to be showing. */}
       <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-        onPointerDown={handleOutsideVideoPointerDown}
-        onPointerUp={handleOutsideVideoPointerUp}
-        onPointerLeave={handleOutsideVideoPointerUp}>
+>
         {/* This inner box exactly matches the video's own rendered
             bounds (same aspect ratio, fit within the available space)
             -- in portrait, a landscape video is letterboxed with black
@@ -1012,6 +1027,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
           )}
           {viewingMarkerNote && (
             <div
+              data-no-toggle={isCoach ? '' : undefined}
               onClick={() => { if (isCoach) openMarkerEditor(viewingMarkerNote) }}
               style={{
                 position: 'absolute', bottom: 16, left: 16, right: 16, color: '#fff', fontSize: 13, padding: '10px 14px', borderRadius: 8,
@@ -1138,7 +1154,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
           flex sibling), so it never resizes the video when it shows
           or hides -- same tap-to-show/hide as the middle overlay. */}
       {controlsVisible && (
-      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '10px 12px 16px' }}
+      <div data-no-toggle style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '10px 12px 16px' }}
         onClick={e => e.stopPropagation()}
         onPointerDown={() => clearTimeout(autoHideTimerRef.current)}
         onPointerUp={scheduleAutoHide}>
@@ -1151,7 +1167,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
                 associated with where you are among the markers. Also
                 swipeable directly (drives the same currentTime as the
                 scrub bar below, so the two always stay in sync). */}
-            <div ref={markerRowRef} style={{ position: 'relative', height: 36, marginBottom: 6, touchAction: 'none' }}
+            <div ref={markerRowRef} data-no-toggle style={{ position: 'relative', height: 36, marginBottom: 6, touchAction: 'none' }}
               onPointerDown={handleMarkerRowPointerDown}
               onPointerMove={handleMarkerRowPointerMove}
               onPointerUp={handleMarkerRowPointerUp}
@@ -1254,7 +1270,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
       )}
 
       {showMarkerChoice && (
-        <div style={{ position: 'fixed', bottom: 90, left: 12, right: 12, zIndex: 206, padding: '10px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, borderRadius: 12, ...GLASS_STYLE }}>
+        <div data-no-toggle style={{ position: 'fixed', bottom: 90, left: 12, right: 12, zIndex: 206, padding: '10px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, borderRadius: 12, ...GLASS_STYLE }}>
           <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>
             {fmt(Math.min(markerRangeStart, currentTime))} → {fmt(Math.max(markerRangeStart, currentTime))} ({Math.abs(currentTime - markerRangeStart).toFixed(1)}s)
           </span>
@@ -1274,7 +1290,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
       )}
 
       {editingMarker && (
-        <div style={{ position: 'fixed', bottom: 90, left: 12, right: 12, zIndex: 210, padding: 16, borderRadius: 12, ...GLASS_STYLE }}>
+        <div data-no-toggle style={{ position: 'fixed', bottom: 90, left: 12, right: 12, zIndex: 210, padding: 16, borderRadius: 12, ...GLASS_STYLE }}>
           <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>
             {editingMarker.marker_type === 'photo' ? 'Photo marker' : 'Edit marker'} — {fmt(editingMarker.start_seconds)}{editingMarker.marker_type !== 'photo' ? ` → ${fmt(editingMarker.end_seconds)}` : ''}
           </h3>
