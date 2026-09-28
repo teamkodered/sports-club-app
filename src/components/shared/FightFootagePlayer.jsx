@@ -1044,17 +1044,6 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
             )
           )}
 
-          {controlsVisible && isCoach && sourceId && !showMarkerChoice && markerRangeStart === null && (
-            <button className="view-it-btn" title="Add photo"
-              style={{ position: 'absolute', top: 84, right: 8, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer' }}
-              onClick={e => { e.stopPropagation(); capturePhotoMarker() }}>📷</button>
-          )}
-
-          {controlsVisible && (
-            <button className="view-it-btn" title={canSaveRotation ? 'Rotate 90° (saved for everyone)' : 'Rotate 90°'}
-              style={{ position: 'absolute', top: (isCoach && sourceId && !showMarkerChoice && markerRangeStart === null) ? 128 : 84, right: 8, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 18, cursor: 'pointer' }}
-              onClick={e => { e.stopPropagation(); rotateView() }}>⟳</button>
-          )}
         </div>
 
         <canvas ref={canvasRef} style={{ display: 'none' }} />
@@ -1100,11 +1089,26 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
           own layout space. Same tap-to-show/hide as everything else. */}
       {controlsVisible && (
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: 12, zIndex: 2 }}>
+        {/* Title sits between the fullscreen button's corner and the
+            right-hand cluster, so it can't run underneath either. */}
         <span style={{
-          position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', maxWidth: '70%',
+          position: 'absolute', top: 18, left: 56, right: 190, textAlign: 'center',
           color: '#fff', fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>{title}</span>
-        <button className="view-it-btn btn btn-sm" style={{ position: 'absolute', top: 12, right: 12 }} onClick={onClose}>✕ Close</button>
+        {/* 📷 and ⟳ live in one row with Close (to its left), pinned to the
+            screen's top-right corner rather than the video, so they sit in
+            the same place in portrait and landscape and never overlap it. */}
+        <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+          {isCoach && sourceId && !showMarkerChoice && markerRangeStart === null && (
+            <button className="view-it-btn" title="Add photo"
+              style={{ width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+              onClick={e => { e.stopPropagation(); capturePhotoMarker() }}>📷</button>
+          )}
+          <button className="view-it-btn" title={canSaveRotation ? 'Rotate 90° (saved for everyone)' : 'Rotate 90°'}
+            style={{ width: 36, height: 36, borderRadius: '50%', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+            onClick={e => { e.stopPropagation(); rotateView() }}>⟳</button>
+          <button className="view-it-btn btn btn-sm" onClick={onClose}>✕ Close</button>
+        </div>
 
         {/* One swatch per colour actually in use on the timeline --
             tapping one plays only that colour's sections (a highlight
