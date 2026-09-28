@@ -1489,28 +1489,26 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
               disabled={zoomLevel === ZOOM_LEVELS[0]} onClick={() => setZoomLevel(z => ZOOM_LEVELS[Math.max(0, ZOOM_LEVELS.indexOf(z) - 1)])}>−</button>
 
             <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, minWidth: 0 }}>
-              {markers.length > 0 && (
-                <button className="view-it-btn btn btn-sm" title="Previous note start/end (hold to repeat)" aria-label="Previous note edge" style={ROUND_SM}
-                  onPointerDown={() => startEdgeRepeat(-1)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat} onPointerCancel={stopStepRepeat}><TransportIcon name="rewind" /></button>
-              )}
+              {/* Icons stay where they were; functions swapped (Sep 2026): the outer
+                  rewind/forward icons now step frames, the inner frame icons skip notes. */}
               <button className="view-it-btn btn btn-sm" title="Back 1 frame · press again quickly to go faster · hold to keep going" aria-label="Back 1 frame" style={ROUND_SM}
                 onPointerDown={() => startFrameStep(-1)} onPointerUp={stopFrameStep} onPointerLeave={stopFrameStep} onPointerCancel={stopFrameStep}>
-                <TransportIcon name="frameBack" />{frameBoost?.dir === -1 && <span style={BOOST_BADGE}>×{frameBoost.level}</span>}
+                <TransportIcon name="rewind" />{frameBoost?.dir === -1 && <span style={BOOST_BADGE}>×{frameBoost.level}</span>}
               </button>
+              <button className="view-it-btn btn btn-sm" title={markers.length ? 'Previous note start/end (hold to repeat)' : 'No notes yet'} aria-label="Previous note edge" style={ROUND_SM} disabled={markers.length === 0}
+                onPointerDown={() => startEdgeRepeat(-1)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat} onPointerCancel={stopStepRepeat}><TransportIcon name="frameBack" /></button>
               <button className="view-it-btn" title="Play/pause · hold for slow-mo" aria-label={playing ? 'Pause' : 'Play'}
                 style={{ width: 46, height: 46, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', padding: 0 }}
                 onPointerDown={handlePlayButtonPointerDown} onPointerMove={handlePlayButtonPointerMove} onPointerUp={handlePlayButtonPointerUp}
                 onPointerLeave={() => { if (isHoldingRef.current) handlePlayButtonPointerUp() }}>
                 {playing ? <TransportIcon name="pause" size={20} /> : <span style={{ marginLeft: 2 }}><TransportIcon name="play" size={20} /></span>}
               </button>
+              <button className="view-it-btn btn btn-sm" title={markers.length ? 'Next note start/end (hold to repeat)' : 'No notes yet'} aria-label="Next note edge" style={ROUND_SM} disabled={markers.length === 0}
+                onPointerDown={() => startEdgeRepeat(1)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat} onPointerCancel={stopStepRepeat}><TransportIcon name="frameFwd" /></button>
               <button className="view-it-btn btn btn-sm" title="Forward 1 frame · press again quickly to go faster · hold to keep going" aria-label="Forward 1 frame" style={ROUND_SM}
                 onPointerDown={() => startFrameStep(1)} onPointerUp={stopFrameStep} onPointerLeave={stopFrameStep} onPointerCancel={stopFrameStep}>
-                <TransportIcon name="frameFwd" />{frameBoost?.dir === 1 && <span style={BOOST_BADGE}>×{frameBoost.level}</span>}
+                <TransportIcon name="forward" />{frameBoost?.dir === 1 && <span style={BOOST_BADGE}>×{frameBoost.level}</span>}
               </button>
-              {markers.length > 0 && (
-                <button className="view-it-btn btn btn-sm" title="Next note start/end (hold to repeat)" aria-label="Next note edge" style={ROUND_SM}
-                  onPointerDown={() => startEdgeRepeat(1)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat} onPointerCancel={stopStepRepeat}><TransportIcon name="forward" /></button>
-              )}
             </div>
 
             <button className="view-it-btn btn btn-sm" title="Zoom in" aria-label="Zoom in" style={ROUND_SM}
