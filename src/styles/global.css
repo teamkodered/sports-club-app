@@ -740,7 +740,8 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .neon-header-chips { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) !important; column-gap: 6px; }
 .neon-chip { width: 100%; max-width: 118px; min-width: 0; }
 .neon-home { max-width: 100%; box-sizing: border-box; }
-.neon-home > div[style*="grid-template-columns"], .neon-home div[style*="repeat(3,1fr)"], .neon-home div[style*="repeat(3, 1fr)"] { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+/* only the 3-up stat-card row -- never the pillar or tile grids */
+.neon-home div[style*="repeat(3,1fr)"]:has(> .neon-stat), .neon-home div[style*="repeat(3, 1fr)"]:has(> .neon-stat), .neon-home div[style*="repeat(3,1fr)"]:has(> div > .neon-stat) { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
 .neon-home .neon-stat, .neon-home .neon-stat > * { min-width: 0; }
 .neon-home .neon-stat { width: 100%; box-sizing: border-box; }
 .neon-home .neon-stat img { max-width: 70% !important; }
