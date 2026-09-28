@@ -3385,7 +3385,7 @@ export default function AthleteApp() {
             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', background: colour + '12', borderRadius: 'var(--radius)' }}>
               <span style={{ fontSize: 13 }}>{e.type}</span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: colour }}>{e.duration} min</span>
+                {e.duration ? <span style={{ fontSize: 12, fontWeight: 600, color: colour }}>{e.duration} min</span> : <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>no time</span>}
                 <button type="button" aria-label={`Remove ${e.type}`} onClick={() => saveMentalityField(field, cur => ({ entries: (cur.entries || []).filter((_, idx) => idx !== i) }))}
                   style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 16, padding: '0 4px' }}>×</button>
               </span>
@@ -3406,10 +3406,10 @@ export default function AthleteApp() {
     const selected = mentalityDraftDurations[selKey] || null
     const minutes = mentalityDraftDurations[minKey] ?? ''
     const sel = types.find(t => t.name === selected) || null
-    const canSave = !!sel && Number(minutes) > 0
+    const canSave = !!sel // minutes are optional -- an entry can be saved without a time
     const save = () => {
       if (!canSave) return
-      saveMentalityField(field, cur => ({ entries: [...(cur.entries || []), { type: sel.name, duration: minutes }] }))
+      saveMentalityField(field, cur => ({ entries: [...(cur.entries || []), { type: sel.name, duration: Number(minutes) > 0 ? minutes : '' }] }))
       setMentalityDraftDurations(prev => ({ ...prev, [selKey]: null, [minKey]: '' }))
     }
     return (
@@ -3428,14 +3428,14 @@ export default function AthleteApp() {
         </div>
         {sel?.howTo && <p className="neon-howto" style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.45 }}>{sel.howTo}</p>}
         <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
-          <input type="number" inputMode="numeric" min="1" placeholder="Minutes" aria-label="Minutes" value={minutes}
+          <input type="number" inputMode="numeric" min="1" placeholder="Minutes (optional)" aria-label="Minutes (optional)" value={minutes}
             onChange={e => setMentalityDraftDurations(prev => ({ ...prev, [minKey]: e.target.value }))}
             onKeyDown={e => { if (e.key === 'Enter') save() }}
             className="neon-min"
             style={{ flex: 1, minWidth: 0, padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 15, background: 'var(--bg-primary)', color: 'var(--text)', fontFamily: 'var(--font-sans)' }} />
           <button type="button" className="btn btn-sm neon-save" disabled={!canSave} onClick={save}>Save</button>
         </div>
-        {!sel && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '6px 0 0' }}>Pick an option, enter the minutes, then Save.</p>}
+        {!sel && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '6px 0 0' }}>Pick an option, add minutes if you like, then Save.</p>}
       </div>
     )
   }
