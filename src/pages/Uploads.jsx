@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase.js'
 import { ALL_GRADES, EVENT_TYPES, FOOTAGE_ACCESS_MODES, footageAccessLabel, eventLabel } from '../lib/mediaConstants.js'
 import { saveFootageAthletes, guessAthletesFromFilename } from '../lib/fightFootageTags.js'
 import AthletePicker from '../components/shared/AthletePicker.jsx'
+import LongPressArea from '../components/shared/LongPressArea.jsx'
 import { rotationLayout, normaliseRotation } from '../lib/videoRotation.js'
 
 // Upload forms (single + bulk) and the search/filter tools for the
@@ -36,6 +37,10 @@ export default function Uploads({
   const [rotationOverrides, setRotationOverrides] = useState({}) // footage id -> rotation, shown instantly while the save + reload catches up
   const [justPublishedId, setJustPublishedId] = useState(null)
   const [selectedPendingIds, setSelectedPendingIds] = useState(() => new Set())
+  const [expandedFolders, setExpandedFolders] = useState(() => new Set()) // folder cards start collapsed
+  const [editingFolderKey, setEditingFolderKey] = useState(null)
+  const [folderEdit, setFolderEdit] = useState(null) // { name, eventId, accessMode } -- '' means "leave as is"
+  const [savingFolder, setSavingFolder] = useState(false)
 
   // Resolves whatever the coach picked in the Event dropdown into a
   // real event_id -- creating a brand new event row first if "+ New
@@ -275,6 +280,81 @@ export default function Uploads({
     load()
   }
 
+  function toggleFolderExpanded(key) {
+    setExpandedFolders(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key); else next.add(key)
+      return next
+    })
+  }
+
+  function toggleSelectGroup(group) {
+    const ids = group.items.map(i => i.id)
+    setSelectedPendingIds(prev => {
+      const next = new Set(prev)
+      const allOn = ids.every(id => next.has(id))
+      for (const id of ids) { if (allOn) next.delete(id); else next.add(id) }
+      return next
+    })
+  }
+
+  function startEditFolder(group) {
+    setEditingFolderKey(group.key)
+    setFolderEdit({ name: group.folder?.name || '', eventId: '', accessMode: '' })
+  }
+
+  // Folder details: the name lives on footage_folders; event and access are
+  // applied to every video in this card (only the ones awaiting publish).
+  // For the "No folder" card, typing a name files all of them into that
+  // folder (reusing an existing folder of the same name).
+  async function saveFolderEdit(group) {
+    setSavingFolder(true)
+    try {
+      const ids = group.items.map(i => i.id)
+      const name = folderEdit.name.trim()
+      const itemUpdate = {}
+      if (group.folder) {
+        if (name && name !== group.folder.name) {
+          if (folders.some(fo => fo.id !== group.folder.id && fo.name.toLowerCase() === name.toLowerCase())) {
+            alert(`There's already a folder called "${name}".`); return
+          }
+          const { error } = await supabase.from('footage_folders').update({ name }).eq('id', group.folder.id)
+          if (error) throw error
+          setFolders(prev => prev.map(fo => fo.id === group.folder.id ? { ...fo, name } : fo).sort((a, b) => a.name.localeCompare(b.name)))
+        }
+      } else if (name) {
+        let folder = folders.find(fo => fo.name.toLowerCase() === name.toLowerCase())
+        if (!folder) {
+          const { data, error } = await supabase.from('footage_folders').insert({ name }).select().single()
+          if (error) throw error
+          folder = data
+          setFolders(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))
+        }
+        itemUpdate.folder_id = folder.id
+      }
+      if (folderEdit.eventId) itemUpdate.event_id = folderEdit.eventId === '__none__' ? null : folderEdit.eventId
+      if (folderEdit.accessMode) itemUpdate.access_mode = folderEdit.accessMode
+      if (Object.keys(itemUpdate).length > 0) {
+        const { error } = await supabase.from('fight_footage').update(itemUpdate).in('id', ids)
+        if (error) throw error
+      }
+      setEditingFolderKey(null)
+      load()
+    } catch (err) {
+      alert('Could not save folder: ' + err.message)
+    } finally {
+      setSavingFolder(false)
+    }
+  }
+
+  async function publishGroup(group) {
+    const ids = group.items.map(i => i.id)
+    if (!confirm(`Publish all ${ids.length} video${ids.length === 1 ? '' : 's'} in "${group.folder?.name || 'No folder'}"?`)) return
+    const { error } = await supabase.from('fight_footage').update({ published: true }).in('id', ids)
+    if (error) { alert('Could not publish: ' + error.message); return }
+    load()
+  }
+
   function toggleSelectAllPending() {
     setSelectedPendingIds(prev => prev.size === pendingFootage.length ? new Set() : new Set(pendingFootage.map(i => i.id)))
   }
@@ -297,6 +377,20 @@ export default function Uploads({
 
   const studentById = Object.fromEntries(students.map(s => [s.id, s]))
   const batchAthletes = students.filter(s => uploadForm.featuredIds.has(s.id))
+  // Awaiting-publish list grouped by folder, most recently uploaded first,
+  // with loose videos in a "No folder" card at the end.
+  const pendingGroups = (() => {
+    const byKey = {}
+    const out = []
+    for (const item of pendingFootage) {
+      const key = item.folder_id || 'none'
+      if (!byKey[key]) { byKey[key] = { key, folder: item.footage_folders || null, items: [] }; out.push(byKey[key]) }
+      byKey[key].items.push(item)
+    }
+    const latest = g => g.items.reduce((m, i) => (i.uploaded_at > m ? i.uploaded_at : m), '')
+    return out.sort((a, b) => (!a.folder ? 1 : !b.folder ? -1 : latest(b).localeCompare(latest(a))))
+  })()
+  const eventById = Object.fromEntries(events.map(ev => [ev.id, ev]))
   const featuredNames = item => (item.fight_footage_featured || []).map(a => studentById[a.student_id]).filter(Boolean).map(studentName)
   const currentTags = parsedTags()
   const tagSuggestions = allTags.filter(t => !currentTags.includes(t))
@@ -473,7 +567,7 @@ export default function Uploads({
       {pendingFootage.length > 0 && (
         <div className="card" style={{ padding: 12, marginBottom: 16 }}>
           <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Awaiting publish ({pendingFootage.length})</h3>
-          <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10 }}>Uploaded here, but not yet visible in the View IT tab — review or edit the details, then publish when ready.</p>
+          <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10 }}>Not yet visible in View IT. Tap a folder to open it; <span className="touch-only-inline">hold</span><span className="hover-only-inline">use Edit on</span> a folder to change its name, event or who can see it.</p>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}>
               <input type="checkbox" checked={selectedPendingIds.size === pendingFootage.length && pendingFootage.length > 0} onChange={toggleSelectAllPending} />
@@ -487,8 +581,63 @@ export default function Uploads({
               </>
             )}
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {pendingFootage.map(item => (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {pendingGroups.map(group => {
+              const expanded = expandedFolders.has(group.key)
+              const editing = editingFolderKey === group.key
+              const groupSelected = group.items.every(i => selectedPendingIds.has(i.id))
+              const eventNames = [...new Set(group.items.map(i => i.event_id).filter(Boolean))].map(id => eventById[id]?.name).filter(Boolean)
+              const athleteNames = [...new Set(group.items.flatMap(featuredNames))]
+              return (
+            <div key={group.key} style={{ border: '1px solid var(--border)', borderRadius: 10, background: 'var(--bg-secondary)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 12 }}>
+                <input type="checkbox" checked={groupSelected} onChange={() => toggleSelectGroup(group)} title="Select every video in this folder" style={{ flexShrink: 0 }} />
+                <LongPressArea style={{ flex: 1, minWidth: 0 }} onTap={() => toggleFolderExpanded(group.key)} onHold={() => { startEditFolder(group); setExpandedFolders(prev => new Set(prev).add(group.key)) }}>
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>{expanded ? '▾' : '▸'} 📁 {group.folder?.name || 'No folder'}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
+                    {group.items.length} video{group.items.length === 1 ? '' : 's'}
+                    {eventNames.length > 0 && <> · 🏆 {eventNames.join(', ')}</>}
+                    {athleteNames.length > 0 && <> · 🥊 {athleteNames.join(', ')}</>}
+                  </div>
+                </LongPressArea>
+                <div className="hover-only" style={{ gap: 6 }}>
+                  <button className="btn btn-sm" onClick={() => editing ? setEditingFolderKey(null) : (startEditFolder(group), setExpandedFolders(prev => new Set(prev).add(group.key)))}>{editing ? 'Close' : 'Edit'}</button>
+                </div>
+                <button className="btn btn-sm btn-primary" onClick={() => publishGroup(group)} title="Publish every video in this folder">✓ Publish all</button>
+              </div>
+
+              {editing && folderEdit && (
+                <div style={{ padding: '0 12px 12px' }}>
+                  <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 10, background: 'var(--bg)' }}>
+                    <div className="field"><label>Folder name</label>
+                      <input value={folderEdit.name} onChange={e => setFolderEdit(f => ({ ...f, name: e.target.value }))} placeholder={group.folder ? '' : 'Type a name to file these into a folder'} />
+                    </div>
+                    <div className="field"><label>Event for all {group.items.length} videos</label>
+                      <select value={folderEdit.eventId} onChange={e => setFolderEdit(f => ({ ...f, eventId: e.target.value }))}>
+                        <option value="">Leave as is</option>
+                        <option value="__none__">No event</option>
+                        {events.map(ev => <option key={ev.id} value={ev.id}>{eventLabel(ev)}</option>)}
+                      </select>
+                    </div>
+                    <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Who can see all {group.items.length} videos?</label>
+                    <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+                      <button className={folderEdit.accessMode === '' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setFolderEdit(f => ({ ...f, accessMode: '' }))}>Leave as is</button>
+                      {FOOTAGE_ACCESS_MODES.filter(m => m.value !== 'select_athletes').map(m => (
+                        <button key={m.value} className={folderEdit.accessMode === m.value ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setFolderEdit(f => ({ ...f, accessMode: m.value }))}>{m.label}</button>
+                      ))}
+                    </div>
+                    <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8 }}>Athletes stay per video — edit those on each video below.</p>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button className="btn btn-sm btn-primary" disabled={savingFolder} onClick={() => saveFolderEdit(group)}>{savingFolder ? 'Saving…' : 'Save'}</button>
+                      <button className="btn btn-sm" onClick={() => setEditingFolderKey(null)}>Cancel</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {expanded && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '0 12px 12px' }}>
+            {group.items.map(item => (
               <div key={item.id} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 10, display: 'flex', gap: 10 }}>
                 <input type="checkbox" style={{ marginTop: 3, flexShrink: 0 }} checked={selectedPendingIds.has(item.id)} onChange={e => setSelectedPendingIds(prev => {
                   const next = new Set(prev)
@@ -621,6 +770,11 @@ export default function Uploads({
                 </div>
               </div>
             ))}
+            </div>
+              )}
+            </div>
+              )
+            })}
           </div>
         </div>
       )}
