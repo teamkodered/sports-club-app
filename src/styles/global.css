@@ -732,3 +732,24 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .reg-fighters-menu { display: flex; gap: 8px; }
 .reg-fighters-menu button { height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid #1D9E75; background: color-mix(in srgb, #1D9E75 14%, var(--bg-secondary)); color: var(--text); font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; }
 .reg-fighters-toast { flex-basis: 100%; font-size: 13px; font-weight: 600; color: #1D9E75; }
+
+/* Register cards: name is a plain-looking tap target (no link styling) that still opens the profile */
+.reg-m-namelink { color: var(--text) !important; text-decoration: none !important; }
+
+/* Athlete profile (coach view) on phones: nothing may be wider than the screen */
+.neon-header-chips { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) !important; column-gap: 6px; }
+.neon-chip { width: 100%; max-width: 118px; min-width: 0; }
+.neon-home { max-width: 100%; box-sizing: border-box; }
+.neon-home > div[style*="grid-template-columns"], .neon-home div[style*="repeat(3,1fr)"], .neon-home div[style*="repeat(3, 1fr)"] { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+.neon-home .neon-stat, .neon-home .neon-stat > * { min-width: 0; }
+.neon-home .neon-stat { width: 100%; box-sizing: border-box; }
+.neon-home .neon-stat img { max-width: 70% !important; }
+@media (max-width: 640px) {
+  .neon-home { margin: 0 !important; padding: 10px 6px 14px !important; }
+  .neon-banner .neon-hex.neon-hex-centre { width: 84px; height: 84px; margin: -8px 0; }
+  .neon-banner .neon-name { font-size: 22px !important; }
+  .neon-header-row { flex-wrap: wrap; }
+  .neon-namebox { flex: 1 1 60%; }
+  .neon-home .neon-stat .neon-stat-value { font-size: 19px !important; }
+  .neon-home .neon-stat button { padding: 0 !important; min-width: 0; }
+}
