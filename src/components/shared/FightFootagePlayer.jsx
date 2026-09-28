@@ -1000,13 +1000,13 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
 
           {controlsVisible && isCoach && sourceId && !showMarkerChoice && markerRangeStart === null && (
             <button className="view-it-btn" title="Add photo"
-              style={{ position: 'absolute', top: 8, right: 8, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer' }}
+              style={{ position: 'absolute', top: 60, right: 8, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer' }}
               onClick={e => { e.stopPropagation(); capturePhotoMarker() }}>📷</button>
           )}
 
           {controlsVisible && (
             <button className="view-it-btn" title={canSaveRotation ? 'Rotate 90° (saved for everyone)' : 'Rotate 90°'}
-              style={{ position: 'absolute', top: 52, right: 8, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 18, cursor: 'pointer' }}
+              style={{ position: 'absolute', top: (isCoach && sourceId && !showMarkerChoice && markerRangeStart === null) ? 104 : 60, right: 8, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 18, cursor: 'pointer' }}
               onClick={e => { e.stopPropagation(); rotateView() }}>⟳</button>
           )}
         </div>
