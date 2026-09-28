@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
+import { newRunId, runKey, isSuicideTest, suicideMetres, SUICIDE_PRESETS, EffortSwitcher, SuicideInput } from '../components/shared/RunEfforts.jsx'
 import F2FLeague from '../components/athlete/F2FLeague.jsx'
 import SectionRopes from '../components/shared/SectionRopes.jsx'
 import NeonTileIcon from '../components/shared/NeonTileIcon.jsx'
@@ -1661,6 +1662,7 @@ export default function AthleteApp() {
   const [bodyweightTypeOptions, setBodyweightTypeOptions] = useState([])
   const [stretchOptionsList, setStretchOptionsList] = useState([])
   const [expandedHomeRun, setExpandedHomeRun] = useState(null)
+  const [runEffortSel, setRunEffortSel] = useState({}) // running: which effort is being edited, per type ('__new__' = a new one)
   const [showPhysicalSection, setShowPhysicalSection] = useState(false)
   const [showTechniqueSection, setShowTechniqueSection] = useState(false)
   const techniqueSectionRef = useRef(null)
@@ -4935,9 +4937,42 @@ export default function AthleteApp() {
                       })}
                     </div>
                     {expandedHomeRun && (() => {
-                      const entry = todaysRunning.find(e => e.category === expandedHomeRun) || { category: expandedHomeRun, test: '', sets: [] }
-                      const upsert = updatedEntry => savePhysicalField('running', [...todaysRunning.filter(e => e.category !== expandedHomeRun), updatedEntry], setTodaysRunning)
-                      const presets = RUN_PRESET_TESTS[expandedHomeRun] || []
+                      const efforts = todaysRunning.map((e, i) => ({ e, k: runKey(e, i), i })).filter(x => x.e.category === expandedHomeRun)
+                      const selKey = runEffortSel[expandedHomeRun]
+                      const isNewEffort = selKey === '__new__' || efforts.length === 0
+                      const current = isNewEffort ? null : (efforts.find(x => x.k === selKey) || efforts[efforts.length - 1])
+                      const entry = current ? current.e : { category: expandedHomeRun, test: '', sets: [] }
+                      const pickEffort = k => setRunEffortSel(p => ({ ...p, [expandedHomeRun]: k }))
+                      // One saved item per effort: edits change only the effort being edited.
+                      const upsert = updatedEntry => {
+                        if (current) {
+                          const id = current.e.id || newRunId()
+                          savePhysicalField('running', todaysRunning.map((e, i) => i === current.i ? { ...updatedEntry, id } : e), setTodaysRunning)
+                          if (!current.e.id) pickEffort(id)
+                        } else {
+                          const id = newRunId()
+                          savePhysicalField('running', [...todaysRunning, { ...updatedEntry, category: expandedHomeRun, id }], setTodaysRunning)
+                          pickEffort(id)
+                        }
+                      }
+                      // Changing the test / mode / terrain of an effort that already has results
+                      // starts a NEW effort, so earlier results are never relabelled or mixed.
+                      const upsertSetup = patch => {
+                        if (current && (entry.sets || []).length > 0) {
+                          const id = newRunId()
+                          const carryMode = entry.mode === 'suicide' ? undefined : entry.mode
+                          savePhysicalField('running', [...todaysRunning, { category: expandedHomeRun, terrain: entry.terrain, mode: carryMode, test: '', sets: [], ...patch, id }], setTodaysRunning)
+                          pickEffort(id)
+                        } else upsert({ ...entry, ...patch })
+                      }
+                      const removeCurrentEffort = () => {
+                        if (!current) return
+                        savePhysicalField('running', todaysRunning.filter((_, i) => i !== current.i), setTodaysRunning)
+                        pickEffort(null)
+                      }
+                      const isSuicideNow = expandedHomeRun === 'Interval' && isSuicideTest(entry.test) && (entry.mode === 'suicide' || !(entry.sets || []).length)
+                      const isLegacySuicide = expandedHomeRun === 'Interval' && isSuicideTest(entry.test) && !isSuicideNow
+                      const presets = expandedHomeRun === 'Interval' ? [...new Set([...(RUN_PRESET_TESTS.Interval || []), ...SUICIDE_PRESETS])] : (RUN_PRESET_TESTS[expandedHomeRun] || [])
                       const cat = RUN_CATEGORY_CARDS.find(c => c.key === expandedHomeRun)
                       const isTimedSprints = expandedHomeRun === 'Timed Sprints'
                       const isInterval = expandedHomeRun === 'Interval'
@@ -4946,9 +4981,11 @@ export default function AthleteApp() {
                       const intervalMode = entry.mode || 'distance' // whether the per-rep result logged is a distance or a time
                       return (
                         <div className="card" style={{ marginBottom: 8 }}>
+                          <EffortSwitcher efforts={efforts} currentKey={current?.k} isNew={!current} onPick={pickEffort} onNew={() => pickEffort('__new__')} />
+                          {isLegacySuicide && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '0 0 8px' }}>This suicide effort was logged before end lines were recorded — its results are kept as entered. Tap + New effort to log end lines.</p>}
                           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                             <button type="button" className="btn btn-sm" style={{ fontSize: 11 }}
-                              onClick={() => savePhysicalField('running', todaysRunning.filter(e => e.category !== expandedHomeRun), setTodaysRunning)}>✕ Clear</button>
+                              disabled={!current} onClick={removeCurrentEffort}>✕ Remove effort</button>
                           </div>
                           {(isTimedSprints || isInterval) && (
                             <div style={{ display: 'flex', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
@@ -4956,7 +4993,7 @@ export default function AthleteApp() {
                                 <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Distance / Time</label>
                                 <div style={{ display: 'flex', gap: 4 }}>
                                   {['distance', 'time'].map(m => (
-                                    <button key={m} type="button" onClick={() => upsert({ ...entry, mode: m, ...(isTimedSprints ? { test: '' } : {}) })}
+                                    <button key={m} type="button" onClick={() => upsertSetup({ mode: m, ...(isTimedSprints ? { test: '' } : {}) })}
                                       className="btn btn-sm" style={{ fontSize: 11, background: (isTimedSprints ? sprintMode : intervalMode) === m ? '#E24B4A20' : undefined, borderColor: (isTimedSprints ? sprintMode : intervalMode) === m ? '#E24B4A' : undefined }}>
                                       {isTimedSprints ? (m === 'distance' ? 'Fixed distance' : 'Fixed time') : (m === 'distance' ? 'Distance' : 'Time')}
                                     </button>
@@ -4967,7 +5004,7 @@ export default function AthleteApp() {
                                 <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Terrain</label>
                                 <div style={{ display: 'flex', gap: 4 }}>
                                   {['flat', 'hill'].map(t => (
-                                    <button key={t} type="button" onClick={() => upsert({ ...entry, terrain: t })}
+                                    <button key={t} type="button" onClick={() => upsertSetup({ terrain: t })}
                                       className="btn btn-sm" style={{ fontSize: 11, textTransform: 'capitalize', background: (entry.terrain || 'flat') === t ? '#E24B4A20' : undefined, borderColor: (entry.terrain || 'flat') === t ? '#E24B4A' : undefined }}>
                                       {t}
                                     </button>
@@ -4979,27 +5016,31 @@ export default function AthleteApp() {
                           <div className="field"><label>{isTimedSprints ? (sprintMode === 'time' ? 'Fixed time' : 'Fixed distance') : 'Specific test'}</label>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
                               {sprintPresets.map(t => (
-                                <button key={t} type="button" onClick={() => upsert({ ...entry, test: t })}
+                                <button key={t} type="button" onClick={() => upsertSetup({ test: t })}
                                   className="btn btn-sm" style={{ background: entry.test === t ? '#E24B4A20' : undefined, borderColor: entry.test === t ? '#E24B4A' : undefined }}>{t}</button>
                               ))}
                               <input ref={sprintTestOtherRef} defaultValue={sprintPresets.includes(entry.test) ? '' : (entry.test || '')}
                                 placeholder="Other…" style={{ width: 90, flexShrink: 0 }} />
                               <button type="button" className="btn btn-sm" style={{ fontSize: 11 }}
-                                onClick={() => { const val = sprintTestOtherRef.current?.value; if (val) upsert({ ...entry, test: val }) }}>Save</button>
+                                onClick={() => { const val = sprintTestOtherRef.current?.value; if (val) upsertSetup({ test: val }) }}>Save</button>
                             </div>
                             {cat?.hasOnOffInput && (
                               <div style={{ marginTop: 8 }}>
-                                <OnOffInput onAdd={val => upsert({ ...entry, test: val })} />
+                                <OnOffInput onAdd={val => upsertSetup({ test: isSuicideTest(entry.test) ? `Suicides ${val}` : val })} />
                               </div>
                             )}
                           </div>
-                          <div className="field" style={{ marginBottom: 0 }}><label>{isTimedSprints ? 'Results' : isInterval ? (intervalMode === 'time' ? 'Results (time, sec)' : 'Results (distance, km)') : (cat?.resultLabel || 'Results (time)')}</label>
+                          <div className="field" style={{ marginBottom: 0 }}><label>{isTimedSprints ? 'Results' : isInterval ? (isSuicideNow ? 'Results (end line reached per rep)' : intervalMode === 'time' ? 'Results (time, sec)' : 'Results (distance, km)') : (cat?.resultLabel || 'Results (time)')}</label>
                             {isTimedSprints ? (
-                              <TimedSprintsInput key={sprintMode} sets={entry.sets || []} mode={sprintMode} fixedValue={entry.test}
+                              <TimedSprintsInput key={`${sprintMode}-${current?.k || 'new'}`} sets={entry.sets || []} mode={sprintMode} fixedValue={entry.test}
                                 onChange={sets => upsert({ ...entry, sets })} />
                             ) : (
-                              <SetInput key={cat?.key} sets={entry.sets || []} onChange={sets => upsert({ ...entry, sets })}
+                              isSuicideNow ? (
+                                <SuicideInput lines={entry.sets || []} onChange={lines => upsert({ ...entry, mode: 'suicide', increment_m: 1, sets: lines, distances_m: lines.map(suicideMetres), total_m: lines.reduce((t, x) => t + suicideMetres(x), 0) })} />
+                              ) : (
+                              <SetInput key={`${cat?.key}-${current?.k || 'new'}`} sets={entry.sets || []} onChange={sets => upsert({ ...entry, sets })}
                                 inputType="number" placeholder={isInterval ? (intervalMode === 'time' ? 'e.g. 45' : 'e.g. 2.4') : (cat?.resultLabel ? 'e.g. 2.4' : 'e.g. 12.3')} />
+                              )
                             )}
                           </div>
                           {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>Saving…</p>}
@@ -8018,7 +8059,7 @@ export default function AthleteApp() {
                               </div>
                               {s.running && toEntries(s.running).map((e, ei) => (
                                 <p key={ei} style={{ fontSize: 12, margin: '4px 0' }}>
-                                  🏃 {e.category || e.test || 'Running'}{(e.sets?.length) ? `: ${e.sets.map(v => { if (!v || typeof v !== 'object') return v; if (v.isRest) return 'rest'; return v.value ?? v.wattage }).join(', ')}` : ' logged'}
+                                  {e.mode === 'suicide' ? `🏃 ${e.test || 'Suicides'} · best ${Math.max(...(e.sets || [0]))} m line · ${e.total_m ?? (e.sets || []).reduce((t, x) => t + suicideMetres(Number(x)), 0)} m total (${(e.sets || []).length} reps)` : <>🏃 {e.category || e.test || 'Running'}{(e.sets?.length) ? `: ${e.sets.map(v => { if (!v || typeof v !== 'object') return v; if (v.isRest) return 'rest'; return v.value ?? v.wattage }).join(', ')}` : ' logged'}</>}
                                 </p>
                               ))}
                               {s.watt_bike && toEntries(s.watt_bike).map((e, ei) => (
