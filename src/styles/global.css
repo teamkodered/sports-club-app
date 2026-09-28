@@ -760,3 +760,4 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .reg-m-cols .reg-m-pct { display: grid; grid-template-columns: 40px 38px; align-items: center; gap: 6px; }
 .reg-m-cols .reg-m-pct b { text-align: right; }
 .reg-m-spark span { white-space: nowrap; font-size: 11px; }
+.reg-fighters { margin: 16px 0 8px; padding-top: 14px; border-top: 1px solid var(--border); }

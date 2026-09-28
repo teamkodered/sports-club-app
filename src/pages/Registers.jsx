@@ -1230,22 +1230,6 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
         </div>
       )}
 
-      {/* Athlete register: Fighters list -- copy to paste to other coaches for matching */}
-      {initialRegType && (
-        <div className="reg-fighters">
-          <button type="button" className="btn btn-sm reg-fighters-btn" aria-expanded={fightersMenuOpen} onClick={() => setFightersMenuOpen(v => !v)}>
-            🥊 Fighters list
-          </button>
-          {fightersMenuOpen && (
-            <div className="reg-fighters-menu" role="menu">
-              <button type="button" role="menuitem" onClick={() => copyFightersList('name')}>Name order</button>
-              <button type="button" role="menuitem" onClick={() => copyFightersList('age')}>Age order</button>
-            </div>
-          )}
-          {fightersCopied && <div className="reg-fighters-toast" role="status">✓ {fightersCopied}</div>}
-        </div>
-      )}
-
       {/* Register tabs -- restricted to just KR/KRBA when embedded within
           the Athlete Profile page (signalled by initialRegType being
           set), since that's the only context Team KR/KRBA buttons there
@@ -2345,6 +2329,22 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Athlete register: Fighters list -- copy to paste to other coaches for matching */}
+      {initialRegType && (
+        <div className="reg-fighters">
+          <button type="button" className="btn btn-sm reg-fighters-btn" aria-expanded={fightersMenuOpen} onClick={() => setFightersMenuOpen(v => !v)}>
+            🥊 Fighters list
+          </button>
+          {fightersMenuOpen && (
+            <div className="reg-fighters-menu" role="menu">
+              <button type="button" role="menuitem" onClick={() => copyFightersList('name')}>Name order</button>
+              <button type="button" role="menuitem" onClick={() => copyFightersList('age')}>Age order</button>
+            </div>
+          )}
+          {fightersCopied && <div className="reg-fighters-toast" role="status">✓ {fightersCopied}</div>}
         </div>
       )}
     </div>
