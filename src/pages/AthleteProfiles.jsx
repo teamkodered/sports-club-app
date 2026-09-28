@@ -9801,13 +9801,13 @@ export default function AthleteProfiles() {
                   })()}
 
                   <div ref={wellbeingSectionRef} className="neon-foundation-wrap" style={{ display: 'flex', flexDirection: 'column-reverse' }}>{/* Foundation opens UPWARDS: questions render above the header */}
-                  <button type="button" className="neon-pillar neon-bottom" onClick={() => { setShowWellbeingSection(v => { if (!v) setTimeout(() => wellbeingSectionRef.current?.firstElementChild?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 380); if (v) setExpandedHomeWb(null); return !v }) }} style={{
+                  <button type="button" className={`neon-pillar neon-bottom${showWellbeingSection ? ' is-open' : ''}`} onClick={() => { setShowWellbeingSection(v => { if (!v) setTimeout(() => wellbeingSectionRef.current?.firstElementChild?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 380); if (v) setExpandedHomeWb(null); return !v }) }} style={{
                     width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 12,
                     textAlign: 'center', padding: '18px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: showWellbeingSection ? 6 : 4, width: '100%' }}>
-                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showWellbeingSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#1D9E75' }}>FOUNDATION</span>
+                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showWellbeingSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#1D9E75' }}>{showWellbeingSection && HeaderViewPill({ view: { sectionKey: 'wellbeing', label: 'Foundation', colour: '#C93BFF' } })}<span className="neon-title-text">FOUNDATION</span></span>
                       <img src="/logos/neon/foundation.png" alt="" className="neon-pillar-icon" style={{ height: showWellbeingSection ? 36 : 22, width: 'auto' }} />
                     </div>
                     <CoachSectionProgressBars sectionKey="wellbeing" ropes="bottom" />
@@ -9818,7 +9818,6 @@ export default function AthleteProfiles() {
                     overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
                     maxHeight: showWellbeingSection ? 6000 : 0, opacity: showWellbeingSection ? 1 : 0,
                   }}>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>{HistoryViewButton({ view: { sectionKey: 'wellbeing', label: 'Foundation', colour: '#C93BFF' } })}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: expandedHomeWb ? '1fr' : 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeWb ? 10 : 8 }}>
                     {WELLBEING_QUESTIONS.filter(q => !expandedHomeWb || expandedHomeWb === q.key).map(q => {
                       const complete = isWellbeingQComplete(q.key, todaysWellbeing)
