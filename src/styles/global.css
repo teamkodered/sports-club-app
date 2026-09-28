@@ -567,3 +567,11 @@ tbody tr:hover td { background: var(--bg-secondary); }
 /* Wearable suggestion available on a question tile */
 .neon-home .neon-q > .neon-wear-chip { position: absolute; top: 6px; right: 8px; font-style: normal; font-size: 12px; line-height: 1; filter: drop-shadow(0 0 3px var(--q-accent)); }
 .neon-home .neon-q { position: relative; }
+
+/* Running question cards + panel in the neon theme (Physical = yellow) */
+.neon-home .neon-q-physical { --q-accent: #E6B800; --q-glow: rgba(230,184,0,0.45); }
+.neon-home .neon-q.neon-q-physical.is-active { border-bottom: 1px solid var(--q-accent) !important; border-radius: 6px !important; box-shadow: 0 0 12px var(--q-glow) !important; padding-bottom: 10px !important; min-height: 96px; }
+.neon-home div:has(> .neon-q.neon-q-physical.is-active) { margin-bottom: 10px !important; }
+.neon-home .neon-qpanel.neon-run-panel { border-radius: 6px !important; border-top: 1px solid var(--q-accent) !important; }
+.neon-home .neon-run-panel input:not([type="checkbox"]) { background: #111518 !important; border: 1px solid #2A3138 !important; color: #FFFFFF !important; border-radius: 6px; }
+.neon-home .neon-run-panel input:not([type="checkbox"]):focus { outline: none; border-color: var(--q-accent) !important; }

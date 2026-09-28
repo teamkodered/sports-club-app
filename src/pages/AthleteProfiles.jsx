@@ -9054,7 +9054,7 @@ export default function AthleteProfiles() {
                       const complete = todaysRunning.some(e => e.category === cat.key)
                       const active = expandedHomeRun === cat.key
                       return (
-                        <button key={cat.key} type="button" onClick={() => openOnlyPhysicalPanel('run', active ? null : cat.key)} style={{
+                        <button className={`neon-q neon-q-physical${active ? ' is-active' : ''}${complete ? ' is-done' : ''}`} key={cat.key} type="button" onClick={() => openOnlyPhysicalPanel('run', active ? null : cat.key)} style={{
                           display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: '10px 8px',
                           borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                           border: `2px solid ${active ? SECTION_ACCENT_COLOURS.physical : complete ? '#E24B4A' : 'var(--border)'}`,
@@ -9103,10 +9103,12 @@ export default function AthleteProfiles() {
                     }
                     const isSuicideNow = expandedHomeRun === 'Interval' && isSuicideTest(entry.test) && (entry.mode === 'suicide' || !(entry.sets || []).length)
                     const isLegacySuicide = expandedHomeRun === 'Interval' && isSuicideTest(entry.test) && !isSuicideNow
-                    const presets = expandedHomeRun === 'Interval' ? [...new Set([...(RUN_PRESET_TESTS.Interval || []), ...SUICIDE_PRESETS])] : (RUN_PRESET_TESTS[expandedHomeRun] || [])
+                    const presets = expandedHomeRun === 'Interval'
+  ? (isSuicideTest(entry.test) ? [...new Set([...SUICIDE_PRESETS, ...(RUN_PRESET_TESTS.Interval || []).filter(isSuicideTest)])] : (RUN_PRESET_TESTS.Interval || []).filter(t => !isSuicideTest(t)))
+  : (RUN_PRESET_TESTS[expandedHomeRun] || [])
                     const cat = RUN_CATEGORY_CARDS.find(c => c.key === expandedHomeRun)
                     return (
-                      <div className="card" style={{ marginBottom: 8 }}>
+                      <div className="card neon-qpanel neon-q-physical neon-run-panel" style={{ marginBottom: 8 }}>
                         <EffortSwitcher efforts={efforts} currentKey={current?.k} isNew={!current} onPick={pickEffort} onNew={() => pickEffort('__new__')} />
                         {isLegacySuicide && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '0 0 8px' }}>This suicide effort was logged before end lines were recorded — its results are kept as entered. Tap + New effort to log end lines.</p>}
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
@@ -9114,6 +9116,12 @@ export default function AthleteProfiles() {
                             disabled={!current} onClick={removeCurrentEffort}>✕ Remove effort</button>
                         </div>
                         <div className="field"><label>Specific test</label>
+{expandedHomeRun === 'Interval' && (
+  <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+    <button type="button" className="btn btn-sm" onClick={() => upsertSetup({ test: '' })} style={{ background: !isSuicideTest(entry.test) ? '#E6B80020' : undefined, borderColor: !isSuicideTest(entry.test) ? '#E6B800' : undefined }}>Interval</button>
+    <button type="button" className="btn btn-sm" onClick={() => upsertSetup({ mode: 'suicide', test: isSuicideTest(entry.test) ? entry.test : SUICIDE_PRESETS[0] })} style={{ background: isSuicideTest(entry.test) ? '#E6B80020' : undefined, borderColor: isSuicideTest(entry.test) ? '#E6B800' : undefined }}>Suicide 1 m</button>
+  </div>
+)}
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
                             {presets.map(t => (
                               <button key={t} type="button" onClick={() => upsertSetup({ test: t })}

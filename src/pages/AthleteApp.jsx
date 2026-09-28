@@ -4923,15 +4923,15 @@ export default function AthleteApp() {
                         const complete = todaysRunning.some(e => e.category === cat.key)
                         const active = expandedHomeRun === cat.key
                         return (
-                          <button key={cat.key} type="button" onClick={() => openOnlyPhysicalPanel('run', active ? null : cat.key)} style={{
+                          <button className={`neon-q neon-q-physical${active ? ' is-active' : ''}${complete ? ' is-done' : ''}`} key={cat.key} type="button" onClick={() => openOnlyPhysicalPanel('run', active ? null : cat.key)} style={{
                             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 8px',
                             borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                             border: `2px solid ${active ? SECTION_ACCENT_COLOURS.physical : complete ? '#E24B4A' : 'var(--border)'}`,
                             background: complete ? '#E24B4A12' : 'var(--bg-secondary)',
                           }}>
-                            <span style={{ fontSize: 22 }}>{cat.icon}</span>
+                            <QuestionProgressBarsVertical sectionKey="physical" questionLabel={`Running: ${cat.key}`} />
                             <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat.label}</span>
-                            <QuestionProgressBadge sectionKey="physical" questionLabel={`Running: ${cat.key}`} />
+                            <span style={{ fontSize: 22 }}>{cat.icon}</span>
                           </button>
                         )
                       })}
@@ -4972,15 +4972,18 @@ export default function AthleteApp() {
                       }
                       const isSuicideNow = expandedHomeRun === 'Interval' && isSuicideTest(entry.test) && (entry.mode === 'suicide' || !(entry.sets || []).length)
                       const isLegacySuicide = expandedHomeRun === 'Interval' && isSuicideTest(entry.test) && !isSuicideNow
-                      const presets = expandedHomeRun === 'Interval' ? [...new Set([...(RUN_PRESET_TESTS.Interval || []), ...SUICIDE_PRESETS])] : (RUN_PRESET_TESTS[expandedHomeRun] || [])
+                      const presets = expandedHomeRun === 'Interval'
+  ? (isSuicideTest(entry.test) ? [...new Set([...SUICIDE_PRESETS, ...(RUN_PRESET_TESTS.Interval || []).filter(isSuicideTest)])] : (RUN_PRESET_TESTS.Interval || []).filter(t => !isSuicideTest(t)))
+  : (RUN_PRESET_TESTS[expandedHomeRun] || [])
                       const cat = RUN_CATEGORY_CARDS.find(c => c.key === expandedHomeRun)
                       const isTimedSprints = expandedHomeRun === 'Timed Sprints'
                       const isInterval = expandedHomeRun === 'Interval'
                       const sprintMode = entry.mode || 'distance' // 'distance' = fixed distance, time is the result; 'time' = fixed time, distance is the result
                       const sprintPresets = isTimedSprints ? (sprintMode === 'time' ? TIMED_SPRINTS_TIME_PRESETS : RUN_PRESET_TESTS['Timed Sprints']) : presets
                       const intervalMode = entry.mode || 'distance' // whether the per-rep result logged is a distance or a time
+const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'suicide' : intervalMode
                       return (
-                        <div className="card" style={{ marginBottom: 8 }}>
+                        <div className="card neon-qpanel neon-q-physical neon-run-panel" style={{ marginBottom: 8 }}>
                           <EffortSwitcher efforts={efforts} currentKey={current?.k} isNew={!current} onPick={pickEffort} onNew={() => pickEffort('__new__')} />
                           {isLegacySuicide && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '0 0 8px' }}>This suicide effort was logged before end lines were recorded — its results are kept as entered. Tap + New effort to log end lines.</p>}
                           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
@@ -4990,12 +4993,12 @@ export default function AthleteApp() {
                           {(isTimedSprints || isInterval) && (
                             <div style={{ display: 'flex', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
                               <div>
-                                <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Distance / Time</label>
+                                <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Type</label>
                                 <div style={{ display: 'flex', gap: 4 }}>
-                                  {['distance', 'time'].map(m => (
-                                    <button key={m} type="button" onClick={() => upsertSetup({ mode: m, ...(isTimedSprints ? { test: '' } : {}) })}
-                                      className="btn btn-sm" style={{ fontSize: 11, background: (isTimedSprints ? sprintMode : intervalMode) === m ? '#E24B4A20' : undefined, borderColor: (isTimedSprints ? sprintMode : intervalMode) === m ? '#E24B4A' : undefined }}>
-                                      {isTimedSprints ? (m === 'distance' ? 'Fixed distance' : 'Fixed time') : (m === 'distance' ? 'Distance' : 'Time')}
+                                  {(isInterval ? ['distance', 'time', 'suicide'] : ['distance', 'time']).map(m => (
+                                    <button key={m} type="button" onClick={() => upsertSetup(m === 'suicide' ? { mode: 'suicide', test: isSuicideTest(entry.test) ? entry.test : SUICIDE_PRESETS[0] } : { mode: m, ...((isTimedSprints || isSuicideTest(entry.test)) ? { test: '' } : {}) })}
+                                      className="btn btn-sm" style={{ fontSize: 11, background: (isTimedSprints ? sprintMode : intervalModeShown) === m ? '#E24B4A20' : undefined, borderColor: (isTimedSprints ? sprintMode : intervalModeShown) === m ? '#E24B4A' : undefined }}>
+                                      {isTimedSprints ? (m === 'distance' ? 'Fixed distance' : 'Fixed time') : (m === 'distance' ? 'Distance' : m === 'time' ? 'Time' : 'Suicide 1 m')}
                                     </button>
                                   ))}
                                 </div>
