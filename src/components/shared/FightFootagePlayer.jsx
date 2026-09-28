@@ -26,6 +26,22 @@ function hexToRgba(hex, alpha) {
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`
 }
 
+// Plain white SVG icons for the transport buttons. The emoji versions
+// (⏪ ⏮ ▶️ ⏸ ⏭ ⏩) render as orange/yellow boxes on Samsung and some other
+// Android phones, so these are drawn instead and look the same everywhere.
+function TransportIcon({ name, size = 14 }) {
+  const common = { width: size, height: size, viewBox: '0 0 24 24', fill: 'currentColor', 'aria-hidden': true, style: { display: 'block' } }
+  switch (name) {
+    case 'play': return <svg {...common}><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12-7.5a1 1 0 0 0 0-1.72l-12-7.5A1 1 0 0 0 7 4.5z" /></svg>
+    case 'pause': return <svg {...common}><rect x="5.5" y="4" width="4.5" height="16" rx="1.2" /><rect x="14" y="4" width="4.5" height="16" rx="1.2" /></svg>
+    case 'rewind': return <svg {...common}><path d="M11 6v12L2.5 12 11 6zm10 0v12l-8.5-6L21 6z" /></svg>
+    case 'forward': return <svg {...common}><path d="M13 6v12l8.5-6L13 6zM3 6v12l8.5-6L3 6z" /></svg>
+    case 'frameBack': return <svg {...common}><rect x="4" y="6" width="2.5" height="12" rx="0.8" /><path d="M20 6v12l-11-6 11-6z" /></svg>
+    case 'frameFwd': return <svg {...common}><rect x="17.5" y="6" width="2.5" height="12" rx="0.8" /><path d="M4 6v12l11-6L4 6z" /></svg>
+    default: return null
+  }
+}
+
 export default function FightFootagePlayer({ videoUrl, title, footageId, cctvClipId, storagePath, isCoach = false, rotation: initialRotation = 0, onRotationSaved, onClose }) {
   // Markers can belong to either a View IT fight_footage row or a CCTV
   // clip -- whichever id was actually passed in is "the" source for
@@ -1052,16 +1068,19 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
             added alongside the skip buttons in their own separate row,
             which just duplicated this one once both were centered. */}
         {controlsVisible && (
-          <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, transform: 'translateY(-50%)', padding: '16px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}
+          // Sits above centre, and never lower than ~215px from the bottom,
+          // so on short (landscape phone) screens it stays clear of the
+          // marker row + scrub bar instead of crowding them.
+          <div style={{ position: 'absolute', top: 'min(42%, calc(100% - 215px))', left: 0, right: 0, transform: 'translateY(-50%)', padding: '16px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}
             onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <button className="view-it-btn btn btn-sm" onPointerDown={() => startStepRepeat(-5)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>⏪ 5s</button>
-              <button className="view-it-btn btn btn-sm" onPointerDown={() => startStepRepeat(-FRAME_SECONDS)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>⏮ Frame</button>
-              <button className="view-it-btn" style={{ minWidth: 72, height: 72, borderRadius: '50%', justifyContent: 'center', fontSize: 26, cursor: 'pointer', color: '#fff' }}
+              <button className="view-it-btn btn btn-sm" onPointerDown={() => startStepRepeat(-5)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat} style={{ gap: 5 }}><TransportIcon name="rewind" /> 5s</button>
+              <button className="view-it-btn btn btn-sm" onPointerDown={() => startStepRepeat(-FRAME_SECONDS)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat} style={{ gap: 5 }}><TransportIcon name="frameBack" /> Frame</button>
+              <button className="view-it-btn" style={{ minWidth: 72, height: 72, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff' }}
                 onPointerDown={handlePlayButtonPointerDown} onPointerMove={handlePlayButtonPointerMove} onPointerUp={handlePlayButtonPointerUp}
-                onPointerLeave={() => { if (isHoldingRef.current) handlePlayButtonPointerUp() }}>{playing ? '⏸' : '▶️'}</button>
-              <button className="view-it-btn btn btn-sm" onPointerDown={() => startStepRepeat(FRAME_SECONDS)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>Frame ⏭</button>
-              <button className="view-it-btn btn btn-sm" onPointerDown={() => startStepRepeat(5)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat}>5s ⏩</button>
+                onPointerLeave={() => { if (isHoldingRef.current) handlePlayButtonPointerUp() }}>{playing ? <TransportIcon name="pause" size={30} /> : <span style={{ marginLeft: 3 }}><TransportIcon name="play" size={30} /></span>}</button>
+              <button className="view-it-btn btn btn-sm" onPointerDown={() => startStepRepeat(FRAME_SECONDS)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat} style={{ gap: 5 }}>Frame <TransportIcon name="frameFwd" /></button>
+              <button className="view-it-btn btn btn-sm" onPointerDown={() => startStepRepeat(5)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat} style={{ gap: 5 }}>5s <TransportIcon name="forward" /></button>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
               {SPEEDS.map(s => (

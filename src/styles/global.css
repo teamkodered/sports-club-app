@@ -194,6 +194,7 @@ tbody tr:hover td { background: var(--bg-secondary); }
    shape/weight to tap, while the video is still visible showing
    through underneath it. */
 .view-it-btn {
+  -webkit-tap-highlight-color: transparent; /* no coloured flash on tap (Android/iOS) */
   outline: none !important;
   background: rgba(60, 60, 60, 0.45) !important;
   color: #fff !important;
