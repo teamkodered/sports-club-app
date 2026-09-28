@@ -611,25 +611,53 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
   // Swiping the marker row directly seeks too, exactly like dragging
   // the scrub bar -- both just set currentTime, so they can never
   // drift out of sync with each other.
-  function seekFromRowEvent(e) {
-    const rect = markerRowRef.current?.getBoundingClientRect()
-    if (!rect || !duration) return
-    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
-    const windowDuration = zoomLevel === 1 ? duration : duration / zoomLevel
-    seekTo(snapToMarkerEdge(zoomWindowStart + pct * windowDuration))
-  }
+  // Zoom-aware scrubbing, shared by the marker row and the scrub bar.
+  // Dragging is *relative*: time moves by (finger distance / bar width) x
+  // the visible window, measured from where you first touched. So at 2x
+  // zoom a full-width drag covers half the video, at 8x an eighth -- the
+  // more you zoom, the finer the search. (Mapping finger position to time
+  // directly doesn't work when zoomed, because the window re-centres on
+  // the playhead as it moves, which made the scrub run away.) A tap
+  // without dragging still jumps straight to the spot tapped.
+  const SCRUB_TAP_PX = 4
+  const scrubDragRef = useRef(null) // { id, x0, t0, left, width, winStart, winDuration, moved }
 
-  function handleMarkerRowPointerDown(e) {
+  function handleScrubPointerDown(e) {
+    const v = videoRef.current
+    const rect = e.currentTarget.getBoundingClientRect()
+    if (!v || !rect.width || !duration) return
+    try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* ignore */ }
+    scrubDragRef.current = {
+      id: e.pointerId, x0: e.clientX, t0: v.currentTime, left: rect.left, width: rect.width,
+      winStart: zoomWindowStart, winDuration: zoomLevel === 1 ? duration : duration / zoomLevel, moved: false,
+    }
     handleScrubStart()
-    seekFromRowEvent(e)
   }
 
-  function handleMarkerRowPointerMove(e) {
-    if (!scrubbingRef.current) return
-    seekFromRowEvent(e)
+  function handleScrubPointerMove(e) {
+    const d = scrubDragRef.current
+    if (!d || d.id !== e.pointerId) return
+    const dx = e.clientX - d.x0
+    if (!d.moved && Math.abs(dx) < SCRUB_TAP_PX) return
+    d.moved = true
+    const t = Math.max(0, Math.min(duration, d.t0 + (dx / d.width) * d.winDuration))
+    seekTo(snapToMarkerEdge(t))
   }
 
-  function handleMarkerRowPointerUp() {
+  function handleScrubPointerUp(e) {
+    const d = scrubDragRef.current
+    if (!d || d.id !== e.pointerId) return
+    scrubDragRef.current = null
+    if (!d.moved) {
+      const pct = Math.max(0, Math.min(1, (e.clientX - d.left) / d.width))
+      seekTo(snapToMarkerEdge(d.winStart + pct * d.winDuration))
+    }
+    handleScrubEnd()
+  }
+
+  function handleScrubPointerCancel(e) {
+    if (scrubDragRef.current?.id !== e.pointerId) return
+    scrubDragRef.current = null
     handleScrubEnd()
   }
 
@@ -1293,10 +1321,10 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
                 swipeable directly (drives the same currentTime as the
                 scrub bar below, so the two always stay in sync). */}
             <div ref={markerRowRef} data-no-toggle style={{ position: 'relative', height: 36, marginBottom: 6, touchAction: 'none' }}
-              onPointerDown={handleMarkerRowPointerDown}
-              onPointerMove={handleMarkerRowPointerMove}
-              onPointerUp={handleMarkerRowPointerUp}
-              onPointerLeave={handleMarkerRowPointerUp}>
+              onPointerDown={handleScrubPointerDown}
+              onPointerMove={handleScrubPointerMove}
+              onPointerUp={handleScrubPointerUp}
+              onPointerCancel={handleScrubPointerCancel}>
               {(() => {
                 const windowDuration = zoomLevel === 1 ? duration : duration / zoomLevel
                 const windowEnd = zoomWindowStart + windowDuration
@@ -1344,8 +1372,14 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
               })()}
             </div>
 
-            {/* Scrub track -- filmstrip thumbnails as a backdrop. */}
-            <div style={{ position: 'relative' }}>
+            {/* Scrub track -- filmstrip thumbnails as a backdrop. The
+                range input is display-only; dragging is handled by this
+                wrapper (zoom-aware, see handleScrubPointerDown). */}
+            <div style={{ position: 'relative', touchAction: 'none', cursor: 'pointer' }}
+              onPointerDown={handleScrubPointerDown}
+              onPointerMove={handleScrubPointerMove}
+              onPointerUp={handleScrubPointerUp}
+              onPointerCancel={handleScrubPointerCancel}>
               {filmstrip.length > 0 && duration > 0 && (() => {
                 const windowDuration = zoomLevel === 1 ? duration : duration / zoomLevel
                 const visible = filmstrip.filter(f => f.t >= zoomWindowStart - windowDuration * 0.1 && f.t <= zoomWindowStart + windowDuration * 1.1)
@@ -1368,10 +1402,9 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
                 max={zoomLevel === 1 ? (duration || 0) : zoomWindowStart + duration / zoomLevel}
                 step={0.01}
                 value={currentTime}
-                onChange={e => seekTo(snapToMarkerEdge(parseFloat(e.target.value)))}
-                onPointerDown={handleScrubStart}
-                onPointerUp={handleScrubEnd}
-                style={{ width: '100%', position: 'relative' }}
+                onChange={() => {}}
+                tabIndex={-1}
+                style={{ width: '100%', position: 'relative', pointerEvents: 'none' }}
               />
             </div>
 
