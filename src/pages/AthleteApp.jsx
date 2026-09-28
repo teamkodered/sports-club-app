@@ -4950,7 +4950,7 @@ export default function AthleteApp() {
                           const catKey = `${style}::${cat}`
                           if (expandedTechniqueCategory !== catKey) return null
                           return (
-                            <div key={catKey} className="card" style={{ marginBottom: 8 }}>
+                            <div key={catKey} className="card neon-qpanel neon-q-technical" style={{ marginBottom: 8 }}>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                                 {items.map(technique => {
                                   const entry = todaysTechniques.find(t => t.style === style && t.category === cat && t.technique === technique)
@@ -5057,7 +5057,7 @@ export default function AthleteApp() {
                       })}
                     </div>
                     {expandedTacticalCategory === '__videoAnalysis__' && (
-                      <div className="card" style={{ marginBottom: 8 }}>
+                      <div className="card neon-qpanel neon-q-tactical" style={{ marginBottom: 8 }}>
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                           <button type="button" className="btn btn-sm" onClick={() => clearMentalityQuestion('videoAnalysis')} style={{ fontSize: 11 }}>✕ Clear</button>
                         </div>
@@ -5068,7 +5068,7 @@ export default function AthleteApp() {
                     {Object.entries(TACTICAL_CATEGORIES).map(([cat, items]) => {
                       if (expandedTacticalCategory !== cat) return null
                       return (
-                        <div key={cat} className="card" style={{ marginBottom: 8 }}>
+                        <div key={cat} className="card neon-qpanel neon-q-tactical" style={{ marginBottom: 8 }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                             {items.map(item => {
                               const entry = todaysTactical.find(t => t.category === cat && t.item === item)
@@ -5151,7 +5151,7 @@ export default function AthleteApp() {
                     </div>
 
                     {expandedHomeMentality && (
-                      <div className="card" style={{ marginBottom: 8 }}>
+                      <div className="card neon-qpanel neon-q-mentality" style={{ marginBottom: 8 }}>
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                           <button type="button" className="btn btn-sm" onClick={() => clearMentalityQuestion(expandedHomeMentality)} style={{ fontSize: 11 }}>✕ Clear</button>
                         </div>
@@ -5492,7 +5492,7 @@ export default function AthleteApp() {
                     </div>
 
                     {expandedHomeWb && (
-                      <div className="card" style={{ marginBottom: 8 }}>
+                      <div className="card neon-qpanel neon-q-foundation" style={{ marginBottom: 8 }}>
                         {expandedHomeWb && (
                           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                             <button type="button" className="btn btn-sm" onClick={() => clearWellbeingQuestion(expandedHomeWb)} style={{ fontSize: 11 }}>✕ Clear</button>

@@ -460,3 +460,23 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .neon-home .neon-q.is-active { grid-template-columns: minmax(0, 1fr) auto; border-color: var(--q-accent) !important; box-shadow: 0 0 12px var(--q-glow); }
 .neon-home .neon-q.is-active > span:nth-of-type(1),
 .neon-home .neon-q.is-active > span:nth-of-type(1) > span:first-child { font-size: 22px !important; }
+
+/* ---- Open question: the tile and its logger read as ONE glowing card (mockup "Meditation open").
+   Styling only -- the loggers, Save buttons and uploads inside are unchanged. */
+.neon-home div:has(> .neon-q.is-active) { margin-bottom: 0 !important; }
+.neon-home .neon-q.is-active { border-bottom: none !important; border-radius: 6px 6px 0 0 !important; box-shadow: 0 -4px 12px var(--q-glow) !important; min-height: 0; padding-bottom: 12px !important; }
+.neon-home .neon-qpanel {
+  margin-top: 0 !important; border-radius: 0 0 6px 6px !important; background: var(--neon-card, #1A1F24) !important;
+  border: 1px solid var(--q-accent) !important; border-top: 1px solid #2A3138 !important; box-shadow: 0 6px 12px var(--q-glow) !important;
+}
+.neon-home .neon-qpanel label:not(.btn) { font-family: 'Orbitron', sans-serif !important; font-size: 9px !important; font-weight: 500 !important; letter-spacing: 2px; text-transform: uppercase; color: #9A9A9A !important; }
+.neon-home .neon-qpanel .btn {
+  border: none !important; border-radius: 0 !important; clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+  min-height: 32px; padding: 0 14px !important; background: #2A3138 !important; color: #F2F2F2 !important;
+  font-family: 'Saira Condensed', sans-serif !important; font-style: italic; font-weight: 800 !important; font-size: 15px !important; letter-spacing: 1px; text-transform: uppercase;
+}
+/* selected chip (the logger marks it with the accent border) -> solid pillar colour */
+.neon-home .neon-qpanel .btn[style*="border-color"] { background: var(--q-accent) !important; color: #0A0A0A !important; }
+.neon-home .neon-qpanel .btn:disabled { opacity: 0.45; }
+/* Clear sits top-right as a small outline control */
+.neon-home .neon-qpanel > div:first-child > .btn:only-child { clip-path: none; border: 1px solid #2A3138 !important; border-radius: 4px !important; background: none !important; min-height: 30px; font-family: 'Orbitron', sans-serif !important; font-style: normal; font-weight: 500 !important; font-size: 9px !important; letter-spacing: 2px; color: #9A9A9A !important; }
