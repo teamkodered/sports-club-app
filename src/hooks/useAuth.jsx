@@ -123,15 +123,23 @@ export function AuthProvider({ children }) {
     setLoading(false)
   }
 
+  // Access groups (e.g. "KRBA Coach") -- loaded once signed in, so page/register access follows the group
+  const [accessGroups, setAccessGroups] = useState([])
+  useEffect(() => {
+    if (!profile?.access?.group) return
+    supabase.from('settings').select('value').eq('key', 'access_groups').maybeSingle()
+      .then(({ data }) => setAccessGroups(Array.isArray(data?.value) ? data.value : []))
+  }, [profile?.access?.group])
+
   const role      = profile?.role || 'member'
   const isAdmin   = role === 'admin'
   const isCoach   = role === 'captain' || role === 'coach' // 'captain' is the actual role value assigned via Settings; 'coach' kept for safety
   const isLeader  = role === 'leader'
-  const isStaff   = isAdmin || isCoach || isLeader || Object.values(profile?.access?.pages || {}).some(v => v === 'view' || v === 'edit')  // can take registers + points, or has been given page access
+  const isStaff   = isAdmin || isCoach || isLeader || !!profile?.access?.group || Object.values(profile?.access?.pages || {}).some(v => v === 'view' || v === 'edit')  // can take registers + points, or has been given page access
   const isAthlete = !!(profile?.student?.is_kr || profile?.student?.discipline === 'KRBA' || profile?.student?.is_pts)
 
   return (
-    <AuthContext.Provider value={{ session, profile, role, isAdmin, isCoach, isLeader, isStaff, isAthlete, loading, profileError, pageAccess: page => pageAccessFor(profile, page), registerAccess: registerAccessFor(profile), refreshProfile: () => fetchProfile(session?.user?.id, session?.access_token) }}>
+    <AuthContext.Provider value={{ session, profile, role, isAdmin, isCoach, isLeader, isStaff, isAthlete, loading, profileError, pageAccess: page => pageAccessFor(profile, page, accessGroups), registerAccess: registerAccessFor(profile, accessGroups), accessGroups, refreshProfile: () => fetchProfile(session?.user?.id, session?.access_token) }}>
       {children}
     </AuthContext.Provider>
   )

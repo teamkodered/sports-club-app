@@ -40,16 +40,32 @@ export function roleDefault(role, page) {
   return 'none'
 }
 
-export function pageAccessFor(profile, page) {
+// Access groups (Settings -> Team): e.g. "KRBA Coach", "KR Leader". A person in a
+// group gets the GROUP's settings, so editing the group updates everyone in it.
+// Saved in settings 'access_groups': [{ id, role, team, access: { pages, registers } }]
+export const TEAMS = ['KR', 'KRBA', 'PKA']
+export const groupId = (role, team) => `${role === 'coach' ? 'captain' : role}:${team}`
+export const groupName = g => `${g.team} ${g.role === 'leader' ? 'Leader' : 'Coach'}`
+
+export function effectiveAccess(profile, groups) {
+  const gid = profile?.access?.group
+  if (gid) {
+    const g = (groups || []).find(x => x.id === gid)
+    if (g) return g.access || {}
+  }
+  return profile?.access || {}
+}
+
+export function pageAccessFor(profile, page, groups) {
   const role = profile?.role || 'member'
   if (role === 'admin') return 'edit'
-  const o = profile?.access?.pages?.[page]
+  const o = effectiveAccess(profile, groups)?.pages?.[page]
   return o === 'none' || o === 'view' || o === 'edit' ? o : roleDefault(role, page)
 }
 
-export function registerAccessFor(profile) {
+export function registerAccessFor(profile, groups) {
   const role = profile?.role || 'member'
-  const r = role === 'admin' ? null : profile?.access?.registers
+  const r = role === 'admin' ? null : effectiveAccess(profile, groups)?.registers
   return { types: r?.types?.length ? r.types : null, classes: r?.classes?.length ? r.classes : null }
 }
 
