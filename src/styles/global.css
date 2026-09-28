@@ -718,3 +718,11 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .reg-m-avatar { border: none; cursor: pointer; font-family: inherit; }
 .reg-m-avatar.open { outline: 2px solid #378ADD; outline-offset: 2px; }
 .reg-m-namelink { padding: 0; border: none; background: none; color: #378ADD; font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-decoration: underline; text-underline-offset: 2px; }
+.reg-m-details-3 { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 0.8fr); font-size: 13px; }
+.reg-m-details-3 span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 640px) {
+  /* Main register: register tabs + class pills as compact horizontal scrollers */
+  .reg-root:not(.reg-force-table) .reg-class-pills > div { flex-wrap: nowrap !important; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+  .reg-root:not(.reg-force-table) .reg-class-pills > div::-webkit-scrollbar { display: none; }
+  .reg-root .page-header h1 { font-size: 22px; }
+}

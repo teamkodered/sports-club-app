@@ -688,6 +688,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
           aVal = rank(a.id); bVal = rank(b.id); return sortDir === 'asc' ? aVal - bVal : bVal - aVal
         }
         case 'media_restriction': aVal = a.media_restriction || ''; bVal = b.media_restriction || ''; break
+        case 'att_last': aVal = attendanceStats[a.id]?.last || ''; bVal = attendanceStats[b.id]?.last || ''; break
         case 'att_pct': aVal = attendanceStats[a.id]?.pct ?? -1; bVal = attendanceStats[b.id]?.pct ?? -1; return sortDir === 'asc' ? aVal - bVal : bVal - aVal
         case 'weight_current': aVal = weightDataByStudent[a.id]?.current ?? a.weight_kg ?? 0; bVal = weightDataByStudent[b.id]?.current ?? b.weight_kg ?? 0; return sortDir === 'asc' ? aVal - bVal : bVal - aVal
         default:             aVal = ''; bVal = ''
@@ -1156,7 +1157,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
 
   return (
     <div className={`reg-root${mShowTable ? ' reg-force-table' : ''}`} style={{ zoom: `${registerZoom}%` }} onClick={e => {
-      if (!e.target.closest('tr') && !e.target.closest('button') && !e.target.closest('input') && !e.target.closest('select'))
+      if (!e.target.closest('tr') && !e.target.closest('button') && !e.target.closest('input') && !e.target.closest('select') && !e.target.closest('.reg-m-card') && !e.target.closest('.reg-m-bulk'))
         setSelectedStudents([])
       if (groupFilterOpen) setGroupFilterOpen(false)
     }}>
@@ -1169,7 +1170,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
           <h1>Registers</h1>
           <p>{displayStudents.length} students · {new Date(date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div className="reg-desktop-only" style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-sm" onClick={() => setShowColPicker(v => !v)}>⚙️ Columns</button>
           <input type="date" value={date} onChange={e => setDate(e.target.value)}
             style={{ padding: '7px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
@@ -1245,7 +1246,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
           Hidden entirely when embedded in the Athlete Profile (initialRegType set) -- always shows the full
           KR/KRBA register there for now, rather than narrowing down to one specific class time. */}
       {!initialRegType && (todayClasses.length > 0 || derbyMooreClasses.length > 0 || moorwaysClasses.length > 0) && (
-        <div style={{ marginBottom: 12 }}>
+        <div className="reg-class-pills" style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {todayClasses.map(c => (
               <div key={c.id} onClick={() => setClassFilter(c.id)} style={{
@@ -1419,7 +1420,8 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
         const total = displayStudents.length
         const list = displayStudents.filter(x => mFilter === 'all' ? true : mFilter === 'in' ? (attendance[x.id] && attendance[x.id] !== 'none') : !(attendance[x.id] && attendance[x.id] !== 'none'))
         const selecting = selectedStudents.length > 0
-        const toggleSel = id => setSelectedStudents(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+        const isMainReg = !initialRegType   // standalone Registers page (not the Athlete Profile's embedded register)
+        const toggleSel = id => { if (navigator.vibrate) navigator.vibrate(10); setSelectedStudents(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]) }
         const stepDate = d => { const x = new Date(date + 'T12:00:00'); x.setDate(x.getDate() + d); setDate(toLocalISO(x)) }
         const dateLabel = new Date(date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
         const pctColour = p => p == null ? 'var(--text-tertiary)' : p >= 50 ? '#1D9E75' : p > 0 ? '#EF9F27' : '#E24B4A'
@@ -1440,7 +1442,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
           const v = attendance[st.id] || 'none'
           return (
             <button type="button" className={`reg-m-att reg-m-att-${v}`} disabled={saving}
-              onClick={e => { e.stopPropagation(); toggleAttendance(st.id) }}
+              onClick={e => { e.stopPropagation(); if (navigator.vibrate) navigator.vibrate(12); toggleAttendance(st.id) }}
               aria-label={v === 'none' ? 'Not in — tap to mark attended' : v === 'attended' ? 'Attended — tap for full kit' : 'Full kit — tap to clear'}>
               {v === 'none' ? 'Mark' : v === 'attended' ? '✓ In' : '✓ KIT'}
             </button>
@@ -1499,12 +1501,15 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
 
             {/* Sort headers + page dots (swipe the list to switch detail sets) */}
             <div className="reg-m-dots" role="tablist" aria-label="Detail columns">
-              {[0, 1].map(i => <button key={i} type="button" role="tab" aria-selected={mPage === i} aria-label={i === 0 ? 'Age, weight, attendance' : 'Level, record, weight trend'} className={mPage === i ? 'on' : ''} onClick={() => setMPage(i)} />)}
+              {[0, 1].map(i => <button key={i} type="button" role="tab" aria-selected={mPage === i} aria-label={isMainReg ? (i === 0 ? 'Age, attendance, media' : 'Grade, house, last in') : (i === 0 ? 'Age, weight, attendance' : 'Level, record, weight trend')} className={mPage === i ? 'on' : ''} onClick={() => setMPage(i)} />)}
             </div>
             <div className="reg-m-headers">
               <SortBtn k="first_name" label="NAME" grow />
-              {mPage === 0 ? <><SortBtn k="age" label="AGE" /><SortBtn k="weight_current" label="WEIGHT" /><SortBtn k="att_pct" label="ATTEND." /><span style={{ width: 58, flexShrink: 0 }} /></>
-                           : <><SortBtn k="grade" label="LEVEL" /><SortBtn k="wins" label="RECORD" /><SortBtn k="weight_current" label="WEIGHT" /></>}
+              {isMainReg
+                ? (mPage === 0 ? <><SortBtn k="age" label="AGE" /><SortBtn k="att_pct" label="ATTEND." /><SortBtn k="media_restriction" label="MEDIA" /><span style={{ width: 58, flexShrink: 0 }} /></>
+                               : <><SortBtn k="grade" label="GRADE" /><SortBtn k="house" label="HOUSE" /><SortBtn k="att_last" label="LAST IN" /><span style={{ width: 58, flexShrink: 0 }} /></>)
+                : (mPage === 0 ? <><SortBtn k="age" label="AGE" /><SortBtn k="weight_current" label="WEIGHT" /><SortBtn k="att_pct" label="ATTEND." /><span style={{ width: 58, flexShrink: 0 }} /></>
+                               : <><SortBtn k="grade" label="LEVEL" /><SortBtn k="wins" label="RECORD" /><SortBtn k="weight_current" label="WEIGHT" /></>)}
             </div>
 
             <div className="reg-m-list"
@@ -1538,7 +1543,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                     }}
                     onTouchStart={() => {
                       if (selecting) return
-                      mLongPress.current = setTimeout(() => { mLongPressFired.current = true; toggleSel(st.id); if (navigator.vibrate) navigator.vibrate(15) }, 450)
+                      mLongPress.current = setTimeout(() => { mLongPressFired.current = true; if (navigator.vibrate) navigator.vibrate(25); toggleSel(st.id) }, 450)
                     }}
                     onTouchEnd={() => { clearTimeout(mLongPress.current); mLongPress.current = null }}
                     onTouchMove={() => { clearTimeout(mLongPress.current); mLongPress.current = null }}
@@ -1555,7 +1560,21 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                             : <span>{m?.first_name} {m?.last_name}</span>}
                           {bday && <button type="button" className="reg-m-bday" title="Upcoming birthday" onClick={e => { e.stopPropagation(); setBirthdayPopup({ name: `${m?.first_name} ${m?.last_name}`, info: bday }) }}>🎂</button>}
                         </div>
-                        {mPage === 0 ? (
+                        {isMainReg ? (mPage === 0 ? (
+                          <div className="reg-m-details">
+                            <span>Age <b>{calcAge(m?.date_of_birth) ?? '—'}</b></span>
+                            <span className="reg-m-pct"><span className="bar"><span style={{ width: `${pct || 0}%`, background: pctColour(pct) }} /></span><b style={{ color: pctColour(pct) }}>{pct != null ? `${pct}%` : '—'}</b></span>
+                            <span className={`badge ${st.media_restriction === 'No' ? 'badge-red' : st.media_restriction === 'Limited' ? 'badge-amber' : 'badge-green'}`} style={{ fontSize: 10 }}>
+                              {st.media_restriction === 'No' ? '⚠ No media' : st.media_restriction === 'Limited' ? 'Limited' : 'Media OK'}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="reg-m-details reg-m-details-3">
+                            <span><b>{st.pka_belt || st.krba_level || '—'}</b></span>
+                            <span>{(st.house_name || m?.houses?.name)?.replace(' House', '') || '—'}</span>
+                            <span>{stats?.last ? new Date(stats.last + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}</span>
+                          </div>
+                        )) : mPage === 0 ? (
                           <div className="reg-m-details">
                             <span>Age <b>{calcAge(m?.date_of_birth) ?? '—'}</b></span>
                             <span><b>{weight != null ? `${weight}kg` : '—'}</b></span>
@@ -1568,7 +1587,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           </div>
                         )}
                       </div>
-                      {mPage === 0 ? <AttBtn st={st} /> : <Spark wd={wd} />}
+                      {(mPage === 0 || isMainReg) ? <AttBtn st={st} /> : <Spark wd={wd} />}
                     </div>
                     {open && !selecting && (
                       <div className="reg-m-open" onClick={e => e.stopPropagation()}>
