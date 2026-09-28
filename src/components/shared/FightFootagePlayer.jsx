@@ -229,6 +229,32 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
   const [ignoreNoteSpeeds, setIgnoreNoteSpeeds] = useState(false)
   const ignoreNoteSpeedsRef = useRef(false)
   useEffect(() => { ignoreNoteSpeedsRef.current = ignoreNoteSpeeds }, [ignoreNoteSpeeds])
+  // --- Swipe notes on/off + screen recording -----------------------------
+  // Swipe up on the video = notes slide up into view; swipe down = they
+  // slide away (highlights on the timeline are unaffected). A screen
+  // recording captures whatever is showing: the video, plus the note
+  // overlay only while notes are on.
+  const [notesShown, setNotesShown] = useState(true)
+  const notesShownRef = useRef(true)
+  useEffect(() => { notesShownRef.current = notesShown }, [notesShown])
+  const [notesToast, setNotesToast] = useState(null)
+  const notesToastTimerRef = useRef(null)
+  const viewingMarkerNoteRef = useRef(null)
+  const rotationRef = useRef(0)
+  const [recording, setRecording] = useState(false)
+  const [recElapsed, setRecElapsed] = useState(0)
+  const [recResult, setRecResult] = useState(null) // { blob, url, mime, ext, start, end, seconds }
+  const [recNoteText, setRecNoteText] = useState('')
+  const [recSaving, setRecSaving] = useState(false)
+  const recorderRef = useRef(null)
+  const recChunksRef = useRef([])
+  const recRafRef = useRef(null)
+  const recCanvasRef = useRef(null)
+  const recStartTRef = useRef(0)
+  const recStartedAtRef = useRef(0)
+  const recTickRef = useRef(null)
+  const cameraHoldTimerRef = useRef(null)
+  const cameraHeldRef = useRef(false)
   // How far up from the video's bottom edge the note bubble sits. In
   // landscape the video fills the screen height, so the bottom control
   // bar covers its lower edge -- this lifts the bubble to just above the
@@ -631,7 +657,15 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
     if (!t || t.id !== e.pointerId) return
     tapRef.current = null
     if (t.multi || gestureWasHoldRef.current) return
-    if (Math.hypot(e.clientX - t.x, e.clientY - t.y) > MOVE_CANCEL_THRESHOLD) return
+    const sdx = e.clientX - t.x, sdy = e.clientY - t.y
+    // Vertical swipe (not on a control / the timeline): up = show notes, down = hide notes
+    if (Math.abs(sdy) > 50 && Math.abs(sdy) > Math.abs(sdx) * 1.5 && !e.target?.closest?.(NO_TOGGLE_SELECTOR) && !scrubbingRef.current) {
+      const show = sdy < 0
+      setNotesShown(show)
+      flashNotesToast(show ? 'Notes on' : 'Notes off')
+      return
+    }
+    if (Math.hypot(sdx, sdy) > MOVE_CANCEL_THRESHOLD) return
     if (e.target?.closest?.(NO_TOGGLE_SELECTOR)) return
     if (controlsVisibleRef.current) { clearTimeout(autoHideTimerRef.current); setControlsVisible(false) }
     else showControls()
@@ -1046,6 +1080,189 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
   // hidden canvas) and saves it as a "photo" marker -- during normal
   // playback later, reaching this point pauses on that frame for
   // freeze_seconds (defaulting to 5) before continuing automatically.
+  useEffect(() => { viewingMarkerNoteRef.current = viewingMarkerNote }, [viewingMarkerNote])
+  useEffect(() => { rotationRef.current = rotation }, [rotation])
+  useEffect(() => () => { cancelAnimationFrame(recRafRef.current); clearInterval(recTickRef.current); try { recorderRef.current?.stop() } catch { /* already stopped */ } }, [])
+
+  function flashNotesToast(text) {
+    setNotesToast(text)
+    clearTimeout(notesToastTimerRef.current)
+    notesToastTimerRef.current = setTimeout(() => setNotesToast(null), 1200)
+  }
+
+  function pickRecordingMime() {
+    if (typeof MediaRecorder === 'undefined') return null
+    const options = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
+    return options.find(m => { try { return MediaRecorder.isTypeSupported(m) } catch { return false } }) || ''
+  }
+
+  // Draws the note box the viewer is seeing into the recording frame.
+  function drawNoteOnCanvas(ctx, m, w, h) {
+    const text = m.note_text ? `📝 ${m.note_text}` : '⭐ Highlight'
+    const fs = Math.max(16, Math.round(h * 0.034))
+    ctx.font = `600 ${fs}px system-ui, -apple-system, Segoe UI, Roboto, sans-serif`
+    const pad = Math.round(fs * 0.7), margin = Math.round(fs * 1.1), maxW = w - margin * 2 - pad * 2
+    const words = text.split(/\s+/), lines = []
+    let line = ''
+    for (const word of words) {
+      const test = line ? `${line} ${word}` : word
+      if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = word } else line = test
+    }
+    if (line) lines.push(line)
+    const lh = Math.round(fs * 1.3), boxH = lines.length * lh + pad * 2
+    const x = margin, y = h - margin - boxH
+    ctx.fillStyle = hexToRgba(m.highlight_color || '#000000', 0.62)
+    const r = Math.round(fs * 0.5)
+    ctx.beginPath()
+    ctx.moveTo(x + r, y); ctx.arcTo(x + w - margin * 2, y, x + w - margin * 2, y + boxH, r); ctx.arcTo(x + w - margin * 2, y + boxH, x, y + boxH, r)
+    ctx.arcTo(x, y + boxH, x, y, r); ctx.arcTo(x, y, x + w - margin * 2, y, r); ctx.closePath(); ctx.fill()
+    ctx.fillStyle = '#fff'; ctx.textBaseline = 'top'
+    lines.forEach((l, i) => ctx.fillText(l, x + pad, y + pad + i * lh))
+  }
+
+  function startScreenRecording() {
+    const v = videoRef.current
+    if (!v || recording) return
+    const mime = pickRecordingMime()
+    const canvas = recCanvasRef.current || (recCanvasRef.current = document.createElement('canvas'))
+    if (mime === null || !canvas.captureStream) { alert('Screen recording is not supported on this browser.'); return }
+    try {
+      drawRotatedFrame(v, canvas, rotationRef.current)
+      const stream = canvas.captureStream(30)
+      try {
+        const vs = v.captureStream?.() || v.mozCaptureStream?.()
+        vs?.getAudioTracks().forEach(t => stream.addTrack(t))
+      } catch { /* no audio track available -- video only */ }
+      const rec = mime ? new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 5_000_000 }) : new MediaRecorder(stream)
+      recChunksRef.current = []
+      rec.ondataavailable = e => { if (e.data?.size) recChunksRef.current.push(e.data) }
+      rec.onstop = () => {
+        cancelAnimationFrame(recRafRef.current)
+        clearInterval(recTickRef.current)
+        stream.getTracks().forEach(t => t.stop())
+        const type = rec.mimeType || mime || 'video/webm'
+        const blob = new Blob(recChunksRef.current, { type })
+        const endT = videoRef.current?.currentTime ?? recStartTRef.current
+        const start = Math.min(recStartTRef.current, endT), end = Math.max(recStartTRef.current, endT)
+        setRecording(false)
+        if (!blob.size) { alert('Nothing was recorded.'); return }
+        setRecNoteText('')
+        setRecResult({ blob, url: URL.createObjectURL(blob), mime: type, ext: type.includes('mp4') ? 'mp4' : 'webm',
+          start, end: Math.max(end, start + 0.1), seconds: Math.round((Date.now() - recStartedAtRef.current) / 1000) })
+      }
+      const loop = () => {
+        const vid = videoRef.current
+        if (vid && vid.videoWidth) {
+          drawRotatedFrame(vid, canvas, rotationRef.current)
+          const m = viewingMarkerNoteRef.current
+          if (notesShownRef.current && m) drawNoteOnCanvas(canvas.getContext('2d'), m, canvas.width, canvas.height)
+        }
+        recRafRef.current = requestAnimationFrame(loop)
+      }
+      loop()
+      recStartTRef.current = v.currentTime
+      recStartedAtRef.current = Date.now()
+      setRecElapsed(0)
+      recTickRef.current = setInterval(() => setRecElapsed(Math.round((Date.now() - recStartedAtRef.current) / 1000)), 500)
+      rec.start(1000)
+      recorderRef.current = rec
+      setRecording(true)
+      navigator.vibrate?.(30)
+      if (v.paused) v.play().catch(() => {})
+    } catch (err) {
+      alert('Could not start recording: ' + err.message)
+    }
+  }
+
+  function stopScreenRecording() {
+    const rec = recorderRef.current
+    if (rec && rec.state !== 'inactive') rec.stop()
+    recorderRef.current = null
+  }
+
+  function discardRecording() {
+    if (recResult?.url) URL.revokeObjectURL(recResult.url)
+    setRecResult(null)
+  }
+
+  async function exportRecording() {
+    if (!recResult) return
+    const name = `${(title || 'fight-footage').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-rec-${Date.now()}.${recResult.ext}`
+    const file = new File([recResult.blob], name, { type: recResult.mime })
+    try {
+      if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: title || 'Screen recording' }); return }
+    } catch (err) { if (err?.name === 'AbortError') return }
+    const a = document.createElement('a')
+    a.href = recResult.url; a.download = name
+    document.body.appendChild(a); a.click(); a.remove()
+  }
+
+  // Saves the recording as a note: a highlight marker over the part of the
+  // footage that was recorded, with the recording attached as its clip.
+  async function saveRecordingAsNote() {
+    if (!recResult || !footageId) return
+    setRecSaving(true)
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData?.session?.access_token
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fight-footage-url`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ mode: 'upload', file_name: `screen-rec-${Date.now()}.${recResult.ext}` }),
+      })
+      const up = await res.json()
+      if (up.error || !up.upload_url) throw new Error(up.error || 'no upload URL')
+      const put = await fetch(up.upload_url, { method: 'PUT', headers: { 'Content-Type': recResult.mime }, body: recResult.blob })
+      if (!put.ok) throw new Error(`upload failed (${put.status})`)
+
+      const { data: { user } } = await supabase.auth.getUser()
+      const { data: member } = await supabase.from('members').select('id').eq('auth_id', user.id).single()
+      const { data: newMarker, error: mErr } = await supabase.from('fight_footage_markers').insert({
+        footage_id: footageId,
+        start_seconds: recResult.start,
+        end_seconds: recResult.end,
+        marker_type: 'highlight',
+        note_text: recNoteText.trim() || '🎥 Screen recording',
+        highlight_color: selectedColour,
+        playback_speed: 1,
+        created_by: member?.id || null,
+      }).select().single()
+      if (mErr) throw mErr
+      setMarkers(prev => [...prev, newMarker].sort((a, b) => a.start_seconds - b.start_seconds))
+      const { data: newClip, error: cErr } = await supabase.from('fight_footage_clips').insert({
+        source_footage_id: footageId,
+        marker_id: newMarker.id,
+        start_seconds: recResult.start,
+        end_seconds: recResult.end,
+        playback_speed: 1,
+        status: 'ready',
+        storage_path: up.storage_path,
+      }).select().single()
+      if (cErr) throw cErr
+      setClips(prev => [newClip, ...prev])
+      discardRecording()
+    } catch (err) {
+      alert('Could not save the recording as a note: ' + err.message)
+    } finally {
+      setRecSaving(false)
+    }
+  }
+
+  function handleCameraPointerDown(e) {
+    e.stopPropagation()
+    cameraHeldRef.current = false
+    clearTimeout(cameraHoldTimerRef.current)
+    if (recording) return
+    cameraHoldTimerRef.current = setTimeout(() => { cameraHeldRef.current = true; startScreenRecording() }, 600)
+  }
+  function handleCameraPointerEnd() { clearTimeout(cameraHoldTimerRef.current) }
+  function handleCameraClick(e) {
+    e.stopPropagation()
+    if (cameraHeldRef.current) { cameraHeldRef.current = false; return } // that press started a recording
+    if (recording) { stopScreenRecording(); return }
+    capturePhotoMarker()
+  }
+
   async function capturePhotoMarker() {
     const v = videoRef.current
     if (!v) return
@@ -1295,14 +1512,22 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
           )}
           {viewingMarkerNote && (
             <div
-              data-no-toggle={isCoach ? '' : undefined}
-              onClick={() => { if (isCoach) openMarkerEditor(viewingMarkerNote) }}
+              data-no-toggle={isCoach && notesShown ? '' : undefined}
+              aria-hidden={!notesShown}
+              onClick={() => { if (isCoach && notesShown) openMarkerEditor(viewingMarkerNote) }}
               style={{
+                transform: notesShown ? 'translateY(0)' : 'translateY(160%)', opacity: notesShown ? 1 : 0,
+                transition: 'transform 0.3s ease, opacity 0.25s ease', pointerEvents: notesShown ? 'auto' : 'none',
                 position: 'absolute', bottom: noteBottom, left: 16, right: 16, zIndex: 3, color: '#fff', fontSize: 13, padding: '10px 14px', borderRadius: 8,
                 background: hexToRgba(viewingMarkerNote.highlight_color || '#000000', 0.55), backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
                 cursor: isCoach ? 'pointer' : 'default', // athletes can see it, only coaches can edit
               }}>
               {viewingMarkerNote.note_text ? `📝 ${viewingMarkerNote.note_text}` : '⭐ Highlight'}
+            </div>
+          )}
+          {notesToast && (
+            <div style={{ position: 'absolute', top: '42%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 4, pointerEvents: 'none', background: 'rgba(0,0,0,0.7)', color: '#fff', fontSize: 13, fontWeight: 700, padding: '6px 14px', borderRadius: 20 }}>
+              {notesToast}
             </div>
           )}
 
@@ -1352,9 +1577,12 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
             the same place in portrait and landscape and never overlap it. */}
         <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
           {isCoach && sourceId && !showMarkerChoice && markerRangeStart === null && (
-            <button className="view-it-btn" title="Add photo"
-              style={{ width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
-              onClick={e => { e.stopPropagation(); capturePhotoMarker() }}>📷</button>
+            <button className="view-it-btn" title={recording ? 'Stop recording' : 'Tap: add photo · hold: record the screen'}
+              aria-label={recording ? 'Stop recording' : 'Add photo (hold to record the screen)'}
+              style={{ width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, ...(recording ? { background: '#E24B4A', color: '#fff' } : {}) }}
+              onPointerDown={handleCameraPointerDown} onPointerUp={handleCameraPointerEnd} onPointerLeave={handleCameraPointerEnd} onPointerCancel={handleCameraPointerEnd}
+              onContextMenu={e => e.preventDefault()}
+              onClick={handleCameraClick}>{recording ? '■' : '📷'}</button>
           )}
           <button className="view-it-btn" title={canSaveRotation ? 'Rotate 90° (saved for everyone)' : 'Rotate 90°'}
             style={{ width: 36, height: 36, borderRadius: '50%', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
@@ -1586,6 +1814,39 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn btn-sm btn-primary" onClick={saveMarker}>Save</button>
             <button className="btn btn-sm" style={GLASS_STYLE} onClick={cancelMarkerRange}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Screen recording: always-visible REC pill (controls may be hidden) */}
+      {recording && (
+        <button type="button" data-no-toggle onClick={e => { e.stopPropagation(); stopScreenRecording() }}
+          aria-label="Stop recording"
+          style={{ position: 'fixed', top: 'calc(12px + env(safe-area-inset-top, 0px))', left: '50%', transform: 'translateX(-50%)', zIndex: 220,
+            display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
+            background: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: 13, fontWeight: 700 }}>
+          <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#E24B4A', boxShadow: '0 0 8px #E24B4A' }} />
+          REC {Math.floor(recElapsed / 60)}:{String(recElapsed % 60).padStart(2, '0')}
+          <span style={{ fontWeight: 400, opacity: 0.8 }}>· tap to stop · notes {notesShown ? 'on' : 'off'}</span>
+        </button>
+      )}
+
+      {recResult && (
+        <div data-no-toggle style={{ position: 'fixed', bottom: 90, left: 12, right: 12, zIndex: 215, padding: 16, borderRadius: 12, ...GLASS_STYLE }}>
+          <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Screen recording · {Math.floor(recResult.seconds / 60)}:{String(recResult.seconds % 60).padStart(2, '0')}</h3>
+          <video src={recResult.url} controls playsInline style={{ width: '100%', maxHeight: '32vh', borderRadius: 8, background: '#000', marginBottom: 10 }} />
+          {footageId && isCoach && (
+            <input value={recNoteText} onChange={e => setRecNoteText(e.target.value)} placeholder="Note for this recording (optional)"
+              style={{ width: '100%', fontSize: 13, marginBottom: 10 }} />
+          )}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {footageId && isCoach && (
+              <button type="button" className="btn btn-sm btn-primary" style={{ flex: 1, justifyContent: 'center' }} disabled={recSaving} onClick={saveRecordingAsNote}>
+                {recSaving ? 'Saving…' : 'Save as note'}
+              </button>
+            )}
+            <button type="button" className="btn btn-sm" style={{ flex: 1, justifyContent: 'center', ...GLASS_STYLE }} disabled={recSaving} onClick={exportRecording}>Export</button>
+            <button type="button" className="btn btn-sm" style={{ justifyContent: 'center', ...GLASS_STYLE }} disabled={recSaving} onClick={discardRecording}>Discard</button>
           </div>
         </div>
       )}
