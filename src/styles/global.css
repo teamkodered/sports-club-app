@@ -530,3 +530,18 @@ tbody tr:hover td { background: var(--bg-secondary); }
 @media (orientation: portrait) {
   .ff-swatch-row { top: calc(58px + env(safe-area-inset-top, 0px)) !important; }
 }
+
+/* THIS WEEK graph lives INSIDE an opened pillar card: under the title (Mentality/Tactical),
+   above it (Technical/Physical). Title + graph sit in the roped corner, artwork opposite. */
+.neon-home .neon-pillar.is-open { min-height: 210px; }
+.neon-home .neon-pillar.is-open .neon-pillar-icon { max-width: 34% !important; width: 34% !important; }
+.neon-home .neon-pillar.is-open.neon-tl [style*="Anton"] { left: 46px !important; top: 46px !important; bottom: auto !important; right: auto !important; }
+.neon-home .neon-pillar.is-open.neon-tr [style*="Anton"] { right: 46px !important; top: 46px !important; bottom: auto !important; left: auto !important; }
+.neon-home .neon-pillar.is-open.neon-bl [style*="Anton"] { left: 46px !important; bottom: 46px !important; top: auto !important; right: auto !important; }
+.neon-home .neon-pillar.is-open.neon-br [style*="Anton"] { right: 46px !important; bottom: 46px !important; top: auto !important; left: auto !important; }
+.neon-home .neon-pillar.is-open [style*="Anton"] { max-width: calc(64% - 46px) !important; }
+.neon-home .neon-pillar-graph { position: absolute; width: calc(64% - 56px); }
+.neon-home .neon-pillar.is-open.neon-tl .neon-pillar-graph { left: 46px; top: 86px; }
+.neon-home .neon-pillar.is-open.neon-tr .neon-pillar-graph { right: 46px; top: 86px; }
+.neon-home .neon-pillar.is-open.neon-bl .neon-pillar-graph { left: 46px; bottom: 86px; }
+.neon-home .neon-pillar.is-open.neon-br .neon-pillar-graph { right: 46px; bottom: 86px; }

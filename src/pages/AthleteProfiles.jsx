@@ -3388,7 +3388,7 @@ export default function AthleteProfiles() {
     return 0
   }
 
-  function WeekCompletionGraph({ sectionKey, colour }) {
+  function WeekCompletionGraph({ sectionKey, colour, embedded = false }) {
     const now = new Date()
     const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7), 12)
     const todayStr = now.toISOString().split('T')[0]
@@ -3401,7 +3401,7 @@ export default function AthleteProfiles() {
       return { letter: 'MTWTFSS'[i], dateStr, future, isToday, count: future ? null : countSectionDoneForDay(sectionKey, s, isToday) }
     })
     const maxVal = Math.max(1, ...days.map(d => d.count || 0))
-    const W = 300, H = 74, padX = 16, top = 16, bottom = 22
+    const W = embedded ? 200 : 300, H = embedded ? 70 : 74, padX = embedded ? 10 : 16, top = 16, bottom = 22
     const x = i => padX + (i * (W - padX * 2)) / 6
     const y = v => top + (1 - v / maxVal) * (H - top - bottom)
     const pts = days.filter(d => !d.future).map((d, i) => [x(i), y(d.count)])
@@ -3409,9 +3409,11 @@ export default function AthleteProfiles() {
     const area = pts.length > 1 ? `${path} L${pts[pts.length - 1][0].toFixed(1)},${H - bottom} L${pts[0][0].toFixed(1)},${H - bottom} Z` : ''
     const weekTotal = days.reduce((n, d) => n + (d.count || 0), 0)
     return (
-      <div className="neon-week-graph" role="img"
+      <div className={embedded ? 'neon-week-graph neon-pillar-graph' : 'neon-week-graph'} role="img"
         aria-label={`${sectionKey} completed this week: ` + days.filter(d => !d.future).map(d => `${d.letter} ${d.count}`).join(', ')}
-        style={{ width: '100%', boxSizing: 'border-box', margin: '0 0 10px', padding: '8px 10px 4px', borderRadius: 6, background: 'var(--neon-card, #1A1F24)', border: '1px solid #2A3138' }}>
+        style={embedded
+          ? { boxSizing: 'border-box', pointerEvents: 'none' }
+          : { width: '100%', boxSizing: 'border-box', margin: '0 0 10px', padding: '8px 10px 4px', borderRadius: 6, background: 'var(--neon-card, #1A1F24)', border: '1px solid #2A3138' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 2 }}>
           <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 9, letterSpacing: 2, color: '#9A9A9A' }}>THIS WEEK</span>
           <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 9, letterSpacing: 1, color: colour }}>{weekTotal} DONE</span>
@@ -8741,7 +8743,7 @@ export default function AthleteProfiles() {
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, alignItems: 'start', width: '100%' }}>
                   <div ref={physicalSectionRef} className={showPhysicalSection ? 'neon-opens-up' : undefined} style={{ order: showPhysicalSection ? 11 : 4, display: 'flex', flexDirection: 'column-reverse', alignItems: 'center', minWidth: 0, gridColumn: showPhysicalSection ? '1 / -1' : 'auto' }}>
-                  <button type="button" className="neon-pillar neon-br" onClick={togglePhysicalSection} style={showPhysicalSection ? {
+                  <button type="button" className={`neon-pillar neon-br${showPhysicalSection ? ' is-open' : ''}`} onClick={togglePhysicalSection} style={showPhysicalSection ? {
                     width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
                     textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
@@ -8754,10 +8756,10 @@ export default function AthleteProfiles() {
                       <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showPhysicalSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#EF9F27' }}>PHYSICAL</span>
                       <img src="/logos/neon/physical.png" alt="" className="neon-pillar-icon" style={{ height: showPhysicalSection ? 36 : 22, width: 'auto' }} />
                     </div>
+                    {showPhysicalSection && WeekCompletionGraph({ sectionKey: 'physical', colour: '#E6B800', embedded: true })}
                     <CoachSectionProgressBars sectionKey="physical" ropes="br" />
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showPhysicalSection ? '▲' : '▼'}</span>
                   </button>
-                  {showPhysicalSection && WeekCompletionGraph({ sectionKey: 'physical', colour: '#E6B800' })}
 
                   <div style={{
                     overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
@@ -9150,7 +9152,7 @@ export default function AthleteProfiles() {
                   </div>
 
                   <div ref={techniqueSectionRef} className={showTechniqueSection ? 'neon-opens-up' : undefined} style={{ order: showTechniqueSection ? 10 : 3, display: 'flex', flexDirection: 'column-reverse', alignItems: 'center', minWidth: 0, gridColumn: showTechniqueSection ? '1 / -1' : 'auto' }}>
-                  <button type="button" className="neon-pillar neon-bl" onClick={() => { setShowTechniqueSection(v => { if (!v) setTimeout(() => techniqueSectionRef.current?.firstElementChild?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 380); if (v) setExpandedTechniqueCategory(null); return !v }) }} style={showTechniqueSection ? {
+                  <button type="button" className={`neon-pillar neon-bl${showTechniqueSection ? ' is-open' : ''}`} onClick={() => { setShowTechniqueSection(v => { if (!v) setTimeout(() => techniqueSectionRef.current?.firstElementChild?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 380); if (v) setExpandedTechniqueCategory(null); return !v }) }} style={showTechniqueSection ? {
                     width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
                     textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
@@ -9163,10 +9165,10 @@ export default function AthleteProfiles() {
                       <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showTechniqueSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#378ADD' }}>TECHNICAL</span>
                       <img src="/logos/neon/technical.png" alt="" className="neon-pillar-icon" style={{ height: showTechniqueSection ? 36 : 22, width: 'auto' }} />
                     </div>
+                    {showTechniqueSection && WeekCompletionGraph({ sectionKey: 'technique', colour: '#2F6BFF', embedded: true })}
                     <CoachSectionProgressBars sectionKey="technique" ropes="bl" />
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showTechniqueSection ? '▲' : '▼'}</span>
                   </button>
-                  {showTechniqueSection && WeekCompletionGraph({ sectionKey: 'technique', colour: '#2F6BFF' })}
 
                   <div style={{
                     overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
@@ -9228,7 +9230,7 @@ export default function AthleteProfiles() {
                   </div>
 
                   <div ref={tacticalSectionRef} style={{ order: showTacticalSection ? 0 : 2, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showTacticalSection ? '1 / -1' : 'auto' }}>
-                  <button type="button" className="neon-pillar neon-tr" onClick={() => { setShowTacticalSection(v => { if (!v) setTimeout(() => tacticalSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150); if (v) setExpandedTacticalCategory(null); return !v }) }} style={showTacticalSection ? {
+                  <button type="button" className={`neon-pillar neon-tr${showTacticalSection ? ' is-open' : ''}`} onClick={() => { setShowTacticalSection(v => { if (!v) setTimeout(() => tacticalSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150); if (v) setExpandedTacticalCategory(null); return !v }) }} style={showTacticalSection ? {
                     width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
                     textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
@@ -9241,10 +9243,10 @@ export default function AthleteProfiles() {
                       <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showTacticalSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#E24B4A' }}>TACTICAL</span>
                       <img src="/logos/neon/tactical.png" alt="" className="neon-pillar-icon" style={{ height: showTacticalSection ? 36 : 22, width: 'auto' }} />
                     </div>
+                    {showTacticalSection && WeekCompletionGraph({ sectionKey: 'tactical', colour: '#FF2A2A', embedded: true })}
                     <CoachSectionProgressBars sectionKey="tactical" ropes="tr" />
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showTacticalSection ? '▲' : '▼'}</span>
                   </button>
-                  {showTacticalSection && WeekCompletionGraph({ sectionKey: 'tactical', colour: '#FF2A2A' })}
 
                   <div style={{
                     overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
@@ -9310,7 +9312,7 @@ export default function AthleteProfiles() {
                   </div>
 
                   <div ref={mentalitySectionRef} style={{ order: showMentalitySection ? 0 : 1, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showMentalitySection ? '1 / -1' : 'auto' }}>
-                  <button type="button" className="neon-pillar neon-tl" onClick={() => { setShowMentalitySection(v => { if (!v) setTimeout(() => mentalitySectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150); if (v) setExpandedHomeMentality(null); return !v }) }} style={showMentalitySection ? {
+                  <button type="button" className={`neon-pillar neon-tl${showMentalitySection ? ' is-open' : ''}`} onClick={() => { setShowMentalitySection(v => { if (!v) setTimeout(() => mentalitySectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150); if (v) setExpandedHomeMentality(null); return !v }) }} style={showMentalitySection ? {
                     width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
                     textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
@@ -9323,10 +9325,10 @@ export default function AthleteProfiles() {
                       <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showMentalitySection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#8B5CF6' }}>MENTALITY</span>
                       <img src="/logos/neon/mentality.png" alt="" className="neon-pillar-icon" style={{ height: showMentalitySection ? 36 : 22, width: 'auto' }} />
                     </div>
+                    {showMentalitySection && WeekCompletionGraph({ sectionKey: 'mentality', colour: '#22B14C', embedded: true })}
                     <CoachSectionProgressBars sectionKey="mentality" ropes="tl" />
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showMentalitySection ? '▲' : '▼'}</span>
                   </button>
-                  {showMentalitySection && WeekCompletionGraph({ sectionKey: 'mentality', colour: '#22B14C' })}
 
                   <div style={{
                     overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
