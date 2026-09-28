@@ -444,10 +444,17 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     if (regType === 'kr' || regType === 'krba') {
       const allStudentIds = [...filteredStudents, ...stillMissing].map(s => s.id)
       if (allStudentIds.length > 0) {
-        const [{ data: sessions }, { data: profiles }] = await Promise.all([
+        const [{ data: sessions }, { data: profiles }, { data: targetSettings }] = await Promise.all([
           supabase.from('fit2fight_sessions').select('student_id, session_date, weight_before, weight_after').in('student_id', allStudentIds).order('session_date'),
-          supabase.from('athlete_profiles').select('student_id, weight_division').in('student_id', allStudentIds),
+          supabase.from('athlete_profiles').select('student_id, weight_division, weight_target_override').in('student_id', allStudentIds),
+          supabase.from('team_settings').select('key, value').in('key', ['weight_target_pct_in_comp', 'weight_target_pct_out_comp', 'weight_target_active_mode']),
         ])
+        // Target weight -- same rule as the athlete app / athlete profile: comp weight
+        // (or body weight) x (1 + the team's active in-comp/out-of-comp %), unless the
+        // athlete has a coach override (an actual kg, or their own %).
+        const ts = Object.fromEntries((targetSettings || []).map(r => [r.key, r.value]))
+        const targetPct = parseFloat(ts.weight_target_active_mode === 'in_comp' ? ts.weight_target_pct_in_comp : ts.weight_target_pct_out_comp) || 0
+        const overrideByStudent = Object.fromEntries((profiles || []).map(p => [p.student_id, p.weight_target_override]))
         // Preserves the +/- sign for display (standard combat-sports
         // weight-class notation, e.g. "-69kg" means "under 69kg",
         // matching exactly how the athlete's own profile shows this
@@ -478,7 +485,12 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
           const compWeightLabel = compWeightInfo ? `${compWeightInfo.sign}${compWeightInfo.value}kg` : null
           const isPlusDivision = compWeightInfo?.sign === '+'
           const pctDiff = compWeight && current != null ? ((current - compWeight) / compWeight * 100) : null
-          computed[id] = { entries, last5, current, trend, compWeight, compWeightLabel, isPlusDivision, pctDiff, entryCount: entries.length }
+          const baseWeight = compWeight ?? ([...filteredStudents, ...stillMissing].find(x => x.id === id)?.weight_kg ?? null)
+          const ov = overrideByStudent[id]
+          let targetWeight = baseWeight ? +(baseWeight * (1 + targetPct)).toFixed(1) : null
+          if (ov?.type === 'actual' && ov.value) targetWeight = +parseFloat(ov.value).toFixed(1)
+          else if (ov?.type === 'percent' && ov.value && baseWeight) targetWeight = +(baseWeight * (1 + parseFloat(ov.value))).toFixed(1)
+          computed[id] = { entries, last5, current, trend, compWeight, compWeightLabel, isPlusDivision, pctDiff, targetWeight, entryCount: entries.length }
         }
         setWeightDataByStudent(computed)
       } else {
@@ -1159,7 +1171,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   // One line per ACTIVE athlete on this register: Name – Age – Year of birth – Record / Level
   async function copyFightersList(order) {
     const rows = displayStudents
-      .filter(st => (st.members?.status || 'active') === 'active')
+      .filter(st => (st.members?.status || 'active') === 'active' && st.in_comp)   // active, in-comp athletes only
       .map(st => {
         const m = st.members
         const dob = m?.date_of_birth
@@ -1185,7 +1197,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     }
     if (navigator.vibrate) navigator.vibrate(15)
     setFightersMenuOpen(false)
-    setFightersCopied(`Copied ${rows.length} fighters (${order === 'age' ? 'age order' : 'name order'}) — paste it into a message`)
+    setFightersCopied(`Copied ${rows.length} in-comp fighters (${order === 'age' ? 'age order' : 'name order'}) — paste it into a message`)
     setTimeout(() => setFightersCopied(''), 3500)
   }
   const pointsTotal = selectedPoints.reduce((s, p) => s + p.points, 0)
@@ -1486,7 +1498,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
         }
         const Spark = ({ wd }) => {
           const vals = (wd?.last5 || []).map(e => e.weight)
-          if (vals.length < 2) return <div className="reg-m-spark-empty">{vals.length ? `${vals[0]}kg${wd?.compWeightLabel ? ` · ${wd.compWeightLabel}` : ''}` : 'No weights yet'}</div>
+          if (vals.length < 2) return <div className="reg-m-spark-empty">{vals.length ? `${vals[0]}kg${wd?.targetWeight ? ` · target ${wd.targetWeight}kg` : ''}` : 'No weights yet'}</div>
           const lo = Math.min(...vals), hi = Math.max(...vals), rng = (hi - lo) || 1
           const pts = vals.map((v, i) => `${(4 + i * (72 / (vals.length - 1))).toFixed(1)},${(26 - ((v - lo) / rng) * 20).toFixed(1)}`)
           const change = vals[vals.length - 1] - vals[0]
@@ -1499,14 +1511,14 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                 <circle cx={lx} cy={ly} r="2.5" fill={col} />
               </svg>
               {(() => {
-                // Distance to comp weight instead of the change over the last 5
+                // Distance to the athlete's TARGET weight (not comp weight)
                 const cur = wd?.current
                 if (cur == null) return <span style={{ color: 'var(--text-tertiary)' }}>—</span>
                 if (wd?.isPlusDivision) return <span style={{ color: '#1D9E75' }}>{cur}kg · {wd.compWeightLabel}</span>
-                if (wd?.compWeight == null) return <span style={{ color: 'var(--text-secondary)' }}>{cur}kg · no target</span>
-                const diff = +(cur - wd.compWeight).toFixed(1)
-                if (diff <= 0) return <span style={{ color: '#1D9E75' }}>{diff === 0 ? 'On weight' : `${Math.abs(diff)}kg under`} {wd.compWeightLabel}</span>
-                return <span style={{ color: '#E24B4A' }}>{diff}kg over {wd.compWeightLabel}</span>
+                if (wd?.targetWeight == null) return <span style={{ color: 'var(--text-secondary)' }}>{cur}kg · no target</span>
+                const diff = +(cur - wd.targetWeight).toFixed(1)
+                if (diff <= 0) return <span style={{ color: '#1D9E75' }}>{diff === 0 ? 'On target' : `${Math.abs(diff)}kg under`} · target {wd.targetWeight}kg</span>
+                return <span style={{ color: '#E24B4A' }}>{diff}kg over · target {wd.targetWeight}kg</span>
               })()}
             </div>
           )
@@ -1641,7 +1653,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           <div><span>Last in</span><b>{stats?.last ? new Date(stats.last + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}</b></div>
                           <div><span>Attend.</span><b style={{ color: pctColour(pct) }}>{pct != null ? `${pct}%` : '—'}</b></div>
                           <div><span>Weight</span><b>{weight != null ? `${weight}kg` : '—'}</b></div>
-                          <div><span>Comp wt</span><b>{wd?.compWeightLabel || '—'}</b></div>
+                          <div><span>Target wt</span><b>{wd?.targetWeight ? `${wd.targetWeight}kg` : '—'}</b></div>
                           <div><span>Points today</span><b>{(pointsByStudent[st.id] || []).reduce((n, pp) => n + (pp.points_awarded || 0), 0)}</b></div>
                         </div>
                         <div className="reg-m-note">Weights come from the weigh check-in / athlete app</div>
