@@ -726,3 +726,9 @@ tbody tr:hover td { background: var(--bg-secondary); }
   .reg-root:not(.reg-force-table) .reg-class-pills > div::-webkit-scrollbar { display: none; }
   .reg-root .page-header h1 { font-size: 22px; }
 }
+/* Athlete register: Fighters list copy */
+.reg-fighters { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
+.reg-fighters-btn { height: 40px; font-weight: 600; }
+.reg-fighters-menu { display: flex; gap: 8px; }
+.reg-fighters-menu button { height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid #1D9E75; background: color-mix(in srgb, #1D9E75 14%, var(--bg-secondary)); color: var(--text); font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.reg-fighters-toast { flex-basis: 100%; font-size: 13px; font-weight: 600; color: #1D9E75; }

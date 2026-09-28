@@ -326,6 +326,8 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   const mLongPressFired = useRef(false)
   const mSwipeX = useRef(null)
   const [pointSearch, setPointSearch] = useState('')    // award-points modal: search / write a reason
+  const [fightersMenuOpen, setFightersMenuOpen] = useState(false)
+  const [fightersCopied, setFightersCopied] = useState('')
   const [saveNewReason, setSaveNewReason] = useState(true)
   // Total sessions / Last attended / Attendance % for the chosen range.
   // Attendance % is each student's OWN rate -- days attended out of days
@@ -1152,6 +1154,39 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     )
   }
 
+
+  // Athlete register: copy a fighters list to paste to other coaches for matching.
+  // One line per ACTIVE athlete on this register: Name – Age – Year of birth – Record / Level
+  async function copyFightersList(order) {
+    const rows = displayStudents
+      .filter(st => (st.members?.status || 'active') === 'active')
+      .map(st => {
+        const m = st.members
+        const dob = m?.date_of_birth
+        const age = calcAge(dob)
+        const yob = dob ? String(dob).slice(0, 4) : '—'
+        const hasRecord = (st.wins || st.losses || st.draws)
+        const record = hasRecord ? `${st.wins || 0}W ${st.losses || 0}L ${st.draws || 0}D` : '0 fights'
+        const level = st.pka_belt || st.krba_level || ''
+        return { name: `${m?.first_name || ''} ${m?.last_name || ''}`.trim(), age: age ?? null, dob: dob || '',
+                 line: `${`${m?.first_name || ''} ${m?.last_name || ''}`.trim()} – ${age ?? '—'} – ${yob} – ${record}${level ? ` / ${level}` : ''}` }
+      })
+    rows.sort(order === 'age'
+      ? (a, b) => (a.dob && b.dob ? b.dob.localeCompare(a.dob) : a.dob ? -1 : 1) // youngest first
+      : (a, b) => a.name.localeCompare(b.name))
+    const heading = `${REGISTER_TYPES.find(r => r.key === regType)?.label || 'Fighters'} fighters (${rows.length}) — ${order === 'age' ? 'by age' : 'by name'}\nName – Age – Born – Record / Level`
+    const text = `${heading}\n${rows.map(r => r.line).join('\n')}`
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0'
+      document.body.appendChild(ta); ta.select(); try { document.execCommand('copy') } catch { /* ignore */ } ta.remove()
+    }
+    if (navigator.vibrate) navigator.vibrate(15)
+    setFightersMenuOpen(false)
+    setFightersCopied(`Copied ${rows.length} fighters (${order === 'age' ? 'age order' : 'name order'}) — paste it into a message`)
+    setTimeout(() => setFightersCopied(''), 3500)
+  }
   const pointsTotal = selectedPoints.reduce((s, p) => s + p.points, 0)
   const isKR = regType === 'kr'
 
@@ -1191,6 +1226,22 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
               }}>{c.label}</button>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Athlete register: Fighters list -- copy to paste to other coaches for matching */}
+      {initialRegType && (
+        <div className="reg-fighters">
+          <button type="button" className="btn btn-sm reg-fighters-btn" aria-expanded={fightersMenuOpen} onClick={() => setFightersMenuOpen(v => !v)}>
+            🥊 Fighters list
+          </button>
+          {fightersMenuOpen && (
+            <div className="reg-fighters-menu" role="menu">
+              <button type="button" role="menuitem" onClick={() => copyFightersList('name')}>Name order</button>
+              <button type="button" role="menuitem" onClick={() => copyFightersList('age')}>Age order</button>
+            </div>
+          )}
+          {fightersCopied && <div className="reg-fighters-toast" role="status">✓ {fightersCopied}</div>}
         </div>
       )}
 
