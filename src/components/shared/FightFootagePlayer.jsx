@@ -1122,6 +1122,8 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
   const MIN_SECTION_SECONDS = 0.1
   function setMarkerTimesLocally(id, start, end) {
     setMarkers(prev => prev.map(x => x.id === id ? { ...x, start_seconds: start, end_seconds: end } : x).sort((a, b) => a.start_seconds - b.start_seconds))
+    // keep the on-video note/highlight overlay in step with the edited times
+    setViewingMarkerNote(v => v?.id === id ? { ...v, start_seconds: start, end_seconds: end } : v)
   }
 
   // which: 'start' | 'end'. Keeps times inside the video, keeps end at
@@ -1587,6 +1589,34 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
               </>
             )}
           </div>
+          {/* Live preview of this marker's highlight around its edited times -- the
+              scrub bar sits behind this popup, so it's mirrored here and moves with
+              every ‹ › / typed / hold change (and the colour you pick). */}
+          {duration > 0 && (() => {
+            const len = Math.max(0, editEnd - editStart)
+            const pad = Math.max(1.5, len * 0.5)
+            const w0 = Math.max(0, editStart - pad), w1 = Math.min(duration, editEnd + pad)
+            const span = Math.max(0.001, w1 - w0)
+            const pct = t => ((t - w0) / span) * 100
+            const isPhoto = editingMarker.marker_type === 'photo'
+            const col = editingMarker.marker_type === 'highlight' ? editingMarkerColour : '#378ADD'
+            const others = markers.filter(m => m.id !== editingMarker.id && m.marker_type !== 'photo' && m.end_seconds > w0 && m.start_seconds < w1)
+            return (
+              <div aria-hidden="true" style={{ position: 'relative', height: 22, margin: '4px 6px 8px', borderRadius: 4, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+                {others.map(m => (
+                  <div key={m.id} style={{ position: 'absolute', top: 8, height: 6, borderRadius: 3, opacity: 0.35,
+                    left: `${Math.max(0, pct(m.start_seconds))}%`, width: `${Math.max(1, pct(Math.min(w1, m.end_seconds)) - Math.max(0, pct(m.start_seconds)))}%`,
+                    background: m.marker_type === 'highlight' ? (m.highlight_color || '#EF9F27') : '#378ADD' }} />
+                ))}
+                {isPhoto ? (
+                  <div style={{ position: 'absolute', top: 3, bottom: 3, left: `${pct(editStart)}%`, width: 6, transform: 'translateX(-3px)', borderRadius: 2, background: '#fff' }} />
+                ) : (
+                  <div style={{ position: 'absolute', top: 5, height: 12, borderRadius: 4, left: `${pct(editStart)}%`, width: `${Math.max(1, pct(editEnd) - pct(editStart))}%`, background: col, boxShadow: `0 0 8px ${col}` }} />
+                )}
+                <div style={{ position: 'absolute', top: 0, bottom: 0, width: 2, left: `${Math.min(100, Math.max(0, pct(currentTime)))}%`, transform: 'translateX(-1px)', background: '#fff' }} />
+              </div>
+            )
+          })()}
           <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', textAlign: 'center', margin: '0 0 10px' }}>Tap a time to type · ‹ › one frame · hold a time to use the current position</p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center', marginBottom: 6 }}>
