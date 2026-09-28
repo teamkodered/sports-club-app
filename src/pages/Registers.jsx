@@ -1502,7 +1502,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
         }
         const Spark = ({ wd }) => {
           const vals = (wd?.last5 || []).map(e => e.weight)
-          if (vals.length < 2) return <div className="reg-m-spark-empty">{vals.length ? `${vals[0]}kg` : 'No weights yet'}</div>
+          if (vals.length < 2) return <div className="reg-m-spark-empty">{vals.length ? `${vals[0]}kg${wd?.compWeightLabel ? ` · ${wd.compWeightLabel}` : ''}` : 'No weights yet'}</div>
           const lo = Math.min(...vals), hi = Math.max(...vals), rng = (hi - lo) || 1
           const pts = vals.map((v, i) => `${(4 + i * (72 / (vals.length - 1))).toFixed(1)},${(26 - ((v - lo) / rng) * 20).toFixed(1)}`)
           const change = vals[vals.length - 1] - vals[0]
@@ -1514,7 +1514,16 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                 <polyline points={pts.join(' ')} fill="none" stroke={col} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 <circle cx={lx} cy={ly} r="2.5" fill={col} />
               </svg>
-              <span style={{ color: col }}>{change > 0 ? '+' : ''}{change.toFixed(1)}kg</span>
+              {(() => {
+                // Distance to comp weight instead of the change over the last 5
+                const cur = wd?.current
+                if (cur == null) return <span style={{ color: 'var(--text-tertiary)' }}>—</span>
+                if (wd?.isPlusDivision) return <span style={{ color: '#1D9E75' }}>{cur}kg · {wd.compWeightLabel}</span>
+                if (wd?.compWeight == null) return <span style={{ color: 'var(--text-secondary)' }}>{cur}kg · no target</span>
+                const diff = +(cur - wd.compWeight).toFixed(1)
+                if (diff <= 0) return <span style={{ color: '#1D9E75' }}>{diff === 0 ? 'On weight' : `${Math.abs(diff)}kg under`} {wd.compWeightLabel}</span>
+                return <span style={{ color: '#E24B4A' }}>{diff}kg over {wd.compWeightLabel}</span>
+              })()}
             </div>
           )
         }
@@ -1613,7 +1622,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           {bday && <button type="button" className="reg-m-bday" title="Upcoming birthday" onClick={e => { e.stopPropagation(); setBirthdayPopup({ name: `${m?.first_name} ${m?.last_name}`, info: bday }) }}>🎂</button>}
                         </div>
                         {isMainReg ? (mPage === 0 ? (
-                          <div className="reg-m-details">
+                          <div className="reg-m-details reg-m-cols reg-m-cols-main">
                             <span>Age <b>{calcAge(m?.date_of_birth) ?? '—'}</b></span>
                             <span className="reg-m-pct"><span className="bar"><span style={{ width: `${pct || 0}%`, background: pctColour(pct) }} /></span><b style={{ color: pctColour(pct) }}>{pct != null ? `${pct}%` : '—'}</b></span>
                             <span className={`badge ${st.media_restriction === 'No' ? 'badge-red' : st.media_restriction === 'Limited' ? 'badge-amber' : 'badge-green'}`} style={{ fontSize: 10 }}>
@@ -1627,7 +1636,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                             <span>{stats?.last ? new Date(stats.last + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}</span>
                           </div>
                         )) : mPage === 0 ? (
-                          <div className="reg-m-details">
+                          <div className="reg-m-details reg-m-cols">
                             <span>Age <b>{calcAge(m?.date_of_birth) ?? '—'}</b></span>
                             <span><b>{weight != null ? `${weight}kg` : '—'}</b></span>
                             <span className="reg-m-pct"><span className="bar"><span style={{ width: `${pct || 0}%`, background: pctColour(pct) }} /></span><b style={{ color: pctColour(pct) }}>{pct != null ? `${pct}%` : '—'}</b></span>

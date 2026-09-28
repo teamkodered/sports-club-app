@@ -753,3 +753,10 @@ tbody tr:hover td { background: var(--bg-secondary); }
   .neon-home .neon-stat .neon-stat-value { font-size: 19px !important; }
   .neon-home .neon-stat button { padding: 0 !important; min-width: 0; }
 }
+/* Cards: fixed columns so the attendance bars and % line up down the list */
+.reg-m-cols { display: grid !important; grid-template-columns: 58px 64px minmax(0, 1fr); align-items: center; gap: 6px !important; }
+.reg-m-cols-main { grid-template-columns: 58px 86px minmax(0, 1fr); }
+.reg-m-cols > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.reg-m-cols .reg-m-pct { display: grid; grid-template-columns: 40px 38px; align-items: center; gap: 6px; }
+.reg-m-cols .reg-m-pct b { text-align: right; }
+.reg-m-spark span { white-space: nowrap; font-size: 11px; }
