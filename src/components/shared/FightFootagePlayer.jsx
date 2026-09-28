@@ -1283,27 +1283,6 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
             </div>
           )}
 
-          {controlsVisible && (
-            <button className="view-it-btn" title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-              style={{ position: 'absolute', top: 8, left: 8, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer' }}
-              onClick={e => { e.stopPropagation(); toggleFullscreen() }}>
-              {isFullscreen ? '⤢' : '⛶'}
-            </button>
-          )}
-
-          {controlsVisible && isCoach && sourceId && !showMarkerChoice && (
-            (markerRangeStart === null || addMarkerHoldEngagedRef.current) ? (
-              <button className="view-it-btn" title="Add marker here"
-                style={{ position: 'absolute', top: 8, left: 52, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer' }}
-                onPointerDown={e => { e.stopPropagation(); handleAddMarkerButtonPointerDown() }}
-                onPointerUp={e => { e.stopPropagation(); handleAddMarkerButtonPointerUp() }}
-                onPointerLeave={() => { if (addMarkerHoldEngagedRef.current) handleAddMarkerButtonPointerUp() }}>📍</button>
-            ) : (
-              <button className="view-it-btn" title="End marker here"
-                style={{ position: 'absolute', top: 8, left: 52, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer' }}
-                onClick={e => { e.stopPropagation(); handleMarkerButtonPress() }}>🏁</button>
-            )
-          )}
 
         </div>
 
@@ -1354,6 +1333,28 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
           own layout space. Same tap-to-show/hide as everything else. */}
       {controlsVisible && (
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: 12, zIndex: 2 }}>
+        {/* ⛶ and 📍/🏁 pinned to the screen's top-left (not the video's),
+            mirroring the 📷 ⟳ Close row on the right. */}
+        <div style={{ position: 'absolute', top: 12, left: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button className="view-it-btn" title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+            style={{ width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+            onClick={e => { e.stopPropagation(); toggleFullscreen() }}>
+            {isFullscreen ? '⤢' : '⛶'}
+          </button>
+          {isCoach && sourceId && !showMarkerChoice && (
+            (markerRangeStart === null || addMarkerHoldEngagedRef.current) ? (
+              <button className="view-it-btn" title="Add marker here"
+                style={{ width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+                onPointerDown={e => { e.stopPropagation(); handleAddMarkerButtonPointerDown() }}
+                onPointerUp={e => { e.stopPropagation(); handleAddMarkerButtonPointerUp() }}
+                onPointerLeave={() => { if (addMarkerHoldEngagedRef.current) handleAddMarkerButtonPointerUp() }}>📍</button>
+            ) : (
+              <button className="view-it-btn" title="End marker here"
+                style={{ width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+                onClick={e => { e.stopPropagation(); handleMarkerButtonPress() }}>🏁</button>
+            )
+          )}
+        </div>
         {/* Title sits between the fullscreen button's corner and the
             right-hand cluster, so it can't run underneath either. */}
         <span style={{
