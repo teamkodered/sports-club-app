@@ -1371,7 +1371,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
           const hasNoteSpeeds = markers.some(m => m.playback_speed && m.playback_speed !== 1)
           if (distinctColours.length === 0 && !hasNoteSpeeds) return null
           return (
-            <div style={{ position: 'absolute', top: 40, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 6 }}>
+            <div className="ff-swatch-row" style={{ position: 'absolute', top: 40, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 6 }}>
               <button type="button" aria-pressed={ignoreNoteSpeeds}
                 title={ignoreNoteSpeeds ? 'Note speeds OFF — playing at normal speed (tap to use note speeds again)' : 'Ignore note speed changes (highlights still show)'}
                 aria-label={ignoreNoteSpeeds ? 'Use note speeds again' : 'Ignore note speed changes'}

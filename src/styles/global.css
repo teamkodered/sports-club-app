@@ -525,3 +525,8 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .neon-home .neon-opens-up > div { overflow-anchor: none; }
 /* an opened (full-width) left pillar has no gap beside it, so hide its D/W/M gap letters */
 .neon-home [style*="grid-column: 1 / -1"] .neon-gap-letter { display: none; }
+
+/* Fight footage: in portrait the colour / no-speed circles sat against the phone's camera -- drop them a little */
+@media (orientation: portrait) {
+  .ff-swatch-row { top: calc(58px + env(safe-area-inset-top, 0px)) !important; }
+}
