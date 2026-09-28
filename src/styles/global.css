@@ -402,7 +402,7 @@ tbody tr:hover td { background: var(--bg-secondary); }
   .neon-home .neon-pillar [style*="Anton"] { font-size: 16px !important; }
 }
 /* Pillar titles scale with the card and can never cross into the next card */
-.neon-home .neon-tl, .neon-home .neon-tr, .neon-home .neon-bl, .neon-home .neon-br { container-type: inline-size; overflow: hidden; }
+.neon-home .neon-tl, .neon-home .neon-tr, .neon-home .neon-bl, .neon-home .neon-br { container-type: inline-size; overflow: visible; } /* visible: the D/W/M letter column sits in the gap OUTSIDE the left card; titles are clipped by their own max-width below */
 .neon-home .neon-tl [style*="Anton"], .neon-home .neon-tr [style*="Anton"],
 .neon-home .neon-bl [style*="Anton"], .neon-home .neon-br [style*="Anton"] {
   font-size: clamp(13px, 11cqw, 28px) !important; white-space: nowrap; max-width: calc(100% - 50px); overflow: hidden; text-overflow: clip; }
