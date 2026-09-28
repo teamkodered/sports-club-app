@@ -8814,7 +8814,7 @@ export default function AthleteProfiles() {
                 return cats.map(cat => (
                   <div key={cat.key} className={`card ${extraClass}`} style={{ marginBottom: 8 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>{cat.icon} {cat.key === 'stretches' ? 'Ranges' : cat.label}</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>{cat.icon} {cat.key === 'stretches' ? 'Ranges' : cat.key === 'wattbike' ? 'Single set' : cat.label}</span>
                       <button type="button" className="btn btn-sm" onClick={() => clearTestCategory(cat.key)} style={{ fontSize: 11 }}>✕ Clear</button>
                     </div>
                     {cat.tests.map(t => {
@@ -9178,8 +9178,16 @@ export default function AthleteProfiles() {
                         </button>
                       )
                     })}
+                    {/* Single set (the old Watt Bike test card): same card as Output / Standard / Distance */}
+                    {(() => { const active = expandedHomeWatt === '__single__'; const complete = (TEST_CATEGORIES.find(c => c.key === 'wattbike')?.tests || []).some(t => todaysTest?.[t.name] != null && todaysTest[t.name] !== ''); return (
+                      <button className={`neon-q neon-q-physical${active ? ' is-active' : ''}${complete ? ' is-done' : ''}`} type="button" onClick={() => openOnlyPhysicalPanel('watt', active ? null : '__single__')}
+                        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 8px', borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)', border: '2px solid var(--border)', background: 'var(--bg-secondary)' }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>Single set</span>
+                        <span style={{ fontSize: 22 }}>1️⃣</span>
+                      </button>
+                    ) })()}
                   </div>
-                  {expandedHomeWatt && (() => {
+                  {expandedHomeWatt && expandedHomeWatt !== '__single__' && (() => {
                     const grp = WATT_BIKE_GROUPS.find(g => g.key === expandedHomeWatt)
                     const presets = WATT_BIKE_PRESETS[grp.key] || []
                     const inGroup = e => e.group === grp.key || (!e.group && grp.match(e.interval_mode || e.type))
@@ -9249,7 +9257,7 @@ export default function AthleteProfiles() {
                     )
                   })()}
                   {/* Watt bike results, moved here from the old Test tab */}
-                  {renderMovedTest(['wattbike'], 'neon-qpanel neon-q-physical neon-run-panel')}
+                  {expandedHomeWatt === '__single__' && renderMovedTest(['wattbike'], 'neon-qpanel neon-q-physical neon-run-panel')}
                   </div>
                   )}
 
