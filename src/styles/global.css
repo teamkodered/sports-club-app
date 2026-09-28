@@ -575,3 +575,12 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .neon-home .neon-qpanel.neon-run-panel { border-radius: 6px !important; border-top: 1px solid var(--q-accent) !important; }
 .neon-home .neon-run-panel input:not([type="checkbox"]) { background: #111518 !important; border: 1px solid #2A3138 !important; color: #FFFFFF !important; border-radius: 6px; }
 .neon-home .neon-run-panel input:not([type="checkbox"]):focus { outline: none; border-color: var(--q-accent) !important; }
+
+/* Running results: the result box sits to the right of each time/distance; bigger, easier to tap */
+.neon-home .neon-run-panel .neon-set-label { font-family: 'Orbitron', sans-serif; font-size: 11px !important; letter-spacing: 1px; color: #CFCFCF !important; min-width: 64px; }
+.neon-home .neon-run-panel input[type="number"], .neon-home .neon-run-panel input[type="text"] { min-height: 42px; font-size: 16px !important; padding: 8px 10px !important; }
+.neon-home .neon-run-panel input[type="number"] { width: 104px !important; }
+.neon-home .neon-run-panel div:has(> .neon-set-label) { flex-basis: 100%; }
+/* Remove effort: red so it stands out */
+.neon-home .neon-qpanel > div > .btn.neon-danger:not(.neon-view-btn):not(.x1):not(.x2) { clip-path: none; background: transparent !important; color: #FF4D4D !important; box-shadow: inset 0 0 0 1px #FF4D4D; border-radius: 4px !important; font-family: 'Orbitron', sans-serif !important; font-style: normal; font-weight: 600 !important; font-size: 10px !important; letter-spacing: 1.5px; }
+.neon-home .neon-qpanel > div > .btn.neon-danger:not(.neon-view-btn):not(.x1):not(.x2):disabled { opacity: 0.35; }

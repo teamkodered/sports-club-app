@@ -54,7 +54,7 @@ const NUTRITION_MACRO_PRESETS = [
   { key: 'low_carb', label: 'Low carb', carbs: 20, fat: 40, protein: 40 },
 ]
 
-function SetInput({ sets, onChange, placeholder = 'e.g. 12.3', inputType = 'text' }) {
+function SetInput({ sets, onChange, placeholder = 'e.g. 12.3', inputType = 'text', label = '', unit = '' }) {
   // Local state seeded once from props, never re-synced on every
   // change -- each keystroke triggers an async save, and reading from
   // the `sets` prop again on a fast second edit (before the previous
@@ -84,8 +84,10 @@ function SetInput({ sets, onChange, placeholder = 'e.g. 12.3', inputType = 'text
         {localSets.map((s, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
             <span style={{ fontSize: 10, color: 'var(--text-tertiary)', width: 14 }}>{i + 1}</span>
+            {label && <span className="neon-set-label" style={{ fontSize: 12, color: 'var(--text-secondary)', flexShrink: 0 }}>{label} →</span>}
             <input type={inputType} inputMode={inputType === 'number' ? 'decimal' : undefined} value={s} onChange={e => update(i, e.target.value)} placeholder={placeholder}
               style={{ width: 72, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 12, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)' }} />
+            {unit && <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{unit}</span>}
             <button onClick={() => remove(i)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14, padding: 0 }}>×</button>
           </div>
         ))}
@@ -504,7 +506,7 @@ const RUN_CATEGORY_CARDS = [
 ]
 const RUN_PRESET_TESTS = {
   'Timed Sprints': ['30m', '40m', '50m', '100m', '200m', '300m', '400m', '600m', '800m'],
-  'Timed Distance Run': ['2000m', '1600m', '4800m', '5000m', '10000m', '15000m'],
+  'Timed Distance Run': ['1600m', '2000m', '4800m', '5000m', '10000m', '15000m'],
   'Interval': [
     '1 min on 1 min jog track distance',
     '1 min 30 sec on 1 min jog track distance',
@@ -3872,7 +3874,7 @@ export default function AthleteProfiles() {
   function CoachQuestionProgressBarsVertical({ sectionKey, questionLabel }) {
     const byPeriod = getCoachQuestionProgressByPeriod(sectionKey, questionLabel)
     const periods = [['day', 'D'], ['week', 'W'], ['month', 'M']]
-    const NEON_Q = { mentality: '#22B14C', tactical: '#FF2A2A', technique: '#2F6BFF', physical: '#E6B800', wellbeing: '#C93BFF' }
+    const NEON_Q = { mentality: '#22B14C', tactical: '#FF2A2A', technique: '#2F6BFF', physical: '#E6B800', test: '#E6B800', wellbeing: '#C93BFF' }
     const accent = NEON_Q[sectionKey] || '#22B14C'
     return (
       <div className="neon-qbars" style={{ display: 'flex', flexDirection: 'column', gap: 3, width: '100%', flexShrink: 0 }}>
@@ -8805,11 +8807,11 @@ export default function AthleteProfiles() {
               // they now belong to. Storage is unchanged (still session.test[name])
               // -- this only relocates where each result is shown/entered, so
               // nothing already logged is lost or orphaned.
-              const renderMovedTest = (catKeys) => {
+              const renderMovedTest = (catKeys, extraClass = '') => {
                 const cats = TEST_CATEGORIES.filter(c => catKeys.includes(c.key))
                 if (!cats.length) return null
                 return cats.map(cat => (
-                  <div key={cat.key} className="card" style={{ marginBottom: 8 }}>
+                  <div key={cat.key} className={`card ${extraClass}`} style={{ marginBottom: 8 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                       <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>{cat.icon} {cat.key === 'stretches' ? 'Ranges' : cat.label}</span>
                       <button type="button" className="btn btn-sm" onClick={() => clearTestCategory(cat.key)} style={{ fontSize: 11 }}>✕ Clear</button>
@@ -9066,8 +9068,17 @@ export default function AthleteProfiles() {
                         </button>
                       )
                     })}
+                    {/* Bleep test: same neon card, lined up with the running cards (was a separate card below) */}
+                    {(() => { const active = expandedHomeRun === '__bleep__'; const complete = todaysTest?.['Bleep test'] != null && todaysTest['Bleep test'] !== ''; return (
+                      <button className={`neon-q neon-q-physical${active ? ' is-active' : ''}${complete ? ' is-done' : ''}`} type="button" onClick={() => openOnlyPhysicalPanel('run', active ? null : '__bleep__')}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '14px 8px', borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)', border: '2px solid var(--border)', background: 'var(--bg-secondary)' }}>
+                        <CoachQuestionProgressBarsVertical sectionKey="test" questionLabel="Bleep test" />
+                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>Bleep test</span>
+                        <span style={{ fontSize: 22 }}>📶</span>
+                      </button>
+                    ) })()}
                   </div>
-                  {expandedHomeRun && (() => {
+                  {expandedHomeRun && expandedHomeRun !== '__bleep__' && (() => {
                     const efforts = todaysRunning.map((e, i) => ({ e, k: runKey(e, i), i })).filter(x => x.e.category === expandedHomeRun)
                     const selKey = runEffortSel[expandedHomeRun]
                     const isNewEffort = selKey === '__new__' || efforts.length === 0
@@ -9104,7 +9115,7 @@ export default function AthleteProfiles() {
                     const isSuicideNow = expandedHomeRun === 'Interval' && isSuicideTest(entry.test) && (entry.mode === 'suicide' || !(entry.sets || []).length)
                     const isLegacySuicide = expandedHomeRun === 'Interval' && isSuicideTest(entry.test) && !isSuicideNow
                     const presets = expandedHomeRun === 'Interval'
-  ? (isSuicideTest(entry.test) ? [...new Set([...SUICIDE_PRESETS, ...(RUN_PRESET_TESTS.Interval || []).filter(isSuicideTest)])] : (RUN_PRESET_TESTS.Interval || []).filter(t => !isSuicideTest(t)))
+  ? [...(RUN_PRESET_TESTS.Interval || []).filter(t => !isSuicideTest(t)), ...((entry.mode === 'time' && !isSuicideTest(entry.test)) ? [] : [...new Set([...SUICIDE_PRESETS, ...(RUN_PRESET_TESTS.Interval || []).filter(isSuicideTest)])])]
   : (RUN_PRESET_TESTS[expandedHomeRun] || [])
                     const cat = RUN_CATEGORY_CARDS.find(c => c.key === expandedHomeRun)
                     return (
@@ -9112,20 +9123,14 @@ export default function AthleteProfiles() {
                         <EffortSwitcher efforts={efforts} currentKey={current?.k} isNew={!current} onPick={pickEffort} onNew={() => pickEffort('__new__')} />
                         {isLegacySuicide && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '0 0 8px' }}>This suicide effort was logged before end lines were recorded — its results are kept as entered. Tap + New effort to log end lines.</p>}
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-                          <button type="button" className="btn btn-sm" style={{ fontSize: 11 }}
+                          <button type="button" className="btn btn-sm neon-danger" style={{ fontSize: 11 }}
                             disabled={!current} onClick={removeCurrentEffort}>✕ Remove effort</button>
                         </div>
                         <div className="field"><label>Specific test</label>
-{expandedHomeRun === 'Interval' && (
-  <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-    <button type="button" className="btn btn-sm" onClick={() => upsertSetup({ test: '' })} style={{ background: !isSuicideTest(entry.test) ? '#E6B80020' : undefined, borderColor: !isSuicideTest(entry.test) ? '#E6B800' : undefined }}>Interval</button>
-    <button type="button" className="btn btn-sm" onClick={() => upsertSetup({ mode: 'suicide', test: isSuicideTest(entry.test) ? entry.test : SUICIDE_PRESETS[0] })} style={{ background: isSuicideTest(entry.test) ? '#E6B80020' : undefined, borderColor: isSuicideTest(entry.test) ? '#E6B800' : undefined }}>Suicide 1 m</button>
-  </div>
-)}
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
                             {presets.map(t => (
                               <button key={t} type="button" onClick={() => upsertSetup({ test: t })}
-                                className="btn btn-sm" style={{ background: entry.test === t ? '#E24B4A20' : undefined, borderColor: entry.test === t ? '#E24B4A' : undefined }}>{t}</button>
+                                className="btn btn-sm" style={{ background: entry.test === t ? '#E24B4A20' : undefined, borderColor: entry.test === t ? '#E24B4A' : undefined }}>{(t => isSuicideTest(t) ? t.replace(/^Suicides\s*/i, '1 m pyramid suicides · ').replace(' seconds on ', 's on / ').replace(' seconds off', 's off') : t)(t)}</button>
                             ))}
                             <SavableField defaultValue={presets.includes(entry.test) ? '' : (entry.test || '')}
                               onSave={val => { if (val) upsertSetup({ test: val }) }}
@@ -9141,7 +9146,7 @@ export default function AthleteProfiles() {
                           {isSuicideNow ? (
                             <SuicideInput lines={entry.sets || []} onChange={lines => upsert({ ...entry, mode: 'suicide', increment_m: 1, sets: lines, distances_m: lines.map(suicideMetres), total_m: lines.reduce((t, x) => t + suicideMetres(x), 0) })} />
                           ) : (
-                          <SetInput key={`${cat?.key}-${current?.k || 'new'}`} sets={entry.sets || []} onChange={sets => upsert({ ...entry, sets })}
+                          <SetInput key={`${cat?.key}-${current?.k || 'new'}`} label={entry.test || ''} sets={entry.sets || []} onChange={sets => upsert({ ...entry, sets })}
                             inputType="number" placeholder={cat?.resultLabel ? 'e.g. 2.4' : 'e.g. 12.3'} />
                           )}
                         </div>
@@ -9150,7 +9155,7 @@ export default function AthleteProfiles() {
                     )
                   })()}
                   {/* Bleep test + Timed run results, moved here from the old Test tab */}
-                  {renderMovedTest(['bleep', 'timedrun'])}
+                  {expandedHomeRun === '__bleep__' && renderMovedTest(['bleep'], 'neon-qpanel neon-q-physical neon-run-panel')}
                   </div>
                   )}
 
