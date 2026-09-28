@@ -508,3 +508,11 @@ tbody tr:hover td { background: var(--bg-secondary); }
   .hover-only-inline { display: inline; }
   .touch-only-inline { display: none; }
 }
+
+/* ---- One-pick session logger (Meditation, Visualisation, Video Analysis, Active Recovery) */
+.neon-home .neon-qpanel .neon-opt { text-transform: none; font-size: 14px !important; min-height: 34px; padding: 6px 14px !important; line-height: 1.15; }
+.neon-home .neon-qpanel .neon-howto { border-left: 2px solid var(--q-accent); padding-left: 10px; color: #CFCFCF !important; }
+.neon-home .neon-qpanel .neon-min { background: #111518 !important; border-color: #2A3138 !important; font-family: 'Orbitron', sans-serif !important; letter-spacing: 1px; color: #FFFFFF !important; }
+.neon-home .neon-qpanel .neon-min:focus { outline: none; border-color: var(--q-accent) !important; }
+.neon-home .neon-qpanel .neon-save { min-width: 96px; clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 10px 100%, 0 50%); }
+.neon-home .neon-qpanel .neon-save:not(:disabled) { background: var(--q-accent) !important; color: #0A0A0A !important; box-shadow: 0 0 14px var(--q-glow); }

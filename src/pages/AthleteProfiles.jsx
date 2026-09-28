@@ -3554,121 +3554,115 @@ export default function AthleteProfiles() {
   // Save button underneath, so several different types (or the same type
   // more than once) can all be logged the same day rather than one
   // selection overwriting the last.
-  function MultiSessionTypeLogger({ field, options, colour = '#6D28D9' }) {
+  // NOTE: these loggers are called as plain functions ({Logger({...})}), not
+  // <Logger/> elements, so the minutes box keeps focus while typing.
+  // "Logged today" list shared by both session loggers (unchanged behaviour:
+  // each saved entry can still be removed with x).
+  function LoggedTodayList({ field, colour }) {
     const entries = todaysMentalityLog[field]?.entries || []
+    if (!entries.length) return null
     return (
-      <div className="field" style={{ marginBottom: 0 }}>
-        {entries.length > 0 && (
-          <div style={{ marginBottom: 12 }}>
-            <label>Logged today</label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {entries.map((e, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', background: colour + '12', borderRadius: 'var(--radius)' }}>
-                  <span style={{ fontSize: 13 }}>{e.type}</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: colour }}>{e.duration} min</span>
-                    <button onClick={() => saveMentalityField(field, cur => ({ entries: (cur.entries || []).filter((_, idx) => idx !== i) }))}
-                      style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14, padding: 0 }}>×</button>
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-        <label>Add a session</label>
+      <div style={{ marginBottom: 12 }}>
+        <label>Logged today</label>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {options.map(v => {
-            const draftKey = `${field}::${v}`
-            return (
-              <div key={v} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 13, flex: 1 }}>{v}</span>
-                <input type="number" inputMode="numeric" placeholder="min" value={mentalityDraftDurations[draftKey] ?? ''}
-                  onChange={e => setMentalityDraftDurations(prev => ({ ...prev, [draftKey]: e.target.value }))}
-                  style={{ width: 60, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 12, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)' }} />
-                <button type="button" className="btn btn-sm" disabled={!mentalityDraftDurations[draftKey]}
-                  onClick={() => {
-                    saveMentalityField(field, cur => ({ entries: [...(cur.entries || []), { type: v, duration: mentalityDraftDurations[draftKey] }] }))
-                    setMentalityDraftDurations(prev => ({ ...prev, [draftKey]: '' }))
-                  }}>Save</button>
-              </div>
-            )
-          })}
+          {entries.map((e, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', background: colour + '12', borderRadius: 'var(--radius)' }}>
+              <span style={{ fontSize: 13 }}>{e.type}</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: colour }}>{e.duration} min</span>
+                <button type="button" aria-label={`Remove ${e.type}`} onClick={() => saveMentalityField(field, cur => ({ entries: (cur.entries || []).filter((_, idx) => idx !== i) }))}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 16, padding: '0 4px' }}>×</button>
+              </span>
+            </div>
+          ))}
         </div>
       </div>
     )
   }
 
-  // Two-level version of the same idea: pick a performance area/category
-  // first (e.g. "Calm", "Technique"), which reveals the specific types
-  // within it, each with its own duration input and Save button --
-  // matching MultiSessionTypeLogger's entry/duration/save pattern, just
-  // with a category picker layered on top for structured templates with
-  // many more types than fit comfortably in one flat list.
+  // Pick ONE option, enter the time once, press ONE Save. Saves exactly the
+  // same { type, duration } entry the old per-row inputs did, so existing
+  // logs, targets and progress are untouched. Selecting an option shows its
+  // how-to details underneath. Draft state reuses mentalityDraftDurations
+  // (keys field::__type / field::__min) so no new state is needed.
+  function SessionPicker({ field, types, colour }) {
+    const selKey = `${field}::__type`, minKey = `${field}::__min`
+    const selected = mentalityDraftDurations[selKey] || null
+    const minutes = mentalityDraftDurations[minKey] ?? ''
+    const sel = types.find(t => t.name === selected) || null
+    const canSave = !!sel && Number(minutes) > 0
+    const save = () => {
+      if (!canSave) return
+      saveMentalityField(field, cur => ({ entries: [...(cur.entries || []), { type: sel.name, duration: minutes }] }))
+      setMentalityDraftDurations(prev => ({ ...prev, [selKey]: null, [minKey]: '' }))
+    }
+    return (
+      <div className="neon-picker" style={{ width: '100%', minWidth: 0 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+          {types.map(t => {
+            const on = selected === t.name
+            return (
+              <button key={t.name} type="button" className="btn btn-sm neon-opt" aria-pressed={on}
+                onClick={() => setMentalityDraftDurations(prev => ({ ...prev, [selKey]: on ? null : t.name }))}
+                style={{ background: on ? colour + '20' : undefined, borderColor: on ? colour : undefined, whiteSpace: 'normal', textAlign: 'left', height: 'auto' }}>
+                {t.name}
+              </button>
+            )
+          })}
+        </div>
+        {sel?.howTo && <p className="neon-howto" style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.45 }}>{sel.howTo}</p>}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+          <input type="number" inputMode="numeric" min="1" placeholder="Minutes" aria-label="Minutes" value={minutes}
+            onChange={e => setMentalityDraftDurations(prev => ({ ...prev, [minKey]: e.target.value }))}
+            onKeyDown={e => { if (e.key === 'Enter') save() }}
+            className="neon-min"
+            style={{ flex: 1, minWidth: 0, padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 15, background: 'var(--bg-primary)', color: 'var(--text)', fontFamily: 'var(--font-sans)' }} />
+          <button type="button" className="btn btn-sm neon-save" disabled={!canSave} onClick={save}>Save</button>
+        </div>
+        {!sel && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '6px 0 0' }}>Pick an option, enter the minutes, then Save.</p>}
+      </div>
+    )
+  }
+
+  function MultiSessionTypeLogger({ field, options, colour = '#6D28D9' }) {
+    return (
+      <div className="field" style={{ marginBottom: 0 }}>
+        {LoggedTodayList({ field, colour })}
+        <label>Add a session</label>
+        {SessionPicker({ field, types: options.map(v => ({ name: v })), colour })}
+      </div>
+    )
+  }
+
+  // Two-level version: pick a performance area first (e.g. "Calm"), which
+  // reveals that area's options as one pick-list with a single time box
+  // and a single Save.
   function CategorizedSessionLogger({ field, categories, colour = '#6D28D9' }) {
-    const entries = todaysMentalityLog[field]?.entries || []
     const expandedCategory = expandedLoggerCategory[field] || null
+    const cat = expandedCategory ? categories.find(c => c.key === expandedCategory) : null
     return (
       <div className="field" style={{ marginBottom: 0, width: '100%', minWidth: 0 }}>
-        {entries.length > 0 && (
-          <div style={{ marginBottom: 12 }}>
-            <label>Logged today</label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {entries.map((e, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', background: colour + '12', borderRadius: 'var(--radius)' }}>
-                  <span style={{ fontSize: 13 }}>{e.type}</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: colour }}>{e.duration} min</span>
-                    <button onClick={() => saveMentalityField(field, cur => ({ entries: (cur.entries || []).filter((_, idx) => idx !== i) }))}
-                      style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14, padding: 0 }}>×</button>
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        {LoggedTodayList({ field, colour })}
         <label>Choose a performance area</label>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
           {categories.map(c => (
             <button key={c.key} type="button"
-              onClick={() => setExpandedLoggerCategory(prev => ({ ...prev, [field]: prev[field] === c.key ? null : c.key }))}
+              onClick={() => {
+                setExpandedLoggerCategory(prev => ({ ...prev, [field]: prev[field] === c.key ? null : c.key }))
+                setMentalityDraftDurations(prev => ({ ...prev, [`${field}::__type`]: null }))
+              }}
               className="btn btn-sm" style={{ background: expandedCategory === c.key ? colour + '20' : undefined, borderColor: expandedCategory === c.key ? colour : undefined }}>
               {c.label}
             </button>
           ))}
         </div>
-        {expandedCategory && (() => {
-          const cat = categories.find(c => c.key === expandedCategory)
-          return (
-            <div style={{ width: '100%', minWidth: 0 }}>
-              {cat.description && <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 8, fontStyle: 'italic' }}>{cat.description}</p>}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {cat.types.map(t => {
-                  const draftKey = `${field}::${t.name}`
-                  const howToShown = expandedLoggerHowTo[draftKey]
-                  return (
-                    <div key={t.name} style={{ width: '100%', minWidth: 0, padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)' }}>
-                      <button type="button" onClick={() => t.howTo && setExpandedLoggerHowTo(prev => ({ ...prev, [draftKey]: !prev[draftKey] }))}
-                        style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: 0, marginBottom: 6, cursor: t.howTo ? 'pointer' : 'default', fontSize: 13, color: t.howTo ? colour : 'var(--text)', fontFamily: 'var(--font-sans)', whiteSpace: 'normal', wordBreak: 'break-word' }}>
-                        {t.name}{t.howTo ? ' ⓘ' : ''}
-                      </button>
-                      {howToShown && <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 6px' }}>{t.howTo}</p>}
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <input type="number" inputMode="numeric" placeholder="min" value={mentalityDraftDurations[draftKey] ?? ''}
-                          onChange={e => setMentalityDraftDurations(prev => ({ ...prev, [draftKey]: e.target.value }))}
-                          style={{ width: 60, flexShrink: 0, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 12, background: 'var(--bg-primary)', color: 'var(--text)', fontFamily: 'var(--font-sans)' }} />
-                        <button type="button" className="btn btn-sm" disabled={!mentalityDraftDurations[draftKey]}
-                          onClick={() => {
-                            saveMentalityField(field, cur => ({ entries: [...(cur.entries || []), { type: t.name, duration: mentalityDraftDurations[draftKey] }] }))
-                            setMentalityDraftDurations(prev => ({ ...prev, [draftKey]: '' }))
-                          }}>Save</button>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )
-        })()}
+        {cat && (
+          <div style={{ width: '100%', minWidth: 0 }}>
+            {cat.description && <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 8, fontStyle: 'italic' }}>{cat.description}</p>}
+            <label>Choose one</label>
+            {SessionPicker({ field, types: cat.types, colour })}
+          </div>
+        )}
       </div>
     )
   }
@@ -9148,7 +9142,7 @@ export default function AthleteProfiles() {
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                         <button type="button" className="btn btn-sm" onClick={() => clearMentalityQuestion('videoAnalysis')} style={{ fontSize: 11 }}>✕ Clear</button>
                       </div>
-                      <MultiSessionTypeLogger field="videoAnalysis" options={VIDEO_ANALYSIS_OPTIONS} />
+                      {MultiSessionTypeLogger({ field: 'videoAnalysis', options: VIDEO_ANALYSIS_OPTIONS })}
                     </div>
                   )}
                   {Object.entries(TACTICAL_CATEGORIES).map(([cat, items]) => {
@@ -9238,10 +9232,10 @@ export default function AthleteProfiles() {
                         <button type="button" className="btn btn-sm" onClick={() => clearMentalityQuestion(expandedHomeMentality)} style={{ fontSize: 11 }}>✕ Clear</button>
                       </div>
                       {expandedHomeMentality === 'meditation' && (
-                        <CategorizedSessionLogger field="meditation" categories={MEDITATION_CATEGORIES} />
+                        CategorizedSessionLogger({ field: 'meditation', categories: MEDITATION_CATEGORIES })
                       )}
                       {expandedHomeMentality === 'visualisation' && (
-                        <CategorizedSessionLogger field="visualisation" categories={VISUALISATION_CATEGORIES} />
+                        CategorizedSessionLogger({ field: 'visualisation', categories: VISUALISATION_CATEGORIES })
                       )}
                       {expandedHomeMentality === 'chess' && (
                         <>
@@ -9324,7 +9318,7 @@ export default function AthleteProfiles() {
                         </>
                       )}
                       {expandedHomeMentality === 'activeRecovery' && (
-                        <MultiSessionTypeLogger field="activeRecovery" options={ACTIVE_RECOVERY_OPTIONS} />
+                        MultiSessionTypeLogger({ field: 'activeRecovery', options: ACTIVE_RECOVERY_OPTIONS })
                       )}
                       {expandedHomeMentality === 'gratitude' && (
                         <>
