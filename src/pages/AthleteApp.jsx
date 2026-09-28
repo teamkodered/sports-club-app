@@ -135,7 +135,9 @@ function SetInput({ sets, onChange, placeholder = 'e.g. 12.3', inputType = 'text
 // a bare list of numbers, so the fixed value doesn't have to be
 // remembered separately while reading results back.
 function TimedSprintsInput({ sets, mode, fixedValue, onChange }) {
-  const [localSets, setLocalSets] = useState(sets)
+  // Starts with one empty result box ready to type in (like the other
+  // results inputs) -- nothing is saved until something is typed.
+  const [localSets, setLocalSets] = useState(() => (sets && sets.length) ? sets : [{ value: '', isRest: false }])
   function update(i, patch) {
     const next = [...localSets]
     next[i] = { ...next[i], ...patch }
@@ -153,7 +155,7 @@ function TimedSprintsInput({ sets, mode, fixedValue, onChange }) {
     onChange(next)
   }
   const resultUnit = mode === 'time' ? 'm' : 'sec'
-  const activeSets = localSets.filter(s => !s?.isRest)
+  const activeSets = localSets.filter(s => !s?.isRest && s?.value !== '' && s?.value != null) // empty boxes don't count as sets
   const numericResults = activeSets.map(s => parseFloat(s?.value)).filter(v => !isNaN(v))
   const fixedNum = parseFloat(fixedValue)
   // Time mode: results ARE distances, each took the fixed time --
