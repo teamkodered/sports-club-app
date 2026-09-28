@@ -8596,7 +8596,7 @@ export default function AthleteProfiles() {
                 setExpandedHomeStretch(panel === 'stretch' ? value : null)
               }
               const togglePhysicalSection = () => {
-                setShowPhysicalSection(v => { if (!v) setTimeout(() => physicalSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+                setShowPhysicalSection(v => { if (!v) setTimeout(() => physicalSectionRef.current?.firstElementChild?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 380);
                   if (v) { openOnlyPhysicalPanel(null, null); setActivePhysicalCategory(null) } // closing -- reset any open detail panel/category too
                   return !v
                 })
@@ -8670,7 +8670,7 @@ export default function AthleteProfiles() {
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, alignItems: 'start', width: '100%' }}>
-                  <div ref={physicalSectionRef} style={{ order: showPhysicalSection ? 0 : 4, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showPhysicalSection ? '1 / -1' : 'auto' }}>
+                  <div ref={physicalSectionRef} className={showPhysicalSection ? 'neon-opens-up' : undefined} style={{ order: showPhysicalSection ? 11 : 4, display: 'flex', flexDirection: 'column-reverse', alignItems: 'center', minWidth: 0, gridColumn: showPhysicalSection ? '1 / -1' : 'auto' }}>
                   <button type="button" className="neon-pillar neon-br" onClick={togglePhysicalSection} style={showPhysicalSection ? {
                     width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
                     textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
@@ -9078,8 +9078,8 @@ export default function AthleteProfiles() {
                   </div>
                   </div>
 
-                  <div ref={techniqueSectionRef} style={{ order: showTechniqueSection ? 0 : 3, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showTechniqueSection ? '1 / -1' : 'auto' }}>
-                  <button type="button" className="neon-pillar neon-bl" onClick={() => { setShowTechniqueSection(v => { if (!v) setTimeout(() => techniqueSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150); if (v) setExpandedTechniqueCategory(null); return !v }) }} style={showTechniqueSection ? {
+                  <div ref={techniqueSectionRef} className={showTechniqueSection ? 'neon-opens-up' : undefined} style={{ order: showTechniqueSection ? 10 : 3, display: 'flex', flexDirection: 'column-reverse', alignItems: 'center', minWidth: 0, gridColumn: showTechniqueSection ? '1 / -1' : 'auto' }}>
+                  <button type="button" className="neon-pillar neon-bl" onClick={() => { setShowTechniqueSection(v => { if (!v) setTimeout(() => techniqueSectionRef.current?.firstElementChild?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 380); if (v) setExpandedTechniqueCategory(null); return !v }) }} style={showTechniqueSection ? {
                     width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
                     textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',

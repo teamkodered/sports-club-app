@@ -520,3 +520,8 @@ tbody tr:hover td { background: var(--bg-secondary); }
 /* Foundation slides UP: keep the header where the finger is while the questions grow above it */
 .neon-home .neon-foundation-wrap > .neon-pillar { overflow-anchor: auto; }
 .neon-home .neon-foundation-wrap > div { overflow-anchor: none; }
+/* Technical + Physical also open UPWARDS (moved to just above Foundation, questions above the header) */
+.neon-home .neon-opens-up > .neon-pillar { overflow-anchor: auto; }
+.neon-home .neon-opens-up > div { overflow-anchor: none; }
+/* an opened (full-width) left pillar has no gap beside it, so hide its D/W/M gap letters */
+.neon-home [style*="grid-column: 1 / -1"] .neon-gap-letter { display: none; }
