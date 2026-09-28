@@ -426,19 +426,9 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
     v.currentTime = Math.min(Math.max(0, v.currentTime + deltaSeconds), v.duration || 0)
   }
 
-  // Holding a step button (frame or 5s) repeats it continuously rather
-  // than needing repeated individual taps -- fires once immediately,
-  // then again every 200ms for as long as it's held.
+  // Timers for the frame buttons' hold-to-repeat (see startFrameStep).
   const stepRepeatTimerRef = useRef(null)
   const stepRepeatIntervalRef = useRef(null)
-  function startStepRepeat(deltaSeconds) {
-    step(deltaSeconds)
-    clearTimeout(stepRepeatTimerRef.current)
-    clearInterval(stepRepeatIntervalRef.current)
-    stepRepeatTimerRef.current = setTimeout(() => {
-      stepRepeatIntervalRef.current = setInterval(() => step(deltaSeconds), 200)
-    }, HOLD_THRESHOLD_MS)
-  }
   function stopStepRepeat() {
     clearTimeout(stepRepeatTimerRef.current)
     clearInterval(stepRepeatIntervalRef.current)
@@ -1183,13 +1173,11 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
           <div className="vi-mid-controls" style={{ position: 'absolute', left: 0, right: 0, transform: 'translateY(-50%)', padding: '16px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}
             onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <button className="view-it-btn btn btn-sm" onPointerDown={() => startStepRepeat(-5)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat} style={{ gap: 5 }}><TransportIcon name="rewind" /> 5s</button>
               <button className="view-it-btn btn btn-sm" title="Tap: 1 frame · press again quickly to speed up · hold to keep going" onPointerDown={() => startFrameStep(-1)} onPointerUp={stopFrameStep} onPointerLeave={stopFrameStep} onPointerCancel={stopFrameStep} style={{ gap: 5 }}><TransportIcon name="frameBack" /> Frame{frameBoost?.dir === -1 && <span style={{ fontSize: 10, fontWeight: 700, opacity: 0.9 }}>×{frameBoost.level}</span>}</button>
               <button className="view-it-btn" style={{ minWidth: 72, height: 72, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff' }}
                 onPointerDown={handlePlayButtonPointerDown} onPointerMove={handlePlayButtonPointerMove} onPointerUp={handlePlayButtonPointerUp}
                 onPointerLeave={() => { if (isHoldingRef.current) handlePlayButtonPointerUp() }}>{playing ? <TransportIcon name="pause" size={30} /> : <span style={{ marginLeft: 3 }}><TransportIcon name="play" size={30} /></span>}</button>
               <button className="view-it-btn btn btn-sm" title="Tap: 1 frame · press again quickly to speed up · hold to keep going" onPointerDown={() => startFrameStep(1)} onPointerUp={stopFrameStep} onPointerLeave={stopFrameStep} onPointerCancel={stopFrameStep} style={{ gap: 5 }}>{frameBoost?.dir === 1 && <span style={{ fontSize: 10, fontWeight: 700, opacity: 0.9 }}>×{frameBoost.level}</span>}Frame <TransportIcon name="frameFwd" /></button>
-              <button className="view-it-btn btn btn-sm" onPointerDown={() => startStepRepeat(5)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat} style={{ gap: 5 }}>5s <TransportIcon name="forward" /></button>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
               {SPEEDS.map(s => (
