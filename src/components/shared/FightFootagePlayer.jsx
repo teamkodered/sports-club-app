@@ -434,6 +434,33 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
     clearInterval(stepRepeatIntervalRef.current)
   }
 
+  // Note-edge skip: jumps to the next/previous start or end of any note
+  // block (a photo marker counts as one point). Anything within
+  // EDGE_EPSILON of where you are is skipped, so pressing again from an
+  // edge moves on to the next one instead of staying put. Holding
+  // repeats, edge to edge. Buttons only show when the video has notes.
+  const EDGE_EPSILON = 0.08
+  function jumpToNoteEdge(dir) {
+    const v = videoRef.current
+    if (!v) return
+    const t = v.currentTime
+    const edges = [...new Set(markersRef.current.flatMap(m => m.marker_type === 'photo' ? [m.start_seconds] : [m.start_seconds, m.end_seconds]))]
+    const target = dir > 0
+      ? edges.filter(e => e > t + EDGE_EPSILON).sort((a, b) => a - b)[0]
+      : edges.filter(e => e < t - EDGE_EPSILON).sort((a, b) => b - a)[0]
+    if (target === undefined) return // already past the last / before the first edge
+    v.pause()
+    seekTo(target)
+  }
+  function startEdgeRepeat(dir) {
+    jumpToNoteEdge(dir)
+    clearTimeout(stepRepeatTimerRef.current)
+    clearInterval(stepRepeatIntervalRef.current)
+    stepRepeatTimerRef.current = setTimeout(() => {
+      stepRepeatIntervalRef.current = setInterval(() => jumpToNoteEdge(dir), 450)
+    }, HOLD_THRESHOLD_MS)
+  }
+
   // Frame buttons: press again quickly (within FRAME_MULTI_PRESS_MS of
   // letting go, same direction) to go up a level; hold on the last press
   // to keep stepping at that level. Each press still steps one frame
@@ -1160,8 +1187,8 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
         <video ref={filmstripVideoRef} src={videoUrl} crossOrigin="anonymous" muted playsInline style={{ display: 'none' }} />
         <canvas ref={filmstripCanvasRef} style={{ display: 'none' }} />
 
-        {/* Middle overlay -- play/pause (flanked by the 5s/Frame skip
-            buttons) and speed, tap the video to show/hide (same
+        {/* Middle overlay -- play/pause (flanked by the Frame step and
+            Note-edge skip buttons) and speed, tap the video to show/hide (same
             tap-to-show as the bottom bar now). Just the one play
             button here -- there used to be a second, smaller one
             added alongside the skip buttons in their own separate row,
@@ -1172,12 +1199,18 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
           // marker row + scrub bar.
           <div className="vi-mid-controls" style={{ position: 'absolute', left: 0, right: 0, transform: 'translateY(-50%)', padding: '16px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}
             onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <button className="view-it-btn btn btn-sm" title="Tap: 1 frame · press again quickly to speed up · hold to keep going" onPointerDown={() => startFrameStep(-1)} onPointerUp={stopFrameStep} onPointerLeave={stopFrameStep} onPointerCancel={stopFrameStep} style={{ gap: 5 }}><TransportIcon name="frameBack" /> Frame{frameBoost?.dir === -1 && <span style={{ fontSize: 10, fontWeight: 700, opacity: 0.9 }}>×{frameBoost.level}</span>}</button>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              {markers.length > 0 && (
+                <button className="view-it-btn btn btn-sm" title="Previous note start/end" onPointerDown={() => startEdgeRepeat(-1)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat} onPointerCancel={stopStepRepeat} style={{ gap: 4, padding: '6px 9px' }}><TransportIcon name="rewind" /> Note</button>
+              )}
+              <button className="view-it-btn btn btn-sm" title="Tap: 1 frame · press again quickly to speed up · hold to keep going" onPointerDown={() => startFrameStep(-1)} onPointerUp={stopFrameStep} onPointerLeave={stopFrameStep} onPointerCancel={stopFrameStep} style={{ gap: 4, padding: '6px 9px' }}><TransportIcon name="frameBack" /> Frame{frameBoost?.dir === -1 && <span style={{ fontSize: 10, fontWeight: 700, opacity: 0.9 }}>×{frameBoost.level}</span>}</button>
               <button className="view-it-btn" style={{ minWidth: 72, height: 72, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff' }}
                 onPointerDown={handlePlayButtonPointerDown} onPointerMove={handlePlayButtonPointerMove} onPointerUp={handlePlayButtonPointerUp}
                 onPointerLeave={() => { if (isHoldingRef.current) handlePlayButtonPointerUp() }}>{playing ? <TransportIcon name="pause" size={30} /> : <span style={{ marginLeft: 3 }}><TransportIcon name="play" size={30} /></span>}</button>
-              <button className="view-it-btn btn btn-sm" title="Tap: 1 frame · press again quickly to speed up · hold to keep going" onPointerDown={() => startFrameStep(1)} onPointerUp={stopFrameStep} onPointerLeave={stopFrameStep} onPointerCancel={stopFrameStep} style={{ gap: 5 }}>{frameBoost?.dir === 1 && <span style={{ fontSize: 10, fontWeight: 700, opacity: 0.9 }}>×{frameBoost.level}</span>}Frame <TransportIcon name="frameFwd" /></button>
+              <button className="view-it-btn btn btn-sm" title="Tap: 1 frame · press again quickly to speed up · hold to keep going" onPointerDown={() => startFrameStep(1)} onPointerUp={stopFrameStep} onPointerLeave={stopFrameStep} onPointerCancel={stopFrameStep} style={{ gap: 4, padding: '6px 9px' }}>{frameBoost?.dir === 1 && <span style={{ fontSize: 10, fontWeight: 700, opacity: 0.9 }}>×{frameBoost.level}</span>}Frame <TransportIcon name="frameFwd" /></button>
+              {markers.length > 0 && (
+                <button className="view-it-btn btn btn-sm" title="Next note start/end" onPointerDown={() => startEdgeRepeat(1)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat} onPointerCancel={stopStepRepeat} style={{ gap: 4, padding: '6px 9px' }}>Note <TransportIcon name="forward" /></button>
+              )}
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
               {SPEEDS.map(s => (
