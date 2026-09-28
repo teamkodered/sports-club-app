@@ -1249,15 +1249,22 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
                 style={{ width: '100%', position: 'relative' }}
               />
             </div>
+
+            {/* Zoom: − under the left end of the scrub bar, + under the
+                right end, current level in between (only once zoomed). */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
+              <button className="view-it-btn btn btn-sm" title="Zoom out" aria-label="Zoom out"
+                style={{ width: 30, height: 30, padding: 0, borderRadius: '50%', justifyContent: 'center', fontSize: 18, lineHeight: 1 }}
+                disabled={zoomLevel === ZOOM_LEVELS[0]} onClick={() => setZoomLevel(z => ZOOM_LEVELS[Math.max(0, ZOOM_LEVELS.indexOf(z) - 1)])}>−</button>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>{zoomLevel > 1 ? `${zoomLevel}x zoom` : ''}</span>
+              <button className="view-it-btn btn btn-sm" title="Zoom in" aria-label="Zoom in"
+                style={{ width: 30, height: 30, padding: 0, borderRadius: '50%', justifyContent: 'center', fontSize: 18, lineHeight: 1 }}
+                disabled={zoomLevel === ZOOM_LEVELS[ZOOM_LEVELS.length - 1]} onClick={() => setZoomLevel(z => ZOOM_LEVELS[Math.min(ZOOM_LEVELS.length - 1, ZOOM_LEVELS.indexOf(z) + 1)])}>+</button>
+            </div>
           </div>
           <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, minWidth: 36 }}>{fmt(duration)}</span>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 6 }}>
-          <button className="view-it-btn btn btn-sm" disabled={zoomLevel === ZOOM_LEVELS[0]} onClick={() => setZoomLevel(z => ZOOM_LEVELS[Math.max(0, ZOOM_LEVELS.indexOf(z) - 1)])}>🔍− Zoom out</button>
-          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', alignSelf: 'center' }}>{zoomLevel}x</span>
-          <button className="view-it-btn btn btn-sm" disabled={zoomLevel === ZOOM_LEVELS[ZOOM_LEVELS.length - 1]} onClick={() => setZoomLevel(z => ZOOM_LEVELS[Math.min(ZOOM_LEVELS.length - 1, ZOOM_LEVELS.indexOf(z) + 1)])}>🔍+ Zoom in</button>
-        </div>
 
         {isCoach && sourceId && !showMarkerChoice && (
           <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 10 }}>
