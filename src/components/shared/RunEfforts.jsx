@@ -16,7 +16,7 @@ export const isSuicideTest = test => /suicide/i.test(test || '')
 export const suicideMetres = n => (n > 0 ? n * (n + 1) : 0)
 export const SUICIDE_PRESETS = ['Suicides 20 seconds on 10 seconds off', 'Suicides 30 seconds on 30 seconds off', 'Suicides 45 seconds on 45 seconds off', 'Suicides 60 seconds on 60 seconds off']
 
-export function EffortSwitcher({ efforts, currentKey, isNew, onPick, onNew, colour = '#E24B4A' }) {
+export function EffortSwitcher({ efforts, currentKey, isNew, onPick, onNew, colour = '#E24B4A', labelOf = e => e.test }) {
   if (!efforts.length) return null
   const chip = on => ({ fontSize: 11, background: on ? colour + '20' : undefined, borderColor: on ? colour : undefined })
   return (
@@ -25,7 +25,7 @@ export function EffortSwitcher({ efforts, currentKey, isNew, onPick, onNew, colo
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {efforts.map(({ e, k }, i) => (
           <button key={k} type="button" className="btn btn-sm" style={chip(!isNew && k === currentKey)} onClick={() => onPick(k)}>
-            {i + 1} · {e.test || (e.quickLogged ? 'Quick log' : 'No test')}{e.sets?.length ? ` (${e.sets.length})` : ''}
+            {i + 1} · {labelOf(e) || (e.quickLogged ? 'Quick log' : 'Not set')}{e.sets?.length ? ` (${e.sets.length})` : ''}
           </button>
         ))}
         <button type="button" className="btn btn-sm" style={chip(isNew)} onClick={onNew}>+ New effort</button>

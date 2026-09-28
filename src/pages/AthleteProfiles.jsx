@@ -1171,7 +1171,7 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
   const canCycle = subTypeOptions.length > 1
 
   return (
-    <div
+    <div className="neon-module"
       onTouchStart={e => { if (canCycle) swipeStart.current = e.touches[0].clientX }}
       onTouchEnd={e => {
         if (!canCycle || swipeStart.current == null) return
@@ -3056,6 +3056,7 @@ export default function AthleteProfiles() {
   const [bodyweightTypeOptions, setBodyweightTypeOptions] = useState([])
   const [stretchOptionsList, setStretchOptionsList] = useState([])
   const [expandedHomeRun, setExpandedHomeRun] = useState(null)
+  const [wattEffortSel, setWattEffortSel] = useState({}) // watt bike: which effort is being edited, per group
   const [runEffortSel, setRunEffortSel] = useState({}) // running: which effort is being edited, per type ('__new__' = a new one)
   const [showPhysicalSection, setShowPhysicalSection] = useState(false)
   const [showTechniqueSection, setShowTechniqueSection] = useState(false)
@@ -9163,17 +9164,17 @@ export default function AthleteProfiles() {
                   <div ref={wattPanelRef}>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeWatt ? 10 : 8 }}>
                     {WATT_BIKE_GROUPS.map(grp => {
-                      const complete = todaysWattBike.some(e => grp.match(e.interval_mode || e.type))
+                      const complete = todaysWattBike.some(e => e.group === grp.key || (!e.group && grp.match(e.interval_mode || e.type)))
                       const active = expandedHomeWatt === grp.key
                       return (
-                        <button key={grp.key} type="button" onClick={() => openOnlyPhysicalPanel('watt', active ? null : grp.key)} style={{
+                        <button className={`neon-q neon-q-physical${active ? ' is-active' : ''}${complete ? ' is-done' : ''}`} key={grp.key} type="button" onClick={() => openOnlyPhysicalPanel('watt', active ? null : grp.key)} style={{
                           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 8px',
                           borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                           border: `2px solid ${active ? SECTION_ACCENT_COLOURS.physical : complete ? '#378ADD' : 'var(--border)'}`,
                           background: complete ? '#378ADD12' : 'var(--bg-secondary)',
                         }}>
-                          <span style={{ fontSize: 22 }}>{grp.icon}</span>
                           <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{grp.label}</span>
+                          <span style={{ fontSize: 22 }}>{grp.icon}</span>
                         </button>
                       )
                     })}
@@ -9181,31 +9182,61 @@ export default function AthleteProfiles() {
                   {expandedHomeWatt && (() => {
                     const grp = WATT_BIKE_GROUPS.find(g => g.key === expandedHomeWatt)
                     const presets = WATT_BIKE_PRESETS[grp.key] || []
-                    const entry = todaysWattBike.find(e => grp.match(e.interval_mode || e.type)) || { interval_mode: '', sets: [] }
-                    const upsert = updatedEntry => savePhysicalField('watt_bike', [...todaysWattBike.filter(e => !grp.match(e.interval_mode || e.type)), updatedEntry], setTodaysWattBike)
+                    const inGroup = e => e.group === grp.key || (!e.group && grp.match(e.interval_mode || e.type))
+                    const efforts = todaysWattBike.map((e, i) => ({ e, k: runKey(e, i), i })).filter(x => inGroup(x.e))
+                    const selKey = wattEffortSel[grp.key]
+                    const current = (selKey === '__new__' || efforts.length === 0) ? null : (efforts.find(x => x.k === selKey) || efforts[efforts.length - 1])
+                    const entry = current ? current.e : { group: grp.key, interval_mode: '', sets: [] }
+                    const pickEffort = k => setWattEffortSel(p => ({ ...p, [grp.key]: k }))
+                    // One saved item per effort (like running): edits change only this effort
+                    const upsert = updatedEntry => {
+                      if (current) {
+                        const id = current.e.id || newRunId()
+                        savePhysicalField('watt_bike', todaysWattBike.map((e, i) => i === current.i ? { ...updatedEntry, group: grp.key, id } : e), setTodaysWattBike)
+                        if (!current.e.id) pickEffort(id)
+                      } else {
+                        const id = newRunId()
+                        savePhysicalField('watt_bike', [...todaysWattBike, { ...updatedEntry, group: grp.key, id }], setTodaysWattBike)
+                        pickEffort(id)
+                      }
+                    }
+                    // Changing the interval of an effort that already has results starts a NEW effort
+                    const upsertSetup = patch => {
+                      if (current && (entry.sets || []).length > 0) {
+                        const id = newRunId()
+                        savePhysicalField('watt_bike', [...todaysWattBike, { group: grp.key, interval_mode: '', sets: [], ...patch, id }], setTodaysWattBike)
+                        pickEffort(id)
+                      } else upsert({ ...entry, ...patch })
+                    }
+                    const removeCurrentEffort = () => {
+                      if (!current) return
+                      savePhysicalField('watt_bike', todaysWattBike.filter((_, i) => i !== current.i), setTodaysWattBike)
+                      pickEffort(null)
+                    }
                     return (
-                      <div className="card" style={{ marginBottom: 8 }}>
+                      <div className="card neon-qpanel neon-q-physical neon-run-panel" style={{ marginBottom: 8 }}>
+                        <EffortSwitcher efforts={efforts} currentKey={current?.k} isNew={!current} onPick={pickEffort} onNew={() => pickEffort('__new__')} labelOf={e => e.interval_mode} />
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-                          <button type="button" className="btn btn-sm" style={{ fontSize: 11 }}
-                            onClick={() => savePhysicalField('watt_bike', todaysWattBike.filter(e => !grp.match(e.interval_mode || e.type)), setTodaysWattBike)}>✕ Clear</button>
+                          <button type="button" className="btn btn-sm neon-danger" style={{ fontSize: 11 }}
+                            disabled={!current} onClick={removeCurrentEffort}>✕ Remove effort</button>
                         </div>
                         <div className="field"><label>Interval</label>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
                             {presets.map(m => (
-                              <button key={m} type="button" onClick={() => upsert({ ...entry, interval_mode: m })}
+                              <button key={m} type="button" onClick={() => upsertSetup({ interval_mode: m })}
                                 className="btn btn-sm" style={{ background: normalizeIntervalMode(entry.interval_mode) === m ? '#378ADD20' : undefined, borderColor: normalizeIntervalMode(entry.interval_mode) === m ? '#378ADD' : undefined }}>{formatIntervalLabel(m)}</button>
                             ))}
                             <SavableField defaultValue={presets.includes(normalizeIntervalMode(entry.interval_mode)) ? '' : (entry.interval_mode || '')}
-                              onSave={val => { if (val) upsert({ ...entry, interval_mode: val }) }}
+                              onSave={val => { if (val) upsertSetup({ interval_mode: val }) }}
                               placeholder="Other…" style={{ width: 'auto', flexShrink: 0 }} inputStyle={{ width: 90 }} />
                           </div>
                           <div style={{ marginTop: 8 }}>
-                            <OnOffInput onAdd={val => upsert({ ...entry, interval_mode: val })} />
+                            <OnOffInput onAdd={val => upsertSetup({ interval_mode: val })} />
                           </div>
                         </div>
                         <div className="field" style={{ marginBottom: 0 }}><label>Results — Wattage &amp; Distance</label>
                           <DualSetInput
-                            key={grp.key}
+                            key={`${grp.key}-${current?.k || 'new'}`}
                             sets={(entry.sets || []).map(s => (s && typeof s === 'object') ? s : { wattage: s, distance: '' })}
                             onChange={sets => upsert({ ...entry, sets })}
                             fields={[
@@ -9218,7 +9249,7 @@ export default function AthleteProfiles() {
                     )
                   })()}
                   {/* Watt bike results, moved here from the old Test tab */}
-                  {renderMovedTest(['wattbike'])}
+                  {renderMovedTest(['wattbike'], 'neon-qpanel neon-q-physical neon-run-panel')}
                   </div>
                   )}
 
@@ -9237,14 +9268,14 @@ export default function AthleteProfiles() {
                       const complete = todaysBodyweight.some(e => bodyweightMatchesGroup(e, grp.key))
                       const active = expandedHomeBodyweight === grp.key
                       return (
-                        <button key={grp.key} type="button" onClick={() => openOnlyPhysicalPanel('bodyweight', active ? null : grp.key)} style={{
+                        <button className={`neon-q neon-q-physical${active ? ' is-active' : ''}${complete ? ' is-done' : ''}`} key={grp.key} type="button" onClick={() => openOnlyPhysicalPanel('bodyweight', active ? null : grp.key)} style={{
                           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 8px',
                           borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                           border: `2px solid ${active ? SECTION_ACCENT_COLOURS.physical : complete ? '#1D9E75' : 'var(--border)'}`,
                           background: complete ? '#1D9E7512' : 'var(--bg-secondary)',
                         }}>
-                          <span style={{ fontSize: 22 }}>{grp.icon}</span>
                           <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{grp.label}</span>
+                          <span style={{ fontSize: 22 }}>{grp.icon}</span>
                         </button>
                       )
                     })}
@@ -9262,22 +9293,29 @@ export default function AthleteProfiles() {
                       savePhysicalField('bodyweight', todaysBodyweight.filter(e => !(bodyweightMatchesGroup(e, grp.key) && e.type === exerciseName)), setTodaysBodyweight)
                     }
                     return (
-                      <div className="card" style={{ marginBottom: 8 }}>
+                      <div className="card neon-qpanel neon-q-physical neon-run-panel" style={{ marginBottom: 8 }}>
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-                          <button type="button" className="btn btn-sm" style={{ fontSize: 11 }}
-                            onClick={() => savePhysicalField('bodyweight', todaysBodyweight.filter(e => !bodyweightMatchesGroup(e, grp.key)), setTodaysBodyweight)}>✕ Clear all</button>
+                          <button type="button" className="btn btn-sm neon-danger" style={{ fontSize: 11 }}
+                            onClick={() => { if (window.confirm(`Remove every ${grp.label} exercise logged today?`)) savePhysicalField('bodyweight', todaysBodyweight.filter(e => !bodyweightMatchesGroup(e, grp.key)), setTodaysBodyweight) }}>✕ Clear all</button>
                         </div>
-                        {grp.exercises.map((ex, i) => {
+                        <div className="field"><label>Add exercise</label>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                            {grp.exercises.filter(x => !groupEntries.some(e => e.type === x)).map(x => (
+                              <button key={x} type="button" className="btn btn-sm neon-opt" onClick={() => upsertExercise(x, cur => ({ ...cur, sets: cur.sets || [] }))}>+ {x}</button>
+                            ))}
+                            {grp.exercises.every(x => groupEntries.some(e => e.type === x)) && <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>All added</span>}
+                          </div>
+                        </div>
+                        {grp.exercises.filter(x => groupEntries.some(e => e.type === x)).map((ex, i, added) => {
                           const entry = groupEntries.find(e => e.type === ex)
                           const checked = !!entry
                           return (
-                            <div key={ex} style={{ marginBottom: 10, paddingBottom: 10, borderBottom: i < grp.exercises.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>
-                                <input type="checkbox" checked={checked}
-                                  onChange={e => e.target.checked ? upsertExercise(ex, cur => ({ ...cur, sets: cur.sets || [] })) : removeExercise(ex)}
-                                  style={{ width: 16, height: 16 }} />
-                                {ex}
-                              </label>
+                            <div key={ex} style={{ marginBottom: 10, paddingBottom: 10, borderBottom: i < added.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                                <span className="neon-ex-title" style={{ fontSize: 13, fontWeight: 600 }}>{ex}</span>
+                                <button type="button" className="btn btn-sm neon-danger" style={{ fontSize: 11 }}
+                                  onClick={() => { const has = (entry?.sets || []).some(v => v !== '' && v != null && !(typeof v === 'object' && !Object.values(v).some(x => x !== '' && x != null))); if (!has || window.confirm(`Remove ${ex} and its results?`)) removeExercise(ex) }}>✕ Remove</button>
+                              </div>
                               {checked && (
                                 <div style={{ marginTop: 6, marginLeft: 24 }}>
                                   {grp.durations && (
@@ -9312,7 +9350,7 @@ export default function AthleteProfiles() {
                     )
                   })()}
                   {/* Jumps, Grip and Fixed load circuit results, moved here from the old Test tab */}
-                  {renderMovedTest(['jumps', 'grip', 'fixedload'])}
+                  {renderMovedTest(['jumps', 'grip', 'fixedload'], 'neon-qpanel neon-q-physical neon-run-panel')}
                   </div>
                   )}
 
@@ -9322,7 +9360,7 @@ export default function AthleteProfiles() {
                     {STRETCH_FLOWS.map((flow, i) => {
                       const complete = !!todaysStretches[i]
                       return (
-                        <button key={i} type="button"
+                        <button className={`neon-flow-tile${complete ? ' is-done' : ''}`} key={i} type="button"
                           onClick={() => {
                             if (complete) {
                               if (!window.confirm(`Mark "${flow.label}" as not done? This removes today's entry.`)) return
@@ -9349,13 +9387,13 @@ export default function AthleteProfiles() {
                   </div>
                   {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8 }}>Saving…</p>}
                   {/* Stretches, moved here from the old Test tab and relabelled Ranges */}
-                  {renderMovedTest(['stretches'])}
+                  {renderMovedTest(['stretches'], 'neon-qpanel neon-q-physical neon-run-panel')}
                   </div>
                   )}
 
                   {!activePhysicalCategory && (
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-                    <div style={{
+                    <div className="neon-snc-bar" style={{
                       display: 'flex', alignItems: 'stretch', width: '100%',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                       overflow: 'hidden', fontFamily: 'var(--font-sans)',
@@ -9437,10 +9475,10 @@ export default function AthleteProfiles() {
                     </div>
                   )}
                   {showSncCards && (
-                    <div className="card" style={{ marginBottom: 8 }}>
+                    <div className="card neon-qpanel neon-q-physical neon-run-panel" style={{ marginBottom: 8 }}>
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-                        <button type="button" className="btn btn-sm" style={{ fontSize: 11 }}
-                          onClick={() => savePhysicalField('snc', [], setTodaysSnc)}>✕ Clear all</button>
+                        <button type="button" className="btn btn-sm neon-danger" style={{ fontSize: 11 }}
+                          onClick={() => { if (window.confirm('Remove every S&C routine logged today?')) savePhysicalField('snc', [], setTodaysSnc) }}>✕ Clear all</button>
                       </div>
                       {todaysSnc.map((entry, i) => (
                         <div key={i} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
