@@ -765,3 +765,5 @@ tbody tr:hover td { background: var(--bg-secondary); }
 /* Register cards: red initials, bigger names */
 .reg-m-avatar { background: #C0262D !important; color: #FFFFFF !important; }
 .reg-m-name, .reg-m-namelink { font-size: 17px !important; }
+.reg-m-open-profile { margin: 10px -12px -10px; padding: 10px 8px; border-top: 1px solid var(--border); background: var(--bg); border-radius: 0 0 12px 12px; }
+.reg-m-open-profile .card { box-shadow: none; }

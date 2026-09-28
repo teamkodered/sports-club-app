@@ -75,6 +75,7 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { matchesSearch } from '../lib/searchMatch.js'
 import { useAuth } from '../hooks/useAuth.jsx'
+import StudentProfile from '../components/students/StudentProfile.jsx'
 import { useSyncedPreference } from '../hooks/useSyncedPreference.js'
 import { studentProfileLink } from '../lib/studentLinks.js'
 import AttendanceCalendarModal from '../components/shared/AttendanceCalendarModal.jsx'
@@ -1613,7 +1614,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                       <div className="reg-m-body">
                         <div className="reg-m-name">
                           {!selecting
-                            ? <button type="button" className="reg-m-namelink" onClick={e => { e.stopPropagation(); onStudentNameClick ? onStudentNameClick(st) : navigate(studentProfileLink(st)) }}>{m?.first_name} {m?.last_name}</button>
+                            ? <button type="button" className="reg-m-namelink" onClick={e => { e.stopPropagation(); if (isMainReg) setMExpanded(open ? null : st.id); else onStudentNameClick ? onStudentNameClick(st) : navigate(studentProfileLink(st)) }}>{m?.first_name} {m?.last_name}</button>
                             : <span>{m?.first_name} {m?.last_name}</span>}
                           {bday && <button type="button" className="reg-m-bday" title="Upcoming birthday" onClick={e => { e.stopPropagation(); setBirthdayPopup({ name: `${m?.first_name} ${m?.last_name}`, info: bday }) }}>🎂</button>}
                         </div>
@@ -1646,7 +1647,19 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                       </div>
                       {(mPage === 0 || isMainReg) ? <AttBtn st={st} /> : <Spark wd={wd} />}
                     </div>
-                    {open && !selecting && (
+                    {open && !selecting && isMainReg && (
+                      <div className="reg-m-open reg-m-open-profile" onClick={e => e.stopPropagation()}>
+                        <div className="reg-m-actions">
+                          <button type="button" onClick={() => { setMultiAward(false); setAwardingFor(st) }}>+ Points</button>
+                          <button type="button" onClick={() => setCalendarStudent(st)}>Calendar</button>
+                          {(pointsByStudent[st.id] || []).length > 0 && <button type="button" onClick={() => setPointsPanelFor(st)}>Today's points</button>}
+                          <button type="button" onClick={() => setMExpanded(null)}>Close</button>
+                        </div>
+                        {/* The student's profile card, the same one the Students page opens */}
+                        <StudentProfile student={st} isAdmin={isAdmin} embedded={true} onClose={() => setMExpanded(null)} />
+                      </div>
+                    )}
+                    {open && !selecting && !isMainReg && (
                       <div className="reg-m-open" onClick={e => e.stopPropagation()}>
                         <div className="reg-m-stats">
                           <div><span>Sessions</span><b>{stats?.total ?? 0}</b></div>
