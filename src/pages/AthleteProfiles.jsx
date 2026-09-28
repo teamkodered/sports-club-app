@@ -9287,8 +9287,17 @@ export default function AthleteProfiles() {
                         </button>
                       )
                     })}
+                    {/* Jumps + Grip tests as cards in the same grid (were separate cards below). The old separate
+                        Fixed Load Circuit test card is gone -- the Fixed load circuit card above logs it; earlier test results stay in Results. */}
+                    {['jumps', 'grip'].map(tk => { const tc = TEST_CATEGORIES.find(c => c.key === tk); if (!tc) return null; const key = `__test:${tk}`; const active = expandedHomeBodyweight === key; const complete = tc.tests.some(t => todaysTest?.[t.name] != null && todaysTest[t.name] !== ''); return (
+                      <button key={key} className={`neon-q neon-q-physical${active ? ' is-active' : ''}${complete ? ' is-done' : ''}`} type="button" onClick={() => openOnlyPhysicalPanel('bodyweight', active ? null : key)}
+                        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 8px', borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)', border: '2px solid var(--border)', background: 'var(--bg-secondary)' }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{tc.label}</span>
+                        <span style={{ fontSize: 22 }}>{tc.icon}</span>
+                      </button>
+                    ) })}
                   </div>
-                  {expandedHomeBodyweight && (() => {
+                  {expandedHomeBodyweight && !expandedHomeBodyweight.startsWith('__test:') && (() => {
                     const grp = BODYWEIGHT_GROUPS.find(g => g.key === expandedHomeBodyweight)
                     const groupEntries = todaysBodyweight.filter(e => bodyweightMatchesGroup(e, grp.key))
                     const upsertExercise = (exerciseName, updater) => {
@@ -9358,7 +9367,7 @@ export default function AthleteProfiles() {
                     )
                   })()}
                   {/* Jumps, Grip and Fixed load circuit results, moved here from the old Test tab */}
-                  {renderMovedTest(['jumps', 'grip', 'fixedload'], 'neon-qpanel neon-q-physical neon-run-panel')}
+                  {expandedHomeBodyweight?.startsWith?.('__test:') && renderMovedTest([expandedHomeBodyweight.slice(7)], 'neon-qpanel neon-q-physical neon-run-panel')}
                   </div>
                   )}
 
