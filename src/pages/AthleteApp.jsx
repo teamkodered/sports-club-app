@@ -1149,7 +1149,7 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
         onPointerUp={() => clearTimeout(holdTimer.current)}
         onClick={() => {
           if (heldRef.current) { heldRef.current = false; return } // already handled by the hold
-          isPhysicalModule ? onToggleLog?.(b.key) : b.key === 'test' ? setTab('fit2fight') : cycleType(1)
+          isPhysicalModule ? onToggleLog?.(b.key) : b.key === 'test' ? setTab('reports') : cycleType(1)
         }}
         title={isPhysicalModule ? 'Tap to log in detail — hold to quick-log as done today' : undefined}
         style={{
@@ -1191,7 +1191,7 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
       <button onClick={() => {
         const sectionIndex = { watt_bike: 1, running: 2, bodyweight: 6, techniques: 7 }[b.key]
         if (sectionIndex != null) setResultsGraphSection(sectionIndex)
-        setTab('fit2fight')
+        setTab('reports')
         const targetId = mostRecent?.id || (lastLogged && sorted.filter(s => {
           if (b.key === 'stretch') return s.stretch_flows?.some?.(Boolean)
           return false
@@ -4034,9 +4034,9 @@ export default function AthleteApp() {
   const TABS = [
     ['home',      '🏠 Home'],
     ['sessions',  '📅 Schedule'],
-    ['fit2fight', '💪 Results'],
+    ['fit2fight', '🕸️ Performance'],
     ['pdp',       '🎯 My PDP'],
-    ['reports',   '📄 Reports'],
+    ['reports',   '📊 Results'],
     ['points',    '⭐ Points'],
   ]
 
@@ -4357,7 +4357,7 @@ export default function AthleteApp() {
                 const isWeightRow = label === 'Weight'
                 const isOverTarget = isWeightRow && target && student.weight_kg != null && parseFloat(student.weight_kg) > parseFloat(target)
                 return (
-                <div key={label} onClick={isWeightRow ? e => { e.stopPropagation(); setTab('fit2fight'); setResultsGraphSection(0) } : undefined}
+                <div key={label} onClick={isWeightRow ? e => { e.stopPropagation(); setTab('reports'); setResultsGraphSection(0) } : undefined}
                   style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 16px', borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13, cursor: isWeightRow ? 'pointer' : 'default' }}>
                   <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -5869,7 +5869,7 @@ export default function AthleteApp() {
                   cursor: 'pointer', fontFamily: 'var(--font-sans)',
                 }}>
                   <span className="neon-emoji" style={{ fontSize: 24 }}>📄</span><NeonTileIcon name="Reports" />
-                  <span style={{ fontSize: 12, fontWeight: 500, color: '#378ADD' }}>Reports</span>
+                  <span style={{ fontSize: 12, fontWeight: 500, color: '#378ADD' }}>Results</span>
                 </button>
               </div>
 
@@ -6068,7 +6068,7 @@ export default function AthleteApp() {
                     const count = sessionsCalendarView === 'f2f' ? (f2fActionsByDate[dateStr] || 0) : (pdpActionsByDate[dateStr] || 0)
                     const vc = sessionsCalendarView === 'f2f' ? '#378ADD' : '#8B5CF6'
                     return (
-                      <div key={i} onClick={() => setTab(sessionsCalendarView === 'f2f' ? 'fit2fight' : 'pdp')}
+                      <div key={i} onClick={() => setTab(sessionsCalendarView === 'f2f' ? 'reports' : 'pdp')}
                         title={`${count} action${count === 1 ? '' : 's'} completed`}
                         style={{
                           aspectRatio: '0.85', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -7293,344 +7293,9 @@ export default function AthleteApp() {
       {tab === 'reports' && (
         <div>
           <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
-          {myReports.length === 0 ? (
-            <div className="empty-state"><h3>No reports yet</h3><p>Reports your coach sends will appear here</p></div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {myReports.map(r => {
-                const d = r.report_data
-                const expanded = expandedReportId === r.id
-                return (
-                  <div key={r.id} className="card" style={{ cursor: 'pointer' }} onClick={() => setExpandedReportId(expanded ? null : r.id)}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <div style={{ fontSize: 14, fontWeight: 600 }}>
-                          {new Date(r.date_from).toLocaleDateString('en-GB')} – {new Date(r.date_to).toLocaleDateString('en-GB')}
-                        </div>
-                        <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Sent {new Date(r.sent_at).toLocaleDateString('en-GB')}</div>
-                      </div>
-                      <span style={{ fontSize: 12, color: colour }}>{expanded ? '▲ Hide' : '▼ View'}</span>
-                    </div>
-                    {expanded && (
-                      <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 8, marginBottom: 12 }}>
-                          {[
-                            { label: 'Total points', value: d.points?.total ?? 0, colour: colour },
-                            { label: 'Class champ', value: `🏆 ${d.points?.champ ?? 0}x`, colour: '#EF9F27' },
-                            { label: 'Sessions', value: d.sessions?.length ?? 0, colour: '#378ADD' },
-                            { label: 'Weight change', value: d.weightChange ? `${d.weightChange > 0 ? '+' : ''}${d.weightChange}kg` : '—', colour: '#1D9E75' },
-                          ].map(stat => (
-                            <div key={stat.label} style={{ padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-                              <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{stat.label}</div>
-                              <div style={{ fontSize: 16, fontWeight: 700, color: stat.colour }}>{stat.value}</div>
-                            </div>
-                          ))}
-                        </div>
-                        {d.points?.log?.length > 0 && (
-                          <div style={{ marginBottom: 12 }}>
-                            <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Points log ({d.points.log.length} entries)</p>
-                            {d.points.log.slice(0, 10).map((p, i) => (
-                              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '3px 0', borderBottom: '1px solid var(--border)' }}>
-                                <span>{p.point_type}</span>
-                                <span style={{ color: 'var(--text-tertiary)' }}>+{p.points_awarded} · {new Date(p.awarded_at).toLocaleDateString('en-GB')}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {(d.tptBox?.[0] || d.tptKb?.[0]) && (
-                          <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>MTP assessments are included in this report's underlying data — view your MTP tab on the admin profile page for the full breakdown.</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Analysis ── */}
-      {/* ── Fit II Fight ── */}
-      {tab === 'fit2fight' && (
-        <div>
-          <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
-          <div style={{ marginBottom: 14 }}>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{sessions.length} sessions</p>
-          </div>
-
-          {student && (() => {
-            const fromStr = radarDateFrom < SOFT_LAUNCH_DATE ? SOFT_LAUNCH_DATE : radarDateFrom, toStr = radarDateTo
-
-            // Attendance % -- a clean, straightforward version (does not
-            // replicate the exact-key/holiday-fallback logic the main
-            // Attendance card uses, so this number may differ slightly
-            // from that card if class changes/holidays are involved).
-            const scheduledDaysInRange = new Set()
-            assignedClasses.forEach(a => {
-              const jsDays = DAY_TO_JS_DAYS[a.classes?.day_of_week] || []
-              if (!jsDays.length) return
-              const cursor = new Date(fromStr + 'T00:00:00')
-              const end = new Date(toStr + 'T00:00:00')
-              while (cursor <= end) {
-                if (jsDays.includes(cursor.getDay()) && !isDateOnHoliday(cursor.toISOString().split('T')[0], holidays, [a.classes?.id], student.id)) {
-                  scheduledDaysInRange.add(cursor.toISOString().split('T')[0])
-                }
-                cursor.setDate(cursor.getDate() + 1)
-              }
-            })
-            const attendedDaysInRange = new Set(
-              attendanceData.filter(a => a.session_date >= fromStr && a.session_date <= toStr && a.attendance_type !== 'absent' && a.attendance_type !== 'excused').map(a => a.session_date)
-            )
-            const attendancePct = scheduledDaysInRange.size ? Math.round((attendedDaysInRange.size / scheduledDaysInRange.size) * 100) : null
-
-            // F2F Results % -- combines every section-level and question-level
-            // target set for this athlete (reusing the exact same logic that
-            // powers the "X/Y" badges shown on each section elsewhere).
-            let f2fDone = 0, f2fTarget = 0
-            ;['physical', 'technique', 'tactical', 'mentality', 'wellbeing', 'test'].forEach(sectionKey => {
-              const p = getSectionProgress(sectionKey)
-              if (p) { f2fDone += p.done; f2fTarget += p.target }
-            })
-            const f2fPct = f2fTarget > 0 ? Math.round((f2fDone / f2fTarget) * 100) : null
-
-            // PDP % -- uses the genuine "completed" flag on each scheduled
-            // timetable item (coaches tick items off in the Weekly Timetable).
-            const pdpEntriesInRange = PDP_TIMETABLE_SECTION_KEYS.flatMap(sectionKey =>
-              Object.values((apData?.pdp_notes || {})[`__timetable_${sectionKey}`] || {})
-            ).filter(e => e?.date >= fromStr && e?.date <= toStr)
-            const pdpCompleted = pdpEntriesInRange.filter(e => e.completed)
-            const pdpPct = pdpEntriesInRange.length ? Math.round((pdpCompleted.length / pdpEntriesInRange.length) * 100) : null
-
-            // MTP % -- athlete's latest assessment vs the coach-set team
-            // benchmark. Boxing (KRBA) and kickboxing (KR) each have their
-            // own benchmark and field set, with direction-aware ratios
-            // (some kickboxing fields like run times are "lower is
-            // better", so those get an inverted ratio rather than being
-            // averaged the wrong way round).
-            let ttpPct = null
-            if (student.discipline === 'KRBA' && ttpBenchmark) {
-              const latest = tptData.boxing?.[0]
-              if (latest) {
-                const ratios = MTP_BENCHMARK_FIELDS
-                  .filter(f => latest[f] != null && ttpBenchmark[f] != null && ttpBenchmark[f] > 0)
-                  .map(f => latest[f] / ttpBenchmark[f])
-                if (ratios.length) ttpPct = Math.round((ratios.reduce((a, b) => a + b, 0) / ratios.length) * 100)
-              }
-            } else if (student.is_kr && ttpBenchmarkKB) {
-              const latest = tptData.kickboxing?.[0]
-              if (latest) {
-                const ratios = KB_MTP_FIELDS
-                  .filter(f => latest[f] != null && ttpBenchmarkKB[f] != null && ttpBenchmarkKB[f] > 0 && latest[f] > 0)
-                  .map(f => KB_LOWER_IS_BETTER.includes(f) ? ttpBenchmarkKB[f] / latest[f] : latest[f] / ttpBenchmarkKB[f])
-                if (ratios.length) ttpPct = Math.round((ratios.reduce((a, b) => a + b, 0) / ratios.length) * 100)
-              }
-            }
-
-            const axes = [
-              { label: 'Attendance', value: attendancePct, colour: '#378ADD' },
-              { label: 'F2F Results', value: f2fPct, colour: '#EF9F27' },
-              { label: 'PDP', value: pdpPct, colour: '#1D9E75' },
-              ...(student.discipline === 'KRBA' || student.is_kr ? [{ label: 'MTP', value: ttpPct, colour: '#E24B4A' }] : []),
-            ]
-
-            // Breakdown data for each axis, shown when that axis is clicked.
-            const SECTION_LABELS = { physical: 'Physical', technique: 'Technique', tactical: 'Tactical', mentality: 'Mentality', wellbeing: 'Foundation', test: 'Test' }
-            const f2fBreakdown = ['physical', 'technique', 'tactical', 'mentality', 'wellbeing', 'test'].map(sectionKey => {
-              const p = getSectionProgress(sectionKey)
-              return { key: sectionKey, label: SECTION_LABELS[sectionKey], done: p?.done || 0, target: p?.target || 0, pct: p?.target ? Math.round((p.done / p.target) * 100) : null }
-            }).filter(s => s.target > 0)
-
-            const attendanceBreakdown = [...scheduledDaysInRange].sort().map(d => ({ date: d, attended: attendedDaysInRange.has(d) }))
-
-            let ttpBreakdown = []
-            if (student.discipline === 'KRBA' && ttpBenchmark && tptData.boxing?.[0]) {
-              const latest = tptData.boxing[0]
-              ttpBreakdown = MTP_BENCHMARK_FIELDS
-                .filter(f => latest[f] != null && ttpBenchmark[f] != null && ttpBenchmark[f] > 0)
-                .map(f => ({ key: f, label: f.replace(/_/g, ' '), value: latest[f], target: ttpBenchmark[f], pct: Math.round((latest[f] / ttpBenchmark[f]) * 100) }))
-                .sort((a, b) => a.pct - b.pct)
-            } else if (student.is_kr && ttpBenchmarkKB && tptData.kickboxing?.[0]) {
-              const latest = tptData.kickboxing[0]
-              ttpBreakdown = KB_MTP_FIELDS
-                .filter(f => latest[f] != null && ttpBenchmarkKB[f] != null && ttpBenchmarkKB[f] > 0 && latest[f] > 0)
-                .map(f => ({
-                  key: f, label: f.replace(/_/g, ' '), value: latest[f], target: ttpBenchmarkKB[f],
-                  pct: Math.round((KB_LOWER_IS_BETTER.includes(f) ? ttpBenchmarkKB[f] / latest[f] : latest[f] / ttpBenchmarkKB[f]) * 100),
-                }))
-                .sort((a, b) => a.pct - b.pct)
-            }
-
-            return (
-              <div className="card" style={{ marginBottom: 14 }}>
-                <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>🕸️ Performance Overview</h2>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}>
-                  <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>From</label>
-                  <input type="date" value={radarDateFrom} min={SOFT_LAUNCH_DATE} onChange={e => {
-                    const v = e.target.value < SOFT_LAUNCH_DATE ? SOFT_LAUNCH_DATE : e.target.value
-                    setRadarDateFrom(v)
-                  }} style={{ fontSize: 12 }} />
-                  <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>To</label>
-                  <input type="date" value={radarDateTo} onChange={e => setRadarDateTo(e.target.value)} style={{ fontSize: 12 }} />
-                </div>
-                <RadarChart axes={axes} onAxisClick={label => setRadarDrilldown(d => d === label ? null : label)} activeLabel={radarDrilldown} />
-                <p style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center', marginTop: -4, marginBottom: 8 }}>Tap an axis label to see the numbers behind it</p>
-
-                {radarDrilldown === 'Attendance' && (
-                  <div style={{ marginTop: 8, marginBottom: 8 }}>
-                    <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Attendance — {attendedDaysInRange.size} of {scheduledDaysInRange.size} sessions</p>
-                    {attendanceBreakdown.length === 0 ? (
-                      <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No scheduled sessions in this range.</p>
-                    ) : (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                        {attendanceBreakdown.map(d => (
-                          <span key={d.date} title={new Date(d.date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
-                            style={{ fontSize: 11, padding: '4px 8px', borderRadius: 12, background: d.attended ? '#1D9E7520' : '#E24B4A20', color: d.attended ? '#1D9E75' : '#E24B4A', fontWeight: 600 }}>
-                            {new Date(d.date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} {d.attended ? '✓' : '✕'}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {radarDrilldown === 'F2F Results' && (
-                  <div style={{ marginTop: 8, marginBottom: 8 }}>
-                    <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>F2F Results by section</p>
-                    <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8 }}>Tap a section to see its target questions — tap a question for a quick way to log it, right here.</p>
-                    {f2fBreakdown.length === 0 ? (
-                      <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No targets set in any section yet.</p>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {f2fBreakdown.map(s => {
-                          const questionLabels = [...new Set(sectionTargets.filter(t => t.section_key === s.key && t.question_label).map(t => t.question_label))]
-                          const expanded = f2fQuickLogSection === s.key
-                          const todaysDateStr = new Date().toISOString().split('T')[0]
-                          const todaysSessionRow = sessions.find(sn => sn.session_date === todaysDateStr)
-                          return (
-                            <div key={s.key}>
-                              <div onClick={() => setF2fQuickLogSection(v => v === s.key ? null : s.key)}
-                                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, padding: '6px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', cursor: questionLabels.length ? 'pointer' : 'default' }}>
-                                <span>{s.label}</span>
-                                <span style={{ fontWeight: 600, color: '#EF9F27' }}>{s.done}/{s.target} ({s.pct}%)</span>
-                              </div>
-                              {expanded && questionLabels.length > 0 && (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4, marginLeft: 10, paddingLeft: 8, borderLeft: '2px solid var(--border)' }}>
-                                  {questionLabels.map(label => {
-                                    const loggedToday = todaysSessionRow ? questionLogged(s.key, label, todaysSessionRow) : false
-                                    const qExpanded = f2fQuickLogQuestion === `${s.key}::${label}`
-                                    const isTest = s.key === 'test'
-                                    const testCat = isTest ? TEST_CATEGORIES.find(c => c.label === label) : null
-                                    const firstTestName = testCat?.tests?.[0]?.name
-                                    const loggedTest = isTest && testCat ? testCat.tests.find(t => todaysSessionRow?.test?.[t.name] != null) : null
-                                    return (
-                                      <div key={label}>
-                                        <div onClick={() => setF2fQuickLogQuestion(v => v === `${s.key}::${label}` ? null : `${s.key}::${label}`)}
-                                          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, padding: '5px 8px', cursor: 'pointer' }}>
-                                          <span>{label}</span>
-                                          {loggedToday && (
-                                            <span style={{ fontWeight: 600, color: '#1D9E75' }}>
-                                              {loggedTest ? `✓ ${todaysSessionRow.test[loggedTest.name]} ${loggedTest.unit}` : '✓ Logged today'}
-                                            </span>
-                                          )}
-                                        </div>
-                                        {qExpanded && (
-                                          <div style={{ padding: '6px 8px 10px 16px', display: 'flex', gap: 8, alignItems: 'center' }}>
-                                            {isTest ? (
-                                              <>
-                                                <input type="text" inputMode="decimal" placeholder={firstTestName ? `${firstTestName} (${testCat.tests[0].unit})` : 'Value'}
-                                                  value={f2fQuickLogTestValue} onChange={e => setF2fQuickLogTestValue(e.target.value)}
-                                                  style={{ fontSize: 12, flex: 1 }} />
-                                                <button className="btn btn-sm btn-primary" disabled={f2fQuickLogSaving || !f2fQuickLogTestValue}
-                                                  onClick={() => firstTestName && quickLogTestValue(firstTestName, f2fQuickLogTestValue)}>Save</button>
-                                              </>
-                                            ) : (
-                                              <button className="btn btn-sm btn-primary" disabled={f2fQuickLogSaving}
-                                                onClick={() => quickLogTargetQuestion(s.key, label)}>✓ Log now</button>
-                                            )}
-                                          </div>
-                                        )}
-                                      </div>
-                                    )
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {radarDrilldown === 'PDP' && (
-                  <div style={{ marginTop: 8, marginBottom: 8 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <p style={{ fontSize: 12, fontWeight: 600 }}>PDP timetable items in this range</p>
-                      <button className="btn btn-sm" onClick={() => setF2fQuickLogQuestion(v => v === 'pdp-add-note' ? null : 'pdp-add-note')}>
-                        {f2fQuickLogQuestion === 'pdp-add-note' ? 'Cancel' : '+ Add note'}
-                      </button>
-                    </div>
-                    {f2fQuickLogQuestion === 'pdp-add-note' && (
-                      <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-                        <input type="text" value={newNoteText} onChange={e => setNewNoteText(e.target.value)} placeholder="Quick note…" style={{ fontSize: 12, flex: 1 }} />
-                        <button className="btn btn-sm btn-primary" disabled={!newNoteText.trim() || savingNote}
-                          onClick={() => addNote().then(() => setF2fQuickLogQuestion(null))}>{savingNote ? 'Saving…' : 'Save'}</button>
-                      </div>
-                    )}
-                    {pdpEntriesInRange.length === 0 ? (
-                      <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No PDP timetable items scheduled in this range.</p>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {[...pdpEntriesInRange].sort((a, b) => a.date.localeCompare(b.date)).map((e, i) => (
-                          <div key={i} onClick={() => setTab('pdp')} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, padding: '6px 10px', background: e.completed ? '#1D9E7512' : 'var(--bg-secondary)', borderRadius: 'var(--radius)', cursor: 'pointer' }}>
-                            <span style={{ textDecoration: e.completed ? 'line-through' : 'none', color: e.completed ? 'var(--text-tertiary)' : 'var(--text)' }}>
-                              {new Date(e.date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} — {e.item}
-                            </span>
-                            <span style={{ fontWeight: 600, color: e.completed ? '#1D9E75' : 'var(--text-tertiary)' }}>{e.completed ? '✓ Done' : 'Not done'}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {radarDrilldown === 'MTP' && (
-                  <div style={{ marginTop: 8, marginBottom: 8 }}>
-                    <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>MTP by field vs benchmark</p>
-                    {ttpBreakdown.length === 0 ? (
-                      <div>
-                        <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 8 }}>No MTP data yet.</p>
-                        <a href={`/${student.is_kr ? 'kickboxing' : 'boxing'}-tpt`} className="btn btn-sm btn-primary">
-                          📋 Complete MTP form
-                        </a>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
-                        {ttpBreakdown.map(f => (
-                          <div key={f.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, padding: '6px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', textTransform: 'capitalize' }}>
-                            <span>{f.label}</span>
-                            <span style={{ fontWeight: 600, color: f.pct >= 100 ? '#1D9E75' : '#E24B4A' }}>{f.value} / {f.target} ({f.pct}%)</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <details style={{ marginTop: 12 }}>
-                  <summary style={{ fontSize: 12, fontWeight: 600, cursor: 'pointer', color: 'var(--text-secondary)' }}>How each axis is worked out</summary>
-                  <ul style={{ fontSize: 12, color: 'var(--text-secondary)', paddingLeft: 18, lineHeight: 1.6, marginTop: 8 }}>
-                    <li><strong>Attendance</strong>: sessions attended ÷ sessions scheduled in this date range{attendancePct == null && ' — no scheduled classes found in this range'}.</li>
-                    <li><strong>F2F Results</strong>: combined progress across every target set for you (all sections), same as the badges shown on each section{f2fPct == null && ' — no targets set yet'}.</li>
-                    <li><strong>PDP</strong>: % of your scheduled PDP timetable items your coach has ticked off as done{pdpPct == null && ' — no PDP timetable items in this range'}.</li>
-                    <li><strong>MTP</strong>: your latest assessment vs the coach-set team benchmark{!ttpBenchmark && !ttpBenchmarkKB ? ' — no benchmark has been set yet for your discipline' : ttpPct == null ? ' — no benchmark set yet for your discipline, or no MTP assessment logged' : ''}.</li>
-                  </ul>
-                </details>
-              </div>
-            )
-          })()}
-
+          {/* Results (was 'Reports'): all F2F results graphs + entries, then coach reports below */}
+          <button type="button" className="btn btn-sm" onClick={() => setTab('fit2fight')} style={{ marginBottom: 12, marginLeft: 8 }}>🕸️ Performance overview</button>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>{sessions.length} sessions</p>
           {sessions.length === 0 ? (
             <div className="empty-state"><h3>No sessions yet</h3></div>
           ) : (
@@ -8119,6 +7784,347 @@ export default function AthleteApp() {
               })()}
             </>
           )}
+          <h2 style={{ fontSize: 15, fontWeight: 600, margin: '20px 0 10px' }}>📄 Coach reports</h2>
+          {myReports.length === 0 ? (
+            <div className="empty-state"><h3>No coach reports yet</h3><p>Reports your coach sends will appear here</p></div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {myReports.map(r => {
+                const d = r.report_data
+                const expanded = expandedReportId === r.id
+                return (
+                  <div key={r.id} className="card" style={{ cursor: 'pointer' }} onClick={() => setExpandedReportId(expanded ? null : r.id)}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 600 }}>
+                          {new Date(r.date_from).toLocaleDateString('en-GB')} – {new Date(r.date_to).toLocaleDateString('en-GB')}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Sent {new Date(r.sent_at).toLocaleDateString('en-GB')}</div>
+                      </div>
+                      <span style={{ fontSize: 12, color: colour }}>{expanded ? '▲ Hide' : '▼ View'}</span>
+                    </div>
+                    {expanded && (
+                      <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 8, marginBottom: 12 }}>
+                          {[
+                            { label: 'Total points', value: d.points?.total ?? 0, colour: colour },
+                            { label: 'Class champ', value: `🏆 ${d.points?.champ ?? 0}x`, colour: '#EF9F27' },
+                            { label: 'Sessions', value: d.sessions?.length ?? 0, colour: '#378ADD' },
+                            { label: 'Weight change', value: d.weightChange ? `${d.weightChange > 0 ? '+' : ''}${d.weightChange}kg` : '—', colour: '#1D9E75' },
+                          ].map(stat => (
+                            <div key={stat.label} style={{ padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                              <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{stat.label}</div>
+                              <div style={{ fontSize: 16, fontWeight: 700, color: stat.colour }}>{stat.value}</div>
+                            </div>
+                          ))}
+                        </div>
+                        {d.points?.log?.length > 0 && (
+                          <div style={{ marginBottom: 12 }}>
+                            <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Points log ({d.points.log.length} entries)</p>
+                            {d.points.log.slice(0, 10).map((p, i) => (
+                              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '3px 0', borderBottom: '1px solid var(--border)' }}>
+                                <span>{p.point_type}</span>
+                                <span style={{ color: 'var(--text-tertiary)' }}>+{p.points_awarded} · {new Date(p.awarded_at).toLocaleDateString('en-GB')}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {(d.tptBox?.[0] || d.tptKb?.[0]) && (
+                          <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>MTP assessments are included in this report's underlying data — view your MTP tab on the admin profile page for the full breakdown.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Analysis ── */}
+      {/* ── Fit II Fight ── */}
+      {tab === 'fit2fight' && (
+        <div>
+          <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
+          <div style={{ marginBottom: 14 }}>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{sessions.length} sessions</p>
+          </div>
+
+          {student && (() => {
+            const fromStr = radarDateFrom < SOFT_LAUNCH_DATE ? SOFT_LAUNCH_DATE : radarDateFrom, toStr = radarDateTo
+
+            // Attendance % -- a clean, straightforward version (does not
+            // replicate the exact-key/holiday-fallback logic the main
+            // Attendance card uses, so this number may differ slightly
+            // from that card if class changes/holidays are involved).
+            const scheduledDaysInRange = new Set()
+            assignedClasses.forEach(a => {
+              const jsDays = DAY_TO_JS_DAYS[a.classes?.day_of_week] || []
+              if (!jsDays.length) return
+              const cursor = new Date(fromStr + 'T00:00:00')
+              const end = new Date(toStr + 'T00:00:00')
+              while (cursor <= end) {
+                if (jsDays.includes(cursor.getDay()) && !isDateOnHoliday(cursor.toISOString().split('T')[0], holidays, [a.classes?.id], student.id)) {
+                  scheduledDaysInRange.add(cursor.toISOString().split('T')[0])
+                }
+                cursor.setDate(cursor.getDate() + 1)
+              }
+            })
+            const attendedDaysInRange = new Set(
+              attendanceData.filter(a => a.session_date >= fromStr && a.session_date <= toStr && a.attendance_type !== 'absent' && a.attendance_type !== 'excused').map(a => a.session_date)
+            )
+            const attendancePct = scheduledDaysInRange.size ? Math.round((attendedDaysInRange.size / scheduledDaysInRange.size) * 100) : null
+
+            // F2F Results % -- combines every section-level and question-level
+            // target set for this athlete (reusing the exact same logic that
+            // powers the "X/Y" badges shown on each section elsewhere).
+            let f2fDone = 0, f2fTarget = 0
+            ;['physical', 'technique', 'tactical', 'mentality', 'wellbeing', 'test'].forEach(sectionKey => {
+              const p = getSectionProgress(sectionKey)
+              if (p) { f2fDone += p.done; f2fTarget += p.target }
+            })
+            const f2fPct = f2fTarget > 0 ? Math.round((f2fDone / f2fTarget) * 100) : null
+
+            // PDP % -- uses the genuine "completed" flag on each scheduled
+            // timetable item (coaches tick items off in the Weekly Timetable).
+            const pdpEntriesInRange = PDP_TIMETABLE_SECTION_KEYS.flatMap(sectionKey =>
+              Object.values((apData?.pdp_notes || {})[`__timetable_${sectionKey}`] || {})
+            ).filter(e => e?.date >= fromStr && e?.date <= toStr)
+            const pdpCompleted = pdpEntriesInRange.filter(e => e.completed)
+            const pdpPct = pdpEntriesInRange.length ? Math.round((pdpCompleted.length / pdpEntriesInRange.length) * 100) : null
+
+            // MTP % -- athlete's latest assessment vs the coach-set team
+            // benchmark. Boxing (KRBA) and kickboxing (KR) each have their
+            // own benchmark and field set, with direction-aware ratios
+            // (some kickboxing fields like run times are "lower is
+            // better", so those get an inverted ratio rather than being
+            // averaged the wrong way round).
+            let ttpPct = null
+            if (student.discipline === 'KRBA' && ttpBenchmark) {
+              const latest = tptData.boxing?.[0]
+              if (latest) {
+                const ratios = MTP_BENCHMARK_FIELDS
+                  .filter(f => latest[f] != null && ttpBenchmark[f] != null && ttpBenchmark[f] > 0)
+                  .map(f => latest[f] / ttpBenchmark[f])
+                if (ratios.length) ttpPct = Math.round((ratios.reduce((a, b) => a + b, 0) / ratios.length) * 100)
+              }
+            } else if (student.is_kr && ttpBenchmarkKB) {
+              const latest = tptData.kickboxing?.[0]
+              if (latest) {
+                const ratios = KB_MTP_FIELDS
+                  .filter(f => latest[f] != null && ttpBenchmarkKB[f] != null && ttpBenchmarkKB[f] > 0 && latest[f] > 0)
+                  .map(f => KB_LOWER_IS_BETTER.includes(f) ? ttpBenchmarkKB[f] / latest[f] : latest[f] / ttpBenchmarkKB[f])
+                if (ratios.length) ttpPct = Math.round((ratios.reduce((a, b) => a + b, 0) / ratios.length) * 100)
+              }
+            }
+
+            const axes = [
+              { label: 'Attendance', value: attendancePct, colour: '#378ADD' },
+              { label: 'F2F Results', value: f2fPct, colour: '#EF9F27' },
+              { label: 'PDP', value: pdpPct, colour: '#1D9E75' },
+              ...(student.discipline === 'KRBA' || student.is_kr ? [{ label: 'MTP', value: ttpPct, colour: '#E24B4A' }] : []),
+            ]
+
+            // Breakdown data for each axis, shown when that axis is clicked.
+            const SECTION_LABELS = { physical: 'Physical', technique: 'Technique', tactical: 'Tactical', mentality: 'Mentality', wellbeing: 'Foundation', test: 'Test' }
+            const f2fBreakdown = ['physical', 'technique', 'tactical', 'mentality', 'wellbeing', 'test'].map(sectionKey => {
+              const p = getSectionProgress(sectionKey)
+              return { key: sectionKey, label: SECTION_LABELS[sectionKey], done: p?.done || 0, target: p?.target || 0, pct: p?.target ? Math.round((p.done / p.target) * 100) : null }
+            }).filter(s => s.target > 0)
+
+            const attendanceBreakdown = [...scheduledDaysInRange].sort().map(d => ({ date: d, attended: attendedDaysInRange.has(d) }))
+
+            let ttpBreakdown = []
+            if (student.discipline === 'KRBA' && ttpBenchmark && tptData.boxing?.[0]) {
+              const latest = tptData.boxing[0]
+              ttpBreakdown = MTP_BENCHMARK_FIELDS
+                .filter(f => latest[f] != null && ttpBenchmark[f] != null && ttpBenchmark[f] > 0)
+                .map(f => ({ key: f, label: f.replace(/_/g, ' '), value: latest[f], target: ttpBenchmark[f], pct: Math.round((latest[f] / ttpBenchmark[f]) * 100) }))
+                .sort((a, b) => a.pct - b.pct)
+            } else if (student.is_kr && ttpBenchmarkKB && tptData.kickboxing?.[0]) {
+              const latest = tptData.kickboxing[0]
+              ttpBreakdown = KB_MTP_FIELDS
+                .filter(f => latest[f] != null && ttpBenchmarkKB[f] != null && ttpBenchmarkKB[f] > 0 && latest[f] > 0)
+                .map(f => ({
+                  key: f, label: f.replace(/_/g, ' '), value: latest[f], target: ttpBenchmarkKB[f],
+                  pct: Math.round((KB_LOWER_IS_BETTER.includes(f) ? ttpBenchmarkKB[f] / latest[f] : latest[f] / ttpBenchmarkKB[f]) * 100),
+                }))
+                .sort((a, b) => a.pct - b.pct)
+            }
+
+            return (
+              <div className="card" style={{ marginBottom: 14 }}>
+                <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>🕸️ Performance Overview</h2>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}>
+                  <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>From</label>
+                  <input type="date" value={radarDateFrom} min={SOFT_LAUNCH_DATE} onChange={e => {
+                    const v = e.target.value < SOFT_LAUNCH_DATE ? SOFT_LAUNCH_DATE : e.target.value
+                    setRadarDateFrom(v)
+                  }} style={{ fontSize: 12 }} />
+                  <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>To</label>
+                  <input type="date" value={radarDateTo} onChange={e => setRadarDateTo(e.target.value)} style={{ fontSize: 12 }} />
+                </div>
+                <RadarChart axes={axes} onAxisClick={label => setRadarDrilldown(d => d === label ? null : label)} activeLabel={radarDrilldown} />
+                <p style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center', marginTop: -4, marginBottom: 8 }}>Tap an axis label to see the numbers behind it</p>
+
+                {radarDrilldown === 'Attendance' && (
+                  <div style={{ marginTop: 8, marginBottom: 8 }}>
+                    <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Attendance — {attendedDaysInRange.size} of {scheduledDaysInRange.size} sessions</p>
+                    {attendanceBreakdown.length === 0 ? (
+                      <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No scheduled sessions in this range.</p>
+                    ) : (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {attendanceBreakdown.map(d => (
+                          <span key={d.date} title={new Date(d.date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
+                            style={{ fontSize: 11, padding: '4px 8px', borderRadius: 12, background: d.attended ? '#1D9E7520' : '#E24B4A20', color: d.attended ? '#1D9E75' : '#E24B4A', fontWeight: 600 }}>
+                            {new Date(d.date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} {d.attended ? '✓' : '✕'}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {radarDrilldown === 'F2F Results' && (
+                  <div style={{ marginTop: 8, marginBottom: 8 }}>
+                    <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>F2F Results by section</p>
+                    <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8 }}>Tap a section to see its target questions — tap a question for a quick way to log it, right here.</p>
+                    {f2fBreakdown.length === 0 ? (
+                      <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No targets set in any section yet.</p>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {f2fBreakdown.map(s => {
+                          const questionLabels = [...new Set(sectionTargets.filter(t => t.section_key === s.key && t.question_label).map(t => t.question_label))]
+                          const expanded = f2fQuickLogSection === s.key
+                          const todaysDateStr = new Date().toISOString().split('T')[0]
+                          const todaysSessionRow = sessions.find(sn => sn.session_date === todaysDateStr)
+                          return (
+                            <div key={s.key}>
+                              <div onClick={() => setF2fQuickLogSection(v => v === s.key ? null : s.key)}
+                                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, padding: '6px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', cursor: questionLabels.length ? 'pointer' : 'default' }}>
+                                <span>{s.label}</span>
+                                <span style={{ fontWeight: 600, color: '#EF9F27' }}>{s.done}/{s.target} ({s.pct}%)</span>
+                              </div>
+                              {expanded && questionLabels.length > 0 && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4, marginLeft: 10, paddingLeft: 8, borderLeft: '2px solid var(--border)' }}>
+                                  {questionLabels.map(label => {
+                                    const loggedToday = todaysSessionRow ? questionLogged(s.key, label, todaysSessionRow) : false
+                                    const qExpanded = f2fQuickLogQuestion === `${s.key}::${label}`
+                                    const isTest = s.key === 'test'
+                                    const testCat = isTest ? TEST_CATEGORIES.find(c => c.label === label) : null
+                                    const firstTestName = testCat?.tests?.[0]?.name
+                                    const loggedTest = isTest && testCat ? testCat.tests.find(t => todaysSessionRow?.test?.[t.name] != null) : null
+                                    return (
+                                      <div key={label}>
+                                        <div onClick={() => setF2fQuickLogQuestion(v => v === `${s.key}::${label}` ? null : `${s.key}::${label}`)}
+                                          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, padding: '5px 8px', cursor: 'pointer' }}>
+                                          <span>{label}</span>
+                                          {loggedToday && (
+                                            <span style={{ fontWeight: 600, color: '#1D9E75' }}>
+                                              {loggedTest ? `✓ ${todaysSessionRow.test[loggedTest.name]} ${loggedTest.unit}` : '✓ Logged today'}
+                                            </span>
+                                          )}
+                                        </div>
+                                        {qExpanded && (
+                                          <div style={{ padding: '6px 8px 10px 16px', display: 'flex', gap: 8, alignItems: 'center' }}>
+                                            {isTest ? (
+                                              <>
+                                                <input type="text" inputMode="decimal" placeholder={firstTestName ? `${firstTestName} (${testCat.tests[0].unit})` : 'Value'}
+                                                  value={f2fQuickLogTestValue} onChange={e => setF2fQuickLogTestValue(e.target.value)}
+                                                  style={{ fontSize: 12, flex: 1 }} />
+                                                <button className="btn btn-sm btn-primary" disabled={f2fQuickLogSaving || !f2fQuickLogTestValue}
+                                                  onClick={() => firstTestName && quickLogTestValue(firstTestName, f2fQuickLogTestValue)}>Save</button>
+                                              </>
+                                            ) : (
+                                              <button className="btn btn-sm btn-primary" disabled={f2fQuickLogSaving}
+                                                onClick={() => quickLogTargetQuestion(s.key, label)}>✓ Log now</button>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {radarDrilldown === 'PDP' && (
+                  <div style={{ marginTop: 8, marginBottom: 8 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <p style={{ fontSize: 12, fontWeight: 600 }}>PDP timetable items in this range</p>
+                      <button className="btn btn-sm" onClick={() => setF2fQuickLogQuestion(v => v === 'pdp-add-note' ? null : 'pdp-add-note')}>
+                        {f2fQuickLogQuestion === 'pdp-add-note' ? 'Cancel' : '+ Add note'}
+                      </button>
+                    </div>
+                    {f2fQuickLogQuestion === 'pdp-add-note' && (
+                      <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+                        <input type="text" value={newNoteText} onChange={e => setNewNoteText(e.target.value)} placeholder="Quick note…" style={{ fontSize: 12, flex: 1 }} />
+                        <button className="btn btn-sm btn-primary" disabled={!newNoteText.trim() || savingNote}
+                          onClick={() => addNote().then(() => setF2fQuickLogQuestion(null))}>{savingNote ? 'Saving…' : 'Save'}</button>
+                      </div>
+                    )}
+                    {pdpEntriesInRange.length === 0 ? (
+                      <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No PDP timetable items scheduled in this range.</p>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {[...pdpEntriesInRange].sort((a, b) => a.date.localeCompare(b.date)).map((e, i) => (
+                          <div key={i} onClick={() => setTab('pdp')} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, padding: '6px 10px', background: e.completed ? '#1D9E7512' : 'var(--bg-secondary)', borderRadius: 'var(--radius)', cursor: 'pointer' }}>
+                            <span style={{ textDecoration: e.completed ? 'line-through' : 'none', color: e.completed ? 'var(--text-tertiary)' : 'var(--text)' }}>
+                              {new Date(e.date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} — {e.item}
+                            </span>
+                            <span style={{ fontWeight: 600, color: e.completed ? '#1D9E75' : 'var(--text-tertiary)' }}>{e.completed ? '✓ Done' : 'Not done'}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {radarDrilldown === 'MTP' && (
+                  <div style={{ marginTop: 8, marginBottom: 8 }}>
+                    <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>MTP by field vs benchmark</p>
+                    {ttpBreakdown.length === 0 ? (
+                      <div>
+                        <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 8 }}>No MTP data yet.</p>
+                        <a href={`/${student.is_kr ? 'kickboxing' : 'boxing'}-tpt`} className="btn btn-sm btn-primary">
+                          📋 Complete MTP form
+                        </a>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
+                        {ttpBreakdown.map(f => (
+                          <div key={f.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, padding: '6px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', textTransform: 'capitalize' }}>
+                            <span>{f.label}</span>
+                            <span style={{ fontWeight: 600, color: f.pct >= 100 ? '#1D9E75' : '#E24B4A' }}>{f.value} / {f.target} ({f.pct}%)</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <details style={{ marginTop: 12 }}>
+                  <summary style={{ fontSize: 12, fontWeight: 600, cursor: 'pointer', color: 'var(--text-secondary)' }}>How each axis is worked out</summary>
+                  <ul style={{ fontSize: 12, color: 'var(--text-secondary)', paddingLeft: 18, lineHeight: 1.6, marginTop: 8 }}>
+                    <li><strong>Attendance</strong>: sessions attended ÷ sessions scheduled in this date range{attendancePct == null && ' — no scheduled classes found in this range'}.</li>
+                    <li><strong>F2F Results</strong>: combined progress across every target set for you (all sections), same as the badges shown on each section{f2fPct == null && ' — no targets set yet'}.</li>
+                    <li><strong>PDP</strong>: % of your scheduled PDP timetable items your coach has ticked off as done{pdpPct == null && ' — no PDP timetable items in this range'}.</li>
+                    <li><strong>MTP</strong>: your latest assessment vs the coach-set team benchmark{!ttpBenchmark && !ttpBenchmarkKB ? ' — no benchmark has been set yet for your discipline' : ttpPct == null ? ' — no benchmark set yet for your discipline, or no MTP assessment logged' : ''}.</li>
+                  </ul>
+                </details>
+              </div>
+            )
+          })()}
+
+          {/* Results entries (graphs + every logged entry) moved to the Results page (tab 'reports'). */}
+          <button type="button" className="btn" onClick={() => setTab('reports')} style={{ width: '100%', justifyContent: 'center', marginBottom: 12 }}>📊 See all results →</button>
         </div>
       )}
 
