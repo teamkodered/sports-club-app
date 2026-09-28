@@ -3548,6 +3548,39 @@ export default function AthleteProfiles() {
     )
   }
 
+  // --- Undo after a clear / remove ------------------------------------------
+  // Any save that takes something away (Clear, ✕ Remove, Remove effort, × on
+  // an entry, Reset) shows "Cleared … · UNDO" for 8 seconds. Undo saves back
+  // exactly what was there (through the normal save, so progress and house
+  // points follow).
+  const [undoOffer, setUndoOffer] = useState(null)
+  const undoTimerRef = useRef(null)
+  function offerUndo(label, restore) {
+    clearTimeout(undoTimerRef.current)
+    setUndoOffer({ id: Date.now(), label, restore })
+    undoTimerRef.current = setTimeout(() => setUndoOffer(null), 8000)
+  }
+  function undoWeight(v) {
+    if (v == null || v === '' || v === false || v === 0 || v === '0') return 0
+    if (Array.isArray(v)) return v.filter(x => undoWeight(x) > 0).length
+    if (typeof v === 'object') return Object.entries(v).filter(([k]) => k !== 'source' && k !== 'wearable_id' && k !== 'targetPreset').reduce((n, [, x]) => n + (undoWeight(x) > 0 ? 1 : 0), 0) + (Array.isArray(v.entries) ? Math.max(0, v.entries.length - 1) : 0)
+    return 1
+  }
+  const UNDO_FIELD_LABELS = { running: 'Running', watt_bike: 'Watt bike', bodyweight: 'Bodyweight', snc: 'S&C', stretch_flows: 'Stretch flow', tactical: 'Tactical', techniques: 'Techniques', other_session: 'Other session' }
+  function UndoBar() {
+    if (!undoOffer) return null
+    return (
+      <div role="status" style={{ position: 'fixed', left: 12, right: 12, bottom: 'calc(16px + env(safe-area-inset-bottom, 0px))', zIndex: 450, maxWidth: 520, margin: '0 auto',
+        display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px 10px 16px', borderRadius: 8, background: '#111518', border: '1px solid #2A3138', boxShadow: '0 6px 20px rgba(0,0,0,0.5)', color: '#F2F2F2' }}>
+        <span style={{ flex: 1, minWidth: 0, fontSize: 14 }}>Cleared {undoOffer.label}</span>
+        <button type="button" onClick={() => { const r = undoOffer.restore; clearTimeout(undoTimerRef.current); setUndoOffer(null); r() }}
+          style={{ height: 36, padding: '0 16px', border: 'none', cursor: 'pointer', borderRadius: 4, background: '#F5C542', color: '#0A0A0A', fontFamily: 'Orbitron, sans-serif', fontWeight: 700, fontSize: 12, letterSpacing: 2 }}>UNDO</button>
+        <button type="button" aria-label="Dismiss" onClick={() => { clearTimeout(undoTimerRef.current); setUndoOffer(null) }}
+          style={{ background: 'none', border: 'none', color: '#9A9A9A', fontSize: 18, cursor: 'pointer', padding: '0 4px' }}>✕</button>
+      </div>
+    )
+  }
+
   // --- VIEW: history graph + entries for a section or one question -------
   // Read-only: builds everything from saved sessions (today = live state),
   // never writes anything.
@@ -5116,6 +5149,7 @@ export default function AthleteProfiles() {
     const todaysDate = new Date().toISOString().split('T')[0]
     const current = todaysWellbeing[field] || {}
     const updatedField = updater(current)
+    if (undoWeight(updatedField) < undoWeight(current)) { const prev = current; offerUndo(WELLBEING_QUESTIONS.find(q => q.key === field)?.label || field, () => saveWellbeingField(field, () => prev)) }
     const newWellbeing = { ...todaysWellbeing, [field]: updatedField }
     setTodaysWellbeing(newWellbeing) // optimistic local update
 
@@ -5192,6 +5226,7 @@ export default function AthleteProfiles() {
     const todaysDate = new Date().toISOString().split('T')[0]
     const current = todaysMentalityLog[field] || {}
     const updatedField = updater(current)
+    if (undoWeight(updatedField) < undoWeight(current)) { const prev = current; offerUndo(field === 'videoAnalysis' ? 'Video Analysis' : (MENTALITY_QUESTIONS.find(q => q.key === field)?.label || field), () => saveMentalityField(field, () => prev)) }
     const newLog = { ...todaysMentalityLog, [field]: updatedField }
     setTodaysMentalityLog(newLog)
 
@@ -5575,6 +5610,16 @@ export default function AthleteProfiles() {
     setSavingTest(false)
   }
 
+  async function restoreTestObject(obj) {
+    const todaysDate = new Date().toISOString().split('T')[0]
+    setTodaysTest(obj)
+    const existing = f2fData.find(s => s.session_date === todaysDate)
+    if (!existing) return
+    const { error } = await supabase.from('fit2fight_sessions').update({ test: obj }).eq('id', existing.id)
+    if (error) { alert('Could not undo: ' + error.message); return }
+    setF2fData(prev => prev.map(s => s.id === existing.id ? { ...s, test: obj } : s))
+  }
+
   async function clearTestCategory(catKey) {
     const cat = TEST_CATEGORIES.find(c => c.key === catKey)
     if (!cat) return
@@ -5582,8 +5627,9 @@ export default function AthleteProfiles() {
     // previously fired on a single click with no confirmation -- easy
     // to trigger by accident (e.g. reaching for another button nearby)
     // and lose results that were just saved moments earlier.
-    if (!window.confirm(`Clear all ${cat.label} results for today? This can't be undone.`)) return
+    if (!window.confirm(`Clear all ${cat.label} results for today? (You can undo straight after.)`)) return
     setSavingTest(true)
+    const prevTestU = { ...todaysTest }
     const newTest = { ...todaysTest }
     cat.tests.forEach(t => delete newTest[t.name])
     setTodaysTest(newTest)
@@ -5596,6 +5642,7 @@ export default function AthleteProfiles() {
       if (error) alert('Error saving: ' + error.message)
     }
     setSavingTest(false)
+    offerUndo(`${cat.label} results`, () => restoreTestObject(prevTestU))
   }
 
   // Generic save for Running/Watt bike/Bodyweight/Stretch flows -- these
@@ -5610,6 +5657,8 @@ export default function AthleteProfiles() {
   const todaysSessionIdRef = useRef(null)
 
   async function savePhysicalField(dbField, newValue, localSetter) {
+    { const todayU = new Date().toISOString().split('T')[0]; const prevU = (f2fData.find(x => x.session_date === todayU) || {})[dbField]
+      if (undoWeight(newValue) < undoWeight(prevU)) offerUndo(UNDO_FIELD_LABELS[dbField] || dbField, () => savePhysicalField(dbField, prevU, localSetter)) }
     localSetter(newValue)
     setSavingPhysical(true)
     const runSave = async () => {
@@ -9049,6 +9098,7 @@ export default function AthleteProfiles() {
               return (
                 <div className="neon-home">
                   {HistoryViewModal()}
+                  {UndoBar()}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 8 }}>
                     <div className="card neon-stat" style={{ textAlign: 'center', padding: '10px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, background: 'var(--bg-secondary)' }}>
                       <button onClick={() => setF2fStatsScope(v => v - 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4, appearance: 'none', WebkitAppearance: 'none', fontFamily: 'var(--font-sans)' }}>◀</button>
