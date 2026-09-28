@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
+import F2FLeague from '../components/athlete/F2FLeague.jsx'
 import SectionRopes from '../components/shared/SectionRopes.jsx'
 import NeonTileIcon from '../components/shared/NeonTileIcon.jsx'
 import StatOutline from '../components/shared/StatOutline.jsx'
@@ -6162,15 +6163,28 @@ export default function AthleteApp() {
                   <span className="neon-emoji" style={{ fontSize: 24 }}>🧹</span><NeonTileIcon name="Sweep the sheds" />
                   <span style={{ fontSize: 12, fontWeight: 500, color: '#1D9E75' }}>Sweep the sheds</span>
                 </button>
+                {(student?.is_kr || student?.discipline === 'KRBA') ? (
+                  // KR + KRBA athletes: the new FIIF League (athlete-app only)
+                  <button onClick={() => setTab('f2fleague')} className="neon-tile" style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                    padding: '14px 8px', background: '#8B5CF612',
+                    border: '1px solid #8B5CF630', borderRadius: 'var(--border-radius-lg)',
+                    cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                  }}>
+                    <img src="/logos/f2f-logo-red.png" alt="" style={{ height: 30, width: 'auto', filter: 'drop-shadow(0 0 6px rgba(255,42,42,0.6))' }} />
+                    <span style={{ fontSize: 12, fontWeight: 500, color: '#8B5CF6' }}>FIIF League</span>
+                  </button>
+                ) : (
                 <button onClick={() => setTab('leagues')} className="neon-tile" style={{
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                  padding: '14px 8px', background: '#8B5CF612',
-                  border: '1px solid #8B5CF630', borderRadius: 'var(--border-radius-lg)',
-                  cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                }}>
-                  <span className="neon-emoji" style={{ fontSize: 24 }}>🏆</span><NeonTileIcon name="Leagues" />
-                  <span style={{ fontSize: 12, fontWeight: 500, color: '#8B5CF6' }}>Leagues</span>
-                </button>
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                    padding: '14px 8px', background: '#8B5CF612',
+                    border: '1px solid #8B5CF630', borderRadius: 'var(--border-radius-lg)',
+                    cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                  }}>
+                    <span className="neon-emoji" style={{ fontSize: 24 }}>🏆</span><NeonTileIcon name="Leagues" />
+                    <span style={{ fontSize: 12, fontWeight: 500, color: '#8B5CF6' }}>Leagues</span>
+                  </button>
+                )}
               </div>
 
             </>
@@ -7061,6 +7075,10 @@ export default function AthleteApp() {
       {/* ── Analysis ── */}
 
       {/* ── Leagues -- choose House League or Exercise Leagues ── */}
+      {tab === 'f2fleague' && student && (
+        <F2FLeague student={student} onBack={() => setTab('home')} />
+      )}
+
       {tab === 'leagues' && (
         <div>
           <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
