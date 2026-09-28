@@ -42,6 +42,27 @@ function TransportIcon({ name, size = 14 }) {
   }
 }
 
+// Speed picker used in both the new-note and edit-note popups, so the two
+// always offer the same options and look the same. Selected = lighter
+// see-through grey + white outline, matching the main speed row.
+function SectionSpeedPicker({ value, onChange }) {
+  return (
+    <div>
+      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginBottom: 6, textAlign: 'center' }}>Playback speed for this section</p>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+        {SPEEDS.map(s => (
+          <button key={s} type="button" onClick={() => onChange(s)} className={value === s ? 'view-it-btn view-it-btn-selected' : 'view-it-btn'}
+            style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+              border: value === s ? '1px solid #fff' : '1px solid rgba(255,255,255,0.3)',
+              color: value === s ? '#fff' : 'rgba(255,255,255,0.7)', fontWeight: value === s ? 600 : 400 }}>
+            {s === 1 ? '1x' : `${s}x`}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function FightFootagePlayer({ videoUrl, title, footageId, cctvClipId, storagePath, isCoach = false, rotation: initialRotation = 0, onRotationSaved, onClose }) {
   // Markers can belong to either a View IT fight_footage row or a CCTV
   // clip -- whichever id was actually passed in is "the" source for
@@ -135,11 +156,19 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
   const [markers, setMarkers] = useState([])
   const [showMarkerChoice, setShowMarkerChoice] = useState(false)
   const [addingNoteText, setAddingNoteText] = useState('') // optional note text, combined with a colour in the same form now
+  const [addingSpeed, setAddingSpeed] = useState(1) // playback speed for the new section, same options as the edit popup
   const [selectedColour, setSelectedColour] = useState(HIGHLIGHT_COLOURS[0])
   const colourHoldTimerRef = useRef(null)
   const colourHoldFiredRef = useRef(false)
   const [markerRangeStart, setMarkerRangeStart] = useState(null) // set once "Add marker" is first tapped, awaiting the end point
   const [viewingMarkerNote, setViewingMarkerNote] = useState(null)
+  // How far up from the video's bottom edge the note bubble sits. In
+  // landscape the video fills the screen height, so the bottom control
+  // bar covers its lower edge -- this lifts the bubble to just above the
+  // bar whenever they overlap (and back down when controls hide).
+  const videoBoxRef = useRef(null)
+  const bottomBarRef = useRef(null)
+  const [noteBottom, setNoteBottom] = useState(16)
   const [colourFilter, setColourFilter] = useState(null) // when set, playback auto-skips to only play sections marked in this colour
   const colourFilterRef = useRef(null) // mirrors colourFilter for the rAF loop
 
@@ -213,7 +242,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
         // position is inside, for as long as it's inside it -- no tap
         // needed, it just tracks along with playback like a subtitle.
         const active = markersRef.current.find(m =>
-          m.marker_type !== 'photo' && v.currentTime >= m.start_seconds && v.currentTime <= m.end_seconds
+          m.marker_type !== 'photo' && v.currentTime >= m.start_seconds - 0.05 && v.currentTime <= m.end_seconds
         )
         if ((active?.id || null) !== lastActiveMarkerIdRef.current) {
           lastActiveMarkerIdRef.current = active?.id || null
@@ -845,6 +874,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
     setMarkerRangeStart(null)
     setShowMarkerChoice(false)
     setAddingNoteText('')
+    setAddingSpeed(1)
     setSelectedColour(HIGHLIGHT_COLOURS[0])
     isSlowMoClipPendingRef.current = false // discarding a slow-mo-triggered popup shouldn't leave the flag armed for some future, unrelated marker save
   }
@@ -892,6 +922,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
       marker_type: 'highlight',
       note_text: addingNoteText?.trim() || null,
       highlight_color: selectedColour,
+      playback_speed: addingSpeed,
       created_by: member?.id || null,
     }).select().single()
     if (newMarker) setMarkers(prev => [...prev, newMarker].sort((a, b) => a.start_seconds - b.start_seconds))
@@ -907,6 +938,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
 
     setShowMarkerChoice(false)
     setAddingNoteText('')
+    setAddingSpeed(1)
     setSelectedColour(HIGHLIGHT_COLOURS[0])
     setMarkerRangeStart(null)
   }
@@ -935,7 +967,14 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
   function handleMarkerPointerUp(m) {
     clearTimeout(markerHoldTimerRef.current)
     if (markerHeldRef.current) return // long-press already handled it
-    seekTo(m.start_seconds) // the overlay itself now appears automatically once playback is inside the marker's range, so no need to also set it here
+    seekTo(m.start_seconds)
+    // Show the note immediately rather than waiting for the playback loop
+    // to notice -- a paused seek can land a hair before start_seconds, in
+    // which case the loop wouldn't count it as "inside" the section.
+    if (m.marker_type !== 'photo') {
+      lastActiveMarkerIdRef.current = m.id
+      setViewingMarkerNote(m)
+    }
   }
 
   async function deleteMarker(m) {
@@ -970,6 +1009,26 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
     setEditingMarker(null)
   }
 
+  useEffect(() => {
+    function measure() {
+      const box = videoBoxRef.current?.getBoundingClientRect()
+      if (!box) return
+      let b = 16
+      const bar = controlsVisible ? bottomBarRef.current?.getBoundingClientRect() : null
+      if (bar) {
+        const overlap = box.bottom - bar.top
+        if (overlap > 0) b = overlap + 10
+      }
+      setNoteBottom(Math.max(16, Math.min(b, box.height - 56))) // never pushed out of the top of the video
+    }
+    measure()
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null
+    if (ro) { if (videoBoxRef.current) ro.observe(videoBoxRef.current); if (bottomBarRef.current) ro.observe(bottomBarRef.current) }
+    window.addEventListener('resize', measure)
+    window.addEventListener('orientationchange', measure)
+    return () => { ro?.disconnect(); window.removeEventListener('resize', measure); window.removeEventListener('orientationchange', measure) }
+  }, [controlsVisible, viewingMarkerNote, rotation, videoAspect, isFullscreen])
+
   return (
     <div ref={wrapperRef} style={{
       position: 'fixed', inset: 0, background: '#000', zIndex: 200,
@@ -995,7 +1054,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
             against the actual visible video image. */}
         {/* When rotated, the box gets an explicit size (the video inside
             is absolutely positioned, so it can't size the box itself). */}
-        <div style={rotation === 0
+        <div ref={videoBoxRef} style={rotation === 0
           ? { position: 'relative', maxWidth: '100%', maxHeight: '100%', aspectRatio: videoAspect }
           : { position: 'relative', width: `min(100%, calc(100dvh * ${boxAspect}))`, aspectRatio: boxAspect, overflow: 'hidden' }}>
           <video
@@ -1030,7 +1089,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
               data-no-toggle={isCoach ? '' : undefined}
               onClick={() => { if (isCoach) openMarkerEditor(viewingMarkerNote) }}
               style={{
-                position: 'absolute', bottom: 16, left: 16, right: 16, color: '#fff', fontSize: 13, padding: '10px 14px', borderRadius: 8,
+                position: 'absolute', bottom: noteBottom, left: 16, right: 16, zIndex: 3, color: '#fff', fontSize: 13, padding: '10px 14px', borderRadius: 8,
                 background: hexToRgba(viewingMarkerNote.highlight_color || '#000000', 0.55), backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
                 cursor: isCoach ? 'pointer' : 'default', // athletes can see it, only coaches can edit
               }}>
@@ -1154,7 +1213,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
           flex sibling), so it never resizes the video when it shows
           or hides -- same tap-to-show/hide as the middle overlay. */}
       {controlsVisible && (
-      <div data-no-toggle style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '10px 12px 16px' }}
+      <div ref={bottomBarRef} data-no-toggle style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '10px 12px 16px' }}
         onClick={e => e.stopPropagation()}
         onPointerDown={() => clearTimeout(autoHideTimerRef.current)}
         onPointerUp={scheduleAutoHide}>
@@ -1289,6 +1348,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
                   border: selectedColour === c ? '3px solid #fff' : '2px solid rgba(255,255,255,0.4)' }} />
             ))}
           </div>
+          <SectionSpeedPicker value={addingSpeed} onChange={setAddingSpeed} />
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn btn-sm btn-primary" onClick={saveMarker}>Save</button>
             <button className="btn btn-sm" style={GLASS_STYLE} onClick={cancelMarkerRange}>Cancel</button>
@@ -1323,18 +1383,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
               -- a photo marker is a single instant, not a range. */}
           {editingMarker.marker_type !== 'photo' && (
             <div style={{ marginBottom: 12 }}>
-              <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginBottom: 6, textAlign: 'center' }}>Playback speed for this section</p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
-                {SPEEDS.map(s => (
-                  <button key={s} onClick={() => setEditingMarkerSpeed(s)}
-                    style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                      ...GLASS_STYLE,
-                      border: editingMarkerSpeed === s ? '1px solid #fff' : GLASS_BORDER,
-                      color: editingMarkerSpeed === s ? '#fff' : 'rgba(255,255,255,0.7)', fontWeight: editingMarkerSpeed === s ? 600 : 400 }}>
-                    {s === 1 ? '1x' : `${s}x`}
-                  </button>
-                ))}
-              </div>
+              <SectionSpeedPicker value={editingMarkerSpeed} onChange={setEditingMarkerSpeed} />
             </div>
           )}
 
