@@ -316,6 +316,16 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   // attendance history view, not tied to today specifically.
   const [attendanceStats, setAttendanceStats] = useState({})
   const [calendarStudent, setCalendarStudent] = useState(null) // student whose attendance calendar popup is open
+  // Phone layout (cards) -- same data and functions as the table
+  const [mPage, setMPage] = useState(0)                 // 0 = Age/Weight/Attend., 1 = Level/Record/Weight trend
+  const [mFilter, setMFilter] = useState('all')         // 'all' | 'out' | 'in'
+  const [mExpanded, setMExpanded] = useState(null)      // student id opened in place
+  const [mSettingsOpen, setMSettingsOpen] = useState(false)
+  const [mShowTable, setMShowTable] = useSyncedPreference('register_phone_table', false) // phone: show the full table instead of cards
+  const mLongPress = useRef(null)
+  const mSwipeX = useRef(null)
+  const [pointSearch, setPointSearch] = useState('')    // award-points modal: search / write a reason
+  const [saveNewReason, setSaveNewReason] = useState(true)
   // Total sessions / Last attended / Attendance % for the chosen range.
   // Attendance % is each student's OWN rate -- days attended out of days
   // attended + missed -- using the same rules as the attendance calendar
@@ -677,6 +687,8 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
           aVal = rank(a.id); bVal = rank(b.id); return sortDir === 'asc' ? aVal - bVal : bVal - aVal
         }
         case 'media_restriction': aVal = a.media_restriction || ''; bVal = b.media_restriction || ''; break
+        case 'att_pct': aVal = attendanceStats[a.id]?.pct ?? -1; bVal = attendanceStats[b.id]?.pct ?? -1; return sortDir === 'asc' ? aVal - bVal : bVal - aVal
+        case 'weight_current': aVal = weightDataByStudent[a.id]?.current ?? a.weight_kg ?? 0; bVal = weightDataByStudent[b.id]?.current ?? b.weight_kg ?? 0; return sortDir === 'asc' ? aVal - bVal : bVal - aVal
         default:             aVal = ''; bVal = ''
       }
       return sortDir === 'asc' ? String(aVal).localeCompare(String(bVal)) : String(bVal).localeCompare(String(aVal))
@@ -1128,7 +1140,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
         ? { ...s, house_points: (s.house_points || 0) + total, individual_points: (s.individual_points || 0) + total }
         : s
     ))
-    setAwardingFor(null); setMultiAward(false); setSelectedStudents([]); setSelectedPoints([])
+    setAwardingFor(null); setMultiAward(false); setSelectedStudents([]); setSelectedPoints([]); setPointSearch('')
     setSaving(false)
   }
 
@@ -1142,7 +1154,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   const isKR = regType === 'kr'
 
   return (
-    <div style={{ zoom: `${registerZoom}%` }} onClick={e => {
+    <div className={`reg-root${mShowTable ? ' reg-force-table' : ''}`} style={{ zoom: `${registerZoom}%` }} onClick={e => {
       if (!e.target.closest('tr') && !e.target.closest('button') && !e.target.closest('input') && !e.target.closest('select'))
         setSelectedStudents([])
       if (groupFilterOpen) setGroupFilterOpen(false)
@@ -1184,7 +1196,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
           the Athlete Profile page (signalled by initialRegType being
           set), since that's the only context Team KR/KRBA buttons there
           are meant to offer, not the full set of registers. */}
-      <div style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
+      <div className={initialRegType ? 'reg-desktop-only' : ''} style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
         {(initialRegType ? REGISTER_TYPES.filter(r => r.key === 'kr' || r.key === 'krba') : REGISTER_TYPES).map(r => (
           <button key={r.key} onClick={() => setRegType(r.key)} style={{
             padding: '8px 14px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
@@ -1310,7 +1322,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
       )}
 
       {/* Large headcount display for quick visual reference during a session -- click to shortlist to only attended students, click again to show everyone */}
-      <div onClick={() => setShowOnlyAttended(v => !v)} title="Click to shortlist to attended students only"
+      <div className="reg-desktop-only" onClick={() => setShowOnlyAttended(v => !v)} title="Click to shortlist to attended students only"
         style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 10, cursor: 'pointer' }}>
         <span style={{ fontSize: 36, fontWeight: 700, lineHeight: 1, color: showOnlyAttended ? '#1D9E75' : 'var(--text)' }}>
           {displayStudents.filter(s => attendance[s.id] && attendance[s.id] !== 'none').length}
@@ -1327,7 +1339,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
           Sticky so these stay reachable while scrolling through a long
           student list -- picking students, then attendance/points,
           without scrolling back up each time. */}
-      <div ref={registerToolbarRef} style={{
+      <div ref={registerToolbarRef} className="reg-desktop-only" style={{
         display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap', alignItems: 'center',
         position: 'sticky', top: 0, zIndex: 15, background: 'var(--bg)', padding: '8px 0',
       }}>
@@ -1350,7 +1362,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
       </div>
 
       {/* Search row */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+      <div className="reg-desktop-only" style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search students…"
           style={{ flex: 1, minWidth: 160, padding: '7px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
       </div>
@@ -1360,7 +1372,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
           visible, since it has no effect otherwise. Defaults to
           all-time when left blank. */}
       {(visibleCols.includes('att_total') || visibleCols.includes('att_last') || visibleCols.includes('att_pct')) && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div className="reg-desktop-only" style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Attendance stats:</span>
           <input type="date" value={attStatsDateFrom} onChange={e => setAttStatsDateFrom(e.target.value)}
             style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
@@ -1393,6 +1405,231 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
       )}
 
 
+      {mShowTable && (
+        <button type="button" className="reg-phone-cards-btn" onClick={() => setMShowTable(false)}>Back to card view</button>
+      )}
+      {/* ── Phone layout: cards (shown under 640px; the table above/below is desktop-only) ──
+          Uses exactly the same state and functions as the table: toggleAttendance,
+          markAttendance, selection, the award-points modal, the attendance calendar,
+          sorting (sortKey/sortDir), search, the shortlist and the stats date range. */}
+      {!loading && (() => {
+        const inCount = displayStudents.filter(x => attendance[x.id] && attendance[x.id] !== 'none').length
+        const kitCount = displayStudents.filter(x => attendance[x.id] === 'full_kit').length
+        const total = displayStudents.length
+        const list = displayStudents.filter(x => mFilter === 'all' ? true : mFilter === 'in' ? (attendance[x.id] && attendance[x.id] !== 'none') : !(attendance[x.id] && attendance[x.id] !== 'none'))
+        const selecting = selectedStudents.length > 0
+        const toggleSel = id => setSelectedStudents(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+        const stepDate = d => { const x = new Date(date + 'T12:00:00'); x.setDate(x.getDate() + d); setDate(toLocalISO(x)) }
+        const dateLabel = new Date(date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+        const pctColour = p => p == null ? 'var(--text-tertiary)' : p >= 50 ? '#1D9E75' : p > 0 ? '#EF9F27' : '#E24B4A'
+        const SortBtn = ({ k, label, grow }) => {
+          const active = sortKey === k
+          return (
+            <button type="button" onClick={() => toggleSort(k)} aria-label={`Sort by ${label.toLowerCase()}`} aria-pressed={active}
+              className="reg-m-sort" style={{ flex: grow ? '1 1 auto' : '0 0 auto', color: active ? 'var(--text)' : 'var(--text-tertiary)' }}>
+              {label}
+              <svg width="7" height="12" viewBox="0 0 7 12" aria-hidden="true">
+                <path d="M3.5 0L7 4.5H0z" fill={active && sortDir === 'asc' ? 'var(--text)' : '#666'} />
+                <path d="M3.5 12L0 7.5H7z" fill={active && sortDir === 'desc' ? 'var(--text)' : '#666'} />
+              </svg>
+            </button>
+          )
+        }
+        const AttBtn = ({ st }) => {
+          const v = attendance[st.id] || 'none'
+          return (
+            <button type="button" className={`reg-m-att reg-m-att-${v}`} disabled={saving}
+              onClick={e => { e.stopPropagation(); toggleAttendance(st.id) }}
+              aria-label={v === 'none' ? 'Not in — tap to mark attended' : v === 'attended' ? 'Attended — tap for full kit' : 'Full kit — tap to clear'}>
+              {v === 'none' ? 'Mark' : v === 'attended' ? '✓ In' : '✓ KIT'}
+            </button>
+          )
+        }
+        const Spark = ({ wd }) => {
+          const vals = (wd?.last5 || []).map(e => e.weight)
+          if (vals.length < 2) return <div className="reg-m-spark-empty">{vals.length ? `${vals[0]}kg` : 'No weights yet'}</div>
+          const lo = Math.min(...vals), hi = Math.max(...vals), rng = (hi - lo) || 1
+          const pts = vals.map((v, i) => `${(4 + i * (72 / (vals.length - 1))).toFixed(1)},${(26 - ((v - lo) / rng) * 20).toFixed(1)}`)
+          const change = vals[vals.length - 1] - vals[0]
+          const col = change < 0 ? '#1D9E75' : change > 0.5 ? '#E24B4A' : '#9A9A9A'
+          const [lx, ly] = pts[pts.length - 1].split(',')
+          return (
+            <div className="reg-m-spark">
+              <svg width="80" height="30" viewBox="0 0 80 30" aria-label={`Last ${vals.length} weights, ${vals[0]} to ${vals[vals.length - 1]} kg`}>
+                <polyline points={pts.join(' ')} fill="none" stroke={col} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <circle cx={lx} cy={ly} r="2.5" fill={col} />
+              </svg>
+              <span style={{ color: col }}>{change > 0 ? '+' : ''}{change.toFixed(1)}kg</span>
+            </div>
+          )
+        }
+        return (
+          <div className="reg-mobile-only">
+            {/* Date stepper + settings */}
+            <div className="reg-m-row">
+              <div className="reg-m-date">
+                <button type="button" aria-label="Previous day" onClick={() => stepDate(-1)}>‹</button>
+                <label className="reg-m-date-label">
+                  {dateLabel}
+                  <input type="date" value={date} onChange={e => setDate(e.target.value)} aria-label="Pick a date" />
+                </label>
+                <button type="button" aria-label="Next day" onClick={() => stepDate(1)}>›</button>
+              </div>
+              <button type="button" className="reg-m-icon reg-m-text" onClick={() => setMShowTable(true)} title="Show the full table (all columns and editing)">Table</button>
+              <button type="button" className="reg-m-icon" aria-label="Register settings" onClick={() => setMSettingsOpen(true)}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12" /><circle cx="16" cy="6" r="2" /><circle cx="10" cy="12" r="2" /><circle cx="18" cy="18" r="2" /></svg>
+              </button>
+            </div>
+
+            {/* Headcount (tap = shortlist to attended, as before) */}
+            <button type="button" className="reg-m-count" onClick={() => setShowOnlyAttended(v => !v)} aria-pressed={showOnlyAttended}>
+              <span className="reg-m-count-num" style={{ color: showOnlyAttended ? '#1D9E75' : 'var(--text)' }}>{inCount}</span>
+              <span className="reg-m-count-of">/ {total} in{showOnlyAttended ? ' (shortlisted)' : ''}</span>
+              <span className="reg-m-count-bar"><span style={{ width: `${total ? (kitCount / total) * 100 : 0}%`, background: '#EF9F27' }} /><span style={{ width: `${total ? ((inCount - kitCount) / total) * 100 : 0}%`, background: '#1D9E75' }} /></span>
+              <span className="reg-m-count-kit">{kitCount} kit</span>
+            </button>
+
+            <input className="reg-m-search" type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder={`Search ${total} students`} aria-label="Search students" />
+            <div className="reg-m-chips">
+              {[['all', `All ${total}`], ['out', `Not in ${total - inCount}`], ['in', `In ${inCount}`]].map(([k, l]) => (
+                <button key={k} type="button" aria-pressed={mFilter === k} className={mFilter === k ? 'on' : ''} onClick={() => setMFilter(k)}>{l}</button>
+              ))}
+            </div>
+
+            {/* Sort headers + page dots (swipe the list to switch detail sets) */}
+            <div className="reg-m-dots" role="tablist" aria-label="Detail columns">
+              {[0, 1].map(i => <button key={i} type="button" role="tab" aria-selected={mPage === i} aria-label={i === 0 ? 'Age, weight, attendance' : 'Level, record, weight trend'} className={mPage === i ? 'on' : ''} onClick={() => setMPage(i)} />)}
+            </div>
+            <div className="reg-m-headers">
+              <SortBtn k="first_name" label="NAME" grow />
+              {mPage === 0 ? <><SortBtn k="age" label="AGE" /><SortBtn k="weight_current" label="WEIGHT" /><SortBtn k="att_pct" label="ATTEND." /><span style={{ width: 58, flexShrink: 0 }} /></>
+                           : <><SortBtn k="grade" label="LEVEL" /><SortBtn k="wins" label="RECORD" /><SortBtn k="weight_current" label="WEIGHT" /></>}
+            </div>
+
+            <div className="reg-m-list"
+              onTouchStart={e => { mSwipeX.current = { x: e.touches[0].clientX, y: e.touches[0].clientY } }}
+              onTouchEnd={e => {
+                const st = mSwipeX.current; mSwipeX.current = null
+                if (!st) return
+                const dx = e.changedTouches[0].clientX - st.x, dy = e.changedTouches[0].clientY - st.y
+                if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) setMPage(dx < 0 ? 1 : 0)
+              }}>
+              {list.length === 0 && <div className="reg-m-empty">{search ? 'No students match your search' : 'No students here'}</div>}
+              {list.map(st => {
+                const m = st.members
+                const wd = weightDataByStudent[st.id]
+                const stats = attendanceStats[st.id]
+                const pct = stats?.pct ?? null
+                const weight = wd?.current ?? st.weight_kg
+                const isSel = selectedStudents.includes(st.id)
+                const open = mExpanded === st.id
+                const initials = `${m?.first_name?.[0] || ''}${m?.last_name?.[0] || ''}`.toUpperCase()
+                const rec = (st.wins || st.losses || st.draws) ? { w: st.wins || 0, l: st.losses || 0, d: st.draws || 0 } : null
+                const bday = getBirthdayInfo(m?.date_of_birth)
+                return (
+                  <div key={st.id} className={`reg-m-card${isSel ? ' sel' : ''}`}
+                    onClick={() => { if (selecting) toggleSel(st.id); else setMExpanded(open ? null : st.id) }}
+                    onTouchStart={() => { mLongPress.current = setTimeout(() => { toggleSel(st.id); mLongPress.current = 'fired' }, 450) }}
+                    onTouchEnd={e => { if (mLongPress.current === 'fired') e.preventDefault(); clearTimeout(mLongPress.current); mLongPress.current = null }}
+                    onTouchMove={() => { clearTimeout(mLongPress.current); mLongPress.current = null }}
+                    onContextMenu={e => e.preventDefault()}>
+                    <div className="reg-m-card-main">
+                      {isSel ? <span className="reg-m-tick" aria-label="Selected">✓</span> : <span className="reg-m-avatar">{initials}</span>}
+                      <div className="reg-m-body">
+                        <div className="reg-m-name">
+                          <span>{m?.first_name} {m?.last_name}</span>
+                          {bday && <button type="button" className="reg-m-bday" title="Upcoming birthday" onClick={e => { e.stopPropagation(); setBirthdayPopup({ name: `${m?.first_name} ${m?.last_name}`, info: bday }) }}>🎂</button>}
+                        </div>
+                        {mPage === 0 ? (
+                          <div className="reg-m-details">
+                            <span>Age <b>{calcAge(m?.date_of_birth) ?? '—'}</b></span>
+                            <span><b>{weight != null ? `${weight}kg` : '—'}</b></span>
+                            <span className="reg-m-pct"><span className="bar"><span style={{ width: `${pct || 0}%`, background: pctColour(pct) }} /></span><b style={{ color: pctColour(pct) }}>{pct != null ? `${pct}%` : '—'}</b></span>
+                          </div>
+                        ) : (
+                          <div className="reg-m-details reg-m-details-2">
+                            <span><b>{st.pka_belt || st.krba_level || '—'}</b></span>
+                            <span>{rec ? <><b style={{ color: '#1D9E75' }}>{rec.w}W</b> <b style={{ color: '#E24B4A' }}>{rec.l}L</b> <b style={{ color: '#9A9A9A' }}>{rec.d}D</b></> : '—'}</span>
+                          </div>
+                        )}
+                      </div>
+                      {mPage === 0 ? <AttBtn st={st} /> : <Spark wd={wd} />}
+                    </div>
+                    {open && !selecting && (
+                      <div className="reg-m-open" onClick={e => e.stopPropagation()}>
+                        <div className="reg-m-stats">
+                          <div><span>Sessions</span><b>{stats?.total ?? 0}</b></div>
+                          <div><span>Last in</span><b>{stats?.last ? new Date(stats.last + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}</b></div>
+                          <div><span>Attend.</span><b style={{ color: pctColour(pct) }}>{pct != null ? `${pct}%` : '—'}</b></div>
+                          <div><span>Weight</span><b>{weight != null ? `${weight}kg` : '—'}</b></div>
+                          <div><span>Comp wt</span><b>{wd?.compWeightLabel || '—'}</b></div>
+                          <div><span>Points today</span><b>{(pointsByStudent[st.id] || []).reduce((n, pp) => n + (pp.points_awarded || 0), 0)}</b></div>
+                        </div>
+                        <div className="reg-m-note">Weights come from the weigh check-in / athlete app</div>
+                        <div className="reg-m-actions">
+                          <button type="button" onClick={() => { setMultiAward(false); setAwardingFor(st) }}>+ Points</button>
+                          <button type="button" onClick={() => setCalendarStudent(st)}>Calendar</button>
+                          {(pointsByStudent[st.id] || []).length > 0 && <button type="button" onClick={() => setPointsPanelFor(st)}>Today's points</button>}
+                          {onStudentNameClick && <button type="button" onClick={() => onStudentNameClick(st)}>Profile</button>}
+                          {onWeightClick && <button type="button" onClick={() => onWeightClick(st)}>Weights</button>}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+              <div className="reg-m-hint">Tap the button: Mark → In → Kit → clear · Tap a card to open · Long-press to select several · Swipe for more details</div>
+            </div>
+
+            {/* Bulk bar -- only while selecting */}
+            {selecting && (
+              <div className="reg-m-bulk">
+                <div className="reg-m-bulk-top">
+                  <b>{selectedStudents.length} selected</b>
+                  <button type="button" onClick={() => setSelectedStudents(list.map(x => x.id))}>Select all</button>
+                  <button type="button" onClick={() => setSelectedStudents([])}>Cancel</button>
+                </div>
+                <div className="reg-m-bulk-actions">
+                  <button type="button" className="in" disabled={saving} onClick={() => markAttendance('attended')}>✓ In</button>
+                  <button type="button" className="kit" disabled={saving} onClick={() => markAttendance('full_kit')}>✓ Kit</button>
+                  <button type="button" disabled={saving} onClick={() => setMultiAward(true)}>+ Points</button>
+                </div>
+              </div>
+            )}
+
+            {/* Settings sheet: stats range (moved off the page); columns still set the desktop table */}
+            {mSettingsOpen && (
+              <div className="reg-m-sheet-backdrop" onClick={() => setMSettingsOpen(false)}>
+                <div className="reg-m-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-label="Register settings">
+                  <div className="reg-m-sheet-head"><b>Register settings</b><button type="button" onClick={() => setMSettingsOpen(false)}>Done</button></div>
+                  <div className="reg-m-sheet-label">ATTENDANCE STATS RANGE</div>
+                  <div className="reg-m-seg">
+                    {[['4 weeks', 28], ['3 months', 91], ['All time', null]].map(([l, days]) => {
+                      const from = days ? toLocalISO(new Date(Date.now() - days * 86400000)) : ''
+                      const on = days ? attStatsDateFrom === from : (!attStatsDateFrom && !attStatsDateTo)
+                      return <button key={l} type="button" className={on ? 'on' : ''} onClick={() => { setAttStatsDateFrom(from); setAttStatsDateTo(days ? toLocalISO(new Date()) : '') }}>{l}</button>
+                    })}
+                  </div>
+                  <div className="reg-m-range">
+                    <input type="date" value={attStatsDateFrom} onChange={e => setAttStatsDateFrom(e.target.value)} aria-label="Stats from" />
+                    <span>to</span>
+                    <input type="date" value={attStatsDateTo} onChange={e => setAttStatsDateTo(e.target.value)} aria-label="Stats to" />
+                  </div>
+                  <div className="reg-m-sheet-label">DEFAULT ORDER</div>
+                  <div className="reg-m-seg">
+                    {[['Name', 'first_name', 'asc'], ['Not in first', 'attendance', 'asc'], ['Attendance', 'att_pct', 'desc']].map(([l, k, d]) => (
+                      <button key={l} type="button" className={sortKey === k ? 'on' : ''} onClick={() => { setSortKey(k); setSortDir(d) }}>{l}</button>
+                    ))}
+                  </div>
+                  <button type="button" className="reg-m-table-btn" onClick={() => { setMShowTable(true); setMSettingsOpen(false) }}>Show the full table (all columns, W/L/D, in-comp, groups…)</button>
+                  <div className="reg-m-sheet-note">The ⚙ Columns picker controls the full table.</div>
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })()}
+
       {/* Table */}
       {loading ? <div className="loading">Loading…</div> : (<>
         <div className="desktop-only-zoom-controls" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -1402,7 +1639,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
           <button className="btn btn-sm" onClick={() => setRegisterZoom(z => Math.min(200, z + 10))}>+</button>
           {registerZoom !== 100 && <button className="btn btn-sm" onClick={() => setRegisterZoom(100)}>Reset</button>}
         </div>
-        <div className="card" style={{ padding: 0, overflowX: 'auto' }} ref={tableRef}
+        <div className="card reg-desktop-only" style={{ padding: 0, overflowX: 'auto' }} ref={tableRef}
           tabIndex={0}
           onKeyDown={e => {
             const ids = displayStudents.map(s => s.id)
@@ -1896,17 +2133,22 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
           <div className="card" style={{ width: '100%', maxWidth: 500, maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
               <h2 style={{ fontSize: 15, fontWeight: 600 }}>Award points</h2>
-              <button onClick={() => { setAwardingFor(null); setMultiAward(false); setSelectedPoints([]) }} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
+              <button onClick={() => { setAwardingFor(null); setMultiAward(false); setSelectedPoints([]); setPointSearch('') }} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
             </div>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 14 }}>
               {multiAward ? `${selectedStudents.length} students selected` : `${awardingFor?.members?.first_name} ${awardingFor?.members?.last_name}`}
             </p>
+            {/* Search the reasons list, or type a new reason */}
+            <input type="search" value={pointSearch} onChange={e => setPointSearch(e.target.value)} autoFocus
+              placeholder="Search or write a reason…" aria-label="Search or write a reason"
+              style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', marginBottom: 12, border: '2px solid #378ADD', borderRadius: 'var(--radius)', fontSize: 15, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)' }} />
             {/* Grouped points — Group → Reason: Points */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
               {(() => {
                 // Group point types by their group field, or 'General' if none
                 const groups = {}
-                pointTypes.forEach(pt => {
+                const q = pointSearch.trim().toLowerCase()
+                pointTypes.filter(pt => !q || `${pt.label} ${pt.group || ''}`.toLowerCase().includes(q)).forEach(pt => {
                   const grp = pt.group || 'General'
                   if (!groups[grp]) groups[grp] = []
                   groups[grp].push(pt)
@@ -1935,6 +2177,36 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                   </div>
                 ))
               })()}
+
+              {/* Typed a reason that isn't in the list: use it (and optionally save it for next time) */}
+              {pointSearch.trim() && !pointTypes.some(pt => pt.label.toLowerCase() === pointSearch.trim().toLowerCase()) && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 12px', border: '1px dashed var(--border-strong)', borderRadius: 'var(--radius)' }}>
+                  <div style={{ fontSize: 13 }}>Use “<b>{pointSearch.trim()}</b>” as a new reason</div>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <button type="button" className="btn btn-sm" aria-label="Fewer points" onClick={() => setCustomPoints(v => String((parseInt(v) || 0) - 1))}>−</button>
+                    <input type="number" value={customPoints} onChange={e => setCustomPoints(e.target.value)} placeholder="±pts" aria-label="Points"
+                      style={{ width: 64, padding: '7px 8px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 14, fontWeight: 700, textAlign: 'center', background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+                    <button type="button" className="btn btn-sm" aria-label="More points" onClick={() => setCustomPoints(v => String((parseInt(v) || 0) + 1))}>+</button>
+                    <button type="button" className="btn btn-sm btn-primary" style={{ marginLeft: 'auto' }} disabled={customPoints === '' || isNaN(parseInt(customPoints))}
+                      onClick={async () => {
+                        const label = pointSearch.trim(), pts = parseInt(customPoints)
+                        if (!label || isNaN(pts)) return
+                        setSelectedPoints(prev => [...prev.filter(p => p.label !== label), { label, points: pts }])
+                        if (saveNewReason) {
+                          const next = [...pointTypes, { label, points: pts, group: 'Custom' }]
+                          const { error } = await supabase.from('settings').update({ value: next }).eq('key', 'point_types')
+                          if (error) alert('Added for now, but could not save it to the reasons list: ' + error.message)
+                          else setPointTypes(next)
+                        }
+                        setPointSearch(''); setCustomPoints('')
+                      }}>Add</button>
+                  </div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-secondary)' }}>
+                    <input type="checkbox" checked={saveNewReason} onChange={e => setSaveNewReason(e.target.checked)} />
+                    Save to the reasons list for next time
+                  </label>
+                </div>
+              )}
 
               {/* Custom points */}
               <div>
@@ -1970,7 +2242,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
               </div>
             )}
             <div style={{ display: 'flex', gap: 10 }}>
-              <button className="btn" onClick={() => { setAwardingFor(null); setMultiAward(false); setSelectedPoints([]) }}>Cancel</button>
+              <button className="btn" onClick={() => { setAwardingFor(null); setMultiAward(false); setSelectedPoints([]); setPointSearch('') }}>Cancel</button>
               <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}
                 onClick={() => submitPoints(multiAward ? selectedStudents : [awardingFor.id], selectedPoints)}
                 disabled={saving || selectedPoints.length === 0}>
