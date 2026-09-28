@@ -88,6 +88,11 @@ function TimeField({ label, value, onChange, onNow, frame }) {
   )
 }
 
+// Compact round buttons for the transport row under the scrub bar.
+const ROUND_SM = { width: 34, height: 34, padding: 0, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, lineHeight: 1, position: 'relative' }
+// The ×2/×3/×4 frame-boost level, tucked on the button's corner.
+const BOOST_BADGE = { position: 'absolute', top: -6, right: -6, fontSize: 9, fontWeight: 700, padding: '1px 4px', borderRadius: 8, background: 'rgba(0,0,0,0.75)', color: '#fff', pointerEvents: 'none' }
+
 // Speed picker used in both the new-note and edit-note popups, so the two
 // always offer the same options and look the same. Selected = lighter
 // see-through grey + white outline, matching the main speed row.
@@ -1290,43 +1295,6 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
         <video ref={filmstripVideoRef} src={videoUrl} crossOrigin="anonymous" muted playsInline style={{ display: 'none' }} />
         <canvas ref={filmstripCanvasRef} style={{ display: 'none' }} />
 
-        {/* Middle overlay -- play/pause (flanked by the Frame step and
-            Note-edge skip buttons) and speed, tap the video to show/hide (same
-            tap-to-show as the bottom bar now). Just the one play
-            button here -- there used to be a second, smaller one
-            added alongside the skip buttons in their own separate row,
-            which just duplicated this one once both were centered. */}
-        {controlsVisible && (
-          // Vertical position comes from .vi-mid-controls in global.css:
-          // centred in portrait, raised in landscape to stay clear of the
-          // marker row + scrub bar.
-          <div className="vi-mid-controls" style={{ position: 'absolute', left: 0, right: 0, transform: 'translateY(-50%)', padding: '16px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}
-            onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              {markers.length > 0 && (
-                <button className="view-it-btn btn btn-sm" title="Previous note start/end" onPointerDown={() => startEdgeRepeat(-1)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat} onPointerCancel={stopStepRepeat} style={{ gap: 4, padding: '6px 9px' }}><TransportIcon name="rewind" /> Note</button>
-              )}
-              <button className="view-it-btn btn btn-sm" title="Tap: 1 frame · press again quickly to speed up · hold to keep going" onPointerDown={() => startFrameStep(-1)} onPointerUp={stopFrameStep} onPointerLeave={stopFrameStep} onPointerCancel={stopFrameStep} style={{ gap: 4, padding: '6px 9px' }}><TransportIcon name="frameBack" /> Frame{frameBoost?.dir === -1 && <span style={{ fontSize: 10, fontWeight: 700, opacity: 0.9 }}>×{frameBoost.level}</span>}</button>
-              <button className="view-it-btn" style={{ minWidth: 72, height: 72, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff' }}
-                onPointerDown={handlePlayButtonPointerDown} onPointerMove={handlePlayButtonPointerMove} onPointerUp={handlePlayButtonPointerUp}
-                onPointerLeave={() => { if (isHoldingRef.current) handlePlayButtonPointerUp() }}>{playing ? <TransportIcon name="pause" size={30} /> : <span style={{ marginLeft: 3 }}><TransportIcon name="play" size={30} /></span>}</button>
-              <button className="view-it-btn btn btn-sm" title="Tap: 1 frame · press again quickly to speed up · hold to keep going" onPointerDown={() => startFrameStep(1)} onPointerUp={stopFrameStep} onPointerLeave={stopFrameStep} onPointerCancel={stopFrameStep} style={{ gap: 4, padding: '6px 9px' }}>{frameBoost?.dir === 1 && <span style={{ fontSize: 10, fontWeight: 700, opacity: 0.9 }}>×{frameBoost.level}</span>}Frame <TransportIcon name="frameFwd" /></button>
-              {markers.length > 0 && (
-                <button className="view-it-btn btn btn-sm" title="Next note start/end" onPointerDown={() => startEdgeRepeat(1)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat} onPointerCancel={stopStepRepeat} style={{ gap: 4, padding: '6px 9px' }}>Note <TransportIcon name="forward" /></button>
-              )}
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
-              {SPEEDS.map(s => (
-                <button key={s} className={speed === s ? 'view-it-btn view-it-btn-selected' : 'view-it-btn'} onClick={() => setPlaybackSpeed(s)}
-                  style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                                        border: speed === s ? '1px solid #fff' : '1px solid rgba(255,255,255,0.3)',
-                    color: speed === s ? '#fff' : 'rgba(255,255,255,0.7)', fontWeight: speed === s ? 600 : 400 }}>
-                  {s === 1 ? '1x' : `${s}x`}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Top bar -- floats over the video too now, doesn't take its
@@ -1505,19 +1473,61 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
               />
             </div>
 
-            {/* Zoom: − under the left end of the scrub bar, + under the
-                right end, current level in between (only once zoomed). */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
-              <button className="view-it-btn btn btn-sm" title="Zoom out" aria-label="Zoom out"
-                style={{ width: 30, height: 30, padding: 0, borderRadius: '50%', justifyContent: 'center', fontSize: 18, lineHeight: 1 }}
-                disabled={zoomLevel === ZOOM_LEVELS[0]} onClick={() => setZoomLevel(z => ZOOM_LEVELS[Math.max(0, ZOOM_LEVELS.indexOf(z) - 1)])}>−</button>
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>{zoomLevel > 1 ? `${zoomLevel}x zoom` : ''}</span>
-              <button className="view-it-btn btn btn-sm" title="Zoom in" aria-label="Zoom in"
-                style={{ width: 30, height: 30, padding: 0, borderRadius: '50%', justifyContent: 'center', fontSize: 18, lineHeight: 1 }}
-                disabled={zoomLevel === ZOOM_LEVELS[ZOOM_LEVELS.length - 1]} onClick={() => setZoomLevel(z => ZOOM_LEVELS[Math.min(ZOOM_LEVELS.length - 1, ZOOM_LEVELS.indexOf(z) + 1)])}>+</button>
-            </div>
           </div>
           <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, minWidth: 36 }}>{fmt(duration)}</span>
+        </div>
+        {/* Indented by the time labels' width (36px + 8px gap) so the
+            zoom − / + sit directly under the ends of the scrub bar. */}
+        <div style={{ padding: '0 44px' }}>
+          {/* Transport, under the scrub bar, symbols only (space is
+              tight): zoom − at the left end, zoom + at the right end, and
+              note-skip / frame-step / play in the middle. Same gestures
+              as before -- hold play for slow-mo, press a frame button
+              again quickly to step faster, hold note-skip to repeat. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
+            <button className="view-it-btn btn btn-sm" title="Zoom out" aria-label="Zoom out" style={ROUND_SM}
+              disabled={zoomLevel === ZOOM_LEVELS[0]} onClick={() => setZoomLevel(z => ZOOM_LEVELS[Math.max(0, ZOOM_LEVELS.indexOf(z) - 1)])}>−</button>
+
+            <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8 }}>
+              {markers.length > 0 && (
+                <button className="view-it-btn btn btn-sm" title="Previous note start/end (hold to repeat)" aria-label="Previous note edge" style={ROUND_SM}
+                  onPointerDown={() => startEdgeRepeat(-1)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat} onPointerCancel={stopStepRepeat}><TransportIcon name="rewind" /></button>
+              )}
+              <button className="view-it-btn btn btn-sm" title="Back 1 frame · press again quickly to go faster · hold to keep going" aria-label="Back 1 frame" style={ROUND_SM}
+                onPointerDown={() => startFrameStep(-1)} onPointerUp={stopFrameStep} onPointerLeave={stopFrameStep} onPointerCancel={stopFrameStep}>
+                <TransportIcon name="frameBack" />{frameBoost?.dir === -1 && <span style={BOOST_BADGE}>×{frameBoost.level}</span>}
+              </button>
+              <button className="view-it-btn" title="Play/pause · hold for slow-mo" aria-label={playing ? 'Pause' : 'Play'}
+                style={{ width: 46, height: 46, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', padding: 0 }}
+                onPointerDown={handlePlayButtonPointerDown} onPointerMove={handlePlayButtonPointerMove} onPointerUp={handlePlayButtonPointerUp}
+                onPointerLeave={() => { if (isHoldingRef.current) handlePlayButtonPointerUp() }}>
+                {playing ? <TransportIcon name="pause" size={20} /> : <span style={{ marginLeft: 2 }}><TransportIcon name="play" size={20} /></span>}
+              </button>
+              <button className="view-it-btn btn btn-sm" title="Forward 1 frame · press again quickly to go faster · hold to keep going" aria-label="Forward 1 frame" style={ROUND_SM}
+                onPointerDown={() => startFrameStep(1)} onPointerUp={stopFrameStep} onPointerLeave={stopFrameStep} onPointerCancel={stopFrameStep}>
+                <TransportIcon name="frameFwd" />{frameBoost?.dir === 1 && <span style={BOOST_BADGE}>×{frameBoost.level}</span>}
+              </button>
+              {markers.length > 0 && (
+                <button className="view-it-btn btn btn-sm" title="Next note start/end (hold to repeat)" aria-label="Next note edge" style={ROUND_SM}
+                  onPointerDown={() => startEdgeRepeat(1)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat} onPointerCancel={stopStepRepeat}><TransportIcon name="forward" /></button>
+              )}
+            </div>
+
+            <button className="view-it-btn btn btn-sm" title="Zoom in" aria-label="Zoom in" style={ROUND_SM}
+              disabled={zoomLevel === ZOOM_LEVELS[ZOOM_LEVELS.length - 1]} onClick={() => setZoomLevel(z => ZOOM_LEVELS[Math.min(ZOOM_LEVELS.length - 1, ZOOM_LEVELS.indexOf(z) + 1)])}>+</button>
+          </div>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, justifyContent: 'center', alignItems: 'center', marginTop: 8 }}>
+            {SPEEDS.map(sp => (
+              <button key={sp} className={speed === sp ? 'view-it-btn view-it-btn-selected' : 'view-it-btn'} onClick={() => setPlaybackSpeed(sp)}
+                style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                  border: speed === sp ? '1px solid #fff' : '1px solid rgba(255,255,255,0.3)',
+                  color: speed === sp ? '#fff' : 'rgba(255,255,255,0.7)', fontWeight: speed === sp ? 600 : 400 }}>
+                {sp === 1 ? '1x' : `${sp}x`}
+              </button>
+            ))}
+            {zoomLevel > 1 && <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)', marginLeft: 4 }}>🔍 {zoomLevel}x</span>}
+          </div>
         </div>
 
 
