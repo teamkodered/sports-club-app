@@ -23,10 +23,16 @@ begin
 end $$;
 
 drop trigger if exists fit2fight_sessions_keep_history on public.fit2fight_sessions;
-create trigger fit2fight_sessions_keep_history
-  before update or delete on public.fit2fight_sessions
+drop trigger if exists fit2fight_sessions_keep_history_upd on public.fit2fight_sessions;
+drop trigger if exists fit2fight_sessions_keep_history_del on public.fit2fight_sessions;
+create trigger fit2fight_sessions_keep_history_upd
+  before update on public.fit2fight_sessions
   for each row
   when (old is distinct from new)
+  execute function public.fit2fight_sessions_keep_history();
+create trigger fit2fight_sessions_keep_history_del
+  before delete on public.fit2fight_sessions
+  for each row
   execute function public.fit2fight_sessions_keep_history();
 
 alter table public.fit2fight_sessions_history enable row level security;
