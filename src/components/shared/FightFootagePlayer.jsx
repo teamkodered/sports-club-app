@@ -224,6 +224,11 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
   const colourHoldFiredRef = useRef(false)
   const [markerRangeStart, setMarkerRangeStart] = useState(null) // set once "Add marker" is first tapped, awaiting the end point
   const [viewingMarkerNote, setViewingMarkerNote] = useState(null)
+  // Crossed-circle toggle by the colour swatches: play at the normal selected
+  // speed, ignoring any per-note speed changes (notes/highlights still show).
+  const [ignoreNoteSpeeds, setIgnoreNoteSpeeds] = useState(false)
+  const ignoreNoteSpeedsRef = useRef(false)
+  useEffect(() => { ignoreNoteSpeedsRef.current = ignoreNoteSpeeds }, [ignoreNoteSpeeds])
   // How far up from the video's bottom edge the note bubble sits. In
   // landscape the video fills the screen height, so the bottom control
   // bar covers its lower edge -- this lifts the bubble to just above the
@@ -324,7 +329,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
         // Skipped while hold-to-slow-mo is actively engaged, since that
         // gesture already owns the playback rate for its duration.
         if (!isHoldingRef.current) {
-          const targetSpeed = (active?.playback_speed && active.playback_speed !== 1) ? active.playback_speed : speedRef.current
+          const targetSpeed = (!ignoreNoteSpeedsRef.current && active?.playback_speed && active.playback_speed !== 1) ? active.playback_speed : speedRef.current
           if (Math.abs(v.playbackRate - targetSpeed) > 0.001) v.playbackRate = targetSpeed
         }
 
@@ -1363,9 +1368,21 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
             same colour again turns it back off. */}
         {(() => {
           const distinctColours = [...new Set(markers.filter(m => m.marker_type === 'highlight' && m.highlight_color).map(m => m.highlight_color))]
-          if (distinctColours.length === 0) return null
+          const hasNoteSpeeds = markers.some(m => m.playback_speed && m.playback_speed !== 1)
+          if (distinctColours.length === 0 && !hasNoteSpeeds) return null
           return (
             <div style={{ position: 'absolute', top: 40, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 6 }}>
+              <button type="button" aria-pressed={ignoreNoteSpeeds}
+                title={ignoreNoteSpeeds ? 'Note speeds OFF — playing at normal speed (tap to use note speeds again)' : 'Ignore note speed changes (highlights still show)'}
+                aria-label={ignoreNoteSpeeds ? 'Use note speeds again' : 'Ignore note speed changes'}
+                onClick={() => setIgnoreNoteSpeeds(v => !v)}
+                style={{
+                  width: 22, height: 22, borderRadius: '50%', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: ignoreNoteSpeeds ? '#fff' : 'rgba(0,0,0,0.35)',
+                  border: ignoreNoteSpeeds ? '3px solid #fff' : '1px solid rgba(255,255,255,0.5)',
+                }}>
+                <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke={ignoreNoteSpeeds ? '#111' : '#fff'} strokeWidth="1.8" strokeLinecap="round" /></svg>
+              </button>
               {distinctColours.map(c => (
                 <button key={c} title={colourFilter === c ? 'Show full video again (hold: jump to next marker of this colour)' : 'Play only this colour (hold: jump to next marker of this colour)'}
                   onClick={() => handleColourSwatchClick(c)}
