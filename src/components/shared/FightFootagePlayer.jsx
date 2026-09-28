@@ -450,7 +450,37 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
 
   function handleScrubEnd() {
     scrubbingRef.current = false
+    lastSnapEdgeRef.current = null
     scheduleAutoHide()
+  }
+
+  // Soft snap while scrubbing: if the target time lands within SNAP_PX
+  // (on screen) of a note block's start or end edge, it jumps to exactly
+  // that edge. Dragging further than that pulls it off again, so it
+  // guides rather than traps. A tiny buzz on phones each time it catches
+  // a new edge. Works at any zoom level, since the threshold is converted
+  // from pixels to seconds using the row's current width.
+  const SNAP_PX = 12
+  const lastSnapEdgeRef = useRef(null)
+  function snapToMarkerEdge(t) {
+    const width = markerRowRef.current?.getBoundingClientRect().width
+    if (!width || !duration || markers.length === 0) return t
+    const windowDuration = zoomLevel === 1 ? duration : duration / zoomLevel
+    const threshold = (SNAP_PX / width) * windowDuration
+    let best = null
+    for (const m of markers) {
+      const edges = m.marker_type === 'photo' ? [m.start_seconds] : [m.start_seconds, m.end_seconds]
+      for (const edge of edges) {
+        const d = Math.abs(edge - t)
+        if (d <= threshold && (best === null || d < Math.abs(best - t))) best = edge
+      }
+    }
+    if (best === null) { lastSnapEdgeRef.current = null; return t }
+    if (lastSnapEdgeRef.current !== best) {
+      lastSnapEdgeRef.current = best
+      navigator.vibrate?.(8)
+    }
+    return best
   }
 
   // Swiping the marker row directly seeks too, exactly like dragging
@@ -461,7 +491,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
     if (!rect || !duration) return
     const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
     const windowDuration = zoomLevel === 1 ? duration : duration / zoomLevel
-    seekTo(zoomWindowStart + pct * windowDuration)
+    seekTo(snapToMarkerEdge(zoomWindowStart + pct * windowDuration))
   }
 
   function handleMarkerRowPointerDown(e) {
@@ -1174,7 +1204,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
                 max={zoomLevel === 1 ? (duration || 0) : zoomWindowStart + duration / zoomLevel}
                 step={0.01}
                 value={currentTime}
-                onChange={e => seekTo(parseFloat(e.target.value))}
+                onChange={e => seekTo(snapToMarkerEdge(parseFloat(e.target.value)))}
                 onPointerDown={handleScrubStart}
                 onPointerUp={handleScrubEnd}
                 style={{ width: '100%', position: 'relative' }}
