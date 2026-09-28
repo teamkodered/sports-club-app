@@ -1644,6 +1644,7 @@ export default function AthleteApp() {
   const [todaysMentalityLog, setTodaysMentalityLog] = useState({})
   const [savingMentalityLog, setSavingMentalityLog] = useState(false)
   const [chessCustomAdd, setChessCustomAdd] = useState('')
+  const [pickDraft, setPickDraft] = useState({}) // drafts for AmountPicker / ChecklistPicker
   const [readingCustomAdd, setReadingCustomAdd] = useState('')
   const [gamingCustomAdd, setGamingCustomAdd] = useState('')
   const [eyeTrackingCustomAdd, setEyeTrackingCustomAdd] = useState('')
@@ -3439,6 +3440,112 @@ export default function AthleteApp() {
     )
   }
 
+  // Amount questions (games, sessions, drills, litres, minutes, conversations,
+  // tasks): tap a quick amount OR type one -- ONE box, ONE Add. Adds exactly
+  // what the old +N buttons / custom-add box added, so totals are unchanged.
+  function AmountPicker({ draftKey, presets = [1, 2, 3], unit = '', step = 1, onAdd, colour = '#22B14C', saveLabel = 'Add' }) {
+    const raw = pickDraft[draftKey] ?? ''
+    const n = step < 1 ? parseFloat(raw) : parseInt(raw, 10)
+    const ok = Number.isFinite(n) && n > 0
+    const save = () => { if (!ok) return; onAdd(n); setPickDraft(p => ({ ...p, [draftKey]: '' })) }
+    return (
+      <div className="neon-picker field" style={{ width: '100%', minWidth: 0, marginBottom: 8 }}>
+        <label>Add</label>
+        {presets.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+            {presets.map(v => {
+              const on = String(v) === String(raw)
+              return (
+                <button key={v} type="button" className="btn btn-sm neon-opt" aria-pressed={on}
+                  onClick={() => setPickDraft(p => ({ ...p, [draftKey]: on ? '' : String(v) }))}
+                  style={{ background: on ? colour + '20' : undefined, borderColor: on ? colour : undefined }}>
+                  +{v}{unit ? ` ${unit}` : ''}
+                </button>
+              )
+            })}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+          <input type="number" min="0" step={step} inputMode={step < 1 ? 'decimal' : 'numeric'} className="neon-min"
+            placeholder={unit ? `Amount (${unit})` : 'Amount'} aria-label={unit ? `Amount in ${unit}` : 'Amount'} value={raw}
+            onChange={e => setPickDraft(p => ({ ...p, [draftKey]: e.target.value }))}
+            onKeyDown={e => { if (e.key === 'Enter') save() }}
+            style={{ flex: 1, minWidth: 0, padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 15, background: 'var(--bg-primary)', color: 'var(--text)', fontFamily: 'var(--font-sans)' }} />
+          <button type="button" className="btn btn-sm neon-save" disabled={!ok} onClick={save}>{saveLabel}</button>
+        </div>
+      </div>
+    )
+  }
+
+  // Checklist questions (Tactical areas, Technique groups): tap any number of
+  // options, add ONE optional note, press ONE Save -- each saved item is the
+  // same entry the old tick-box made. Saved items list above; tap one to
+  // edit its note (same box, same Save) or x to remove it.
+  function ChecklistPicker({ draftKey, items, logged, onAdd, onRemove, onUpdateNote, colour = '#22B14C' }) {
+    const blank = { sel: [], note: '', edit: null }
+    const d = { ...blank, ...(pickDraft[draftKey] || {}) }
+    const set = patch => setPickDraft(p => ({ ...p, [draftKey]: { ...blank, ...(p[draftKey] || {}), ...patch } }))
+    const loggedNames = logged.map(l => l.item)
+    const editing = d.edit && loggedNames.includes(d.edit) ? d.edit : null
+    const avail = items.filter(i => !loggedNames.includes(i))
+    const sel = d.sel.filter(i => avail.includes(i))
+    const canSave = editing ? true : sel.length > 0
+    const save = () => {
+      if (!canSave) return
+      if (editing) onUpdateNote(editing, d.note)
+      else onAdd(sel, d.note)
+      setPickDraft(p => ({ ...p, [draftKey]: blank }))
+    }
+    return (
+      <div className="neon-picker field" style={{ width: '100%', minWidth: 0, marginBottom: 0 }}>
+        {logged.length > 0 && (
+          <div style={{ marginBottom: 12 }}>
+            <label>Logged today</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {logged.map(l => (
+                <div key={l.item} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, padding: '6px 10px', background: colour + '12', borderRadius: 'var(--radius)', border: editing === l.item ? `1px solid ${colour}` : '1px solid transparent' }}>
+                  <button type="button" onClick={() => set({ edit: editing === l.item ? null : l.item, note: editing === l.item ? '' : (l.note || ''), sel: [] })}
+                    style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text)', fontFamily: 'var(--font-sans)', fontSize: 13 }}>
+                    {l.item}
+                    <span style={{ display: 'block', fontSize: 11, color: l.note ? 'var(--text-secondary)' : 'var(--text-tertiary)', marginTop: 2 }}>{l.note || 'Tap to add a note'}</span>
+                  </button>
+                  <button type="button" aria-label={`Remove ${l.item}`} onClick={() => { onRemove(l.item); if (editing === l.item) set(blank) }}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 16, padding: '0 4px' }}>×</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {!editing && avail.length > 0 && (
+          <>
+            <label>Choose (tap all that apply)</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+              {avail.map(i => {
+                const on = sel.includes(i)
+                return (
+                  <button key={i} type="button" className="btn btn-sm neon-opt" aria-pressed={on}
+                    onClick={() => set({ sel: on ? sel.filter(x => x !== i) : [...sel, i] })}
+                    style={{ background: on ? colour + '20' : undefined, borderColor: on ? colour : undefined, whiteSpace: 'normal', textAlign: 'left', height: 'auto' }}>
+                    {i}
+                  </button>
+                )
+              })}
+            </div>
+          </>
+        )}
+        {(editing || avail.length > 0) && (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+            <input type="text" className="neon-min neon-note" value={d.note} onChange={e => set({ note: e.target.value })}
+              onKeyDown={e => { if (e.key === 'Enter') save() }}
+              placeholder={editing ? `Note for “${editing}”` : 'Note (optional)'} aria-label="Note"
+              style={{ flex: 1, minWidth: 0, padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 14, background: 'var(--bg-primary)', color: 'var(--text)', fontFamily: 'var(--font-sans)' }} />
+            <button type="button" className="btn btn-sm neon-save" disabled={!canSave} onClick={save}>{editing ? 'Save note' : sel.length > 1 ? `Save ${sel.length}` : 'Save'}</button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   function MultiSessionTypeLogger({ field, options, colour = '#6D28D9' }) {
     return (
       <div className="field" style={{ marginBottom: 0 }}>
@@ -4945,40 +5052,7 @@ export default function AthleteApp() {
                           if (expandedTechniqueCategory !== catKey) return null
                           return (
                             <div key={catKey} className="card neon-qpanel neon-q-technical" style={{ marginBottom: 8 }}>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                {items.map(technique => {
-                                  const entry = todaysTechniques.find(t => t.style === style && t.category === cat && t.technique === technique)
-                                  const selected = !!entry
-                                  return (
-                                    <div key={technique}>
-                                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
-                                        <input type="checkbox" checked={selected}
-                                          onChange={() => {
-                                            const next = selected
-                                              ? todaysTechniques.filter(t => !(t.style === style && t.category === cat && t.technique === technique))
-                                              : [...todaysTechniques, { style, category: cat, technique, note: '' }]
-                                            savePhysicalField('techniques', next, setTodaysTechniques)
-                                          }}
-                                          style={{ width: 16, height: 16 }} />
-                                        {technique}
-                                      </label>
-                                      {selected && (
-                                        <div style={{ display: 'flex', gap: 4, marginTop: 4, marginLeft: 24, width: 'calc(100% - 24px)' }}>
-                                          <input ref={el => { techniqueNoteRefs.current[`${style}::${cat}::${technique}`] = el }}
-                                            defaultValue={entry.note || ''} placeholder="Add a note…"
-                                            style={{ flex: 1, fontSize: 12 }} />
-                                          <button type="button" className="btn btn-sm" style={{ fontSize: 11 }}
-                                            onClick={() => {
-                                              const val = techniqueNoteRefs.current[`${style}::${cat}::${technique}`]?.value ?? ''
-                                              const next = todaysTechniques.map(t => (t.style === style && t.category === cat && t.technique === technique) ? { ...t, note: val } : t)
-                                              savePhysicalField('techniques', next, setTodaysTechniques)
-                                            }}>Save</button>
-                                        </div>
-                                      )}
-                                    </div>
-                                  )
-                                })}
-                              </div>
+                              {ChecklistPicker({ draftKey: `tec:${style}::${cat}`, items, colour: '#2F6BFF', logged: todaysTechniques.filter(t => t.style === style && t.category === cat).map(t => ({ item: t.technique, note: t.note })), onAdd: (arr, note) => savePhysicalField('techniques', [...todaysTechniques, ...arr.map(technique => ({ style, category: cat, technique, note }))], setTodaysTechniques), onRemove: technique => savePhysicalField('techniques', todaysTechniques.filter(t => !(t.style === style && t.category === cat && t.technique === technique)), setTodaysTechniques), onUpdateNote: (technique, note) => savePhysicalField('techniques', todaysTechniques.map(t => (t.style === style && t.category === cat && t.technique === technique) ? { ...t, note } : t), setTodaysTechniques) })}
                               <QuestionMediaUpload sectionKey="technique" questionLabel={cat} />
                             </div>
                           )
@@ -5063,39 +5137,7 @@ export default function AthleteApp() {
                       if (expandedTacticalCategory !== cat) return null
                       return (
                         <div key={cat} className="card neon-qpanel neon-q-tactical" style={{ marginBottom: 8 }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                            {items.map(item => {
-                              const entry = todaysTactical.find(t => t.category === cat && t.item === item)
-                              const selected = !!entry
-                              return (
-                                <div key={item}>
-                                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
-                                    <input type="checkbox" checked={selected}
-                                      onChange={() => {
-                                        const next = selected
-                                          ? todaysTactical.filter(t => !(t.category === cat && t.item === item))
-                                          : [...todaysTactical, { category: cat, item, note: '' }]
-                                        savePhysicalField('tactical', next, setTodaysTactical)
-                                      }}
-                                      style={{ width: 16, height: 16, flexShrink: 0 }} />
-                                    {item}
-                                  </label>
-                                  {selected && (
-                                    <div style={{ display: 'flex', gap: 4, marginTop: 4, marginLeft: 24, width: 'calc(100% - 24px)' }}>
-                                      <input ref={el => { tacticalNoteRefs.current[`${cat}::${item}`] = el }}
-                                        defaultValue={entry.note || ''} placeholder="Add a note…" style={{ flex: 1, fontSize: 12 }} />
-                                      <button type="button" className="btn btn-sm" style={{ fontSize: 11 }}
-                                        onClick={() => {
-                                          const val = tacticalNoteRefs.current[`${cat}::${item}`]?.value ?? ''
-                                          const next = todaysTactical.map(t => (t.category === cat && t.item === item) ? { ...t, note: val } : t)
-                                          savePhysicalField('tactical', next, setTodaysTactical)
-                                        }}>Save</button>
-                                    </div>
-                                  )}
-                                </div>
-                              )
-                            })}
-                          </div>
+                          {ChecklistPicker({ draftKey: `tac:${cat}`, items, colour: '#FF2A2A', logged: todaysTactical.filter(t => t.category === cat).map(t => ({ item: t.item, note: t.note })), onAdd: (arr, note) => savePhysicalField('tactical', [...todaysTactical, ...arr.map(item => ({ category: cat, item, note }))], setTodaysTactical), onRemove: item => savePhysicalField('tactical', todaysTactical.filter(t => !(t.category === cat && t.item === item)), setTodaysTactical), onUpdateNote: (item, note) => savePhysicalField('tactical', todaysTactical.map(t => (t.category === cat && t.item === item) ? { ...t, note } : t), setTodaysTactical) })}
                           <QuestionMediaUpload sectionKey="tactical" questionLabel={cat} />
                         </div>
                       )
@@ -5157,58 +5199,26 @@ export default function AthleteApp() {
                         )}
                         {expandedHomeMentality === 'chess' && (
                           <>
-                            <button type="button" className="btn" style={{ width: '100%', justifyContent: 'center', marginBottom: 10, fontSize: 16, padding: '14px' }}
-                              onClick={() => saveMentalityField('chess', cur => ({ count: (cur.count || 0) + 1 }))}>+1 game</button>
                             <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.chess?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>game{(todaysMentalityLog.chess?.count || 0) === 1 ? '' : 's'} today</span></div>
-                            <div className="field" style={{ marginBottom: 0 }}><label>Or write a number to add</label>
-                              <div style={{ display: 'flex', gap: 6 }}>
-                                <input type="number" value={chessCustomAdd} onChange={e => setChessCustomAdd(e.target.value)} placeholder="e.g. 3" style={{ flex: 1 }} />
-                                <button type="button" className="btn btn-sm" disabled={!chessCustomAdd}
-                                  onClick={() => { saveMentalityField('chess', cur => ({ count: (cur.count || 0) + parseInt(chessCustomAdd || 0) })); setChessCustomAdd('') }}>Add</button>
-                              </div>
-                            </div>
+                            {AmountPicker({ draftKey: 'HomeMentality:chess', presets: [1, 2, 3], unit: '', step: 1, colour: '#22B14C', onAdd: n => saveMentalityField('chess', cur => ({ count: (cur.count || 0) + n })) })}
                           </>
                         )}
                         {expandedHomeMentality === 'reading' && (
                           <>
                             <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.reading?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>session{(todaysMentalityLog.reading?.count || 0) === 1 ? '' : 's'} today</span></div>
-                            <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
-                              onClick={() => saveMentalityField('reading', cur => ({ count: (cur.count || 0) + 1 }))}>+1 reading session</button>
-                            <div className="field" style={{ marginBottom: 0 }}><label>Or write a number to add</label>
-                              <div style={{ display: 'flex', gap: 6 }}>
-                                <input type="number" value={readingCustomAdd} onChange={e => setReadingCustomAdd(e.target.value)} placeholder="e.g. 3" style={{ flex: 1 }} />
-                                <button type="button" className="btn btn-sm" disabled={!readingCustomAdd}
-                                  onClick={() => { saveMentalityField('reading', cur => ({ count: (cur.count || 0) + parseInt(readingCustomAdd || 0) })); setReadingCustomAdd('') }}>Add</button>
-                              </div>
-                            </div>
+                            {AmountPicker({ draftKey: 'HomeMentality:reading', presets: [1, 2, 3], unit: '', step: 1, colour: '#22B14C', onAdd: n => saveMentalityField('reading', cur => ({ count: (cur.count || 0) + n })) })}
                           </>
                         )}
                         {expandedHomeMentality === 'gaming' && (
                           <>
                             <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.gaming?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>session{(todaysMentalityLog.gaming?.count || 0) === 1 ? '' : 's'} today</span></div>
-                            <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
-                              onClick={() => saveMentalityField('gaming', cur => ({ count: (cur.count || 0) + 1 }))}>+1 session</button>
-                            <div className="field" style={{ marginBottom: 0 }}><label>Or write a number to add</label>
-                              <div style={{ display: 'flex', gap: 6 }}>
-                                <input type="number" value={gamingCustomAdd} onChange={e => setGamingCustomAdd(e.target.value)} placeholder="e.g. 3" style={{ flex: 1 }} />
-                                <button type="button" className="btn btn-sm" disabled={!gamingCustomAdd}
-                                  onClick={() => { saveMentalityField('gaming', cur => ({ count: (cur.count || 0) + parseInt(gamingCustomAdd || 0) })); setGamingCustomAdd('') }}>Add</button>
-                              </div>
-                            </div>
+                            {AmountPicker({ draftKey: 'HomeMentality:gaming', presets: [1, 2, 3], unit: '', step: 1, colour: '#22B14C', onAdd: n => saveMentalityField('gaming', cur => ({ count: (cur.count || 0) + n })) })}
                           </>
                         )}
                         {expandedHomeMentality === 'eyeTracking' && (
                           <>
                             <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.eyeTracking?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>drill{(todaysMentalityLog.eyeTracking?.count || 0) === 1 ? '' : 's'} today</span></div>
-                            <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
-                              onClick={() => saveMentalityField('eyeTracking', cur => ({ count: (cur.count || 0) + 1 }))}>+1 drill</button>
-                            <div className="field" style={{ marginBottom: 12 }}><label>Or write a number to add</label>
-                              <div style={{ display: 'flex', gap: 6 }}>
-                                <input type="number" value={eyeTrackingCustomAdd} onChange={e => setEyeTrackingCustomAdd(e.target.value)} placeholder="e.g. 3" style={{ flex: 1 }} />
-                                <button type="button" className="btn btn-sm" disabled={!eyeTrackingCustomAdd}
-                                  onClick={() => { saveMentalityField('eyeTracking', cur => ({ count: (cur.count || 0) + parseInt(eyeTrackingCustomAdd || 0) })); setEyeTrackingCustomAdd('') }}>Add</button>
-                              </div>
-                            </div>
+                            {AmountPicker({ draftKey: 'HomeMentality:eyeTracking', presets: [1, 2, 3], unit: '', step: 1, colour: '#22B14C', onAdd: n => saveMentalityField('eyeTracking', cur => ({ count: (cur.count || 0) + n })) })}
                             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
                               <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>Drill videos</p>
                               <a href="https://youtu.be/bbk_ufmkYdE?si=yGVw8UoERqRE547i" target="_blank" rel="noreferrer"
@@ -5224,15 +5234,7 @@ export default function AthleteApp() {
                         {expandedHomeMentality === 'coldWater' && (
                           <>
                             <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.coldWater?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>today</span></div>
-                            <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
-                              onClick={() => saveMentalityField('coldWater', cur => ({ count: (cur.count || 0) + 1 }))}>+1</button>
-                            <div className="field" style={{ marginBottom: 0 }}><label>Or write a number to add</label>
-                              <div style={{ display: 'flex', gap: 6 }}>
-                                <input type="number" value={coldWaterCustomAdd} onChange={e => setColdWaterCustomAdd(e.target.value)} placeholder="e.g. 3" style={{ flex: 1 }} />
-                                <button type="button" className="btn btn-sm" disabled={!coldWaterCustomAdd}
-                                  onClick={() => { saveMentalityField('coldWater', cur => ({ count: (cur.count || 0) + parseInt(coldWaterCustomAdd || 0) })); setColdWaterCustomAdd('') }}>Add</button>
-                              </div>
-                            </div>
+                            {AmountPicker({ draftKey: 'HomeMentality:coldWater', presets: [1, 2, 3], unit: '', step: 1, colour: '#22B14C', onAdd: n => saveMentalityField('coldWater', cur => ({ count: (cur.count || 0) + n })) })}
                           </>
                         )}
                         {expandedHomeMentality === 'activeRecovery' && (
@@ -5576,22 +5578,7 @@ export default function AthleteApp() {
                         {expandedHomeWb === 'hydration' && (
                           <>
                             <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{(todaysWellbeing.hydration?.total || 0).toFixed(2)}L <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>today</span></div>
-                            <div className="field">
-                              <label>Add</label>
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                {HYDRATION_ADD_OPTIONS.map(v => (
-                                  <button key={v} type="button" onClick={() => saveWellbeingField('hydration', cur => ({ total: +((cur.total || 0) + v).toFixed(2) }))}
-                                    className="btn btn-sm">+{v}L</button>
-                                ))}
-                              </div>
-                            </div>
-                            <div className="field" style={{ marginBottom: 8 }}><label>Or add a custom amount (L)</label>
-                              <div style={{ display: 'flex', gap: 6 }}>
-                                <input type="number" step="0.1" value={hydrationCustomAdd} onChange={e => setHydrationCustomAdd(e.target.value)} placeholder="e.g. 0.3" style={{ flex: 1 }} />
-                                <button type="button" className="btn btn-sm" disabled={!hydrationCustomAdd}
-                                  onClick={() => { saveWellbeingField('hydration', cur => ({ total: +((cur.total || 0) + parseFloat(hydrationCustomAdd || 0)).toFixed(2) })); setHydrationCustomAdd('') }}>Add</button>
-                              </div>
-                            </div>
+                            {AmountPicker({ draftKey: 'HomeWb:hydration', presets: HYDRATION_ADD_OPTIONS, unit: 'L', step: 0.05, colour: '#C93BFF', onAdd: n => saveWellbeingField('hydration', cur => ({ total: +((cur.total || 0) + n).toFixed(2) })) })}
                             {todaysWellbeing.hydration?.total > 0 && (
                               <button type="button" className="btn btn-sm" onClick={() => saveWellbeingField('hydration', () => ({ total: 0 }))}>Reset today's total</button>
                             )}
@@ -5618,22 +5605,7 @@ export default function AthleteApp() {
                                 </div>
                               )
                             })()}
-                            <div className="field">
-                              <label>Add</label>
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                {OUTDOORS_ADD_OPTIONS.map(v => (
-                                  <button key={v} type="button" onClick={() => saveWellbeingField('outdoors', cur => ({ totalMinutes: (cur.totalMinutes || 0) + v }))}
-                                    className="btn btn-sm">+{v} mins</button>
-                                ))}
-                              </div>
-                            </div>
-                            <div className="field" style={{ marginBottom: 8 }}><label>Or add custom minutes</label>
-                              <div style={{ display: 'flex', gap: 6 }}>
-                                <input type="number" value={outdoorsCustomAdd} onChange={e => setOutdoorsCustomAdd(e.target.value)} placeholder="e.g. 15" style={{ flex: 1 }} />
-                                <button type="button" className="btn btn-sm" disabled={!outdoorsCustomAdd}
-                                  onClick={() => { saveWellbeingField('outdoors', cur => ({ totalMinutes: (cur.totalMinutes || 0) + parseInt(outdoorsCustomAdd || 0) })); setOutdoorsCustomAdd('') }}>Add</button>
-                              </div>
-                            </div>
+                            {AmountPicker({ draftKey: 'HomeWb:outdoors', presets: OUTDOORS_ADD_OPTIONS, unit: 'mins', step: 1, colour: '#C93BFF', onAdd: n => saveWellbeingField('outdoors', cur => ({ totalMinutes: (cur.totalMinutes || 0) + n })) })}
                             {todaysWellbeing.outdoors?.totalMinutes > 0 && (
                               <button type="button" className="btn btn-sm" onClick={() => saveWellbeingField('outdoors', () => ({ totalMinutes: 0 }))}>Reset today's total</button>
                             )}
@@ -5642,22 +5614,7 @@ export default function AthleteApp() {
                         {expandedHomeWb === 'talk' && (
                           <>
                             <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysWellbeing.talk?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>conversation{(todaysWellbeing.talk?.count || 0) === 1 ? '' : 's'} today</span></div>
-                            <div className="field">
-                              <label>Add</label>
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                {TALK_ADD_OPTIONS.map(v => (
-                                  <button key={v} type="button" onClick={() => saveWellbeingField('talk', cur => ({ count: (cur.count || 0) + v }))}
-                                    className="btn btn-sm">+{v}</button>
-                                ))}
-                              </div>
-                            </div>
-                            <div className="field" style={{ marginBottom: 8 }}><label>Or write a number to add</label>
-                              <div style={{ display: 'flex', gap: 6 }}>
-                                <input type="number" value={talkCustomAdd} onChange={e => setTalkCustomAdd(e.target.value)} placeholder="e.g. 4" style={{ flex: 1 }} />
-                                <button type="button" className="btn btn-sm" disabled={!talkCustomAdd}
-                                  onClick={() => { saveWellbeingField('talk', cur => ({ count: (cur.count || 0) + parseInt(talkCustomAdd || 0) })); setTalkCustomAdd('') }}>Add</button>
-                              </div>
-                            </div>
+                            {AmountPicker({ draftKey: 'HomeWb:talk', presets: TALK_ADD_OPTIONS, unit: '', step: 1, colour: '#C93BFF', onAdd: n => saveWellbeingField('talk', cur => ({ count: (cur.count || 0) + n })) })}
                             {todaysWellbeing.talk?.count > 0 && (
                               <button type="button" className="btn btn-sm" onClick={() => saveWellbeingField('talk', () => ({ count: 0 }))}>Reset today's count</button>
                             )}
@@ -5711,17 +5668,7 @@ export default function AthleteApp() {
                         {expandedHomeWb === 'creative' && (
                           <>
                             <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysWellbeing.creative?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>task{(todaysWellbeing.creative?.count || 0) === 1 ? '' : 's'} today</span></div>
-                            <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
-                              onClick={() => saveWellbeingField('creative', cur => ({ ...cur, count: (cur.count || 0) + 1 }))}>
-                              +1 creative task completed
-                            </button>
-                            <div className="field"><label>Or write a number to add</label>
-                              <div style={{ display: 'flex', gap: 6 }}>
-                                <input type="number" value={creativeCustomAdd} onChange={e => setCreativeCustomAdd(e.target.value)} placeholder="e.g. 3" style={{ flex: 1 }} />
-                                <button type="button" className="btn btn-sm" disabled={!creativeCustomAdd}
-                                  onClick={() => { saveWellbeingField('creative', cur => ({ ...cur, count: (cur.count || 0) + parseInt(creativeCustomAdd || 0) })); setCreativeCustomAdd('') }}>Add</button>
-                              </div>
-                            </div>
+                            {AmountPicker({ draftKey: 'HomeWb:creative', presets: [1, 2, 3], unit: '', step: 1, colour: '#C93BFF', onAdd: n => saveWellbeingField('creative', cur => ({ ...cur, count: (cur.count || 0) + n })) })}
                             <SavableField key={todaysWellbeing.creative ? 'loaded' : 'empty'} defaultValue={todaysWellbeing.creative?.notes ?? lastWellbeing.creative?.notes} placeholder="Optional — what did you do?"
                               onSave={val => saveWellbeingField('creative', cur => ({ ...cur, notes: val }))} />
                           </>
@@ -5729,17 +5676,7 @@ export default function AthleteApp() {
                         {expandedHomeWb === 'productivity' && (
                           <>
                             <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysWellbeing.productivity?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>task{(todaysWellbeing.productivity?.count || 0) === 1 ? '' : 's'} today</span></div>
-                            <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
-                              onClick={() => saveWellbeingField('productivity', cur => ({ ...cur, count: (cur.count || 0) + 1 }))}>
-                              +1 productive task completed
-                            </button>
-                            <div className="field"><label>Or write a number to add</label>
-                              <div style={{ display: 'flex', gap: 6 }}>
-                                <input type="number" value={productivityCustomAdd} onChange={e => setProductivityCustomAdd(e.target.value)} placeholder="e.g. 3" style={{ flex: 1 }} />
-                                <button type="button" className="btn btn-sm" disabled={!productivityCustomAdd}
-                                  onClick={() => { saveWellbeingField('productivity', cur => ({ ...cur, count: (cur.count || 0) + parseInt(productivityCustomAdd || 0) })); setProductivityCustomAdd('') }}>Add</button>
-                              </div>
-                            </div>
+                            {AmountPicker({ draftKey: 'HomeWb:productivity', presets: [1, 2, 3], unit: '', step: 1, colour: '#C93BFF', onAdd: n => saveWellbeingField('productivity', cur => ({ ...cur, count: (cur.count || 0) + n })) })}
                             <SavableField key={todaysWellbeing.productivity ? 'loaded' : 'empty'} defaultValue={todaysWellbeing.productivity?.notes ?? lastWellbeing.productivity?.notes} placeholder="Optional — what did you do?"
                               onSave={val => saveWellbeingField('productivity', cur => ({ ...cur, notes: val }))} />
                           </>
