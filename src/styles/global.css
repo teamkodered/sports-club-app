@@ -614,3 +614,19 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .neon-home .neon-type-dots { display: flex; gap: 3px; margin-top: 3px; }
 .neon-home .neon-type-dots i { width: 4px; height: 4px; border-radius: 50%; background: #444; }
 .neon-home .neon-type-dots i.on { background: #E6B800; box-shadow: 0 0 4px #E6B800; }
+
+/* Physical: module cards (Running / Watt bike / Bodyweight / Stretch) + S&C bar the same size as other sections' cards */
+.neon-home .neon-module { min-height: 96px; }
+.neon-home .neon-module > button:not(.neon-module-pb) { padding: 12px 10px !important; gap: 10px !important; }
+.neon-home .neon-module > button:not(.neon-module-pb) span[style*="white-space: nowrap"] { font-size: 18px !important; }
+.neon-home .neon-module > button:not(.neon-module-pb) span[style*="line-height: 1.2"] { font-size: 12px !important; font-family: 'Orbitron', sans-serif; letter-spacing: 1px; color: #E6B800 !important; }
+.neon-home .neon-module > button:not(.neon-module-pb) > span:last-child { font-size: 26px !important; }
+.neon-home .neon-module-pb { width: 78px !important; }
+.neon-home .neon-module .neon-pb-value { font-size: 17px; }
+.neon-home .neon-snc-bar { min-height: 72px; }
+.neon-home .neon-snc-bar span[style*="font-size: 16px"] { font-size: 24px !important; }
+.neon-home .neon-snc-bar span[style*="font-size: 9px"] { font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800 !important; font-size: 18px !important; text-transform: uppercase; }
+.neon-home .neon-snc-bar span[style*="font-size: 8px"] { font-size: 11px !important; font-family: 'Orbitron', sans-serif; }
+/* Compound Lifts: full-width card, same card style */
+.neon-home .neon-q.neon-compound { min-height: 72px; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "title icon"; align-items: center !important; }
+.neon-home .neon-q.neon-compound.is-active { border-bottom: 1px solid var(--q-accent) !important; border-radius: 6px !important; }

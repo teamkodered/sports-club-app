@@ -1658,6 +1658,18 @@ export default function AthleteApp() {
   const [bodyweightTypeOptions, setBodyweightTypeOptions] = useState([])
   const [stretchOptionsList, setStretchOptionsList] = useState([])
   const [expandedHomeRun, setExpandedHomeRun] = useState(null)
+  const [showCompoundLifts, setShowCompoundLifts] = useState(false) // Compound Lifts: its own card under Physical
+  // Light vibration on every press in the athlete app (phones that support it;
+  // iPhones ignore it). One listener for the whole app, nothing else changes.
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('vibrate' in navigator)) return
+    const onDown = e => {
+      const t = e.target?.closest?.('button, a, [role="button"], input[type="checkbox"], input[type="radio"], select, summary')
+      if (t && !t.disabled && t.getAttribute('aria-disabled') !== 'true') { try { navigator.vibrate(8) } catch { /* not supported */ } }
+    }
+    document.addEventListener('pointerdown', onDown, { capture: true, passive: true })
+    return () => document.removeEventListener('pointerdown', onDown, { capture: true })
+  }, [])
   const [wattEffortSel, setWattEffortSel] = useState({}) // watt bike: which effort is being edited, per group
   const [runEffortSel, setRunEffortSel] = useState({}) // running: which effort is being edited, per type ('__new__' = a new one)
   const [showPhysicalSection, setShowPhysicalSection] = useState(false)
@@ -4697,6 +4709,76 @@ export default function AthleteApp() {
                     )
                   })
                 }
+                // One Bodyweight group's panel (used by the Bodyweight grid and the Compound Lifts card)
+                const renderBwPanel = grpKey => {
+                      const grp = BODYWEIGHT_GROUPS.find(g => g.key === grpKey)
+                      const groupEntries = todaysBodyweight.filter(e => bodyweightMatchesGroup(e, grp.key))
+                      const upsertExercise = (exerciseName, updater) => {
+                        const existing = groupEntries.find(e => e.type === exerciseName) || { category: grp.key, type: exerciseName, duration: '', sets: [] }
+                        const updated = updater(existing)
+                        const others = todaysBodyweight.filter(e => !(bodyweightMatchesGroup(e, grp.key) && e.type === exerciseName))
+                        savePhysicalField('bodyweight', [...others, updated], setTodaysBodyweight)
+                      }
+                      const removeExercise = exerciseName => {
+                        savePhysicalField('bodyweight', todaysBodyweight.filter(e => !(bodyweightMatchesGroup(e, grp.key) && e.type === exerciseName)), setTodaysBodyweight)
+                      }
+                      return (
+                        <div className="card neon-qpanel neon-q-physical neon-run-panel" style={{ marginBottom: 8 }}>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+                            <button type="button" className="btn btn-sm neon-danger" style={{ fontSize: 11 }}
+                              onClick={() => { if (window.confirm(`Remove every ${grp.label} exercise logged today?`)) savePhysicalField('bodyweight', todaysBodyweight.filter(e => !bodyweightMatchesGroup(e, grp.key)), setTodaysBodyweight) }}>✕ Clear all</button>
+                          </div>
+                          <div className="field"><label>Add exercise</label>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                              {grp.exercises.filter(x => !groupEntries.some(e => e.type === x)).map(x => (
+                                <button key={x} type="button" className="btn btn-sm neon-opt" onClick={() => upsertExercise(x, cur => ({ ...cur, sets: cur.sets || [] }))}>+ {x}</button>
+                              ))}
+                              {grp.exercises.every(x => groupEntries.some(e => e.type === x)) && <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>All added</span>}
+                            </div>
+                          </div>
+                          {grp.exercises.filter(x => groupEntries.some(e => e.type === x)).map((ex, i, added) => {
+                            const entry = groupEntries.find(e => e.type === ex)
+                            const checked = !!entry
+                            return (
+                              <div key={ex} style={{ marginBottom: 10, paddingBottom: 10, borderBottom: i < added.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                                  <span className="neon-ex-title" style={{ fontSize: 13, fontWeight: 600 }}>{ex}</span>
+                                  <button type="button" className="btn btn-sm neon-danger" style={{ fontSize: 11 }}
+                                    onClick={() => { const has = (entry?.sets || []).some(v => v !== '' && v != null && !(typeof v === 'object' && !Object.values(v).some(x => x !== '' && x != null))); if (!has || window.confirm(`Remove ${ex} and its results?`)) removeExercise(ex) }}>✕ Remove</button>
+                                </div>
+                                {checked && (
+                                  <div style={{ marginTop: 6, marginLeft: 24 }}>
+                                    {grp.durations && (
+                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+                                        {grp.durations.map(d => (
+                                          <button key={d} type="button" onClick={() => upsertExercise(ex, cur => ({ ...cur, duration: d }))}
+                                            className="btn btn-sm" style={{ background: entry.duration === d ? '#1D9E7520' : undefined, borderColor: entry.duration === d ? '#1D9E75' : undefined }}>{d}</button>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {grp.metric === 'weight_reps' ? (
+                                      <DualSetInput
+                                        key={ex}
+                                        sets={(entry.sets || []).map(s => (s && typeof s === 'object') ? s : { weight: '', reps: s })}
+                                        onChange={sets => upsertExercise(ex, cur => ({ ...cur, sets }))}
+                                        fields={[
+                                          { key: 'weight', type: 'number', placeholder: 'Weight kg' },
+                                          { key: 'reps', type: 'number', placeholder: 'Reps' },
+                                        ]} />
+                                    ) : (
+                                      <SetInput key={ex} sets={entry.sets || []} onChange={sets => upsertExercise(ex, cur => ({ ...cur, sets }))}
+                                        inputType={grp.metric === 'reps' ? 'number' : 'text'}
+                                        placeholder={grp.metric === 'reps' ? 'e.g. 20' : 'e.g. 1:30'} />
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                          {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>Saving…</p>}
+                        </div>
+                      )
+                }
                 const scopeOptions = ['All sessions', student.discipline, [student.class_schedule, student.class_time].filter(Boolean).join(' ')]
                   .filter(Boolean).filter((v, i, a) => a.indexOf(v) === i)
                 const scopeLen = scopeOptions.length || 1
@@ -5174,7 +5256,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                     {showBodyweightCards && (
                     <div ref={bodyweightPanelRef}>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeBodyweight ? 10 : 8 }}>
-                      {BODYWEIGHT_GROUPS.map(grp => {
+                      {BODYWEIGHT_GROUPS.filter(g => g.key !== 'compound_lifts').map(grp => {
                         const complete = todaysBodyweight.some(e => bodyweightMatchesGroup(e, grp.key))
                         const active = expandedHomeBodyweight === grp.key
                         return (
@@ -5199,75 +5281,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                         </button>
                       ) })}
                     </div>
-                    {expandedHomeBodyweight && !expandedHomeBodyweight.startsWith('__test:') && (() => {
-                      const grp = BODYWEIGHT_GROUPS.find(g => g.key === expandedHomeBodyweight)
-                      const groupEntries = todaysBodyweight.filter(e => bodyweightMatchesGroup(e, grp.key))
-                      const upsertExercise = (exerciseName, updater) => {
-                        const existing = groupEntries.find(e => e.type === exerciseName) || { category: grp.key, type: exerciseName, duration: '', sets: [] }
-                        const updated = updater(existing)
-                        const others = todaysBodyweight.filter(e => !(bodyweightMatchesGroup(e, grp.key) && e.type === exerciseName))
-                        savePhysicalField('bodyweight', [...others, updated], setTodaysBodyweight)
-                      }
-                      const removeExercise = exerciseName => {
-                        savePhysicalField('bodyweight', todaysBodyweight.filter(e => !(bodyweightMatchesGroup(e, grp.key) && e.type === exerciseName)), setTodaysBodyweight)
-                      }
-                      return (
-                        <div className="card neon-qpanel neon-q-physical neon-run-panel" style={{ marginBottom: 8 }}>
-                          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-                            <button type="button" className="btn btn-sm neon-danger" style={{ fontSize: 11 }}
-                              onClick={() => { if (window.confirm(`Remove every ${grp.label} exercise logged today?`)) savePhysicalField('bodyweight', todaysBodyweight.filter(e => !bodyweightMatchesGroup(e, grp.key)), setTodaysBodyweight) }}>✕ Clear all</button>
-                          </div>
-                          <div className="field"><label>Add exercise</label>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                              {grp.exercises.filter(x => !groupEntries.some(e => e.type === x)).map(x => (
-                                <button key={x} type="button" className="btn btn-sm neon-opt" onClick={() => upsertExercise(x, cur => ({ ...cur, sets: cur.sets || [] }))}>+ {x}</button>
-                              ))}
-                              {grp.exercises.every(x => groupEntries.some(e => e.type === x)) && <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>All added</span>}
-                            </div>
-                          </div>
-                          {grp.exercises.filter(x => groupEntries.some(e => e.type === x)).map((ex, i, added) => {
-                            const entry = groupEntries.find(e => e.type === ex)
-                            const checked = !!entry
-                            return (
-                              <div key={ex} style={{ marginBottom: 10, paddingBottom: 10, borderBottom: i < added.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                                  <span className="neon-ex-title" style={{ fontSize: 13, fontWeight: 600 }}>{ex}</span>
-                                  <button type="button" className="btn btn-sm neon-danger" style={{ fontSize: 11 }}
-                                    onClick={() => { const has = (entry?.sets || []).some(v => v !== '' && v != null && !(typeof v === 'object' && !Object.values(v).some(x => x !== '' && x != null))); if (!has || window.confirm(`Remove ${ex} and its results?`)) removeExercise(ex) }}>✕ Remove</button>
-                                </div>
-                                {checked && (
-                                  <div style={{ marginTop: 6, marginLeft: 24 }}>
-                                    {grp.durations && (
-                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
-                                        {grp.durations.map(d => (
-                                          <button key={d} type="button" onClick={() => upsertExercise(ex, cur => ({ ...cur, duration: d }))}
-                                            className="btn btn-sm" style={{ background: entry.duration === d ? '#1D9E7520' : undefined, borderColor: entry.duration === d ? '#1D9E75' : undefined }}>{d}</button>
-                                        ))}
-                                      </div>
-                                    )}
-                                    {grp.metric === 'weight_reps' ? (
-                                      <DualSetInput
-                                        key={ex}
-                                        sets={(entry.sets || []).map(s => (s && typeof s === 'object') ? s : { weight: '', reps: s })}
-                                        onChange={sets => upsertExercise(ex, cur => ({ ...cur, sets }))}
-                                        fields={[
-                                          { key: 'weight', type: 'number', placeholder: 'Weight kg' },
-                                          { key: 'reps', type: 'number', placeholder: 'Reps' },
-                                        ]} />
-                                    ) : (
-                                      <SetInput key={ex} sets={entry.sets || []} onChange={sets => upsertExercise(ex, cur => ({ ...cur, sets }))}
-                                        inputType={grp.metric === 'reps' ? 'number' : 'text'}
-                                        placeholder={grp.metric === 'reps' ? 'e.g. 20' : 'e.g. 1:30'} />
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            )
-                          })}
-                          {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>Saving…</p>}
-                        </div>
-                      )
-                    })()}
+                    {expandedHomeBodyweight && !expandedHomeBodyweight.startsWith('__test:') && renderBwPanel(expandedHomeBodyweight)}
                     {/* Jumps, Grip and Fixed load circuit results, moved here from the old Test tab */}
                     {expandedHomeBodyweight?.startsWith?.('__test:') && renderMovedTest([expandedHomeBodyweight.slice(7)], 'neon-qpanel neon-q-physical neon-run-panel')}
                     </div>
@@ -5413,6 +5427,17 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                         {renderMovedTest(['maxlifts'])}
                       </div>
                     )}
+                    {/* Compound Lifts (Weights): its own card under Physical (same exercises + saved entries as before) */}
+                    {(!activePhysicalCategory || showCompoundLifts) && (() => { const complete = todaysBodyweight.some(e => bodyweightMatchesGroup(e, 'compound_lifts')); return (
+                      <div style={{ marginBottom: 8 }}>
+                        <button className={`neon-q neon-q-physical neon-compound${showCompoundLifts ? ' is-active' : ''}${complete ? ' is-done' : ''}`} type="button" onClick={() => setShowCompoundLifts(v => !v)}
+                          style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 6, padding: '14px 12px', borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)', border: '2px solid var(--border)', background: 'var(--bg-secondary)' }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Compound Lifts (Weights)</span>
+                          <span style={{ fontSize: 22 }}>🏋️</span>
+                        </button>
+                        {showCompoundLifts && <div style={{ marginTop: 8 }}>{renderBwPanel('compound_lifts')}</div>}
+                      </div>
+                    ) })()}
 
                     </div>
                     </div>
