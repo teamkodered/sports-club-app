@@ -323,6 +323,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   const [mSettingsOpen, setMSettingsOpen] = useState(false)
   const [mShowTable, setMShowTable] = useSyncedPreference('register_phone_table', false) // phone: show the full table instead of cards
   const mLongPress = useRef(null)
+  const mLongPressFired = useRef(false)
   const mSwipeX = useRef(null)
   const [pointSearch, setPointSearch] = useState('')    // award-points modal: search / write a reason
   const [saveNewReason, setSaveNewReason] = useState(true)
@@ -1528,16 +1529,30 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                 const bday = getBirthdayInfo(m?.date_of_birth)
                 return (
                   <div key={st.id} className={`reg-m-card${isSel ? ' sel' : ''}`}
-                    onClick={() => { if (selecting) toggleSel(st.id); else setMExpanded(open ? null : st.id) }}
-                    onTouchStart={() => { mLongPress.current = setTimeout(() => { toggleSel(st.id); mLongPress.current = 'fired' }, 450) }}
-                    onTouchEnd={e => { if (mLongPress.current === 'fired') e.preventDefault(); clearTimeout(mLongPress.current); mLongPress.current = null }}
+                    // Long-press starts multi-select; once selecting, a normal tap anywhere
+                    // on a card adds/removes it (no need to hold again). The click that
+                    // follows a long-press is swallowed so it doesn't undo the selection.
+                    onClick={() => {
+                      if (mLongPressFired.current) { mLongPressFired.current = false; return }
+                      if (selecting) toggleSel(st.id)
+                    }}
+                    onTouchStart={() => {
+                      if (selecting) return
+                      mLongPress.current = setTimeout(() => { mLongPressFired.current = true; toggleSel(st.id); if (navigator.vibrate) navigator.vibrate(15) }, 450)
+                    }}
+                    onTouchEnd={() => { clearTimeout(mLongPress.current); mLongPress.current = null }}
                     onTouchMove={() => { clearTimeout(mLongPress.current); mLongPress.current = null }}
                     onContextMenu={e => e.preventDefault()}>
                     <div className="reg-m-card-main">
-                      {isSel ? <span className="reg-m-tick" aria-label="Selected">✓</span> : <span className="reg-m-avatar">{initials}</span>}
+                      {isSel ? <span className="reg-m-tick" aria-label="Selected">✓</span> : (
+                        <button type="button" className={`reg-m-avatar${open ? ' open' : ''}`} aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} details for ${m?.first_name} ${m?.last_name}`}
+                          onClick={e => { if (selecting) return; e.stopPropagation(); setMExpanded(open ? null : st.id) }}>{initials}</button>
+                      )}
                       <div className="reg-m-body">
                         <div className="reg-m-name">
-                          <span>{m?.first_name} {m?.last_name}</span>
+                          {onStudentNameClick && !selecting
+                            ? <button type="button" className="reg-m-namelink" onClick={e => { e.stopPropagation(); onStudentNameClick(st) }}>{m?.first_name} {m?.last_name}</button>
+                            : <span>{m?.first_name} {m?.last_name}</span>}
                           {bday && <button type="button" className="reg-m-bday" title="Upcoming birthday" onClick={e => { e.stopPropagation(); setBirthdayPopup({ name: `${m?.first_name} ${m?.last_name}`, info: bday }) }}>🎂</button>}
                         </div>
                         {mPage === 0 ? (
@@ -1578,7 +1593,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                   </div>
                 )
               })}
-              <div className="reg-m-hint">Tap the button: Mark → In → Kit → clear · Tap a card to open · Long-press to select several · Swipe for more details</div>
+              <div className="reg-m-hint">Tap the button: Mark → In → Kit → clear · Initials = details · Name = profile · Hold to select, then tap to add more · Swipe for more details</div>
             </div>
 
             {/* Bulk bar -- only while selecting */}

@@ -715,3 +715,6 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .reg-m-range input { flex: 1; height: 40px; box-sizing: border-box; padding: 0 8px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--bg); color: var(--text); }
 .reg-m-range span { font-size: 12px; color: var(--text-tertiary); }
 .reg-m-sheet-note { font-size: 12px; color: var(--text-tertiary); }
+.reg-m-avatar { border: none; cursor: pointer; font-family: inherit; }
+.reg-m-avatar.open { outline: 2px solid #378ADD; outline-offset: 2px; }
+.reg-m-namelink { padding: 0; border: none; background: none; color: #378ADD; font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-decoration: underline; text-underline-offset: 2px; }
