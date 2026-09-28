@@ -433,3 +433,30 @@ tbody tr:hover td { background: var(--bg-secondary); }
   color: #FFFFFF; font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800; font-size: 22px; letter-spacing: 1px; white-space: nowrap; }
 @keyframes neonChipBump { 0% { transform: scale(1); filter: brightness(1) } 40% { transform: scale(1.18); filter: brightness(1.8) } 100% { transform: scale(1); filter: brightness(1) } }
 .neon-chip-bump { animation: neonChipBump 0.5s ease-out; }
+
+/* ---- Neon question cards (inside an open pillar) -- presentation only; every question,
+   tap handler and saved value is unchanged. Layout: title (+ icon) on top, D/W/M bars below. */
+.neon-home .neon-q-mentality { --q-accent: #22B14C; --q-glow: rgba(34,177,76,0.45); }
+.neon-home .neon-q-tactical { --q-accent: #FF2A2A; --q-glow: rgba(255,42,42,0.45); }
+.neon-home .neon-q-technical { --q-accent: #2F6BFF; --q-glow: rgba(47,107,255,0.45); }
+.neon-home .neon-q-foundation { --q-accent: #C93BFF; --q-glow: rgba(201,59,255,0.45); }
+.neon-home .neon-q {
+  display: grid !important; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "title icon" "bars bars";
+  align-items: start !important; row-gap: 10px !important; column-gap: 8px !important;
+  min-height: 96px; box-sizing: border-box; padding: 11px 10px 10px !important;
+  background: var(--neon-card, #1A1F24) !important; border: 1px solid #2A3138 !important; border-radius: 6px !important;
+  text-align: left !important; transition: border-color 0.2s, box-shadow 0.2s;
+}
+.neon-home .neon-q > .neon-qbars { grid-area: bars; align-self: end; }
+.neon-home .neon-q > span:nth-of-type(1) { grid-area: title; text-align: left !important; }
+.neon-home .neon-q > span:nth-of-type(2) { grid-area: icon; font-size: 20px !important; line-height: 1; }
+.neon-home .neon-q > span:nth-of-type(1),
+.neon-home .neon-q > span:nth-of-type(1) > span:first-child {
+  font-family: 'Saira Condensed', sans-serif !important; font-style: italic; font-weight: 800 !important;
+  font-size: 16px !important; letter-spacing: 0.5px; line-height: 1.05 !important; text-transform: uppercase; color: #FFFFFF !important;
+}
+.neon-home .neon-q > span:nth-of-type(1) > span + span { font-family: 'Orbitron', sans-serif; font-size: 8px !important; letter-spacing: 1px; margin-top: 4px; color: var(--q-accent) !important; text-transform: uppercase; }
+.neon-home .neon-q.is-done { border-color: var(--q-accent) !important; box-shadow: 0 0 8px var(--q-glow); }
+.neon-home .neon-q.is-active { grid-template-columns: minmax(0, 1fr) auto; border-color: var(--q-accent) !important; box-shadow: 0 0 12px var(--q-glow); }
+.neon-home .neon-q.is-active > span:nth-of-type(1),
+.neon-home .neon-q.is-active > span:nth-of-type(1) > span:first-child { font-size: 22px !important; }

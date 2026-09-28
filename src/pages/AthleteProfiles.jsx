@@ -3526,19 +3526,21 @@ export default function AthleteProfiles() {
   function CoachQuestionProgressBarsVertical({ sectionKey, questionLabel }) {
     const byPeriod = getCoachQuestionProgressByPeriod(sectionKey, questionLabel)
     const periods = [['day', 'D'], ['week', 'W'], ['month', 'M']]
+    const NEON_Q = { mentality: '#22B14C', tactical: '#FF2A2A', technique: '#2F6BFF', physical: '#E6B800', wellbeing: '#C93BFF' }
+    const accent = NEON_Q[sectionKey] || '#22B14C'
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, width: 20, flexShrink: 0 }}>
+      <div className="neon-qbars" style={{ display: 'flex', flexDirection: 'column', gap: 3, width: '100%', flexShrink: 0 }}>
         {periods.map(([key, letter]) => {
           const { done, target } = byPeriod[key]
           const hasTarget = target > 0
           const pct = hasTarget ? Math.min(100, Math.round((done / target) * 100)) : 0
-          const hit = hasTarget && done >= target
           return (
-            <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-              <span style={{ fontSize: 6, fontWeight: 700, width: 6, color: hasTarget ? (hit ? '#1D9E75' : 'var(--text-tertiary)') : 'var(--border)' }}>{letter}</span>
-              <div style={{ flex: 1, height: 3, borderRadius: 2, background: 'var(--border)', overflow: 'hidden' }}>
-                {hasTarget && <div style={{ width: `${pct}%`, height: '100%', background: hit ? '#1D9E75' : '#E24B4A', borderRadius: 2 }} />}
+            <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 8, width: 8, color: '#9A9A9A' }}>{letter}</span>
+              <div style={{ flex: 1, height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.08)' }}>
+                <div style={{ width: `${pct}%`, height: '100%', background: accent, boxShadow: pct ? `0 0 3px ${accent}` : 'none', borderRadius: 2, transition: 'width 0.3s' }} />
               </div>
+              <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 8, minWidth: 22, textAlign: 'right', color: hasTarget ? accent : '#666' }}>{done}/{target}</span>
             </div>
           )
         })}
@@ -9019,7 +9021,7 @@ export default function AthleteProfiles() {
                           const active = expandedTechniqueCategory === catKey
                           const count = todaysTechniques.filter(t => t.style === style && t.category === cat).length
                           return (
-                            <button key={cat} type="button"
+                            <button className={`neon-q neon-q-technical${active ? ' is-active' : ''}${count ? ' is-done' : ''}`} key={cat} type="button"
                               onClick={() => setExpandedTechniqueCategory(active ? null : catKey)}
                               style={{
                                 display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '20px 14px' : '18px 14px',
@@ -9108,7 +9110,7 @@ export default function AthleteProfiles() {
                         const active = expandedTacticalCategory === cat
                         const complete = !!todaysMentalityLog.videoAnalysis?.type
                         return (
-                          <button key={cat} type="button" onClick={() => setExpandedTacticalCategory(active ? null : cat)} style={{
+                          <button className={`neon-q neon-q-tactical${active ? ' is-active' : ''}${complete ? ' is-done' : ''}`} key={cat} type="button" onClick={() => setExpandedTacticalCategory(active ? null : cat)} style={{
                             display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '20px 14px' : '18px 14px',
                             borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                             border: `2px solid ${active ? '#E24B4A' : complete ? '#1D9E75' : 'var(--border)'}`,
@@ -9124,7 +9126,7 @@ export default function AthleteProfiles() {
                       const active = expandedTacticalCategory === cat_
                       const count = todaysTactical.filter(t => t.category === cat_).length
                       return (
-                        <button key={cat_} type="button"
+                        <button className={`neon-q neon-q-tactical${active ? ' is-active' : ''}${count ? ' is-done' : ''}`} key={cat_} type="button"
                           onClick={() => setExpandedTacticalCategory(active ? null : cat_)}
                           style={{
                             display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '20px 14px' : '18px 14px',
@@ -9216,7 +9218,7 @@ export default function AthleteProfiles() {
                       const complete = q.key === 'alterEgo' ? !!(alterEgoWorkbook.topTraits?.some(Boolean) || alterEgoWorkbook.nameOption1) : isMentalityQComplete(q.key, todaysMentalityLog)
                       const active = expandedHomeMentality === q.key
                       return (
-                        <button key={q.key} type="button" onClick={() => q.key === 'alterEgo' ? setShowAlterEgoModal(true) : setExpandedHomeMentality(active ? null : q.key)} style={{
+                        <button className={`neon-q neon-q-mentality${active ? ' is-active' : ''}${complete ? ' is-done' : ''}`} key={q.key} type="button" onClick={() => q.key === 'alterEgo' ? setShowAlterEgoModal(true) : setExpandedHomeMentality(active ? null : q.key)} style={{
                           display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '20px 14px' : '18px 14px',
                           borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                           border: `2px solid ${active ? SECTION_ACCENT_COLOURS.mentality : complete ? '#6D28D9' : 'var(--border)'}`,
@@ -9557,7 +9559,7 @@ export default function AthleteProfiles() {
                       const complete = isWellbeingQComplete(q.key, todaysWellbeing)
                       const active = expandedHomeWb === q.key
                       return (
-                        <button key={q.key} type="button" onClick={() => setExpandedHomeWb(active ? null : q.key)} style={{
+                        <button className={`neon-q neon-q-foundation${active ? ' is-active' : ''}${complete ? ' is-done' : ''}`} key={q.key} type="button" onClick={() => setExpandedHomeWb(active ? null : q.key)} style={{
                           display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '20px 14px' : '18px 14px',
                           borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                           border: `2px solid ${active ? SECTION_ACCENT_COLOURS.wellbeing : complete ? '#0E9F6E' : 'var(--border)'}`,
