@@ -3362,6 +3362,76 @@ export default function AthleteProfiles() {
   // header -- fills as tasks are completed against whatever targets
   // exist for that period; greyed out/empty if no target is set for
   // that particular period.
+  // --- This week's completions for one pillar (M..S line graph) ----------
+  // Shown when a pillar is opened: how many of that pillar's questions/
+  // areas were completed on each day of the current week (Mon start).
+  // Today uses the live on-screen state; other days use this athlete's saved sessions (f2fData).
+  function countSectionDoneForDay(sectionKey, s, isToday) {
+    const mLog = isToday ? todaysMentalityLog : (s?.mentality_log || {})
+    if (sectionKey === 'mentality') return MENTALITY_QUESTIONS.filter(q => q.key !== 'alterEgo' && isMentalityQComplete(q.key, mLog)).length
+    if (sectionKey === 'tactical') {
+      const list = isToday ? todaysTactical : (Array.isArray(s?.tactical) ? s.tactical : [])
+      return new Set(list.map(t => t.category)).size + (isMentalityQComplete('videoAnalysis', mLog) ? 1 : 0)
+    }
+    if (sectionKey === 'technique') {
+      const list = isToday ? todaysTechniques : (Array.isArray(s?.techniques) ? s.techniques : [])
+      return new Set(list.map(t => `${t.style}::${t.category}`)).size
+    }
+    if (sectionKey === 'physical') {
+      if (!s) return 0
+      return [toEntries(s.running).length > 0, toEntries(s.watt_bike).length > 0, toEntries(s.bodyweight).length > 0, !!s.stretch_flows && (!Array.isArray(s.stretch_flows) || s.stretch_flows.length > 0), !!s.snc, !!s.other_session].filter(Boolean).length
+    }
+    if (sectionKey === 'wellbeing') {
+      const wb = isToday ? todaysWellbeing : (s?.wellbeing || {})
+      return WELLBEING_QUESTIONS.filter(q => isWellbeingQComplete(q.key, wb)).length
+    }
+    return 0
+  }
+
+  function WeekCompletionGraph({ sectionKey, colour }) {
+    const now = new Date()
+    const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7), 12)
+    const todayStr = now.toISOString().split('T')[0]
+    const days = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i, 12)
+      const dateStr = d.toISOString().split('T')[0]
+      const future = dateStr > todayStr
+      const isToday = dateStr === todayStr
+      const s = f2fData.find(x => x.session_date === dateStr)
+      return { letter: 'MTWTFSS'[i], dateStr, future, isToday, count: future ? null : countSectionDoneForDay(sectionKey, s, isToday) }
+    })
+    const maxVal = Math.max(1, ...days.map(d => d.count || 0))
+    const W = 300, H = 74, padX = 16, top = 16, bottom = 22
+    const x = i => padX + (i * (W - padX * 2)) / 6
+    const y = v => top + (1 - v / maxVal) * (H - top - bottom)
+    const pts = days.filter(d => !d.future).map((d, i) => [x(i), y(d.count)])
+    const path = pts.map(([px, py], i) => `${i ? 'L' : 'M'}${px.toFixed(1)},${py.toFixed(1)}`).join(' ')
+    const area = pts.length > 1 ? `${path} L${pts[pts.length - 1][0].toFixed(1)},${H - bottom} L${pts[0][0].toFixed(1)},${H - bottom} Z` : ''
+    const weekTotal = days.reduce((n, d) => n + (d.count || 0), 0)
+    return (
+      <div className="neon-week-graph" role="img"
+        aria-label={`${sectionKey} completed this week: ` + days.filter(d => !d.future).map(d => `${d.letter} ${d.count}`).join(', ')}
+        style={{ width: '100%', boxSizing: 'border-box', margin: '0 0 10px', padding: '8px 10px 4px', borderRadius: 6, background: 'var(--neon-card, #1A1F24)', border: '1px solid #2A3138' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 2 }}>
+          <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 9, letterSpacing: 2, color: '#9A9A9A' }}>THIS WEEK</span>
+          <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 9, letterSpacing: 1, color: colour }}>{weekTotal} DONE</span>
+        </div>
+        <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block', overflow: 'visible', maxHeight: 110 }}>
+          <line x1={padX} x2={W - padX} y1={H - bottom} y2={H - bottom} stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
+          {area && <path d={area} fill={colour} opacity="0.12" />}
+          {pts.length > 1 && <path d={path} fill="none" stroke={colour} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" style={{ filter: `drop-shadow(0 0 3px ${colour})` }} vectorEffect="non-scaling-stroke" />}
+          {days.map((d, i) => (
+            <g key={d.dateStr}>
+              {!d.future && <circle cx={x(i)} cy={y(d.count)} r={d.isToday ? 4.5 : 3.2} fill={d.isToday ? colour : '#0B0F12'} stroke={colour} strokeWidth="2" vectorEffect="non-scaling-stroke" />}
+              {!d.future && d.count > 0 && <text x={x(i)} y={y(d.count) - 8} textAnchor="middle" fontSize="10" fontFamily="Orbitron, sans-serif" fill="#FFFFFF">{d.count}</text>}
+              <text x={x(i)} y={H - 6} textAnchor="middle" fontSize="10" fontFamily="Orbitron, sans-serif" fill={d.isToday ? colour : d.future ? '#444' : '#9A9A9A'}>{d.letter}</text>
+            </g>
+          ))}
+        </svg>
+      </div>
+    )
+  }
+
   function CoachSectionProgressBars({ sectionKey, compact = false, vertical = false, ropes = null }) {
     const byPeriod = getCoachSectionProgressByPeriod(sectionKey)
     const accent = SECTION_ACCENT_COLOURS[sectionKey] || '#1D9E75'
@@ -8687,6 +8757,7 @@ export default function AthleteProfiles() {
                     <CoachSectionProgressBars sectionKey="physical" ropes="br" />
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showPhysicalSection ? '▲' : '▼'}</span>
                   </button>
+                  {showPhysicalSection && WeekCompletionGraph({ sectionKey: 'physical', colour: '#E6B800' })}
 
                   <div style={{
                     overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
@@ -9095,6 +9166,7 @@ export default function AthleteProfiles() {
                     <CoachSectionProgressBars sectionKey="technique" ropes="bl" />
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showTechniqueSection ? '▲' : '▼'}</span>
                   </button>
+                  {showTechniqueSection && WeekCompletionGraph({ sectionKey: 'technique', colour: '#2F6BFF' })}
 
                   <div style={{
                     overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
@@ -9172,6 +9244,7 @@ export default function AthleteProfiles() {
                     <CoachSectionProgressBars sectionKey="tactical" ropes="tr" />
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showTacticalSection ? '▲' : '▼'}</span>
                   </button>
+                  {showTacticalSection && WeekCompletionGraph({ sectionKey: 'tactical', colour: '#FF2A2A' })}
 
                   <div style={{
                     overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
@@ -9253,6 +9326,7 @@ export default function AthleteProfiles() {
                     <CoachSectionProgressBars sectionKey="mentality" ropes="tl" />
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showMentalitySection ? '▲' : '▼'}</span>
                   </button>
+                  {showMentalitySection && WeekCompletionGraph({ sectionKey: 'mentality', colour: '#22B14C' })}
 
                   <div style={{
                     overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
