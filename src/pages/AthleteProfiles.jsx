@@ -1120,6 +1120,20 @@ const TEST_CHART_IDS = { 'Bleep test': 'f2f-chart-bleep', 'Fixed load circuit': 
 // Defined at module scope (not inside the page component's render) so
 // React treats it as a stable component across renders, rather than
 // unmounting/remounting it every time the parent re-renders.
+// Short name for a module sub-type on the question card, e.g.
+// "15 seconds on 30 seconds off" -> "15-30", "1 min 30 sec on 1 min jog ..." -> "90-60".
+function shortSubType(t) {
+  if (!t) return t
+  const secs = str => {
+    let n = 0, hit = false
+    String(str).replace(/(\d+(?:\.\d+)?)\s*(minutes?|mins?|m\b|seconds?|secs?|s\b)/gi, (_, v, u) => { hit = true; n += parseFloat(v) * (/^m/i.test(u) ? 60 : 1); return '' })
+    return hit ? Math.round(n) : null
+  }
+  const m = /^(.*?)\s+on\s+(.*?)\s+(off|jog|rest)\b/i.exec(t)
+  if (m) { const a = secs(m[1]), b = secs(m[2]); if (a != null && b != null) return `${a}-${b}` }
+  return t.replace(/ - (Output|Distance).*$/i, '')
+}
+
 function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setTab, setRunChartFilter, studentId, onToggleLog, onQuickLog, large, questionProgressByPeriod }) {
   const subTypeOptions = getSubTypeOptions(sorted, b.key)
   const currentSubType = moduleSubType[b.key] ?? subTypeOptions[0] ?? null
@@ -1131,6 +1145,8 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
   // show while cycling through the others.
   const { pb } = noNumericStat ? { pb: null } : computeModuleStats(sorted, b.key, null)
   const lastLogged = noNumericStat ? computeLastLogged(sorted, b.key) : null
+  // PB for the sub-type currently shown (swipe to change type)
+  const { pb: typePb } = noNumericStat ? { pb: null } : computeModuleStats(sorted, b.key, currentSubType)
   const swipeStart = useRef(null)
   const holdTimer = useRef(null)
   const heldRef = useRef(false)
@@ -1190,12 +1206,7 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
           bike/Bodyweight/Stretch flows all have their own dedicated
           card grids on this page, so the log-link is skipped for them
           entirely -- the arrow still shows if they can cycle. */}
-      {canCycle ? (
-        <button onClick={() => cycleType(-1)} title="Previous type" style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, flexShrink: 0,
-          color: 'var(--text-tertiary)', fontSize: 12, background: 'none', border: 'none', borderRight: '1px solid var(--border)', cursor: 'pointer',
-        }}>◀</button>
-      ) : !hideLeftZone && (
+      {!hideLeftZone && (
         <a href={logHref} title={`Log ${b.label}${currentSubType ? ` — ${currentSubType}` : ''}`} style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, flexShrink: 0,
           color: colour, fontSize: 18, fontWeight: 700, textDecoration: 'none', borderRight: '1px solid var(--border)',
@@ -1222,7 +1233,7 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
         onPointerUp={() => clearTimeout(holdTimer.current)}
         onClick={() => {
           if (heldRef.current) { heldRef.current = false; return }
-          isPhysicalModule ? onToggleLog?.(b.key) : b.key === 'test' ? goToChart() : cycleType(1)
+          isPhysicalModule ? onToggleLog?.(b.key) : cycleType(1)
         }}
         title={isPhysicalModule ? 'Tap to log in detail — hold to quick-log as done today' : undefined}
         style={{
@@ -1251,7 +1262,8 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
         )}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minWidth: 0 }}>
           {b.key !== 'test' && <span style={{ fontSize: large ? 14 : 9, fontWeight: 600, whiteSpace: 'nowrap' }}>{b.label}</span>}
-          {b.key !== 'test' && currentSubType && <span style={{ fontSize: large ? 10 : 7, color: colour, fontWeight: 600, textAlign: 'center', lineHeight: 1.2 }}>{currentSubType}</span>}
+          {b.key !== 'test' && currentSubType && <span style={{ fontSize: large ? 10 : 7, color: colour, fontWeight: 600, textAlign: 'center', lineHeight: 1.2 }}>{shortSubType(currentSubType)}</span>}
+          {canCycle && <span className="neon-type-dots" aria-hidden="true">{subTypeOptions.map(o => <i key={o} className={o === currentSubType ? 'on' : ''} />)}</span>}
         </div>
         <span style={{ fontSize: large ? 26 : 16, flexShrink: 0 }}>{b.icon}</span>
       </button>
@@ -1261,7 +1273,7 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
           dedicated card grids below instead. Next arrow sits right
           after it when this card can cycle sub-types. */}
       {!isSimplifiedModule && (
-      <button onClick={goToChart} style={{
+      <button type="button" className="neon-module-pb" onClick={() => { if (canCycle) cycleType(1) }} title={canCycle ? 'Swipe (or tap) to change type' : undefined} style={{
         width: 58, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         padding: '8px 4px', background: 'none', border: 'none', cursor: 'pointer',
       }}>
@@ -1271,17 +1283,11 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
           </span>
         ) : (
           <>
-            <span style={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>{mostRecent ? `${mostRecent.value}${unit}` : '—'}</span>
-            <span style={{ fontSize: 9, fontWeight: 600, color: colour, marginTop: 2, whiteSpace: 'nowrap' }}>{pb ? `🏅 ${pb.value}${unit}` : '—'}</span>
+            <span className="neon-pb-label">PB</span>
+            <span className="neon-pb-value">{typePb ? `${typePb.value}${unit}` : '—'}</span>
           </>
         )}
       </button>
-      )}
-      {canCycle && (
-        <button onClick={() => cycleType(1)} title="Next type" style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, flexShrink: 0,
-          color: 'var(--text-tertiary)', fontSize: 12, background: 'none', border: 'none', borderLeft: '1px solid var(--border)', cursor: 'pointer',
-        }}>▶</button>
       )}
     </div>
   )

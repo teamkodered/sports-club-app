@@ -604,3 +604,13 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .neon-home .neon-snc-bar, .neon-home .neon-module { background: #1A1F24 !important; border: 1px solid #2A3138 !important; border-radius: 6px !important; color: #F2F2F2; }
 .neon-home .neon-snc-bar button { color: #F2F2F2; }
 .neon-home .neon-snc-bar span:nth-of-type(2), .neon-home .neon-module span { font-family: 'Rajdhani', sans-serif; }
+
+/* Module cards (Running / Watt bike / Bodyweight / Stretch): swipe for type, PB only */
+.neon-home .neon-module span { color: #F2F2F2; }
+.neon-home .neon-module > button:first-of-type span:first-child, .neon-home .neon-module button span[style*="white-space: nowrap"]:not(.neon-pb-value) { font-family: 'Saira Condensed', sans-serif !important; font-style: italic; font-weight: 800 !important; letter-spacing: 0.5px; text-transform: uppercase; }
+.neon-home .neon-module-pb { border-left: 1px solid #2A3138 !important; }
+.neon-home .neon-pb-label { font-family: 'Orbitron', sans-serif; font-size: 8px; letter-spacing: 2px; color: #9A9A9A !important; }
+.neon-home .neon-pb-value { font-family: 'Orbitron', sans-serif; font-size: 14px; font-weight: 600; color: #E6B800 !important; text-shadow: 0 0 6px rgba(230,184,0,0.5); white-space: nowrap; margin-top: 2px; }
+.neon-home .neon-type-dots { display: flex; gap: 3px; margin-top: 3px; }
+.neon-home .neon-type-dots i { width: 4px; height: 4px; border-radius: 50%; background: #444; }
+.neon-home .neon-type-dots i.on { background: #E6B800; box-shadow: 0 0 4px #E6B800; }
