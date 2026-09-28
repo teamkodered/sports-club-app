@@ -175,6 +175,7 @@ export default function ViewIt({ visibleFootage, footage, events, students, stud
 
       {playingUrl && (
         <FightFootagePlayer videoUrl={playingUrl} title={playingTitle} footageId={playingItem?.id} storagePath={playingItem?.storage_path} isCoach
+          rotation={playingItem?.rotation} onRotationSaved={() => load()}
           onClose={() => { setPlayingUrl(null); setPlayingTitle(''); setPlayingItem(null) }} />
       )}
     </div>

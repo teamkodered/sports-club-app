@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { rotationLayout, drawRotatedFrame, normaliseRotation } from '../../lib/videoRotation.js'
 import { supabase } from '../../lib/supabase.js'
 
 const SPEEDS = [0.25, 0.5, 1, 1.5, 2]
@@ -25,7 +26,7 @@ function hexToRgba(hex, alpha) {
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`
 }
 
-export default function FightFootagePlayer({ videoUrl, title, footageId, cctvClipId, storagePath, isCoach = false, onClose }) {
+export default function FightFootagePlayer({ videoUrl, title, footageId, cctvClipId, storagePath, isCoach = false, rotation: initialRotation = 0, onRotationSaved, onClose }) {
   // Markers can belong to either a View IT fight_footage row or a CCTV
   // clip -- whichever id was actually passed in is "the" source for
   // this whole component. fight_footage_clips (saved/extracted
@@ -42,6 +43,25 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
   const [duration, setDuration] = useState(0)
   const [videoAspect, setVideoAspect] = useState(16 / 9) // updated once real metadata loads; used to keep overlays aligned to the actual visible video, not the full (possibly letterboxed) screen
   const [isFullscreen, setIsFullscreen] = useState(false)
+
+  // Rotation: anyone can turn the view; for a coach on a View IT clip it's
+  // also saved to fight_footage.rotation so everyone sees it that way up.
+  // Saves are debounced so tapping ⟳ three times is one write, not three.
+  const [rotation, setRotation] = useState(() => normaliseRotation(initialRotation))
+  const rotationSaveTimerRef = useRef(null)
+  const canSaveRotation = isCoach && !!footageId
+  function rotateView() {
+    const next = normaliseRotation(rotation + 90)
+    setRotation(next)
+    if (!canSaveRotation) return
+    clearTimeout(rotationSaveTimerRef.current)
+    rotationSaveTimerRef.current = setTimeout(async () => {
+      const { error } = await supabase.from('fight_footage').update({ rotation: next }).eq('id', footageId)
+      if (error) alert('Could not save rotation: ' + error.message)
+      else onRotationSaved?.(footageId, next)
+    }, 700)
+  }
+  const { boxAspect, videoStyle } = rotationLayout(rotation, videoAspect)
 
   // Pushes a history entry when the player opens, so the device/browser
   // back button closes the player first (returning to Media/CCTV/View
@@ -779,9 +799,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
     v.pause()
     try {
       const canvas = canvasRef.current
-      canvas.width = v.videoWidth
-      canvas.height = v.videoHeight
-      canvas.getContext('2d').drawImage(v, 0, 0, canvas.width, canvas.height)
+      drawRotatedFrame(v, canvas, rotation)
       const photoDataUrl = canvas.toDataURL('image/jpeg', 0.7)
 
       const { data: { user } } = await supabase.auth.getUser()
@@ -914,12 +932,16 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
             below would end up positioned against the full screen and
             appear to float in that black bar rather than sitting
             against the actual visible video image. */}
-        <div style={{ position: 'relative', maxWidth: '100%', maxHeight: '100%', aspectRatio: videoAspect }}>
+        {/* When rotated, the box gets an explicit size (the video inside
+            is absolutely positioned, so it can't size the box itself). */}
+        <div style={rotation === 0
+          ? { position: 'relative', maxWidth: '100%', maxHeight: '100%', aspectRatio: videoAspect }
+          : { position: 'relative', width: `min(100%, calc(100dvh * ${boxAspect}))`, aspectRatio: boxAspect, overflow: 'hidden' }}>
           <video
             ref={videoRef}
             src={videoUrl}
             crossOrigin="anonymous"
-            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            style={videoStyle}
             playsInline
             webkit-playsinline="true"
             disablePictureInPicture
@@ -980,6 +1002,12 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
             <button className="view-it-btn" title="Add photo"
               style={{ position: 'absolute', top: 8, right: 8, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer' }}
               onClick={e => { e.stopPropagation(); capturePhotoMarker() }}>📷</button>
+          )}
+
+          {controlsVisible && (
+            <button className="view-it-btn" title={canSaveRotation ? 'Rotate 90° (saved for everyone)' : 'Rotate 90°'}
+              style={{ position: 'absolute', top: 52, right: 8, zIndex: 2, width: 36, height: 36, borderRadius: '50%', fontSize: 18, cursor: 'pointer' }}
+              onClick={e => { e.stopPropagation(); rotateView() }}>⟳</button>
           )}
         </div>
 

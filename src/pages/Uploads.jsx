@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase.js'
 import { ALL_GRADES, EVENT_TYPES, FOOTAGE_ACCESS_MODES, footageAccessLabel, eventLabel } from '../lib/mediaConstants.js'
 import { saveFootageAthletes, guessAthletesFromFilename } from '../lib/fightFootageTags.js'
 import AthletePicker from '../components/shared/AthletePicker.jsx'
+import { rotationLayout, normaliseRotation } from '../lib/videoRotation.js'
 
 // Upload forms (single + bulk) and the search/filter tools for the
 // shared fight_footage library -- these live in their own tab
@@ -31,6 +32,8 @@ export default function Uploads({
   const [expandedPreviewId, setExpandedPreviewId] = useState(null)
   const [previewUrl, setPreviewUrl] = useState(null)
   const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewAspect, setPreviewAspect] = useState(16 / 9)
+  const [rotationOverrides, setRotationOverrides] = useState({}) // footage id -> rotation, shown instantly while the save + reload catches up
   const [justPublishedId, setJustPublishedId] = useState(null)
   const [selectedPendingIds, setSelectedPendingIds] = useState(() => new Set())
 
@@ -206,6 +209,20 @@ export default function Uploads({
     setPreviewLoading(false)
     if (data.error) { alert('Could not load preview: ' + data.error); setExpandedPreviewId(null); return }
     setPreviewUrl(data.url)
+  }
+
+  function rotationOf(item) {
+    return rotationOverrides[item.id] ?? item.rotation ?? 0
+  }
+
+  async function rotateItem(item) {
+    const next = normaliseRotation(rotationOf(item) + 90)
+    setRotationOverrides(o => ({ ...o, [item.id]: next }))
+    const { error } = await supabase.from('fight_footage').update({ rotation: next }).eq('id', item.id)
+    if (error) {
+      alert('Could not save rotation: ' + error.message)
+      setRotationOverrides(o => { const n = { ...o }; delete n[item.id]; return n })
+    }
   }
 
   function startEditPending(item) {
@@ -572,9 +589,31 @@ export default function Uploads({
                       <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
                         {previewLoading ? (
                           <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Loading preview…</p>
-                        ) : previewUrl ? (
-                          <video src={previewUrl} controls style={{ width: '100%', maxHeight: 360, borderRadius: 8, background: '#000' }} />
-                        ) : null}
+                        ) : previewUrl ? (() => {
+                          const r = rotationOf(item)
+                          const onMeta = e => { const v = e.currentTarget; if (v.videoWidth && v.videoHeight) setPreviewAspect(v.videoWidth / v.videoHeight) }
+                          const { boxAspect, videoStyle } = rotationLayout(r, previewAspect)
+                          return (
+                            <div>
+                              {r === 0 ? (
+                                <video src={previewUrl} controls onLoadedMetadata={onMeta} style={{ width: '100%', maxHeight: 360, borderRadius: 8, background: '#000' }} />
+                              ) : (
+                                // Native controls would rotate with the video, so a rotated
+                                // preview uses tap-to-play instead.
+                                <div style={{ position: 'relative', width: `min(100%, ${360 * boxAspect}px)`, aspectRatio: boxAspect, margin: '0 auto', background: '#000', borderRadius: 8, overflow: 'hidden' }}>
+                                  <video src={previewUrl} onLoadedMetadata={onMeta} playsInline style={videoStyle}
+                                    onClick={e => { const v = e.currentTarget; if (v.paused) v.play(); else v.pause() }} />
+                                </div>
+                              )}
+                              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6, flexWrap: 'wrap' }}>
+                                <button className="btn btn-sm" onClick={() => rotateItem(item)}>⟳ Rotate 90°</button>
+                                <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                                  {r === 0 ? 'Filmed sideways? Rotate until it\'s upright — saved for everyone who watches.' : `Rotated ${r}° · tap the video to play/pause`}
+                                </span>
+                              </div>
+                            </div>
+                          )
+                        })() : null}
                       </div>
                     )}
                   </div>

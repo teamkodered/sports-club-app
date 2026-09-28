@@ -74,6 +74,7 @@ export default function AthleteFightFootage({ studentId }) {
 
       {playingUrl && (
         <FightFootagePlayer videoUrl={playingUrl} title={playingTitle} footageId={playingItem?.id} storagePath={playingItem?.storage_path}
+          rotation={playingItem?.rotation}
           onClose={() => { setPlayingUrl(null); setPlayingTitle(''); setPlayingItem(null) }} />
       )}
     </div>
