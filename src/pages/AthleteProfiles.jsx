@@ -3512,6 +3512,21 @@ export default function AthleteProfiles() {
     return { value: 0, lines: [] }
   }
 
+  // Small VIEW pill that sits inside an OPEN pillar's header, beside the title.
+  // A <span role="button"> (the header itself is a <button>), so tapping it
+  // opens the history sheet without closing the section.
+  function HeaderViewPill({ view }) {
+    const open = e => { e.stopPropagation(); e.preventDefault(); setHistoryRange('month'); setHistoryView(view) }
+    return (
+      <span role="button" tabIndex={0} className="neon-view-pill" aria-label={`View ${view.label} history`}
+        onClick={open} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') open(e) }}
+        style={{ '--pill': view.colour }}>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 20h18M5 16l4-5 4 3 6-8" /></svg>
+        VIEW
+      </span>
+    )
+  }
+
   function HistoryViewButton({ view, style }) {
     return (
       <button type="button" className="btn btn-sm neon-view-btn" onClick={e => { e.stopPropagation(); setHistoryRange('month'); setHistoryView(view) }}
@@ -8917,7 +8932,7 @@ export default function AthleteProfiles() {
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: showPhysicalSection ? 6 : 4, width: '100%' }}>
-                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showPhysicalSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#EF9F27' }}>PHYSICAL</span>
+                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showPhysicalSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#EF9F27' }}><span className="neon-title-text">PHYSICAL</span>{showPhysicalSection && HeaderViewPill({ view: { sectionKey: 'physical', label: 'Physical', colour: '#E6B800' } })}</span>
                       <img src="/logos/neon/physical.png" alt="" className="neon-pillar-icon" style={{ height: showPhysicalSection ? 36 : 22, width: 'auto' }} />
                     </div>
                     {showPhysicalSection && WeekCompletionGraph({ sectionKey: 'physical', colour: '#E6B800', embedded: true })}
@@ -8929,7 +8944,6 @@ export default function AthleteProfiles() {
                     overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
                     maxHeight: showPhysicalSection ? 4000 : 0, opacity: showPhysicalSection ? 1 : 0,
                   }}>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>{HistoryViewButton({ view: { sectionKey: 'physical', label: 'Physical', colour: '#E6B800' } })}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: activePhysicalCategory && (activePhysicalCategory === 'running' || activePhysicalCategory === 'watt_bike') ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 8 }}>
                     {(!activePhysicalCategory || activePhysicalCategory === 'running') && (
                       <ModuleButton b={modules[0]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={SECTION_ACCENT_COLOURS.physical} setTab={setTab} setRunChartFilter={setRunChartFilter} studentId={selected?.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'running'} questionProgressByPeriod={getCoachQuestionProgressByPeriod('physical', 'Running')} />
@@ -9327,7 +9341,7 @@ export default function AthleteProfiles() {
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: showTechniqueSection ? 6 : 4, width: '100%' }}>
-                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showTechniqueSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#378ADD' }}>TECHNICAL</span>
+                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showTechniqueSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#378ADD' }}><span className="neon-title-text">TECHNICAL</span>{showTechniqueSection && HeaderViewPill({ view: { sectionKey: 'technique', label: 'Technical', colour: '#2F6BFF' } })}</span>
                       <img src="/logos/neon/technical.png" alt="" className="neon-pillar-icon" style={{ height: showTechniqueSection ? 36 : 22, width: 'auto' }} />
                     </div>
                     {showTechniqueSection && WeekCompletionGraph({ sectionKey: 'technique', colour: '#2F6BFF', embedded: true })}
@@ -9339,7 +9353,6 @@ export default function AthleteProfiles() {
                     overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
                     maxHeight: showTechniqueSection ? 8000 : 0, opacity: showTechniqueSection ? 1 : 0,
                   }}>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>{HistoryViewButton({ view: { sectionKey: 'technique', label: 'Technical', colour: '#2F6BFF' } })}</div>
                   {TECHNIQUE_STYLES.filter(({ style }) => {
                     // KRBA athletes only need Boxing questions, KR
                     // Kickboxing athletes only need Kickboxing ones --
@@ -9407,7 +9420,7 @@ export default function AthleteProfiles() {
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: showTacticalSection ? 6 : 4, width: '100%' }}>
-                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showTacticalSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#E24B4A' }}>TACTICAL</span>
+                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showTacticalSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#E24B4A' }}><span className="neon-title-text">TACTICAL</span>{showTacticalSection && HeaderViewPill({ view: { sectionKey: 'tactical', label: 'Tactical', colour: '#FF2A2A' } })}</span>
                       <img src="/logos/neon/tactical.png" alt="" className="neon-pillar-icon" style={{ height: showTacticalSection ? 36 : 22, width: 'auto' }} />
                     </div>
                     {showTacticalSection && WeekCompletionGraph({ sectionKey: 'tactical', colour: '#FF2A2A', embedded: true })}
@@ -9419,7 +9432,6 @@ export default function AthleteProfiles() {
                     overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
                     maxHeight: showTacticalSection ? 8000 : 0, opacity: showTacticalSection ? 1 : 0,
                   }}>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>{HistoryViewButton({ view: { sectionKey: 'tactical', label: 'Tactical', colour: '#FF2A2A' } })}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: expandedTacticalCategory ? '1fr' : 'repeat(2, 1fr)', gap: 8, marginBottom: 8 }}>
                     {(expandedTacticalCategory ? [] : ['__videoAnalysis__']).concat(Object.keys(TACTICAL_CATEGORIES)).filter(cat => !expandedTacticalCategory || expandedTacticalCategory === cat).map(cat => {
                       if (cat === '__videoAnalysis__') {
@@ -9492,7 +9504,7 @@ export default function AthleteProfiles() {
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: showMentalitySection ? 6 : 4, width: '100%' }}>
-                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showMentalitySection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#8B5CF6' }}>MENTALITY</span>
+                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showMentalitySection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#8B5CF6' }}><span className="neon-title-text">MENTALITY</span>{showMentalitySection && HeaderViewPill({ view: { sectionKey: 'mentality', label: 'Mentality', colour: '#22B14C' } })}</span>
                       <img src="/logos/neon/mentality.png" alt="" className="neon-pillar-icon" style={{ height: showMentalitySection ? 36 : 22, width: 'auto' }} />
                     </div>
                     {showMentalitySection && WeekCompletionGraph({ sectionKey: 'mentality', colour: '#22B14C', embedded: true })}
@@ -9504,7 +9516,6 @@ export default function AthleteProfiles() {
                     overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
                     maxHeight: showMentalitySection ? 4000 : 0, opacity: showMentalitySection ? 1 : 0,
                   }}>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>{HistoryViewButton({ view: { sectionKey: 'mentality', label: 'Mentality', colour: '#22B14C' } })}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: expandedHomeMentality ? '1fr' : 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeMentality ? 10 : 8 }}>
                     {MENTALITY_QUESTIONS.filter(q => !expandedHomeMentality || expandedHomeMentality === q.key).map(q => {
                       const complete = q.key === 'alterEgo' ? !!(alterEgoWorkbook.topTraits?.some(Boolean) || alterEgoWorkbook.nameOption1) : isMentalityQComplete(q.key, todaysMentalityLog)
