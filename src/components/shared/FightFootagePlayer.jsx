@@ -1057,10 +1057,10 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
             added alongside the skip buttons in their own separate row,
             which just duplicated this one once both were centered. */}
         {controlsVisible && (
-          // Sits above centre, and never lower than ~215px from the bottom,
-          // so on short (landscape phone) screens it stays clear of the
-          // marker row + scrub bar instead of crowding them.
-          <div style={{ position: 'absolute', top: 'min(42%, calc(100% - 215px))', left: 0, right: 0, transform: 'translateY(-50%)', padding: '16px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}
+          // Vertical position comes from .vi-mid-controls in global.css:
+          // centred in portrait, raised in landscape to stay clear of the
+          // marker row + scrub bar.
+          <div className="vi-mid-controls" style={{ position: 'absolute', left: 0, right: 0, transform: 'translateY(-50%)', padding: '16px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}
             onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
               <button className="view-it-btn btn btn-sm" onPointerDown={() => startStepRepeat(-5)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat} style={{ gap: 5 }}><TransportIcon name="rewind" /> 5s</button>
@@ -1073,7 +1073,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
               {SPEEDS.map(s => (
-                <button key={s} className="view-it-btn" onClick={() => setPlaybackSpeed(s)}
+                <button key={s} className={speed === s ? 'view-it-btn view-it-btn-selected' : 'view-it-btn'} onClick={() => setPlaybackSpeed(s)}
                   style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)',
                                         border: speed === s ? '1px solid #fff' : '1px solid rgba(255,255,255,0.3)',
                     color: speed === s ? '#fff' : 'rgba(255,255,255,0.7)', fontWeight: speed === s ? 600 : 400 }}>

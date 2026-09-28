@@ -205,6 +205,23 @@ tbody tr:hover td { background: var(--bg-secondary); }
   background: rgba(60, 60, 60, 0.45) !important;
   color: #fff !important;
 }
+/* Selected speed: a lighter, still see-through grey so the active one
+   stands out against the video. Listed after the hover/focus rule (same
+   specificity) so it wins in every state. */
+.view-it-btn.view-it-btn-selected,
+.view-it-btn.view-it-btn-selected:hover,
+.view-it-btn.view-it-btn-selected:focus,
+.view-it-btn.view-it-btn-selected:active {
+  background: rgba(200, 200, 200, 0.42) !important;
+  border-color: rgba(255, 255, 255, 0.9) !important;
+}
+
+/* Play/skip/speed group: centred in portrait; raised in landscape (and
+   never lower than ~215px from the bottom) so it clears the scrub bar. */
+.vi-mid-controls { top: 50%; }
+@media (orientation: landscape) {
+  .vi-mid-controls { top: min(42%, calc(100% - 215px)); }
+}
 
 /* Printing just one on-screen element (e.g. the membership form
    popup) rather than the whole page behind it -- hides everything
