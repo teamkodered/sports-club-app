@@ -444,6 +444,51 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
     clearInterval(stepRepeatIntervalRef.current)
   }
 
+  // Frame buttons: press again quickly (within FRAME_MULTI_PRESS_MS of
+  // letting go, same direction) to go up a level; hold on the last press
+  // to keep stepping at that level. Each press still steps one frame
+  // straight away, so single taps stay precise. Level 1 is the original
+  // behaviour (hold = 5 frames/s); level 4 is 3x real time.
+  const FRAME_LEVELS = [
+    { ms: 200, frames: 1 }, //  5 frames/s
+    { ms: 67, frames: 1 },  // 15 frames/s
+    { ms: 33, frames: 1 },  // 30 frames/s (real time)
+    { ms: 33, frames: 3 },  // 90 frames/s (3x real time)
+  ]
+  const FRAME_MULTI_PRESS_MS = 350
+  const frameTapRef = useRef({ dir: 0, level: 0, lastUp: 0 })
+  const frameBoostResetRef = useRef(null)
+  const framePressingRef = useRef(false)
+  const [frameBoost, setFrameBoost] = useState(null) // { dir, level } while boosted, for the ×N badge
+
+  function startFrameStep(dir) {
+    const now = performance.now()
+    const prev = frameTapRef.current
+    const level = (prev.dir === dir && now - prev.lastUp < FRAME_MULTI_PRESS_MS) ? Math.min(prev.level + 1, FRAME_LEVELS.length) : 1
+    frameTapRef.current = { dir, level, lastUp: prev.lastUp }
+    framePressingRef.current = true
+    clearTimeout(frameBoostResetRef.current)
+    setFrameBoost(level > 1 ? { dir, level } : null)
+
+    const { ms, frames } = FRAME_LEVELS[level - 1]
+    step(dir * FRAME_SECONDS)
+    clearTimeout(stepRepeatTimerRef.current)
+    clearInterval(stepRepeatIntervalRef.current)
+    // A boosted press is clearly meant to run, so it starts sooner.
+    stepRepeatTimerRef.current = setTimeout(() => {
+      stepRepeatIntervalRef.current = setInterval(() => step(dir * FRAME_SECONDS * frames), ms)
+    }, level === 1 ? HOLD_THRESHOLD_MS : 120)
+  }
+
+  function stopFrameStep() {
+    if (!framePressingRef.current) return // e.g. mouse just moving off the button, or the leave that follows a touch release
+    framePressingRef.current = false
+    stopStepRepeat()
+    frameTapRef.current.lastUp = performance.now()
+    clearTimeout(frameBoostResetRef.current)
+    frameBoostResetRef.current = setTimeout(() => setFrameBoost(null), FRAME_MULTI_PRESS_MS + 150)
+  }
+
   function seekTo(t) {
     const v = videoRef.current
     if (!v) return
@@ -1139,11 +1184,11 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
             onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
               <button className="view-it-btn btn btn-sm" onPointerDown={() => startStepRepeat(-5)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat} style={{ gap: 5 }}><TransportIcon name="rewind" /> 5s</button>
-              <button className="view-it-btn btn btn-sm" onPointerDown={() => startStepRepeat(-FRAME_SECONDS)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat} style={{ gap: 5 }}><TransportIcon name="frameBack" /> Frame</button>
+              <button className="view-it-btn btn btn-sm" title="Tap: 1 frame · press again quickly to speed up · hold to keep going" onPointerDown={() => startFrameStep(-1)} onPointerUp={stopFrameStep} onPointerLeave={stopFrameStep} onPointerCancel={stopFrameStep} style={{ gap: 5 }}><TransportIcon name="frameBack" /> Frame{frameBoost?.dir === -1 && <span style={{ fontSize: 10, fontWeight: 700, opacity: 0.9 }}>×{frameBoost.level}</span>}</button>
               <button className="view-it-btn" style={{ minWidth: 72, height: 72, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff' }}
                 onPointerDown={handlePlayButtonPointerDown} onPointerMove={handlePlayButtonPointerMove} onPointerUp={handlePlayButtonPointerUp}
                 onPointerLeave={() => { if (isHoldingRef.current) handlePlayButtonPointerUp() }}>{playing ? <TransportIcon name="pause" size={30} /> : <span style={{ marginLeft: 3 }}><TransportIcon name="play" size={30} /></span>}</button>
-              <button className="view-it-btn btn btn-sm" onPointerDown={() => startStepRepeat(FRAME_SECONDS)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat} style={{ gap: 5 }}>Frame <TransportIcon name="frameFwd" /></button>
+              <button className="view-it-btn btn btn-sm" title="Tap: 1 frame · press again quickly to speed up · hold to keep going" onPointerDown={() => startFrameStep(1)} onPointerUp={stopFrameStep} onPointerLeave={stopFrameStep} onPointerCancel={stopFrameStep} style={{ gap: 5 }}>{frameBoost?.dir === 1 && <span style={{ fontSize: 10, fontWeight: 700, opacity: 0.9 }}>×{frameBoost.level}</span>}Frame <TransportIcon name="frameFwd" /></button>
               <button className="view-it-btn btn btn-sm" onPointerDown={() => startStepRepeat(5)} onPointerUp={stopStepRepeat} onPointerLeave={stopStepRepeat} style={{ gap: 5 }}>5s <TransportIcon name="forward" /></button>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
