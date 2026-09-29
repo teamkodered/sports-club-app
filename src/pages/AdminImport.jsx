@@ -13,10 +13,10 @@ const XLSX = XLSXModule.utils ? XLSXModule : XLSXModule.default
 const PDP_EXPORT_SECTIONS = [
   { key: 'winning_ways',          label: 'Winning ways' },
   { key: 'what_to_do',            label: 'What to do (general)' },
-  { key: 'psychology_notes',      label: 'Psychology - Notes' },
-  { key: 'psychology_maintain',   label: 'Psychology - Maintain' },
-  { key: 'psychology_work_on',    label: 'Psychology - Work on' },
-  { key: 'psychology_what_to_do', label: 'Psychology - To do' },
+  { key: 'psychology_notes',      label: 'Mentality - Notes' },
+  { key: 'psychology_maintain',   label: 'Mentality - Maintain' },
+  { key: 'psychology_work_on',    label: 'Mentality - Work on' },
+  { key: 'psychology_what_to_do', label: 'Mentality - To do' },
   { key: 'tech_notes',            label: 'Technical - Notes' },
   { key: 'tech_maintain',         label: 'Technical - Maintain' },
   { key: 'tech_work_on',          label: 'Technical - Work on' },
@@ -37,6 +37,8 @@ const PDP_EXPORT_SECTIONS = [
   { key: 'notes',                 label: 'Coach notes' },
 ]
 const PDP_SECTION_BY_LABEL = Object.fromEntries(PDP_EXPORT_SECTIONS.map(s => [s.label.toLowerCase(), s.key]))
+// Old spreadsheets: 'Psychology - …' still imports into the Mentality columns
+for (const s of PDP_EXPORT_SECTIONS) if (s.label.startsWith('Mentality - ')) PDP_SECTION_BY_LABEL[s.label.replace('Mentality', 'Psychology').toLowerCase()] = s.key
 const PDP_SECTION_BY_KEY = Object.fromEntries(PDP_EXPORT_SECTIONS.map(s => [s.key, s.label]))
 
 export default function AdminImport() {

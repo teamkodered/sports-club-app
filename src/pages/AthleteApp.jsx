@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
+import { PDP_GOLD, pdpLinksFor, PdpNotes, PdpAddModal, pdpSectionKey, pdpLinkKey } from '../components/shared/pdpLinks.jsx'
 import { newRunId, runKey, isSuicideTest, suicideMetres, SUICIDE_PRESETS, EffortSwitcher, SuicideInput } from '../components/shared/RunEfforts.jsx'
 import F2FLeague from '../components/athlete/F2FLeague.jsx'
 import SectionRopes from '../components/shared/SectionRopes.jsx'
@@ -1231,10 +1232,10 @@ const PDP_SECTIONS = [
   { key: 'what_to_do',          label: '📋 What to do (general)', colour: '#E24B4A' },
   { key: 'maintain',            label: '✅ Maintain',              colour: '#1D9E75' },
   { key: 'to_work_on',          label: '🎯 To work on',            colour: '#EF9F27' },
-  { key: 'psychology_notes',      label: '🧠 Psychology — notes',      colour: '#666666' },
-  { key: 'psychology_maintain',    label: '🧠 Psychology — maintain', colour: '#1D9E75' },
-  { key: 'psychology_work_on',     label: '🧠 Psychology — work on',  colour: '#EF9F27' },
-  { key: 'psychology_what_to_do',  label: '🧠 Psychology — to do',    colour: '#E24B4A' },
+  { key: 'psychology_notes',      label: '🧠 Mentality — notes',      colour: '#666666' },
+  { key: 'psychology_maintain',    label: '🧠 Mentality — maintain', colour: '#1D9E75' },
+  { key: 'psychology_work_on',     label: '🧠 Mentality — work on',  colour: '#EF9F27' },
+  { key: 'psychology_what_to_do',  label: '🧠 Mentality — to do',    colour: '#E24B4A' },
   { key: 'tech_notes',          label: '⚙️ Technical — notes',       colour: '#666666' },
   { key: 'tech_maintain',       label: '⚙️ Technical — maintain',  colour: '#1D9E75' },
   { key: 'tech_work_on',        label: '⚙️ Technical — work on',   colour: '#EF9F27' },
@@ -3441,6 +3442,16 @@ export default function AthleteApp() {
     )
   }
 
+  // --- PDP links on question cards (gold) ----------------------------------
+  // Links come from athlete_profiles.pdp_links (coach adds them with + PDP).
+  // Athletes only see lines already visible to them in their PDP.
+  const [pdpAddTarget, setPdpAddTarget] = useState(null) // coach: { pillar, pillarLabel, q, item, label }
+  const [pdpPickMode, setPdpPickMode] = useState(null)   // coach: draftKey of the checklist in "+ PDP" pick mode
+  function pdpInfo(pillar, q) {
+    const links = pdpLinksFor(apData, pillar, q, { athleteView: true })
+    return { links, items: new Set(links.filter(l => l.item).map(l => l.item)), questionLinked: links.some(l => !l.item) }
+  }
+
   // --- Undo after a clear / remove ------------------------------------------
   // Any save that takes something away (Clear, ✕ Remove, Remove effort, × on
   // an entry, Reset) shows "Cleared … · UNDO" for 8 seconds. Undo saves back
@@ -3910,7 +3921,9 @@ export default function AthleteApp() {
   // options, add ONE optional note, press ONE Save -- each saved item is the
   // same entry the old tick-box made. Saved items list above; tap one to
   // edit its note (same box, same Save) or x to remove it.
-  function ChecklistPicker({ draftKey, items, logged, onAdd, onRemove, onUpdateNote, colour = '#22B14C' }) {
+  function ChecklistPicker({ draftKey, items, logged, onAdd, onRemove, onUpdateNote, colour = '#22B14C', pdp = null, pdpTarget = null }) {
+    const pdpItems = pdp?.items || new Set()
+    const picking = pdpTarget && pdpPickMode === draftKey
     const blank = { sel: [], note: '', edit: null }
     const d = { ...blank, ...(pickDraft[draftKey] || {}) }
     const set = patch => setPickDraft(p => ({ ...p, [draftKey]: { ...blank, ...(p[draftKey] || {}), ...patch } }))
@@ -3927,13 +3940,21 @@ export default function AthleteApp() {
     }
     return (
       <div className="neon-picker field" style={{ width: '100%', minWidth: 0, marginBottom: 0 }}>
+        {pdp && PdpNotes({ links: pdp.links })}
+        {pdpTarget && (
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+            <button type="button" className="btn btn-sm neon-pdp-btn" aria-pressed={!!picking} onClick={() => setPdpPickMode(picking ? null : draftKey)} style={{ fontSize: 11 }}>{picking ? 'Cancel' : '+ PDP'}</button>
+          </div>
+        )}
+        {picking && <p style={{ fontSize: 11, color: PDP_GOLD, margin: '0 0 8px' }}>Tap an item to add it to the PDP (or add the whole area).</p>}
+        {picking && <button type="button" className="btn btn-sm neon-pdp-btn" style={{ fontSize: 11, marginBottom: 8 }} onClick={() => setPdpAddTarget({ ...pdpTarget, item: null })}>+ Whole area: {pdpTarget.label}</button>}
         {logged.length > 0 && (
           <div style={{ marginBottom: 12 }}>
             <label>Logged today</label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {logged.map(l => (
-                <div key={l.item} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, padding: '6px 10px', background: colour + '12', borderRadius: 'var(--radius)', border: editing === l.item ? `1px solid ${colour}` : '1px solid transparent' }}>
-                  <button type="button" onClick={() => set({ edit: editing === l.item ? null : l.item, note: editing === l.item ? '' : (l.note || ''), sel: [] })}
+                <div key={l.item} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, padding: '6px 10px', background: colour + '12', borderRadius: 'var(--radius)', border: editing === l.item ? `1px solid ${colour}` : (pdpItems.has(l.item) ? `1px solid ${PDP_GOLD}` : '1px solid transparent') }}>
+                  <button type="button" onClick={() => picking ? setPdpAddTarget({ ...pdpTarget, item: l.item }) : set({ edit: editing === l.item ? null : l.item, note: editing === l.item ? '' : (l.note || ''), sel: [] })}
                     style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text)', fontFamily: 'var(--font-sans)', fontSize: 13 }}>
                     {l.item}
                     <span style={{ display: 'block', fontSize: 11, color: l.note ? 'var(--text-secondary)' : 'var(--text-tertiary)', marginTop: 2 }}>{l.note || 'Tap to add a note'}</span>
@@ -3953,8 +3974,9 @@ export default function AthleteApp() {
                 const on = sel.includes(i)
                 return (
                   <button key={i} type="button" className="btn btn-sm neon-opt" aria-pressed={on}
-                    onClick={() => set({ sel: on ? sel.filter(x => x !== i) : [...sel, i] })}
-                    style={{ background: on ? colour + '20' : undefined, borderColor: on ? colour : undefined, whiteSpace: 'normal', textAlign: 'left', height: 'auto' }}>
+                    onClick={() => picking ? setPdpAddTarget({ ...pdpTarget, item: i }) : set({ sel: on ? sel.filter(x => x !== i) : [...sel, i] })}
+                    data-pdp={pdpItems.has(i) ? 'gold' : undefined}
+                    style={{ background: on ? colour + '20' : undefined, borderColor: on ? colour : (pdpItems.has(i) ? PDP_GOLD : undefined), boxShadow: pdpItems.has(i) ? `0 0 0 1px ${PDP_GOLD}, 0 0 8px ${PDP_GOLD}66` : undefined, whiteSpace: 'normal', textAlign: 'left', height: 'auto' }}>
                     {i}
                   </button>
                 )
@@ -5589,7 +5611,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                                   border: `2px solid ${active ? '#E24B4A' : count ? '#1D9E75' : 'var(--border)'}`,
                                   background: count ? '#1D9E7512' : 'var(--bg-secondary)',
                                 }}>
-                                <QuestionProgressBarsVertical sectionKey="technique" questionLabel={cat} />
+                                <QuestionProgressBarsVertical sectionKey="technique" questionLabel={cat} />{pdpInfo('technique', `${style}::${cat}`).links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}
                                 <span style={{ flex: 1, textAlign: 'center' }}>
                                   <span style={{ display: 'block', fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', lineHeight: 1.2 }}>{cat}</span>
                                   {count > 0 && <span style={{ display: 'block', fontSize: active ? 10 : 8, color: '#1D9E75' }}>{count} selected</span>}
@@ -5604,7 +5626,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                           return (
                             <div key={catKey} className="card neon-qpanel neon-q-technical" style={{ marginBottom: 8 }}>
                               {HistoryViewButton({ view: { sectionKey: 'technique', q: catKey, label: cat, colour: '#2F6BFF' }, style: { marginBottom: 8 } })}
-                              {ChecklistPicker({ draftKey: `tec:${style}::${cat}`, items, colour: '#2F6BFF', logged: todaysTechniques.filter(t => t.style === style && t.category === cat).map(t => ({ item: t.technique, note: t.note })), onAdd: (arr, note) => savePhysicalField('techniques', [...todaysTechniques, ...arr.map(technique => ({ style, category: cat, technique, note }))], setTodaysTechniques), onRemove: technique => savePhysicalField('techniques', todaysTechniques.filter(t => !(t.style === style && t.category === cat && t.technique === technique)), setTodaysTechniques), onUpdateNote: (technique, note) => savePhysicalField('techniques', todaysTechniques.map(t => (t.style === style && t.category === cat && t.technique === technique) ? { ...t, note } : t), setTodaysTechniques) })}
+                              {ChecklistPicker({ draftKey: `tec:${style}::${cat}`, items, colour: '#2F6BFF', pdp: pdpInfo('technique', `${style}::${cat}`), pdpTarget: null, logged: todaysTechniques.filter(t => t.style === style && t.category === cat).map(t => ({ item: t.technique, note: t.note })), onAdd: (arr, note) => savePhysicalField('techniques', [...todaysTechniques, ...arr.map(technique => ({ style, category: cat, technique, note }))], setTodaysTechniques), onRemove: technique => savePhysicalField('techniques', todaysTechniques.filter(t => !(t.style === style && t.category === cat && t.technique === technique)), setTodaysTechniques), onUpdateNote: (technique, note) => savePhysicalField('techniques', todaysTechniques.map(t => (t.style === style && t.category === cat && t.technique === technique) ? { ...t, note } : t), setTodaysTechniques) })}
                               <QuestionMediaUpload sectionKey="technique" questionLabel={cat} />
                             </div>
                           )
@@ -5650,7 +5672,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                               border: `2px solid ${active ? '#E24B4A' : complete ? '#1D9E75' : 'var(--border)'}`,
                               background: complete ? '#1D9E7512' : 'var(--bg-secondary)',
                             }}>
-                              <QuestionProgressBarsVertical sectionKey="mentality" questionLabel="Video Analysis" />
+                              <QuestionProgressBarsVertical sectionKey="mentality" questionLabel="Video Analysis" />{pdpInfo('mentality', 'videoAnalysis').links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}
                               <span style={{ flex: 1, fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>Video Analysis</span>
                               <span style={{ fontSize: active ? 20 : 16, flexShrink: 0 }}>🎥</span>
                             </button>
@@ -5668,7 +5690,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                               border: `2px solid ${active ? '#E24B4A' : count ? '#1D9E75' : 'var(--border)'}`,
                               background: count ? '#1D9E7512' : 'var(--bg-secondary)',
                             }}>
-                            <QuestionProgressBarsVertical sectionKey="tactical" questionLabel={cat_} />
+                            <QuestionProgressBarsVertical sectionKey="tactical" questionLabel={cat_} />{pdpInfo('tactical', cat_).links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}
                             <span style={{ flex: 1, textAlign: 'center' }}>
                               <span style={{ display: 'block', fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', lineHeight: 1.2 }}>{cat_}</span>
                               {count > 0 && <span style={{ display: 'block', fontSize: active ? 10 : 8, color: '#1D9E75' }}>{count} selected</span>}
@@ -5692,7 +5714,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                       return (
                         <div key={cat} className="card neon-qpanel neon-q-tactical" style={{ marginBottom: 8 }}>
                           {HistoryViewButton({ view: { sectionKey: 'tactical', q: cat, label: cat, colour: '#FF2A2A' }, style: { marginBottom: 8 } })}
-                          {ChecklistPicker({ draftKey: `tac:${cat}`, items, colour: '#FF2A2A', logged: todaysTactical.filter(t => t.category === cat).map(t => ({ item: t.item, note: t.note })), onAdd: (arr, note) => savePhysicalField('tactical', [...todaysTactical, ...arr.map(item => ({ category: cat, item, note }))], setTodaysTactical), onRemove: item => savePhysicalField('tactical', todaysTactical.filter(t => !(t.category === cat && t.item === item)), setTodaysTactical), onUpdateNote: (item, note) => savePhysicalField('tactical', todaysTactical.map(t => (t.category === cat && t.item === item) ? { ...t, note } : t), setTodaysTactical) })}
+                          {ChecklistPicker({ draftKey: `tac:${cat}`, items, colour: '#FF2A2A', pdp: pdpInfo('tactical', cat), pdpTarget: null, logged: todaysTactical.filter(t => t.category === cat).map(t => ({ item: t.item, note: t.note })), onAdd: (arr, note) => savePhysicalField('tactical', [...todaysTactical, ...arr.map(item => ({ category: cat, item, note }))], setTodaysTactical), onRemove: item => savePhysicalField('tactical', todaysTactical.filter(t => !(t.category === cat && t.item === item)), setTodaysTactical), onUpdateNote: (item, note) => savePhysicalField('tactical', todaysTactical.map(t => (t.category === cat && t.item === item) ? { ...t, note } : t), setTodaysTactical) })}
                           <QuestionMediaUpload sectionKey="tactical" questionLabel={cat} />
                         </div>
                       )
@@ -5734,7 +5756,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                             border: `2px solid ${active ? SECTION_ACCENT_COLOURS.mentality : complete ? '#6D28D9' : 'var(--border)'}`,
                             background: complete ? '#6D28D912' : 'var(--bg-secondary)',
                           }}>
-                            <QuestionProgressBarsVertical sectionKey="mentality" questionLabel={q.label} />{(q.key === 'meditation' || q.key === 'coldWater' || q.key === 'sleep') && wearableSuggestionsFor(q.key).length > 0 && <em className="neon-wear-chip" aria-label="Wearable suggestion available">⌚</em>}
+                            <QuestionProgressBarsVertical sectionKey="mentality" questionLabel={q.label} />{pdpInfo('mentality', q.key).links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}{(q.key === 'meditation' || q.key === 'coldWater' || q.key === 'sleep') && wearableSuggestionsFor(q.key).length > 0 && <em className="neon-wear-chip" aria-label="Wearable suggestion available">⌚</em>}
                             <span style={{ flex: 1, fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{q.label}</span>
                             <span style={{ fontSize: active ? 26 : 20, flexShrink: 0 }}>{q.icon}</span>
                           </button>
@@ -5744,6 +5766,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
 
                     {expandedHomeMentality && (
                       <div className="card neon-qpanel neon-q-mentality" style={{ marginBottom: 8 }}>
+                        {PdpNotes({ links: pdpInfo('mentality', expandedHomeMentality).links })}
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                           {HistoryViewButton({ view: { sectionKey: 'mentality', q: expandedHomeMentality, label: MENTALITY_QUESTIONS.find(q => q.key === expandedHomeMentality)?.label || expandedHomeMentality, colour: '#22B14C' }, style: { marginRight: 'auto' } })}
                           <button type="button" className="btn btn-sm" onClick={() => clearMentalityQuestion(expandedHomeMentality)} style={{ fontSize: 11 }}>✕ Clear</button>

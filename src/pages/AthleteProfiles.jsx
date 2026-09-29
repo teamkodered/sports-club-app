@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, Fragment } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
+import { PDP_GOLD, pdpLinksFor, PdpNotes, PdpAddModal, pdpSectionKey, pdpLinkKey } from '../components/shared/pdpLinks.jsx'
 import { newRunId, runKey, isSuicideTest, suicideMetres, SUICIDE_PRESETS, EffortSwitcher, SuicideInput } from '../components/shared/RunEfforts.jsx'
 import SectionRopes from '../components/shared/SectionRopes.jsx'
 import NeonTileIcon from '../components/shared/NeonTileIcon.jsx'
@@ -1353,7 +1354,7 @@ function isToDoSectionKey(key) {
 // as a horizontally-scrollable row for each category, 3 visible at a
 // time, coach view.
 const PDP_CATEGORY_GROUPS = [
-  { label: 'Psychology', keys: ['psychology_notes', 'psychology_maintain', 'psychology_work_on', 'psychology_what_to_do'] },
+  { label: 'Mentality', keys: ['psychology_notes', 'psychology_maintain', 'psychology_work_on', 'psychology_what_to_do'] },
   { label: 'Technical',  keys: ['tech_notes', 'tech_maintain', 'tech_work_on', 'tech_what_to_do'] },
   { label: 'Tactical',   keys: ['tact_notes', 'tact_maintain', 'tact_work_on', 'tact_what_to_do'] },
   { label: 'Physical',   keys: ['physical_notes', 'physical_maintain', 'physical_work_on', 'physical_what_to_do'] },
@@ -2642,6 +2643,7 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
             orderedSections.forEach(section => {
               const group = PDP_CATEGORY_GROUPS.find(g => g.keys.includes(section.key))
               if (group) {
+                if (group.label === 'Skill' && !group.keys.some(k => ((apData?.pdp_notes || {})[k] || []).length)) return // Skill retired: shown only while it still has items
                 if (renderedGroups.has(group.label)) return
                 renderedGroups.add(group.label)
                 rendered.push(
@@ -3548,6 +3550,36 @@ export default function AthleteProfiles() {
     )
   }
 
+  // --- PDP links on question cards (gold) ----------------------------------
+  // Links come from athlete_profiles.pdp_links (coach adds them with + PDP).
+  // Athletes only see lines already visible to them in their PDP.
+  const [pdpAddTarget, setPdpAddTarget] = useState(null) // coach: { pillar, pillarLabel, q, item, label }
+  const [pdpPickMode, setPdpPickMode] = useState(null)   // coach: draftKey of the checklist in "+ PDP" pick mode
+  function pdpInfo(pillar, q) {
+    const links = pdpLinksFor(apData, pillar, q, { athleteView: false })
+    return { links, items: new Set(links.filter(l => l.item).map(l => l.item)), questionLinked: links.some(l => !l.item) }
+  }
+  // Coach: add a PDP line linked to a question / item. The line is added to the
+  // PDP column as normal text ("Jab — note"); the link is stored alongside.
+  async function addToPdp({ pillar, q, item, label, column, note }) {
+    if (!selected) return
+    const sectionKey = pdpSectionKey(pillar, column)
+    const name = item || label
+    const text = note ? `${name} — ${note}` : name
+    const notes = apData?.pdp_notes || {}
+    const current = notes[sectionKey] || []
+    if (current.includes(text)) { alert('That is already in this PDP column.'); return }
+    const updatedNotes = { ...notes, [sectionKey]: [...current, text] }
+    const updatedLinks = { ...(apData?.pdp_links || {}), [pdpLinkKey(sectionKey, text)]: { pillar, q, item: item || null } }
+    const { error } = await supabase.from('athlete_profiles').upsert({ student_id: selected.id, pdp_notes: updatedNotes, pdp_links: updatedLinks }, { onConflict: 'student_id' })
+    if (error) { alert('Could not add to PDP: ' + error.message + (/pdp_links/.test(error.message) ? ' (run supabase_pdp_links.sql first)' : '')); return }
+    setApData(a => ({ ...(a || {}), pdp_notes: updatedNotes, pdp_links: updatedLinks }))
+    setPdpAddTarget(null); setPdpPickMode(null)
+  }
+  function PdpAddButton({ target, style }) {
+    return <button type="button" className="btn btn-sm neon-pdp-btn" onClick={e => { e.stopPropagation(); setPdpAddTarget(target) }} style={{ fontSize: 11, ...style }}>+ PDP</button>
+  }
+
   // --- Undo after a clear / remove ------------------------------------------
   // Any save that takes something away (Clear, ✕ Remove, Remove effort, × on
   // an entry, Reset) shows "Cleared … · UNDO" for 8 seconds. Undo saves back
@@ -4073,7 +4105,9 @@ export default function AthleteProfiles() {
   // options, add ONE optional note, press ONE Save -- each saved item is the
   // same entry the old tick-box made. Saved items list above; tap one to
   // edit its note (same box, same Save) or x to remove it.
-  function ChecklistPicker({ draftKey, items, logged, onAdd, onRemove, onUpdateNote, colour = '#22B14C' }) {
+  function ChecklistPicker({ draftKey, items, logged, onAdd, onRemove, onUpdateNote, colour = '#22B14C', pdp = null, pdpTarget = null }) {
+    const pdpItems = pdp?.items || new Set()
+    const picking = pdpTarget && pdpPickMode === draftKey
     const blank = { sel: [], note: '', edit: null }
     const d = { ...blank, ...(pickDraft[draftKey] || {}) }
     const set = patch => setPickDraft(p => ({ ...p, [draftKey]: { ...blank, ...(p[draftKey] || {}), ...patch } }))
@@ -4090,13 +4124,21 @@ export default function AthleteProfiles() {
     }
     return (
       <div className="neon-picker field" style={{ width: '100%', minWidth: 0, marginBottom: 0 }}>
+        {pdp && PdpNotes({ links: pdp.links })}
+        {pdpTarget && (
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+            <button type="button" className="btn btn-sm neon-pdp-btn" aria-pressed={!!picking} onClick={() => setPdpPickMode(picking ? null : draftKey)} style={{ fontSize: 11 }}>{picking ? 'Cancel' : '+ PDP'}</button>
+          </div>
+        )}
+        {picking && <p style={{ fontSize: 11, color: PDP_GOLD, margin: '0 0 8px' }}>Tap an item to add it to the PDP (or add the whole area).</p>}
+        {picking && <button type="button" className="btn btn-sm neon-pdp-btn" style={{ fontSize: 11, marginBottom: 8 }} onClick={() => setPdpAddTarget({ ...pdpTarget, item: null })}>+ Whole area: {pdpTarget.label}</button>}
         {logged.length > 0 && (
           <div style={{ marginBottom: 12 }}>
             <label>Logged today</label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {logged.map(l => (
-                <div key={l.item} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, padding: '6px 10px', background: colour + '12', borderRadius: 'var(--radius)', border: editing === l.item ? `1px solid ${colour}` : '1px solid transparent' }}>
-                  <button type="button" onClick={() => set({ edit: editing === l.item ? null : l.item, note: editing === l.item ? '' : (l.note || ''), sel: [] })}
+                <div key={l.item} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, padding: '6px 10px', background: colour + '12', borderRadius: 'var(--radius)', border: editing === l.item ? `1px solid ${colour}` : (pdpItems.has(l.item) ? `1px solid ${PDP_GOLD}` : '1px solid transparent') }}>
+                  <button type="button" onClick={() => picking ? setPdpAddTarget({ ...pdpTarget, item: l.item }) : set({ edit: editing === l.item ? null : l.item, note: editing === l.item ? '' : (l.note || ''), sel: [] })}
                     style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text)', fontFamily: 'var(--font-sans)', fontSize: 13 }}>
                     {l.item}
                     <span style={{ display: 'block', fontSize: 11, color: l.note ? 'var(--text-secondary)' : 'var(--text-tertiary)', marginTop: 2 }}>{l.note || 'Tap to add a note'}</span>
@@ -4116,8 +4158,9 @@ export default function AthleteProfiles() {
                 const on = sel.includes(i)
                 return (
                   <button key={i} type="button" className="btn btn-sm neon-opt" aria-pressed={on}
-                    onClick={() => set({ sel: on ? sel.filter(x => x !== i) : [...sel, i] })}
-                    style={{ background: on ? colour + '20' : undefined, borderColor: on ? colour : undefined, whiteSpace: 'normal', textAlign: 'left', height: 'auto' }}>
+                    onClick={() => picking ? setPdpAddTarget({ ...pdpTarget, item: i }) : set({ sel: on ? sel.filter(x => x !== i) : [...sel, i] })}
+                    data-pdp={pdpItems.has(i) ? 'gold' : undefined}
+                    style={{ background: on ? colour + '20' : undefined, borderColor: on ? colour : (pdpItems.has(i) ? PDP_GOLD : undefined), boxShadow: pdpItems.has(i) ? `0 0 0 1px ${PDP_GOLD}, 0 0 8px ${PDP_GOLD}66` : undefined, whiteSpace: 'normal', textAlign: 'left', height: 'auto' }}>
                     {i}
                   </button>
                 )
@@ -5446,7 +5489,7 @@ export default function AthleteProfiles() {
 
   const NOTE_PDP_TARGETS = {
     'Winning ways': 'winning_ways',
-    'Psychology':   'psychology_notes',
+    'Mentality':    'psychology_notes',
     'Technical':    'tech_notes',
     'Tactical':     'tact_notes',
     'Physical':     'physical_notes',
@@ -9103,6 +9146,7 @@ export default function AthleteProfiles() {
                 <div className="neon-home">
                   {HistoryViewModal()}
                   {UndoBar()}
+                  <PdpAddModal key={pdpAddTarget ? `${pdpAddTarget.q}:${pdpAddTarget.item}` : "none"} target={pdpAddTarget} onClose={() => setPdpAddTarget(null)} onSave={addToPdp} />
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 8 }}>
                     <div className="card neon-stat" style={{ textAlign: 'center', padding: '10px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, background: 'var(--bg-secondary)' }}>
                       <button onClick={() => setF2fStatsScope(v => v - 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-tertiary)', padding: 4, appearance: 'none', WebkitAppearance: 'none', fontFamily: 'var(--font-sans)' }}>◀</button>
@@ -9678,7 +9722,7 @@ export default function AthleteProfiles() {
                                 border: `2px solid ${active ? '#E24B4A' : count ? '#1D9E75' : 'var(--border)'}`,
                                 background: count ? '#1D9E7512' : 'var(--bg-secondary)',
                               }}>
-                              <CoachQuestionProgressBarsVertical sectionKey="technique" questionLabel={cat} />
+                              <CoachQuestionProgressBarsVertical sectionKey="technique" questionLabel={cat} />{pdpInfo('technique', `${style}::${cat}`).links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}
                               <span style={{ flex: 1, textAlign: 'center' }}>
                                 <span style={{ display: 'block', fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', lineHeight: 1.2 }}>{cat}</span>
                                 {count > 0 && <span style={{ display: 'block', fontSize: active ? 10 : 8, color: '#1D9E75' }}>{count} selected</span>}
@@ -9693,7 +9737,7 @@ export default function AthleteProfiles() {
                         return (
                           <div key={catKey} className="card neon-qpanel neon-q-technical" style={{ marginBottom: 8 }}>
                             {HistoryViewButton({ view: { sectionKey: 'technique', q: catKey, label: cat, colour: '#2F6BFF' }, style: { marginBottom: 8 } })}
-                            {ChecklistPicker({ draftKey: `tec:${style}::${cat}`, items, colour: '#2F6BFF', logged: todaysTechniques.filter(t => t.style === style && t.category === cat).map(t => ({ item: t.technique, note: t.note })), onAdd: (arr, note) => savePhysicalField('techniques', [...todaysTechniques, ...arr.map(technique => ({ style, category: cat, technique, note }))], setTodaysTechniques), onRemove: technique => savePhysicalField('techniques', todaysTechniques.filter(t => !(t.style === style && t.category === cat && t.technique === technique)), setTodaysTechniques), onUpdateNote: (technique, note) => savePhysicalField('techniques', todaysTechniques.map(t => (t.style === style && t.category === cat && t.technique === technique) ? { ...t, note } : t), setTodaysTechniques) })}
+                            {ChecklistPicker({ draftKey: `tec:${style}::${cat}`, items, colour: '#2F6BFF', pdp: pdpInfo('technique', `${style}::${cat}`), pdpTarget: { pillar: 'technique', pillarLabel: 'Technical', q: `${style}::${cat}`, label: cat }, logged: todaysTechniques.filter(t => t.style === style && t.category === cat).map(t => ({ item: t.technique, note: t.note })), onAdd: (arr, note) => savePhysicalField('techniques', [...todaysTechniques, ...arr.map(technique => ({ style, category: cat, technique, note }))], setTodaysTechniques), onRemove: technique => savePhysicalField('techniques', todaysTechniques.filter(t => !(t.style === style && t.category === cat && t.technique === technique)), setTodaysTechniques), onUpdateNote: (technique, note) => savePhysicalField('techniques', todaysTechniques.map(t => (t.style === style && t.category === cat && t.technique === technique) ? { ...t, note } : t), setTodaysTechniques) })}
                           </div>
                         )
                       })}
@@ -9739,7 +9783,7 @@ export default function AthleteProfiles() {
                             border: `2px solid ${active ? '#E24B4A' : complete ? '#1D9E75' : 'var(--border)'}`,
                             background: complete ? '#1D9E7512' : 'var(--bg-secondary)',
                           }}>
-                            <CoachQuestionProgressBarsVertical sectionKey="mentality" questionLabel="Video Analysis" />
+                            <CoachQuestionProgressBarsVertical sectionKey="mentality" questionLabel="Video Analysis" />{pdpInfo('mentality', 'videoAnalysis').links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}
                             <span style={{ flex: 1, fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>Video Analysis</span>
                             <span style={{ fontSize: active ? 20 : 16, flexShrink: 0 }}>🎥</span>
                           </button>
@@ -9757,7 +9801,7 @@ export default function AthleteProfiles() {
                             border: `2px solid ${active ? '#E24B4A' : count ? '#1D9E75' : 'var(--border)'}`,
                             background: count ? '#1D9E7512' : 'var(--bg-secondary)',
                           }}>
-                          <CoachQuestionProgressBarsVertical sectionKey="tactical" questionLabel={cat_} />
+                          <CoachQuestionProgressBarsVertical sectionKey="tactical" questionLabel={cat_} />{pdpInfo('tactical', cat_).links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}
                           <span style={{ flex: 1, textAlign: 'center' }}>
                             <span style={{ display: 'block', fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', lineHeight: 1.2 }}>{cat_}</span>
                             {count > 0 && <span style={{ display: 'block', fontSize: active ? 10 : 8, color: '#1D9E75' }}>{count} selected</span>}
@@ -9780,7 +9824,7 @@ export default function AthleteProfiles() {
                     return (
                       <div key={cat} className="card neon-qpanel neon-q-tactical" style={{ marginBottom: 8 }}>
                         {HistoryViewButton({ view: { sectionKey: 'tactical', q: cat, label: cat, colour: '#FF2A2A' }, style: { marginBottom: 8 } })}
-                        {ChecklistPicker({ draftKey: `tac:${cat}`, items, colour: '#FF2A2A', logged: todaysTactical.filter(t => t.category === cat).map(t => ({ item: t.item, note: t.note })), onAdd: (arr, note) => savePhysicalField('tactical', [...todaysTactical, ...arr.map(item => ({ category: cat, item, note }))], setTodaysTactical), onRemove: item => savePhysicalField('tactical', todaysTactical.filter(t => !(t.category === cat && t.item === item)), setTodaysTactical), onUpdateNote: (item, note) => savePhysicalField('tactical', todaysTactical.map(t => (t.category === cat && t.item === item) ? { ...t, note } : t), setTodaysTactical) })}
+                        {ChecklistPicker({ draftKey: `tac:${cat}`, items, colour: '#FF2A2A', pdp: pdpInfo('tactical', cat), pdpTarget: { pillar: 'tactical', pillarLabel: 'Tactical', q: cat, label: cat }, logged: todaysTactical.filter(t => t.category === cat).map(t => ({ item: t.item, note: t.note })), onAdd: (arr, note) => savePhysicalField('tactical', [...todaysTactical, ...arr.map(item => ({ category: cat, item, note }))], setTodaysTactical), onRemove: item => savePhysicalField('tactical', todaysTactical.filter(t => !(t.category === cat && t.item === item)), setTodaysTactical), onUpdateNote: (item, note) => savePhysicalField('tactical', todaysTactical.map(t => (t.category === cat && t.item === item) ? { ...t, note } : t), setTodaysTactical) })}
                       </div>
                     )
                   })}
@@ -9822,7 +9866,7 @@ export default function AthleteProfiles() {
                           border: `2px solid ${active ? SECTION_ACCENT_COLOURS.mentality : complete ? '#6D28D9' : 'var(--border)'}`,
                           background: complete ? '#6D28D912' : 'var(--bg-secondary)',
                         }}>
-                          <CoachQuestionProgressBarsVertical sectionKey="mentality" questionLabel={q.label} />{(q.key === 'meditation' || q.key === 'coldWater' || q.key === 'sleep') && wearableSuggestionsFor(q.key).length > 0 && <em className="neon-wear-chip" aria-label="Wearable suggestion available">⌚</em>}
+                          <CoachQuestionProgressBarsVertical sectionKey="mentality" questionLabel={q.label} />{pdpInfo('mentality', q.key).links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}{(q.key === 'meditation' || q.key === 'coldWater' || q.key === 'sleep') && wearableSuggestionsFor(q.key).length > 0 && <em className="neon-wear-chip" aria-label="Wearable suggestion available">⌚</em>}
                           <span style={{ flex: 1, fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{q.label}</span>
                           <span style={{ fontSize: active ? 26 : 20, flexShrink: 0 }}>{q.icon}</span>
                         </button>
@@ -9832,8 +9876,10 @@ export default function AthleteProfiles() {
 
                   {expandedHomeMentality && (
                     <div className="card neon-qpanel neon-q-mentality" style={{ marginBottom: 8 }}>
+                      {PdpNotes({ links: pdpInfo('mentality', expandedHomeMentality).links })}
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                         {HistoryViewButton({ view: { sectionKey: 'mentality', q: expandedHomeMentality, label: MENTALITY_QUESTIONS.find(q => q.key === expandedHomeMentality)?.label || expandedHomeMentality, colour: '#22B14C' }, style: { marginRight: 'auto' } })}
+                        {PdpAddButton({ target: { pillar: 'mentality', pillarLabel: 'Mentality', q: expandedHomeMentality, item: null, label: MENTALITY_QUESTIONS.find(q => q.key === expandedHomeMentality)?.label || expandedHomeMentality }, style: { marginRight: 8 } })}
                         <button type="button" className="btn btn-sm" onClick={() => clearMentalityQuestion(expandedHomeMentality)} style={{ fontSize: 11 }}>✕ Clear</button>
                       </div>
                       {(expandedHomeMentality === 'meditation' || expandedHomeMentality === 'coldWater') && WearableSuggestions({ q: expandedHomeMentality, colour: '#22B14C' })}

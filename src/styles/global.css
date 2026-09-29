@@ -825,3 +825,11 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .neon-chev-red { background: #E24B4A !important; color: #FFFFFF !important; box-shadow: 0 0 16px rgba(226,75,74,0.6); font-size: 20px !important; }
 .neon-chev-silver { background: linear-gradient(180deg, #E6E8EB, #9AA0A6) !important; color: #0A0A0A !important; font-size: 17px !important; }
 .neon-chev:disabled { opacity: 0.45; }
+
+/* ---- PDP links: gold on question cards ---- */
+.neon-home .neon-q > .neon-pdp-chip { position: absolute; top: 6px; right: 8px; font-style: normal; font-family: 'Orbitron', sans-serif; font-size: 7px; font-weight: 700; letter-spacing: 1px; padding: 2px 5px; border-radius: 3px; background: #F5C542; color: #0A0A0A; box-shadow: 0 0 6px rgba(245,197,66,0.7); }
+.neon-home .neon-q > .neon-wear-chip + .neon-pdp-chip, .neon-home .neon-q > .neon-pdp-chip ~ .neon-wear-chip { right: 40px; }
+.neon-home .neon-q:has(> .neon-pdp-chip):not(.is-active) { border-color: #F5C542 !important; box-shadow: 0 0 8px rgba(245,197,66,0.45); }
+.neon-home .neon-qpanel .btn.neon-pdp-btn:not(.x1):not(.x2):not(.x3) { clip-path: none; background: transparent !important; color: #F5C542 !important; box-shadow: inset 0 0 0 1px #F5C542; border: none !important; border-radius: 4px !important; font-family: 'Orbitron', sans-serif !important; font-style: normal; font-weight: 600 !important; font-size: 10px !important; letter-spacing: 1.5px; min-height: 30px; }
+.neon-home .neon-qpanel .btn.neon-pdp-btn[aria-pressed="true"] { background: #F5C542 !important; color: #0A0A0A !important; }
+.neon-home .neon-qpanel .btn[data-pdp="gold"] { color: #F5C542 !important; }
