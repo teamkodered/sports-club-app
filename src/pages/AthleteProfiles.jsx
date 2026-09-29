@@ -1373,8 +1373,7 @@ const PDP_MAINTAIN_SECTIONS = new Set(PDP_CATEGORY_GROUPS.map(g => g.keys.find(k
 // Each entry: { q, label, group, items[] } -- same keys the question cards use.
 function pdpQuestionCatalog(pillar) {
   if (pillar === 'mentality') return MENTALITY_QUESTIONS.filter(q => q.key !== 'alterEgo').map(q => ({ q: q.key, label: q.label, group: 'Mentality', items: [] }))
-    .concat([{ q: 'videoAnalysis', label: 'Video Analysis', group: 'Mentality', items: [] }])
-  if (pillar === 'tactical') return Object.keys(TACTICAL_CATEGORIES).map(cat => ({ q: cat, label: cat, group: 'Tactical', items: [], longItems: TACTICAL_CATEGORIES[cat] }))
+  if (pillar === 'tactical') return [{ q: '__videoAnalysis__', label: 'Video Analysis', group: 'Tactical', items: [] }, ...Object.keys(TACTICAL_CATEGORIES).map(cat => ({ q: cat, label: cat, group: 'Tactical', items: [], longItems: TACTICAL_CATEGORIES[cat] }))]
   if (pillar === 'technique') return TECHNIQUE_STYLES.flatMap(st => Object.entries(st.categories).map(([cat, items]) => ({ q: `${st.style}::${cat}`, label: cat, group: st.style, items })))
   if (pillar === 'physical') return [
     ...RUN_CATEGORY_CARDS.map(c => ({ q: `run:${c.key}`, label: c.label, group: 'Running', items: [] })),
@@ -9923,7 +9922,7 @@ export default function AthleteProfiles() {
                             border: `2px solid ${active ? '#E24B4A' : complete ? '#1D9E75' : 'var(--border)'}`,
                             background: complete ? '#1D9E7512' : 'var(--bg-secondary)',
                           }}>
-                            <CoachQuestionProgressBarsVertical sectionKey="mentality" questionLabel="Video Analysis" />{pdpInfo('mentality', 'videoAnalysis').links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}
+                            <CoachQuestionProgressBarsVertical sectionKey="mentality" questionLabel="Video Analysis" />{pdpInfo('tactical', '__videoAnalysis__').links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}
                             <span style={{ flex: 1, fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>Video Analysis</span>
                             <span style={{ fontSize: active ? 20 : 16, flexShrink: 0 }}>🎥</span>
                           </button>
@@ -9952,8 +9951,8 @@ export default function AthleteProfiles() {
                   </div>
                   {expandedTacticalCategory === '__videoAnalysis__' && (
                     <div className="card neon-qpanel neon-q-tactical" style={{ marginBottom: 8 }}>
-                      {PdpNotes({ links: pdpInfo('mentality', 'videoAnalysis').links })}
-                      {PdpAddButton({ target: { pillar: 'mentality', pillarLabel: 'Mentality', q: 'videoAnalysis', item: null, label: 'Video Analysis' }, style: { marginBottom: 8 } })}
+                      {PdpNotes({ links: pdpInfo('tactical', '__videoAnalysis__').links })}
+                      {PdpAddButton({ target: { pillar: 'tactical', pillarLabel: 'Tactical', q: '__videoAnalysis__', item: null, label: 'Video Analysis' }, style: { marginBottom: 8 } })}
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                         {HistoryViewButton({ view: { sectionKey: 'mentality', q: 'videoAnalysis', label: 'Video Analysis', colour: '#FF2A2A' }, style: { marginRight: 'auto' } })}
                         <button type="button" className="btn btn-sm" onClick={() => clearMentalityQuestion('videoAnalysis')} style={{ fontSize: 11 }}>✕ Clear</button>

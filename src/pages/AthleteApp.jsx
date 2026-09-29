@@ -5675,7 +5675,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                               border: `2px solid ${active ? '#E24B4A' : complete ? '#1D9E75' : 'var(--border)'}`,
                               background: complete ? '#1D9E7512' : 'var(--bg-secondary)',
                             }}>
-                              <QuestionProgressBarsVertical sectionKey="mentality" questionLabel="Video Analysis" />{pdpInfo('mentality', 'videoAnalysis').links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}
+                              <QuestionProgressBarsVertical sectionKey="mentality" questionLabel="Video Analysis" />{pdpInfo('tactical', '__videoAnalysis__').links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}
                               <span style={{ flex: 1, fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>Video Analysis</span>
                               <span style={{ fontSize: active ? 20 : 16, flexShrink: 0 }}>🎥</span>
                             </button>
@@ -5704,7 +5704,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                     </div>
                     {expandedTacticalCategory === '__videoAnalysis__' && (
                       <div className="card neon-qpanel neon-q-tactical" style={{ marginBottom: 8 }}>
-                        {PdpNotes({ links: pdpInfo('mentality', 'videoAnalysis').links })}
+                        {PdpNotes({ links: pdpInfo('tactical', '__videoAnalysis__').links })}
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                           {HistoryViewButton({ view: { sectionKey: 'mentality', q: 'videoAnalysis', label: 'Video Analysis', colour: '#FF2A2A' }, style: { marginRight: 'auto' } })}
                           <button type="button" className="btn btn-sm" onClick={() => clearMentalityQuestion('videoAnalysis')} style={{ fontSize: 11 }}>✕ Clear</button>
