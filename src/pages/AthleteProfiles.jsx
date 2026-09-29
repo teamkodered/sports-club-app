@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, Fragment } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
-import { PDP_GOLD, pdpLinksFor, PdpNotes, PdpAddModal, pdpSectionKey, pdpLinkKey } from '../components/shared/pdpLinks.jsx'
+import { PDP_GOLD, pdpLinksFor, PdpNotes, PdpAddModal, pdpSectionKey, pdpLinkKey, pdpPillarForSection, pdpLinkForLine } from '../components/shared/pdpLinks.jsx'
 import { newRunId, runKey, isSuicideTest, suicideMetres, SUICIDE_PRESETS, EffortSwitcher, SuicideInput } from '../components/shared/RunEfforts.jsx'
 import SectionRopes from '../components/shared/SectionRopes.jsx'
 import NeonTileIcon from '../components/shared/NeonTileIcon.jsx'
@@ -1369,6 +1369,35 @@ const PDP_MAINTAIN_FOR_CHECK = Object.fromEntries(
 // Checking off a Maintain item moves it to the Notes log as a completed PDP task
 const PDP_MAINTAIN_SECTIONS = new Set(PDP_CATEGORY_GROUPS.map(g => g.keys.find(k => k.endsWith('maintain'))).filter(Boolean))
 
+// Question catalogue used by the PDP "Pick from questions" list + link suggestions.
+// Each entry: { q, label, group, items[] } -- same keys the question cards use.
+function pdpQuestionCatalog(pillar) {
+  if (pillar === 'mentality') return MENTALITY_QUESTIONS.filter(q => q.key !== 'alterEgo').map(q => ({ q: q.key, label: q.label, group: 'Mentality', items: [] }))
+    .concat([{ q: 'videoAnalysis', label: 'Video Analysis', group: 'Mentality', items: [] }])
+  if (pillar === 'tactical') return Object.keys(TACTICAL_CATEGORIES).map(cat => ({ q: cat, label: cat, group: 'Tactical', items: [], longItems: TACTICAL_CATEGORIES[cat] }))
+  if (pillar === 'technique') return TECHNIQUE_STYLES.flatMap(st => Object.entries(st.categories).map(([cat, items]) => ({ q: `${st.style}::${cat}`, label: cat, group: st.style, items })))
+  if (pillar === 'physical') return [
+    ...RUN_CATEGORY_CARDS.map(c => ({ q: `run:${c.key}`, label: c.label, group: 'Running', items: [] })),
+    ...WATT_BIKE_GROUPS.map(g => ({ q: `watt:${g.key}`, label: g.label, group: 'Watt bike', items: [] })),
+    ...BODYWEIGHT_GROUPS.map(g => ({ q: `bw:${g.key}`, label: g.label, group: 'Bodyweight', items: g.exercises || [] })),
+  ]
+  return []
+}
+const escRe = t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+// Best match for a free-text PDP line (longest whole-word name wins)
+function pdpSuggestLink(pillar, text) {
+  let best = null
+  for (const e of pdpQuestionCatalog(pillar)) {
+    const cands = [...(e.items || []).map(it => ({ name: it, item: it })), { name: e.label, item: null }]
+    for (const c of cands) {
+      if (!c.name || c.name.length < 3) continue
+      const re = new RegExp(`(^|[^a-z])${escRe(c.name.toLowerCase())}([^a-z]|$)`)
+      if (re.test(text.toLowerCase()) && (!best || c.name.length > best.name.length)) best = { name: c.name, link: { pillar, q: e.q, item: c.item }, where: c.item ? `${e.group} · ${e.label}` : e.group }
+    }
+  }
+  return best
+}
+
 function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOpponentNote, onToggleOpponentNoteShared, onDeleteOpponentNote, onUpdateOpponentNote, newOpponentName, setNewOpponentName, expandedOpponent, setExpandedOpponent, editingOpponentNoteId, setEditingOpponentNoteId, opponentNoteDraft, setOpponentNoteDraft, onAwardHousePoints }) {
   // "Add to calendar" scheduling wizard state -- local to this
   // component (previously referenced the same-named state from the
@@ -1397,6 +1426,105 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
   const [pdpScrollLocked, setPdpScrollLocked] = useState(true)
   const pdpScrollRefs = useRef({}) // group.label -> scroll container element
   const pdpLastScrollLeft = useRef(0) // most recent scrollLeft, used to line everything up the moment lock turns on
+  // ---- PDP <-> question links (coach): pick from questions + suggestions
+  const [pickOpen, setPickOpen] = useState(null)   // section key with the question list open
+  const [pickSearch, setPickSearch] = useState('')
+  const [pickSel, setPickSel] = useState([])       // [{ q, item, name }]
+  const [pickNote, setPickNote] = useState('')
+  async function savePdpLines(sectionKey, lines) {   // lines: [{ text, link }]
+    const notes = apData?.pdp_notes || {}
+    const cur = notes[sectionKey] || []
+    const add = lines.filter(l => !cur.includes(l.text))
+    if (!add.length) { alert('Already in this column.'); return false }
+    const updatedNotes = { ...notes, [sectionKey]: [...cur, ...add.map(l => l.text)] }
+    const updatedLinks = { ...(apData?.pdp_links || {}) }
+    add.forEach(l => { if (l.link) updatedLinks[pdpLinkKey(sectionKey, l.text)] = l.link })
+    const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: updatedNotes, pdp_links: updatedLinks }, { onConflict: 'student_id' })
+    if (error) { alert('Could not save: ' + error.message + (/pdp_links/.test(error.message) ? ' (run supabase_pdp_links.sql first)' : '')); return false }
+    setApData(a => ({ ...(a || {}), pdp_notes: updatedNotes, pdp_links: updatedLinks }))
+    return true
+  }
+  async function linkExistingLine(sectionKey, text, link) {
+    const updatedLinks = { ...(apData?.pdp_links || {}), [pdpLinkKey(sectionKey, text)]: link }
+    const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_links: updatedLinks }, { onConflict: 'student_id' })
+    if (error) { alert('Could not link: ' + error.message); return }
+    setApData(a => ({ ...(a || {}), pdp_links: updatedLinks }))
+  }
+  async function dismissSuggestion(sectionKey, text) {
+    const updatedLinks = { ...(apData?.pdp_links || {}), [pdpLinkKey(sectionKey, text)]: { none: true } }
+    await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_links: updatedLinks }, { onConflict: 'student_id' })
+    setApData(a => ({ ...(a || {}), pdp_links: updatedLinks }))
+  }
+  async function addPicked(sectionKey, combine) {
+    const note = pickNote.trim()
+    const pillar = pdpPillarForSection(sectionKey)
+    const withNote = n => note ? `${n} — ${note}` : n
+    let lines
+    if (combine && pickSel.length > 1) {
+      lines = [{ text: withNote(pickSel.map(p => p.name).join('–')), link: { pillar, q: pickSel[0].q, item: pickSel[0].item, combo: pickSel.map(p => ({ q: p.q, item: p.item })) } }]
+    } else lines = pickSel.map(p => ({ text: withNote(p.name), link: { pillar, q: p.q, item: p.item } }))
+    if (await savePdpLines(sectionKey, lines)) { setPickSel([]); setPickNote(''); setPickOpen(null); setPickSearch('') }
+  }
+  function renderQuestionPicker(section) {
+    const pillar = pdpPillarForSection(section.key)
+    const cat = pdpQuestionCatalog(pillar)
+    const term = pickSearch.trim().toLowerCase()
+    const has = (q, item) => pickSel.some(p => p.q === q && p.item === item)
+    const toggle = (q, item, name) => setPickSel(prev => has(q, item) ? prev.filter(p => !(p.q === q && p.item === item)) : [...prev, { q, item, name }])
+    const chip = on => ({ fontSize: 11, padding: '4px 10px', borderRadius: 14, cursor: 'pointer', border: `1px solid ${on ? PDP_GOLD : 'var(--border)'}`, background: on ? PDP_GOLD + '30' : 'var(--bg-secondary)', color: 'var(--text)' })
+    const rows = cat.map(e => ({ e, items: (e.items || []).filter(it => !term || it.toLowerCase().includes(term) || e.label.toLowerCase().includes(term)) }))
+      .filter(r => !term || r.items.length || r.e.label.toLowerCase().includes(term) || r.e.group.toLowerCase().includes(term))
+    return (
+      <div onClick={e => e.stopPropagation()} style={{ margin: '4px 0 10px', padding: 10, borderRadius: 8, border: `1px solid ${PDP_GOLD}`, background: PDP_GOLD + '0d' }}>
+        <input value={pickSearch} onChange={e => setPickSearch(e.target.value)} placeholder="Search questions (e.g. jab)" autoFocus
+          style={{ width: '100%', boxSizing: 'border-box', marginBottom: 8, fontSize: 13 }} />
+        <div style={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {rows.map(({ e, items }) => (
+            <div key={e.q}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: items.length ? 4 : 0 }}>
+                <button type="button" onClick={() => toggle(e.q, null, e.label)} style={chip(has(e.q, null))}>{e.group !== e.label && e.group !== 'Mentality' && e.group !== 'Tactical' ? `${e.group} · ` : ''}<b>{e.label}</b></button>
+              </div>
+              {items.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, paddingLeft: 10 }}>
+                  {items.map(it => <button key={it} type="button" onClick={() => toggle(e.q, it, it)} style={chip(has(e.q, it))}>{it}</button>)}
+                </div>
+              )}
+            </div>
+          ))}
+          {!rows.length && <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No matching questions.</p>}
+        </div>
+        {pickSel.length > 0 && (
+          <div style={{ marginTop: 10 }}>
+            <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '0 0 4px' }}>Selected: {pickSel.map(p => p.name).join(', ')}</p>
+            <input value={pickNote} onChange={e => setPickNote(e.target.value)} placeholder="Note (optional)" style={{ width: '100%', boxSizing: 'border-box', fontSize: 13, marginBottom: 8 }} />
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <button type="button" className="btn btn-sm btn-primary" style={{ background: PDP_GOLD, borderColor: PDP_GOLD, color: '#111' }} onClick={() => addPicked(section.key, false)}>{pickSel.length > 1 ? `Add ${pickSel.length} separately` : 'Add to PDP'}</button>
+              {pickSel.length > 1 && <button type="button" className="btn btn-sm" onClick={() => addPicked(section.key, true)}>Add as one combination</button>}
+              <button type="button" className="btn btn-sm" onClick={() => { setPickSel([]); setPickNote('') }}>Clear</button>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+  function renderLinkSuggestions(section) {
+    const pillar = pdpPillarForSection(section.key)
+    if (!pillar) return null
+    const lines = (pdp[section.key] || []).filter(t => !pdpLinkForLine(apData, section.key, t))
+      .map(t => ({ t, sg: pdpSuggestLink(pillar, t) })).filter(x => x.sg)
+    if (!lines.length) return null
+    return (
+      <div onClick={e => e.stopPropagation()} style={{ margin: '8px 0 0', display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {lines.map(({ t, sg }) => (
+          <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-secondary)' }}>
+            <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🔗 “{t}” → <b style={{ color: PDP_GOLD }}>{sg.name}</b> <span style={{ color: 'var(--text-tertiary)' }}>({sg.where})</span>?</span>
+            <button type="button" className="btn btn-sm" style={{ fontSize: 10, borderColor: PDP_GOLD, color: PDP_GOLD }} onClick={() => linkExistingLine(section.key, t, sg.link)}>Link</button>
+            <button type="button" className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => dismissSuggestion(section.key, t)} title="Don't suggest again">✕</button>
+          </div>
+        ))}
+      </div>
+    )
+  }
   function handlePdpGroupScroll(groupLabel, e) {
     pdpLastScrollLeft.current = e.target.scrollLeft
     if (!pdpScrollLocked) return
@@ -1450,6 +1578,7 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
       fontWeight: hl ? 700 : (base.fontWeight || 400),
       textDecoration: done ? 'line-through' : 'none',
       wordBreak: 'break-word', overflowWrap: 'break-word',
+      ...(pdpLinkForLine(apData, sectionKey, item)?.pillar ? { boxShadow: `0 0 0 1.5px ${PDP_GOLD}` } : {}),
     }
   }
 
@@ -2045,12 +2174,16 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
             {!isEditing && (
               <button className="btn btn-sm" style={{ fontSize: 10, color: '#E24B4A' }} onClick={() => deleteSection(section)} title="Delete section">🗑</button>
             )}
+            {!isEditing && pdpPillarForSection(section.key) && (
+              <button className="btn btn-sm" style={{ fontSize: 10, borderColor: PDP_GOLD, color: PDP_GOLD }} onClick={() => { setPickSel([]); setPickNote(''); setPickSearch(''); setPickOpen(pickOpen === section.key ? null : section.key) }}>{pickOpen === section.key ? 'Close list' : '🔗 From questions'}</button>
+            )}
             <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => isEditing ? saveSection() : startEdit(section)}>
               {isEditing ? 'Done' : items.length ? 'Edit' : '+ Add'}
             </button>
           </div>
         </div>
 
+        {!isEditing && pickOpen === section.key && renderQuestionPicker(section)}
         {!isEditing && (items.length > 0 || section.key === 'winning_ways') && (
           section.key === 'winning_ways' ? (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }} onClick={e => e.stopPropagation()}>
@@ -2284,6 +2417,7 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
             {saving && <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Saving…</p>}
           </div>
         )}
+        {!isEditing && renderLinkSuggestions(section)}
       </div>
     )
   }
@@ -8981,6 +9115,8 @@ export default function AthleteProfiles() {
                     }
                     return (
                       <div className="card neon-qpanel neon-q-physical neon-run-panel" style={{ marginBottom: 8 }}>
+                        {PdpNotes({ links: pdpInfo('physical', `bw:${grp.key}`).links })}
+                        {PdpAddButton({ target: { pillar: 'physical', pillarLabel: 'Physical', q: `bw:${grp.key}`, item: null, label: grp.label }, style: { marginBottom: 8 } })}
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                           <button type="button" className="btn btn-sm neon-danger" style={{ fontSize: 11 }}
                             onClick={() => { if (window.confirm(`Remove every ${grp.label} exercise logged today?`)) savePhysicalField('bodyweight', todaysBodyweight.filter(e => !bodyweightMatchesGroup(e, grp.key)), setTodaysBodyweight) }}>✕ Clear all</button>
@@ -9257,7 +9393,7 @@ export default function AthleteProfiles() {
                           border: `2px solid ${active ? SECTION_ACCENT_COLOURS.physical : complete ? '#E24B4A' : 'var(--border)'}`,
                           background: complete ? '#E24B4A12' : 'var(--bg-secondary)',
                         }}>
-                          <CoachQuestionProgressBarsVertical sectionKey="physical" questionLabel={`Running: ${cat.key}`} />
+                          <CoachQuestionProgressBarsVertical sectionKey="physical" questionLabel={`Running: ${cat.key}`} />{pdpInfo('physical', `run:${cat.key}`).links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}
                           <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat.label}</span>
                           <span style={{ fontSize: 22, flexShrink: 0 }}>{cat.icon}</span>
                         </button>
@@ -9316,6 +9452,8 @@ export default function AthleteProfiles() {
                     return (
                       <div className="card neon-qpanel neon-q-physical neon-run-panel" style={{ marginBottom: 8 }}>
                         <EffortSwitcher efforts={efforts} currentKey={current?.k} isNew={!current} onPick={pickEffort} onNew={() => pickEffort('__new__')} />
+                        {PdpNotes({ links: pdpInfo('physical', `run:${expandedHomeRun}`).links })}
+                        {PdpAddButton({ target: { pillar: 'physical', pillarLabel: 'Physical', q: `run:${expandedHomeRun}`, item: null, label: (RUN_CATEGORY_CARDS.find(c => c.key === expandedHomeRun)?.label || expandedHomeRun) }, style: { marginBottom: 8 } })}
                         {isLegacySuicide && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '0 0 8px' }}>This suicide effort was logged before end lines were recorded — its results are kept as entered. Tap + New effort to log end lines.</p>}
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                           <button type="button" className="btn btn-sm neon-danger" style={{ fontSize: 11 }}
@@ -9367,7 +9505,7 @@ export default function AthleteProfiles() {
                           border: `2px solid ${active ? SECTION_ACCENT_COLOURS.physical : complete ? '#378ADD' : 'var(--border)'}`,
                           background: complete ? '#378ADD12' : 'var(--bg-secondary)',
                         }}>
-                          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{grp.label}</span>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{grp.label}</span>{pdpInfo('physical', `watt:${grp.key}`).links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}
                           <span style={{ fontSize: 22 }}>{grp.icon}</span>
                         </button>
                       )
@@ -9418,6 +9556,8 @@ export default function AthleteProfiles() {
                     return (
                       <div className="card neon-qpanel neon-q-physical neon-run-panel" style={{ marginBottom: 8 }}>
                         <EffortSwitcher efforts={efforts} currentKey={current?.k} isNew={!current} onPick={pickEffort} onNew={() => pickEffort('__new__')} labelOf={e => e.interval_mode} />
+                        {PdpNotes({ links: pdpInfo('physical', `watt:${grp.key}`).links })}
+                        {PdpAddButton({ target: { pillar: 'physical', pillarLabel: 'Physical', q: `watt:${grp.key}`, item: null, label: grp.label }, style: { marginBottom: 8 } })}
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                           <button type="button" className="btn btn-sm neon-danger" style={{ fontSize: 11 }}
                             disabled={!current} onClick={removeCurrentEffort}>✕ Remove effort</button>
@@ -9476,7 +9616,7 @@ export default function AthleteProfiles() {
                           border: `2px solid ${active ? SECTION_ACCENT_COLOURS.physical : complete ? '#1D9E75' : 'var(--border)'}`,
                           background: complete ? '#1D9E7512' : 'var(--bg-secondary)',
                         }}>
-                          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{grp.label}</span>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{grp.label}</span>{pdpInfo('physical', `bw:${grp.key}`).links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}
                           <span style={{ fontSize: 22 }}>{grp.icon}</span>
                         </button>
                       )
@@ -9812,6 +9952,8 @@ export default function AthleteProfiles() {
                   </div>
                   {expandedTacticalCategory === '__videoAnalysis__' && (
                     <div className="card neon-qpanel neon-q-tactical" style={{ marginBottom: 8 }}>
+                      {PdpNotes({ links: pdpInfo('mentality', 'videoAnalysis').links })}
+                      {PdpAddButton({ target: { pillar: 'mentality', pillarLabel: 'Mentality', q: 'videoAnalysis', item: null, label: 'Video Analysis' }, style: { marginBottom: 8 } })}
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                         {HistoryViewButton({ view: { sectionKey: 'mentality', q: 'videoAnalysis', label: 'Video Analysis', colour: '#FF2A2A' }, style: { marginRight: 'auto' } })}
                         <button type="button" className="btn btn-sm" onClick={() => clearMentalityQuestion('videoAnalysis')} style={{ fontSize: 11 }}>✕ Clear</button>

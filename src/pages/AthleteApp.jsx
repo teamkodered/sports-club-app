@@ -4841,6 +4841,7 @@ export default function AthleteApp() {
                       }
                       return (
                         <div className="card neon-qpanel neon-q-physical neon-run-panel" style={{ marginBottom: 8 }}>
+                          {PdpNotes({ links: pdpInfo('physical', `bw:${grp.key}`).links })}
                           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                             <button type="button" className="btn btn-sm neon-danger" style={{ fontSize: 11 }}
                               onClick={() => { if (window.confirm(`Remove every ${grp.label} exercise logged today?`)) savePhysicalField('bodyweight', todaysBodyweight.filter(e => !bodyweightMatchesGroup(e, grp.key)), setTodaysBodyweight) }}>✕ Clear all</button>
@@ -5125,7 +5126,7 @@ export default function AthleteApp() {
                             border: `2px solid ${active ? SECTION_ACCENT_COLOURS.physical : complete ? '#E24B4A' : 'var(--border)'}`,
                             background: complete ? '#E24B4A12' : 'var(--bg-secondary)',
                           }}>
-                            <QuestionProgressBarsVertical sectionKey="physical" questionLabel={`Running: ${cat.key}`} />
+                            <QuestionProgressBarsVertical sectionKey="physical" questionLabel={`Running: ${cat.key}`} />{pdpInfo('physical', `run:${cat.key}`).links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}
                             <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat.label}</span>
                             <span style={{ fontSize: 22 }}>{cat.icon}</span>
                           </button>
@@ -5190,6 +5191,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                       return (
                         <div className="card neon-qpanel neon-q-physical neon-run-panel" style={{ marginBottom: 8 }}>
                           <EffortSwitcher efforts={efforts} currentKey={current?.k} isNew={!current} onPick={pickEffort} onNew={() => pickEffort('__new__')} />
+                          {PdpNotes({ links: pdpInfo('physical', `run:${expandedHomeRun}`).links })}
                           {isLegacySuicide && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '0 0 8px' }}>This suicide effort was logged before end lines were recorded — its results are kept as entered. Tap + New effort to log end lines.</p>}
                           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                             <button type="button" className="btn btn-sm neon-danger" style={{ fontSize: 11 }}
@@ -5273,7 +5275,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                             border: `2px solid ${active ? SECTION_ACCENT_COLOURS.physical : complete ? '#378ADD' : 'var(--border)'}`,
                             background: complete ? '#378ADD12' : 'var(--bg-secondary)',
                           }}>
-                            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{grp.label}</span>
+                            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{grp.label}</span>{pdpInfo('physical', `watt:${grp.key}`).links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}
                             <span style={{ fontSize: 22 }}>{grp.icon}</span>
                           </button>
                         )
@@ -5324,6 +5326,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                       return (
                         <div className="card neon-qpanel neon-q-physical neon-run-panel" style={{ marginBottom: 8 }}>
                           <EffortSwitcher efforts={efforts} currentKey={current?.k} isNew={!current} onPick={pickEffort} onNew={() => pickEffort('__new__')} labelOf={e => e.interval_mode} />
+                          {PdpNotes({ links: pdpInfo('physical', `watt:${grp.key}`).links })}
                           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                             <button type="button" className="btn btn-sm neon-danger" style={{ fontSize: 11 }}
                               disabled={!current} onClick={removeCurrentEffort}>✕ Remove effort</button>
@@ -5383,7 +5386,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                             border: `2px solid ${active ? SECTION_ACCENT_COLOURS.physical : complete ? '#1D9E75' : 'var(--border)'}`,
                             background: complete ? '#1D9E7512' : 'var(--bg-secondary)',
                           }}>
-                            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{grp.label}</span>
+                            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{grp.label}</span>{pdpInfo('physical', `bw:${grp.key}`).links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}
                             <span style={{ fontSize: 22 }}>{grp.icon}</span>
                           </button>
                         )
@@ -5701,6 +5704,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                     </div>
                     {expandedTacticalCategory === '__videoAnalysis__' && (
                       <div className="card neon-qpanel neon-q-tactical" style={{ marginBottom: 8 }}>
+                        {PdpNotes({ links: pdpInfo('mentality', 'videoAnalysis').links })}
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                           {HistoryViewButton({ view: { sectionKey: 'mentality', q: 'videoAnalysis', label: 'Video Analysis', colour: '#FF2A2A' }, style: { marginRight: 'auto' } })}
                           <button type="button" className="btn btn-sm" onClick={() => clearMentalityQuestion('videoAnalysis')} style={{ fontSize: 11 }}>✕ Clear</button>

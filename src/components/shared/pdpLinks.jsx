@@ -35,14 +35,25 @@ export function pdpLinksFor(apData, pillar, q, { athleteView = false } = {}) {
   const notes = apData?.pdp_notes || {}
   const out = []
   for (const [k, link] of Object.entries(links)) {
-    if (!link || link.pillar !== pillar || link.q !== q) continue
+    if (!link || link.pillar !== pillar) continue
+    // a combination line (e.g. Jab–Cross–Hook) lights up each of its parts
+    const parts = (Array.isArray(link.combo) && link.combo.length ? link.combo : [link]).filter(pt => pt.q === q)
+    if (!parts.length) continue
     const i = k.indexOf('::')
-    const sectionKey = k.slice(0, i), text = k.slice(i + 2)
-    if (!(notes[sectionKey] || []).includes(text)) continue
+    let sectionKey = k.slice(0, i)
+    const text = k.slice(i + 2)
+    if (!(notes[sectionKey] || []).includes(text)) {
+      // The line may have moved to another column of the same area (e.g. a To do
+      // checked off into Maintain) -- follow it there; otherwise the link is stale.
+      const area = sectionKey.replace(/_(notes|maintain|work_on|what_to_do)$/, '')
+      const moved = ['notes', 'maintain', 'work_on', 'what_to_do'].map(c => `${area}_${c}`).find(sk => (notes[sk] || []).includes(text))
+      if (!moved) continue
+      sectionKey = moved
+    }
     if (athleteView && !pdpVisibleToAthlete(apData, sectionKey, text)) continue
     const column = sectionKey.replace(/^[a-z]+_/, '')
     const note = text.includes(' — ') ? text.slice(text.indexOf(' — ') + 3) : ''
-    out.push({ key: k, sectionKey, column, columnLabel: COLUMN_LABEL[column] || column, text, note, item: link.item || null })
+    parts.forEach((pt, n) => out.push({ key: `${k}#${n}`, sectionKey, column, columnLabel: COLUMN_LABEL[column] || column, text, note, item: pt.item || null, combo: parts.length > 1 || !!link.combo }))
   }
   return out
 }
@@ -56,7 +67,7 @@ export function PdpNotes({ links, onlyItem }) {
       {list.map(l => (
         <div key={l.key} style={{ fontSize: 12, lineHeight: 1.35 }}>
           <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 8, letterSpacing: 1.5, color: PDP_GOLD, marginRight: 6 }}>PDP · {l.columnLabel.toUpperCase()}</span>
-          <span style={{ color: '#F2F2F2' }}>{l.item ? <b>{l.item}{l.note ? ': ' : ''}</b> : null}{l.note || (l.item ? '' : l.text)}</span>
+          <span style={{ color: '#F2F2F2' }}>{l.combo ? l.text : <>{l.item ? <b>{l.item}{l.note ? ': ' : ''}</b> : null}{l.note || (l.item ? '' : l.text)}</>}</span>
         </div>
       ))}
     </div>
@@ -99,4 +110,20 @@ export function PdpAddModal({ target, onClose, onSave }) {
       </div>
     </div>
   )
+}
+
+// Which pillar a PDP section belongs to (null = general / skill / winning ways)
+export function pdpPillarForSection(sectionKey) {
+  const m = /^(psychology|tech|tact|physical)_/.exec(sectionKey || '')
+  return m ? { psychology: 'mentality', tech: 'technique', tact: 'tactical', physical: 'physical' }[m[1]] : null
+}
+// Existing link for a PDP line (following it within its area), or null
+export function pdpLinkForLine(apData, sectionKey, text) {
+  const links = apData?.pdp_links || {}
+  const area = sectionKey.replace(/_(notes|maintain|work_on|what_to_do)$/, '')
+  for (const c of ['notes', 'maintain', 'work_on', 'what_to_do']) {
+    const l = links[`${area}_${c}::${text}`]
+    if (l) return l
+  }
+  return null
 }
