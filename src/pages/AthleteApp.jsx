@@ -3452,6 +3452,25 @@ export default function AthleteApp() {
     return { links, items: new Set(links.filter(l => l.item).map(l => l.item)), questionLinked: links.some(l => !l.item) }
   }
 
+  // Item-level PDP picking inside a panel (coach): "+ PDP item" toggles pick
+  // mode for that panel; tapping an item then opens the Add-to-PDP pop-up.
+  const PDP_COACH = false
+  function pdpItemPick(pickKey, pillar, pillarLabel, q, label) {
+    const info = pdpInfo(pillar, q)
+    const picking = PDP_COACH && pdpPickMode === pickKey
+    return {
+      gold: info.items, picking,
+      pick: item => setPdpAddTarget({ pillar, pillarLabel, q, item, label }),
+      bar: PDP_COACH ? (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, margin: '0 0 8px' }}>
+          {picking && <span style={{ fontSize: 11, color: PDP_GOLD, flex: 1 }}>Tap an item to add it to the PDP</span>}
+          <button type="button" className="btn btn-sm neon-pdp-btn" aria-pressed={picking} onClick={() => setPdpPickMode(picking ? null : pickKey)} style={{ fontSize: 11 }}>{picking ? 'Cancel' : '+ PDP item'}</button>
+        </div>
+      ) : null,
+    }
+  }
+  const pdpGoldStyle = on => on ? { borderColor: PDP_GOLD, boxShadow: `0 0 0 1px ${PDP_GOLD}, 0 0 8px ${PDP_GOLD}66` } : {}
+
   // --- Undo after a clear / remove ------------------------------------------
   // Any save that takes something away (Clear, ✕ Remove, Remove effort, × on
   // an entry, Reset) shows "Cleared … · UNDO" for 8 seconds. Undo saves back
@@ -3852,15 +3871,17 @@ export default function AthleteApp() {
       saveMentalityField(field, cur => ({ entries: [...(cur.entries || []), { type: sel.name, duration: Number(minutes) > 0 ? minutes : '' }] }))
       setMentalityDraftDurations(prev => ({ ...prev, [selKey]: null, [minKey]: '' }))
     }
+    const pk = field === 'videoAnalysis' ? pdpItemPick(`sp:${field}`, 'tactical', 'Tactical', '__videoAnalysis__', 'Video Analysis') : pdpItemPick(`sp:${field}`, 'mentality', 'Mentality', field, MENTALITY_QUESTIONS.find(q => q.key === field)?.label || field)
     return (
       <div className="neon-picker" style={{ width: '100%', minWidth: 0 }}>
+        {pk.bar}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
           {types.map(t => {
             const on = selected === t.name
             return (
               <button key={t.name} type="button" className="btn btn-sm neon-opt" aria-pressed={on}
-                onClick={() => setMentalityDraftDurations(prev => ({ ...prev, [selKey]: on ? null : t.name }))}
-                style={{ background: on ? colour + '20' : undefined, borderColor: on ? colour : undefined, whiteSpace: 'normal', textAlign: 'left', height: 'auto' }}>
+                onClick={() => pk.picking ? pk.pick(t.name) : setMentalityDraftDurations(prev => ({ ...prev, [selKey]: on ? null : t.name }))}
+                style={{ background: on ? colour + '20' : undefined, borderColor: on ? colour : undefined, whiteSpace: 'normal', textAlign: 'left', height: 'auto', ...(pk.gold.has(t.name) && !on ? pdpGoldStyle(true) : {}) }}>
                 {t.name}
               </button>
             )
@@ -4829,6 +4850,7 @@ export default function AthleteApp() {
                 // One Bodyweight group's panel (used by the Bodyweight grid and the Compound Lifts card)
                 const renderBwPanel = grpKey => {
                       const grp = BODYWEIGHT_GROUPS.find(g => g.key === grpKey)
+                      const bwPk = pdpItemPick(`bw:${grp.key}`, 'physical', 'Physical', `bw:${grp.key}`, grp.label)
                       const groupEntries = todaysBodyweight.filter(e => bodyweightMatchesGroup(e, grp.key))
                       const upsertExercise = (exerciseName, updater) => {
                         const existing = groupEntries.find(e => e.type === exerciseName) || { category: grp.key, type: exerciseName, duration: '', sets: [] }
@@ -4842,6 +4864,7 @@ export default function AthleteApp() {
                       return (
                         <div className="card neon-qpanel neon-q-physical neon-run-panel" style={{ marginBottom: 8 }}>
                           {PdpNotes({ links: pdpInfo('physical', `bw:${grp.key}`).links })}
+                          {bwPk.bar}
                           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                             <button type="button" className="btn btn-sm neon-danger" style={{ fontSize: 11 }}
                               onClick={() => { if (window.confirm(`Remove every ${grp.label} exercise logged today?`)) savePhysicalField('bodyweight', todaysBodyweight.filter(e => !bodyweightMatchesGroup(e, grp.key)), setTodaysBodyweight) }}>✕ Clear all</button>
@@ -4849,7 +4872,7 @@ export default function AthleteApp() {
                           <div className="field"><label>Add exercise</label>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                               {grp.exercises.filter(x => !groupEntries.some(e => e.type === x)).map(x => (
-                                <button key={x} type="button" className="btn btn-sm neon-opt" onClick={() => upsertExercise(x, cur => ({ ...cur, sets: cur.sets || [] }))}>+ {x}</button>
+                                <button key={x} type="button" className="btn btn-sm neon-opt" onClick={() => bwPk.picking ? bwPk.pick(x) : upsertExercise(x, cur => ({ ...cur, sets: cur.sets || [] }))} style={bwPk.gold.has(x) ? pdpGoldStyle(true) : undefined}>{bwPk.picking ? '' : '+ '}{x}</button>
                               ))}
                               {grp.exercises.every(x => groupEntries.some(e => e.type === x)) && <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>All added</span>}
                             </div>
@@ -4860,7 +4883,7 @@ export default function AthleteApp() {
                             return (
                               <div key={ex} style={{ marginBottom: 10, paddingBottom: 10, borderBottom: i < added.length - 1 ? '1px solid var(--border)' : 'none' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                                  <span className="neon-ex-title" style={{ fontSize: 13, fontWeight: 600 }}>{ex}</span>
+                                  <span className="neon-ex-title" onClick={() => { if (bwPk.picking) bwPk.pick(ex) }} style={{ fontSize: 13, fontWeight: 600, cursor: bwPk.picking ? 'pointer' : undefined, ...(bwPk.gold.has(ex) ? { color: PDP_GOLD, textShadow: `0 0 6px ${PDP_GOLD}88` } : {}) }}>{ex}{bwPk.gold.has(ex) ? ' ★' : ''}</span>
                                   <button type="button" className="btn btn-sm neon-danger" style={{ fontSize: 11 }}
                                     onClick={() => { const has = (entry?.sets || []).some(v => v !== '' && v != null && !(typeof v === 'object' && !Object.values(v).some(x => x !== '' && x != null))); if (!has || window.confirm(`Remove ${ex} and its results?`)) removeExercise(ex) }}>✕ Remove</button>
                                 </div>
@@ -5178,6 +5201,7 @@ export default function AthleteApp() {
                       }
                       const isSuicideNow = expandedHomeRun === 'Interval' && isSuicideTest(entry.test) && (entry.mode === 'suicide' || !(entry.sets || []).length)
                       const isLegacySuicide = expandedHomeRun === 'Interval' && isSuicideTest(entry.test) && !isSuicideNow
+                      const runPk = pdpItemPick(`run:${expandedHomeRun}`, 'physical', 'Physical', `run:${expandedHomeRun}`, RUN_CATEGORY_CARDS.find(c => c.key === expandedHomeRun)?.label || expandedHomeRun)
                       const presets = expandedHomeRun === 'Interval'
   ? [...(RUN_PRESET_TESTS.Interval || []).filter(t => !isSuicideTest(t)), ...((entry.mode === 'time' && !isSuicideTest(entry.test)) ? [] : [...new Set([...SUICIDE_PRESETS, ...(RUN_PRESET_TESTS.Interval || []).filter(isSuicideTest)])])]
   : (RUN_PRESET_TESTS[expandedHomeRun] || [])
@@ -5224,10 +5248,11 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                             </div>
                           )}
                           <div className="field"><label>{isTimedSprints ? (sprintMode === 'time' ? 'Fixed time' : 'Fixed distance') : 'Specific test'}</label>
+                            {runPk.bar}
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
                               {sprintPresets.map(t => (
-                                <button key={t} type="button" onClick={() => upsertSetup({ test: t })}
-                                  className="btn btn-sm" style={{ background: entry.test === t ? '#E24B4A20' : undefined, borderColor: entry.test === t ? '#E24B4A' : undefined }}>{(t => isSuicideTest(t) ? t.replace(/^Suicides\s*/i, '1 m pyramid suicides · ').replace(' seconds on ', 's on / ').replace(' seconds off', 's off') : t)(t)}</button>
+                                <button key={t} type="button" onClick={() => runPk.picking ? runPk.pick(t) : upsertSetup({ test: t })}
+                                  className="btn btn-sm" style={{ background: entry.test === t ? '#E24B4A20' : undefined, borderColor: entry.test === t ? '#E24B4A' : undefined, ...(runPk.gold.has(t) && entry.test !== t ? pdpGoldStyle(true) : {}) }}>{(t => isSuicideTest(t) ? t.replace(/^Suicides\s*/i, '1 m pyramid suicides · ').replace(' seconds on ', 's on / ').replace(' seconds off', 's off') : t)(t)}</button>
                               ))}
                               <input ref={sprintTestOtherRef} defaultValue={sprintPresets.includes(entry.test) ? '' : (entry.test || '')}
                                 placeholder="Other…" style={{ width: 90, flexShrink: 0 }} />
@@ -5323,6 +5348,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                         savePhysicalField('watt_bike', todaysWattBike.filter((_, i) => i !== current.i), setTodaysWattBike)
                         pickEffort(null)
                       }
+                      const wattPk = pdpItemPick(`watt:${grp.key}`, 'physical', 'Physical', `watt:${grp.key}`, grp.label)
                       return (
                         <div className="card neon-qpanel neon-q-physical neon-run-panel" style={{ marginBottom: 8 }}>
                           <EffortSwitcher efforts={efforts} currentKey={current?.k} isNew={!current} onPick={pickEffort} onNew={() => pickEffort('__new__')} labelOf={e => e.interval_mode} />
@@ -5332,10 +5358,11 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                               disabled={!current} onClick={removeCurrentEffort}>✕ Remove effort</button>
                           </div>
                           <div className="field"><label>Interval</label>
+                            {wattPk.bar}
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
                               {presets.map(m => (
-                                <button key={m} type="button" onClick={() => upsertSetup({ interval_mode: m })}
-                                  className="btn btn-sm" style={{ background: normalizeIntervalMode(entry.interval_mode) === m ? '#378ADD20' : undefined, borderColor: normalizeIntervalMode(entry.interval_mode) === m ? '#378ADD' : undefined }}>{formatIntervalLabel(m)}</button>
+                                <button key={m} type="button" onClick={() => wattPk.picking ? wattPk.pick(m) : upsertSetup({ interval_mode: m })}
+                                  className="btn btn-sm" style={{ background: normalizeIntervalMode(entry.interval_mode) === m ? '#378ADD20' : undefined, borderColor: normalizeIntervalMode(entry.interval_mode) === m ? '#378ADD' : undefined, ...(wattPk.gold.has(m) && normalizeIntervalMode(entry.interval_mode) !== m ? pdpGoldStyle(true) : {}) }}>{formatIntervalLabel(m)}</button>
                               ))}
                               <input ref={wattIntervalOtherRef} defaultValue={presets.includes(normalizeIntervalMode(entry.interval_mode)) ? '' : (entry.interval_mode || '')}
                                 placeholder="Other…" style={{ width: 90, flexShrink: 0 }} />
