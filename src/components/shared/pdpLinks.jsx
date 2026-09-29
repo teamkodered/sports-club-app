@@ -89,7 +89,7 @@ export function PdpAddModal({ target, onClose, onSave }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
           <div>
             <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 9, letterSpacing: 2, color: PDP_GOLD }}>ADD TO PDP · {target.pillarLabel?.toUpperCase()}</div>
-            <div style={{ fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 24, textTransform: 'uppercase', lineHeight: 1.1 }}>{name}</div>
+            <div style={{ fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 24, textTransform: 'uppercase', lineHeight: 1.1 }}>{name || 'New PDP note'}</div>
           </div>
           <button type="button" aria-label="Close" onClick={onClose} style={{ background: 'none', border: 'none', color: '#9A9A9A', fontSize: 22, cursor: 'pointer' }}>✕</button>
         </div>
@@ -101,7 +101,7 @@ export function PdpAddModal({ target, onClose, onSave }) {
             </button>
           ))}
         </div>
-        <textarea value={note} onChange={e => setNote(e.target.value)} rows={3} placeholder={`Note for ${name} (optional)`}
+        <textarea value={note} onChange={e => setNote(e.target.value)} rows={3} placeholder={name ? `Note for ${name} (optional)` : 'Write the PDP note'}
           style={{ width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 6, border: '1px solid #2A3138', background: '#0B0F12', color: '#FFFFFF', fontSize: 14, fontFamily: 'inherit', marginBottom: 12 }} />
         <button type="button" disabled={saving} onClick={save}
           style={{ width: '100%', height: 46, border: 'none', cursor: 'pointer', clipPath: 'polygon(14px 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 14px 100%, 0 50%)', background: PDP_GOLD, color: '#0A0A0A', fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 20, letterSpacing: 2, opacity: saving ? 0.6 : 1 }}>

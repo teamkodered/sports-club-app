@@ -833,3 +833,6 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .neon-home .neon-qpanel .btn.neon-pdp-btn:not(.x1):not(.x2):not(.x3) { clip-path: none; background: transparent !important; color: #F5C542 !important; box-shadow: inset 0 0 0 1px #F5C542; border: none !important; border-radius: 4px !important; font-family: 'Orbitron', sans-serif !important; font-style: normal; font-weight: 600 !important; font-size: 10px !important; letter-spacing: 1.5px; min-height: 30px; }
 .neon-home .neon-qpanel .btn.neon-pdp-btn[aria-pressed="true"] { background: #F5C542 !important; color: #0A0A0A !important; }
 .neon-home .neon-qpanel .btn[data-pdp="gold"] { color: #F5C542 !important; }
+
+/* Pillar PDP view: only the tabs + PDP cards show; the questions stay mounted but hidden */
+.pv-pdp > *:not(.neon-pillar-tabs):not(.neon-pdp-list) { display: none !important; }

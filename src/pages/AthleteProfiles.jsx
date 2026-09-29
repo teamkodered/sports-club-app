@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, Fragment } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
-import { PDP_GOLD, pdpLinksFor, PdpNotes, PdpAddModal, pdpSectionKey, pdpLinkKey, pdpPillarForSection, pdpLinkForLine } from '../components/shared/pdpLinks.jsx'
+import { PDP_GOLD, pdpLinksFor, PdpNotes, PdpAddModal, pdpSectionKey, pdpLinkKey, pdpPillarForSection, pdpLinkForLine, pdpVisibleToAthlete, PDP_AREA_FOR_PILLAR } from '../components/shared/pdpLinks.jsx'
 import { newRunId, runKey, isSuicideTest, suicideMetres, SUICIDE_PRESETS, EffortSwitcher, SuicideInput } from '../components/shared/RunEfforts.jsx'
 import SectionRopes from '../components/shared/SectionRopes.jsx'
 import NeonTileIcon from '../components/shared/NeonTileIcon.jsx'
@@ -3701,12 +3701,13 @@ export default function AthleteProfiles() {
     if (!selected) return
     const sectionKey = pdpSectionKey(pillar, column)
     const name = item || label
-    const text = note ? `${name} — ${note}` : name
+    const text = name ? (note ? `${name} — ${note}` : name) : note
+    if (!text) { alert('Write the PDP note first.'); return }
     const notes = apData?.pdp_notes || {}
     const current = notes[sectionKey] || []
     if (current.includes(text)) { alert('That is already in this PDP column.'); return }
     const updatedNotes = { ...notes, [sectionKey]: [...current, text] }
-    const updatedLinks = { ...(apData?.pdp_links || {}), [pdpLinkKey(sectionKey, text)]: { pillar, q, item: item || null } }
+    const updatedLinks = q ? { ...(apData?.pdp_links || {}), [pdpLinkKey(sectionKey, text)]: { pillar, q, item: item || null } } : (apData?.pdp_links || {})
     const { error } = await supabase.from('athlete_profiles').upsert({ student_id: selected.id, pdp_notes: updatedNotes, pdp_links: updatedLinks }, { onConflict: 'student_id' })
     if (error) { alert('Could not add to PDP: ' + error.message + (/pdp_links/.test(error.message) ? ' (run supabase_pdp_links.sql first)' : '')); return }
     setApData(a => ({ ...(a || {}), pdp_notes: updatedNotes, pdp_links: updatedLinks }))
@@ -3734,6 +3735,118 @@ export default function AthleteProfiles() {
     }
   }
   const pdpGoldStyle = on => on ? { borderColor: PDP_GOLD, boxShadow: `0 0 0 1px ${PDP_GOLD}, 0 0 8px ${PDP_GOLD}66` } : {}
+
+  // --- Pillar PDP card: [QUESTIONS] [PDP n] at the top of each open pillar --
+  // PDP shows that area's PDP lines as cards (grouped Work on / To do /
+  // Maintain / Notes). Athletes (and coaches) can mark a line done for today;
+  // the count builds up. Only coaches mark a line complete.
+  const [pillarView, setPillarView] = useState({}) // pillar -> 'questions' | 'pdp'
+  const PDP_COL_ORDER = [['work_on', 'Work on', '#EF9F27'], ['what_to_do', 'To do', '#E24B4A'], ['maintain', 'Maintain', '#1D9E75'], ['notes', 'Notes', '#9A9A9A']]
+  function pillarPdpLines(pillar) {
+    const area = PDP_AREA_FOR_PILLAR[pillar]
+    const notes = apData?.pdp_notes || {}
+    return PDP_COL_ORDER.flatMap(([col, colLabel, colColour]) => (notes[`${area}_${col}`] || [])
+      .filter(t => true)
+      .map(t => ({ sectionKey: `${area}_${col}`, col, colLabel, colColour, text: t, link: pdpLinkForLine(apData, `${area}_${col}`, t), coachOnly: !pdpVisibleToAthlete(apData, `${area}_${col}`, t) })))
+  }
+  const pdpDoneKey = (sectionKey, text) => `${sectionKey.replace(/_(notes|maintain|work_on|what_to_do)$/, '')}::${text}`
+  async function togglePdpDone(sectionKey, text) {
+    if (!selected) return
+    const today = new Date().toISOString().split('T')[0]
+    const cur = apData?.pdp_done || {}
+    const k = pdpDoneKey(sectionKey, text)
+    const dates = cur[k] || []
+    const updated = { ...cur, [k]: dates.includes(today) ? dates.filter(d => d !== today) : [...dates, today] }
+    setApData(a => ({ ...(a || {}), pdp_done: updated }))
+    const { error } = await supabase.from('athlete_profiles').upsert({ student_id: selected.id, pdp_done: updated }, { onConflict: 'student_id' })
+    if (error) { setApData(a => ({ ...(a || {}), pdp_done: cur })); alert('Could not save: ' + error.message + (/pdp_done/.test(error.message) ? ' (run supabase_pdp_links.sql first)' : '')) }
+  }
+  function openLinkedQuestion(pillar, link) {
+    setPillarView(v => ({ ...v, [pillar]: 'questions' }))
+    if (!link) return
+    if (pillar === 'mentality') setExpandedHomeMentality(link.q)
+    if (pillar === 'tactical') setExpandedTacticalCategory(link.q)
+    if (pillar === 'technique') setExpandedTechniqueCategory(link.q)
+  }
+  function PillarTabs({ pillar, label, colour }) {
+    const n = pillarPdpLines(pillar).length
+    const view = pillarView[pillar] || 'questions'
+    const tab = (key, text) => (
+      <button type="button" aria-pressed={view === key} onClick={() => setPillarView(v => ({ ...v, [pillar]: key }))}
+        style={{ flex: 1, height: 40, border: 'none', cursor: 'pointer', clipPath: 'polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%)',
+          background: view === key ? (key === 'pdp' ? PDP_GOLD : colour) : '#1A1F24', color: view === key ? '#0A0A0A' : '#F2F2F2',
+          boxShadow: view === key ? `0 0 12px ${key === 'pdp' ? PDP_GOLD : colour}88` : 'none',
+          fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 17, letterSpacing: 1 }}>{text}</button>
+    )
+    return (
+      <div className="neon-pillar-tabs" style={{ display: 'flex', gap: 8, margin: '0 0 10px' }}>
+        {tab('questions', label.toUpperCase())}
+        {tab('pdp', `PDP${n ? ` ${n}` : ''}`)}
+      </div>
+    )
+  }
+  function PillarPdpList({ pillar, pillarLabel }) {
+    if ((pillarView[pillar] || 'questions') !== 'pdp') return null
+    const lines = pillarPdpLines(pillar)
+    const today = new Date().toISOString().split('T')[0]
+    return (
+      <div className="neon-pdp-list" style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
+        {PdpAddButtonFree(pillar, pillarLabel)}
+        {lines.length === 0 && <p style={{ fontSize: 13, color: '#9A9A9A', margin: 0 }}>No PDP notes for {pillarLabel} yet.</p>}
+        {lines.map(l => {
+          const dates = (apData?.pdp_done || {})[pdpDoneKey(l.sectionKey, l.text)] || []
+          const doneToday = dates.includes(today)
+          const linkName = l.link?.pillar ? (l.link.item || (l.link.q || '').split('::').pop().replace(/^(run|watt|bw):/, '')) : null
+          return (
+            <div key={l.sectionKey + l.text} style={{ padding: '10px 12px', borderRadius: 6, background: '#1A1F24',
+              border: `1px solid ${doneToday ? '#22B14C' : (linkName ? PDP_GOLD : '#2A3138')}`, boxShadow: doneToday ? '0 0 8px rgba(34,177,76,0.45)' : (linkName ? `0 0 8px ${PDP_GOLD}44` : 'none') }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 8, letterSpacing: 1.5, color: l.colColour }}>{l.colLabel.toUpperCase()}</span>
+                {l.coachOnly && <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 7, letterSpacing: 1, color: '#9A9A9A' }}>COACH ONLY</span>}
+                {linkName && <button type="button" onClick={() => openLinkedQuestion(pillar, l.link)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: PDP_GOLD, fontSize: 11, cursor: 'pointer', padding: 0 }}>★ {linkName} ›</button>}
+              </div>
+              <div style={{ fontSize: 14, lineHeight: 1.35, color: '#F2F2F2', marginBottom: 8 }}>{l.text}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <button type="button" onClick={() => togglePdpDone(l.sectionKey, l.text)}
+                  style={{ height: 32, padding: '0 14px', border: 'none', cursor: 'pointer', clipPath: 'polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%)', background: doneToday ? '#22B14C' : '#2A3138', color: doneToday ? '#0A0A0A' : '#F2F2F2', fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 14, letterSpacing: 1 }}>
+                  {doneToday ? '✓ DONE TODAY' : 'DONE TODAY'}
+                </button>
+                <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 10, color: dates.length ? '#22B14C' : '#666' }}>{dates.length}× done</span>
+                {(l.col === 'what_to_do' || l.col === 'maintain') && <button type="button" onClick={() => completePdpLine(l.sectionKey, l.text)} style={{ marginLeft: 'auto', height: 30, padding: '0 12px', borderRadius: 4, border: `1px solid ${PDP_GOLD}`, background: 'transparent', color: PDP_GOLD, fontFamily: 'Orbitron, sans-serif', fontSize: 9, letterSpacing: 1.5, cursor: 'pointer' }}>{l.col === 'what_to_do' ? 'COMPLETE → MAINTAIN' : 'COMPLETE'}</button>}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+  // Coach only: complete a line -- same as the PDP page (To do -> Maintain; Maintain -> Notes log as a completed task)
+  async function completePdpLine(sectionKey, text) {
+    const pdp = apData?.pdp_notes || {}
+    if (sectionKey.endsWith('what_to_do')) {
+      const maintainKey = sectionKey.replace(/what_to_do$/, 'maintain')
+      const ck = `__completed_${sectionKey}`
+      const updated = { ...pdp, [sectionKey]: (pdp[sectionKey] || []).filter(i => i !== text), [maintainKey]: [...(pdp[maintainKey] || []), text], [ck]: (pdp[ck] || []).filter(i => i !== text) }
+      const { error } = await supabase.from('athlete_profiles').upsert({ student_id: selected.id, pdp_notes: updated }, { onConflict: 'student_id' })
+      if (error) { alert('Error: ' + error.message); return }
+      setApData(a => ({ ...a, pdp_notes: updated }))
+      return
+    }
+    if (sectionKey.endsWith('maintain')) {
+      if (!confirm(`Mark "${text}" as complete? It'll move to the Notes tab as a completed PDP task.`)) return
+      const updated = { ...pdp, [sectionKey]: (pdp[sectionKey] || []).filter(i => i !== text) }
+      const { error } = await supabase.from('athlete_profiles').upsert({ student_id: selected.id, pdp_notes: updated }, { onConflict: 'student_id' })
+      if (error) { alert('Error: ' + error.message); return }
+      const { data: logged } = await supabase.from('athlete_notes_log').insert({ student_id: selected.id, note_text: `Completed PDP task: ${text}`, author_role: 'coach', visible_to_athlete: true }).select().single()
+      if (logged) setNotesLog(prev => [logged, ...prev])
+      setApData(a => ({ ...a, pdp_notes: updated }))
+      awardHousePoints?.('pdp_complete')
+    }
+  }
+  function PdpAddButtonFree(pillar, pillarLabel) {
+    return <button type="button" className="btn btn-sm" onClick={() => setPdpAddTarget({ pillar, pillarLabel, q: null, item: null, label: '' })}
+      style={{ alignSelf: 'flex-end', fontSize: 11, borderColor: PDP_GOLD, color: PDP_GOLD, background: 'transparent' }}>+ Add to PDP</button>
+  }
 
   // --- Undo after a clear / remove ------------------------------------------
   // Any save that takes something away (Clear, ✕ Remove, Remove effort, × on
@@ -9393,10 +9506,12 @@ export default function AthleteProfiles() {
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showPhysicalSection ? '▲' : '▼'}</span>
                   </button>
 
-                  <div style={{
+                  <div className={(pillarView['physical'] || 'questions') === 'pdp' ? 'pv-pdp' : undefined} style={{
                     overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
                     maxHeight: showPhysicalSection ? 4000 : 0, opacity: showPhysicalSection ? 1 : 0,
                   }}>
+                    {PillarTabs({ pillar: 'physical', label: 'Physical', colour: '#E6B800' })}
+                    {PillarPdpList({ pillar: 'physical', pillarLabel: 'Physical' })}
                   <div style={{ display: 'grid', gridTemplateColumns: activePhysicalCategory && (activePhysicalCategory === 'running' || activePhysicalCategory === 'watt_bike') ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 8 }}>
                     {(!activePhysicalCategory || activePhysicalCategory === 'running') && (
                       <ModuleButton b={modules[0]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={SECTION_ACCENT_COLOURS.physical} setTab={setTab} setRunChartFilter={setRunChartFilter} studentId={selected?.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'running'} questionProgressByPeriod={getCoachQuestionProgressByPeriod('physical', 'Running')} />
@@ -9857,10 +9972,12 @@ export default function AthleteProfiles() {
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showTechniqueSection ? '▲' : '▼'}</span>
                   </button>
 
-                  <div style={{
+                  <div className={(pillarView['technique'] || 'questions') === 'pdp' ? 'pv-pdp' : undefined} style={{
                     overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
                     maxHeight: showTechniqueSection ? 8000 : 0, opacity: showTechniqueSection ? 1 : 0,
                   }}>
+                    {PillarTabs({ pillar: 'technique', label: 'Technical', colour: '#2F6BFF' })}
+                    {PillarPdpList({ pillar: 'technique', pillarLabel: 'Technical' })}
                   {TECHNIQUE_STYLES.filter(({ style }) => {
                     // KRBA athletes only need Boxing questions, KR
                     // Kickboxing athletes only need Kickboxing ones --
@@ -9936,10 +10053,12 @@ export default function AthleteProfiles() {
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showTacticalSection ? '▲' : '▼'}</span>
                   </button>
 
-                  <div style={{
+                  <div className={(pillarView['tactical'] || 'questions') === 'pdp' ? 'pv-pdp' : undefined} style={{
                     overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
                     maxHeight: showTacticalSection ? 8000 : 0, opacity: showTacticalSection ? 1 : 0,
                   }}>
+                    {PillarTabs({ pillar: 'tactical', label: 'Tactical', colour: '#FF2A2A' })}
+                    {PillarPdpList({ pillar: 'tactical', pillarLabel: 'Tactical' })}
                   <div style={{ display: 'grid', gridTemplateColumns: expandedTacticalCategory ? '1fr' : 'repeat(2, 1fr)', gap: 8, marginBottom: 8 }}>
                     {(expandedTacticalCategory ? [] : ['__videoAnalysis__']).concat(Object.keys(TACTICAL_CATEGORIES)).filter(cat => !expandedTacticalCategory || expandedTacticalCategory === cat).map(cat => {
                       if (cat === '__videoAnalysis__') {
@@ -10022,10 +10141,12 @@ export default function AthleteProfiles() {
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showMentalitySection ? '▲' : '▼'}</span>
                   </button>
 
-                  <div style={{
+                  <div className={(pillarView['mentality'] || 'questions') === 'pdp' ? 'pv-pdp' : undefined} style={{
                     overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
                     maxHeight: showMentalitySection ? 4000 : 0, opacity: showMentalitySection ? 1 : 0,
                   }}>
+                    {PillarTabs({ pillar: 'mentality', label: 'Mentality', colour: '#22B14C' })}
+                    {PillarPdpList({ pillar: 'mentality', pillarLabel: 'Mentality' })}
                   <div style={{ display: 'grid', gridTemplateColumns: expandedHomeMentality ? '1fr' : 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeMentality ? 10 : 8 }}>
                     {MENTALITY_QUESTIONS.filter(q => !expandedHomeMentality || expandedHomeMentality === q.key).map(q => {
                       const complete = q.key === 'alterEgo' ? !!(alterEgoWorkbook.topTraits?.some(Boolean) || alterEgoWorkbook.nameOption1) : isMentalityQComplete(q.key, todaysMentalityLog)
