@@ -1667,8 +1667,10 @@ export default function AthleteApp() {
       const t = e.target?.closest?.('button, a, [role="button"], input[type="checkbox"], input[type="radio"], select, summary')
       if (t && !t.disabled && t.getAttribute('aria-disabled') !== 'true') { try { navigator.vibrate(8) } catch { /* not supported */ } }
     }
-    document.addEventListener('pointerdown', onDown, { capture: true, passive: true })
-    return () => document.removeEventListener('pointerdown', onDown, { capture: true })
+    // 'click' (not pointerdown): only fires for a real tap, so scrolling or
+    // swiping across buttons no longer buzzes on every touch
+    document.addEventListener('click', onDown, { capture: true, passive: true })
+    return () => document.removeEventListener('click', onDown, { capture: true })
   }, [])
   const [wattEffortSel, setWattEffortSel] = useState({}) // watt bike: which effort is being edited, per group
   const [runEffortSel, setRunEffortSel] = useState({}) // running: which effort is being edited, per type ('__new__' = a new one)
