@@ -38,6 +38,9 @@ export default function Uploads({
   const [justPublishedId, setJustPublishedId] = useState(null)
   const [selectedPendingIds, setSelectedPendingIds] = useState(() => new Set())
   const [expandedFolders, setExpandedFolders] = useState(() => new Set()) // folder cards start collapsed
+  const [moveTarget, setMoveTarget] = useState('') // '' | folder id | '__none__' | '__new__'
+  const [moveNewName, setMoveNewName] = useState('')
+  const [moving, setMoving] = useState(false)
   const [editingFolderKey, setEditingFolderKey] = useState(null)
   const [folderEdit, setFolderEdit] = useState(null) // { name, eventId, accessMode } -- '' means "leave as is"
   const [savingFolder, setSavingFolder] = useState(false)
@@ -355,6 +358,44 @@ export default function Uploads({
     load()
   }
 
+  // Move every selected video into one folder (an existing one, a new one
+  // typed in here -- reusing a same-named folder if it already exists --
+  // or out of any folder). Opens the destination card afterwards so you
+  // can see them land.
+  async function moveSelectedToFolder() {
+    const ids = [...selectedPendingIds]
+    if (ids.length === 0 || !moveTarget) return
+    setMoving(true)
+    try {
+      let folderId = null
+      if (moveTarget === '__new__') {
+        const name = moveNewName.trim()
+        if (!name) { alert('Type a name for the new folder.'); return }
+        let folder = folders.find(fo => fo.name.toLowerCase() === name.toLowerCase())
+        if (!folder) {
+          const { data, error } = await supabase.from('footage_folders').insert({ name }).select().single()
+          if (error) throw error
+          folder = data
+          setFolders(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))
+        }
+        folderId = folder.id
+      } else if (moveTarget !== '__none__') {
+        folderId = moveTarget
+      }
+      const { error } = await supabase.from('fight_footage').update({ folder_id: folderId }).in('id', ids)
+      if (error) throw error
+      setExpandedFolders(prev => new Set(prev).add(folderId || 'none'))
+      setSelectedPendingIds(new Set())
+      setMoveTarget('')
+      setMoveNewName('')
+      load()
+    } catch (err) {
+      alert('Could not move videos: ' + err.message)
+    } finally {
+      setMoving(false)
+    }
+  }
+
   function toggleSelectAllPending() {
     setSelectedPendingIds(prev => prev.size === pendingFootage.length ? new Set() : new Set(pendingFootage.map(i => i.id)))
   }
@@ -581,6 +622,24 @@ export default function Uploads({
               </>
             )}
           </div>
+          {selectedPendingIds.size > 0 && (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 12 }}>📁 Move {selectedPendingIds.size} to</span>
+              <select value={moveTarget} onChange={e => setMoveTarget(e.target.value)} style={{ fontSize: 13, minWidth: 160 }}>
+                <option value="">Choose folder…</option>
+                {folders.map(fo => <option key={fo.id} value={fo.id}>{fo.name}</option>)}
+                <option value="__new__">+ New folder…</option>
+                <option value="__none__">No folder</option>
+              </select>
+              {moveTarget === '__new__' && (
+                <input autoFocus value={moveNewName} onChange={e => setMoveNewName(e.target.value)} placeholder="New folder name"
+                  onKeyDown={e => { if (e.key === 'Enter') moveSelectedToFolder() }} style={{ fontSize: 13, flex: '1 1 140px' }} />
+              )}
+              <button className="btn btn-sm btn-primary" disabled={!moveTarget || moving || (moveTarget === '__new__' && !moveNewName.trim())} onClick={moveSelectedToFolder}>
+                {moving ? 'Moving…' : 'Move'}
+              </button>
+            </div>
+          )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {pendingGroups.map(group => {
               const expanded = expandedFolders.has(group.key)
