@@ -421,6 +421,9 @@ export default function CRM() {
   const [holidayForm, setHolidayForm] = useState({ name: '', start_date: '', end_date: '' })
   const [savingHoliday, setSavingHoliday] = useState(false)
   const [missedTrainingLoaded, setMissedTrainingLoaded] = useState(false)
+  // Missed training filters -- remembered per person, reopen on their last choice
+  const [mtGroup, setMtGroup] = useSyncedPreference('crm_missed_training_group', 'all')
+  const [mtClass, setMtClass] = useSyncedPreference('crm_missed_training_class', 'all')
   const [missedTrainingLoading, setMissedTrainingLoading] = useState(false)
   const [selectedMissed, setSelectedMissed] = useState(new Set())
   const [autoSendMissedTraining, setAutoSendMissedTraining] = useState(false)
@@ -1641,10 +1644,31 @@ export default function CRM() {
     setStoppedLoaded(false) // force a fresh load next time that tab is opened, so this student shows up there
   }
 
+
+  // Same groups as the trackers: PKA / KR Centre / Derby Moore / Moorways / No class / KR / KRBA
+  const MT_GROUPS = [['all', 'All'], ['pka', 'PKA'], ['krCentrePka', 'KR Centre PKA'], ['derbyMoore', 'Derby Moore'], ['moorways', 'Moorways'], ['kr', 'KR'], ['krba', 'KRBA']]
+  function mtInGroup(s, g) {
+    if (g === 'all') return true
+    if (g === 'pka') return s.discipline === 'PKA'
+    if (g === 'krCentrePka') return s.discipline === 'PKA' && !!s.class_schedule && s.class_schedule !== 'Moorways' && s.class_schedule !== 'Derby Moore'
+    if (g === 'derbyMoore') return s.class_schedule === 'Derby Moore'
+    if (g === 'moorways') return s.class_schedule === 'Moorways'
+    if (g === 'kr') return !!s.is_kr
+    if (g === 'krba') return s.discipline === 'KRBA'
+    return true
+  }
+  const missedInGroup = missedTraining.filter(r => mtInGroup(r.student, mtGroup))
+  const missedShown = missedInGroup.filter(r => mtClass === 'all' || r.classes.some(c => c.id === mtClass))
+  const mtClassList = (() => {
+    const map = {}
+    missedInGroup.forEach(r => r.classes.forEach(c => { (map[c.id] ||= { c, n: 0 }).n++ }))
+    const DAY = { Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6, Sunday: 7 }
+    return Object.values(map).sort((a, b) => (DAY[a.c.day_of_week] || 9) - (DAY[b.c.day_of_week] || 9) || String(a.c.start_time).localeCompare(String(b.c.start_time)))
+  })()
   async function loadMissedTraining() {
     setMissedTrainingLoading(true)
     const [{ data: assignments }, attendance, { data: holidayRows }] = await Promise.all([
-      supabase.from('student_class_assignments').select('student_id'),
+      supabase.from('student_class_assignments').select('student_id, class_id, classes(id, name, day_of_week, start_time)'),
       // Paginated -- attendance already has 1800+ rows, well past
       // Supabase's default 1000-row cap on an unpaginated query.
       // Ordered newest-first, an unpaginated fetch here would keep
@@ -1657,6 +1681,8 @@ export default function CRM() {
       supabase.from('holidays').select('student_id, start_date, end_date'),
     ])
     const assignedStudentIds = new Set((assignments || []).map(a => a.student_id))
+    const classesByStudent = {}
+    ;(assignments || []).forEach(a => { if (a.classes) (classesByStudent[a.student_id] ||= []).push(a.classes) })
     const lastAttendedByStudent = {}
     attendance.forEach(a => {
       if (!lastAttendedByStudent[a.student_id]) lastAttendedByStudent[a.student_id] = a.session_date
@@ -1685,7 +1711,7 @@ export default function CRM() {
         const weeksMissed = lastDate
           ? Math.floor((Date.now() - new Date(lastDate).getTime()) / (7 * 24 * 60 * 60 * 1000))
           : null // never attended at all
-        return { student: s, lastDate, weeksMissed, onHoliday: onHolidayStudentIds.has(s.id) }
+        return { student: s, lastDate, weeksMissed, onHoliday: onHolidayStudentIds.has(s.id), classes: classesByStudent[s.id] || [] }
       })
       .filter(Boolean)
       // On-holiday students sort to the bottom as their own group,
@@ -3716,7 +3742,7 @@ export default function CRM() {
                 style={{ width: 20, height: 20, padding: 0, borderRadius: '50%', fontSize: 11, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 ?
               </button>
-              <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => exportToExcel(missedTraining.map(r => ({
+              <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => exportToExcel(missedShown.map(r => ({
                 Name: `${r.student.members?.first_name || ''} ${r.student.members?.last_name || ''}`.trim(),
                 Phone: r.student.members?.phone || '',
                 Email: r.student.members?.email || '',
@@ -3831,20 +3857,52 @@ export default function CRM() {
             )}
           </div>
 
+          {/* Filters: group and individual class, with counts; remembered for next time */}
+          {!missedTrainingLoading && missedTraining.length > 0 && (
+            <div className="card" style={{ marginBottom: 12, padding: 12 }}>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: mtClassList.length ? 8 : 0 }}>
+                {MT_GROUPS.map(([k, l]) => {
+                  const n = missedTraining.filter(r => mtInGroup(r.student, k)).length
+                  if (k !== 'all' && n === 0) return null
+                  const on = mtGroup === k
+                  return <button key={k} type="button" onClick={() => { setMtGroup(k); setMtClass('all') }}
+                    style={{ padding: '5px 12px', borderRadius: 16, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)', border: `1px solid ${on ? '#EF9F27' : 'var(--border-strong)'}`, background: on ? '#EF9F2722' : 'transparent', color: on ? 'var(--text)' : 'var(--text-secondary)', fontWeight: on ? 700 : 400 }}>
+                    {l} <b>{n}</b></button>
+                })}
+              </div>
+              {mtClassList.length > 0 && (
+                <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
+                  <button type="button" onClick={() => setMtClass('all')}
+                    style={{ flexShrink: 0, padding: '5px 12px', borderRadius: 16, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)', border: `1px solid ${mtClass === 'all' ? '#378ADD' : 'var(--border-strong)'}`, background: mtClass === 'all' ? '#378ADD22' : 'transparent', color: 'var(--text)', fontWeight: mtClass === 'all' ? 700 : 400 }}>
+                    All classes <b>{missedInGroup.length}</b></button>
+                  {mtClassList.map(({ c, n }) => (
+                    <button key={c.id} type="button" onClick={() => setMtClass(c.id)}
+                      style={{ flexShrink: 0, padding: '5px 12px', borderRadius: 16, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap', border: `1px solid ${mtClass === c.id ? '#378ADD' : 'var(--border-strong)'}`, background: mtClass === c.id ? '#378ADD22' : 'transparent', color: 'var(--text)', fontWeight: mtClass === c.id ? 700 : 400 }}>
+                      {c.day_of_week?.slice(0, 3)} {c.start_time?.slice(0, 5)} {c.name} <b>{n}</b></button>
+                  ))}
+                </div>
+              )}
+              <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 8 }}>
+                Showing <b style={{ color: 'var(--text)' }}>{missedShown.length}</b> of {missedTraining.length} missing training
+              </div>
+            </div>
+          )}
           {missedTrainingLoading ? (
             <div className="loading">Loading…</div>
           ) : missedTraining.length === 0 ? (
             <div className="empty-state"><h3>Nobody's missing training</h3><p>Every assigned, active student has trained within the last 4 weeks.</p></div>
+          ) : missedShown.length === 0 ? (
+            <div className="empty-state"><h3>No one in this filter</h3><p>Nobody in this group or class has missed training.</p></div>
           ) : (
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
                 <button className="btn btn-sm" onClick={() => setSelectedMissed(
-                  selectedMissed.size === missedTraining.length ? new Set() : new Set(missedTraining.map(r => r.student.id))
+                  selectedMissed.size === missedShown.length ? new Set() : new Set(missedShown.map(r => r.student.id))
                 )}>
-                  {selectedMissed.size === missedTraining.length ? 'Deselect all' : 'Select all'}
+                  {selectedMissed.size === missedShown.length ? 'Deselect all' : 'Select all'}
                 </button>
                 {selectedMissed.size > 0 && (() => {
-                  const selectedRows = missedTraining.filter(r => selectedMissed.has(r.student.id))
+                  const selectedRows = missedShown.filter(r => selectedMissed.has(r.student.id))
                   const people = selectedRows
                     .filter(r => !r.student.members?.do_not_contact)
                     .map(r => ({
@@ -3884,13 +3942,13 @@ export default function CRM() {
                     <th>Stop</th>
                   </tr></thead>
                   <tbody>
-                    {missedTraining.map((r, i) => {
+                    {missedShown.map((r, i) => {
                       const m = r.student.members
                       const dnc = !!m?.do_not_contact
                       const email = m?.email && !m.email.includes('@kr-centre.placeholder') ? m.email : null
                       const phone = m?.phone
                       const smsBody = encodeURIComponent(`Hi ${m?.first_name}, we've missed you at training — it's been a few weeks since your last session. Hope to see you back soon! - KR Centre`)
-                      const isFirstHoliday = r.onHoliday && (i === 0 || !missedTraining[i - 1].onHoliday)
+                      const isFirstHoliday = r.onHoliday && (i === 0 || !missedShown[i - 1].onHoliday)
                       return (
                         <Fragment key={r.student.id}>
                           {isFirstHoliday && (
