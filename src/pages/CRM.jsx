@@ -1931,7 +1931,9 @@ export default function CRM() {
     const [visibleArr, setVisibleArr] = useSyncedPreference('trackers_chart_visible_series', SERIES.map(s => s.key))
     const visible = new Set([...visibleArr.filter(k => SERIES.some(s => s.key === k)), ...(visibleArr.includes('pending') || visibleArr.includes('__pending_seen') ? [] : ['pending'])])
     function setVisible(next) {
-      setVisibleArr([...(typeof next === 'function' ? next(visible) : next)])
+      // '__pending_seen' marks that this person's saved choice already knows about the Pending
+      // series, so switching Pending off sticks (older saved choices show it by default)
+      setVisibleArr([...(typeof next === 'function' ? next(visible) : next), '__pending_seen'])
     }
     const [tappedBar, setTappedBar] = useState(null) // { label, value, date } -- shown on tap, since SVG's native <title> tooltip only works on hover (desktop), not touch
     const [pillList, setPillList] = useState(null)   // series key whose people list is open (hold a pill)
