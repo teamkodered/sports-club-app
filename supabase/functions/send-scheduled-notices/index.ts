@@ -20,7 +20,14 @@ function nextOccurrence(sendAt: Date, interval: string): Date {
   return next
 }
 
-Deno.serve(async () => {
+// Scheduled job: only runs when called with the shared job secret
+// (header x-job-secret = JOB_SECRET). Deployed with --no-verify-jwt so it
+// no longer depends on which Supabase API key format the cron job sends.
+const JOB_SECRET = Deno.env.get('JOB_SECRET')
+function jobAllowed(req: Request) { return !!JOB_SECRET && req.headers.get('x-job-secret') === JOB_SECRET }
+
+Deno.serve(async (req) => {
+  if (!jobAllowed(req)) return new Response('Unauthorized', { status: 401 })
   try {
     const now = new Date().toISOString()
     const { data: due, error } = await supabase.from('notice_sends').select('*').eq('status', 'pending').lte('send_at', now)

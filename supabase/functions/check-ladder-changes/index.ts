@@ -16,7 +16,14 @@ const supabase = createClient(
 )
 const FUNCTIONS_URL = Deno.env.get('SUPABASE_URL')!.replace('.supabase.co', '.functions.supabase.co')
 
-Deno.serve(async () => {
+// Scheduled job: only runs when called with the shared job secret
+// (header x-job-secret = JOB_SECRET). Deployed with --no-verify-jwt so it
+// no longer depends on which Supabase API key format the cron job sends.
+const JOB_SECRET = Deno.env.get('JOB_SECRET')
+function jobAllowed(req: Request) { return !!JOB_SECRET && req.headers.get('x-job-secret') === JOB_SECRET }
+
+Deno.serve(async (req) => {
+  if (!jobAllowed(req)) return new Response('Unauthorized', { status: 401 })
   try {
     const { data: settings } = await supabase.from('settings').select('key,value').in('key', ['league_date_from'])
     const dateFrom = settings?.find(s => s.key === 'league_date_from')?.value
