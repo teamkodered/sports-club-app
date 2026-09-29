@@ -426,6 +426,7 @@ export default function CRM() {
   const [mtClass, setMtClass] = useSyncedPreference('crm_missed_training_class', 'all')
   const [bulkHoliday, setBulkHoliday] = useState(null)   // { name, start_date, end_date } while the bulk-holiday form is open
   const [savingBulkHoliday, setSavingBulkHoliday] = useState(false)
+  const [mtShowHoliday, setMtShowHoliday] = useState(false)
   const [missedTrainingLoading, setMissedTrainingLoading] = useState(false)
   const [selectedMissed, setSelectedMissed] = useState(new Set())
   const [autoSendMissedTraining, setAutoSendMissedTraining] = useState(false)
@@ -1678,9 +1679,13 @@ export default function CRM() {
   }
   const missedInGroup = missedTraining.filter(r => mtInGroup(r.student, mtGroup))
   const missedShown = missedInGroup.filter(r => mtClass === 'all' || r.classes.some(c => c.id === mtClass))
+  // On-holiday students don't count as missing: excluded from every count and collapsed under their own row
+  const missedActiveCount = missedTraining.filter(r => !r.onHoliday).length
+  const mtActiveRows = missedShown.filter(r => !r.onHoliday)
+  const mtHolidayRows = missedShown.filter(r => r.onHoliday)
   const mtClassList = (() => {
     const map = {}
-    missedInGroup.forEach(r => r.classes.forEach(c => { (map[c.id] ||= { c, n: 0 }).n++ }))
+    missedInGroup.filter(r => !r.onHoliday).forEach(r => r.classes.forEach(c => { (map[c.id] ||= { c, n: 0 }).n++ }))
     const DAY = { Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6, Sunday: 7 }
     return Object.values(map).sort((a, b) => (DAY[a.c.day_of_week] || 9) - (DAY[b.c.day_of_week] || 9) || String(a.c.start_time).localeCompare(String(b.c.start_time)))
   })()
@@ -2902,7 +2907,7 @@ export default function CRM() {
         const standingOrderNeverChecked = standingOrderCheckMonth === null
         const birthdaysToday = birthdays.filter(b => b.daysUntil === 0)
         const birthdaysThisWeek = birthdays.filter(b => b.daysUntil > 0 && b.daysUntil <= 7)
-        const hasAnyReminder = standingOrderDue || standingOrderNeverChecked || missedTraining.length > 0 || birthdaysToday.length > 0 || birthdaysThisWeek.length > 0
+        const hasAnyReminder = standingOrderDue || standingOrderNeverChecked || missedActiveCount > 0 || birthdaysToday.length > 0 || birthdaysThisWeek.length > 0
         if (!hasAnyReminder) return null
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
@@ -2915,9 +2920,9 @@ export default function CRM() {
                 </div>
               </div>
             )}
-            {missedTraining.length > 0 && (
+            {missedActiveCount > 0 && (
               <div className="card" style={{ padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, background: '#E24B4A18' }}>
-                <span style={{ fontSize: 13 }}>⚠️ {missedTraining.length} student{missedTraining.length === 1 ? ' has' : 's have'} missed training</span>
+                <span style={{ fontSize: 13 }}>⚠️ {missedActiveCount} student{missedActiveCount === 1 ? ' has' : 's have'} missed training</span>
                 <button className="btn btn-sm" onClick={() => setTab('missed_training')}>View list → contact</button>
               </div>
             )}
@@ -2940,7 +2945,7 @@ export default function CRM() {
       {(() => {
         const TAB_DEFS = {
           standing_orders:  { label: 'Standing orders', colour: '#378ADD', onSelect: () => setTab('standing_orders') },
-          missed_training:  { label: `Missed training${missedTraining.length > 0 ? ` (${missedTraining.length})` : ''}`, colour: '#EF9F27', onSelect: () => { setTab('missed_training'); if (!missedTrainingLoaded) loadMissedTraining() } },
+          missed_training:  { label: `Missed training${missedActiveCount > 0 ? ` (${missedActiveCount})` : ''}`, colour: '#EF9F27', onSelect: () => { setTab('missed_training'); if (!missedTrainingLoaded) loadMissedTraining() } },
           stopped_training: { label: `Stopped training${stoppedStudents.length > 0 ? ` (${stoppedStudents.length})` : ''}`, colour: '#E24B4A', onSelect: () => { setTab('stopped_training'); if (!stoppedLoaded) loadStoppedStudents() } },
           grading_requests: { label: `Grading requests${gradingRequests.filter(r => !r.coach_approved).length > 0 ? ` (${gradingRequests.filter(r => !r.coach_approved).length})` : ''}`, colour: '#8B5CF6', onSelect: () => { setTab('grading_requests'); loadGradingRequests() } },
           birthdays:        { label: `Birthdays${birthdays.length > 0 ? ` (${birthdays.length})` : ''}`, colour: '#EC4899', onSelect: () => { setTab('birthdays'); if (!birthdaysLoaded) loadBirthdays() } },
@@ -3901,7 +3906,7 @@ export default function CRM() {
             <div className="card" style={{ marginBottom: 12, padding: 12 }}>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: mtClassList.length ? 8 : 0 }}>
                 {MT_GROUPS.map(([k, l]) => {
-                  const n = missedTraining.filter(r => mtInGroup(r.student, k)).length
+                  const n = missedTraining.filter(r => mtInGroup(r.student, k) && !r.onHoliday).length
                   if (k !== 'all' && n === 0) return null
                   const on = mtGroup === k
                   return <button key={k} type="button" onClick={() => { setMtGroup(k); setMtClass('all') }}
@@ -3913,7 +3918,7 @@ export default function CRM() {
                 <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
                   <button type="button" onClick={() => setMtClass('all')}
                     style={{ flexShrink: 0, padding: '5px 12px', borderRadius: 16, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)', border: `1px solid ${mtClass === 'all' ? '#378ADD' : 'var(--border-strong)'}`, background: mtClass === 'all' ? '#378ADD22' : 'transparent', color: 'var(--text)', fontWeight: mtClass === 'all' ? 700 : 400 }}>
-                    All classes <b>{missedInGroup.length}</b></button>
+                    All classes <b>{missedInGroup.filter(r => !r.onHoliday).length}</b></button>
                   {mtClassList.map(({ c, n }) => (
                     <button key={c.id} type="button" onClick={() => setMtClass(c.id)}
                       style={{ flexShrink: 0, padding: '5px 12px', borderRadius: 16, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap', border: `1px solid ${mtClass === c.id ? '#378ADD' : 'var(--border-strong)'}`, background: mtClass === c.id ? '#378ADD22' : 'transparent', color: 'var(--text)', fontWeight: mtClass === c.id ? 700 : 400 }}>
@@ -3922,7 +3927,7 @@ export default function CRM() {
                 </div>
               )}
               <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 8 }}>
-                Showing <b style={{ color: 'var(--text)' }}>{missedShown.length}</b> of {missedTraining.length} missing training
+                Showing <b style={{ color: 'var(--text)' }}>{mtActiveRows.length}</b> of {missedActiveCount} missing training{mtHolidayRows.length ? ` · ${mtHolidayRows.length} on holiday` : ''}
               </div>
             </div>
           )}
@@ -3936,9 +3941,9 @@ export default function CRM() {
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
                 <button className="btn btn-sm" onClick={() => setSelectedMissed(
-                  selectedMissed.size === missedShown.length ? new Set() : new Set(missedShown.map(r => r.student.id))
+                  selectedMissed.size === mtActiveRows.length && mtActiveRows.length ? new Set() : new Set(mtActiveRows.map(r => r.student.id))
                 )}>
-                  {selectedMissed.size === missedShown.length ? 'Deselect all' : 'Select all'}
+                  {selectedMissed.size === mtActiveRows.length && mtActiveRows.length ? 'Deselect all' : 'Select all'}
                 </button>
                 <button className="btn btn-sm" disabled={selectedMissed.size === 0}
                   title={selectedMissed.size ? 'Put the selected students on holiday for a date range' : 'Select students first'}
@@ -3990,7 +3995,17 @@ export default function CRM() {
                     <th>Stop</th>
                   </tr></thead>
                   <tbody>
-                    {missedShown.map((r, i) => {
+                    {[...mtActiveRows, ...(mtHolidayRows.length ? ['__holiday'] : []), ...(mtShowHoliday ? mtHolidayRows : [])].map((r, i) => {
+                      if (r === '__holiday') return (
+                        <tr key="__holiday">
+                          <td colSpan={7} style={{ padding: 0 }}>
+                            <button type="button" onClick={() => setMtShowHoliday(v => !v)} aria-expanded={mtShowHoliday}
+                              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', border: 'none', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-sans)', textAlign: 'left' }}>
+                              {mtShowHoliday ? '▾' : '▸'} 🏖️ On holiday ({mtHolidayRows.length}) — not counted as missing{mtShowHoliday ? '' : ' · tap to view'}
+                            </button>
+                          </td>
+                        </tr>
+                      )
                       const m = r.student.members
                       const dnc = !!m?.do_not_contact
                       const email = m?.email && !m.email.includes('@kr-centre.placeholder') ? m.email : null
