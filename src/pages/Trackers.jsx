@@ -300,16 +300,16 @@ export default function Trackers({ onStatsReady } = {}) {
     return {
       all: true,
       pka: s.discipline === 'PKA',
-      // Blank class schedule counts as KR Centre (the main site) -- otherwise PKA students with no
-      // schedule yet (e.g. new joins from the forms) fell into none of the three venues
-      krCentrePka: s.discipline === 'PKA' && s.class_schedule !== 'Moorways' && s.class_schedule !== 'Derby Moore',
+      // PKA splits into four that always add up: KR Centre + Derby Moore + Moorways + No class (pending)
+      krCentrePka: s.discipline === 'PKA' && !!s.class_schedule && s.class_schedule !== 'Moorways' && s.class_schedule !== 'Derby Moore',
+      noClass: s.discipline === 'PKA' && !s.class_schedule,
       derbyMoore: s.class_schedule === 'Derby Moore',
       moorways: s.class_schedule === 'Moorways',
       kr: !!s.is_kr,
       krba: s.discipline === 'KRBA',
     }
   }
-  const BREAKDOWN_KEYS = ['all', 'pka', 'krCentrePka', 'derbyMoore', 'moorways', 'kr', 'krba']
+  const BREAKDOWN_KEYS = ['all', 'pka', 'krCentrePka', 'derbyMoore', 'moorways', 'noClass', 'kr', 'krba']
   function emptyBreakdown() {
     return Object.fromEntries(BREAKDOWN_KEYS.map(k => [k, 0]))
   }

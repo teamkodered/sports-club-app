@@ -459,6 +459,7 @@ export default function CRM() {
     { key: 'krCentrePka', label: 'KR Centre PKA' },
     { key: 'derbyMoore', label: 'Derby Moore' },
     { key: 'moorways', label: 'Moorways' },
+    { key: 'noClass', label: 'No class / pending' },
     { key: 'kr', label: 'KR' },
     { key: 'krba', label: 'KRBA' },
   ]
@@ -478,7 +479,7 @@ export default function CRM() {
   // ever showing up in a filtered "Stopped" series.
   const [studentsForBreakdown, setStudentsForBreakdown] = useState([])
   useEffect(() => {
-    fetchAllRows(() => supabase.from('students').select('id, member_id, discipline, is_kr, class_schedule')).then(data => setStudentsForBreakdown(data))
+    fetchAllRows(() => supabase.from('students').select('id, member_id, discipline, is_kr, class_schedule, members(first_name, last_name)')).then(data => setStudentsForBreakdown(data))
   }, [])
   const [trainedPerDay, setTrainedPerDay] = useState([])
   const [attendanceRowsForChart, setAttendanceRowsForChart] = useState([]) // raw rows (with student_id), so the chart can re-filter per-group rather than only using the pre-aggregated by-day totals
@@ -1929,6 +1930,9 @@ export default function CRM() {
       setVisibleArr([...(typeof next === 'function' ? next(visible) : next)])
     }
     const [tappedBar, setTappedBar] = useState(null) // { label, value, date } -- shown on tap, since SVG's native <title> tooltip only works on hover (desktop), not touch
+    const [pillList, setPillList] = useState(null)   // series key whose people list is open (hold a pill)
+    const pillHold = useRef(null)
+    const pillHoldFired = useRef(false)
 
     function toggleSeries(key) {
       setVisible(prev => {
@@ -1948,8 +1952,9 @@ export default function CRM() {
     function studentMatchesGroup(s) {
       if (selectedGroupKey === 'all') return true
       if (selectedGroupKey === 'pka') return s.discipline === 'PKA'
-      // Blank class schedule = KR Centre, so KR Centre + Derby Moore + Moorways always adds up to PKA
-      if (selectedGroupKey === 'krCentrePka') return s.discipline === 'PKA' && s.class_schedule !== 'Moorways' && s.class_schedule !== 'Derby Moore'
+      // KR Centre + Derby Moore + Moorways + No class (pending) always adds up to PKA
+      if (selectedGroupKey === 'krCentrePka') return s.discipline === 'PKA' && !!s.class_schedule && s.class_schedule !== 'Moorways' && s.class_schedule !== 'Derby Moore'
+      if (selectedGroupKey === 'noClass') return s.discipline === 'PKA' && !s.class_schedule
       if (selectedGroupKey === 'derbyMoore') return s.class_schedule === 'Derby Moore'
       if (selectedGroupKey === 'moorways') return s.class_schedule === 'Moorways'
       if (selectedGroupKey === 'kr') return !!s.is_kr
@@ -2008,7 +2013,11 @@ export default function CRM() {
             All
           </button>
           {SERIES.map(s => (
-            <button key={s.key} onClick={() => toggleSeries(s.key)}
+            <button key={s.key} onClick={() => { if (pillHoldFired.current) { pillHoldFired.current = false; return } toggleSeries(s.key) }}
+              title="Tap to show/hide · hold to see the list"
+              onPointerDown={() => { pillHoldFired.current = false; pillHold.current = setTimeout(() => { pillHoldFired.current = true; if (navigator.vibrate) navigator.vibrate(15); setPillList(s.key) }, 450) }}
+              onPointerUp={() => clearTimeout(pillHold.current)} onPointerLeave={() => clearTimeout(pillHold.current)}
+              onContextMenu={e => e.preventDefault()}
               style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)',
                 border: `1px solid ${visible.has(s.key) ? s.colour : 'var(--border)'}`,
                 background: visible.has(s.key) ? s.colour + '18' : 'transparent',
@@ -2017,6 +2026,51 @@ export default function CRM() {
             </button>
           ))}
         </div>
+
+        {pillList && (() => {
+          const s = SERIES.find(x => x.key === pillList)
+          const first = days[0], last = days[days.length - 1]
+          const inWin = d => d && d >= first && d <= last
+          const fmt = d => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+          const nameOfStudent = id => { const st = studentsForBreakdown.find(x => x.id === id); return st?.members ? `${st.members.first_name || ''} ${st.members.last_name || ''}`.trim() : 'Unknown' }
+          let rows = []
+          if (pillList === 'enquiries') rows = enquiries.filter(e => inWin(e.enquiry_date)).map(e => ({ name: e.name || e.members && `${e.members.first_name} ${e.members.last_name}` || e.contact_email || 'Enquiry', right: fmt(e.enquiry_date), sort: e.enquiry_date }))
+          if (pillList === 'joined') rows = filteredJoinsStopsMembers.filter(m => inWin(m.joined_date)).map(m => ({ name: `${m.first_name || ''} ${m.last_name || ''}`.trim(), right: fmt(m.joined_date), sort: m.joined_date }))
+          if (pillList === 'stopped') rows = filteredJoinsStopsMembers.filter(m => inWin(m.stopped_at?.split('T')[0])).map(m => ({ name: `${m.first_name || ''} ${m.last_name || ''}`.trim(), right: fmt(m.stopped_at.split('T')[0]), sort: m.stopped_at }))
+          if (pillList === 'trained') {
+            const byStudent = {}
+            for (const r of filteredAttendanceRows) { if (!inWin(r.session_date)) continue; (byStudent[r.student_id] ||= new Set()).add(r.session_date) }
+            rows = Object.entries(byStudent).map(([id, set]) => ({ name: nameOfStudent(id), right: `${set.size} session${set.size === 1 ? '' : 's'}`, sort: String(1000 - set.size).padStart(4, '0') }))
+          }
+          rows.sort((a, b) => pillList === 'trained' ? a.sort.localeCompare(b.sort) || a.name.localeCompare(b.name) : String(b.sort).localeCompare(String(a.sort)))
+          const copy = async () => {
+            const text = `${s.label} — last 30 days${selectedGroupKey !== 'all' ? ` (${selectedGroupLabel})` : ''}: ${rows.length}\n` + rows.map(r => `${r.name} – ${r.right}`).join('\n')
+            try { await navigator.clipboard.writeText(text) } catch { /* ignore */ }
+            if (navigator.vibrate) navigator.vibrate(10)
+          }
+          return (
+            <div onClick={() => setPillList(null)} style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+              <div onClick={e => e.stopPropagation()} role="dialog" aria-label={`${s.label} list`}
+                style={{ width: '100%', maxWidth: 520, maxHeight: '80vh', overflowY: 'auto', boxSizing: 'border-box', padding: '14px 16px calc(18px + env(safe-area-inset-bottom, 0px))', borderRadius: '16px 16px 0 0', background: 'var(--bg)', borderTop: `3px solid ${s.colour}` }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <div>
+                    <b style={{ fontSize: 16, color: s.colour }}>{rows.length} {s.label}</b>
+                    <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Last 30 days{selectedGroupKey !== 'all' && pillList !== 'enquiries' ? ` · ${selectedGroupLabel}` : ''}</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button className="btn btn-sm" onClick={copy}>Copy</button>
+                    <button className="btn btn-sm" onClick={() => setPillList(null)}>Close</button>
+                  </div>
+                </div>
+                {rows.length === 0 ? <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No one in this list.</p> : rows.map((r, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: 14 }}>
+                    <span>{r.name}</span><span style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{r.right}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })()}
 
         {activeSeries.length === 0 ? (
           <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Select at least one to display.</p>
