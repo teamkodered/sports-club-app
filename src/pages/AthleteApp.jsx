@@ -6947,11 +6947,11 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
             </button>
 
             {checkInDrawerOpen && (
-              <div style={{ position: 'fixed', inset: 0, zIndex: 95, display: 'flex', background: 'rgba(0,0,0,0.35)' }} onClick={() => setCheckInDrawerOpen(false)}>
-                <div className="card" style={{ width: 300, maxWidth: '85vw', height: '100%', borderRadius: 0, overflowY: 'auto', boxShadow: '4px 0 16px rgba(0,0,0,0.25)' }}
+              <div className="neon-checkin-overlay" style={{ position: 'fixed', inset: 0, zIndex: 95, display: 'flex', background: 'rgba(0,0,0,0.35)' }} onClick={() => setCheckInDrawerOpen(false)}>
+                <div className={`card neon-checkin-drawer${activeCheckIn ? ' is-checked-in' : ''}`} style={{ width: 300, maxWidth: '85vw', height: '100%', borderRadius: 0, overflowY: 'auto', boxShadow: '4px 0 16px rgba(0,0,0,0.25)' }}
                   onClick={e => e.stopPropagation()}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                    <h2 style={{ fontSize: 16, fontWeight: 700 }}>✅ Check In</h2>
+                    <h2 className="neon-drawer-title" style={{ fontSize: 16, fontWeight: 700 }}>{activeCheckIn ? 'Checked in' : 'Check in'}</h2>
                     <button onClick={() => setCheckInDrawerOpen(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text-tertiary)' }}>×</button>
                   </div>
 
@@ -6963,7 +6963,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
 
                   {activeCheckIn ? (
                     <div style={{ marginBottom: 16 }}>
-                      <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: 12, fontSize: 14, background: '#E24B4A', borderColor: '#E24B4A' }}
+                      <button className="btn btn-primary neon-chev neon-chev-red" style={{ width: '100%', justifyContent: 'center', padding: 12, fontSize: 14, background: '#E24B4A', borderColor: '#E24B4A' }}
                         onClick={checkOutNow} disabled={checkingIn}>
                         🚪 Check out
                       </button>
@@ -6979,17 +6979,17 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                       {todaysSessions.length > 0 && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
                           {todaysSessions.map(a => (
-                            <div key={a.classes.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)' }}>
+                            <div key={a.classes.id} className="neon-session-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)' }}>
                               <span>
                                 <span style={{ display: 'block', fontSize: 13, fontWeight: 600 }}>{a.classes.name}</span>
                                 <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{a.classes.start_time?.slice(0, 5)}</span>
                               </span>
-                              <button className="btn btn-sm btn-primary" onClick={() => { checkInNow('attended', a.classes.id); setCheckInDrawerOpen(false) }} disabled={checkingIn}>Check in</button>
+                              <button className="btn btn-sm btn-primary neon-chev neon-chev-green" onClick={() => { checkInNow('attended', a.classes.id); setCheckInDrawerOpen(false) }} disabled={checkingIn}>Check in</button>
                             </div>
                           ))}
                         </div>
                       )}
-                      <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: 10, fontSize: 13 }}
+                      <button className="btn neon-chev neon-chev-silver" style={{ width: '100%', justifyContent: 'center', padding: 10, fontSize: 13 }}
                         onClick={() => { checkInNow('attended'); setCheckInDrawerOpen(false) }} disabled={checkingIn}>
                         {todaysSessions.length ? 'Check in (other session)' : '✅ Check in'}
                       </button>
@@ -7030,8 +7030,8 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
 
       {showWeightCheckPrompt && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}>
-          <div className="card" style={{ width: 320, padding: 20 }}>
-            <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>
+          <div className="card neon-checkin-drawer neon-weight-prompt" style={{ width: 320, padding: 20 }}>
+            <h2 className="neon-drawer-title" style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>
               {showWeightCheckPrompt === 'in' ? 'Weight check — check in' : 'Weight check — check out'}
             </h2>
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>

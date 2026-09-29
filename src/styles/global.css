@@ -801,3 +801,27 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .team-group-chip { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 14px; background: #378ADD22; border: 1px solid #378ADD; }
 .team-group-chip b { margin-left: 4px; opacity: 0.7; }
 .team-group-note { font-size: 12px; color: var(--text-secondary); padding: 8px 10px; border-radius: 8px; background: var(--bg-secondary); border: 1px solid var(--border); }
+
+/* ---- Check-in drawer + weight check prompt in the neon theme (functions unchanged) ---- */
+.neon-checkin-overlay { background: rgba(0,0,0,0.7) !important; }
+.neon-checkin-drawer { --ci: #22B14C; background: #0B0F12 !important; color: #F2F2F2 !important; border: none !important; border-right: 1px solid var(--ci) !important; box-shadow: 6px 0 24px rgba(34,177,76,0.25) !important; font-family: 'Rajdhani', sans-serif; }
+.neon-checkin-drawer.is-checked-in { --ci: #22B14C; }
+.neon-weight-prompt { border: 1px solid var(--ci) !important; border-radius: 10px !important; box-shadow: 0 0 24px rgba(34,177,76,0.3) !important; }
+.neon-checkin-drawer .neon-drawer-title { font-family: 'Saira Condensed', sans-serif !important; font-style: italic; font-weight: 800 !important; font-size: 26px !important; letter-spacing: 1px; line-height: 1; text-transform: uppercase; color: var(--ci) !important; text-shadow: 0 0 10px rgba(34,177,76,0.5); }
+.neon-checkin-drawer p, .neon-checkin-drawer label { color: #9A9A9A !important; }
+.neon-checkin-drawer p[style*="font-weight: 600"], .neon-checkin-drawer label { font-family: 'Orbitron', sans-serif !important; font-size: 9px !important; font-weight: 500 !important; letter-spacing: 2px; text-transform: uppercase; }
+.neon-checkin-drawer .neon-session-row { background: #1A1F24 !important; border: 1px solid #2A3138; border-radius: 6px !important; }
+.neon-checkin-drawer .neon-session-row span span:first-child { font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800 !important; font-size: 16px !important; text-transform: uppercase; color: #FFFFFF; }
+.neon-checkin-drawer .neon-session-row span span:last-child { font-family: 'Orbitron', sans-serif; font-size: 10px !important; color: #9A9A9A !important; }
+.neon-checkin-drawer div[style*="border-top"] { border-top-color: #2A3138 !important; }
+.neon-checkin-drawer .btn:not(.neon-chev) { background: #1A1F24 !important; border: 1px solid #2A3138 !important; color: #F2F2F2 !important; font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; min-height: 40px; }
+.neon-checkin-drawer .btn:not(.neon-chev):disabled { opacity: 0.4; }
+.neon-checkin-drawer input { background: #111518 !important; border: 1px solid #2A3138 !important; color: #FFFFFF !important; font-family: 'Orbitron', sans-serif; min-height: 40px; }
+.neon-checkin-drawer input:focus { outline: none; border-color: var(--ci) !important; }
+/* chevron buttons (same shape as the CHECK IN button on Home) */
+.neon-chev { border: none !important; clip-path: polygon(12px 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 12px 100%, 0 50%); border-radius: 0 !important;
+  font-family: 'Saira Condensed', sans-serif !important; font-style: italic; font-weight: 800 !important; letter-spacing: 2px; text-transform: uppercase; min-height: 44px; }
+.neon-chev-green { background: #22B14C !important; color: #0A0A0A !important; box-shadow: 0 0 16px rgba(34,177,76,0.6); font-size: 15px !important; padding: 0 18px !important; }
+.neon-chev-red { background: #E24B4A !important; color: #FFFFFF !important; box-shadow: 0 0 16px rgba(226,75,74,0.6); font-size: 20px !important; }
+.neon-chev-silver { background: linear-gradient(180deg, #E6E8EB, #9AA0A6) !important; color: #0A0A0A !important; font-size: 17px !important; }
+.neon-chev:disabled { opacity: 0.45; }
