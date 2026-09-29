@@ -424,6 +424,8 @@ export default function CRM() {
   // Missed training filters -- remembered per person, reopen on their last choice
   const [mtGroup, setMtGroup] = useSyncedPreference('crm_missed_training_group', 'all')
   const [mtClass, setMtClass] = useSyncedPreference('crm_missed_training_class', 'all')
+  const [bulkHoliday, setBulkHoliday] = useState(null)   // { name, start_date, end_date } while the bulk-holiday form is open
+  const [savingBulkHoliday, setSavingBulkHoliday] = useState(false)
   const [missedTrainingLoading, setMissedTrainingLoading] = useState(false)
   const [selectedMissed, setSelectedMissed] = useState(new Set())
   const [autoSendMissedTraining, setAutoSendMissedTraining] = useState(false)
@@ -1591,6 +1593,23 @@ export default function CRM() {
   // for 28+ days. Loaded on first visit to the tab, not on every page
   // load, since it's a heavier set of queries than the standing orders
   // check.
+
+  // Missed training: put every selected student on holiday for a date range in one go
+  // (e.g. a month when registers weren't taken at a venue) -- evens out their attendance stats.
+  async function saveBulkHoliday() {
+    const ids = [...selectedMissed]
+    if (!ids.length || !bulkHoliday) return
+    if (!bulkHoliday.start_date || !bulkHoliday.end_date) { alert('Please set both a From and To date.'); return }
+    if (bulkHoliday.end_date < bulkHoliday.start_date) { alert('The To date must be on or after the From date.'); return }
+    setSavingBulkHoliday(true)
+    const rows = ids.map(id => ({ name: bulkHoliday.name.trim() || 'Holiday', start_date: bulkHoliday.start_date, end_date: bulkHoliday.end_date, student_id: id }))
+    const { error } = await supabase.from('holidays').insert(rows)
+    setSavingBulkHoliday(false)
+    if (error) { alert('Error saving holidays: ' + error.message); return }
+    alert(`Holiday saved for ${ids.length} student${ids.length === 1 ? '' : 's'} (${bulkHoliday.start_date} to ${bulkHoliday.end_date}).`)
+    setBulkHoliday(null); setSelectedMissed(new Set())
+    loadMissedTraining()
+  }
   async function saveStudentHoliday() {
     if (!holidayModalFor) return
     if (!holidayForm.start_date || !holidayForm.end_date) { alert('Please set both a From and To date.'); return }
@@ -3735,6 +3754,26 @@ export default function CRM() {
 
       {tab === 'missed_training' && (
         <div>
+          {bulkHoliday && (
+            <div style={{ position: 'fixed', inset: 0, zIndex: 90, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={() => setBulkHoliday(null)}>
+              <div className="card" style={{ width: '100%', maxWidth: 420 }} onClick={e => e.stopPropagation()} role="dialog" aria-label="Holiday for selected students">
+                <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>🏖️ Holiday for {selectedMissed.size} student{selectedMissed.size === 1 ? '' : 's'}</h3>
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>These dates won't count against their attendance.</p>
+                <div className="field"><label>Reason</label>
+                  <input value={bulkHoliday.name} onChange={e => setBulkHoliday(h => ({ ...h, name: e.target.value }))} placeholder="e.g. Registers not taken" /></div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <div className="field" style={{ flex: 1 }}><label>From</label>
+                    <input type="date" value={bulkHoliday.start_date} onChange={e => setBulkHoliday(h => ({ ...h, start_date: e.target.value }))} /></div>
+                  <div className="field" style={{ flex: 1 }}><label>To</label>
+                    <input type="date" value={bulkHoliday.end_date} onChange={e => setBulkHoliday(h => ({ ...h, end_date: e.target.value }))} /></div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                  <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} disabled={savingBulkHoliday} onClick={saveBulkHoliday}>{savingBulkHoliday ? 'Saving…' : 'Save holiday'}</button>
+                  <button className="btn" onClick={() => setBulkHoliday(null)}>Cancel</button>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="card" style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: showMissedTrainingHelp ? 6 : 10 }}>
               <h2 style={{ fontSize: 15, fontWeight: 600 }}>Missed training</h2>
@@ -3900,6 +3939,15 @@ export default function CRM() {
                   selectedMissed.size === missedShown.length ? new Set() : new Set(missedShown.map(r => r.student.id))
                 )}>
                   {selectedMissed.size === missedShown.length ? 'Deselect all' : 'Select all'}
+                </button>
+                <button className="btn btn-sm" disabled={selectedMissed.size === 0}
+                  title={selectedMissed.size ? 'Put the selected students on holiday for a date range' : 'Select students first'}
+                  onClick={() => {
+                    const d = new Date(), from = new Date(); from.setDate(from.getDate() - 28)
+                    const iso = x => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`
+                    setBulkHoliday({ name: 'Holiday', start_date: iso(from), end_date: iso(d) })
+                  }}>
+                  🏖️ Holiday{selectedMissed.size ? ` (${selectedMissed.size})` : ''}
                 </button>
                 {selectedMissed.size > 0 && (() => {
                   const selectedRows = missedShown.filter(r => selectedMissed.has(r.student.id))
