@@ -1,4 +1,5 @@
 import { useState, useEffect, Fragment, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
@@ -329,6 +330,7 @@ function NoticeTargetedSend({ notice, students, sendRealEmail, studentFullName }
 }
 
 export default function CRM() {
+  const navigate = useNavigate()
   // Supabase caps any unpaginated query at 1000 rows by default -- the
   // members table already has 986 rows, close enough to that limit
   // that a plain unpaginated fetch risks silently truncating and
@@ -3278,8 +3280,22 @@ export default function CRM() {
                 const displayValue = showingBreakdown ? (s.breakdownFormat ? s.breakdownFormat(rawValue) : (rawValue ?? '—')) : s.value
                 const displayLabel = showingBreakdown ? step.label : s.defaultLabel
                 return (
-                  <div key={s.cardKey} className="card" style={{ textAlign: 'center', userSelect: 'none', WebkitTouchCallout: 'none' }} title={s.warning || undefined}
-                    onPointerDown={handleTrackersCardHoldDown} onPointerUp={handleTrackersCardHoldUp} onPointerLeave={handleTrackersCardHoldUp}>
+                  <div key={s.cardKey} className="card" style={{ textAlign: 'center', userSelect: 'none', WebkitTouchCallout: 'none', cursor: (s.cardKey === 'totalStudents' || s.cardKey === 'newMembers') ? 'pointer' : undefined }}
+                    title={s.warning || ((s.cardKey === 'totalStudents' || s.cardKey === 'newMembers') ? 'Tap to open these students · hold to switch group' : undefined)}
+                    onPointerDown={handleTrackersCardHoldDown} onPointerUp={handleTrackersCardHoldUp} onPointerLeave={handleTrackersCardHoldUp}
+                    onClick={() => {
+                      // a hold switches the group -- only a plain tap opens the list
+                      if (trackersHoldFiredRef.current) { trackersHoldFiredRef.current = false; return }
+                      if (s.cardKey !== 'totalStudents' && s.cardKey !== 'newMembers') return
+                      const g = TRACKERS_BREAKDOWN_STEPS[trackersBreakdownIndex % TRACKERS_BREAKDOWN_STEPS.length].key
+                      const TO = { all: ['All', ''], pka: ['PKA', ''], krCentrePka: ['PKA', 'venue_krcentre'], derbyMoore: ['All', 'venue_derbymoore'],
+                                   moorways: ['All', 'venue_moorways'], noClass: ['PKA', 'venue_none'], kr: ['All', 'kr'], krba: ['KRBA', ''] }
+                      const [t, grp] = TO[g] || ['All', '']
+                      const q = new URLSearchParams({ tab: t })
+                      if (grp) q.set('group', grp)
+                      if (s.cardKey === 'newMembers') q.set('joined', 'month')
+                      navigate(`/students?${q}`)
+                    }}>
                     <div style={{ fontSize: 28, marginBottom: 4 }}>{s.icon}</div>
                     <div style={{ fontSize: 26, fontWeight: 700, color: s.colour }}>{displayValue}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{displayLabel}</div>

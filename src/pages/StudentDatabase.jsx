@@ -97,6 +97,7 @@ export default function StudentDatabase() {
   const [groupFilterOpen, setGroupFilterOpen] = useState(false)
   const [statusFilter, setStatusFilter] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
+  const [joinedFilter, setJoinedFilter] = useState('')   // 'month' = joined this calendar month (from the CRM cards)
   const [selected, setSelected]       = useState(null)
   const [pendingStatusChanges, setPendingStatusChanges] = useState({}) // studentId -> previewed status, not yet saved
   const [allClasses, setAllClasses] = useState([])
@@ -146,6 +147,11 @@ export default function StudentDatabase() {
       const found = students.find(s => s.id === id)
       if (found) setSelected(found)
     }
+    // Links from the CRM tracker cards: /students?tab=PKA&group=venue_none&joined=month
+    const t = searchParams.get('tab'), g = searchParams.get('group'), j = searchParams.get('joined')
+    if (t) setTab(t)
+    if (g !== null) setGroupFilter(g || '')
+    if (j !== null) setJoinedFilter(j || '')
     const house = searchParams.get('house')
     if (house) setHouseFilter(house)
   }, [searchParams, students])
@@ -220,6 +226,8 @@ export default function StudentDatabase() {
     if (groupFilter === 'venue_moorways')   list = list.filter(s => s.class_schedule === 'Moorways')
     if (groupFilter === 'venue_derbymoore') list = list.filter(s => s.class_schedule === 'Derby Moore')
     if (groupFilter === 'venue_krcentre')   list = list.filter(s => s.class_schedule && s.class_schedule !== 'Moorways' && s.class_schedule !== 'Derby Moore')
+    if (groupFilter === 'venue_none')       list = list.filter(s => s.discipline === 'PKA' && !s.class_schedule)   // No class / pending
+    if (joinedFilter === 'month') { const pre = new Date().toISOString().slice(0, 7); list = list.filter(s => s.members?.joined_date?.startsWith(pre)) }
     if (roleFilter) list = list.filter(s => s.members?.role === roleFilter)
 
     list = [...list].sort((a, b) => {
@@ -238,7 +246,7 @@ export default function StudentDatabase() {
       })
     }
     setFiltered(list)
-  }, [search, tab, houseFilter, groupFilter, statusFilter, students, sortKey, sortDir])
+  }, [search, tab, houseFilter, groupFilter, statusFilter, joinedFilter, students, sortKey, sortDir])
 
   const houses = (() => {
     const seen = new Map() // normalised key -> original display name (first one encountered)
@@ -406,7 +414,12 @@ export default function StudentDatabase() {
           <option value="venue_krcentre">KR Centre</option>
           <option value="venue_moorways">Moorways</option>
           <option value="venue_derbymoore">Derby Moore</option>
+          <option value="venue_none">No class / pending</option>
         </select>
+        {joinedFilter === 'month' && (
+          <button type="button" className="btn btn-sm" onClick={() => setJoinedFilter('')} title="Showing members who joined this month -- tap to clear"
+            style={{ borderColor: '#E24B4A', color: '#E24B4A' }}>New this month ✕</button>
+        )}
         <select value={roleFilter || ''} onChange={e => setRoleFilter(e.target.value)}
           style={{ padding: '7px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
           <option value="">All roles</option>
