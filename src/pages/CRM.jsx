@@ -1,5 +1,6 @@
 import { useState, useEffect, Fragment, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { studentProfileLink } from '../lib/studentLinks.js'
 import { useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
@@ -1919,6 +1920,7 @@ export default function CRM() {
       { key: 'enquiries', label: 'Enquiries', colour: '#378ADD' },
       { key: 'joined', label: 'Joined', colour: '#1D9E75' },
       { key: 'stopped', label: 'Stopped', colour: '#E24B4A' },
+      { key: 'pending', label: 'Pending', colour: '#8B5CF6' },
       { key: 'trained', label: 'Students trained', colour: '#EF9F27' },
     ]
     // Remembers which series pills were switched on/off, per
@@ -1927,7 +1929,7 @@ export default function CRM() {
     // their phone, it should still be off next time they open the app
     // on their laptop too, not just on that one device.
     const [visibleArr, setVisibleArr] = useSyncedPreference('trackers_chart_visible_series', SERIES.map(s => s.key))
-    const visible = new Set(visibleArr.filter(k => SERIES.some(s => s.key === k)))
+    const visible = new Set([...visibleArr.filter(k => SERIES.some(s => s.key === k)), ...(visibleArr.includes('pending') || visibleArr.includes('__pending_seen') ? [] : ['pending'])])
     function setVisible(next) {
       setVisibleArr([...(typeof next === 'function' ? next(visible) : next)])
     }
@@ -1987,6 +1989,7 @@ export default function CRM() {
       enquiries: enquiries.filter(e => e.enquiry_date === day).length,
       joined: filteredJoinsStopsMembers.filter(m => m.joined_date === day).length,
       stopped: filteredJoinsStopsMembers.filter(m => m.stopped_at?.split('T')[0] === day).length,
+      pending: filteredJoinsStopsMembers.filter(m => m.status === 'pending' && m.joined_date === day).length,
       trained: trainedByDay[day]?.size || 0,
     }))
     const activeSeries = SERIES.filter(s => visible.has(s.key))
@@ -2036,13 +2039,14 @@ export default function CRM() {
           const fmt = d => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
           const nameOfStudent = id => { const st = studentsForBreakdown.find(x => x.id === id); return st?.members ? `${st.members.first_name || ''} ${st.members.last_name || ''}`.trim() : 'Unknown' }
           let rows = []
-          if (pillList === 'enquiries') rows = enquiries.filter(e => inWin(e.enquiry_date)).map(e => ({ name: e.name || e.members && `${e.members.first_name} ${e.members.last_name}` || e.contact_email || 'Enquiry', right: fmt(e.enquiry_date), sort: e.enquiry_date }))
-          if (pillList === 'joined') rows = filteredJoinsStopsMembers.filter(m => inWin(m.joined_date)).map(m => ({ name: `${m.first_name || ''} ${m.last_name || ''}`.trim(), right: fmt(m.joined_date), sort: m.joined_date }))
-          if (pillList === 'stopped') rows = filteredJoinsStopsMembers.filter(m => inWin(m.stopped_at?.split('T')[0])).map(m => ({ name: `${m.first_name || ''} ${m.last_name || ''}`.trim(), right: fmt(m.stopped_at.split('T')[0]), sort: m.stopped_at }))
+          if (pillList === 'enquiries') rows = enquiries.filter(e => inWin(e.enquiry_date)).map(e => ({ name: e.name || e.members && `${e.members.first_name} ${e.members.last_name}` || e.contact_email || 'Enquiry', right: fmt(e.enquiry_date), sort: e.enquiry_date, enquiry: e }))
+          if (pillList === 'joined') rows = filteredJoinsStopsMembers.filter(m => inWin(m.joined_date)).map(m => ({ name: `${m.first_name || ''} ${m.last_name || ''}`.trim(), right: fmt(m.joined_date), sort: m.joined_date, memberId: m.id }))
+          if (pillList === 'pending') rows = filteredJoinsStopsMembers.filter(m => m.status === 'pending' && inWin(m.joined_date)).map(m => ({ name: `${m.first_name || ''} ${m.last_name || ''}`.trim(), right: fmt(m.joined_date), sort: m.joined_date, memberId: m.id }))
+          if (pillList === 'stopped') rows = filteredJoinsStopsMembers.filter(m => inWin(m.stopped_at?.split('T')[0])).map(m => ({ name: `${m.first_name || ''} ${m.last_name || ''}`.trim(), right: fmt(m.stopped_at.split('T')[0]), sort: m.stopped_at, memberId: m.id }))
           if (pillList === 'trained') {
             const byStudent = {}
             for (const r of filteredAttendanceRows) { if (!inWin(r.session_date)) continue; (byStudent[r.student_id] ||= new Set()).add(r.session_date) }
-            rows = Object.entries(byStudent).map(([id, set]) => ({ name: nameOfStudent(id), right: `${set.size} session${set.size === 1 ? '' : 's'}`, sort: String(1000 - set.size).padStart(4, '0') }))
+            rows = Object.entries(byStudent).map(([id, set]) => ({ name: nameOfStudent(id), right: `${set.size} session${set.size === 1 ? '' : 's'}`, sort: String(1000 - set.size).padStart(4, '0'), studentId: id }))
           }
           rows.sort((a, b) => pillList === 'trained' ? a.sort.localeCompare(b.sort) || a.name.localeCompare(b.name) : String(b.sort).localeCompare(String(a.sort)))
           const copy = async () => {
@@ -2060,15 +2064,37 @@ export default function CRM() {
                     <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Last 30 days{selectedGroupKey !== 'all' && pillList !== 'enquiries' ? ` · ${selectedGroupLabel}` : ''}</div>
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
+                    {pillList !== 'enquiries' && pillList !== 'trained' && (
+                      <button className="btn btn-sm btn-primary" onClick={() => {
+                        const TO = { all: ['All', ''], pka: ['PKA', ''], krCentrePka: ['PKA', 'venue_krcentre'], derbyMoore: ['All', 'venue_derbymoore'],
+                                     moorways: ['All', 'venue_moorways'], noClass: ['PKA', 'venue_none'], kr: ['All', 'kr'], krba: ['KRBA', ''] }
+                        const [t, grp] = TO[selectedGroupKey] || ['All', '']
+                        const q = new URLSearchParams({ tab: pillList === 'stopped' ? 'Stopped' : t })
+                        if (grp) q.set('group', grp)
+                        if (pillList === 'joined' || pillList === 'pending' || pillList === 'stopped') q.set('joined', pillList === 'stopped' ? '' : '30d')
+                        if (pillList === 'stopped') { q.delete('joined'); q.set('stopped', '30d') }
+                        if (pillList === 'pending') q.set('status', 'pending')
+                        setPillList(null); navigate(`/students?${q}`)
+                      }}>Open list</button>
+                    )}
+                    {pillList === 'enquiries' && <button className="btn btn-sm btn-primary" onClick={() => { setPillList(null); setTab('enquiries') }}>Open enquiries</button>}
                     <button className="btn btn-sm" onClick={copy}>Copy</button>
                     <button className="btn btn-sm" onClick={() => setPillList(null)}>Close</button>
                   </div>
                 </div>
-                {rows.length === 0 ? <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No one in this list.</p> : rows.map((r, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: 14 }}>
-                    <span>{r.name}</span><span style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{r.right}</span>
-                  </div>
-                ))}
+                {rows.length === 0 ? <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No one in this list.</p> : rows.map((r, i) => {
+                  const st = r.studentId ? studentsForBreakdown.find(x => x.id === r.studentId) : r.memberId ? studentsForBreakdown.find(x => x.member_id === r.memberId) : null
+                  const openRow = () => {
+                    if (r.enquiry) { setPillList(null); setViewingEnquiry(r.enquiry); return }
+                    if (st) { setPillList(null); navigate(studentProfileLink(st)) }
+                  }
+                  return (
+                    <button key={i} type="button" onClick={openRow} disabled={!r.enquiry && !st}
+                      style={{ display: 'flex', width: '100%', justifyContent: 'space-between', gap: 10, padding: '10px 0', border: 'none', borderBottom: '1px solid var(--border)', background: 'none', color: 'var(--text)', fontSize: 14, cursor: (r.enquiry || st) ? 'pointer' : 'default', fontFamily: 'var(--font-sans)', textAlign: 'left' }}>
+                      <span>{r.name}{(r.enquiry || st) && <span style={{ color: 'var(--text-tertiary)' }}> ›</span>}</span><span style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{r.right}</span>
+                    </button>
+                  )
+                })}
               </div>
             </div>
           )

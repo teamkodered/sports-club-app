@@ -148,7 +148,9 @@ export default function StudentDatabase() {
       if (found) setSelected(found)
     }
     // Links from the CRM tracker cards: /students?tab=PKA&group=venue_none&joined=month
-    const t = searchParams.get('tab'), g = searchParams.get('group'), j = searchParams.get('joined')
+    const t = searchParams.get('tab'), g = searchParams.get('group'), j = searchParams.get('joined'), sp = searchParams.get('stopped'), st = searchParams.get('status')
+    if (sp !== null) setJoinedFilter(sp ? `stopped_${sp}` : '')
+    if (st !== null) setStatusFilter(st || '')
     if (t) setTab(t)
     if (g !== null) setGroupFilter(g || '')
     if (j !== null) setJoinedFilter(j || '')
@@ -159,7 +161,7 @@ export default function StudentDatabase() {
   async function load() {
     const { data } = await supabase
       .from('students')
-      .select('*, members(id, first_name, last_name, email, phone, date_of_birth, house_id, status, role, joined_date, houses(name))')
+      .select('*, members(id, first_name, last_name, email, phone, date_of_birth, house_id, status, role, joined_date, stopped_at, houses(name))')
       .order('created_at')
     setStudents(data || [])
     setLoading(false)
@@ -228,6 +230,8 @@ export default function StudentDatabase() {
     if (groupFilter === 'venue_krcentre')   list = list.filter(s => s.class_schedule && s.class_schedule !== 'Moorways' && s.class_schedule !== 'Derby Moore')
     if (groupFilter === 'venue_none')       list = list.filter(s => s.discipline === 'PKA' && !s.class_schedule)   // No class / pending
     if (joinedFilter === 'month') { const pre = new Date().toISOString().slice(0, 7); list = list.filter(s => s.members?.joined_date?.startsWith(pre)) }
+    if (joinedFilter === '30d') { const from = new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10); list = list.filter(s => (s.members?.joined_date || '') >= from) }
+    if (joinedFilter === 'stopped_30d') { const from = new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10); list = list.filter(s => (s.members?.stopped_at || '').slice(0, 10) >= from) }
     if (roleFilter) list = list.filter(s => s.members?.role === roleFilter)
 
     list = [...list].sort((a, b) => {
@@ -416,9 +420,9 @@ export default function StudentDatabase() {
           <option value="venue_derbymoore">Derby Moore</option>
           <option value="venue_none">No class / pending</option>
         </select>
-        {joinedFilter === 'month' && (
-          <button type="button" className="btn btn-sm" onClick={() => setJoinedFilter('')} title="Showing members who joined this month -- tap to clear"
-            style={{ borderColor: '#E24B4A', color: '#E24B4A' }}>New this month ✕</button>
+        {joinedFilter && (
+          <button type="button" className="btn btn-sm" onClick={() => setJoinedFilter('')} title="Tap to clear this filter"
+            style={{ borderColor: '#E24B4A', color: '#E24B4A' }}>{joinedFilter === 'month' ? 'New this month' : joinedFilter === '30d' ? 'Joined last 30 days' : 'Stopped last 30 days'} ✕</button>
         )}
         <select value={roleFilter || ''} onChange={e => setRoleFilter(e.target.value)}
           style={{ padding: '7px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)' }}>
