@@ -459,7 +459,13 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
         // (or body weight) x (1 + the team's active in-comp/out-of-comp %), unless the
         // athlete has a coach override (an actual kg, or their own %).
         const ts = Object.fromEntries((targetSettings || []).map(r => [r.key, r.value]))
-        const targetPct = parseFloat(ts.weight_target_active_mode === 'in_comp' ? ts.weight_target_pct_in_comp : ts.weight_target_pct_out_comp) || 0
+        // Same defaults as the athlete profile + athlete app when a setting hasn't been
+        // saved yet: mode 'in_comp', 2.5% in comp, 5% out of comp. (Previously a missing
+        // mode fell back to out-of-comp here, so the register showed a different target.)
+        const activeMode = ts.weight_target_active_mode || 'in_comp'
+        const pctIn = ts.weight_target_pct_in_comp != null && !isNaN(parseFloat(ts.weight_target_pct_in_comp)) ? parseFloat(ts.weight_target_pct_in_comp) : 0.025
+        const pctOut = ts.weight_target_pct_out_comp != null && !isNaN(parseFloat(ts.weight_target_pct_out_comp)) ? parseFloat(ts.weight_target_pct_out_comp) : 0.05
+        const targetPct = activeMode === 'in_comp' ? pctIn : pctOut
         const overrideByStudent = Object.fromEntries((profiles || []).map(p => [p.student_id, p.weight_target_override]))
         // Preserves the +/- sign for display (standard combat-sports
         // weight-class notation, e.g. "-69kg" means "under 69kg",
@@ -1516,7 +1522,17 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
         }
         const Spark = ({ wd }) => {
           const vals = (wd?.last5 || []).map(e => e.weight)
-          if (vals.length < 2) return <div className="reg-m-spark-empty">{vals.length ? `${vals[0]}kg${wd?.targetWeight ? ` · target ${wd.targetWeight}kg` : ''}` : 'No weights yet'}</div>
+          // Only the difference to the athlete's target is shown (e.g. -3.1kg / +1.8kg) --
+          // the weight itself is in the graph / profile.
+          const TargetDiff = () => {
+            const cur = wd?.current
+            if (cur == null || wd?.targetWeight == null) return null
+            if (wd?.isPlusDivision) return <span style={{ color: '#1D9E75' }}>{wd.compWeightLabel}</span>
+            const diff = +(cur - wd.targetWeight).toFixed(1)
+            if (diff === 0) return <span style={{ color: '#1D9E75' }}>On target</span>
+            return <span style={{ color: diff < 0 ? '#1D9E75' : '#E24B4A', fontWeight: 700 }} title={`Target ${wd.targetWeight}kg`}>{diff > 0 ? '+' : '−'}{Math.abs(diff)}kg</span>
+          }
+          if (vals.length < 2) return <div className="reg-m-spark-empty">{vals.length ? <TargetDiff /> : 'No weights yet'}</div>
           const lo = Math.min(...vals), hi = Math.max(...vals), rng = (hi - lo) || 1
           const pts = vals.map((v, i) => `${(4 + i * (72 / (vals.length - 1))).toFixed(1)},${(26 - ((v - lo) / rng) * 20).toFixed(1)}`)
           const change = vals[vals.length - 1] - vals[0]
@@ -1528,16 +1544,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                 <polyline points={pts.join(' ')} fill="none" stroke={col} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 <circle cx={lx} cy={ly} r="2.5" fill={col} />
               </svg>
-              {(() => {
-                // Distance to the athlete's TARGET weight (not comp weight)
-                const cur = wd?.current
-                if (cur == null) return <span style={{ color: 'var(--text-tertiary)' }}>—</span>
-                if (wd?.isPlusDivision) return <span style={{ color: '#1D9E75' }}>{cur}kg · {wd.compWeightLabel}</span>
-                if (wd?.targetWeight == null) return <span style={{ color: 'var(--text-secondary)' }}>{cur}kg · no target</span>
-                const diff = +(cur - wd.targetWeight).toFixed(1)
-                if (diff <= 0) return <span style={{ color: '#1D9E75' }}>{diff === 0 ? 'On target' : `${Math.abs(diff)}kg under`} · target {wd.targetWeight}kg</span>
-                return <span style={{ color: '#E24B4A' }}>{diff}kg over · target {wd.targetWeight}kg</span>
-              })()}
+              <TargetDiff />
             </div>
           )
         }
