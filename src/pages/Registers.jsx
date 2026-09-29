@@ -1182,8 +1182,22 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   // Athlete register: copy a fighters list to paste to other coaches for matching.
   // One line per ACTIVE athlete on this register: Name – Age – Year of birth – Record / Level
   async function copyFightersList(order) {
+    // Re-read in-comp + member status from the database at the moment of copying, so a
+    // fighter marked out of comp elsewhere (profile / student database / another device)
+    // since this register loaded is never included from stale page data.
+    let fresh = null
+    try {
+      const ids = displayStudents.map(st => st.id)
+      if (ids.length) {
+        const { data, error } = await supabase.from('students').select('id, in_comp, members(status)').in('id', ids)
+        if (!error && data) fresh = Object.fromEntries(data.map(r => [r.id, r]))
+      }
+    } catch { /* fall back to page data */ }
+    const isInComp = st => (fresh ? fresh[st.id]?.in_comp === true : st.in_comp === true)
+    const isActive = st => ((fresh ? fresh[st.id]?.members?.status : st.members?.status) || 'active') === 'active'
+    if (fresh) setStudents(prev => prev.map(x => fresh[x.id] ? { ...x, in_comp: fresh[x.id].in_comp } : x))
     const rows = displayStudents
-      .filter(st => (st.members?.status || 'active') === 'active' && st.in_comp)   // active, in-comp athletes only
+      .filter(st => isActive(st) && isInComp(st))   // active, in-comp athletes only (checked live)
       .map(st => {
         const m = st.members
         const dob = m?.date_of_birth
