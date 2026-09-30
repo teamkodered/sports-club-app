@@ -240,6 +240,12 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
     setSaving(true)
     const { house_id, house_name, ...studentFields } = editForm
     await supabase.from('students').update({ ...studentFields, house_name }).eq('id', localStudent.id)
+    const beltChanged = (studentFields.pka_belt !== undefined && studentFields.pka_belt !== localStudent.pka_belt) || (studentFields.krba_level !== undefined && studentFields.krba_level !== localStudent.krba_level)
+    if (beltChanged) {
+      const today = new Date().toISOString().split('T')[0]
+      const { error: gErr } = await supabase.from('students').update({ last_grading_date: today }).eq('id', localStudent.id)
+      if (!gErr) studentFields.last_grading_date = today
+    }
     if (house_id !== undefined && localStudent.members?.id) {
       await supabase.from('members').update({ house_id }).eq('id', localStudent.member_id)
     }
@@ -266,6 +272,26 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
   const age = calcAge(m?.date_of_birth)
   const initials = `${m?.first_name?.[0] || ''}${m?.last_name?.[0] || ''}`.toUpperCase()
   const currentBelt = localStudent.discipline === 'KRBA' ? localStudent.krba_level : localStudent.pka_belt
+  // Last grading date: saved on the student (set when the belt changes, or edited
+  // below); if never set, fall back to the most recent 'Grading Pass' points award.
+  const [gradingPassDate, setGradingPassDate] = useState(null)
+  useEffect(() => {
+    if (!localStudent?.id || localStudent.last_grading_date) return
+    supabase.from('points_log').select('awarded_at').eq('student_id', localStudent.id).ilike('point_type', 'grading%')
+      .order('awarded_at', { ascending: false }).limit(1)
+      .then(({ data }) => setGradingPassDate(data?.[0]?.awarded_at ? String(data[0].awarded_at).slice(0, 10) : null))
+  }, [localStudent?.id, localStudent?.last_grading_date])
+  async function saveLastGradingDate(v) {
+    const { error } = await supabase.from('students').update({ last_grading_date: v || null }).eq('id', localStudent.id)
+    if (error) { alert('Could not save the grading date: ' + error.message + (/last_grading_date/.test(error.message) ? ' (run supabase_last_grading_date.sql first)' : '')); return }
+    setLocalStudent(s => ({ ...s, last_grading_date: v || null }))
+  }
+  const fmtGradeDate = d => d ? new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : null
+  const lastGradingLabel = isAdmin
+    ? <input type="date" defaultValue={localStudent.last_grading_date || ''} key={localStudent.last_grading_date || 'none'} onChange={e => saveLastGradingDate(e.target.value)}
+        title={!localStudent.last_grading_date && gradingPassDate ? `From the last Grading Pass points: ${fmtGradeDate(gradingPassDate)}` : undefined}
+        placeholder={gradingPassDate || ''} style={{ fontSize: 13, padding: '2px 4px' }} />
+    : (fmtGradeDate(localStudent.last_grading_date) || (gradingPassDate ? `${fmtGradeDate(gradingPassDate)} (Grading Pass)` : '—'))
 
   return (
     <>
@@ -632,6 +658,7 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
                 {[
                   ['Club', localStudent.discipline],
                   ['Current belt', currentBelt || '—'],
+                  ['Last grading', lastGradingLabel],
                   ['Class champion', `${localStudent.class_champion_count || 0}x`],
                   ['Individual pts', localStudent.individual_points || 0],
                 ].map(([l, v]) => (

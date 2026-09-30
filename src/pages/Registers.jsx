@@ -152,6 +152,19 @@ const DOUBLE_SESSION_PAIRS = [
   { first: 'cb4623b1-0113-450f-ae44-1f990d73d17a', second: 'c2e674e8-8360-4817-aef9-e5bf1b62f4f9', secondLabel: 'KRBA Register 19:00' },
 ]
 
+// Grade text colours (belt / level) used on the register + contact card
+const GRADE_COLOURS = {
+  white: '#E8E8E8', yellow: '#F5C542', orange: '#F5821F', green: '#1D9E75', blue: '#378ADD', purple: '#8B5CF6',
+  red: '#E24B4A', brown: '#B5733C', black: '#C0C4CC',
+  beginner: '#1D9E75', novice: '#378ADD', intermediate: '#EF9F27', advanced: '#E24B4A', professional: '#F5C542', elite: '#F5C542',
+}
+function gradeColour(g) {
+  if (!g) return undefined
+  const k = String(g).toLowerCase()
+  const hit = Object.keys(GRADE_COLOURS).find(c => k.startsWith(c) || k.includes(` ${c}`))
+  return hit ? GRADE_COLOURS[hit] : undefined
+}
+
 export default function Registers({ initialRegType, onStudentNameClick, onWeightClick } = {}) {
   const { isAdmin, isCoach, isLeader, isStaff, registerAccess } = useAuth()
   // Per-person register access (Settings -> Team): which register types and classes this person may take
@@ -330,6 +343,76 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   const [mShowTable, setMShowTable] = useSyncedPreference('register_phone_table', false) // phone: show the full table instead of cards
   const mLongPress = useRef(null)
   const mLongPressFired = useRef(false)
+  const [mCardTab, setMCardTab] = useState({}) // mobile expanded card: 'contact' | 'profile' per student
+  const photoInputRef = useRef(null)
+  const photoTargetRef = useRef(null)
+  const photoHeldRef = useRef(false)
+  const [uploadingPhotoFor, setUploadingPhotoFor] = useState(null)
+  async function uploadRegisterPhoto(st, file) {
+    if (!st || !file) return
+    setUploadingPhotoFor(st.id)
+    try {
+      const path = `student-photos/${st.id}-${Date.now()}-${file.name}`
+      const { error } = await supabase.storage.from('athlete-media').upload(path, file)
+      if (error) throw error
+      const { data: urlData } = supabase.storage.from('athlete-media').getPublicUrl(path)
+      const { error: upErr } = await supabase.from('students').update({ photo_url: urlData.publicUrl }).eq('id', st.id)
+      if (upErr) throw upErr
+      setStudents(prev => prev.map(x => x.id === st.id ? { ...x, photo_url: urlData.publicUrl } : x))
+      setContactModal(cm => cm && cm.id === st.id ? { ...cm, photo_url: urlData.publicUrl } : cm)
+    } catch (e) { alert('Could not save the photo: ' + (e.message || e)) }
+    finally { setUploadingPhotoFor(null) }
+  }
+  // Contact card (register popup + mobile drop-down). Photo: tap = enlarge, hold = take / choose a new picture.
+  function renderContactCard(st, { onClose } = {}) {
+    const m = st.members
+    const grade = st.pka_belt || st.krba_level
+    const photoHandlers = {
+      onPointerDown: () => { photoHeldRef.current = false; clearTimeout(photoHoldTimer.current); photoHoldTimer.current = setTimeout(() => { photoHeldRef.current = true; if (navigator.vibrate) navigator.vibrate(25); photoTargetRef.current = st; photoInputRef.current?.click() }, 550) },
+      onPointerUp: () => clearTimeout(photoHoldTimer.current),
+      onPointerLeave: () => clearTimeout(photoHoldTimer.current),
+      onPointerCancel: () => clearTimeout(photoHoldTimer.current),
+      onClick: e => { e.stopPropagation(); if (photoHeldRef.current) { photoHeldRef.current = false; return } if (st.photo_url) setEnlargedPhoto(st.photo_url) },
+      onContextMenu: e => e.preventDefault(),
+      title: st.photo_url ? 'Tap to enlarge · hold for a new photo' : 'Hold to add a photo',
+    }
+    return (
+      <div className="reg-contact-card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {st.photo_url ? (
+              <img src={st.photo_url} alt="" {...photoHandlers} style={{ width: 52, height: 52, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, cursor: 'pointer', opacity: uploadingPhotoFor === st.id ? 0.5 : 1, userSelect: 'none', WebkitTouchCallout: 'none' }} />
+            ) : (
+              <div {...photoHandlers} style={{ width: 52, height: 52, borderRadius: '50%', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0, cursor: 'pointer', userSelect: 'none', WebkitTouchCallout: 'none' }}>
+                {uploadingPhotoFor === st.id ? '…' : `${m?.first_name?.[0] || ''}${m?.last_name?.[0] || ''}`}
+              </div>
+            )}
+            <h2 style={{ fontSize: 15, fontWeight: 600 }}>{m?.first_name} {m?.last_name}</h2>
+          </div>
+          {onClose && <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>}
+        </div>
+        {[
+          ['Student ID', st.student_ref],
+          ['Phone', m?.phone || '—'],
+          ['Email', m?.email || '—'],
+          ['DOB', m?.date_of_birth || '—'],
+          ['House', st.house_name || m?.houses?.name || '—'],
+          ['Grade', grade ? <span style={{ color: gradeColour(grade), fontWeight: 700 }}>{grade}</span> : '—'],
+          ['Class', `${st.class_schedule || '—'} ${st.class_time || ''}`],
+          ['Groups', [st.is_kr && 'KR', st.is_pts && 'PTs', st.is_leader && 'Leader'].filter(Boolean).join(', ') || 'None'],
+        ].map(([label, val]) => (
+          <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+            <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
+            <span style={{ fontWeight: 500, textAlign: 'right', wordBreak: 'break-word' }}>{val}</span>
+          </div>
+        ))}
+        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+          {m?.phone && <a href={`tel:${m.phone}`} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>📞 Call</a>}
+          <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => { onClose?.(); navigate(studentProfileLink(st)) }}>View profile →</button>
+        </div>
+      </div>
+    )
+  }
   const mSwipeX = useRef(null)
   const [pointSearch, setPointSearch] = useState('')    // award-points modal: search / write a reason
   const [fightersMenuOpen, setFightersMenuOpen] = useState(false)
@@ -1638,7 +1721,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                       if (selecting) toggleSel(st.id)
                     }}
                     onTouchStart={() => {
-                      if (selecting) return
+                      // Hold selects -- also while already selecting (tap works too)
                       mLongPress.current = setTimeout(() => { mLongPressFired.current = true; if (navigator.vibrate) navigator.vibrate(25); toggleSel(st.id) }, 450)
                     }}
                     onTouchEnd={() => { clearTimeout(mLongPress.current); mLongPress.current = null }}
@@ -1660,13 +1743,16 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           <div className="reg-m-details reg-m-cols reg-m-cols-main">
                             <span>Age <b>{calcAge(m?.date_of_birth) ?? '—'}</b></span>
                             <span className="reg-m-pct"><span className="bar"><span style={{ width: `${pct || 0}%`, background: pctColour(pct) }} /></span><b style={{ color: pctColour(pct) }}>{pct != null ? `${pct}%` : '—'}</b></span>
-                            <span className={`badge ${st.media_restriction === 'No' ? 'badge-red' : st.media_restriction === 'Limited' ? 'badge-amber' : 'badge-green'}`} style={{ fontSize: 10 }}>
-                              {st.media_restriction === 'No' ? '⚠ No media' : st.media_restriction === 'Limited' ? 'Limited' : 'Media OK'}
+                            <span className={`badge ${st.media_restriction === 'No' ? 'badge-red' : st.media_restriction === 'Limited' ? 'badge-amber' : 'badge-green'}`}
+                              title={st.media_restriction === 'No' ? 'No media' : st.media_restriction === 'Limited' ? 'Limited media' : 'Media OK'}
+                              aria-label={st.media_restriction === 'No' ? 'No media' : st.media_restriction === 'Limited' ? 'Limited media' : 'Media OK'}
+                              style={{ fontSize: 14, padding: '2px 8px', lineHeight: 1.2 }}>
+                              {st.media_restriction === 'No' ? '🚫' : st.media_restriction === 'Limited' ? '📷!' : '📷'}
                             </span>
                           </div>
                         ) : (
                           <div className="reg-m-details reg-m-details-3">
-                            <span><b>{st.pka_belt || st.krba_level || '—'}</b></span>
+                            <span><b style={{ color: gradeColour(st.pka_belt || st.krba_level) }}>{st.pka_belt || st.krba_level || '—'}</b></span>
                             <span>{(st.house_name || m?.houses?.name)?.replace(' House', '') || '—'}</span>
                             <span>{stats?.last ? new Date(stats.last + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}</span>
                           </div>
@@ -1678,7 +1764,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           </div>
                         ) : (
                           <div className="reg-m-details reg-m-details-2">
-                            <span><b>{st.pka_belt || st.krba_level || '—'}</b></span>
+                            <span><b style={{ color: gradeColour(st.pka_belt || st.krba_level) }}>{st.pka_belt || st.krba_level || '—'}</b></span>
                             <span>{rec ? <><b style={{ color: '#1D9E75' }}>{rec.w}W</b> <b style={{ color: '#E24B4A' }}>{rec.l}L</b> <b style={{ color: '#9A9A9A' }}>{rec.d}D</b></> : '—'}</span>
                           </div>
                         )}
@@ -1693,8 +1779,17 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           {(pointsByStudent[st.id] || []).length > 0 && <button type="button" onClick={() => setPointsPanelFor(st)}>Today's points</button>}
                           <button type="button" onClick={() => setMExpanded(null)}>Close</button>
                         </div>
-                        {/* The student's profile card, the same one the Students page opens */}
-                        <StudentProfile student={st} isAdmin={isAdmin} embedded={true} onClose={() => setMExpanded(null)} />
+                        {/* Contact card (default) or the full profile card, as two tabs */}
+                        <div className="reg-m-cardtabs" role="tablist" style={{ display: 'flex', gap: 6, margin: '8px 0' }}>
+                          {[['contact', 'Contact'], ['profile', 'Profile']].map(([k, l]) => (
+                            <button key={k} type="button" role="tab" aria-selected={(mCardTab[st.id] || 'contact') === k}
+                              onClick={() => setMCardTab(t => ({ ...t, [st.id]: k }))}
+                              className={`btn btn-sm${(mCardTab[st.id] || 'contact') === k ? ' btn-primary' : ''}`} style={{ flex: 1, justifyContent: 'center' }}>{l}</button>
+                          ))}
+                        </div>
+                        {(mCardTab[st.id] || 'contact') === 'contact'
+                          ? renderContactCard(st)
+                          : <StudentProfile student={st} isAdmin={isAdmin} embedded={true} onClose={() => setMExpanded(null)} />}
                       </div>
                     )}
                     {open && !selecting && !isMainReg && (
@@ -1964,7 +2059,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                         {houseName || '—'}
                       </span>
                     </td>}
-                    {visibleCols.includes('grade') && <td style={{ fontSize: 12 }}>{s.pka_belt || s.krba_level || '—'}</td>}
+                    {visibleCols.includes('grade') && <td style={{ fontSize: 12, fontWeight: 600, color: gradeColour(s.pka_belt || s.krba_level) }}>{s.pka_belt || s.krba_level || '—'}</td>}
                     {visibleCols.includes('weight') && !isKR && regType !== 'krba' && <td style={{ fontSize: 12, textAlign: 'center' }}>{s.weight_kg ? `${s.weight_kg}kg` : '—'}</td>}
                     {visibleCols.includes('record') && (regType === 'kr' || regType === 'krba') && (
                       <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()} onTouchStart={e => e.stopPropagation()} onTouchEnd={e => e.stopPropagation()}>
@@ -2180,47 +2275,13 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
       {contactModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
           <div className="card" style={{ width: '100%', maxWidth: 380 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                {contactModal.photo_url ? (
-                  <img src={contactModal.photo_url} alt="" style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, cursor: 'pointer' }}
-                    onDoubleClick={() => setEnlargedPhoto(contactModal.photo_url)}
-                    onPointerDown={() => { photoHoldTimer.current = setTimeout(() => setEnlargedPhoto(contactModal.photo_url), 500) }}
-                    onPointerUp={() => clearTimeout(photoHoldTimer.current)}
-                    onPointerLeave={() => clearTimeout(photoHoldTimer.current)}
-                    onContextMenu={e => e.preventDefault()} />
-                ) : (
-                  <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>
-                    {(contactModal.members?.first_name?.[0] || '')}{(contactModal.members?.last_name?.[0] || '')}
-                  </div>
-                )}
-                <h2 style={{ fontSize: 15, fontWeight: 600 }}>{contactModal.members?.first_name} {contactModal.members?.last_name}</h2>
-              </div>
-              <button onClick={() => setContactModal(null)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
-            </div>
-            {[
-              ['Student ID', contactModal.student_ref],
-              ['Phone', contactModal.members?.phone || '—'],
-              ['Email', contactModal.members?.email || '—'],
-              ['DOB', contactModal.members?.date_of_birth || '—'],
-              ['House', contactModal.house_name || contactModal.members?.houses?.name || '—'],
-              ['Grade', contactModal.pka_belt || contactModal.krba_level || '—'],
-              ['Class', `${contactModal.class_schedule || '—'} ${contactModal.class_time || ''}`],
-              ['Groups', [contactModal.is_kr&&'KR', contactModal.is_pts&&'PTs', contactModal.is_leader&&'Leader'].filter(Boolean).join(', ') || 'None'],
-            ].map(([label, val]) => (
-              <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
-                <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
-                <span style={{ fontWeight: 500 }}>{val}</span>
-              </div>
-            ))}
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              {contactModal.members?.phone && <a href={`tel:${contactModal.members.phone}`} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>📞 Call</a>}
-              <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => { setContactModal(null); navigate(studentProfileLink(contactModal)) }}>View profile →</button>
-            </div>
+            {renderContactCard(contactModal, { onClose: () => setContactModal(null) })}
           </div>
         </div>
       )}
 
+      <input ref={photoInputRef} type="file" accept="image/*" style={{ display: 'none' }}
+        onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) uploadRegisterPhoto(photoTargetRef.current, f) }} />
       {enlargedPhoto && (
         <div onClick={() => setEnlargedPhoto(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 24, cursor: 'zoom-out' }}>
           <img src={enlargedPhoto} alt="" style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 8 }} />
