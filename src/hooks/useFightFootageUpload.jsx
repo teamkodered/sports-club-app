@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback } from 'react'
+import { createContext, useContext, useState, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase.js'
 import { saveFootageAthletes } from '../lib/fightFootageTags.js'
 
@@ -53,7 +53,7 @@ export function FightFootageUploadProvider({ children }) {
     return newFootage
   }, [])
 
-  const startUpload = useCallback(async ({ file, title, description, accessMode, featuredIds, viewerIds, eventId, folderId, tags, gradeTag }) => {
+  const runUpload = useCallback(async ({ file, title, description, accessMode, featuredIds, viewerIds, eventId, folderId, tags, gradeTag }) => {
     setUpload({ title, current: 1, total: 1, progress: 0, status: 'uploading', error: null })
     try {
       const result = await uploadSingleFile(file, { title, description, accessMode, featuredIds, viewerIds, eventId, folderId, tags, gradeTag })
@@ -71,7 +71,7 @@ export function FightFootageUploadProvider({ children }) {
   // batch can hold several athletes' fights from the same event. Uploaded
   // one at a time (sequentially) so a big backlog doesn't hammer the
   // connection with dozens of simultaneous large uploads.
-  const startBulkUpload = useCallback(async (items, { accessMode, viewerIds, eventId, folderId, tags, gradeTag }) => {
+  const runBulkUpload = useCallback(async (items, { accessMode, viewerIds, eventId, folderId, tags, gradeTag }) => {
     const total = items.length
     setUpload({ title: `${total} file${total === 1 ? '' : 's'}`, current: 0, total, progress: 0, status: 'uploading', error: null })
     let successCount = 0
@@ -107,12 +107,27 @@ export function FightFootageUploadProvider({ children }) {
     if (allSucceeded) setTimeout(() => setUpload(u => (u?.status === 'done' ? null : u)), 5000)
   }, [uploadSingleFile])
 
+  // Queue: a new upload started while another is running waits its turn
+  // instead of running alongside it (which would fight over the one
+  // progress banner and the connection). Lets the form clear straight
+  // away so the next batch can be set up and queued immediately.
+  const chainRef = useRef(Promise.resolve())
+  const [queued, setQueued] = useState(0)
+  const enqueue = useCallback((job) => {
+    setQueued(q => q + 1)
+    const p = chainRef.current.then(() => { setQueued(q => q - 1); return job() }).catch(err => { console.error('Upload job failed:', err) })
+    chainRef.current = p
+    return p
+  }, [])
+  const startUpload = useCallback((args) => enqueue(() => runUpload(args)), [enqueue, runUpload])
+  const startBulkUpload = useCallback((items, opts) => enqueue(() => runBulkUpload(items, opts)), [enqueue, runBulkUpload])
+
   function dismissUpload() {
     setUpload(null)
   }
 
   return (
-    <FightFootageUploadContext.Provider value={{ upload, startUpload, startBulkUpload, dismissUpload }}>
+    <FightFootageUploadContext.Provider value={{ upload, queued, startUpload, startBulkUpload, dismissUpload }}>
       {children}
     </FightFootageUploadContext.Provider>
   )

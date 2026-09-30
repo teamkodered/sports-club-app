@@ -358,6 +358,7 @@ function FightFootageUploadIndicator() {
         </div>
       )}
       {upload.status === 'processing' && <p style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Finishing up…</p>}
+      {ctx.queued > 0 && <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>+{ctx.queued} more queued</p>}
       {upload.status === 'error' && <p style={{ fontSize: 11, color: '#E24B4A' }}>{upload.error}</p>}
     </div>
   )
