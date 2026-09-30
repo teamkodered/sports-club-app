@@ -359,8 +359,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   const mLongPressFired = useRef(false)
   const cardSwipe = useRef(null)
   // Register rows: mini photo or initials in the avatar (remembered on this device)
-  const [showRowPhotos, setShowRowPhotos] = useState(() => { try { return localStorage.getItem('reg_row_photos') !== 'off' } catch { return true } })
-  function toggleRowPhotos() { setShowRowPhotos(v => { const n = !v; try { localStorage.setItem('reg_row_photos', n ? 'on' : 'off') } catch { /* ignore */ } return n }) }
+  const showRowPhotos = true // photos always on for now (the photos/initials toggle was removed)
   const [mCardTab, setMCardTab] = useState({})
   const [contactMore, setContactMore] = useState({}) // contact card: parent/guardian + emergency open, per student // mobile expanded card: 'contact' | 'profile' per student
   const photoInputRef = useRef(null)
@@ -1720,9 +1719,6 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
 
             <input className="reg-m-search" type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder={`Search ${total} students`} aria-label="Search students" />
             <div className="reg-m-chips">
-              <button type="button" className={`reg-m-phototoggle${showRowPhotos ? ' on' : ''}`} aria-pressed={showRowPhotos}
-                title={showRowPhotos ? 'Showing photos · tap for initials' : 'Showing initials · tap for photos'} aria-label={showRowPhotos ? 'Show initials instead of photos' : 'Show photos instead of initials'}
-                onClick={toggleRowPhotos}>{showRowPhotos ? '🖼️' : 'AB'}</button>
               {[['all', `All ${total}`], ['out', `Not in ${total - inCount}`], ['in', `In ${inCount}`]].map(([k, l]) => (
                 <button key={k} type="button" aria-pressed={mFilter === k} className={mFilter === k ? 'on' : ''} onClick={() => setMFilter(k)}>{l}</button>
               ))}
