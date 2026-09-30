@@ -152,6 +152,20 @@ const DOUBLE_SESSION_PAIRS = [
   { first: 'cb4623b1-0113-450f-ae44-1f990d73d17a', second: 'c2e674e8-8360-4817-aef9-e5bf1b62f4f9', secondLabel: 'KRBA Register 19:00' },
 ]
 
+// Media consent as a coloured camera icon: green = OK, orange = limited, red (crossed) = no media
+function MediaCam({ restriction, size = 18 }) {
+  const c = restriction === 'No' ? '#E24B4A' : restriction === 'Limited' ? '#EF9F27' : '#1D9E75'
+  const label = restriction === 'No' ? 'No media' : restriction === 'Limited' ? 'Limited media' : 'Media OK'
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" role="img" aria-label={label} style={{ flexShrink: 0 }}>
+      <title>{label}</title>
+      <path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" />
+      {restriction === 'No' && <path d="M3 3l18 18" />}
+    </svg>
+  )
+}
+const fmtDob = d => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d || ''); return m ? `${m[3]}-${m[2]}-${m[1]}` : (d || '—') }
+
 // Grade text colours (belt / level) used on the register + contact card
 const GRADE_COLOURS = {
   white: '#E8E8E8', yellow: '#F5C542', orange: '#F5821F', green: '#1D9E75', blue: '#378ADD', purple: '#8B5CF6',
@@ -364,7 +378,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     finally { setUploadingPhotoFor(null) }
   }
   // Contact card (register popup + mobile drop-down). Photo: tap = enlarge, hold = take / choose a new picture.
-  function renderContactCard(st, { onClose } = {}) {
+  function renderContactCard(st, { onClose, showProfileButton = true } = {}) {
     const m = st.members
     const grade = st.pka_belt || st.krba_level
     const photoHandlers = {
@@ -395,7 +409,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
           ['Student ID', st.student_ref],
           ['Phone', m?.phone || '—'],
           ['Email', m?.email || '—'],
-          ['DOB', m?.date_of_birth || '—'],
+          ['DOB', m?.date_of_birth ? fmtDob(m.date_of_birth) : '—'],
           ['House', st.house_name || m?.houses?.name || '—'],
           ['Grade', grade ? <span style={{ color: gradeColour(grade), fontWeight: 700 }}>{grade}</span> : '—'],
           ['Class', `${st.class_schedule || '—'} ${st.class_time || ''}`],
@@ -408,7 +422,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
         ))}
         <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
           {m?.phone && <a href={`tel:${m.phone}`} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>📞 Call</a>}
-          <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => { onClose?.(); navigate(studentProfileLink(st)) }}>View profile →</button>
+          {showProfileButton && <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => { onClose?.(); navigate(studentProfileLink(st)) }}>View profile →</button>}
         </div>
       </div>
     )
@@ -1743,12 +1757,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           <div className="reg-m-details reg-m-cols reg-m-cols-main">
                             <span>Age <b>{calcAge(m?.date_of_birth) ?? '—'}</b></span>
                             <span className="reg-m-pct"><span className="bar"><span style={{ width: `${pct || 0}%`, background: pctColour(pct) }} /></span><b style={{ color: pctColour(pct) }}>{pct != null ? `${pct}%` : '—'}</b></span>
-                            <span className={`badge ${st.media_restriction === 'No' ? 'badge-red' : st.media_restriction === 'Limited' ? 'badge-amber' : 'badge-green'}`}
-                              title={st.media_restriction === 'No' ? 'No media' : st.media_restriction === 'Limited' ? 'Limited media' : 'Media OK'}
-                              aria-label={st.media_restriction === 'No' ? 'No media' : st.media_restriction === 'Limited' ? 'Limited media' : 'Media OK'}
-                              style={{ fontSize: 14, padding: '2px 8px', lineHeight: 1.2 }}>
-                              {st.media_restriction === 'No' ? '🚫' : st.media_restriction === 'Limited' ? '📷!' : '📷'}
-                            </span>
+                            <span style={{ display: 'inline-flex', alignItems: 'center' }}><MediaCam restriction={st.media_restriction} /></span>
                           </div>
                         ) : (
                           <div className="reg-m-details reg-m-details-3">
@@ -1788,8 +1797,13 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           ))}
                         </div>
                         {(mCardTab[st.id] || 'contact') === 'contact'
-                          ? renderContactCard(st)
-                          : <StudentProfile student={st} isAdmin={isAdmin} embedded={true} onClose={() => setMExpanded(null)} />}
+                          ? renderContactCard(st, { showProfileButton: false })
+                          : <>
+                              <StudentProfile student={st} isAdmin={isAdmin} embedded={true} onClose={() => setMExpanded(null)} />
+                              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                                <button type="button" className="btn btn-sm" onClick={() => navigate(studentProfileLink(st))}>Full profile →</button>
+                              </div>
+                            </>}
                       </div>
                     )}
                     {open && !selecting && !isMainReg && (
