@@ -358,7 +358,8 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   const mLongPress = useRef(null)
   const mLongPressFired = useRef(false)
   const cardSwipe = useRef(null)
-  const [mCardTab, setMCardTab] = useState({}) // mobile expanded card: 'contact' | 'profile' per student
+  const [mCardTab, setMCardTab] = useState({})
+  const [contactMore, setContactMore] = useState({}) // contact card: parent/guardian + emergency open, per student // mobile expanded card: 'contact' | 'profile' per student
   const photoInputRef = useRef(null)
   const photoTargetRef = useRef(null)
   const photoHeldRef = useRef(false)
@@ -421,25 +422,33 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
             <span style={{ fontWeight: 500, textAlign: 'right', wordBreak: 'break-word' }}>{val}</span>
           </div>
         ))}
-        {(st.guardian_name || st.guardian_phone || calcAge(m?.date_of_birth) < 16) && (
-          <>
-            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', margin: '12px 0 2px', textTransform: 'uppercase', letterSpacing: 1 }}>Parent / guardian</div>
-            {[['Name', st.guardian_name || '—'], ['Relationship', st.guardian_relationship || '—'], ['Phone', st.guardian_phone ? <a href={`tel:${st.guardian_phone}`}>{st.guardian_phone}</a> : '—'], ['Email', st.guardian_email || '—']].map(([label, val]) => (
-              <div key={'g' + label} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
-                <span style={{ color: 'var(--text-secondary)' }}>{label}</span><span style={{ fontWeight: 500, textAlign: 'right' }}>{val}</span>
-              </div>
-            ))}
-          </>
-        )}
-        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', margin: '12px 0 2px', textTransform: 'uppercase', letterSpacing: 1 }}>Emergency contact</div>
-        {[['Name', st.ec_name || '—'], ['Relationship', st.ec_relationship || '—'], ['Phone', st.ec_phone ? <a href={`tel:${st.ec_phone}`}>{st.ec_phone}</a> : '—']].map(([label, val]) => (
-          <div key={'e' + label} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
-            <span style={{ color: 'var(--text-secondary)' }}>{label}</span><span style={{ fontWeight: 500, textAlign: 'right' }}>{val}</span>
-          </div>
-        ))}
         <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
           {m?.phone && <a href={`tel:${m.phone}`} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>📞 Call</a>}
           {showProfileButton && <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => { onClose?.(); navigate(studentProfileLink(st)) }}>View profile →</button>}
+        </div>
+        {/* Parent / guardian + emergency contact: hidden until pressed, so Call is on screen straight away */}
+        <button type="button" onClick={() => setContactMore(o => ({ ...o, [st.id]: !o[st.id] }))} aria-expanded={!!contactMore[st.id]}
+          style={{ width: '100%', marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--bg-secondary)', color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+          <span>Parent / guardian & emergency contact</span>
+          <span style={{ transition: 'transform 0.2s', transform: contactMore[st.id] ? 'rotate(180deg)' : 'none' }}>▾</span>
+        </button>
+        <div style={{ overflow: 'hidden', transition: 'max-height 0.3s ease', maxHeight: contactMore[st.id] ? 600 : 0 }}>
+          {(st.guardian_name || st.guardian_phone || calcAge(m?.date_of_birth) < 16) && (
+            <>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', margin: '12px 0 2px', textTransform: 'uppercase', letterSpacing: 1 }}>Parent / guardian</div>
+              {[['Name', st.guardian_name || '—'], ['Relationship', st.guardian_relationship || '—'], ['Phone', st.guardian_phone ? <a href={`tel:${st.guardian_phone}`}>{st.guardian_phone}</a> : '—'], ['Email', st.guardian_email || '—']].map(([label, val]) => (
+                <div key={'g' + label} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>{label}</span><span style={{ fontWeight: 500, textAlign: 'right' }}>{val}</span>
+                </div>
+              ))}
+            </>
+          )}
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', margin: '12px 0 2px', textTransform: 'uppercase', letterSpacing: 1 }}>Emergency contact</div>
+          {[['Name', st.ec_name || '—'], ['Relationship', st.ec_relationship || '—'], ['Phone', st.ec_phone ? <a href={`tel:${st.ec_phone}`}>{st.ec_phone}</a> : '—']].map(([label, val]) => (
+            <div key={'e' + label} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+              <span style={{ color: 'var(--text-secondary)' }}>{label}</span><span style={{ fontWeight: 500, textAlign: 'right' }}>{val}</span>
+            </div>
+          ))}
         </div>
       </div>
     )
