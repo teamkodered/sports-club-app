@@ -179,6 +179,13 @@ function gradeColour(g) {
   return hit ? GRADE_COLOURS[hit] : undefined
 }
 
+// Mobile register: house names in their house colour; last-in / start dates
+const HOUSE_TEXT = { dragon: '#E24B4A', super: '#F5821F', ice: '#378ADD', jet: '#22B14C' }
+const houseText = name => HOUSE_TEXT[String(name || '').toLowerCase().replace(' house', '').trim()]
+const ddmm = d => { const [, mm, dd] = String(d).slice(0, 10).split('-'); return `${dd}/${mm}` }
+const mmyy = d => { const [yy, mm] = String(d).slice(0, 10).split('-'); return `${mm}/${yy.slice(2)}` }
+const lastInColour = d => ((Date.now() - new Date(String(d).slice(0, 10) + 'T12:00:00')) / 86400000 < 28 ? '#EF9F27' : '#E24B4A') // < 4 weeks orange, else red
+
 export default function Registers({ initialRegType, onStudentNameClick, onWeightClick } = {}) {
   const { isAdmin, isCoach, isLeader, isStaff, registerAccess } = useAuth()
   // Per-person register access (Settings -> Team): which register types and classes this person may take
@@ -1795,14 +1802,14 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                         ) : mPage === 1 ? (
                           <div className="reg-m-details reg-m-details-3">
                             <span><b style={{ color: gradeColour(st.pka_belt || st.krba_level) }}>{st.pka_belt || st.krba_level || '—'}</b></span>
-                            <span>{(st.house_name || m?.houses?.name)?.replace(' House', '') || '—'}</span>
+                            <span><b style={{ color: houseText(st.house_name || m?.houses?.name) }}>{(st.house_name || m?.houses?.name)?.replace(' House', '') || '—'}</b></span>
                             <span><b>{st.house_points || 0}</b> pts</span>
                           </div>
                         ) : (
                           <div className="reg-m-details reg-m-details-3">
                             <span><b>{stats?.total ?? 0}</b></span>
-                            <span>{stats?.last ? new Date(stats.last + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}</span>
-                            <span>{(stats?.first || st.created_at) ? new Date(String(stats?.first || st.created_at).slice(0, 10) + 'T12:00:00').toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }) : '—'}</span>
+                            <span>{stats?.last ? <b style={{ color: lastInColour(stats.last) }}>{ddmm(stats.last)}</b> : '—'}</span>
+                            <span>{(stats?.first || st.created_at) ? <b style={{ color: '#1D9E75' }}>{mmyy(stats?.first || st.created_at)}</b> : '—'}</span>
                           </div>
                         )) : mPage === 0 ? (
                           <div className="reg-m-details reg-m-cols">
