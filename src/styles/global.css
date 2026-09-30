@@ -841,3 +841,8 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .reg-m-cardhead { display: flex; align-items: baseline; justify-content: space-between; margin: 8px 0 6px; }
 .reg-m-cardhead span:first-child { font-size: 14px; font-weight: 700; }
 .reg-m-cardhint { font-size: 11px; color: var(--text-tertiary); }
+
+/* Register: mini photo in the avatar + photos/initials toggle left of the filter pills */
+.reg-m-avatar { overflow: hidden; }
+.reg-m-avatar .reg-m-avatar-img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; pointer-events: none; }
+.reg-m-chips .reg-m-phototoggle { min-width: 44px; padding: 0 10px; font-size: 14px; font-weight: 700; letter-spacing: 0.5px; }
