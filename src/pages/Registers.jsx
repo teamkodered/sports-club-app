@@ -357,6 +357,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   const [mShowTable, setMShowTable] = useSyncedPreference('register_phone_table', false) // phone: show the full table instead of cards
   const mLongPress = useRef(null)
   const mLongPressFired = useRef(false)
+  const cardSwipe = useRef(null)
   const [mCardTab, setMCardTab] = useState({}) // mobile expanded card: 'contact' | 'profile' per student
   const photoInputRef = useRef(null)
   const photoTargetRef = useRef(null)
@@ -420,6 +421,22 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
             <span style={{ fontWeight: 500, textAlign: 'right', wordBreak: 'break-word' }}>{val}</span>
           </div>
         ))}
+        {(st.guardian_name || st.guardian_phone || calcAge(m?.date_of_birth) < 16) && (
+          <>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', margin: '12px 0 2px', textTransform: 'uppercase', letterSpacing: 1 }}>Parent / guardian</div>
+            {[['Name', st.guardian_name || '—'], ['Relationship', st.guardian_relationship || '—'], ['Phone', st.guardian_phone ? <a href={`tel:${st.guardian_phone}`}>{st.guardian_phone}</a> : '—'], ['Email', st.guardian_email || '—']].map(([label, val]) => (
+              <div key={'g' + label} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                <span style={{ color: 'var(--text-secondary)' }}>{label}</span><span style={{ fontWeight: 500, textAlign: 'right' }}>{val}</span>
+              </div>
+            ))}
+          </>
+        )}
+        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', margin: '12px 0 2px', textTransform: 'uppercase', letterSpacing: 1 }}>Emergency contact</div>
+        {[['Name', st.ec_name || '—'], ['Relationship', st.ec_relationship || '—'], ['Phone', st.ec_phone ? <a href={`tel:${st.ec_phone}`}>{st.ec_phone}</a> : '—']].map(([label, val]) => (
+          <div key={'e' + label} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+            <span style={{ color: 'var(--text-secondary)' }}>{label}</span><span style={{ fontWeight: 500, textAlign: 'right' }}>{val}</span>
+          </div>
+        ))}
         <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
           {m?.phone && <a href={`tel:${m.phone}`} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>📞 Call</a>}
           {showProfileButton && <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => { onClose?.(); navigate(studentProfileLink(st)) }}>View profile →</button>}
@@ -473,6 +490,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
       byStudent[sid] = {
         total: attendedRows.length,
         last: attendedRows.reduce((m, r) => (!m || r.session_date > m ? r.session_date : m), null),
+        first: rows.map(r => r.session_date).filter(Boolean).sort()[0] || null, // start date = first record
         pct: rate.pct, attendedDays: rate.attended, missedDays: rate.missed,
       }
     })
@@ -812,6 +830,9 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
         }
         case 'media_restriction': aVal = a.media_restriction || ''; bVal = b.media_restriction || ''; break
         case 'att_last': aVal = attendanceStats[a.id]?.last || ''; bVal = attendanceStats[b.id]?.last || ''; break
+        case 'att_total': aVal = attendanceStats[a.id]?.total ?? 0; bVal = attendanceStats[b.id]?.total ?? 0; return sortDir === 'asc' ? aVal - bVal : bVal - aVal
+        case 'house_points': aVal = a.house_points || 0; bVal = b.house_points || 0; return sortDir === 'asc' ? aVal - bVal : bVal - aVal
+        case 'start_date': aVal = attendanceStats[a.id]?.first || a.created_at || ''; bVal = attendanceStats[b.id]?.first || b.created_at || ''; break
         case 'att_pct': aVal = attendanceStats[a.id]?.pct ?? -1; bVal = attendanceStats[b.id]?.pct ?? -1; return sortDir === 'asc' ? aVal - bVal : bVal - aVal
         case 'weight_current': aVal = weightDataByStudent[a.id]?.current ?? a.weight_kg ?? 0; bVal = weightDataByStudent[b.id]?.current ?? b.weight_kg ?? 0; return sortDir === 'asc' ? aVal - bVal : bVal - aVal
         default:             aVal = ''; bVal = ''
@@ -1694,13 +1715,14 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
 
             {/* Sort headers + page dots (swipe the list to switch detail sets) */}
             <div className="reg-m-dots" role="tablist" aria-label="Detail columns">
-              {[0, 1].map(i => <button key={i} type="button" role="tab" aria-selected={mPage === i} aria-label={isMainReg ? (i === 0 ? 'Age, attendance, media' : 'Grade, house, last in') : (i === 0 ? 'Age, weight, attendance' : 'Level, record, weight trend')} className={mPage === i ? 'on' : ''} onClick={() => setMPage(i)} />)}
+              {(isMainReg ? [0, 1, 2] : [0, 1]).map(i => <button key={i} type="button" role="tab" aria-selected={mPage === i} aria-label={isMainReg ? (['Age, attendance, media', 'Grade, house, points', 'Sessions, last in, start date'][i]) : (i === 0 ? 'Age, weight, attendance' : 'Level, record, weight trend')} className={mPage === i ? 'on' : ''} onClick={() => setMPage(i)} />)}
             </div>
             <div className="reg-m-headers">
               <SortBtn k="first_name" label="NAME" grow />
               {isMainReg
                 ? (mPage === 0 ? <><SortBtn k="age" label="AGE" /><SortBtn k="att_pct" label="ATTEND." /><SortBtn k="media_restriction" label="MEDIA" /><span style={{ width: 58, flexShrink: 0 }} /></>
-                               : <><SortBtn k="grade" label="GRADE" /><SortBtn k="house" label="HOUSE" /><SortBtn k="att_last" label="LAST IN" /><span style={{ width: 58, flexShrink: 0 }} /></>)
+                               : mPage === 1 ? <><SortBtn k="grade" label="GRADE" /><SortBtn k="house" label="HOUSE" /><SortBtn k="house_points" label="POINTS" /><span style={{ width: 58, flexShrink: 0 }} /></>
+                               : <><SortBtn k="att_total" label="SESSIONS" /><SortBtn k="att_last" label="LAST IN" /><SortBtn k="start_date" label="STARTED" /><span style={{ width: 58, flexShrink: 0 }} /></>)
                 : (mPage === 0 ? <><SortBtn k="age" label="AGE" /><SortBtn k="weight_current" label="WEIGHT" /><SortBtn k="att_pct" label="ATTEND." /><span style={{ width: 58, flexShrink: 0 }} /></>
                                : <><SortBtn k="grade" label="LEVEL" /><SortBtn k="wins" label="RECORD" /><SortBtn k="weight_current" label="WEIGHT" /></>)}
             </div>
@@ -1711,7 +1733,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                 const st = mSwipeX.current; mSwipeX.current = null
                 if (!st) return
                 const dx = e.changedTouches[0].clientX - st.x, dy = e.changedTouches[0].clientY - st.y
-                if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) setMPage(dx < 0 ? 1 : 0)
+                if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) setMPage(p => Math.max(0, Math.min(isMainReg ? 2 : 1, p + (dx < 0 ? 1 : -1))))
               }}>
               {list.length === 0 && <div className="reg-m-empty">{search ? 'No students match your search' : 'No students here'}</div>}
               {list.map(st => {
@@ -1759,11 +1781,17 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                             <span className="reg-m-pct"><span className="bar"><span style={{ width: `${pct || 0}%`, background: pctColour(pct) }} /></span><b style={{ color: pctColour(pct) }}>{pct != null ? `${pct}%` : '—'}</b></span>
                             <span style={{ display: 'inline-flex', alignItems: 'center' }}><MediaCam restriction={st.media_restriction} /></span>
                           </div>
-                        ) : (
+                        ) : mPage === 1 ? (
                           <div className="reg-m-details reg-m-details-3">
                             <span><b style={{ color: gradeColour(st.pka_belt || st.krba_level) }}>{st.pka_belt || st.krba_level || '—'}</b></span>
                             <span>{(st.house_name || m?.houses?.name)?.replace(' House', '') || '—'}</span>
+                            <span><b>{st.house_points || 0}</b> pts</span>
+                          </div>
+                        ) : (
+                          <div className="reg-m-details reg-m-details-3">
+                            <span><b>{stats?.total ?? 0}</b></span>
                             <span>{stats?.last ? new Date(stats.last + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}</span>
+                            <span>{(stats?.first || st.created_at) ? new Date(String(stats?.first || st.created_at).slice(0, 10) + 'T12:00:00').toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }) : '—'}</span>
                           </div>
                         )) : mPage === 0 ? (
                           <div className="reg-m-details reg-m-cols">
@@ -1788,22 +1816,33 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           {(pointsByStudent[st.id] || []).length > 0 && <button type="button" onClick={() => setPointsPanelFor(st)}>Today's points</button>}
                           <button type="button" onClick={() => setMExpanded(null)}>Close</button>
                         </div>
-                        {/* Contact card (default) or the full profile card, as two tabs */}
-                        <div className="reg-m-cardtabs" role="tablist" style={{ display: 'flex', gap: 6, margin: '8px 0' }}>
-                          {[['contact', 'Contact'], ['profile', 'Profile']].map(([k, l]) => (
-                            <button key={k} type="button" role="tab" aria-selected={(mCardTab[st.id] || 'contact') === k}
-                              onClick={() => setMCardTab(t => ({ ...t, [st.id]: k }))}
-                              className={`btn btn-sm${(mCardTab[st.id] || 'contact') === k ? ' btn-primary' : ''}`} style={{ flex: 1, justifyContent: 'center' }}>{l}</button>
-                          ))}
-                        </div>
-                        {(mCardTab[st.id] || 'contact') === 'contact'
-                          ? renderContactCard(st, { showProfileButton: false })
-                          : <>
-                              <StudentProfile student={st} isAdmin={isAdmin} embedded={true} onClose={() => setMExpanded(null)} />
+                        {/* Swipe: Contact card -> Profile -> Points -> Grading (the profile's own Contact tab is
+                            left out -- the contact card above has the same details). Card swipes don't change the
+                            register's column pages; swiping the list outside the card still does. */}
+                        <div className="reg-m-cardswipe"
+                          onTouchStart={e => { e.stopPropagation(); cardSwipe.current = { x: e.touches[0].clientX, y: e.touches[0].clientY } }}
+                          onTouchEnd={e => {
+                            e.stopPropagation()
+                            const c = cardSwipe.current; cardSwipe.current = null
+                            if (!c || (mCardTab[st.id] || 'contact') !== 'contact') return
+                            const dx = e.changedTouches[0].clientX - c.x, dy = e.changedTouches[0].clientY - c.y
+                            if (dx < -60 && Math.abs(dx) > Math.abs(dy) * 1.5) setMCardTab(t => ({ ...t, [st.id]: 'profile' }))
+                          }}>
+                          {(mCardTab[st.id] || 'contact') === 'contact' ? (
+                            <>
+                              <div className="reg-m-cardhead"><span>Contact</span><span className="reg-m-cardhint">swipe for profile ›</span></div>
+                              {renderContactCard(st, { showProfileButton: false })}
+                            </>
+                          ) : (
+                            <>
+                              <StudentProfile student={st} isAdmin={isAdmin} embedded={true} onClose={() => setMExpanded(null)}
+                                swipeTabs omitTabs={['contact']} onSwipeBeforeFirst={() => setMCardTab(t => ({ ...t, [st.id]: 'contact' }))} />
                               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
                                 <button type="button" className="btn btn-sm" onClick={() => navigate(studentProfileLink(st))}>Full profile →</button>
                               </div>
-                            </>}
+                            </>
+                          )}
+                        </div>
                       </div>
                     )}
                     {open && !selecting && !isMainReg && (

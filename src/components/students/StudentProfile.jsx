@@ -1,13 +1,15 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useBackableTab } from '../../hooks/useBackableTab.js'
 import { supabase } from '../../lib/supabase.js'
 
 const HOUSE_COLOURS = { Phoenix: '#e24b4a', Titan: '#378add', Viper: '#1d9e75', Storm: '#ef9f27' }
 
-export default function StudentProfile({ student, onClose, isAdmin, embedded = false }) {
+export default function StudentProfile({ student, onClose, isAdmin, embedded = false, swipeTabs = false, omitTabs = [], onSwipeBeforeFirst }) {
   const navigate = useNavigate()
   const [tab, setTab] = useBackableTab('profile')
+  const visibleTabs = ['profile', 'contact', 'points', 'grading'].filter(t => !omitTabs.includes(t))
+  const tabSwipe = useRef(null)
   const [pointTypes, setPointTypes] = useState([])
   const [pointsLog, setPointsLog] = useState([])
   const [awardForm, setAwardForm] = useState({ point_type: '', scope: 'both', note: '' })
@@ -382,9 +384,17 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
           )}
         </div>
 
-        {/* Tabs */}
+        {/* Tabs (swipeTabs: no buttons -- swipe left / right, the tab title is the header) */}
+        {swipeTabs ? (
+          <div className="sp-swipe-head" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px 6px', borderBottom: '1px solid var(--border)' }}>
+            <span style={{ fontSize: 14, fontWeight: 700, textTransform: 'capitalize' }}>{tab}</span>
+            <span style={{ display: 'flex', gap: 5 }} aria-hidden="true">
+              {visibleTabs.map(t => <i key={t} style={{ width: 6, height: 6, borderRadius: '50%', background: t === tab ? 'var(--text)' : 'var(--border-strong, #555)' }} />)}
+            </span>
+          </div>
+        ) : (
         <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', paddingLeft: 20 }}>
-          {['profile','contact','points','grading'].map(t => (
+          {visibleTabs.map(t => (
             <button key={t} onClick={() => setTab(t)} style={{
               padding: '9px 14px', fontSize: 12, border: 'none', background: 'none', cursor: 'pointer',
               borderBottom: `2px solid ${tab === t ? 'var(--text)' : 'transparent'}`,
@@ -393,9 +403,21 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
             }}>{t}</button>
           ))}
         </div>
+        )}
 
         {/* Content */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: swipeTabs ? 12 : 20 }}
+          onTouchStart={swipeTabs ? e => { e.stopPropagation(); tabSwipe.current = { x: e.touches[0].clientX, y: e.touches[0].clientY } } : undefined}
+          onTouchEnd={swipeTabs ? e => {
+            e.stopPropagation()
+            const c = tabSwipe.current; tabSwipe.current = null
+            if (!c) return
+            const dx = e.changedTouches[0].clientX - c.x, dy = e.changedTouches[0].clientY - c.y
+            if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return
+            const i = visibleTabs.indexOf(tab)
+            if (dx < 0 && i < visibleTabs.length - 1) setTab(visibleTabs[i + 1])
+            else if (dx > 0) { if (i > 0) setTab(visibleTabs[i - 1]); else onSwipeBeforeFirst?.() }
+          } : undefined}>
 
           {tab === 'profile' && (
             <div>

@@ -836,3 +836,8 @@ tbody tr:hover td { background: var(--bg-secondary); }
 
 /* Pillar PDP view: only the tabs + PDP cards show; the questions stay mounted but hidden */
 .pv-pdp > *:not(.neon-pillar-tabs):not(.neon-pdp-list) { display: none !important; }
+
+/* Register mobile drop-down: swipeable Contact / Profile pages */
+.reg-m-cardhead { display: flex; align-items: baseline; justify-content: space-between; margin: 8px 0 6px; }
+.reg-m-cardhead span:first-child { font-size: 14px; font-weight: 700; }
+.reg-m-cardhint { font-size: 11px; color: var(--text-tertiary); }
