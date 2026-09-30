@@ -1789,7 +1789,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                       <div className="reg-m-body">
                         <div className="reg-m-name">
                           {!selecting
-                            ? <button type="button" className="reg-m-namelink" onClick={e => { e.stopPropagation(); if (isMainReg) setMExpanded(open ? null : st.id); else onStudentNameClick ? onStudentNameClick(st) : navigate(studentProfileLink(st)) }}>{m?.first_name} {m?.last_name}</button>
+                            ? <button type="button" className="reg-m-namelink" onClick={e => { e.stopPropagation(); setMExpanded(open ? null : st.id) }}>{m?.first_name} {m?.last_name}</button>
                             : <span>{m?.first_name} {m?.last_name}</span>}
                           {bday && <button type="button" className="reg-m-bday" title="Upcoming birthday" onClick={e => { e.stopPropagation(); setBirthdayPopup({ name: `${m?.first_name} ${m?.last_name}`, info: bday }) }}>🎂</button>}
                         </div>
@@ -1832,7 +1832,8 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           <button type="button" onClick={() => { setMultiAward(false); setAwardingFor(st) }}>+ Points</button>
                           <button type="button" onClick={() => setCalendarStudent(st)}>Calendar</button>
                           {(pointsByStudent[st.id] || []).length > 0 && <button type="button" onClick={() => setPointsPanelFor(st)}>Today's points</button>}
-                          <button type="button" onClick={() => setMExpanded(null)}>Close</button>
+                          <button type="button" className="reg-m-ath" title={(st.is_kr || st.is_pts || st.discipline === 'KRBA') ? 'Open athlete profile' : 'Open profile'}
+                            onClick={() => navigate((st.is_kr || st.is_pts || st.discipline === 'KRBA') ? `/athletes?id=${st.id}&from=register` : `${studentProfileLink(st)}&from=register`)}>ATH</button>
                         </div>
                         {/* Swipe: Contact card -> Profile -> Points -> Grading (the profile's own Contact tab is
                             left out -- the contact card above has the same details). Card swipes don't change the
@@ -1871,14 +1872,14 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           <div><span>Attend.</span><b style={{ color: pctColour(pct) }}>{pct != null ? `${pct}%` : '—'}</b></div>
                           <div><span>Weight</span><b>{weight != null ? `${weight}kg` : '—'}</b></div>
                           <div><span>Target wt</span><b>{wd?.targetWeight ? `${wd.targetWeight}kg` : '—'}</b></div>
-                          <div><span>Points today</span><b>{(pointsByStudent[st.id] || []).reduce((n, pp) => n + (pp.points_awarded || 0), 0)}</b></div>
+                          <div><span>Comp weight</span><b>{wd?.compWeightLabel || st.weight_division || '—'}</b></div>
                         </div>
                         <div className="reg-m-note">Weights come from the weigh check-in / athlete app</div>
                         <div className="reg-m-actions">
                           <button type="button" onClick={() => { setMultiAward(false); setAwardingFor(st) }}>+ Points</button>
                           <button type="button" onClick={() => setCalendarStudent(st)}>Calendar</button>
                           {(pointsByStudent[st.id] || []).length > 0 && <button type="button" onClick={() => setPointsPanelFor(st)}>Today's points</button>}
-                          <button type="button" onClick={() => onStudentNameClick ? onStudentNameClick(st) : navigate(studentProfileLink(st))}>Profile</button>
+                          <button type="button" className="reg-m-ath" title="Open athlete profile" onClick={() => onStudentNameClick ? onStudentNameClick(st) : navigate(`/athletes?id=${st.id}&from=register`)}>ATH</button>
                           {onWeightClick && <button type="button" onClick={() => onWeightClick(st)}>Weights</button>}
                         </div>
                       </div>
@@ -1886,7 +1887,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                   </div>
                 )
               })}
-              <div className="reg-m-hint">Tap the button: Mark → In → Kit → clear · Initials = details · Name = profile · Hold to select, then tap to add more · Swipe for more details</div>
+              <div className="reg-m-hint">Tap the button: Mark → In → Kit → clear · Initials / name = details · ATH = athlete profile · Hold to select, then tap to add more · Swipe for more details</div>
             </div>
 
             {/* Bulk bar -- only while selecting */}

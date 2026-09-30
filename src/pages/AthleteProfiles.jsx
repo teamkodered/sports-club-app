@@ -8689,8 +8689,8 @@ export default function AthleteProfiles() {
             }}>
             <div className="swipe-zone" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <div style={{ display: 'flex', gap: 6 }}>
-                {searchParams.get('from') === 'register' && (
-                  <button className="btn btn-sm" onClick={() => navigate(-1)}>← Back to Register</button>
+                {(searchParams.get('from') === 'register' || cameFromRegisterType) && (
+                  <button className="btn btn-sm" onClick={() => searchParams.get('from') === 'register' ? navigate(-1) : goHome()}>← Register</button>
                 )}
                 <button className="btn btn-sm" onClick={goHome}>← Athlete Dashboard</button>
               </div>
