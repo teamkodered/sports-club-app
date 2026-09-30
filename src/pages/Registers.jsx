@@ -1733,7 +1733,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
 
             {/* Sort headers + page dots (swipe the list to switch detail sets) */}
             <div className="reg-m-dots" role="tablist" aria-label="Detail columns">
-              {(isMainReg ? [0, 1, 2] : [0, 1]).map(i => <button key={i} type="button" role="tab" aria-selected={mPage === i} aria-label={isMainReg ? (['Age, attendance, media', 'Grade, house, points', 'Sessions, last in, start date'][i]) : (i === 0 ? 'Age, weight, attendance' : 'Level, record, weight trend')} className={mPage === i ? 'on' : ''} onClick={() => setMPage(i)} />)}
+              {(isMainReg ? [0, 1, 2] : [0, 1, 2, 3]).map(i => <button key={i} type="button" role="tab" aria-selected={mPage === i} aria-label={isMainReg ? (['Age, attendance, media', 'Grade, house, points', 'Sessions, last in, start date'][i]) : (['Age, weight, attendance', 'Level, record, weight trend', 'Sessions, last in, start date', 'House, points, media'][i])} className={mPage === i ? 'on' : ''} onClick={() => setMPage(i)} />)}
             </div>
             <div className="reg-m-headers">
               <SortBtn k="first_name" label="NAME" grow />
@@ -1742,7 +1742,9 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                                : mPage === 1 ? <><SortBtn k="grade" label="GRADE" /><SortBtn k="house" label="HOUSE" /><SortBtn k="house_points" label="POINTS" /><span style={{ width: 58, flexShrink: 0 }} /></>
                                : <><SortBtn k="att_total" label="SESSIONS" /><SortBtn k="att_last" label="LAST IN" /><SortBtn k="start_date" label="STARTED" /><span style={{ width: 58, flexShrink: 0 }} /></>)
                 : (mPage === 0 ? <><SortBtn k="age" label="AGE" /><SortBtn k="weight_current" label="WEIGHT" /><SortBtn k="att_pct" label="ATTEND." /><span style={{ width: 58, flexShrink: 0 }} /></>
-                               : <><SortBtn k="grade" label="LEVEL" /><SortBtn k="wins" label="RECORD" /><SortBtn k="weight_current" label="WEIGHT" /></>)}
+                               : mPage === 1 ? <><SortBtn k="grade" label="LEVEL" /><SortBtn k="wins" label="RECORD" /><SortBtn k="weight_current" label="WEIGHT" /></>
+                               : mPage === 2 ? <><SortBtn k="att_total" label="SESSIONS" /><SortBtn k="att_last" label="LAST IN" /><SortBtn k="start_date" label="STARTED" /><span style={{ width: 58, flexShrink: 0 }} /></>
+                               : <><SortBtn k="house" label="HOUSE" /><SortBtn k="house_points" label="POINTS" /><SortBtn k="media_restriction" label="MEDIA" /><span style={{ width: 58, flexShrink: 0 }} /></>)}
             </div>
 
             <div className="reg-m-list"
@@ -1751,7 +1753,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                 const st = mSwipeX.current; mSwipeX.current = null
                 if (!st) return
                 const dx = e.changedTouches[0].clientX - st.x, dy = e.changedTouches[0].clientY - st.y
-                if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) setMPage(p => Math.max(0, Math.min(isMainReg ? 2 : 1, p + (dx < 0 ? 1 : -1))))
+                if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) setMPage(p => Math.max(0, Math.min(isMainReg ? 2 : 3, p + (dx < 0 ? 1 : -1))))
               }}>
               {list.length === 0 && <div className="reg-m-empty">{search ? 'No students match your search' : 'No students here'}</div>}
               {list.map(st => {
@@ -1817,6 +1819,18 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                             <span><b>{weight != null ? `${weight}kg` : '—'}</b></span>
                             <span className="reg-m-pct"><span className="bar"><span style={{ width: `${pct || 0}%`, background: pctColour(pct) }} /></span><b style={{ color: pctColour(pct) }}>{pct != null ? `${pct}%` : '—'}</b></span>
                           </div>
+                        ) : mPage === 2 ? (
+                          <div className="reg-m-details reg-m-details-3">
+                            <span><b>{stats?.total ?? 0}</b></span>
+                            <span>{stats?.last ? <b style={{ color: lastInColour(stats.last) }}>{ddmm(stats.last)}</b> : '—'}</span>
+                            <span>{(stats?.first || st.created_at) ? <b style={{ color: '#1D9E75' }}>{mmyy(stats?.first || st.created_at)}</b> : '—'}</span>
+                          </div>
+                        ) : mPage === 3 ? (
+                          <div className="reg-m-details reg-m-details-3">
+                            <span><b style={{ color: houseText(st.house_name || m?.houses?.name) }}>{(st.house_name || m?.houses?.name)?.replace(' House', '') || '—'}</b></span>
+                            <span><b>{st.house_points || 0}</b> pts</span>
+                            <span style={{ display: 'inline-flex', alignItems: 'center' }}><MediaCam restriction={st.media_restriction} /></span>
+                          </div>
                         ) : (
                           <div className="reg-m-details reg-m-details-2">
                             <span><b style={{ color: gradeColour(st.pka_belt || st.krba_level) }}>{st.pka_belt || st.krba_level || '—'}</b></span>
@@ -1824,7 +1838,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           </div>
                         )}
                       </div>
-                      {(mPage === 0 || isMainReg) ? <AttBtn st={st} /> : <Spark wd={wd} />}
+                      {(isMainReg || mPage !== 1) ? <AttBtn st={st} /> : <Spark wd={wd} />}
                     </div>
                     {open && !selecting && isMainReg && (
                       <div className="reg-m-open reg-m-open-profile" onClick={e => e.stopPropagation()}>
@@ -1868,7 +1882,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                       <div className="reg-m-open" onClick={e => e.stopPropagation()}>
                         <div className="reg-m-stats">
                           <div><span>Sessions</span><b>{stats?.total ?? 0}</b></div>
-                          <div><span>Last in</span><b>{stats?.last ? new Date(stats.last + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}</b></div>
+                          <div><span>Last in</span><b style={{ color: stats?.last ? lastInColour(stats.last) : undefined }}>{stats?.last ? ddmm(stats.last) : '—'}</b></div>
                           <div><span>Attend.</span><b style={{ color: pctColour(pct) }}>{pct != null ? `${pct}%` : '—'}</b></div>
                           <div><span>Weight</span><b>{weight != null ? `${weight}kg` : '—'}</b></div>
                           <div><span>Target wt</span><b>{wd?.targetWeight ? `${wd.targetWeight}kg` : '—'}</b></div>
@@ -1881,6 +1895,25 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           {(pointsByStudent[st.id] || []).length > 0 && <button type="button" onClick={() => setPointsPanelFor(st)}>Today's points</button>}
                           <button type="button" className="reg-m-ath" title="Open athlete profile" onClick={() => onStudentNameClick ? onStudentNameClick(st) : navigate(`/athletes?id=${st.id}&from=register`)}>ATH</button>
                           {onWeightClick && <button type="button" onClick={() => onWeightClick(st)}>Weights</button>}
+                        </div>
+                        <div className="reg-m-cardswipe"
+                          onTouchStart={e => { e.stopPropagation(); cardSwipe.current = { x: e.touches[0].clientX, y: e.touches[0].clientY } }}
+                          onTouchEnd={e => {
+                            e.stopPropagation()
+                            const c = cardSwipe.current; cardSwipe.current = null
+                            if (!c || (mCardTab[st.id] || 'contact') !== 'contact') return
+                            const dx = e.changedTouches[0].clientX - c.x, dy = e.changedTouches[0].clientY - c.y
+                            if (dx < -60 && Math.abs(dx) > Math.abs(dy) * 1.5) setMCardTab(t => ({ ...t, [st.id]: 'profile' }))
+                          }}>
+                          {(mCardTab[st.id] || 'contact') === 'contact' ? (
+                            <>
+                              <div className="reg-m-cardhead"><span>Contact</span><span className="reg-m-cardhint">swipe for profile ›</span></div>
+                              {renderContactCard(st, { showProfileButton: false })}
+                            </>
+                          ) : (
+                            <StudentProfile student={st} isAdmin={isAdmin} embedded={true} onClose={() => setMExpanded(null)}
+                              swipeTabs omitTabs={['contact']} onSwipeBeforeFirst={() => setMCardTab(t => ({ ...t, [st.id]: 'contact' }))} />
+                          )}
                         </div>
                       </div>
                     )}
