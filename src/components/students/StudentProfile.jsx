@@ -298,12 +298,12 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
     <div style={embedded ? {} : { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
       onClick={embedded ? undefined : onClose}>
       <div style={embedded
-        ? { background: 'var(--bg)' }
+        ? { background: 'var(--bg)', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box', overflowX: 'hidden' }
         : { background: 'var(--bg)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 580, maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
         onClick={embedded ? undefined : e => e.stopPropagation()}>
 
         {/* Header */}
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ padding: embedded ? '14px 12px' : '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', minWidth: 0 }}>
           {localStudent.photo_url ? (
             <div style={{ position: 'relative', width: 44, height: 44, flexShrink: 0 }}>
               <img src={localStudent.photo_url} alt="" style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', display: 'block' }} />
@@ -344,7 +344,7 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
           ) : (
             <div style={{ width: 44, height: 44, borderRadius: '50%', background: colour + '22', color: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700, flexShrink: 0 }}>{initials}</div>
           )}
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: '1 1 150px', minWidth: 0 }}>
             <div style={{ fontSize: 16, fontWeight: 600 }}>{m?.first_name} {m?.last_name}</div>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 1 }}>
               {localStudent.student_ref} · Age {age} · {localStudent.discipline} · {currentBelt || 'No grade'}
@@ -374,7 +374,7 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
               📋 Register
             </button>
           )}
-          <button className="btn btn-sm" onClick={openMembershipForm} style={{ marginLeft: 8, flexShrink: 0 }}>
+          <button className="btn btn-sm" onClick={openMembershipForm} style={embedded ? { flexBasis: '100%', justifyContent: 'center' } : { marginLeft: 8, flexShrink: 0 }}>
             📄 View Membership
           </button>
           {!embedded && (
