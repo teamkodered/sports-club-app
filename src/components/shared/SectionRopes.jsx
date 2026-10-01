@@ -31,7 +31,7 @@ export default function SectionRopes({ byPeriod, accent: _accent, corner = 'tl',
         // No target set: anything completed still shows -- the rope fills and the count shows on its own
         const pct = hasTarget ? Math.min(100, Math.round((done / target) * 100)) : (done > 0 ? 100 : 0)
         const labelColour = (hasTarget || done > 0) ? accent : '#666'
-        const countText = hasTarget ? `${done}/${target}` : `${done}`
+        const countText = hasTarget ? `${done}/${target}` : (done > 0 ? `${done}` : '0/0')
         const letterStyle = { position: 'absolute', fontFamily: 'Orbitron, sans-serif', fontSize: 11, fontWeight: 500, letterSpacing: 0, lineHeight: '12px', width: 14, textAlign: 'center', color: '#9A9A9A' }
         if (corner === 'bottom') {
           return (

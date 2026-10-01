@@ -522,7 +522,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     const disc = REGISTER_TYPES.find(r => r.key === regType)?.discipline || 'PKA'
     let query = supabase
       .from('students')
-      .select('*, members(first_name, last_name, phone, email, date_of_birth, status, houses(name))')
+      .select('*, members(first_name, last_name, phone, email, date_of_birth, status, joined_date, houses(name))')
 
     if (regType === 'krba')        query = query.eq('discipline', 'KRBA')
     else if (regType === 'kr')     query = query.eq('discipline', 'PKA').eq('is_kr', true)
@@ -850,7 +850,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
         case 'att_last': aVal = attendanceStats[a.id]?.last || ''; bVal = attendanceStats[b.id]?.last || ''; break
         case 'att_total': aVal = attendanceStats[a.id]?.total ?? 0; bVal = attendanceStats[b.id]?.total ?? 0; return sortDir === 'asc' ? aVal - bVal : bVal - aVal
         case 'house_points': aVal = a.house_points || 0; bVal = b.house_points || 0; return sortDir === 'asc' ? aVal - bVal : bVal - aVal
-        case 'start_date': aVal = attendanceStats[a.id]?.first || a.created_at || ''; bVal = attendanceStats[b.id]?.first || b.created_at || ''; break
+        case 'start_date': aVal = am?.joined_date || attendanceStats[a.id]?.first || ''; bVal = bm?.joined_date || attendanceStats[b.id]?.first || ''; break
         case 'att_pct': aVal = attendanceStats[a.id]?.pct ?? -1; bVal = attendanceStats[b.id]?.pct ?? -1; return sortDir === 'asc' ? aVal - bVal : bVal - aVal
         case 'weight_current': aVal = weightDataByStudent[a.id]?.current ?? a.weight_kg ?? 0; bVal = weightDataByStudent[b.id]?.current ?? b.weight_kg ?? 0; return sortDir === 'asc' ? aVal - bVal : bVal - aVal
         default:             aVal = ''; bVal = ''
@@ -1811,7 +1811,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           <div className="reg-m-details reg-m-details-3">
                             <span><b>{stats?.total ?? 0}</b></span>
                             <span>{stats?.last ? <b style={{ color: lastInColour(stats.last) }}>{ddmm(stats.last)}</b> : '—'}</span>
-                            <span>{(stats?.first || st.created_at) ? <b style={{ color: '#1D9E75' }}>{mmyy(stats?.first || st.created_at)}</b> : '—'}</span>
+                            <span>{(m?.joined_date || stats?.first) ? <b style={{ color: '#1D9E75' }}>{mmyy(m?.joined_date || stats?.first)}</b> : '—'}</span>
                           </div>
                         )) : mPage === 0 ? (
                           <div className="reg-m-details reg-m-cols">
@@ -1823,7 +1823,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           <div className="reg-m-details reg-m-details-3">
                             <span><b>{stats?.total ?? 0}</b></span>
                             <span>{stats?.last ? <b style={{ color: lastInColour(stats.last) }}>{ddmm(stats.last)}</b> : '—'}</span>
-                            <span>{(stats?.first || st.created_at) ? <b style={{ color: '#1D9E75' }}>{mmyy(stats?.first || st.created_at)}</b> : '—'}</span>
+                            <span>{(m?.joined_date || stats?.first) ? <b style={{ color: '#1D9E75' }}>{mmyy(m?.joined_date || stats?.first)}</b> : '—'}</span>
                           </div>
                         ) : mPage === 3 ? (
                           <div className="reg-m-details reg-m-details-3">

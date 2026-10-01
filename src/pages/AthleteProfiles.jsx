@@ -4248,7 +4248,7 @@ export default function AthleteProfiles() {
               <div style={{ flex: 1, height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.08)' }}>
                 <div style={{ width: `${pct}%`, height: '100%', background: accent, boxShadow: pct ? `0 0 3px ${accent}` : 'none', borderRadius: 2, transition: 'width 0.3s' }} />
               </div>
-              <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 8, minWidth: 22, textAlign: 'right', color: (hasTarget || done > 0) ? accent : '#666' }}>{hasTarget ? `${done}/${target}` : done}</span>
+              <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 8, minWidth: 22, textAlign: 'right', color: (hasTarget || done > 0) ? accent : '#666' }}>{hasTarget ? `${done}/${target}` : (done > 0 ? done : '0/0')}</span>
             </div>
           )
         })}
