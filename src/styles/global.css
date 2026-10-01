@@ -618,10 +618,11 @@ tbody tr:hover td { background: var(--bg-secondary); }
 /* Physical: module cards (Running / Watt bike / Bodyweight / Stretch) + S&C bar the same size as other sections' cards */
 .neon-home .neon-module { min-height: 96px; }
 .neon-home .neon-module > button:not(.neon-module-pb) { padding: 12px 10px !important; gap: 10px !important; }
-.neon-home .neon-module > button:not(.neon-module-pb) span[style*="white-space: nowrap"] { font-size: 14px !important; white-space: normal !important; line-height: 1.05; overflow-wrap: anywhere; }
+.neon-home .neon-module > button:not(.neon-module-pb) span[style*="white-space: nowrap"] { font-size: 14px !important; white-space: normal !important; line-height: 1.05; overflow-wrap: normal; word-break: normal; text-align: center; }
 .neon-home .neon-module > button:not(.neon-module-pb) span[style*="line-height: 1.2"] { font-size: 10px !important; font-family: 'Orbitron', sans-serif; letter-spacing: 1px; color: #E6B800 !important; }
 .neon-home .neon-module > button:not(.neon-module-pb) > span:last-child { font-size: 20px !important; flex-shrink: 0; }
-.neon-home .neon-module > button:not(.neon-module-pb) > div { min-width: 0; flex: 1 1 auto; }
+.neon-home .neon-module > button:not(.neon-module-pb) > div[style*="width: 18px"] { flex: 0 0 18px !important; }  /* D/W/M mini bars keep their width */
+.neon-home .neon-module > button:not(.neon-module-pb) > div[style*="flex: 1"] { min-width: 0; flex: 1 1 auto; }   /* title column takes the rest */
 .neon-home .neon-module-pb { width: 64px !important; flex-shrink: 0; }
 .neon-home .neon-module .neon-pb-value { font-size: 14px; }
 .neon-home .neon-snc-bar { min-height: 72px; }
@@ -865,3 +866,6 @@ tbody tr:hover td { background: var(--bg-secondary); }
 /* Same card height on every swipe page (Mark button / weight graph / nothing) so the list never jumps; names a touch bigger */
 .reg-m-card-main { min-height: 56px; }
 .reg-m-name, .reg-m-namelink { font-size: 19px !important; line-height: 1.15; }
+
+/* Rope D/W/M letters: plain text in the title font (Orbitron's D looked like a box, and the Foundation letters showed as boxes) */
+.neon-home .neon-pillar .neon-rope-letter { font-family: 'Saira Condensed', sans-serif !important; font-style: italic; font-weight: 800 !important; font-size: 13px !important; color: #9A9A9A !important; background: transparent !important; text-shadow: 0 0 3px #000, 0 0 3px #000; }
