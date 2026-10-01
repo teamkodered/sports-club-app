@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, Fragment } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
+import { assignmentActiveOn, isPastAssignment, isFutureAssignment, askAssignmentDates, insertAssignment, endAssignment, setAssignmentDates, todayISO, fmtDMY } from '../lib/classAssignments.jsx'
 import { PDP_GOLD, pdpLinksFor, PdpNotes, PdpAddModal, pdpSectionKey, pdpLinkKey, pdpPillarForSection, pdpLinkForLine, pdpVisibleToAthlete, PDP_AREA_FOR_PILLAR } from '../components/shared/pdpLinks.jsx'
 import { newRunId, runKey, isSuicideTest, suicideMetres, SUICIDE_PRESETS, EffortSwitcher, SuicideInput } from '../components/shared/RunEfforts.jsx'
 import SectionRopes from '../components/shared/SectionRopes.jsx'
@@ -2903,6 +2904,8 @@ export default function AthleteProfiles() {
   const [truePointTotals, setTruePointTotals] = useState({})
   const [allAttendance, setAllAttendance] = useState([])
   const [assignedClasses, setAssignedClasses] = useState([])
+  // Classes not ended (current + future-dated). The full list (incl. ended) is kept for attendance history.
+  const currentAssignedClasses = assignedClasses.filter(a => !isPastAssignment(a))
   const [clubEvents, setClubEvents] = useState([])
   // Athlete Dashboard (shown when no athlete is selected): team notes + events
   const [teamNotes, setTeamNotes] = useState([])
@@ -4688,7 +4691,7 @@ export default function AthleteProfiles() {
       ...tptData.kickboxing.map(t => ({ Discipline: 'Kickboxing', Date: t.assessed_at, ...t })),
       ...tptData.boxing.map(t => ({ Discipline: 'Boxing', Date: t.assessed_at, ...t })),
     ]
-    const classes = assignedClasses.map(a => ({ Class: a.classes?.name, Day: a.classes?.day_of_week, Time: a.classes?.start_time }))
+    const classes = currentAssignedClasses.map(a => ({ Class: a.classes?.name, Day: a.classes?.day_of_week, Time: a.classes?.start_time }))
 
     return { name, profile, attendance, f2fSessions, notes, points, ttp, classes }
   }
@@ -4832,7 +4835,7 @@ export default function AthleteProfiles() {
 
   useEffect(() => {
     if (!weeklyPlannerAthlete) { setWeeklyPlannerAssignedClasses([]); setWeeklyPlannerApData(null); return }
-    supabase.from('student_class_assignments').select('id, class_id, classes(*)').eq('student_id', weeklyPlannerAthlete.id)
+    supabase.from('student_class_assignments').select('*, classes(*)').eq('student_id', weeklyPlannerAthlete.id)
       .then(({ data }) => setWeeklyPlannerAssignedClasses(data || []))
     supabase.from('athlete_profiles').select('*').eq('student_id', weeklyPlannerAthlete.id).maybeSingle()
       .then(({ data }) => setWeeklyPlannerApData(data || null))
@@ -5721,9 +5724,10 @@ export default function AthleteProfiles() {
   async function addClassAssignment() {
     if (!addingClassId) return
     setSavingClassAssignment(true)
-    const { data, error } = await supabase.from('student_class_assignments')
-      .insert({ student_id: selected.id, class_id: addingClassId })
-      .select('id, class_id, classes(*)').single()
+    const clA = (typeof allClasses !== 'undefined' ? allClasses : []).find(c => c.id === addingClassId)
+    const dates = await askAssignmentDates({ mode: 'add', label: clA ? `${clA.name} (${clA.day_of_week} ${clA.start_time?.slice(0, 5) || ''})` : '' })
+    if (!dates) { setSavingClassAssignment(false); return }
+    const { data, error } = await insertAssignment({ student_id: selected.id, class_id: addingClassId, ...dates }, '*, classes(*)')
     if (error) { alert('Error adding class: ' + error.message); setSavingClassAssignment(false); return }
     setAssignedClasses(prev => [...prev, data])
     setAddingClassId('')
@@ -5740,9 +5744,7 @@ export default function AthleteProfiles() {
       if (classError) { alert(`Error creating session for ${day}: ` + classError.message); continue }
       setAllClasses(prev => [...prev, newClass].sort((a,b) => (a.day_of_week||'').localeCompare(b.day_of_week||'') || (a.start_time||'').localeCompare(b.start_time||'')))
 
-      const { data, error } = await supabase.from('student_class_assignments')
-        .insert({ student_id: selected.id, class_id: newClass.id })
-        .select('id, class_id, classes(*)').single()
+      const { data, error } = await insertAssignment({ student_id: selected.id, class_id: newClass.id, start_date: todayISO() }, '*, classes(*)')
       if (error) { alert(`Error assigning session for ${day}: ` + error.message); continue }
       setAssignedClasses(prev => [...prev, data])
     }
@@ -5751,10 +5753,14 @@ export default function AthleteProfiles() {
     setSavingClassAssignment(false)
   }
 
+  // Removing ends the assignment (default today, can be backdated); the row is kept for attendance history
   async function removeClassAssignment(assignmentId) {
-    const { error } = await supabase.from('student_class_assignments').delete().eq('id', assignmentId)
+    const a = assignedClasses.find(x => x.id === assignmentId)
+    const d = await askAssignmentDates({ mode: 'remove', label: a?.classes ? `${a.classes.name} (${a.classes.day_of_week} ${a.classes.start_time?.slice(0, 5) || ''})` : '' })
+    if (!d) return
+    const { error } = await endAssignment(assignmentId, d.end_date)
     if (error) return alert('Error removing class: ' + error.message)
-    setAssignedClasses(prev => prev.filter(a => a.id !== assignmentId))
+    setAssignedClasses(prev => prev.map(x => x.id === assignmentId ? { ...x, end_date: d.end_date } : x))
   }
 
   const NOTE_PDP_TARGETS = {
@@ -6179,7 +6185,7 @@ export default function AthleteProfiles() {
       .order('session_date', { ascending: false })
       .then(({ data, error }) => { if (!error && selectingIdRef.current === s.id) setAttendanceData(data || []) })
     // Load classes this athlete is explicitly assigned to
-    supabase.from('student_class_assignments').select('id, class_id, classes(*)')
+    supabase.from('student_class_assignments').select('*, classes(*)')
       .eq('student_id', s.id)
       .then(({ data, error }) => { if (!error && selectingIdRef.current === s.id) setAssignedClasses(data || []) })
     supabase.from('athlete_notes_log').select('*')
@@ -10996,8 +11002,8 @@ export default function AthleteProfiles() {
                           .filter(dateStr => dateStr <= todayStr)
                           .filter(dateStr => {
                             const jsDay = new Date(dateStr + 'T12:00:00').getDay()
-                            const classIdsThatDay = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay)).map(a => a.classes?.id)
-                            return !isDateOnHoliday(dateStr, holidays, classIdsThatDay, selected.id)
+                            const classIdsThatDay = assignedClasses.filter(a => assignmentActiveOn(a, dateStr) && (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay)).map(a => a.classes?.id)
+                            return classIdsThatDay.length > 0 && !isDateOnHoliday(dateStr, holidays, classIdsThatDay, selected.id)
                           })
                       )
                       const attendedDays = new Set(
@@ -11147,7 +11153,7 @@ export default function AthleteProfiles() {
                               const wasTrainingDay = allTrainingDays.has(dateStr)
                               const showAsRed = explicitlyAbsent || (wasTrainingDay && !attended && !explicitlyExcused && dateStr < todayStr)
                               const jsDay = new Date(year, month, d).getDay()
-                              const classesToday = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay) && !isDateOnHoliday(dateStr, holidays, a.classes?.id ? [a.classes.id] : [], selected.id))
+                              const classesToday = assignedClasses.filter(a => assignmentActiveOn(a, dateStr) && (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay) && !isDateOnHoliday(dateStr, holidays, a.classes?.id ? [a.classes.id] : [], selected.id))
                               // Light green = attended some but not all of
                               // the classes possible that day; dark green =
                               // attended everything possible that day.
@@ -11297,7 +11303,7 @@ export default function AthleteProfiles() {
                             {weekDays.map((d, di) => {
                               const dateStr = d.toISOString().split('T')[0]
                               const jsDay = d.getDay()
-                              const classesToday = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay))
+                              const classesToday = assignedClasses.filter(a => assignmentActiveOn(a, dateStr) && (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay))
                               const pdpToday = allPdpEntries.filter(e => e.date === dateStr)
                               const eventsToday = clubEvents.filter(e => e.event_date === dateStr)
                               const isToday = dateStr === new Date().toISOString().split('T')[0]
@@ -11369,11 +11375,11 @@ export default function AthleteProfiles() {
                   {/* Assigned classes/sessions */}
                   <div className="card" style={{ marginBottom: 20 }}>
                     <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Assigned sessions</h3>
-                    {assignedClasses.length === 0 ? (
+                    {currentAssignedClasses.length === 0 ? (
                       <p style={{ fontSize: 13, color: 'var(--text-tertiary)', marginBottom: 12 }}>No classes assigned yet.</p>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-                        {assignedClasses.slice().sort((a, b) => {
+                        {currentAssignedClasses.slice().sort((a, b) => {
                           const DAY_ORDER = ['Monday','Mon/Fri','Tuesday','Tue/Thu','Wednesday','Saturday','Sunday','Derby Moore','Moorways']
                           const da = DAY_ORDER.indexOf(a.classes?.day_of_week), db = DAY_ORDER.indexOf(b.classes?.day_of_week)
                           if (da !== db) return da - db
@@ -11417,7 +11423,7 @@ export default function AthleteProfiles() {
                         <div style={{ display: 'flex', gap: 8 }}>
                           <select value={addingClassId} onChange={e => setAddingClassId(e.target.value)} style={{ flex: 1 }}>
                             <option value="">Add a class/session…</option>
-                            {allClasses.filter(c => !assignedClasses.some(a => a.class_id === c.id))
+                            {allClasses.filter(c => !currentAssignedClasses.some(a => a.class_id === c.id))
                               .slice().sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(c => (
                               <option key={c.id} value={c.id}>{c.name} — {c.day_of_week} {c.start_time?.slice(0,5)}</option>
                             ))}

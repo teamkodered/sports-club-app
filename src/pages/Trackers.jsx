@@ -138,7 +138,7 @@ export default function Trackers({ onStatsReady } = {}) {
     setAttendance(att)
     // Class assignments + holidays, for each student's own attendance rate
     const [asg, { data: hol }] = await Promise.all([
-      fetchAllRows(() => supabase.from('student_class_assignments').select('id, student_id, classes(id, day_of_week)')),
+      fetchAllRows(() => supabase.from('student_class_assignments').select('*, classes(id, day_of_week)')),
       supabase.from('holidays').select('*'),
     ])
     setAssignments(asg)

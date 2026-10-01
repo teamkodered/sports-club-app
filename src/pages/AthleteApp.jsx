@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
+import { assignmentActiveOn, isPastAssignment, isFutureAssignment, askAssignmentDates, insertAssignment, endAssignment, setAssignmentDates, todayISO, fmtDMY } from '../lib/classAssignments.jsx'
 import { PDP_GOLD, pdpLinksFor, PdpNotes, PdpAddModal, pdpSectionKey, pdpLinkKey, pdpPillarForSection, pdpLinkForLine, pdpVisibleToAthlete, PDP_AREA_FOR_PILLAR } from '../components/shared/pdpLinks.jsx'
 import { newRunId, runKey, isSuicideTest, suicideMetres, SUICIDE_PRESETS, EffortSwitcher, SuicideInput } from '../components/shared/RunEfforts.jsx'
 import F2FLeague from '../components/athlete/F2FLeague.jsx'
@@ -1419,6 +1420,8 @@ export default function AthleteApp() {
   const [showOverallPos, setShowOverallPos] = useState(false)
   const [apData, setApData]     = useState(null)
   const [assignedClasses, setAssignedClasses] = useState([])
+  // Classes not ended (current + future-dated). The full list (incl. ended) is kept for attendance history.
+  const currentAssignedClasses = assignedClasses.filter(a => !isPastAssignment(a))
   const [holidays, setHolidays] = useState([])
   // Date range the coach configured for the Attendance card on the
   // Coaches Dashboard, only when they set its scope to "Athletes" or
@@ -1904,7 +1907,7 @@ export default function AthleteApp() {
           .select('student_id, session_date, attendance_type, students(discipline, class_schedule, class_time)')
         setAllAttendance(allAtt || [])
 
-        supabase.from('student_class_assignments').select('id, class_id, classes(*)')
+        supabase.from('student_class_assignments').select('*, classes(*)')
           .eq('student_id', s.id)
           .then(({ data, error }) => { if (!error) setAssignedClasses(data || []) })
 
@@ -2082,7 +2085,7 @@ export default function AthleteApp() {
                 (separate from the recurring reminder below), viewable
                 from the Weekly Timetable when that session is pressed. */}
             {schedWizardDays.length > 0 && (() => {
-              const classesOnSelectedDays = assignedClasses.filter(a => schedWizardDays.includes(a.classes?.day_of_week))
+              const classesOnSelectedDays = currentAssignedClasses.filter(a => schedWizardDays.includes(a.classes?.day_of_week))
               if (!classesOnSelectedDays.length) return null
               return (
                 <div style={{ marginBottom: 14, padding: 10, background: 'var(--bg-secondary)', borderRadius: 'var(--radius)' }}>
@@ -3055,9 +3058,10 @@ export default function AthleteApp() {
   async function addClassAssignment() {
     if (!addClassSelection || !student) return
     setSavingClassAdd(true)
-    const { data, error } = await supabase.from('student_class_assignments')
-      .insert({ student_id: student.id, class_id: addClassSelection })
-      .select('id, class_id, classes(*)').single()
+    const clA = (typeof allClasses !== 'undefined' ? allClasses : []).find(c => c.id === addClassSelection)
+    const dates = await askAssignmentDates({ mode: 'add', label: clA ? `${clA.name} (${clA.day_of_week} ${clA.start_time?.slice(0, 5) || ''})` : '' })
+    if (!dates) { setSavingClassAdd(false); return }
+    const { data, error } = await insertAssignment({ student_id: student.id, class_id: addClassSelection, ...dates }, '*, classes(*)')
     if (error) { alert('Error adding class: ' + error.message); setSavingClassAdd(false); return }
     setAssignedClasses(prev => [...prev, data])
     setShowAddClass(false)
@@ -3065,11 +3069,14 @@ export default function AthleteApp() {
     setSavingClassAdd(false)
   }
 
+  // Removing ends the assignment (default today, can be backdated); the row is kept for attendance history
   async function removeClassAssignment(assignmentId) {
-    if (!confirm('Remove this class?')) return
-    const { error } = await supabase.from('student_class_assignments').delete().eq('id', assignmentId)
+    const a = assignedClasses.find(x => x.id === assignmentId)
+    const d = await askAssignmentDates({ mode: 'remove', label: a?.classes ? `${a.classes.name} (${a.classes.day_of_week} ${a.classes.start_time?.slice(0, 5) || ''})` : '' })
+    if (!d) return
+    const { error } = await endAssignment(assignmentId, d.end_date)
     if (error) return alert('Error removing class: ' + error.message)
-    setAssignedClasses(prev => prev.filter(a => a.id !== assignmentId))
+    setAssignedClasses(prev => prev.map(x => x.id === assignmentId ? { ...x, end_date: d.end_date } : x))
   }
 
   // Detects whether there's an existing check-in for today that's
@@ -4171,7 +4178,7 @@ export default function AthleteApp() {
       // double-session day), pick whichever is closest to the current
       // time, since that's almost certainly the one they're walking into.
       const todayJsDay = new Date().getDay()
-      const todaysClasses = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(todayJsDay) && a.classes?.id)
+      const todaysClasses = assignedClasses.filter(a => assignmentActiveOn(a, todayISO()) && (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(todayJsDay) && a.classes?.id)
       if (todaysClasses.length === 1) {
         matchedClassId = todaysClasses[0].classes.id
       } else if (todaysClasses.length > 1) {
@@ -6603,8 +6610,8 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
             .filter(dateStr => dateStr <= todayStr)
             .filter(dateStr => {
               const jsDay = new Date(dateStr + 'T12:00:00').getDay()
-              const classIdsThatDay = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay)).map(a => a.classes?.id)
-              return !isDateOnHoliday(dateStr, holidays, classIdsThatDay, student.id)
+              const classIdsThatDay = assignedClasses.filter(a => assignmentActiveOn(a, dateStr) && (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay)).map(a => a.classes?.id)
+              return classIdsThatDay.length > 0 && !isDateOnHoliday(dateStr, holidays, classIdsThatDay, student.id)
             })
         )
         // F2F actions completed per day -- counts each populated metric
@@ -6733,7 +6740,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                   const wasTrainingDay = allTrainingDays.has(dateStr)
                   const showAsRed = explicitlyAbsent || (wasTrainingDay && !attended && dateStr < todayStr)
                   const jsDay = new Date(year, month, d).getDay()
-                  const classesToday = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay) && !isDateOnHoliday(dateStr, holidays, a.classes?.id ? [a.classes.id] : [], student.id))
+                  const classesToday = assignedClasses.filter(a => assignmentActiveOn(a, dateStr) && (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay) && !isDateOnHoliday(dateStr, holidays, a.classes?.id ? [a.classes.id] : [], student.id))
                   // Light green = attended some but not all of the
                   // classes possible that day; dark green = attended
                   // everything possible that day.
@@ -6785,7 +6792,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
 
             {dayDetailModal && (() => {
               const jsDay = new Date(dayDetailModal + 'T12:00:00').getDay()
-              const classesForDay = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay))
+              const classesForDay = assignedClasses.filter(a => assignmentActiveOn(a, dayDetailModal) && (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay))
               return (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
                   onClick={() => setDayDetailModal(null)}>
@@ -6917,7 +6924,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                 {weekDays.map((d, di) => {
                   const dateStr = d.toISOString().split('T')[0]
                   const jsDay = d.getDay()
-                  const classesToday = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay))
+                  const classesToday = assignedClasses.filter(a => assignmentActiveOn(a, dateStr) && (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay))
                   const pdpToday = allPdpEntries.filter(e => e.date === dateStr)
                   const eventsToday = clubEvents.filter(e => e.event_date === dateStr)
                   const isToday = dateStr === todayStr
@@ -6980,11 +6987,11 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
             {/* Assigned sessions -- taken from the actual class register (classes table), same data used by Registers/Students pages */}
             <div className="card">
               <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Assigned sessions</h3>
-              {assignedClasses.length === 0 ? (
+              {currentAssignedClasses.length === 0 ? (
                 <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No classes assigned yet.</p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {assignedClasses.map(a => (
+                  {currentAssignedClasses.map(a => (
                     <div key={a.id} style={{ padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: 13 }}>
                       {a.classes?.name} — {a.classes?.day_of_week} {a.classes?.start_time?.slice(0,5)}
                     </div>
@@ -7081,7 +7088,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
           and (via the existing global weight-check modal) weigh-in/out. ── */}
       {student && (() => {
         const todayJsDay = new Date().getDay()
-        const todaysSessions = assignedClasses.filter(a => (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(todayJsDay) && a.classes?.id)
+        const todaysSessions = assignedClasses.filter(a => assignmentActiveOn(a, todayISO()) && (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(todayJsDay) && a.classes?.id)
         return (
           <>
             <button onClick={() => setCheckInDrawerOpen(v => !v)} className={`neon-checkin${activeCheckIn ? ' is-checked-in' : ''}${tab === 'home' ? ' neon-checkin-hidden' : ''}`} style={{

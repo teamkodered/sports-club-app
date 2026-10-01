@@ -37,7 +37,7 @@ export default function AttendanceCalendarModal({ student, onClose, onChanged })
     let cancelled = false
     Promise.all([
       supabase.from('attendance').select('id, session_date, attendance_type, class_id').eq('student_id', studentId),
-      supabase.from('student_class_assignments').select('id, class_id, classes(*)').eq('student_id', studentId),
+      supabase.from('student_class_assignments').select('*, classes(*)').eq('student_id', studentId),
       supabase.from('holidays').select('*'),
     ]).then(([att, cls, hol]) => {
       if (cancelled) return

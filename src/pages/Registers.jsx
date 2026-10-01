@@ -73,6 +73,7 @@ function OneOffStudent({ displayStudents, onAdd, date }) {
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
+import { assignmentActiveOn, todayISO } from '../lib/classAssignments.jsx'
 import { matchesSearch } from '../lib/searchMatch.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import StudentProfile from '../components/students/StudentProfile.jsx'
@@ -492,7 +493,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
         if (attStatsDateTo) q = q.lte('session_date', attStatsDateTo)
         return q
       }),
-      fetchAll(() => supabase.from('student_class_assignments').select('id, student_id, classes(id, day_of_week)').order('id')),
+      fetchAll(() => supabase.from('student_class_assignments').select('*, classes(id, day_of_week)').order('id')),
       supabase.from('holidays').select('*'),
     ])
     const rowsByStudent = {}, assignByStudent = {}
@@ -655,9 +656,10 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     if (filteredStudents.length) {
       const { data: assignments } = await supabase
         .from('student_class_assignments')
-        .select('student_id, class_id')
+        .select('*')
         .in('student_id', filteredStudents.map(s => s.id))
-      setExplicitAssignments(assignments || [])
+      // only assignments running on the register's date count towards who's in this class
+      setExplicitAssignments((assignments || []).filter(a => assignmentActiveOn(a, date || todayISO())))
     } else {
       setExplicitAssignments([])
     }
@@ -963,8 +965,9 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     const pair = DOUBLE_SESSION_PAIRS.find(p => p.first === classFilter)
     if (!pair) return null
 
-    const { data: assignment } = await supabase.from('student_class_assignments')
-      .select('id').eq('student_id', student.id).eq('class_id', pair.second).maybeSingle()
+    const { data: pairRows } = await supabase.from('student_class_assignments')
+      .select('*').eq('student_id', student.id).eq('class_id', pair.second)
+    const assignment = (pairRows || []).find(a => assignmentActiveOn(a, date))
     if (!assignment) return null
 
     const { data: existing } = await supabase.from('attendance')
@@ -1012,10 +1015,11 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   // sessions" list on their profile going forward.
   async function ensureClassAssignment(studentId) {
     if (!classFilter || classFilter === 'all') return
-    const { data: existing } = await supabase.from('student_class_assignments')
-      .select('id').eq('student_id', studentId).eq('class_id', classFilter).maybeSingle()
-    if (existing) return
-    await supabase.from('student_class_assignments').insert({ student_id: studentId, class_id: classFilter })
+    const { data: existingRows } = await supabase.from('student_class_assignments')
+      .select('*').eq('student_id', studentId).eq('class_id', classFilter)
+    if ((existingRows || []).some(a => !a.end_date || String(a.end_date).slice(0, 10) >= todayISO())) return
+    let { error } = await supabase.from('student_class_assignments').insert({ student_id: studentId, class_id: classFilter, start_date: todayISO() })
+    if (error && /start_date/.test(error.message || '')) await supabase.from('student_class_assignments').insert({ student_id: studentId, class_id: classFilter })
   }
 
   // When marking attendance from the "All classes" combined view (not

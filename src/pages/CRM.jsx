@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { studentProfileLink } from '../lib/studentLinks.js'
 import { useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
+import { isPastAssignment } from '../lib/classAssignments.jsx'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useBackableTab } from '../hooks/useBackableTab.js'
 import { useSyncedPreference } from '../hooks/useSyncedPreference.js'
@@ -1692,7 +1693,7 @@ export default function CRM() {
   async function loadMissedTraining() {
     setMissedTrainingLoading(true)
     const [{ data: assignments }, attendance, { data: holidayRows }] = await Promise.all([
-      supabase.from('student_class_assignments').select('student_id, class_id, classes(id, name, day_of_week, start_time)'),
+      supabase.from('student_class_assignments').select('*, classes(id, name, day_of_week, start_time)'),
       // Paginated -- attendance already has 1800+ rows, well past
       // Supabase's default 1000-row cap on an unpaginated query.
       // Ordered newest-first, an unpaginated fetch here would keep
@@ -1704,9 +1705,10 @@ export default function CRM() {
       fetchAllRows(() => supabase.from('attendance').select('student_id, session_date').order('session_date', { ascending: false })),
       supabase.from('holidays').select('student_id, start_date, end_date'),
     ])
-    const assignedStudentIds = new Set((assignments || []).map(a => a.student_id))
+    const currentAsg = (assignments || []).filter(a => !isPastAssignment(a)) // ended classes don't count any more
+    const assignedStudentIds = new Set(currentAsg.map(a => a.student_id))
     const classesByStudent = {}
-    ;(assignments || []).forEach(a => { if (a.classes) (classesByStudent[a.student_id] ||= []).push(a.classes) })
+    ;currentAsg.forEach(a => { if (a.classes) (classesByStudent[a.student_id] ||= []).push(a.classes) })
     const lastAttendedByStudent = {}
     attendance.forEach(a => {
       if (!lastAttendedByStudent[a.student_id]) lastAttendedByStudent[a.student_id] = a.session_date

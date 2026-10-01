@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
+import { isPastAssignment, askAssignmentDates, insertAssignment, endAssignment } from '../lib/classAssignments.jsx'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { studentProfileLink } from '../lib/studentLinks.js'
 
@@ -54,9 +55,9 @@ export default function Classes() {
     setViewingClass(cls)
     setAddStudentSearch('')
     const { data } = await supabase.from('student_class_assignments')
-      .select('id, student_id, students(id, student_ref, photo_url, house_name, pka_belt, krba_level, class_schedule, is_kr, is_pts, is_leader, members(first_name, last_name, phone, email, date_of_birth, houses(name)))')
+      .select('*, students(id, student_ref, photo_url, house_name, pka_belt, krba_level, class_schedule, is_kr, is_pts, is_leader, members(first_name, last_name, phone, email, date_of_birth, houses(name)))')
       .eq('class_id', cls.id)
-    setClassStudents(data || [])
+    setClassStudents((data || []).filter(a => !isPastAssignment(a)))
     if (!allStudents.length) {
       const { data: s } = await supabase.from('students').select('id, members(first_name, last_name)').order('id')
       setAllStudents(s || [])
@@ -64,16 +65,18 @@ export default function Classes() {
   }
 
   async function addStudentToClass(studentId) {
-    const { data, error } = await supabase.from('student_class_assignments')
-      .insert({ student_id: studentId, class_id: viewingClass.id })
-      .select('id, student_id, students(id, student_ref, photo_url, house_name, pka_belt, krba_level, class_schedule, is_kr, is_pts, is_leader, members(first_name, last_name, phone, email, date_of_birth, houses(name)))').single()
+    const dates = await askAssignmentDates({ mode: 'add', label: `${viewingClass.name} (${viewingClass.day_of_week} ${viewingClass.start_time?.slice(0, 5) || ''})` })
+    if (!dates) return
+    const { data, error } = await insertAssignment({ student_id: studentId, class_id: viewingClass.id, ...dates }, '*, students(id, student_ref, photo_url, house_name, pka_belt, krba_level, class_schedule, is_kr, is_pts, is_leader, members(first_name, last_name, phone, email, date_of_birth, houses(name)))')
     if (error) { alert('Error adding student: ' + error.message); return }
     setClassStudents(prev => [...prev, data])
     setAddStudentSearch('')
   }
 
   async function removeStudentFromClass(assignmentId) {
-    const { error } = await supabase.from('student_class_assignments').delete().eq('id', assignmentId)
+    const d = await askAssignmentDates({ mode: 'remove', label: `${viewingClass?.name || ''}` })
+    if (!d) return
+    const { error } = await endAssignment(assignmentId, d.end_date)
     if (error) { alert('Error removing student: ' + error.message); return }
     setClassStudents(prev => prev.filter(a => a.id !== assignmentId))
   }

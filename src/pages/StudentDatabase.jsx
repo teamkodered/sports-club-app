@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
+import { isPastAssignment, askAssignmentDates, insertAssignment, endAssignment } from '../lib/classAssignments.jsx'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useBackableTab } from '../hooks/useBackableTab.js'
 import { useSyncedPreference } from '../hooks/useSyncedPreference.js'
@@ -137,7 +138,7 @@ export default function StudentDatabase() {
   }, [])
 
   async function loadAllAssignments() {
-    const { data } = await supabase.from('student_class_assignments').select('id, student_id, class_id, classes(*)')
+    const { data } = await supabase.from('student_class_assignments').select('*, classes(*)')
     setAllAssignments(data || [])
   }
 
@@ -325,9 +326,10 @@ export default function StudentDatabase() {
   async function addClassAssignment(studentId) {
     if (!addClassSelection) return
     setSavingClassAdd(true)
-    const { data, error } = await supabase.from('student_class_assignments')
-      .insert({ student_id: studentId, class_id: addClassSelection })
-      .select('id, student_id, class_id, classes(*)').single()
+    const clA = allClasses.find(c => c.id === addClassSelection)
+    const dates = await askAssignmentDates({ mode: 'add', label: clA ? `${clA.name} (${clA.day_of_week} ${clA.start_time?.slice(0, 5) || ''})` : '' })
+    if (!dates) { setSavingClassAdd(false); return }
+    const { data, error } = await insertAssignment({ student_id: studentId, class_id: addClassSelection, ...dates }, '*, classes(*)')
     if (error) { alert('Error adding class: ' + error.message); setSavingClassAdd(false); return }
     setAllAssignments(prev => [...prev, data])
     setAddClassSelection('')
@@ -335,10 +337,12 @@ export default function StudentDatabase() {
   }
 
   async function removeClassAssignment(assignmentId) {
-    if (!confirm('Remove this class?')) return
-    const { error } = await supabase.from('student_class_assignments').delete().eq('id', assignmentId)
+    const a = allAssignments.find(x => x.id === assignmentId)
+    const d = await askAssignmentDates({ mode: 'remove', label: a?.classes ? `${a.classes.name} (${a.classes.day_of_week} ${a.classes.start_time?.slice(0, 5) || ''})` : '' })
+    if (!d) return
+    const { error } = await endAssignment(assignmentId, d.end_date)
     if (error) return alert('Error removing class: ' + error.message)
-    setAllAssignments(prev => prev.filter(a => a.id !== assignmentId))
+    setAllAssignments(prev => prev.map(x => x.id === assignmentId ? { ...x, end_date: d.end_date } : x))
   }
 
   async function updateGrade(s, value) {
@@ -549,7 +553,7 @@ export default function StudentDatabase() {
                         <td key={c.key} style={{ position: 'relative' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                             {isAdmin && (() => {
-                              const studentAssignments = allAssignments.filter(a => a.student_id === s.id)
+                              const studentAssignments = allAssignments.filter(a => a.student_id === s.id && !isPastAssignment(a))
                               const hasExtra = studentAssignments.length > 0
                               return (
                                 <div style={{ position: 'relative' }}>

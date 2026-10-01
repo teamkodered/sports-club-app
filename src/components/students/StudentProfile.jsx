@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useBackableTab } from '../../hooks/useBackableTab.js'
 import { supabase } from '../../lib/supabase.js'
+import { assignmentActiveOn, isPastAssignment, isFutureAssignment, askAssignmentDates, insertAssignment, endAssignment, setAssignmentDates, todayISO, fmtDMY } from '../../lib/classAssignments.jsx'
 
 const HOUSE_COLOURS = { Phoenix: '#e24b4a', Titan: '#378add', Viper: '#1d9e75', Storm: '#ef9f27' }
 
@@ -138,16 +139,17 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
 
   async function loadAssignedClasses() {
     if (!localStudent?.id) return
-    const { data } = await supabase.from('student_class_assignments').select('id, class_id, classes(*)').eq('student_id', localStudent.id)
+    const { data } = await supabase.from('student_class_assignments').select('*, classes(*)').eq('student_id', localStudent.id)
     setAssignedClasses(data || [])
   }
 
   async function addClassAssignment() {
     if (!addClassSelection) return
     setSavingClassAdd(true)
-    const { data, error } = await supabase.from('student_class_assignments')
-      .insert({ student_id: localStudent.id, class_id: addClassSelection })
-      .select('id, class_id, classes(*)').single()
+    const cl = allClasses.find(c => c.id === addClassSelection)
+    const dates = await askAssignmentDates({ mode: 'add', label: cl ? `${cl.name} (${cl.day_of_week} ${cl.start_time?.slice(0, 5) || ''})` : '' })
+    if (!dates) { setSavingClassAdd(false); return }
+    const { data, error } = await insertAssignment({ student_id: localStudent.id, class_id: addClassSelection, ...dates }, '*, classes(*)')
     if (error) { alert('Error adding class: ' + error.message); setSavingClassAdd(false); return }
     setAssignedClasses(prev => [...prev, data])
     setAddingClass(false)
@@ -155,11 +157,21 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
     setSavingClassAdd(false)
   }
 
+  // Removing ends the assignment (default today, can be backdated) -- the row is kept so past attendance stays right
   async function removeClassAssignment(assignmentId) {
-    const { error } = await supabase.from('student_class_assignments').delete().eq('id', assignmentId)
+    const a = assignedClasses.find(x => x.id === assignmentId)
+    const d = await askAssignmentDates({ mode: 'remove', label: a?.classes ? `${a.classes.name} (${a.classes.day_of_week} ${a.classes.start_time?.slice(0, 5) || ''})` : '' })
+    if (!d) return
+    const { error } = await endAssignment(assignmentId, d.end_date)
     if (error) return alert('Error removing class: ' + error.message)
-    setAssignedClasses(prev => prev.filter(a => a.id !== assignmentId))
+    setAssignedClasses(prev => prev.map(x => x.id === assignmentId ? { ...x, end_date: d.end_date } : x))
   }
+  async function reinstateClassAssignment(assignmentId) {
+    const { error } = await setAssignmentDates(assignmentId, { end_date: null })
+    if (error) return alert('Error: ' + error.message)
+    setAssignedClasses(prev => prev.map(x => x.id === assignmentId ? { ...x, end_date: null } : x))
+  }
+  const [showPastClasses, setShowPastClasses] = useState(false)
 
   useEffect(() => {
     loadSettings()
@@ -460,7 +472,7 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
                       <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
                         <select value={addClassSelection} onChange={e => setAddClassSelection(e.target.value)} style={{ flex: 1, minWidth: 160 }}>
                           <option value="">— Select a class —</option>
-                          {allClasses.filter(cl => !assignedClasses.some(a => a.class_id === cl.id)).map(cl => (
+                          {allClasses.filter(cl => !assignedClasses.some(a => a.class_id === cl.id && !isPastAssignment(a))).map(cl => (
                             <option key={cl.id} value={cl.id}>{cl.name} ({cl.day_of_week} {cl.start_time?.slice(0,5)})</option>
                           ))}
                         </select>
@@ -469,25 +481,35 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
                         </button>
                       </div>
                     )}
-                    {(localStudent.class_schedule || assignedClasses.length === 0) && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: assignedClasses.length > 0 ? 6 : 0 }}>
+                    {(localStudent.class_schedule || assignedClasses.filter(a => !isPastAssignment(a)).length === 0) && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: assignedClasses.filter(a => !isPastAssignment(a)).length > 0 ? 6 : 0 }}>
                         {localStudent.class_schedule ? (
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)' }}>
                             <span>{localStudent.class_schedule}{localStudent.class_time ? ` — ${localStudent.class_time}` : ''}</span>
                             <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Main class</span>
                           </div>
-                        ) : assignedClasses.length === 0 && (
+                        ) : assignedClasses.filter(a => !isPastAssignment(a)).length === 0 && (
                           <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No classes assigned yet.</p>
                         )}
                       </div>
                     )}
-                    {assignedClasses.length > 0 && (
+                    {assignedClasses.some(a => isPastAssignment(a)) && (
+                      <button type="button" onClick={() => setShowPastClasses(v => !v)} style={{ background: 'none', border: 'none', padding: 0, marginBottom: 6, fontSize: 11, color: 'var(--text-secondary)', cursor: 'pointer', textDecoration: 'underline' }}>
+                        {showPastClasses ? 'Hide past classes' : `Show past classes (${assignedClasses.filter(a => isPastAssignment(a)).length})`}
+                      </button>
+                    )}
+                    {assignedClasses.filter(a => showPastClasses || !isPastAssignment(a)).length > 0 && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {assignedClasses.map(a => (
+                        {assignedClasses.filter(a => showPastClasses || !isPastAssignment(a)).map(a => (
                           <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: 13 }}>
-                            <span>{a.classes?.name} — {a.classes?.day_of_week} {a.classes?.start_time?.slice(0,5)}</span>
-                            {isAdmin && (
-                              <button onClick={() => removeClassAssignment(a.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14 }}>×</button>
+                            <span style={{ opacity: isPastAssignment(a) ? 0.55 : 1 }}>{a.classes?.name} — {a.classes?.day_of_week} {a.classes?.start_time?.slice(0,5)}
+                              {(a.start_date || a.end_date) && <span style={{ display: 'block', fontSize: 10, color: 'var(--text-tertiary)' }}>
+                                {isPastAssignment(a) ? `ended ${fmtDMY(a.end_date)}` : isFutureAssignment(a) ? `starts ${fmtDMY(a.start_date)}` : a.end_date ? `temporary · until ${fmtDMY(a.end_date)}` : `since ${fmtDMY(a.start_date)}`}
+                              </span>}
+                            </span>
+                            {isAdmin && (isPastAssignment(a)
+                              ? <button onClick={() => reinstateClassAssignment(a.id)} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 11, padding: '2px 8px' }}>Reinstate</button>
+                              : <button onClick={() => removeClassAssignment(a.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14 }}>×</button>
                             )}
                           </div>
                         ))}

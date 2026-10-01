@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
+import { isPastAssignment } from '../lib/classAssignments.jsx'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useBackableTab } from '../hooks/useBackableTab.js'
 import { studentProfileLink } from '../lib/studentLinks.js'
@@ -130,11 +131,11 @@ export default function LeagueViews() {
       const [{ data: classesData }, assignmentsData] = await Promise.all([
         supabase.from('classes').select('id, name, day_of_week, start_time')
           .eq('active', true).order('day_of_week').order('start_time'),
-        fetchAllRows(() => supabase.from('student_class_assignments').select('student_id, class_id')),
+        fetchAllRows(() => supabase.from('student_class_assignments').select('*')),
       ])
       setTimetableClasses((classesData || []).filter(c => !c.name?.toUpperCase().startsWith('GB')))
       const map = {}
-      for (const a of assignmentsData) {
+      for (const a of assignmentsData.filter(x => !isPastAssignment(x))) {
         (map[a.student_id] ||= new Set()).add(a.class_id)
       }
       setStudentClassMap(map)

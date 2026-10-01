@@ -21,9 +21,12 @@ export const toLocalISO = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pa
 export const isAttendedType = t => t !== 'absent' && t !== 'excused'
 
 // Classes (assignment rows with .classes) due for this student on a date.
+// Dated assignments only count between their start_date and end_date.
+const activeOn = (a, d) => (!a.start_date || String(a.start_date).slice(0, 10) <= d) && (!a.end_date || String(a.end_date).slice(0, 10) >= d)
 export function classesDueOn(dateStr, assignments, holidays, studentId) {
   const jsDay = new Date(dateStr + 'T12:00:00').getDay()
   return assignments.filter(a =>
+    activeOn(a, dateStr) &&
     (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(jsDay) &&
     !isDateOnHoliday(dateStr, holidays, a.classes?.id ? [a.classes.id] : [], studentId))
 }
