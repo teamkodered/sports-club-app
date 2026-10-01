@@ -858,3 +858,10 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .hol-class span { color: var(--text-secondary); }
 
 .reg-m-months { font-size: 11px; color: var(--text-tertiary); margin-left: 3px; font-weight: 600; }
+
+/* Register (mobile): tap the attendance % to open the calendar */
+.reg-m-pct-tap { cursor: pointer; border-radius: 6px; padding: 2px 0; -webkit-tap-highlight-color: transparent; }
+.reg-m-pct-tap:active { background: var(--bg-tertiary, rgba(255,255,255,0.08)); }
+/* Same card height on every swipe page (Mark button / weight graph / nothing) so the list never jumps; names a touch bigger */
+.reg-m-card-main { min-height: 56px; }
+.reg-m-name, .reg-m-namelink { font-size: 19px !important; line-height: 1.15; }

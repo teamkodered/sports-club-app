@@ -1799,7 +1799,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                         {isMainReg ? (mPage === 0 ? (
                           <div className="reg-m-details reg-m-cols reg-m-cols-main">
                             <span>Age <b>{calcAge(m?.date_of_birth) ?? '—'}</b></span>
-                            <span className="reg-m-pct"><span className="bar"><span style={{ width: `${pct || 0}%`, background: pctColour(pct) }} /></span><b style={{ color: pctColour(pct) }}>{pct != null ? `${pct}%` : '—'}</b></span>
+                            <span className="reg-m-pct reg-m-pct-tap" role="button" tabIndex={0} title="View attendance calendar" onClick={e => { e.stopPropagation(); if (!selecting) setCalendarStudent(st) }} onKeyDown={e => { if (e.key === 'Enter') setCalendarStudent(st) }}><span className="bar"><span style={{ width: `${pct || 0}%`, background: pctColour(pct) }} /></span><b style={{ color: pctColour(pct) }}>{pct != null ? `${pct}%` : '—'}</b></span>
                             <span style={{ display: 'inline-flex', alignItems: 'center' }}><MediaCam restriction={st.media_restriction} /></span>
                           </div>
                         ) : mPage === 1 ? (
@@ -1818,7 +1818,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           <div className="reg-m-details reg-m-cols">
                             <span>Age <b>{calcAge(m?.date_of_birth) ?? '—'}</b></span>
                             <span><b>{weight != null ? `${weight}kg` : '—'}</b></span>
-                            <span className="reg-m-pct"><span className="bar"><span style={{ width: `${pct || 0}%`, background: pctColour(pct) }} /></span><b style={{ color: pctColour(pct) }}>{pct != null ? `${pct}%` : '—'}</b></span>
+                            <span className="reg-m-pct reg-m-pct-tap" role="button" tabIndex={0} title="View attendance calendar" onClick={e => { e.stopPropagation(); if (!selecting) setCalendarStudent(st) }} onKeyDown={e => { if (e.key === 'Enter') setCalendarStudent(st) }}><span className="bar"><span style={{ width: `${pct || 0}%`, background: pctColour(pct) }} /></span><b style={{ color: pctColour(pct) }}>{pct != null ? `${pct}%` : '—'}</b></span>
                           </div>
                         ) : mPage === 2 ? (
                           <div className="reg-m-details reg-m-details-3">
