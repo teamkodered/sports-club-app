@@ -27,7 +27,8 @@ export default function CalendarPage() {
   const [holidaySelected, setHolidaySelected] = useState(new Set()) // date strings, shown in orange
   const [holidayName, setHolidayName] = useState('')
   const [holidayScope, setHolidayScope] = useState('club') // 'club' | 'class' | 'student'
-  const [holidayClassId, setHolidayClassId] = useState('')
+  const [holidayClassIds, setHolidayClassIds] = useState(new Set()) // classes picked for a class holiday
+  const [dayPickedClasses, setDayPickedClasses] = useState(new Set()) // ticked in the selected-day list
   const [holidayStudentId, setHolidayStudentId] = useState('')
   const [holidayStudentLabel, setHolidayStudentLabel] = useState('') // display name once picked
   const [studentSearch, setStudentSearch] = useState('')
@@ -77,6 +78,7 @@ export default function CalendarPage() {
   }
 
   const selectedClasses = selectedDate ? classesForDate(selectedDate) : []
+  useEffect(() => { setDayPickedClasses(new Set()) }, [selectedDate])
   const selectedHoliday = selectedDate ? holidayCoveringDate(selectedDate) : null
   const selectedPerClassHolidays = selectedDate ? holidays.filter(h => h.class_id && h.start_date <= selectedDate && h.end_date >= selectedDate) : []
   const selectedStudentHolidays = selectedDate ? holidays.filter(h => h.student_id && h.start_date <= selectedDate && h.end_date >= selectedDate) : []
@@ -133,12 +135,21 @@ export default function CalendarPage() {
     setHolidaySelected(new Set())
     setHolidayName('')
     setHolidayScope('club')
-    setHolidayClassId('')
+    setHolidayClassIds(new Set())
     setHolidayStudentId('')
     setHolidayStudentLabel('')
     setStudentSearch('')
     setStudentSearchResults([])
     setSelectedDate(null)
+  }
+  function startHolidayForDayClasses() {
+    const day = selectedDate, picked = new Set(dayPickedClasses)
+    startSettingHolidays()
+    setHolidaySelected(new Set([day]))
+    setHolidayScope(picked.size ? 'class' : 'club')
+    setHolidayClassIds(picked)
+    setDayPickedClasses(new Set())
+    setTimeout(() => document.getElementById('holiday-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
   }
   function cancelSettingHolidays() {
     setSettingHolidays(false)
@@ -171,6 +182,7 @@ export default function CalendarPage() {
     if (!holidayName.trim()) { alert('Please give this holiday a name.'); return }
     if (holidaySelected.size === 0) { alert('Select at least one day on the calendar, or set a From/To range.'); return }
     if (holidayScope === 'student' && !holidayStudentId) { alert('Search for and select a student first.'); return }
+    if (holidayScope === 'class' && holidayClassIds.size === 0) { alert('Tick at least one class.'); return }
     setSavingHoliday(true)
 
     // Group the selected (possibly non-contiguous) dates into
@@ -191,13 +203,14 @@ export default function CalendarPage() {
       prev = cur
     }
 
-    const rows = blocks.map(b => ({
+    const classIds = holidayScope === 'class' ? [...holidayClassIds] : [null]
+    const rows = blocks.flatMap(b => classIds.map(cid => ({
       name: holidayName.trim(),
       start_date: b.start_date,
       end_date: b.end_date,
-      class_id: holidayScope === 'class' ? (holidayClassId || null) : null,
+      class_id: cid,
       student_id: holidayScope === 'student' ? holidayStudentId : null,
-    }))
+    })))
     const { data, error } = await supabase.from('holidays').insert(rows).select('*, classes(name)')
     setSavingHoliday(false)
     if (error) { alert('Error saving holiday: ' + error.message); return }
@@ -226,73 +239,8 @@ export default function CalendarPage() {
         )}
       </div>
 
-      {settingHolidays && (
-        <div className="card" style={{ marginBottom: 16, borderLeft: '3px solid #EF9F27' }}>
-          <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>🏖️ Setting a holiday</p>
-          <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
-            Click a day, or click and drag across several days on the calendar below to select them — selected days show in orange.
-            You can also just type a From/To range directly instead.
-          </p>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-            <input value={holidayName} onChange={e => setHolidayName(e.target.value)} placeholder="Holiday name, e.g. Christmas break" style={{ flex: '1 1 200px' }} />
-          </div>
-          <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-            {[['club', 'Club-wide'], ['class', 'Specific class'], ['student', '👤 Individual student']].map(([key, label]) => (
-              <button key={key} className="btn btn-sm" onClick={() => setHolidayScope(key)}
-                style={{
-                  background: holidayScope === key ? 'var(--text)' : 'var(--bg)',
-                  color: holidayScope === key ? 'var(--bg)' : 'var(--text-secondary)',
-                  borderColor: holidayScope === key ? 'var(--text)' : 'var(--border-strong)',
-                }}>{label}</button>
-            ))}
-          </div>
-          {holidayScope === 'class' && (
-            <select value={holidayClassId} onChange={e => setHolidayClassId(e.target.value)} style={{ width: '100%', marginBottom: 10 }}>
-              <option value="">Select a class…</option>
-              {classes.map(c => <option key={c.id} value={c.id}>{c.name} — {c.day_of_week} {c.start_time?.slice(0,5)}</option>)}
-            </select>
-          )}
-          {holidayScope === 'student' && (
-            <div style={{ marginBottom: 10, position: 'relative' }}>
-              {holidayStudentId ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', border: '1px solid var(--border-strong)' }}>
-                  <span style={{ fontSize: 13, fontWeight: 500, flex: 1 }}>{holidayStudentLabel}</span>
-                  <button className="btn btn-sm" onClick={() => { setHolidayStudentId(''); setHolidayStudentLabel(''); setStudentSearch('') }}>Change</button>
-                </div>
-              ) : (
-                <>
-                  <input value={studentSearch} onChange={e => searchStudentsForHoliday(e.target.value)}
-                    placeholder="Search student by name…" style={{ width: '100%' }} />
-                  {studentSearchResults.length > 0 && (
-                    <div className="card" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20, padding: 6, marginTop: 2, maxHeight: 220, overflowY: 'auto' }}>
-                      {studentSearchResults.map(r => (
-                        <button key={r.studentId} onClick={() => {
-                          setHolidayStudentId(r.studentId)
-                          setHolidayStudentLabel(`${r.name} (${r.ref})`)
-                          setStudentSearchResults([])
-                        }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', borderRadius: 6, fontSize: 13, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', color: 'var(--text)' }}>
-                          {r.name} <span style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>{r.ref}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
-            <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>From</label>
-            <input type="date" value={holidayFrom} onChange={e => setRangeFromInputs(e.target.value, holidayTo || e.target.value)} style={{ flex: '0 0 160px' }} />
-            <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>To</label>
-            <input type="date" value={holidayTo} onChange={e => setRangeFromInputs(holidayFrom || e.target.value, e.target.value)} style={{ flex: '0 0 160px' }} />
-            <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{holidaySelected.size} day{holidaySelected.size === 1 ? '' : 's'} selected</span>
-          </div>
-          <button className="btn btn-primary" onClick={saveHolidaySelection} disabled={savingHoliday}>{savingHoliday ? 'Saving…' : '✓ Save holiday'}</button>
-        </div>
-      )}
-
       {loading ? <p>Loading…</p> : (
-        <div style={{ display: 'grid', gridTemplateColumns: (selectedDate && !settingHolidays) ? '1fr 320px' : '1fr', gap: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }}>
           <div className="card">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <button className="btn btn-sm" onClick={() => setMonth(({ year, month }) => month === 0 ? { year: year - 1, month: 11 } : { year, month: month - 1 })}>←</button>
@@ -345,6 +293,107 @@ export default function CalendarPage() {
             </div>
           </div>
 
+        {settingHolidays && (
+          <div id="holiday-panel" className="card" style={{ marginTop: 16, borderLeft: '3px solid #EF9F27' }}>
+            <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>🏖️ Setting a holiday</p>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
+              Tap days, or drag across several days on the calendar above to select them — selected days show in orange.
+              You can also just type a From/To range directly instead.
+            </p>
+            <div className="hol-label">REASON</div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+              {['Christmas break', 'Half term', 'Bank holiday', 'Venue closed', 'Coach away', 'Registers not taken'].map(r => (
+                <button key={r} type="button" className="btn btn-sm" onClick={() => setHolidayName(r)}
+                  style={holidayName === r ? { background: '#EF9F27', borderColor: '#EF9F27', color: '#1A1206', fontWeight: 700 } : undefined}>{r}</button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+              <input value={holidayName} onChange={e => setHolidayName(e.target.value)} placeholder="…or type your own reason" style={{ flex: '1 1 200px' }} />
+            </div>
+            <div className="hol-label">WHO IT APPLIES TO</div>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+              {[['club', 'Club-wide'], ['class', 'Specific class'], ['student', '👤 Individual student']].map(([key, label]) => (
+                <button key={key} className="btn btn-sm" onClick={() => setHolidayScope(key)}
+                  style={{
+                    background: holidayScope === key ? 'var(--text)' : 'var(--bg)',
+                    color: holidayScope === key ? 'var(--bg)' : 'var(--text-secondary)',
+                    borderColor: holidayScope === key ? 'var(--text)' : 'var(--border-strong)',
+                  }}>{label}</button>
+              ))}
+            </div>
+            {holidayScope === 'class' && (() => {
+              // Classes that run on the picked days come first; every other class is under "Other classes"
+              const days = [...holidaySelected]
+              const onDays = new Map()
+              days.forEach(d => classesForDate(d).forEach(c => onDays.set(c.id, c)))
+              const others = classes.filter(c => !onDays.has(c.id))
+              const toggle = id => setHolidayClassIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+              const row = c => (
+                <label key={c.id} className="hol-class">
+                  <input type="checkbox" checked={holidayClassIds.has(c.id)} onChange={() => toggle(c.id)} />
+                  <b>{c.day_of_week} {c.start_time?.slice(0, 5)}</b> <span>{c.name}</span>
+                </label>
+              )
+              return (
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{days.length ? `Classes on the ${days.length} selected day${days.length === 1 ? '' : 's'}` : 'Pick days on the calendar to see their classes'}</span>
+                    {onDays.size > 0 && <span style={{ display: 'flex', gap: 6 }}>
+                      <button type="button" className="btn btn-sm" onClick={() => setHolidayClassIds(new Set(onDays.keys()))}>All</button>
+                      <button type="button" className="btn btn-sm" onClick={() => setHolidayClassIds(new Set())}>None</button>
+                    </span>}
+                  </div>
+                  <div className="hol-classes">{[...onDays.values()].map(row)}</div>
+                  {others.length > 0 && (
+                    <details style={{ marginTop: 6 }}>
+                      <summary style={{ fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>Other classes ({others.length})</summary>
+                      <div className="hol-classes" style={{ marginTop: 6 }}>{others.map(row)}</div>
+                    </details>
+                  )}
+                </div>
+              )
+            })()}
+            {holidayScope === 'student' && (
+              <div style={{ marginBottom: 10, position: 'relative' }}>
+                {holidayStudentId ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', border: '1px solid var(--border-strong)' }}>
+                    <span style={{ fontSize: 13, fontWeight: 500, flex: 1 }}>{holidayStudentLabel}</span>
+                    <button className="btn btn-sm" onClick={() => { setHolidayStudentId(''); setHolidayStudentLabel(''); setStudentSearch('') }}>Change</button>
+                  </div>
+                ) : (
+                  <>
+                    <input value={studentSearch} onChange={e => searchStudentsForHoliday(e.target.value)}
+                      placeholder="Search student by name…" style={{ width: '100%' }} />
+                    {studentSearchResults.length > 0 && (
+                      <div className="card" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20, padding: 6, marginTop: 2, maxHeight: 220, overflowY: 'auto' }}>
+                        {studentSearchResults.map(r => (
+                          <button key={r.studentId} onClick={() => {
+                            setHolidayStudentId(r.studentId)
+                            setHolidayStudentLabel(`${r.name} (${r.ref})`)
+                            setStudentSearchResults([])
+                          }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', borderRadius: 6, fontSize: 13, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', color: 'var(--text)' }}>
+                            {r.name} <span style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>{r.ref}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+              <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>From</label>
+              <input type="date" value={holidayFrom} onChange={e => setRangeFromInputs(e.target.value, holidayTo || e.target.value)} style={{ flex: '0 0 160px' }} />
+              <label style={{ fontSize: 12, color: 'var(--text-secondary)' }}>To</label>
+              <input type="date" value={holidayTo} onChange={e => setRangeFromInputs(holidayFrom || e.target.value, e.target.value)} style={{ flex: '0 0 160px' }} />
+              <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{holidaySelected.size} day{holidaySelected.size === 1 ? '' : 's'} selected</span>
+            </div>
+            <button className="btn btn-primary" onClick={saveHolidaySelection} disabled={savingHoliday}>
+              {savingHoliday ? 'Saving…' : `✓ Save holiday · ${holidaySelected.size} day${holidaySelected.size === 1 ? '' : 's'}${holidayScope === 'class' ? ` · ${holidayClassIds.size} class${holidayClassIds.size === 1 ? '' : 'es'}` : holidayScope === 'club' ? ' · club-wide' : ''}`}
+            </button>
+          </div>
+        )}
+
           {selectedDate && !settingHolidays && (
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -373,8 +422,12 @@ export default function CalendarPage() {
                         const closedForThis = selectedPerClassHolidays.find(h => h.class_id === c.id)
                         return (
                           <div key={c.id} style={{ padding: '6px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', opacity: closedForThis ? 0.5 : 1 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{ fontSize: 12, fontWeight: 600 }}>{c.name}</span>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: closedForThis ? 'default' : 'pointer' }}>
+                                {!closedForThis && <input type="checkbox" checked={dayPickedClasses.has(c.id)} aria-label={`Pick ${c.name} for a holiday`}
+                                  onChange={() => setDayPickedClasses(prev => { const n = new Set(prev); n.has(c.id) ? n.delete(c.id) : n.add(c.id); return n })} />}
+                                <span style={{ fontSize: 12, fontWeight: 600 }}>{c.name}</span>
+                              </label>
                               {closedForThis && <button className="btn btn-sm" onClick={() => deleteHoliday(closedForThis.id)}>Remove closure</button>}
                             </div>
                             <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{c.start_time?.slice(0,5)}{c.end_time ? `–${c.end_time.slice(0,5)}` : ''}</span>
@@ -382,6 +435,9 @@ export default function CalendarPage() {
                           </div>
                         )
                       })}
+                      <button type="button" className="btn btn-sm" style={{ alignSelf: 'flex-start', marginTop: 2 }} onClick={startHolidayForDayClasses}>
+                        🏖️ {dayPickedClasses.size ? `Holiday ${dayPickedClasses.size} ticked class${dayPickedClasses.size === 1 ? '' : 'es'}…` : 'Holiday this day…'}
+                      </button>
                     </div>
                   )}
                 </>
