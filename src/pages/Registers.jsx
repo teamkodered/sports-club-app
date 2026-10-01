@@ -183,6 +183,7 @@ function gradeColour(g) {
 const HOUSE_TEXT = { dragon: '#E24B4A', super: '#F5821F', ice: '#378ADD', jet: '#22B14C' }
 const houseText = name => HOUSE_TEXT[String(name || '').toLowerCase().replace(' house', '').trim()]
 const ddmm = d => { const [, mm, dd] = String(d).slice(0, 10).split('-'); return `${dd}/${mm}` }
+const monthsSince = d => { const a = new Date(String(d).slice(0, 10) + 'T12:00:00'), b = new Date(); let m = (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()); if (b.getDate() < a.getDate()) m--; return Math.max(0, m) }
 const mmyy = d => { const [yy, mm] = String(d).slice(0, 10).split('-'); return `${mm}/${yy.slice(2)}` }
 const lastInColour = d => ((Date.now() - new Date(String(d).slice(0, 10) + 'T12:00:00')) / 86400000 < 28 ? '#EF9F27' : '#E24B4A') // < 4 weeks orange, else red
 
@@ -1811,7 +1812,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           <div className="reg-m-details reg-m-details-3">
                             <span><b>{stats?.total ?? 0}</b></span>
                             <span>{stats?.last ? <b style={{ color: lastInColour(stats.last) }}>{ddmm(stats.last)}</b> : '—'}</span>
-                            <span>{(m?.joined_date || stats?.first) ? <b style={{ color: '#1D9E75' }}>{mmyy(m?.joined_date || stats?.first)}</b> : '—'}</span>
+                            <span>{(m?.joined_date || stats?.first) ? <><b style={{ color: '#1D9E75' }}>{mmyy(m?.joined_date || stats?.first)}</b><span className="reg-m-months" title="Months trained">={monthsSince(m?.joined_date || stats?.first)}</span></> : '—'}</span>
                           </div>
                         )) : mPage === 0 ? (
                           <div className="reg-m-details reg-m-cols">
@@ -1823,7 +1824,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           <div className="reg-m-details reg-m-details-3">
                             <span><b>{stats?.total ?? 0}</b></span>
                             <span>{stats?.last ? <b style={{ color: lastInColour(stats.last) }}>{ddmm(stats.last)}</b> : '—'}</span>
-                            <span>{(m?.joined_date || stats?.first) ? <b style={{ color: '#1D9E75' }}>{mmyy(m?.joined_date || stats?.first)}</b> : '—'}</span>
+                            <span>{(m?.joined_date || stats?.first) ? <><b style={{ color: '#1D9E75' }}>{mmyy(m?.joined_date || stats?.first)}</b><span className="reg-m-months" title="Months trained">={monthsSince(m?.joined_date || stats?.first)}</span></> : '—'}</span>
                           </div>
                         ) : mPage === 3 ? (
                           <div className="reg-m-details reg-m-details-3">

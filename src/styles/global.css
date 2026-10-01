@@ -759,7 +759,9 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .reg-m-cols { display: grid !important; grid-template-columns: 58px 64px minmax(0, 1fr); align-items: center; gap: 6px !important; }
 .reg-m-cols-main { grid-template-columns: 58px 86px minmax(0, 1fr); }
 .reg-m-cols > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.reg-m-cols .reg-m-pct { display: grid; grid-template-columns: 40px 38px; align-items: center; gap: 6px; }
+.reg-m-cols .reg-m-pct { display: grid; grid-template-columns: minmax(14px, 40px) auto; align-items: center; gap: 5px; overflow: visible; }
+.reg-m-cols .reg-m-pct .bar { width: 100%; }
+.reg-m-cols .reg-m-pct b { white-space: nowrap; }
 .reg-m-cols .reg-m-pct b { text-align: right; }
 .reg-m-spark span { white-space: nowrap; font-size: 11px; }
 .reg-fighters { margin: 16px 0 8px; padding-top: 14px; border-top: 1px solid var(--border); }
@@ -854,3 +856,5 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .hol-class { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px 0; cursor: pointer; }
 .hol-class input { width: 17px; height: 17px; }
 .hol-class span { color: var(--text-secondary); }
+
+.reg-m-months { font-size: 11px; color: var(--text-tertiary); margin-left: 3px; font-weight: 600; }
