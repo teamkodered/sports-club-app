@@ -1380,7 +1380,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
 
   return (
     <div className={`reg-root${mShowTable ? ' reg-force-table' : ''}`} style={{ zoom: `${registerZoom}%` }} onClick={e => {
-      if (!e.target.closest('tr') && !e.target.closest('button') && !e.target.closest('input') && !e.target.closest('select') && !e.target.closest('.reg-m-card') && !e.target.closest('.reg-m-bulk'))
+      if (!e.target.closest('tr') && !e.target.closest('button') && !e.target.closest('input') && !e.target.closest('select') && !e.target.closest('.reg-m-card') && !e.target.closest('.reg-m-bulk') && !e.target.closest('.reg-award-modal'))
         setSelectedStudents([])
       if (groupFilterOpen) setGroupFilterOpen(false)
     }}>
@@ -2437,9 +2437,18 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
       })()}
 
       {/* Award points modal */}
-      {(awardingFor || multiAward) && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
-          <div className="card" style={{ width: '100%', maxWidth: 500, maxHeight: '90vh', overflowY: 'auto' }}>
+      {(awardingFor || multiAward) && (() => {
+        // A typed reason that isn't in the list is used straight away by Award
+        // (points preset to 5, adjustable); no separate Add step.
+        const newLabel = pointSearch.trim()
+        const isNewReason = !!newLabel && !pointTypes.some(pt => pt.label.toLowerCase() === newLabel.toLowerCase())
+        const newPts = customPoints === '' ? 5 : parseInt(customPoints)
+        const awardList = [...selectedPoints, ...(isNewReason && !isNaN(newPts) && !selectedPoints.some(p => p.label === newLabel) ? [{ label: newLabel, points: newPts }] : [])]
+        const awardTotal = awardList.reduce((n, p) => n + p.points, 0)
+        const clearIfEmptySpace = e => { e.stopPropagation(); if (!e.target.closest('button, input, label, a, select, textarea')) setSelectedPoints([]) }
+        return (
+        <div className="reg-award-modal" onClick={clearIfEmptySpace} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
+          <div className="card" onClick={clearIfEmptySpace} style={{ width: '100%', maxWidth: 500, maxHeight: '90vh', overflowY: 'auto', paddingBottom: 0 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
               <h2 style={{ fontSize: 15, fontWeight: 600 }}>Award points</h2>
               <button onClick={() => { setAwardingFor(null); setMultiAward(false); setSelectedPoints([]); setPointSearch('') }} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
@@ -2462,6 +2471,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                   if (!groups[grp]) groups[grp] = []
                   groups[grp].push(pt)
                 })
+                Object.values(groups).forEach(list => list.sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })))
                 return Object.entries(groups).map(([grpName, pts]) => (
                   <div key={grpName}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6, paddingLeft: 2 }}>{grpName}</div>
@@ -2490,25 +2500,12 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
               {/* Typed a reason that isn't in the list: use it (and optionally save it for next time) */}
               {pointSearch.trim() && !pointTypes.some(pt => pt.label.toLowerCase() === pointSearch.trim().toLowerCase()) && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 12px', border: '1px dashed var(--border-strong)', borderRadius: 'var(--radius)' }}>
-                  <div style={{ fontSize: 13 }}>Use “<b>{pointSearch.trim()}</b>” as a new reason</div>
+                  <div style={{ fontSize: 13 }}>New reason “<b>{pointSearch.trim()}</b>” — set the points, then press Award</div>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <button type="button" className="btn btn-sm" aria-label="Fewer points" onClick={() => setCustomPoints(v => String((parseInt(v) || 0) - 1))}>−</button>
-                    <input type="number" value={customPoints} onChange={e => setCustomPoints(e.target.value)} placeholder="±pts" aria-label="Points"
+                    <button type="button" className="btn btn-sm" aria-label="Fewer points" onClick={() => setCustomPoints(v => String((v === '' ? 5 : (parseInt(v) || 0)) - 1))}>−</button>
+                    <input type="number" value={customPoints === '' ? 5 : customPoints} onChange={e => setCustomPoints(e.target.value)} aria-label="Points"
                       style={{ width: 64, padding: '7px 8px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 14, fontWeight: 700, textAlign: 'center', background: 'var(--bg-secondary)', color: 'var(--text)' }} />
-                    <button type="button" className="btn btn-sm" aria-label="More points" onClick={() => setCustomPoints(v => String((parseInt(v) || 0) + 1))}>+</button>
-                    <button type="button" className="btn btn-sm btn-primary" style={{ marginLeft: 'auto' }} disabled={customPoints === '' || isNaN(parseInt(customPoints))}
-                      onClick={async () => {
-                        const label = pointSearch.trim(), pts = parseInt(customPoints)
-                        if (!label || isNaN(pts)) return
-                        setSelectedPoints(prev => [...prev.filter(p => p.label !== label), { label, points: pts }])
-                        if (saveNewReason) {
-                          const next = [...pointTypes, { label, points: pts, group: 'Custom' }]
-                          const { error } = await supabase.from('settings').update({ value: next }).eq('key', 'point_types')
-                          if (error) alert('Added for now, but could not save it to the reasons list: ' + error.message)
-                          else setPointTypes(next)
-                        }
-                        setPointSearch(''); setCustomPoints('')
-                      }}>Add</button>
+                    <button type="button" className="btn btn-sm" aria-label="More points" onClick={() => setCustomPoints(v => String((v === '' ? 5 : (parseInt(v) || 0)) + 1))}>+</button>
                   </div>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-secondary)' }}>
                     <input type="checkbox" checked={saveNewReason} onChange={e => setSaveNewReason(e.target.checked)} />
@@ -2517,28 +2514,11 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                 </div>
               )}
 
-              {/* Custom points */}
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6, paddingLeft: 2 }}>Custom</div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <input type="number" value={customPoints} onChange={e => setCustomPoints(e.target.value)}
-                    placeholder="±pts" style={{ width: 70, padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, fontWeight: 700, textAlign: 'center', background: 'var(--bg-secondary)', color: 'var(--text)' }} />
-                  <input value={customLabel} onChange={e => setCustomLabel(e.target.value)}
-                    placeholder="Reason for custom points…"
-                    style={{ flex: 1, padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
-                  <button className="btn btn-sm" disabled={!customLabel.trim() || customPoints === ''}
-                    onClick={() => {
-                      const pts = parseInt(customPoints)
-                      if (isNaN(pts) || !customLabel.trim()) return
-                      setSelectedPoints(prev => [...prev, { label: customLabel.trim(), points: pts }])
-                      setCustomLabel(''); setCustomPoints('')
-                    }}>+ Add</button>
-                </div>
-              </div>
             </div>
-            {selectedPoints.length > 0 && (
-              <div style={{ background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', padding: '10px 12px', marginBottom: 12 }}>
-                {selectedPoints.map(p => (
+            <div className="reg-award-bar" style={{ position: 'sticky', bottom: 0, background: 'var(--bg)', padding: '10px 0 14px', marginTop: 4, borderTop: awardList.length ? '1px solid var(--border)' : 'none', boxShadow: awardList.length ? '0 -8px 16px rgba(0,0,0,0.25)' : 'none' }}>
+            {awardList.length > 0 && (
+              <div style={{ background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', padding: '10px 12px', marginBottom: 12, maxHeight: '28vh', overflowY: 'auto' }}>
+                {awardList.map(p => (
                   <div key={p.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                     <span>{p.label}</span>
                     <span style={{ fontWeight: 600, color: p.points<0?'#a32d2d':'#1d9e75' }}>{p.points>0?'+':''}{p.points}</span>
@@ -2546,21 +2526,32 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                 ))}
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 700, marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--border)' }}>
                   <span>Total {multiAward ? `× ${selectedStudents.length}` : ''}</span>
-                  <span style={{ color: pointsTotal<0?'#a32d2d':'#1d9e75' }}>{pointsTotal>0?'+':''}{pointsTotal} pts</span>
+                  <span style={{ color: awardTotal<0?'#a32d2d':'#1d9e75' }}>{awardTotal>0?'+':''}{awardTotal} pts</span>
                 </div>
               </div>
             )}
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="btn" onClick={() => { setAwardingFor(null); setMultiAward(false); setSelectedPoints([]); setPointSearch('') }}>Cancel</button>
               <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}
-                onClick={() => submitPoints(multiAward ? selectedStudents : [awardingFor.id], selectedPoints)}
-                disabled={saving || selectedPoints.length === 0}>
+                onClick={async () => {
+                  if (isNewReason && saveNewReason && !isNaN(newPts)) {
+                    const next = [...pointTypes, { label: newLabel, points: newPts, group: 'Custom' }]
+                    const { error } = await supabase.from('settings').update({ value: next }).eq('key', 'point_types')
+                    if (error) alert('Awarding now, but could not save the new reason to the list: ' + error.message)
+                    else setPointTypes(next)
+                  }
+                  setCustomPoints('')
+                  submitPoints(multiAward ? selectedStudents : [awardingFor.id], awardList)
+                }}
+                disabled={saving || awardList.length === 0}>
                 {saving ? 'Saving…' : `Award to ${multiAward ? selectedStudents.length + ' students' : awardingFor?.members?.first_name}`}
               </button>
             </div>
+            </div>
           </div>
         </div>
-      )}
+        )
+      })()}
 
       {/* Athlete register: Fighters list -- copy to paste to other coaches for matching */}
       {initialRegType && (
