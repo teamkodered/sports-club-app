@@ -5820,7 +5820,7 @@ export default function AthleteProfiles() {
   }
 
   async function loadShedTasksAll() {
-    const { data } = await supabase.from('shed_tasks').select('*, students(id, members(first_name, last_name))').order('assigned_at', { ascending: false }).limit(100)
+    const { data } = await supabase.from('shed_tasks').select('*, students(id, members(first_name, last_name))').order('assigned_at', { ascending: false }).limit(500)
     setShedTasksAll(data || [])
   }
 
@@ -5836,6 +5836,120 @@ export default function AthleteProfiles() {
     setNewShedTaskText('')
     setSelectedShedAthletes(new Set())
     loadShedTasksAll()
+  }
+
+  // ---- Sweep the Sheds board ------------------------------------------------
+  // Tasks listed at the top with everyone assigned next to them (a task can
+  // have many athletes, an athlete many tasks). Tap a task to search and add
+  // athletes; or write a new task and pick athletes as before. On an athlete's
+  // own profile, their tasks are shown first with quick assign / change.
+  const [openShedTask, setOpenShedTask] = useState(null)
+  const [shedSearch, setShedSearch] = useState('')
+  async function assignShedTaskTo(taskText, studentIds) {
+    const ids = studentIds.filter(id => !shedTasksAll.some(t => t.student_id === id && t.task_text.toLowerCase() === taskText.toLowerCase() && !t.completed))
+    if (!ids.length) return
+    const { error } = await supabase.from('shed_tasks').insert(ids.map(student_id => ({ student_id, task_text: taskText, assigned_by: profile?.id || null })))
+    if (error) { alert('Error assigning task: ' + error.message); return }
+    loadShedTasksAll()
+  }
+  function renderSweepBoard(forStudent) {
+    const byTask = {}
+    shedTasksAll.forEach(t => { const k = (t.task_text || '').trim(); if (!k) return; (byTask[k] = byTask[k] || []).push(t) })
+    const taskNames = Object.keys(byTask).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+    const nameOf = s => `${s?.members?.first_name || ''} ${s?.members?.last_name || ''}`.trim()
+    const chip = (t, showName) => (
+      <span key={t.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 14, fontSize: 12,
+        background: t.completed ? '#1D9E7522' : 'var(--bg-secondary)', border: `1px solid ${t.completed ? '#1D9E75' : 'var(--border)'}` }}
+        title={t.completed ? `Done ${new Date(t.completed_at).toLocaleDateString('en-GB')}` : 'Not done yet'}>
+        {t.completed && <span style={{ color: '#1D9E75' }}>✓</span>}
+        {showName ? nameOf(t.students) : t.task_text}
+        <button type="button" aria-label="Remove" onClick={() => deleteShedTask(t.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14, padding: 0, lineHeight: 1 }}>×</button>
+      </span>
+    )
+    const mine = forStudent ? shedTasksAll.filter(t => t.student_id === forStudent.id) : []
+    return (
+      <>
+        {forStudent && (
+          <div className="card" style={{ marginBottom: 14 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 10 }}>🧹 {nameOf(forStudent)}'s tasks</h2>
+            {mine.length === 0 ? <p style={{ fontSize: 13, color: 'var(--text-tertiary)', marginBottom: 10 }}>No tasks assigned.</p> : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>{mine.map(t => chip(t, false))}</div>
+            )}
+            <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>Assign a task</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+              {taskNames.filter(n => !mine.some(t => t.task_text.trim() === n && !t.completed)).map(n => (
+                <button key={n} type="button" className="btn btn-sm" onClick={() => assignShedTaskTo(n, [forStudent.id])}>+ {n}</button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input value={newShedTaskText} onChange={e => setNewShedTaskText(e.target.value)} placeholder="Or write a new task…" style={{ flex: 1 }} />
+              <button className="btn btn-primary" disabled={!newShedTaskText.trim()} onClick={async () => { await assignShedTaskTo(newShedTaskText.trim(), [forStudent.id]); setNewShedTaskText('') }}>Assign</button>
+            </div>
+          </div>
+        )}
+
+        <div className="card" style={{ marginBottom: 14 }}>
+          <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 10 }}>🧹 Tasks</h2>
+          {taskNames.length === 0 && <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No tasks yet — write one below.</p>}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {taskNames.map(n => {
+              const open = openShedTask === n
+              const assigned = byTask[n]
+              const q = shedSearch.trim().toLowerCase()
+              return (
+                <div key={n} style={{ border: `1px solid ${open ? '#1D9E75' : 'var(--border)'}`, borderRadius: 'var(--radius)', padding: '8px 10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
+                    <button type="button" onClick={() => { setOpenShedTask(open ? null : n); setShedSearch('') }}
+                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 13, fontWeight: 700, color: 'var(--text)', textAlign: 'left', fontFamily: 'var(--font-sans)', minWidth: 110 }}>
+                      {n} <span style={{ color: '#1D9E75', fontSize: 11 }}>{open ? '▴' : '+ assign'}</span>
+                    </button>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, flex: 1 }}>{assigned.map(t => chip(t, true))}</div>
+                  </div>
+                  {open && (
+                    <div style={{ marginTop: 8 }}>
+                      <input type="search" value={shedSearch} onChange={e => setShedSearch(e.target.value)} placeholder="Search athletes to assign…" autoFocus style={{ width: '100%', marginBottom: 6 }} />
+                      <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        {athletes.filter(s => !assigned.some(t => t.student_id === s.id && !t.completed)).filter(s => !q || nameOf(s).toLowerCase().includes(q)).map(s => (
+                          <button key={s.id} type="button" onClick={() => assignShedTaskTo(n, [s.id])}
+                            style={{ textAlign: 'left', padding: '6px 8px', background: 'none', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, color: 'var(--text)', fontFamily: 'var(--font-sans)' }}>
+                            + {nameOf(s)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {!forStudent && (
+        <div className="card" style={{ marginBottom: 14 }}>
+          <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>➕ New task</h2>
+          <input value={newShedTaskText} onChange={e => setNewShedTaskText(e.target.value)}
+            placeholder="e.g. Sweep the sheds, tidy the equipment room…" style={{ width: '100%', marginBottom: 12 }} />
+          {true && (
+            <>
+              <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>Assign to ({selectedShedAthletes.size} selected):</p>
+              <div style={{ maxHeight: 280, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 8, marginBottom: 12 }}>
+                {athletes.map(s => (
+                  <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 4px', cursor: 'pointer', fontSize: 13 }}>
+                    <input type="checkbox" checked={selectedShedAthletes.has(s.id)}
+                      onChange={() => setSelectedShedAthletes(prev => { const next = new Set(prev); next.has(s.id) ? next.delete(s.id) : next.add(s.id); return next })} />
+                    {nameOf(s)}
+                  </label>
+                ))}
+              </div>
+              <button className="btn btn-primary" disabled={!newShedTaskText.trim() || selectedShedAthletes.size === 0 || assigningShedTask} onClick={assignShedTask}>
+                {assigningShedTask ? 'Assigning…' : `Assign to ${selectedShedAthletes.size || ''} athlete${selectedShedAthletes.size === 1 ? '' : 's'}`}
+              </button>
+            </>
+          )}
+        </div>
+        )}
+      </>
+    )
   }
 
   async function deleteShedTask(taskId) {
@@ -8528,52 +8642,7 @@ export default function AthleteProfiles() {
             {dashboardTab === 'sweep' && (
               <div>
                 <button onClick={() => setDashboardTab('overview')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
-                <div className="card" style={{ marginBottom: 14 }}>
-                  <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>🧹 Assign a task</h2>
-                  <input value={newShedTaskText} onChange={e => setNewShedTaskText(e.target.value)}
-                    placeholder="e.g. Sweep the sheds, tidy the equipment room…" style={{ width: '100%', marginBottom: 12 }} />
-                  <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>
-                    Assign to ({selectedShedAthletes.size} selected):
-                  </p>
-                  <div style={{ maxHeight: 280, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 8, marginBottom: 12 }}>
-                    {athletes.map(s => (
-                      <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 4px', cursor: 'pointer', fontSize: 13 }}>
-                        <input type="checkbox" checked={selectedShedAthletes.has(s.id)}
-                          onChange={() => setSelectedShedAthletes(prev => {
-                            const next = new Set(prev)
-                            next.has(s.id) ? next.delete(s.id) : next.add(s.id)
-                            return next
-                          })} />
-                        {s.members?.first_name} {s.members?.last_name}
-                      </label>
-                    ))}
-                  </div>
-                  <button className="btn btn-primary" disabled={!newShedTaskText.trim() || selectedShedAthletes.size === 0 || assigningShedTask} onClick={assignShedTask}>
-                    {assigningShedTask ? 'Assigning…' : `Assign to ${selectedShedAthletes.size || ''} athlete${selectedShedAthletes.size === 1 ? '' : 's'}`}
-                  </button>
-                </div>
-
-                <div className="card">
-                  <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Recently assigned</h2>
-                  {shedTasksAll.length === 0 ? (
-                    <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No tasks assigned yet.</p>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {shedTasksAll.map(t => (
-                        <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', borderRadius: 'var(--radius)', background: t.completed ? '#1D9E7512' : 'var(--bg-secondary)' }}>
-                          <span>
-                            <span style={{ fontSize: 13, fontWeight: 600 }}>{t.students?.members?.first_name} {t.students?.members?.last_name}</span>
-                            <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginLeft: 8 }}>{t.task_text}</span>
-                            <span style={{ display: 'block', fontSize: 11, color: t.completed ? '#1D9E75' : 'var(--text-tertiary)' }}>
-                              {t.completed ? `✓ Done ${new Date(t.completed_at).toLocaleDateString('en-GB')}` : 'Not done yet'}
-                            </span>
-                          </span>
-                          <button onClick={() => deleteShedTask(t.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 16 }}>×</button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                {renderSweepBoard(null)}
               </div>
             )}
 
@@ -12851,52 +12920,7 @@ export default function AthleteProfiles() {
             {tab === 'sweep' && (
               <div>
                 <button onClick={() => { setTab('home'); loadShedTasksAll() }} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
-                <div className="card" style={{ marginBottom: 14 }}>
-                  <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>🧹 Assign a task</h2>
-                  <input value={newShedTaskText} onChange={e => setNewShedTaskText(e.target.value)}
-                    placeholder="e.g. Sweep the sheds, tidy the equipment room…" style={{ width: '100%', marginBottom: 12 }} />
-                  <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>
-                    Assign to ({selectedShedAthletes.size} selected):
-                  </p>
-                  <div style={{ maxHeight: 280, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 8, marginBottom: 12 }}>
-                    {athletes.map(s => (
-                      <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 4px', cursor: 'pointer', fontSize: 13 }}>
-                        <input type="checkbox" checked={selectedShedAthletes.has(s.id)}
-                          onChange={() => setSelectedShedAthletes(prev => {
-                            const next = new Set(prev)
-                            next.has(s.id) ? next.delete(s.id) : next.add(s.id)
-                            return next
-                          })} />
-                        {s.members?.first_name} {s.members?.last_name}
-                      </label>
-                    ))}
-                  </div>
-                  <button className="btn btn-primary" disabled={!newShedTaskText.trim() || selectedShedAthletes.size === 0 || assigningShedTask} onClick={assignShedTask}>
-                    {assigningShedTask ? 'Assigning…' : `Assign to ${selectedShedAthletes.size || ''} athlete${selectedShedAthletes.size === 1 ? '' : 's'}`}
-                  </button>
-                </div>
-
-                <div className="card">
-                  <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Recently assigned</h2>
-                  {shedTasksAll.length === 0 ? (
-                    <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No tasks assigned yet.</p>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {shedTasksAll.map(t => (
-                        <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', borderRadius: 'var(--radius)', background: t.completed ? '#1D9E7512' : 'var(--bg-secondary)' }}>
-                          <span>
-                            <span style={{ fontSize: 13, fontWeight: 600 }}>{t.students?.members?.first_name} {t.students?.members?.last_name}</span>
-                            <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginLeft: 8 }}>{t.task_text}</span>
-                            <span style={{ display: 'block', fontSize: 11, color: t.completed ? '#1D9E75' : 'var(--text-tertiary)' }}>
-                              {t.completed ? `✓ Done ${new Date(t.completed_at).toLocaleDateString('en-GB')}` : 'Not done yet'}
-                            </span>
-                          </span>
-                          <button onClick={() => deleteShedTask(t.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 16 }}>×</button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                {renderSweepBoard(selected)}
               </div>
             )}
 
