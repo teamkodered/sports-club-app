@@ -1740,12 +1740,12 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
               <SortBtn k="first_name" label="NAME" grow />
               {isMainReg
                 ? (mPage === 0 ? <><SortBtn k="age" label="AGE" /><SortBtn k="att_pct" label="ATTEND." /><SortBtn k="media_restriction" label="MEDIA" /><span style={{ width: 58, flexShrink: 0 }} /></>
-                               : mPage === 1 ? <><SortBtn k="grade" label="GRADE" /><SortBtn k="house" label="HOUSE" /><SortBtn k="house_points" label="POINTS" /><span style={{ width: 58, flexShrink: 0 }} /></>
-                               : <><SortBtn k="att_total" label="SESSIONS" /><SortBtn k="att_last" label="LAST IN" /><SortBtn k="start_date" label="STARTED" /><span style={{ width: 58, flexShrink: 0 }} /></>)
+                               : mPage === 1 ? <><SortBtn k="grade" label="GRADE" /><SortBtn k="house" label="HOUSE" /><SortBtn k="house_points" label="POINTS" /></>
+                               : <><SortBtn k="att_total" label="SESSIONS" /><SortBtn k="att_last" label="LAST IN" /><SortBtn k="start_date" label="STARTED" /></>)
                 : (mPage === 0 ? <><SortBtn k="age" label="AGE" /><SortBtn k="weight_current" label="WEIGHT" /><SortBtn k="att_pct" label="ATTEND." /><span style={{ width: 58, flexShrink: 0 }} /></>
                                : mPage === 1 ? <><SortBtn k="grade" label="LEVEL" /><SortBtn k="wins" label="RECORD" /><SortBtn k="weight_current" label="WEIGHT" /></>
-                               : mPage === 2 ? <><SortBtn k="att_total" label="SESSIONS" /><SortBtn k="att_last" label="LAST IN" /><SortBtn k="start_date" label="STARTED" /><span style={{ width: 58, flexShrink: 0 }} /></>
-                               : <><SortBtn k="house" label="HOUSE" /><SortBtn k="house_points" label="POINTS" /><SortBtn k="media_restriction" label="MEDIA" /><span style={{ width: 58, flexShrink: 0 }} /></>)}
+                               : mPage === 2 ? <><SortBtn k="att_total" label="SESSIONS" /><SortBtn k="att_last" label="LAST IN" /><SortBtn k="start_date" label="STARTED" /></>
+                               : <><SortBtn k="house" label="HOUSE" /><SortBtn k="house_points" label="POINTS" /><SortBtn k="media_restriction" label="MEDIA" /></>)}
             </div>
 
             <div className="reg-m-list"
@@ -1839,7 +1839,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           </div>
                         )}
                       </div>
-                      {(isMainReg || mPage !== 1) ? <AttBtn st={st} /> : <Spark wd={wd} />}
+                      {mPage === 0 ? <AttBtn st={st} /> : (!isMainReg && mPage === 1) ? <Spark wd={wd} /> : null /* Mark only on the first page -- more room on the others */}
                     </div>
                     {open && !selecting && isMainReg && (
                       <div className="reg-m-open reg-m-open-profile" onClick={e => e.stopPropagation()}>
