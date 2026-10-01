@@ -20,6 +20,10 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
   const [houses, setHouses] = useState([])
   const [saving, setSaving] = useState(false)
   const [localStudent, setLocalStudent] = useState(student)
+  // The member's id: from the joined members row when present, otherwise the student's
+  // member_id column (some callers -- e.g. the register -- load members without its id,
+  // which made the membership form look missing).
+  const memberId = localStudent?.members?.id || localStudent?.member_id || null
   const [assignedClasses, setAssignedClasses] = useState([])
   const [allClasses, setAllClasses] = useState([])
   const [addingClass, setAddingClass] = useState(false)
@@ -32,7 +36,7 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
 
   async function openMembershipForm() {
     setShowMembershipForm(true)
-    if (membershipForm || !localStudent.members?.id) return
+    if (membershipForm || !memberId) return
     setMembershipFormLoading(true)
     // Fetches every row for this member rather than picking one via a
     // database-level ORDER BY -- a student can genuinely end up with
@@ -44,7 +48,7 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
     // wrong row (or neither) got picked. Prefers whichever row
     // actually has a document attached, since that's the most
     // recently-added, most complete one to show.
-    const { data } = await supabase.from('membership_forms').select('*').eq('member_id', localStudent.members.id)
+    const { data } = await supabase.from('membership_forms').select('*').eq('member_id', memberId)
     const best = (data || []).find(f => f.document_url) || (data || [])[0] || null
     setMembershipForm(best)
     setMembershipFormLoading(false)
@@ -58,7 +62,7 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
   // record to exist first -- some students may only ever have the
   // scanned original, with no separately-captured structured data.
   async function uploadMembershipDocument(file) {
-    if (!localStudent.members?.id) return
+    if (!memberId) return
     setUploadingMembershipDoc(true)
     try {
       // Sanitized the same way as the bulk-upload tool -- a raw
@@ -70,7 +74,7 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
       // show, instead of failing with nothing visible to the user at
       // all.
       const safeName = file.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]/g, '_')
-      const path = `membership-forms/${localStudent.members.id}-${Date.now()}-${safeName}`
+      const path = `membership-forms/${memberId}-${Date.now()}-${safeName}`
       const { error: uploadErr } = await supabase.storage.from('athlete-media').upload(path, file)
       if (uploadErr) { alert('Error uploading document: ' + uploadErr.message); setUploadingMembershipDoc(false); return }
       const { data: urlData } = supabase.storage.from('athlete-media').getPublicUrl(path)
@@ -97,7 +101,7 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
         const age = dob ? Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 24 * 3600 * 1000)) : null
         const formType = localStudent.discipline === 'KRBA' ? 'krba' : (age != null && age < 18) ? 'pka_child' : 'pka_adult'
         const { data, error } = await supabase.from('membership_forms').insert({
-          member_id: localStudent.members.id, form_type: formType, document_url: urlData.publicUrl, submitted_at: new Date().toISOString(),
+          member_id: memberId, form_type: formType, document_url: urlData.publicUrl, submitted_at: new Date().toISOString(),
         }).select().single()
         if (error) { alert('Error creating record: ' + error.message); setUploadingMembershipDoc(false); return }
         setMembershipForm(data)
@@ -248,7 +252,7 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
       const { error: gErr } = await supabase.from('students').update({ last_grading_date: today }).eq('id', localStudent.id)
       if (!gErr) studentFields.last_grading_date = today
     }
-    if (house_id !== undefined && localStudent.members?.id) {
+    if (house_id !== undefined && memberId) {
       await supabase.from('members').update({ house_id }).eq('id', localStudent.member_id)
     }
     setLocalStudent(s => ({ ...s, ...studentFields, members: { ...s.members, house_id } }))

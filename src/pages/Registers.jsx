@@ -523,7 +523,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     const disc = REGISTER_TYPES.find(r => r.key === regType)?.discipline || 'PKA'
     let query = supabase
       .from('students')
-      .select('*, members(first_name, last_name, phone, email, date_of_birth, status, joined_date, houses(name))')
+      .select('*, members(id, first_name, last_name, phone, email, date_of_birth, status, joined_date, houses(name))')
 
     if (regType === 'krba')        query = query.eq('discipline', 'KRBA')
     else if (regType === 'kr')     query = query.eq('discipline', 'PKA').eq('is_kr', true)
