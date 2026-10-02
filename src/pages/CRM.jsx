@@ -496,6 +496,7 @@ export default function CRM() {
   const [trainedPerDayLoaded, setTrainedPerDayLoaded] = useState(false)
   const [showNewEnquiryForm, setShowNewEnquiryForm] = useState(false)
   const [editingEnquiryId, setEditingEnquiryId] = useState(null)
+  const [enquirySectionsOpen, setEnquirySectionsOpen] = useState({ joined: false, not_interested: false })
   const [viewingEnquiry, setViewingEnquiry] = useState(null)
   const [expandedEnquiryId, setExpandedEnquiryId] = useState(null)
   const [contactPopupFor, setContactPopupFor] = useState(null)
@@ -2244,6 +2245,7 @@ export default function CRM() {
       contact_method: enquiryDraft.contact_method || 'call',
       enquiry_date: enquiryDraft.enquiry_date || new Date().toISOString().split('T')[0],
       notes: enquiryDraft.notes?.trim() || null,
+      ...(enquiryDraft.status ? { status: enquiryDraft.status } : {}),
       updated_at: new Date().toISOString(),
     }).eq('id', editingEnquiryId)
     setSavingEnquiry(false)
@@ -2251,6 +2253,73 @@ export default function CRM() {
     setEditingEnquiryId(null)
     setEnquiryDraft(null)
     loadEnquiries()
+  }
+
+
+  // Trial booked follow-ups: count each time we chase them (grouped 1, 2, 3+ in the list)
+  async function logEnquiryContact(enq, delta = 1) {
+    const next = Math.max(0, (enq.contact_count || 0) + delta)
+    setEnquiries(prev => prev.map(e => e.id === enq.id ? { ...e, contact_count: next, last_contacted_at: delta > 0 ? new Date().toISOString() : e.last_contacted_at } : e))
+    const { error } = await supabase.from('enquiries').update({ contact_count: next, ...(delta > 0 ? { last_contacted_at: new Date().toISOString() } : {}) }).eq('id', enq.id)
+    if (error) { alert('Could not save the contact count: ' + error.message + '\n\n(Has supabase_enquiry_contact_count.sql been run?)'); loadEnquiries() }
+  }
+  function enquiryForm() {
+    return (<div className="card" style={{ marginBottom: 16, padding: 16 }}>
+              <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 10 }}>{editingEnquiryId ? 'Edit enquiry' : 'New enquiry'}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>Name</label>
+                  <input type="text" placeholder="Name (optional)" value={enquiryDraft.name} onChange={e => setEnquiryDraft(d => ({ ...d, name: e.target.value }))} style={{ fontSize: 13, width: '100%' }} />
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>Phone</label>
+                    <input type="text" placeholder="Phone" value={enquiryDraft.contact_phone} onChange={e => setEnquiryDraft(d => ({ ...d, contact_phone: e.target.value }))} style={{ fontSize: 13, width: '100%' }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>Email</label>
+                    <input type="email" placeholder="Email" value={enquiryDraft.contact_email} onChange={e => setEnquiryDraft(d => ({ ...d, contact_email: e.target.value }))} style={{ fontSize: 13, width: '100%' }} />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>Contact method</label>
+                    <select value={enquiryDraft.contact_method} onChange={e => setEnquiryDraft(d => ({ ...d, contact_method: e.target.value }))} style={{ fontSize: 13, width: '100%' }}>
+                      <option value="call">Phone call</option>
+                      <option value="text">Text message</option>
+                      <option value="email">Email</option>
+                      <option value="in_person">In person</option>
+                      <option value="facebook_ad">Facebook/Instagram ad</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>Date</label>
+                    <input type="date" value={enquiryDraft.enquiry_date} onChange={e => setEnquiryDraft(d => ({ ...d, enquiry_date: e.target.value }))} style={{ fontSize: 13, width: '100%' }} />
+                  </div>
+                </div>
+                {editingEnquiryId && (
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>Status</label>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {[['not_started', 'Enquiry', '#EF9F27'], ['contacted', 'Contacted', '#378ADD'], ['trial_booked', 'Trial booked', '#8B5CF6'], ['joined', 'Joined', '#1D9E75'], ['waiting_list', 'Waiting list', '#EF9F27'], ['not_interested', 'Not interested', '#9CA3AF']].map(([k, l, c]) => (
+                        <button key={k} type="button" onClick={() => setEnquiryDraft(d => ({ ...d, status: k }))}
+                          style={{ padding: '6px 12px', borderRadius: 16, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)', border: `1px solid ${enquiryDraft.status === k ? c : 'var(--border-strong)'}`, background: enquiryDraft.status === k ? c + '22' : 'transparent', color: enquiryDraft.status === k ? c : 'var(--text-secondary)', fontWeight: enquiryDraft.status === k ? 700 : 400 }}>{l}</button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>Notes</label>
+                  <textarea placeholder="Notes (what they asked about, any follow-up needed...)" value={enquiryDraft.notes} onChange={e => setEnquiryDraft(d => ({ ...d, notes: e.target.value }))} style={{ fontSize: 13, minHeight: 60, width: '100%' }} />
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn btn-sm btn-primary" disabled={savingEnquiry} onClick={editingEnquiryId ? saveEditedEnquiry : saveNewEnquiry}>{savingEnquiry ? 'Saving…' : editingEnquiryId ? 'Save changes' : 'Save enquiry'}</button>
+                  <button className="btn btn-sm" onClick={() => { setShowNewEnquiryForm(false); setEditingEnquiryId(null); setEnquiryDraft(null) }}>Cancel</button>
+                </div>
+              </div>
+            </div>
+    )
   }
 
   async function deleteEnquiry(id) {
@@ -3080,58 +3149,15 @@ export default function CRM() {
               )
             })}
           </div>
-          {(showNewEnquiryForm || editingEnquiryId) && (
-            <div className="card" style={{ marginBottom: 16, padding: 16 }}>
-              <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 10 }}>{editingEnquiryId ? 'Edit enquiry' : 'New enquiry'}</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div>
-                  <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>Name</label>
-                  <input type="text" placeholder="Name (optional)" value={enquiryDraft.name} onChange={e => setEnquiryDraft(d => ({ ...d, name: e.target.value }))} style={{ fontSize: 13, width: '100%' }} />
-                </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>Phone</label>
-                    <input type="text" placeholder="Phone" value={enquiryDraft.contact_phone} onChange={e => setEnquiryDraft(d => ({ ...d, contact_phone: e.target.value }))} style={{ fontSize: 13, width: '100%' }} />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>Email</label>
-                    <input type="email" placeholder="Email" value={enquiryDraft.contact_email} onChange={e => setEnquiryDraft(d => ({ ...d, contact_email: e.target.value }))} style={{ fontSize: 13, width: '100%' }} />
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>Contact method</label>
-                    <select value={enquiryDraft.contact_method} onChange={e => setEnquiryDraft(d => ({ ...d, contact_method: e.target.value }))} style={{ fontSize: 13, width: '100%' }}>
-                      <option value="call">Phone call</option>
-                      <option value="text">Text message</option>
-                      <option value="email">Email</option>
-                      <option value="in_person">In person</option>
-                      <option value="facebook_ad">Facebook/Instagram ad</option>
-                      <option value="other">Other</option>
-                    </select>
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>Date</label>
-                    <input type="date" value={enquiryDraft.enquiry_date} onChange={e => setEnquiryDraft(d => ({ ...d, enquiry_date: e.target.value }))} style={{ fontSize: 13, width: '100%' }} />
-                  </div>
-                </div>
-                <div>
-                  <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>Notes</label>
-                  <textarea placeholder="Notes (what they asked about, any follow-up needed...)" value={enquiryDraft.notes} onChange={e => setEnquiryDraft(d => ({ ...d, notes: e.target.value }))} style={{ fontSize: 13, minHeight: 60, width: '100%' }} />
-                </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn btn-sm btn-primary" disabled={savingEnquiry} onClick={editingEnquiryId ? saveEditedEnquiry : saveNewEnquiry}>{savingEnquiry ? 'Saving…' : editingEnquiryId ? 'Save changes' : 'Save enquiry'}</button>
-                  <button className="btn btn-sm" onClick={() => { setShowNewEnquiryForm(false); setEditingEnquiryId(null); setEnquiryDraft(null) }}>Cancel</button>
-                </div>
-              </div>
-            </div>
-          )}
-
+          {showNewEnquiryForm && !editingEnquiryId && enquiryForm()}
           {!enquiriesLoaded ? (
             <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Loading…</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {enquiries.filter(e => (enquiryStatusFilter === 'all' || e.status === enquiryStatusFilter) && (enquiryMethodFilter === 'all' || e.contact_method === enquiryMethodFilter)).map(enq => {
+              {(() => {
+                const shown = enquiries.filter(e => (enquiryStatusFilter === 'all' || e.status === enquiryStatusFilter) && (enquiryMethodFilter === 'all' || e.contact_method === enquiryMethodFilter))
+                const renderCard = enq => {
+                if (editingEnquiryId === enq.id) return <div key={enq.id} id={`enq-${enq.id}`}>{enquiryForm()}</div>
                 const stageIdx = ENQUIRY_STAGES.findIndex(s => s.key === enq.status)
                 const stage = stageIdx >= 0 ? ENQUIRY_STAGES[stageIdx] : ENQUIRY_STAGES[0]
                 const borderColour = enq.status === 'not_interested' ? '#9CA3AF' : enq.status === 'waiting_list' ? '#EF9F27' : stage.colour
@@ -3166,12 +3192,20 @@ export default function CRM() {
                         </>
                       )}
                     </div>
+                    {(enq.status === 'trial_booked' || enq.status === 'contacted') && (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--text-secondary)' }} title="Times contacted">
+                        📞 ×{enq.contact_count || 0}
+                        <button className="btn btn-sm" style={{ padding: '2px 8px' }} onClick={() => logEnquiryContact(enq, 1)} title="Log a contact">+1</button>
+                        {(enq.contact_count || 0) > 0 && <button className="btn btn-sm" style={{ padding: '2px 6px', color: 'var(--text-tertiary)' }} onClick={() => logEnquiryContact(enq, -1)} title="Undo">−</button>}
+                      </span>
+                    )}
                     <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                      <button className="btn btn-sm" onClick={() => { setEditingEnquiryId(enq.id); setShowNewEnquiryForm(false); setEnquiryDraft({ name: enq.name === 'Unknown' ? '' : enq.name, contact_phone: enq.contact_phone || '', contact_email: enq.contact_email || '', contact_method: enq.contact_method, enquiry_date: enq.enquiry_date, notes: enq.notes || '' }) }}>Edit</button>
+                      <button className="btn btn-sm" onClick={() => { setEditingEnquiryId(enq.id); setShowNewEnquiryForm(false); setEnquiryDraft({ status: enq.status, name: enq.name === 'Unknown' ? '' : enq.name, contact_phone: enq.contact_phone || '', contact_email: enq.contact_email || '', contact_method: enq.contact_method, enquiry_date: enq.enquiry_date, notes: enq.notes || '' }) }}>Edit</button>
                       <button className="btn btn-sm" style={{ color: '#E24B4A' }} onClick={() => deleteEnquiry(enq.id)}>Delete</button>
                     </div>
                   </div>
-                  <div style={{ textAlign: 'left' }}>
+                  <div style={{ textAlign: 'left', cursor: 'pointer' }} title="Tap to edit"
+                    onClick={e => { if (e.target.closest('button, a, input, textarea, select')) return; setEditingEnquiryId(enq.id); setShowNewEnquiryForm(false); setEnquiryDraft({ status: enq.status, name: enq.name === 'Unknown' ? '' : enq.name, contact_phone: enq.contact_phone || '', contact_email: enq.contact_email || '', contact_method: enq.contact_method, enquiry_date: enq.enquiry_date, notes: enq.notes || '' }) }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
                       <div>
                         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
@@ -3232,7 +3266,40 @@ export default function CRM() {
                   )}
                   </div>
                 </div>
-              )})}
+              )}
+                const SECTIONS = [['not_started', 'Enquiries', '#EF9F27'], ['contacted', 'Contacted', '#378ADD'], ['trial_booked', 'Trial booked', '#8B5CF6'], ['joined', 'Joined', '#1D9E75'], ['waiting_list', 'Waiting list', '#EF9F27'], ['not_interested', 'Not interested', '#9CA3AF']]
+                const known = new Set(SECTIONS.map(x => x[0]))
+                return SECTIONS.map(([key, label, colour]) => {
+                  const items = shown.filter(e => (known.has(e.status) ? e.status : 'not_started') === key)
+                  if (!items.length) return null
+                  const open = enquirySectionsOpen[key] !== false
+                  const header = (
+                    <button type="button" onClick={() => setEnquirySectionsOpen(o => ({ ...o, [key]: !open }))} aria-expanded={open}
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 2px', marginTop: 8, border: 'none', borderBottom: `2px solid ${colour}`, background: 'none', color: 'var(--text)', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-sans)', textAlign: 'left' }}>
+                      <span style={{ color: colour }}>{open ? '▾' : '▸'}</span> {label} <span style={{ fontWeight: 400, color: 'var(--text-tertiary)' }}>{items.length}</span>
+                    </button>
+                  )
+                  if (!open) return <Fragment key={key}>{header}</Fragment>
+                  if (key !== 'trial_booked') return <Fragment key={key}>{header}{items.map(renderCard)}</Fragment>
+                  // Trial booked: sub-grouped by how many times we've contacted them
+                  const buckets = [[0, 'Not contacted yet'], [1, 'Contacted once'], [2, 'Contacted twice'], [3, 'Contacted 3+ times']]
+                  return (
+                    <Fragment key={key}>
+                      {header}
+                      {buckets.map(([n, l]) => {
+                        const b = items.filter(e => Math.min(3, e.contact_count || 0) === n)
+                        if (!b.length) return null
+                        return (
+                          <Fragment key={n}>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: '#8B5CF6', margin: '6px 0 2px 4px' }}>📞 {l} · {b.length}</div>
+                            {b.map(renderCard)}
+                          </Fragment>
+                        )
+                      })}
+                    </Fragment>
+                  )
+                })
+              })()}
               {enquiries.filter(e => (enquiryStatusFilter === 'all' || e.status === enquiryStatusFilter) && (enquiryMethodFilter === 'all' || e.contact_method === enquiryMethodFilter)).length === 0 && (
                 <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No enquiries logged yet.</p>
               )}
