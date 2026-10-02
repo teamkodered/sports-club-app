@@ -1,5 +1,6 @@
 import { useState, useEffect, Fragment, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { isDateOnHoliday } from '../lib/attendanceDays.js'
 import { studentProfileLink } from '../lib/studentLinks.js'
 import { useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
@@ -496,7 +497,7 @@ export default function CRM() {
   const [trainedPerDayLoaded, setTrainedPerDayLoaded] = useState(false)
   const [showNewEnquiryForm, setShowNewEnquiryForm] = useState(false)
   const [editingEnquiryId, setEditingEnquiryId] = useState(null)
-  const [enquirySectionsOpen, setEnquirySectionsOpen] = useState({ joined: false, not_interested: false })
+  const [enquirySectionsOpen, setEnquirySectionsOpen] = useState({})   // all sections start collapsed
   const [viewingEnquiry, setViewingEnquiry] = useState(null)
   const [expandedEnquiryId, setExpandedEnquiryId] = useState(null)
   const [contactPopupFor, setContactPopupFor] = useState(null)
@@ -1704,7 +1705,7 @@ export default function CRM() {
       // wrongly treated as having "never attended at all" instead of
       // showing how long they've actually been missing.
       fetchAllRows(() => supabase.from('attendance').select('student_id, session_date').order('session_date', { ascending: false })),
-      supabase.from('holidays').select('student_id, start_date, end_date'),
+      supabase.from('holidays').select('student_id, class_id, start_date, end_date'),
     ])
     const currentAsg = (assignments || []).filter(a => !isPastAssignment(a)) // ended classes don't count any more
     const assignedStudentIds = new Set(currentAsg.map(a => a.student_id))
@@ -1734,7 +1735,19 @@ export default function CRM() {
       .filter(s => assignedStudentIds.has(s.id))
       .map(s => {
         const lastDate = lastAttendedByStudent[s.id] || null
-        if (lastDate && lastDate >= cutoffStr) return null // trained recently, not missing
+        // 4 weeks of TRAINING time: holiday days (club-wide, their own, or all their classes off)
+        // don't count, so a back-dated holiday pushes the cut-off back by the same number of days
+        const classIds = (classesByStudent[s.id] || []).map(c => c.id)
+        let studentCutoff = cutoffStr
+        {
+          const d = new Date(); let counted = 0, guard = 0
+          while (counted < 28 && guard < 400) {
+            d.setDate(d.getDate() - 1); guard++
+            if (!isDateOnHoliday(localDateStr(d), holidayRows || [], classIds, s.id)) counted++
+          }
+          studentCutoff = localDateStr(d)
+        }
+        if (lastDate && lastDate >= studentCutoff) return null // trained within 4 training weeks, not missing
         const weeksMissed = lastDate
           ? Math.floor((Date.now() - new Date(lastDate).getTime()) / (7 * 24 * 60 * 60 * 1000))
           : null // never attended at all
@@ -3272,7 +3285,7 @@ export default function CRM() {
                 return SECTIONS.map(([key, label, colour]) => {
                   const items = shown.filter(e => (known.has(e.status) ? e.status : 'not_started') === key)
                   if (!items.length) return null
-                  const open = enquirySectionsOpen[key] !== false
+                  const open = enquirySectionsOpen[key] === true
                   const header = (
                     <button type="button" onClick={() => setEnquirySectionsOpen(o => ({ ...o, [key]: !open }))} aria-expanded={open}
                       style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 2px', marginTop: 8, border: 'none', borderBottom: `2px solid ${colour}`, background: 'none', color: 'var(--text)', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-sans)', textAlign: 'left' }}>

@@ -326,7 +326,14 @@ export default function CalendarPage() {
               const days = [...holidaySelected]
               const onDays = new Map()
               days.forEach(d => classesForDate(d).forEach(c => onDays.set(c.id, c)))
-              const others = classes.filter(c => !onDays.has(c.id))
+              const DAY = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 }
+            const dayRank = c => DAY[String(c.day_of_week || '').slice(0, 3)] || 9
+            const byDayTime = (a, b) => dayRank(a) - dayRank(b) || String(a.start_time).localeCompare(String(b.start_time)) || String(a.name).localeCompare(String(b.name))
+            const others = classes.filter(c => !onDays.has(c.id)).sort(byDayTime)
+            const onDaysSorted = [...onDays.values()].sort(byDayTime)
+            // "Other classes" grouped under day headings
+            const otherGroups = []
+            others.forEach(c => { const k = c.day_of_week || 'Other'; const g = otherGroups.find(x => x.k === k); g ? g.items.push(c) : otherGroups.push({ k, items: [c] }) })
               const toggle = id => setHolidayClassIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
               const row = c => (
                 <label key={c.id} className="hol-class">
@@ -343,11 +350,16 @@ export default function CalendarPage() {
                       <button type="button" className="btn btn-sm" onClick={() => setHolidayClassIds(new Set())}>None</button>
                     </span>}
                   </div>
-                  <div className="hol-classes">{[...onDays.values()].map(row)}</div>
+                  <div className="hol-classes">{onDaysSorted.map(row)}</div>
                   {others.length > 0 && (
                     <details style={{ marginTop: 6 }}>
                       <summary style={{ fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>Other classes ({others.length})</summary>
-                      <div className="hol-classes" style={{ marginTop: 6 }}>{others.map(row)}</div>
+                      {otherGroups.map(g => (
+                      <div key={g.k} style={{ marginTop: 6 }}>
+                        <div className="hol-label" style={{ margin: '6px 0 2px' }}>{String(g.k).toUpperCase()}</div>
+                        <div className="hol-classes">{g.items.map(row)}</div>
+                      </div>
+                    ))}
                     </details>
                   )}
                 </div>
