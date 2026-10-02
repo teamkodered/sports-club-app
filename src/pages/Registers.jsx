@@ -1798,12 +1798,12 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           {!selecting
                             ? <button type="button" className="reg-m-namelink" onClick={e => { e.stopPropagation(); setMExpanded(open ? null : st.id) }}>{m?.first_name} {m?.last_name}</button>
                             : <span>{m?.first_name} {m?.last_name}</span>}
-                          {bday && <button type="button" className="reg-m-bday" title="Upcoming birthday" onClick={e => { e.stopPropagation(); setBirthdayPopup({ name: `${m?.first_name} ${m?.last_name}`, info: bday }) }}>🎂</button>}
+                          {bday && <button type="button" className="reg-m-bday" title={bday.daysUntil === 0 ? 'Birthday today!' : 'Upcoming birthday'} onClick={e => { e.stopPropagation(); setBirthdayPopup({ name: `${m?.first_name} ${m?.last_name}`, info: bday }) }}>{bday.daysUntil === 0 ? '🥳' : '🎂'}</button>}
                         </div>
                         {isMainReg ? (mPage === 0 ? (
                           <div className="reg-m-details reg-m-cols reg-m-cols-main">
                             <span>Age <b>{calcAge(m?.date_of_birth) ?? '—'}</b></span>
-                            <span className="reg-m-pct reg-m-pct-tap" role="button" tabIndex={0} title="View attendance calendar" onClick={e => { e.stopPropagation(); if (!selecting) setCalendarStudent(st) }} onKeyDown={e => { if (e.key === 'Enter') setCalendarStudent(st) }}><span className="bar"><span style={{ width: `${pct || 0}%`, background: pctColour(pct) }} /></span><b style={{ color: pctColour(pct) }}>{pct != null ? `${pct}%` : '—'}</b></span>
+                            <span className="reg-m-pct"><span className="bar"><span style={{ width: `${pct || 0}%`, background: pctColour(pct) }} /></span><b style={{ color: pctColour(pct) }}>{pct != null ? `${pct}%` : '—'}</b></span>
                             <span style={{ display: 'inline-flex', alignItems: 'center' }}><MediaCam restriction={st.media_restriction} /></span>
                           </div>
                         ) : mPage === 1 ? (
@@ -1822,7 +1822,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           <div className="reg-m-details reg-m-cols">
                             <span>Age <b>{calcAge(m?.date_of_birth) ?? '—'}</b></span>
                             <span><b>{weight != null ? `${weight}kg` : '—'}</b></span>
-                            <span className="reg-m-pct reg-m-pct-tap" role="button" tabIndex={0} title="View attendance calendar" onClick={e => { e.stopPropagation(); if (!selecting) setCalendarStudent(st) }} onKeyDown={e => { if (e.key === 'Enter') setCalendarStudent(st) }}><span className="bar"><span style={{ width: `${pct || 0}%`, background: pctColour(pct) }} /></span><b style={{ color: pctColour(pct) }}>{pct != null ? `${pct}%` : '—'}</b></span>
+                            <span className="reg-m-pct"><span className="bar"><span style={{ width: `${pct || 0}%`, background: pctColour(pct) }} /></span><b style={{ color: pctColour(pct) }}>{pct != null ? `${pct}%` : '—'}</b></span>
                           </div>
                         ) : mPage === 2 ? (
                           <div className="reg-m-details reg-m-details-3">
@@ -1851,8 +1851,9 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           <button type="button" onClick={() => { setMultiAward(false); setAwardingFor(st) }}>+ Points</button>
                           <button type="button" onClick={() => setCalendarStudent(st)}>Calendar</button>
                           {(pointsByStudent[st.id] || []).length > 0 && <button type="button" onClick={() => setPointsPanelFor(st)}>Today's points</button>}
-                          <button type="button" className="reg-m-ath" title={(st.is_kr || st.is_pts || st.discipline === 'KRBA') ? 'Open athlete profile' : 'Open profile'}
-                            onClick={() => navigate((st.is_kr || st.is_pts || st.discipline === 'KRBA') ? `/athletes?id=${st.id}&from=register` : `${studentProfileLink(st)}&from=register`)}>ATH</button>
+                          {(st.is_kr || st.discipline === 'KRBA') && (
+                            <button type="button" className="reg-m-ath" title="Open athlete profile" onClick={() => navigate(`/athletes?id=${st.id}&from=register`)}>ATH</button>
+                          )}
                         </div>
                         {/* Swipe: Contact card -> Profile -> Points -> Grading (the profile's own Contact tab is
                             left out -- the contact card above has the same details). Card swipes don't change the
@@ -1898,7 +1899,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           <button type="button" onClick={() => { setMultiAward(false); setAwardingFor(st) }}>+ Points</button>
                           <button type="button" onClick={() => setCalendarStudent(st)}>Calendar</button>
                           {(pointsByStudent[st.id] || []).length > 0 && <button type="button" onClick={() => setPointsPanelFor(st)}>Today's points</button>}
-                          <button type="button" className="reg-m-ath" title="Open athlete profile" onClick={() => onStudentNameClick ? onStudentNameClick(st) : navigate(`/athletes?id=${st.id}&from=register`)}>ATH</button>
+                          {(st.is_kr || st.discipline === 'KRBA') && <button type="button" className="reg-m-ath" title="Open athlete profile" onClick={() => onStudentNameClick ? onStudentNameClick(st) : navigate(`/athletes?id=${st.id}&from=register`)}>ATH</button>}
                           {onWeightClick && <button type="button" onClick={() => onWeightClick(st)}>Weights</button>}
                         </div>
                         <div className="reg-m-cardswipe"
@@ -2141,8 +2142,8 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           if (!bday) return null
                           return (
                             <button onClick={e => { e.stopPropagation(); setBirthdayPopup({ name: `${m?.first_name} ${m?.last_name}`, info: bday }) }}
-                              title="Upcoming birthday" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, padding: 0, lineHeight: 1 }}>
-                              🎂
+                              title={bday.daysUntil === 0 ? 'Birthday today!' : 'Upcoming birthday'} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, padding: 0, lineHeight: 1 }}>
+                              {bday.daysUntil === 0 ? '🥳' : '🎂'}
                             </button>
                           )
                         })()}
@@ -2362,7 +2363,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 55, padding: 16 }}
           onClick={() => setBirthdayPopup(null)}>
           <div className="card" style={{ width: '100%', maxWidth: 320, textAlign: 'center' }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize: 36, marginBottom: 8 }}>🎂</div>
+            <div style={{ fontSize: 36, marginBottom: 8 }}>{birthdayPopup.info.daysUntil === 0 ? '🥳' : '🎂'}</div>
             <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 10 }}>{birthdayPopup.name}</h2>
             <p style={{ fontSize: 13, marginBottom: 4 }}>
               {birthdayPopup.info.nextBirthday.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
