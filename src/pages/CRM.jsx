@@ -1579,7 +1579,7 @@ export default function CRM() {
   async function loadData() {
     setLoading(true)
     const [{ data: s }, { data: pl }, { data: notes }] = await Promise.all([
-      supabase.from('students').select('id, student_ref, discipline, class_schedule, sponsored, guardian_name, pka_belt, krba_level, house_name, media_restriction, is_kr, is_pts, is_leader, is_coach, member_id, members(first_name, last_name, status, email, phone, date_of_birth, do_not_contact, houses(name))'),
+      supabase.from('students').select('id, student_ref, discipline, class_schedule, sponsored, guardian_name, pka_belt, krba_level, house_name, media_restriction, is_kr, is_pts, is_leader, is_coach, member_id, members(first_name, last_name, status, email, phone, date_of_birth, do_not_contact, joined_date, houses(name))'),
       supabase.from('payer_links').select('*'),
       supabase.from('athlete_notes_log').select('id, student_id, note_text, created_at').order('created_at', { ascending: false }),
     ])
@@ -1748,6 +1748,14 @@ export default function CRM() {
           studentCutoff = localDateStr(d)
         }
         if (lastDate && lastDate >= studentCutoff) return null // trained within 4 training weeks, not missing
+        if (!lastDate) {
+          // Never attended: only "missing" once they've had 4 weeks of training time since they were
+          // due to start (class start date / when they were put in the class / join date), not counting
+          // holiday days. Someone just put in a class, or holidayed for the whole time, isn't missing yet.
+          const starts = currentAsg.filter(a => a.student_id === s.id).map(a => String(a.start_date || a.created_at || '').slice(0, 10)).filter(Boolean)
+          const since = starts.length ? starts.sort()[0] : (s.members?.joined_date || null)
+          if (since && since >= studentCutoff) return null
+        }
         const weeksMissed = lastDate
           ? Math.floor((Date.now() - new Date(lastDate).getTime()) / (7 * 24 * 60 * 60 * 1000))
           : null // never attended at all
