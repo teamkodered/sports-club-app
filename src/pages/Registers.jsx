@@ -909,7 +909,10 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
       .in('point_type', ['Attendance', 'Full Kit'])
       .gte('awarded_at', date + 'T00:00:00')
       .lt('awarded_at', date + 'T23:59:59')
-    reverseQuery = classId ? reverseQuery.eq('class_id', classId) : reverseQuery.is('class_id', null)
+    // Attended and Full Kit are one OR the other: the earlier award may have been logged against
+    // this class OR with no class (e.g. marked from 'All classes' / bulk) -- reverse both, so the
+    // student never ends up with Attendance AND Full Kit for the same session.
+    reverseQuery = classId ? reverseQuery.or(`class_id.eq.${classId},class_id.is.null`) : reverseQuery
     const { data: previousEntries } = await reverseQuery
     let reversedPts = 0
     if (previousEntries?.length) {
@@ -1691,7 +1694,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
           const lo = Math.min(...vals), hi = Math.max(...vals), rng = (hi - lo) || 1
           const pts = vals.map((v, i) => `${(4 + i * (72 / (vals.length - 1))).toFixed(1)},${(26 - ((v - lo) / rng) * 20).toFixed(1)}`)
           const change = vals[vals.length - 1] - vals[0]
-          const col = change < 0 ? '#1D9E75' : change > 0.5 ? '#E24B4A' : '#9A9A9A'
+          const col = '#9A9A9A' // line stays grey; the +/- to target keeps its colour
           const [lx, ly] = pts[pts.length - 1].split(',')
           return (
             <div className="reg-m-spark">

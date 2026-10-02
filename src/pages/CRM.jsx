@@ -3658,6 +3658,9 @@ export default function CRM() {
                     const msgText = `Hi ${s.members?.first_name}, just checking in about your membership payment — let us know if there's anything we can help with. Thanks, KR Centre`
                     const msgBody = encodeURIComponent(msgText)
                     const hasNotes = (athleteNotesByStudent[s.id] || []).length > 0
+                    // Notes are kept, but only this month's notes highlight the row (last month's no longer do)
+                    const ym = new Date().toISOString().slice(0, 7)
+                    const hasNotesThisMonth = (athleteNotesByStudent[s.id] || []).some(n => String(n.created_at || '').slice(0, 7) === ym)
                     return (
                     <div key={s.id}
                       onDragOver={e => { e.preventDefault(); setDragOverStudentId(s.id) }}
@@ -3667,8 +3670,8 @@ export default function CRM() {
                       style={{
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
                         padding: '8px 10px', borderRadius: 'var(--radius)', cursor: selectedPaymentIdx != null ? 'pointer' : 'default',
-                        background: dragOverStudentId === s.id ? '#1D9E7520' : hasNotes ? '#EF9F2720' : 'var(--bg-secondary)',
-                        border: dragOverStudentId === s.id ? '2px solid #1D9E75' : hasNotes ? '1px solid #EF9F27' : '1px solid transparent',
+                        background: dragOverStudentId === s.id ? '#1D9E7520' : hasNotesThisMonth ? '#EF9F2720' : 'var(--bg-secondary)',
+                        border: dragOverStudentId === s.id ? '2px solid #1D9E75' : hasNotesThisMonth ? '1px solid #EF9F27' : '1px solid transparent',
                       }}>
                       <span style={{ minWidth: 0 }}>
                         <span style={{ fontSize: 13, fontWeight: 600 }}>{studentFullName(s)}</span>
@@ -3681,7 +3684,7 @@ export default function CRM() {
                           <button className="btn btn-sm" style={{ fontSize: 11 }} title={`Send a real email to ${email}`}
                             onClick={e => { e.stopPropagation(); sendRealEmail(email, 'Membership payment', msgText) }}>✉️</button>
                         )}
-                        <button className="btn btn-sm" style={{ fontSize: 11, background: hasNotes ? '#EF9F2730' : undefined, borderColor: hasNotes ? '#EF9F27' : undefined }}
+                        <button className="btn btn-sm" style={{ fontSize: 11, background: hasNotesThisMonth ? '#EF9F2730' : undefined, borderColor: hasNotesThisMonth ? '#EF9F27' : undefined }}
                           title={hasNotes ? `${athleteNotesByStudent[s.id].length} note(s) — click to view/add` : 'Add a note about this student'}
                           onClick={e => { e.stopPropagation(); setAddingNoteForStudent(s); setQuickNoteDraft('') }}>📝{hasNotes ? ` ${athleteNotesByStudent[s.id].length}` : ''}</button>
                         <button className="btn btn-sm" style={{ fontSize: 11 }} title="Mark as sponsored -- moves to paid list, won't be chased for payment"
