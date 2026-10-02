@@ -886,7 +886,16 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     setAdhocPills(prev => prev.filter(p => p.id !== id))
   }
 
-  async function awardAttendancePoints(student, type, classId) {    // Reverse any attendance points already awarded to this student for
+  // Awards for the same student run one after another (quick double taps used to
+  // overlap: both read 'nothing to reverse' and both awards stuck).
+  const awardQueueRef = useRef({})
+  function awardAttendancePoints(student, type, classId) {
+    const q = awardQueueRef.current
+    const run = (q[student.id] || Promise.resolve()).then(() => awardAttendancePointsNow(student, type, classId))
+    q[student.id] = run.catch(() => {})
+    return run
+  }
+  async function awardAttendancePointsNow(student, type, classId) {    // Reverse any attendance points already awarded to this student for
     // THIS SPECIFIC CLASS today, so cycling attended -> full_kit reflects
     // only the final state's points rather than stacking both awards.
     // Scoped by class_id (not just date) so a student attending two
