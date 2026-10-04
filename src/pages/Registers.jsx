@@ -473,6 +473,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   const [pmReason, setPmReason] = useState(null)
   const [pmPickerOpen, setPmPickerOpen] = useState(false)
   const [pmSearch, setPmSearch] = useState('')
+  const [pmNewPts, setPmNewPts] = useState(1)          // points for a new reason typed in the Points-mode search
   const [lastAward, setLastAward] = useState(null)      // { label, points, entries, names } -- Undo bar
   const undoTimer = useRef(null)
   const [reasonUsage, setReasonUsage] = useSyncedPreference('register_reason_usage', {}) // learns each coach's most-used reasons
@@ -1823,6 +1824,28 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                       {reasonsByUse.filter(pt => !pmSearch.trim() || `${pt.label} ${pt.group || ''}`.toLowerCase().includes(pmSearch.trim().toLowerCase()))
                         .map(pt => <ReasonChip key={pt.label} pt={pt} on={pmReason?.label === pt.label} onPick={r => { setPmReason(r); setPmPickerOpen(false); setPmSearch('') }} />)}
                     </div>
+                    {pmSearch.trim() && !pointTypes.some(pt => pt.label.toLowerCase() === pmSearch.trim().toLowerCase()) && (
+                      <div className="reg-m-newreason">
+                        <div>Add “<b>{pmSearch.trim()}</b>” as a new reason</div>
+                        <div className="reg-m-newreason-row">
+                          <button type="button" aria-label="Fewer points" onClick={() => setPmNewPts(n => n - 1)}>−</button>
+                          <b className={pmNewPts < 0 ? 'neg' : ''}>{pmNewPts > 0 ? '+' : ''}{pmNewPts}</b>
+                          <button type="button" aria-label="More points" onClick={() => setPmNewPts(n => n + 1)}>+</button>
+                          <button type="button" className="add" disabled={pmNewPts === 0} onClick={async () => {
+                            const label = pmSearch.trim(), pts = pmNewPts
+                            const reason = { label, points: pts, group: 'Custom' }
+                            if (saveNewReason) {
+                              const next = [...pointTypes, reason]
+                              const { error } = await supabase.from('settings').update({ value: next }).eq('key', 'point_types')
+                              if (error) alert('Using it for now, but it could not be added to the reasons list: ' + error.message)
+                              else setPointTypes(next)
+                            }
+                            setPmReason(reason); setPmPickerOpen(false); setPmSearch(''); setPmNewPts(1)
+                          }}>Add &amp; use</button>
+                        </div>
+                        <label><input type="checkbox" checked={saveNewReason} onChange={e => setSaveNewReason(e.target.checked)} /> Save to the reasons list for next time</label>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
