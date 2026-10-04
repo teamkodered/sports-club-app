@@ -263,6 +263,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   const [sortKey, setSortKey]           = useState('first_name')
   const [sortThen, setSortThen]         = useState([])      // tie-breaker sorts (previously tapped columns)
   const [selectedFirst, setSelectedFirst] = useState(false) // selected students to the top
+  const selOrderSnapshot = useRef(null)   // list order when the current selection started
   const [sortDir, setSortDir]           = useState('asc')
   const [groupFilter, setGroupFilter]   = useState('') // '' = all groups; else 'KR'|'PTs'|'Leader'|'Coach'|'PKA'|'KRBA'
   const [groupFilterOpen, setGroupFilterOpen] = useState(false)
@@ -848,7 +849,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     ].filter(Boolean)
   }
 
-  const displayStudents = (regType === 'adhoc' ? adhocPills.map(p => students.find(s => s.id === p.id)).filter(Boolean) : students)
+  const sortedStudents = (regType === 'adhoc' ? adhocPills.map(p => students.find(s => s.id === p.id)).filter(Boolean) : students)
     .filter(s => !showOnlyAttended || (attendance[s.id] && attendance[s.id] !== 'none'))
     .filter(s => !groupFilter || studentGroups(s, s.members).includes(groupFilter))
     .filter(s => {
@@ -876,11 +877,24 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     })
     .filter(s => matchesSearch(search, s.members?.first_name, s.members?.last_name, s.student_ref))
     .sort((a, b) => {
-      // Multi-sort: selected-to-top (optional) -> the column you tapped last -> the ones before it
-      if (selectedFirst) { const d = (selectedStudents.includes(b.id) ? 1 : 0) - (selectedStudents.includes(a.id) ? 1 : 0); if (d) return d }
+      // Multi-sort: the column you tapped last -> the ones before it
       for (const r of [{ key: sortKey, dir: sortDir }, ...sortThen]) { const c = compareBy(r.key, r.dir, a, b); if (c) return c }
       return 0
     })
+  // While a group is selected, sorting only reorders the SELECTED students: everyone else stays
+  // exactly where they were when the selection started, and the selected ones are sorted within
+  // the slots they occupy (or as a block at the top with "Selected to top").
+  const displayStudents = (() => {
+    if (!selectedStudents.length) { selOrderSnapshot.current = null; return sortedStudents }
+    if (!selOrderSnapshot.current) selOrderSnapshot.current = sortedStudents.map(x => x.id)
+    const sel = new Set(selectedStudents)
+    const pos = new Map(selOrderSnapshot.current.map((id, i) => [id, i]))
+    const sortedSel = sortedStudents.filter(x => sel.has(x.id))
+    const base = [...sortedStudents].sort((a, b) => (pos.has(a.id) ? pos.get(a.id) : 1e9) - (pos.has(b.id) ? pos.get(b.id) : 1e9))
+    if (selectedFirst) return [...sortedSel, ...base.filter(x => !sel.has(x.id))]
+    let k = 0
+    return base.map(x => sel.has(x.id) ? sortedSel[k++] : x)
+  })()
 
   // Adhoc search
   useEffect(() => {
