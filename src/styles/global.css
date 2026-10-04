@@ -869,3 +869,37 @@ tbody tr:hover td { background: var(--bg-secondary); }
 
 /* Rope D/W/M letters: plain text in the title font (Orbitron's D looked like a box, and the Foundation letters showed as boxes) */
 .neon-home .neon-pillar .neon-rope-letter { font-family: 'Saira Condensed', sans-serif !important; font-style: italic; font-weight: 800 !important; font-size: 13px !important; color: #9A9A9A !important; background: transparent !important; text-shadow: 0 0 3px #000, 0 0 3px #000; }
+
+/* ── Test sessions (TestSession.jsx) ── */
+.ts-open-btn { width: 100%; margin: 6px 0 4px; height: 40px; font-weight: 600; }
+.ts-backdrop { position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,0.55); display: flex; align-items: flex-end; justify-content: center; }
+.ts-sheet { position: relative; width: 100%; max-width: 560px; max-height: 92vh; overflow-y: auto; box-sizing: border-box; padding: 14px 16px calc(18px + env(safe-area-inset-bottom, 0px)); border-radius: 18px 18px 0 0; background: var(--bg); color: var(--text); border-top: 3px solid #EF9F27; }
+.ts-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 17px; }
+.ts-sub { font-size: 12px; color: var(--text-tertiary); font-weight: 400; }
+.ts-label { display: block; font-size: 11px; font-weight: 700; letter-spacing: 1px; color: var(--text-tertiary); margin: 10px 0 4px; }
+.ts-input { width: 100%; box-sizing: border-box; height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--bg-secondary); color: var(--text); font-size: 15px; }
+.ts-cats { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+.ts-cats button { flex-shrink: 0; height: 34px; padding: 0 12px; border-radius: 17px; border: 1px solid var(--border-strong); background: var(--bg-secondary); color: var(--text); font-size: 13px; cursor: pointer; white-space: nowrap; font-family: inherit; }
+.ts-cats button.on { border-color: #EF9F27; background: #EF9F2722; font-weight: 700; }
+.ts-cats button b { color: #EF9F27; }
+.ts-tests { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.ts-test { padding: 10px; border-radius: 10px; background: var(--bg-secondary); border: 1px solid var(--border); }
+.ts-test-name { display: block; font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+.ts-one { display: flex; align-items: center; gap: 8px; }
+.ts-one input, .ts-sets input { width: 100px; height: 42px; box-sizing: border-box; padding: 0 10px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--bg); color: var(--text); font-size: 17px; font-weight: 600; }
+.ts-one span { font-size: 13px; color: var(--text-secondary); }
+.ts-sets { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ts-sets input { width: 76px; }
+.ts-hint { font-size: 12px; color: var(--text-tertiary); margin-top: 5px; }
+.ts-hint b { color: #1D9E75; }
+.ts-save { width: 100%; height: 48px; margin-top: 14px; justify-content: center; font-size: 15px; }
+.ts-batch { display: flex; flex-direction: column; max-height: 48vh; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px; }
+.ts-batch-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 10px; border-bottom: 1px solid var(--border); font-size: 14px; }
+.ts-batch-row input { width: 90px; height: 38px; box-sizing: border-box; padding: 0 8px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--bg-secondary); color: var(--text); font-size: 16px; font-weight: 600; }
+.ts-summary { padding: 6px 0; }
+/* PB pop-up */
+.pb-pop { position: fixed; left: 50%; top: 40%; transform: translate(-50%, -50%); z-index: 400; min-width: 260px; max-width: 90vw; padding: 16px 20px; border-radius: 14px; background: #000; color: #fff; border: 2px solid #E6B800; box-shadow: 0 0 24px #E6B800; text-align: center; animation: pbPop 0.35s ease-out; cursor: pointer; }
+.pb-pop-title { font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800; font-size: 26px; letter-spacing: 1px; color: #E6B800; margin-bottom: 6px; }
+.pb-pop-row { font-size: 14px; margin-top: 4px; }
+.pb-pop-row span { color: #9A9A9A; }
+@keyframes pbPop { 0% { transform: translate(-50%, -50%) scale(0.6); opacity: 0 } 70% { transform: translate(-50%, -50%) scale(1.06); opacity: 1 } 100% { transform: translate(-50%, -50%) scale(1) } }

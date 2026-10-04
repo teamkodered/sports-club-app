@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, Fragment } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
+import { TEST_CATEGORIES } from '../lib/testResults.js'
+import { TestSessionModal, TestBatchModal } from '../components/shared/TestSession.jsx'
 import { supabase } from '../lib/supabase.js'
 import { assignmentActiveOn, isPastAssignment, isFutureAssignment, askAssignmentDates, insertAssignment, endAssignment, setAssignmentDates, todayISO, fmtDMY } from '../lib/classAssignments.jsx'
 import { PDP_GOLD, pdpLinksFor, PdpNotes, PdpAddModal, pdpSectionKey, pdpLinkKey, pdpPillarForSection, pdpLinkForLine, pdpVisibleToAthlete, PDP_AREA_FOR_PILLAR } from '../components/shared/pdpLinks.jsx'
@@ -594,57 +596,7 @@ const STRETCH_FLOWS = [
   ]},
 ]
 
-const TEST_CATEGORIES = [
-  { key: 'jumps', label: 'Jumps', icon: '🦘', tests: [
-    { name: 'Vertical Jump (distance)', unit: 'cm' },
-    { name: 'Long Jump (distance)', unit: 'cm' },
-  ]},
-  { key: 'bleep', label: 'Bleep test', icon: '🏃', tests: [
-    { name: 'Bleep test', unit: 'level' },
-  ]},
-  { key: 'vo2max', label: 'VO2 Max', icon: '🫁', tests: [
-    { name: 'VO2 Max', unit: 'ml/kg/min' },
-  ]},
-  { key: 'grip', label: 'Grip', icon: '✊', tests: [
-    { name: 'Left Grip Test (kg)', unit: 'kg' },
-    { name: 'Right Grip Test (kg)', unit: 'kg' },
-    { name: 'Left Pinch Test - 5kg/10kg (time)', unit: 'sec' },
-    { name: 'Right Pinch Test - 5kg/10kg (time)', unit: 'sec' },
-  ]},
-  { key: 'maxlifts', label: 'Max Lifts', icon: '🏋️', tests: [
-    { name: 'Bench Press', unit: 'kg' },
-    { name: 'Shoulder Press', unit: 'kg' },
-    { name: 'Deadlift', unit: 'kg' },
-    { name: 'Squat', unit: 'kg' },
-  ]},
-  { key: 'wattbike', label: 'Watt Bike', icon: '🚴', tests: [
-    { name: 'Watt bike 10 second (output)', unit: 'W' },
-    { name: 'Watt bike 30 sec (distance)', unit: 'km' },
-    { name: 'Watt bike 1 min (distance)', unit: 'km' },
-    { name: 'Watt bike 2 min (distance)', unit: 'km' },
-    { name: 'Watt bike 3 min (distance)', unit: 'km' },
-  ]},
-  { key: 'fixedload', label: 'Fixed Load Circuit', icon: '🔴', tests: [
-    { name: 'Fixed load circuit - Red', unit: 'sec' },
-    { name: 'Fixed load circuit - Yellow', unit: 'sec' },
-    { name: 'Fixed load circuit - Green', unit: 'sec' },
-    { name: 'Fixed load circuit - Blue', unit: 'sec' },
-    { name: 'Fixed load circuit - Black', unit: 'sec' },
-  ]},
-  { key: 'stretches', label: 'Stretches', icon: '🤸', tests: [
-    { name: 'Hamstring Stretch (range)', unit: 'cm' },
-    { name: 'Box Splits Stretch (range)', unit: 'cm' },
-    { name: 'Front Splits - Left in front (range)', unit: 'cm' },
-    { name: 'Front Splits - Right in front (range)', unit: 'cm' },
-    { name: 'Shoulder flex - Right hand up (range)', unit: 'cm' },
-    { name: 'Shoulder flex - Left hand up (range)', unit: 'cm' },
-  ]},
-  { key: 'timedrun', label: 'Timed Run', icon: '🏃', tests: [
-    { name: '200m sprint', unit: 'sec' },
-    { name: '1600m time trial', unit: 'sec' },
-    { name: '4800m time trial', unit: 'sec' },
-  ]},
-]
+// Test list lives in src/lib/testResults.js (shared by the athlete app and coach view)
 
 const MENTALITY_QUESTIONS = [
   { key: 'meditation',      label: 'Meditation',       icon: '🧘' },
@@ -2873,6 +2825,8 @@ function OpponentQuickNoteForm({ onSave, showShareToggle, disabled }) {
 }
 
 export default function AthleteProfiles() {
+  const [testSessionOpen, setTestSessionOpen] = useState(false)
+  const [testBatchOpen, setTestBatchOpen] = useState(false)
   const { profile, isAdmin, registerAccess } = useAuth()
   const navigate = useNavigate()
   // Quick logger (pick another athlete to log a session for without
@@ -6549,6 +6503,7 @@ export default function AthleteProfiles() {
               )}
             </div>
 
+            {testBatchOpen && <TestBatchModal onClose={() => setTestBatchOpen(false)} />}
             {/* Team KR / KRBA -- slides down the full Registers page for that
                 register type in place of the dashboard below, rather than
                 the small athlete-picker dropdown this used to open. */}
@@ -6559,6 +6514,7 @@ export default function AthleteProfiles() {
                   👥 Team KR {showKrRegister ? '▲' : '▼'}
                 </button>
               ) : <span />}
+              <button className="btn btn-sm" onClick={() => setTestBatchOpen(true)}>📋 Group test entry</button>
               {(!registerAccess?.types || registerAccess.types.includes('krba')) && (
                 <button className={showKrbaRegister ? 'btn btn-sm btn-primary' : 'btn btn-sm'}
                   onClick={() => { setShowKrbaRegister(v => !v); setShowKrRegister(false) }}>
@@ -9580,6 +9536,10 @@ export default function AthleteProfiles() {
                     <CoachSectionProgressBars sectionKey="physical" ropes="br" />
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showPhysicalSection ? '▲' : '▼'}</span>
                   </button>
+                    {showPhysicalSection && (
+                      <button type="button" className="btn btn-sm ts-open-btn" onClick={() => setTestSessionOpen(true)}>📋 Test session — log results</button>
+                    )}
+                    {testSessionOpen && selected?.id && <TestSessionModal studentId={selected?.id} studentName={`${selected?.members?.first_name || ''} ${selected?.members?.last_name || ''}`.trim()} onClose={() => setTestSessionOpen(false)} onSaved={async () => { const { data } = await supabase.from('fit2fight_sessions').select('*').eq('student_id', selected.id).order('session_date', { ascending: false }); setF2fData(data || []) }} />}
 
                   <div className={(pillarView['physical'] || 'questions') === 'pdp' ? 'pv-pdp' : undefined} style={{
                     overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
