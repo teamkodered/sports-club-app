@@ -936,3 +936,7 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .reg-m-newreason-row b.neg { color: #E24B4A; }
 .reg-m-newreason-row .add { width: auto; margin-left: auto; padding: 0 14px; font-size: 14px; font-weight: 700; background: #E6B800; border-color: #E6B800; color: #1A1206; }
 .reg-m-newreason label { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 12px; }
+.reg-m-sortchain { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; font-size: 12px; color: var(--text-secondary); margin: 0 2px 6px; }
+.reg-m-sortchain button { margin-left: 6px; width: 24px; height: 24px; border-radius: 12px; border: 1px solid var(--border-strong); background: var(--bg-secondary); color: var(--text); cursor: pointer; font-size: 11px; }
+.reg-m-sortrank { font-size: 9px; color: #378ADD; margin-left: 1px; }
+.reg-m-bulk-top button.on { background: #378ADD; border-color: #378ADD; color: #fff; }

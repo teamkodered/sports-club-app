@@ -261,6 +261,8 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   const [pointsPanelFor, setPointsPanelFor] = useState(null) // student currently open in the points-for-this-day panel
   const [search, setSearch]             = useState('')
   const [sortKey, setSortKey]           = useState('first_name')
+  const [sortThen, setSortThen]         = useState([])      // tie-breaker sorts (previously tapped columns)
+  const [selectedFirst, setSelectedFirst] = useState(false) // selected students to the top
   const [sortDir, setSortDir]           = useState('asc')
   const [groupFilter, setGroupFilter]   = useState('') // '' = all groups; else 'KR'|'PTs'|'Leader'|'Coach'|'PKA'|'KRBA'
   const [groupFilterOpen, setGroupFilterOpen] = useState(false)
@@ -366,6 +368,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   const [mShowTable, setMShowTable] = useSyncedPreference('register_phone_table', false) // phone: show the full table instead of cards
   const mLongPress = useRef(null)
   const mLongPressFired = useRef(false)
+  const mLastSel = useRef(null)   // last card added to the selection (hold another to select the range between)
   const cardSwipe = useRef(null)
   // Register rows: mini photo or initials in the avatar (remembered on this device)
   const showRowPhotos = true // photos always on for now (the photos/initials toggle was removed)
@@ -755,9 +758,50 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     }
   }, [date, classFilter, regType])
 
+  // One sort rule (column + direction); the register sorts by a chain of these
+  function compareBy(key, dir, a, b) {
+      let aVal, bVal
+      const am = a.members, bm = b.members
+      switch(key) {
+        case 'first_name':   aVal = am?.first_name || ''; bVal = bm?.first_name || ''; break
+        case 'last_name':    aVal = am?.last_name || '';  bVal = bm?.last_name || '';  break
+        case 'age':          aVal = am?.date_of_birth || ''; bVal = bm?.date_of_birth || ''; break
+        case 'house':        aVal = am?.houses?.name || ''; bVal = bm?.houses?.name || ''; break
+        case 'grade':        aVal = a.pka_belt || ''; bVal = b.pka_belt || ''; break
+        case 'house_points': aVal = a.house_points || 0; bVal = b.house_points || 0; return dir === 'asc' ? aVal - bVal : bVal - aVal
+        case 'competition_team':  aVal = a.competition_team || ''; bVal = b.competition_team || ''; break
+        case 'discipline_codes':  aVal = a.discipline_codes || ''; bVal = b.discipline_codes || ''; break
+        case 'weight_kg':    aVal = a.weight_kg || 0; bVal = b.weight_kg || 0; return dir === 'asc' ? aVal - bVal : bVal - aVal
+        case 'age_category_kr':   aVal = a.age_category_kr || a.age_category || ''; bVal = b.age_category_kr || b.age_category || ''; break
+        case 'in_comp':      aVal = a.in_comp ? 1 : 0; bVal = b.in_comp ? 1 : 0; return dir === 'asc' ? aVal - bVal : bVal - aVal
+        // "Record" sorts by wins -- the clearest single number to rank by
+        // out of wins/losses/draws
+        case 'wins':         aVal = a.wins || 0; bVal = b.wins || 0; return dir === 'asc' ? aVal - bVal : bVal - aVal
+        case 'groups': {
+          const g = x => [x.is_kr && 'KR', x.is_pts && 'PTs', x.is_leader && 'Leader', x.is_coach && 'Coach'].filter(Boolean).join(',')
+          aVal = g(a); bVal = g(b); break
+        }
+        case 'attendance': {
+          const rank = id => { const v = attendance[id]; return v === 'full_kit' ? 2 : v === 'attended' ? 1 : 0 }
+          aVal = rank(a.id); bVal = rank(b.id); return dir === 'asc' ? aVal - bVal : bVal - aVal
+        }
+        case 'media_restriction': aVal = a.media_restriction || ''; bVal = b.media_restriction || ''; break
+        case 'att_last': aVal = attendanceStats[a.id]?.last || ''; bVal = attendanceStats[b.id]?.last || ''; break
+        case 'att_total': aVal = attendanceStats[a.id]?.total ?? 0; bVal = attendanceStats[b.id]?.total ?? 0; return dir === 'asc' ? aVal - bVal : bVal - aVal
+        case 'house_points': aVal = a.house_points || 0; bVal = b.house_points || 0; return dir === 'asc' ? aVal - bVal : bVal - aVal
+        case 'start_date': aVal = am?.joined_date || attendanceStats[a.id]?.first || ''; bVal = bm?.joined_date || attendanceStats[b.id]?.first || ''; break
+        case 'att_pct': aVal = attendanceStats[a.id]?.pct ?? -1; bVal = attendanceStats[b.id]?.pct ?? -1; return dir === 'asc' ? aVal - bVal : bVal - aVal
+        case 'weight_current': aVal = weightDataByStudent[a.id]?.current ?? a.weight_kg ?? 0; bVal = weightDataByStudent[b.id]?.current ?? b.weight_kg ?? 0; return dir === 'asc' ? aVal - bVal : bVal - aVal
+        default:             aVal = ''; bVal = ''
+      }
+      return dir === 'asc' ? String(aVal).localeCompare(String(bVal)) : String(bVal).localeCompare(String(aVal))
+  }
+
   function toggleSort(key) {
-    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
-    else { setSortKey(key); setSortDir('asc') }
+    if (sortKey === key) { setSortDir(d => d === 'asc' ? 'desc' : 'asc'); return }
+    // the previous column becomes the tie-breaker (keeps the last 2), so you can sort by several at once
+    setSortThen(prev => [{ key: sortKey, dir: sortDir }, ...prev.filter(r => r.key !== key && r.key !== sortKey)].slice(0, 2))
+    setSortKey(key); setSortDir('asc')
   }
 
   function calcAge(dob) {
@@ -832,41 +876,10 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     })
     .filter(s => matchesSearch(search, s.members?.first_name, s.members?.last_name, s.student_ref))
     .sort((a, b) => {
-      let aVal, bVal
-      const am = a.members, bm = b.members
-      switch(sortKey) {
-        case 'first_name':   aVal = am?.first_name || ''; bVal = bm?.first_name || ''; break
-        case 'last_name':    aVal = am?.last_name || '';  bVal = bm?.last_name || '';  break
-        case 'age':          aVal = am?.date_of_birth || ''; bVal = bm?.date_of_birth || ''; break
-        case 'house':        aVal = am?.houses?.name || ''; bVal = bm?.houses?.name || ''; break
-        case 'grade':        aVal = a.pka_belt || ''; bVal = b.pka_belt || ''; break
-        case 'house_points': aVal = a.house_points || 0; bVal = b.house_points || 0; return sortDir === 'asc' ? aVal - bVal : bVal - aVal
-        case 'competition_team':  aVal = a.competition_team || ''; bVal = b.competition_team || ''; break
-        case 'discipline_codes':  aVal = a.discipline_codes || ''; bVal = b.discipline_codes || ''; break
-        case 'weight_kg':    aVal = a.weight_kg || 0; bVal = b.weight_kg || 0; return sortDir === 'asc' ? aVal - bVal : bVal - aVal
-        case 'age_category_kr':   aVal = a.age_category_kr || a.age_category || ''; bVal = b.age_category_kr || b.age_category || ''; break
-        case 'in_comp':      aVal = a.in_comp ? 1 : 0; bVal = b.in_comp ? 1 : 0; return sortDir === 'asc' ? aVal - bVal : bVal - aVal
-        // "Record" sorts by wins -- the clearest single number to rank by
-        // out of wins/losses/draws
-        case 'wins':         aVal = a.wins || 0; bVal = b.wins || 0; return sortDir === 'asc' ? aVal - bVal : bVal - aVal
-        case 'groups': {
-          const g = x => [x.is_kr && 'KR', x.is_pts && 'PTs', x.is_leader && 'Leader', x.is_coach && 'Coach'].filter(Boolean).join(',')
-          aVal = g(a); bVal = g(b); break
-        }
-        case 'attendance': {
-          const rank = id => { const v = attendance[id]; return v === 'full_kit' ? 2 : v === 'attended' ? 1 : 0 }
-          aVal = rank(a.id); bVal = rank(b.id); return sortDir === 'asc' ? aVal - bVal : bVal - aVal
-        }
-        case 'media_restriction': aVal = a.media_restriction || ''; bVal = b.media_restriction || ''; break
-        case 'att_last': aVal = attendanceStats[a.id]?.last || ''; bVal = attendanceStats[b.id]?.last || ''; break
-        case 'att_total': aVal = attendanceStats[a.id]?.total ?? 0; bVal = attendanceStats[b.id]?.total ?? 0; return sortDir === 'asc' ? aVal - bVal : bVal - aVal
-        case 'house_points': aVal = a.house_points || 0; bVal = b.house_points || 0; return sortDir === 'asc' ? aVal - bVal : bVal - aVal
-        case 'start_date': aVal = am?.joined_date || attendanceStats[a.id]?.first || ''; bVal = bm?.joined_date || attendanceStats[b.id]?.first || ''; break
-        case 'att_pct': aVal = attendanceStats[a.id]?.pct ?? -1; bVal = attendanceStats[b.id]?.pct ?? -1; return sortDir === 'asc' ? aVal - bVal : bVal - aVal
-        case 'weight_current': aVal = weightDataByStudent[a.id]?.current ?? a.weight_kg ?? 0; bVal = weightDataByStudent[b.id]?.current ?? b.weight_kg ?? 0; return sortDir === 'asc' ? aVal - bVal : bVal - aVal
-        default:             aVal = ''; bVal = ''
-      }
-      return sortDir === 'asc' ? String(aVal).localeCompare(String(bVal)) : String(bVal).localeCompare(String(aVal))
+      // Multi-sort: selected-to-top (optional) -> the column you tapped last -> the ones before it
+      if (selectedFirst) { const d = (selectedStudents.includes(b.id) ? 1 : 0) - (selectedStudents.includes(a.id) ? 1 : 0); if (d) return d }
+      for (const r of [{ key: sortKey, dir: sortDir }, ...sortThen]) { const c = compareBy(r.key, r.dir, a, b); if (c) return c }
+      return 0
     })
 
   // Adhoc search
@@ -1723,7 +1736,20 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
             {pt.label} <b>{pt.points > 0 ? '+' : ''}{pt.points}</b>
           </button>
         )
-        const toggleSel = id => { if (navigator.vibrate) navigator.vibrate(10); setSelectedStudents(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]) }
+        const toggleSel = id => {
+          if (navigator.vibrate) navigator.vibrate(10)
+          setSelectedStudents(prev => { if (prev.includes(id)) return prev.filter(x => x !== id); mLastSel.current = id; return [...prev, id] })
+        }
+        // Hold while selecting: add every card between the last picked one and this one (in the order shown)
+        const selectRangeTo = id => {
+          const from = list.findIndex(x => x.id === mLastSel.current), to = list.findIndex(x => x.id === id)
+          if (from < 0 || to < 0) return toggleSel(id)
+          const [lo, hi] = from < to ? [from, to] : [to, from]
+          const ids = list.slice(lo, hi + 1).map(x => x.id)
+          if (navigator.vibrate) navigator.vibrate([15, 30, 15])
+          setSelectedStudents(prev => [...new Set([...prev, ...ids])])
+          mLastSel.current = id
+        }
         const stepDate = d => { const x = new Date(date + 'T12:00:00'); x.setDate(x.getDate() + d); setDate(toLocalISO(x)) }
         const dateLabel = new Date(date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
         const pctColour = p => p == null ? 'var(--text-tertiary)' : p >= 50 ? '#1D9E75' : p > 0 ? '#EF9F27' : '#E24B4A'
@@ -1732,7 +1758,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
           return (
             <button type="button" onClick={() => toggleSort(k)} aria-label={`Sort by ${label.toLowerCase()}`} aria-pressed={active}
               className="reg-m-sort" style={{ flex: grow ? '1 1 auto' : '0 0 auto', color: active ? 'var(--text)' : 'var(--text-tertiary)' }}>
-              {label}
+              {label}{(() => { const i = sortThen.findIndex(r => r.key === k); return i >= 0 ? <sup className="reg-m-sortrank">{i + 2}</sup> : null })()}
               <svg width="7" height="12" viewBox="0 0 7 12" aria-hidden="true">
                 <path d="M3.5 0L7 4.5H0z" fill={active && sortDir === 'asc' ? 'var(--text)' : '#666'} />
                 <path d="M3.5 12L0 7.5H7z" fill={active && sortDir === 'desc' ? 'var(--text)' : '#666'} />
@@ -1862,6 +1888,13 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
             <div className="reg-m-dots" role="tablist" aria-label="Detail columns">
               {(isMainReg ? [0, 1, 2] : [0, 1, 2, 3]).map(i => <button key={i} type="button" role="tab" aria-selected={mPage === i} aria-label={isMainReg ? (['Age, attendance, media', 'Grade, house, points', 'Sessions, last in, start date'][i]) : (['Age, weight, attendance', 'Level, record, weight trend', 'Sessions, last in, start date', 'House, points, media'][i])} className={mPage === i ? 'on' : ''} onClick={() => setMPage(i)} />)}
             </div>
+            {sortThen.length > 0 && (
+              <div className="reg-m-sortchain">
+                Sorted by <b>{({ first_name: 'Name', age: 'Age', weight_current: 'Weight', att_pct: 'Attend.', media_restriction: 'Media', grade: 'Grade', house: 'House', att_last: 'Last in', wins: 'Record', attendance: 'In/out', last_name: 'Surname' })[sortKey] || sortKey} {sortDir === 'asc' ? '↑' : '↓'}</b>
+                {sortThen.map(r => <span key={r.key}> → {({ first_name: 'Name', age: 'Age', weight_current: 'Weight', att_pct: 'Attend.', media_restriction: 'Media', grade: 'Grade', house: 'House', att_last: 'Last in', wins: 'Record', attendance: 'In/out', last_name: 'Surname' })[r.key] || r.key} {r.dir === 'asc' ? '↑' : '↓'}</span>)}
+                <button type="button" onClick={() => setSortThen([])} aria-label="Just sort by the first column">✕</button>
+              </div>
+            )}
             <div className="reg-m-headers">
               <SortBtn k="first_name" label="NAME" grow />
               {isMainReg
@@ -1907,7 +1940,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                     onTouchStart={() => {
                       if (pmOn) return   // Points mode: taps award, no hold-to-select
                       // Hold selects -- also while already selecting (tap works too)
-                      mLongPress.current = setTimeout(() => { mLongPressFired.current = true; if (navigator.vibrate) navigator.vibrate(25); toggleSel(st.id) }, 450)
+                      mLongPress.current = setTimeout(() => { mLongPressFired.current = true; if (navigator.vibrate) navigator.vibrate(25); if (selecting && mLastSel.current && mLastSel.current !== st.id) selectRangeTo(st.id); else toggleSel(st.id) }, 450)
                     }}
                     onTouchEnd={() => { clearTimeout(mLongPress.current); mLongPress.current = null }}
                     onTouchMove={() => { clearTimeout(mLongPress.current); mLongPress.current = null }}
@@ -2057,7 +2090,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                   </div>
                 )
               })}
-              <div className="reg-m-hint">Tap the button: Mark → In → Kit → clear · Initials / name = details · ATH = athlete profile · Hold to select, then tap to add more · Swipe for more details</div>
+              <div className="reg-m-hint">Tap the button: Mark → In → Kit → clear · Initials / name = details · ATH = athlete profile · Hold to select, tap to add one, hold another to add everyone in between · Swipe for more details</div>
             </div>
 
             {/* Bulk bar -- only while selecting */}
@@ -2068,7 +2101,8 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                   <button type="button" onClick={() => setSelectedStudents(list.map(x => x.id))}>All</button>
                   <button type="button" onClick={() => setSelectedStudents(list.filter(x => attendance[x.id] && attendance[x.id] !== 'none').map(x => x.id))}>All in</button>
                   <button type="button" onClick={() => setSelectedStudents(list.filter(x => attendance[x.id] === 'full_kit').map(x => x.id))}>All kit</button>
-                  <button type="button" onClick={() => setSelectedStudents([])}>Cancel</button>
+                  <button type="button" className={selectedFirst ? 'on' : ''} aria-pressed={selectedFirst} onClick={() => setSelectedFirst(v => !v)}>Selected to top</button>
+                  <button type="button" onClick={() => { setSelectedStudents([]); setSelectedFirst(false) }}>Cancel</button>
                 </div>
                 <div className="reg-m-reasons">
                   {reasonsByUse.slice(0, 3).map(pt => <ReasonChip key={pt.label} pt={pt} onPick={r => quickAward([...selectedStudents], r)} />)}
