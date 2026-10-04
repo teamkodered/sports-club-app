@@ -83,9 +83,16 @@ export default function LeaguePublic() {
 
       const [{ data: h }, pts, { data: studentsData }] = await Promise.all([
         supabase.from('houses').select('*'),
-        fetchAllRows(() => supabase.from('points_log')
-          .select('points_awarded, point_scope, student_id')
-          .gte('awarded_at', resolvedFrom).lte('awarded_at', resolvedTo + 'T23:59:59')),
+        // Points come from kc_public_league_points (points only, no reasons/notes);
+        // falls back to the table read until that function exists
+        (async () => {
+          const args = { p_from: resolvedFrom, p_to: resolvedTo + 'T23:59:59' }
+          const probe = await supabase.rpc('kc_public_league_points', args).range(0, 0)
+          if (!probe.error) return fetchAllRows(() => supabase.rpc('kc_public_league_points', args))   // paged, like the table read
+          return fetchAllRows(() => supabase.from('points_log')
+            .select('points_awarded, point_scope, student_id')
+            .gte('awarded_at', resolvedFrom).lte('awarded_at', resolvedTo + 'T23:59:59'))
+        })(),
         // Uses a SECURITY DEFINER RPC rather than a raw table read --
         // students also holds medical/guardian data that must stay
         // locked down from anonymous public access, so this function

@@ -1856,9 +1856,7 @@ export default function AthleteApp() {
         // to target the wrong row (or the wrong day) after a reload.
         todaysSessionIdRef.current = (sess || []).find(s2 => s2.session_date === new Date().toISOString().split('T')[0])?.id ?? null
 
-        const { data: allAtt } = await supabase.from('attendance')
-          .select('student_id, session_date, attendance_type, students(discipline, class_schedule, class_time)')
-        setAllAttendance(allAtt || [])
+        // (removed: a read of every athlete's attendance that nothing on this page used)
 
         supabase.from('student_class_assignments').select('*, classes(*)')
           .eq('student_id', s.id)
@@ -1930,15 +1928,26 @@ export default function AthleteApp() {
         supabase.from('athlete_reports').select('*').eq('student_id', s.id).order('sent_at', { ascending: false })
           .then(({ data, error }) => { if (!error) setMyReports(data || []) })
 
-        const [{ data: houseData }, { data: rankData }] = await Promise.all([
+        // Ranks come from kc_athlete_rank_points (totals + house only -- no names or
+        // contact details). Falls back to the old direct reads if that function isn't there yet.
+        const [{ data: houseData }, rankRpc] = await Promise.all([
           supabase.from('houses').select('id, name, points').order('points', { ascending: false }),
-          supabase.from('students').select('id, house_points, members(houses(name))')
-            .or('is_kr.eq.true,is_pts.eq.true,discipline.eq.KRBA'),
+          supabase.rpc('kc_athlete_rank_points'),
         ])
         setHouses(houseData || [])
-        setRankList(rankData || [])
+        let rankData = null
+        if (!rankRpc.error && rankRpc.data) {
+          rankData = rankRpc.data.map(r => ({ id: r.student_id, house_points: r.house_points, members: { houses: { name: r.house_name } } }))
+          setRankList(rankData)
+          setTruePointTotals(Object.fromEntries(rankRpc.data.map(r => [r.student_id, Number(r.total_points) || 0])))
+        } else {
+          const { data: rd } = await supabase.from('students').select('id, house_points, members(houses(name))')
+            .or('is_kr.eq.true,is_pts.eq.true,discipline.eq.KRBA')
+          rankData = rd
+          setRankList(rankData || [])
+        }
 
-        if (rankData?.length) {
+        if (rankRpc.error && rankData?.length) {
           const { data: ptsLog } = await supabase.from('points_log').select('student_id, points_awarded')
             .in('student_id', rankData.map(r => r.id))
           const totals = {}
@@ -8801,6 +8810,12 @@ function AthleteSearch() {
   useEffect(() => {
     if (query.length < 2) { setResults([]); return }
     const t = setTimeout(async () => {
+      const { data: found, error: rpcErr } = await supabase.rpc('kc_search_athletes', { q: query })
+      if (!rpcErr) {
+        setResults((found || []).map(r => ({ id: r.id, student_ref: r.student_ref, pka_belt: r.pka_belt, krba_level: r.krba_level, discipline: r.discipline, house_name: r.house_name, member_id: r.member_id,
+          members: { id: r.member_id, first_name: r.first_name, last_name: r.last_name, birth_year: r.birth_year, date_of_birth: r.birth_year ? `${r.birth_year}-01-01` : null } })))
+        return
+      }
       const { data: memberData } = await supabasePublic
         .from('members').select('id, first_name, last_name, date_of_birth')
         .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%`)
@@ -8871,7 +8886,7 @@ function AthleteSearch() {
               <div style={{ fontSize: 14, fontWeight: 600 }}>{m?.first_name} {m?.last_name}</div>
               <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
                 {s.student_ref} · {s.discipline} · {s.pka_belt || s.krba_level || '—'}
-                {m?.date_of_birth ? ` · DOB ${new Date(m.date_of_birth).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
+                {m?.birth_year ? ` · born ${m.birth_year}` : m?.date_of_birth ? ` · DOB ${new Date(m.date_of_birth).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
               </div>
             </div>
             <button className="btn btn-primary btn-sm" onClick={() => claimProfile(s)} disabled={claimingId === s.id}>
