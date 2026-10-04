@@ -1914,8 +1914,14 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                     onContextMenu={e => e.preventDefault()}>
                     <div className="reg-m-card-main">
                       {isSel ? <span className="reg-m-tick" aria-label="Selected">✓</span> : (
-                        <button type="button" className={`reg-m-avatar${open ? ' open' : ''}`} aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} details for ${m?.first_name} ${m?.last_name}`}
-                          onClick={e => { if (selecting) return; e.stopPropagation(); setMExpanded(open ? null : st.id) }}>{showRowPhotos && st.photo_url ? <img src={st.photo_url} alt="" loading="lazy" className="reg-m-avatar-img" /> : initials}</button>
+                        <button type="button" className={`reg-m-avatar${open ? ' open' : ''}`} aria-expanded={open} aria-label={showRowPhotos && st.photo_url ? `Show ${m?.first_name}'s photo` : `${open ? 'Hide' : 'Show'} details for ${m?.first_name} ${m?.last_name}`}
+                          onClick={e => {
+                            if (selecting || pmOn) return
+                            e.stopPropagation()
+                            // Photo: tap shows it large (tap again to close). No photo: initials open the details as before.
+                            if (showRowPhotos && st.photo_url) setEnlargedPhoto(st.photo_url)
+                            else setMExpanded(open ? null : st.id)
+                          }}>{showRowPhotos && st.photo_url ? <img src={st.photo_url} alt="" loading="lazy" className="reg-m-avatar-img" /> : initials}</button>
                       )}
                       <div className="reg-m-body">
                         <div className="reg-m-name">
@@ -1999,7 +2005,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                             </>
                           ) : (
                             <>
-                              <StudentProfile student={st} isAdmin={isAdmin} embedded={true} onClose={() => setMExpanded(null)}
+                              <StudentProfile student={st} isAdmin={isAdmin} embedded={true} hideIdentity={true} onClose={() => setMExpanded(null)}
                                 swipeTabs omitTabs={['contact']} onSwipeBeforeFirst={() => setMCardTab(t => ({ ...t, [st.id]: 'contact' }))} />
                               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
                                 <button type="button" className="btn btn-sm" onClick={() => navigate(studentProfileLink(st))}>Full profile →</button>
@@ -2042,7 +2048,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                               {renderContactCard(st, { showProfileButton: false })}
                             </>
                           ) : (
-                            <StudentProfile student={st} isAdmin={isAdmin} embedded={true} onClose={() => setMExpanded(null)}
+                            <StudentProfile student={st} isAdmin={isAdmin} embedded={true} hideIdentity={true} onClose={() => setMExpanded(null)}
                               swipeTabs omitTabs={['contact']} onSwipeBeforeFirst={() => setMCardTab(t => ({ ...t, [st.id]: 'contact' }))} />
                           )}
                         </div>
