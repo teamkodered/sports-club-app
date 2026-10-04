@@ -469,6 +469,13 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   const [fightersMenuOpen, setFightersMenuOpen] = useState(false)
   const [fightersCopied, setFightersCopied] = useState('')
   const [saveNewReason, setSaveNewReason] = useState(true)
+  const [pmOn, setPmOn] = useState(false)               // Points mode: tap a card to award pmReason
+  const [pmReason, setPmReason] = useState(null)
+  const [pmPickerOpen, setPmPickerOpen] = useState(false)
+  const [pmSearch, setPmSearch] = useState('')
+  const [lastAward, setLastAward] = useState(null)      // { label, points, entries, names } -- Undo bar
+  const undoTimer = useRef(null)
+  const [reasonUsage, setReasonUsage] = useSyncedPreference('register_reason_usage', {}) // learns each coach's most-used reasons
   // Total sessions / Last attended / Attendance % for the chosen range.
   // Attendance % is each student's OWN rate -- days attended out of days
   // attended + missed -- using the same rules as the attendance calendar
@@ -1252,6 +1259,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
 
   async function submitPoints(studentIds, points) {
     setSaving(true)
+    const savedEntries = []   // returned so quick awards can be undone
     const total = points.reduce((s, p) => s + p.points, 0)
     const isChamp = points.some(p => p.label === 'Class Champ')
     for (const sid of studentIds) {
@@ -1289,11 +1297,15 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
       }
 
       for (const pt of points) {
-        const { error: logError } = await supabase.from('points_log').insert({
+        const { data: logRow, error: logError } = await supabase.from('points_log').insert({
           student_id: sid, point_type: pt.label,
           points_awarded: pt.points, point_scope: 'both',
           awarded_at: new Date(date).toISOString(),
-        })
+        }).select('id, student_id, point_type, points_awarded, point_scope, note, awarded_at').single()
+        if (logRow) {
+          savedEntries.push(logRow)
+          setPointsByStudent(prev => ({ ...prev, [sid]: [...(prev[sid] || []), logRow] }))
+        }
         if (logError) {
           alert(`Error saving "${pt.label}" for ${s.members?.first_name}: ${logError.message}`)
           setSaving(false)
@@ -1323,6 +1335,50 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     ))
     setAwardingFor(null); setMultiAward(false); setSelectedStudents([]); setSelectedPoints([]); setPointSearch('')
     setSaving(false)
+    return savedEntries
+  }
+
+  // ── Quick awards (phone register): Points mode, reason chips, group undo ──
+  async function quickAward(studentIds, pt) {
+    if (!studentIds.length || !pt) return
+    if (navigator.vibrate) navigator.vibrate(15)
+    studentIds.forEach(id => floatPoints(id, pt.points))
+    const entries = await submitPoints(studentIds, [{ label: pt.label, points: pt.points }])
+    setReasonUsage(u => ({ ...(u || {}), [pt.label]: ((u || {})[pt.label] || 0) + studentIds.length }))
+    if (entries?.length) {
+      const names = studentIds.map(id => students.find(x => x.id === id)?.members?.first_name).filter(Boolean)
+      clearTimeout(undoTimer.current)
+      setLastAward({ label: pt.label, points: pt.points, entries, names })
+      undoTimer.current = setTimeout(() => setLastAward(null), 6000)
+    }
+  }
+  function floatPoints(studentId, pts) {
+    const card = document.getElementById(`regm-${studentId}`)
+    if (!card) return
+    const el = document.createElement('span')
+    el.className = 'reg-m-float' + (pts < 0 ? ' neg' : '')
+    el.textContent = `${pts > 0 ? '+' : ''}${pts}`
+    card.appendChild(el)
+    setTimeout(() => el.remove(), 900)
+  }
+  async function undoLastAward() {
+    const a = lastAward
+    if (!a) return
+    clearTimeout(undoTimer.current); setLastAward(null)
+    const { error } = await supabase.from('points_log').delete().in('id', a.entries.map(e => e.id))
+    if (error) { alert('Could not undo: ' + error.message); return }
+    const byStudent = {}
+    a.entries.forEach(e => { byStudent[e.student_id] = (byStudent[e.student_id] || 0) + e.points_awarded })
+    for (const [sid, total] of Object.entries(byStudent)) {
+      await supabase.rpc('adjust_student_points', { p_student_id: sid, p_house_delta: -total, p_individual_delta: -total })
+      const st = students.find(x => x.id === sid)
+      const houseName = st?.house_name || st?.members?.houses?.name
+      if (houseName && total > 0) await supabase.rpc('adjust_house_points', { p_house_name: houseName, p_delta: -total })
+    }
+    const ids = new Set(a.entries.map(e => e.id))
+    setPointsByStudent(prev => Object.fromEntries(Object.entries(prev).map(([k, list]) => [k, (list || []).filter(e => !ids.has(e.id))])))
+    setStudents(prev => prev.map(x => byStudent[x.id] ? { ...x, house_points: Math.max(0, (x.house_points || 0) - byStudent[x.id]), individual_points: Math.max(0, (x.individual_points || 0) - byStudent[x.id]) } : x))
+    if (navigator.vibrate) navigator.vibrate(10)
   }
 
   function togglePoint(pt) {
@@ -1660,6 +1716,12 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
         const list = displayStudents.filter(x => mFilter === 'all' ? true : mFilter === 'in' ? (attendance[x.id] && attendance[x.id] !== 'none') : !(attendance[x.id] && attendance[x.id] !== 'none'))
         const selecting = selectedStudents.length > 0
         const isMainReg = !initialRegType   // standalone Registers page (not the Athlete Profile's embedded register)
+        const reasonsByUse = [...pointTypes].map((pt, i) => ({ pt, i })).sort((a, b) => ((reasonUsage || {})[b.pt.label] || 0) - ((reasonUsage || {})[a.pt.label] || 0) || a.i - b.i).map(x => x.pt)
+        const ReasonChip = ({ pt, onPick, on }) => (
+          <button type="button" className={`reg-m-reason${on ? ' on' : ''}${pt.points < 0 ? ' neg' : ''}`} onClick={() => onPick(pt)}>
+            {pt.label} <b>{pt.points > 0 ? '+' : ''}{pt.points}</b>
+          </button>
+        )
         const toggleSel = id => { if (navigator.vibrate) navigator.vibrate(10); setSelectedStudents(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]) }
         const stepDate = d => { const x = new Date(date + 'T12:00:00'); x.setDate(x.getDate() + d); setDate(toLocalISO(x)) }
         const dateLabel = new Date(date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
@@ -1727,6 +1789,9 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                 </label>
                 <button type="button" aria-label="Next day" onClick={() => stepDate(1)}>›</button>
               </div>
+              <button type="button" className={`reg-m-icon reg-m-text${pmOn ? ' reg-m-pm-on' : ''}`} aria-pressed={pmOn}
+                onClick={() => { setSelectedStudents([]); setMExpanded(null); setPmOn(v => !v); if (!pmReason) setPmPickerOpen(true) }}
+                title="Points mode: pick a reason, then tap students to award it">⭐ Points</button>
               <button type="button" className="reg-m-icon reg-m-text" onClick={() => setMShowTable(true)} title="Show the full table (all columns and editing)">Table</button>
               <button type="button" className="reg-m-icon" aria-label="Register settings" onClick={() => setMSettingsOpen(true)}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12" /><circle cx="16" cy="6" r="2" /><circle cx="10" cy="12" r="2" /><circle cx="18" cy="18" r="2" /></svg>
@@ -1740,6 +1805,28 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
               <span className="reg-m-count-bar"><span style={{ width: `${total ? (kitCount / total) * 100 : 0}%`, background: '#EF9F27' }} /><span style={{ width: `${total ? ((inCount - kitCount) / total) * 100 : 0}%`, background: '#1D9E75' }} /></span>
               <span className="reg-m-count-kit">{kitCount} kit</span>
             </button>
+
+            {pmOn && (
+              <div className="reg-m-pm">
+                <div className="reg-m-pm-head">
+                  <span>{pmReason ? <>Tap students to give <b>{pmReason.label} {pmReason.points > 0 ? '+' : ''}{pmReason.points}</b></> : 'Pick a reason, then tap students'}</span>
+                  <button type="button" onClick={() => { setPmOn(false); setPmPickerOpen(false) }}>Done</button>
+                </div>
+                <div className="reg-m-reasons">
+                  {reasonsByUse.slice(0, 6).map(pt => <ReasonChip key={pt.label} pt={pt} on={pmReason?.label === pt.label} onPick={r => { setPmReason(r); setPmPickerOpen(false) }} />)}
+                  <button type="button" className="reg-m-reason more" onClick={() => setPmPickerOpen(v => !v)}>{pmPickerOpen ? 'Less' : 'More…'}</button>
+                </div>
+                {pmPickerOpen && (
+                  <div className="reg-m-pm-picker">
+                    <input type="search" value={pmSearch} onChange={e => setPmSearch(e.target.value)} placeholder="Search reasons…" aria-label="Search reasons" />
+                    <div className="reg-m-reasons wrap">
+                      {reasonsByUse.filter(pt => !pmSearch.trim() || `${pt.label} ${pt.group || ''}`.toLowerCase().includes(pmSearch.trim().toLowerCase()))
+                        .map(pt => <ReasonChip key={pt.label} pt={pt} on={pmReason?.label === pt.label} onPick={r => { setPmReason(r); setPmPickerOpen(false); setPmSearch('') }} />)}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             <input className="reg-m-search" type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder={`Search ${total} students`} aria-label="Search students" />
             <div className="reg-m-chips">
@@ -1785,15 +1872,17 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                 const rec = (st.wins || st.losses || st.draws) ? { w: st.wins || 0, l: st.losses || 0, d: st.draws || 0 } : null
                 const bday = getBirthdayInfo(m?.date_of_birth)
                 return (
-                  <div key={st.id} className={`reg-m-card${isSel ? ' sel' : ''}`}
+                  <div key={st.id} id={`regm-${st.id}`} className={`reg-m-card${isSel ? ' sel' : ''}${pmOn && pmReason ? ' pm' : ''}`}
                     // Long-press starts multi-select; once selecting, a normal tap anywhere
                     // on a card adds/removes it (no need to hold again). The click that
                     // follows a long-press is swallowed so it doesn't undo the selection.
                     onClick={() => {
                       if (mLongPressFired.current) { mLongPressFired.current = false; return }
+                      if (pmOn) { if (pmReason) quickAward([st.id], pmReason); else setPmPickerOpen(true); return }
                       if (selecting) toggleSel(st.id)
                     }}
                     onTouchStart={() => {
+                      if (pmOn) return   // Points mode: taps award, no hold-to-select
                       // Hold selects -- also while already selecting (tap works too)
                       mLongPress.current = setTimeout(() => { mLongPressFired.current = true; if (navigator.vibrate) navigator.vibrate(25); toggleSel(st.id) }, 450)
                     }}
@@ -1807,9 +1896,10 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                       )}
                       <div className="reg-m-body">
                         <div className="reg-m-name">
-                          {!selecting
+                          {!selecting && !pmOn
                             ? <button type="button" className="reg-m-namelink" onClick={e => { e.stopPropagation(); setMExpanded(open ? null : st.id) }}>{m?.first_name} {m?.last_name}</button>
                             : <span>{m?.first_name} {m?.last_name}</span>}
+                          {(() => { const t = (pointsByStudent[st.id] || []).reduce((n, pp) => n + (pp.points_awarded || 0), 0); return t ? <span className="reg-m-today">+{t}</span> : null })()}
                           {bday && <button type="button" className="reg-m-bday" title={bday.daysUntil === 0 ? 'Birthday today!' : 'Upcoming birthday'} onClick={e => { e.stopPropagation(); setBirthdayPopup({ name: `${m?.first_name} ${m?.last_name}`, info: bday }) }}>{bday.daysUntil === 0 ? '🥳' : '🎂'}</button>}
                         </div>
                         {isMainReg ? (mPage === 0 ? (
@@ -1946,14 +2036,27 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
               <div className="reg-m-bulk">
                 <div className="reg-m-bulk-top">
                   <b>{selectedStudents.length} selected</b>
-                  <button type="button" onClick={() => setSelectedStudents(list.map(x => x.id))}>Select all</button>
+                  <button type="button" onClick={() => setSelectedStudents(list.map(x => x.id))}>All</button>
+                  <button type="button" onClick={() => setSelectedStudents(list.filter(x => attendance[x.id] && attendance[x.id] !== 'none').map(x => x.id))}>All in</button>
+                  <button type="button" onClick={() => setSelectedStudents(list.filter(x => attendance[x.id] === 'full_kit').map(x => x.id))}>All kit</button>
                   <button type="button" onClick={() => setSelectedStudents([])}>Cancel</button>
+                </div>
+                <div className="reg-m-reasons">
+                  {reasonsByUse.slice(0, 3).map(pt => <ReasonChip key={pt.label} pt={pt} onPick={r => quickAward([...selectedStudents], r)} />)}
+                  <button type="button" className="reg-m-reason more" onClick={() => setMultiAward(true)}>More…</button>
                 </div>
                 <div className="reg-m-bulk-actions">
                   <button type="button" className="in" disabled={saving} onClick={() => markAttendance('attended')}>✓ In</button>
                   <button type="button" className="kit" disabled={saving} onClick={() => markAttendance('full_kit')}>✓ Kit</button>
                   <button type="button" disabled={saving} onClick={() => setMultiAward(true)}>+ Points</button>
                 </div>
+              </div>
+            )}
+
+            {lastAward && (
+              <div className="reg-m-undo" role="status">
+                <span><b>{lastAward.points > 0 ? '+' : ''}{lastAward.points} {lastAward.label}</b> → {lastAward.names.length === 1 ? lastAward.names[0] : `${lastAward.names.length} students`}</span>
+                <button type="button" onClick={undoLastAward}>Undo</button>
               </div>
             )}
 
