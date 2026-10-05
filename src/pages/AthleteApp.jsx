@@ -5973,6 +5973,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                             <h2 style={{ fontSize: 16, fontWeight: 600 }}>🎭 The Alter Ego Workbook</h2>
                           </div>
                           <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+                            {PdpNotes({ links: pdpInfo('mentality', 'alterEgo').links })}
 
                             <div className="card" style={{ marginBottom: 14 }}>
                               <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Part 1: Understanding the Alter Ego</h3>

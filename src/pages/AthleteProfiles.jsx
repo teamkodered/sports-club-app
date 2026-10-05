@@ -1327,7 +1327,7 @@ const PDP_MAINTAIN_SECTIONS = new Set(PDP_CATEGORY_GROUPS.map(g => g.keys.find(k
 function pdpQuestionCatalog(pillar) {
   if (pillar === 'mentality') {
     const typesFor = { meditation: MEDITATION_CATEGORIES.flatMap(c => c.types.map(t => t.name)), visualisation: VISUALISATION_CATEGORIES.flatMap(c => c.types.map(t => t.name)), activeRecovery: ACTIVE_RECOVERY_OPTIONS }
-    return MENTALITY_QUESTIONS.filter(q => q.key !== 'alterEgo').map(q => ({ q: q.key, label: q.label, group: 'Mentality', items: [...new Set(typesFor[q.key] || [])] }))
+    return MENTALITY_QUESTIONS.map(q => ({ q: q.key, label: q.label, group: 'Mentality', items: [...new Set(typesFor[q.key] || [])] }))
   }
   if (pillar === 'tactical') return [{ q: '__videoAnalysis__', label: 'Video Analysis', group: 'Tactical', items: VIDEO_ANALYSIS_OPTIONS }, ...Object.keys(TACTICAL_CATEGORIES).map(cat => ({ q: cat, label: cat, group: 'Tactical', items: [], longItems: TACTICAL_CATEGORIES[cat] }))]
   if (pillar === 'technique') return TECHNIQUE_STYLES.flatMap(st => Object.entries(st.categories).map(([cat, items]) => ({ q: `${st.style}::${cat}`, label: cat, group: st.style, items })))
@@ -1571,6 +1571,109 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
 
   // Checking off a Maintain item removes it from Maintain and logs it
   // to the Notes tab as a dated "Completed PDP task".
+  // ---- Edit / move a PDP note (coach) --------------------------------------
+  // Press a note to edit its text and move it to any PDP section, or out of the
+  // PDP into the Notes tab as a coach note (coach only) or athlete note (visible
+  // to the athlete). Its highlight, done/checked state, timetable entry, "sent to
+  // athlete" state, question link and done-today count all move with it.
+  const [itemEditor, setItemEditor] = useState(null) // { sectionKey, text }
+  const [itemDraft, setItemDraft] = useState('')
+  const [itemDest, setItemDest] = useState('')
+  const [itemSaving, setItemSaving] = useState(false)
+  function openItemEditor(sectionKey, text) { setItemEditor({ sectionKey, text }); setItemDraft(text); setItemDest(sectionKey) }
+  const pdpArea = k => String(k || '').replace(/_(notes|maintain|work_on|what_to_do)$/, '')
+  async function movePdpItem(fromKey, oldText, toKey, newText) {
+    const N = { ...(apData?.pdp_notes || {}) }
+    const from = N[fromKey] || []
+    if (toKey === fromKey) N[fromKey] = from.map(t => t === oldText ? newText : t)
+    else {
+      N[fromKey] = from.filter(t => t !== oldText)
+      if (toKey) { const to = N[toKey] || []; if (!to.includes(newText)) N[toKey] = [...to, newText] }
+    }
+    for (const prefix of ['__highlights_', '__completed_']) {
+      const a = N[`${prefix}${fromKey}`] || []
+      if (a.includes(oldText)) {
+        N[`${prefix}${fromKey}`] = a.filter(x => x !== oldText)
+        if (toKey) N[`${prefix}${toKey}`] = [...(N[`${prefix}${toKey}`] || []).filter(x => x !== newText), newText]
+      }
+    }
+    const tf = { ...(N[`__timetable_${fromKey}`] || {}) }
+    if (tf[oldText]) {
+      const entry = tf[oldText]; delete tf[oldText]; N[`__timetable_${fromKey}`] = tf
+      if (toKey) N[`__timetable_${toKey}`] = { ...(N[`__timetable_${toKey}`] || {}), [newText]: entry }
+    }
+    const row = { student_id: student.id, pdp_notes: N }
+    const sh = { ...(apData?.pdp_shared || {}) }
+    if ((sh[fromKey] || []).includes(oldText)) {
+      sh[fromKey] = sh[fromKey].filter(x => x !== oldText)
+      if (toKey) sh[toKey] = [...(sh[toKey] || []).filter(x => x !== newText), newText]
+      row.pdp_shared = sh
+    }
+    if (apData?.pdp_links) {
+      const L = { ...apData.pdp_links }
+      const oldKey = Object.keys(L).find(k => k.endsWith(`::${oldText}`) && pdpArea(k.split('::')[0]) === pdpArea(fromKey))
+      if (oldKey) { const link = L[oldKey]; delete L[oldKey]; if (toKey) L[`${toKey}::${newText}`] = link }
+      row.pdp_links = L
+    }
+    if (apData?.pdp_done) {
+      const D = { ...apData.pdp_done }
+      const ok = `${pdpArea(fromKey)}::${oldText}`
+      if (D[ok]) { const v = D[ok]; delete D[ok]; if (toKey) D[`${pdpArea(toKey)}::${newText}`] = v }
+      row.pdp_done = D
+    }
+    const { error } = await supabase.from('athlete_profiles').upsert(row, { onConflict: 'student_id' })
+    if (error) { alert('Could not save: ' + error.message); return false }
+    setApData(a => ({ ...a, ...row }))
+    return true
+  }
+  async function saveItemEditor() {
+    if (!itemEditor) return
+    const text = itemDraft.trim()
+    if (!text) { alert('The note cannot be empty.'); return }
+    setItemSaving(true)
+    try {
+      if (itemDest === '__notes_coach' || itemDest === '__notes_athlete') {
+        const { error } = await supabase.from('athlete_notes_log').insert({ student_id: student.id, note_text: text, author_role: 'coach', visible_to_athlete: itemDest === '__notes_athlete' })
+        if (error) { alert('Could not move to Notes: ' + error.message); return }
+        if (await movePdpItem(itemEditor.sectionKey, itemEditor.text, null, text)) setItemEditor(null)
+        return
+      }
+      if (itemDest !== itemEditor.sectionKey && ((apData?.pdp_notes || {})[itemDest] || []).includes(text)) { alert('That note is already in the chosen section.'); return }
+      if (await movePdpItem(itemEditor.sectionKey, itemEditor.text, itemDest, text)) setItemEditor(null)
+    } finally { setItemSaving(false) }
+  }
+  function renderItemEditor() {
+    if (!itemEditor) return null
+    const all = [...PDP_SECTIONS, ...customSections].filter(s => !(s.label === 'Skill' || /^skill_/.test(s.key)) || s.key === itemEditor.sectionKey)
+    const labelFor = s => { const g = PDP_CATEGORY_GROUPS.find(g => g.keys.includes(s.key)); return g ? `${g.label} — ${s.label}` : s.label }
+    return (
+      <div role="dialog" aria-modal="true" onClick={() => setItemEditor(null)} style={{ position: 'fixed', inset: 0, zIndex: 470, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+        <div className="card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, padding: 18 }}>
+          <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 10 }}>Edit PDP note</h3>
+          <textarea value={itemDraft} onChange={e => setItemDraft(e.target.value)} rows={3} style={{ width: '100%', boxSizing: 'border-box', fontSize: 14, marginBottom: 10 }} />
+          <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Section</label>
+          <select value={itemDest} onChange={e => setItemDest(e.target.value)} style={{ width: '100%', fontSize: 14, marginBottom: 12 }}>
+            <optgroup label="PDP">
+              {all.map(s => <option key={s.key} value={s.key}>{labelFor(s)}{s.key === itemEditor.sectionKey ? ' (current)' : ''}</option>)}
+            </optgroup>
+            <optgroup label="Move to the Notes tab">
+              <option value="__notes_coach">📝 Coach note (coach only)</option>
+              <option value="__notes_athlete">📝 Athlete note (visible to the athlete)</option>
+            </optgroup>
+          </select>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button type="button" className="btn" onClick={() => setItemEditor(null)} style={{ flex: 1, justifyContent: 'center' }}>Cancel</button>
+            <button type="button" className="btn btn-primary" disabled={itemSaving} onClick={saveItemEditor} style={{ flex: 1, justifyContent: 'center' }}>
+              {itemSaving ? 'Saving…' : itemDest === itemEditor.sectionKey ? 'Save' : itemDest.startsWith('__notes') ? 'Move to Notes' : 'Save & move'}
+            </button>
+          </div>
+          <button type="button" onClick={() => { const sec = all.find(s => s.key === itemEditor.sectionKey); setItemEditor(null); if (sec) startEdit(sec) }}
+            style={{ marginTop: 10, background: 'none', border: 'none', padding: 0, fontSize: 11, color: 'var(--text-secondary)', textDecoration: 'underline', cursor: 'pointer' }}>Edit the whole section instead</button>
+        </div>
+      </div>
+    )
+  }
+
   async function completeMaintainItem(sectionKey, item) {
     const updated = { ...pdp, [sectionKey]: (pdp[sectionKey] || []).filter(i => i !== item) }
     const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: updated }, { onConflict: 'student_id' })
@@ -2184,15 +2287,16 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
                       } else {
                         pillClickTimer.current = setTimeout(() => {
                           pillClickTimer.current = null
-                          startEdit(section)
+                          openItemEditor(section.key, item)
                         }, 250)
                       }
                     }}
-                    title={isMaintain ? 'Click to mark complete (moves to Notes)' : !checkable ? 'Click to edit · double-click to highlight' : !sent ? 'Click to send to timetable' : done ? 'Click to mark not done' : 'Click to mark done'}
+                    title={isMaintain ? 'Click to mark complete (moves to Notes) · ✎ to edit / move' : !checkable ? 'Click to edit / move · double-click to highlight' : !sent ? 'Click to send to timetable' : done ? 'Click to mark not done' : 'Click to mark done'}
                     style={{
                       ...notePillStyle(sectionColour, section.key, item, { border: `1px solid ${section.colour}30`, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }),
                       ...(sent ? { background: sectionColour + '40', fontWeight: 600 } : {}),
                     }}>
+                    {(checkable || isMaintain) && <button type="button" aria-label="Edit or move" title="Edit / move" onClick={e => { e.stopPropagation(); openItemEditor(section.key, item) }} style={{ background: 'none', border: 'none', padding: '0 4px 0 0', cursor: 'pointer', fontSize: 11, opacity: 0.7 }}>✎</button>}
                     {isMaintain && <span style={{ marginRight: 6 }}>☐</span>}
                     {checkable && sent && <span style={{ marginRight: 6 }}>{done ? '☑' : '☐'}</span>}
                     {item}
@@ -2428,6 +2532,7 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
 
   return (
     <div>
+      {renderItemEditor()}
       {/* View toggle */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
         {(isAdmin ? [['coach','👁 Coach'],['athlete','🎽 Athlete'],['split','⇔ Split']] : [['athlete','🎽 Your notes']]).map(([key, label]) => (
@@ -10310,9 +10415,12 @@ export default function AthleteProfiles() {
                       <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 200, display: 'flex', flexDirection: 'column' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 16, borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
                           <button onClick={() => setShowAlterEgoModal(false)} className="btn btn-sm">← Back</button>
-                          <h2 style={{ fontSize: 16, fontWeight: 600 }}>🎭 The Alter Ego Workbook — {selected?.members?.first_name}</h2>
+                          <h2 style={{ fontSize: 16, fontWeight: 600, flex: 1 }}>🎭 The Alter Ego Workbook — {selected?.members?.first_name}</h2>
+                          <button type="button" className="btn btn-sm" style={{ borderColor: PDP_GOLD, color: PDP_GOLD, background: 'transparent' }}
+                            onClick={() => setPdpAddTarget({ pillar: 'mentality', pillarLabel: 'Mentality', q: 'alterEgo', item: null, label: 'Alter Ego' })}>+ PDP</button>
                         </div>
                         <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+                          {PdpNotes({ links: pdpInfo('mentality', 'alterEgo').links })}
 
                           <div className="card" style={{ marginBottom: 14 }}>
                             <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Part 1: Understanding the Alter Ego</h3>
