@@ -2317,6 +2317,18 @@ export default function AthleteApp() {
   // actually made today for that question, and never more than once.
   async function revokeF2fQuestionPoint(questionLabel) {
     if (!student) return
+    {
+      const fnMissing = e => e && (e.code === 'PGRST202' || /could not find the function/i.test(e.message || ''))
+      const { data: taken, error } = await supabase.rpc('kc_revoke_my_f2f_point', { p_detail: questionLabel })
+      if (!error) {
+        if (taken > 0) {
+          setStudent(prev => prev ? { ...prev, house_points: (prev.house_points || 0) - taken, individual_points: (prev.individual_points || 0) - taken } : prev)
+          setMonthHousePoints(n => Math.max(0, (n || 0) - taken))
+        }
+        return
+      }
+      if (!fnMissing(error)) return
+    }
     const today = new Date().toISOString().split('T')[0]
     const award = `F2F question logged: ${questionLabel}`, undo = `F2F question cleared: ${questionLabel}`
     const { data: rows, error } = await supabase.from('points_log').select('point_type, points_awarded')
@@ -2341,6 +2353,20 @@ export default function AthleteApp() {
   async function awardHousePoints(reasonKey, detail) {
     const amount = athleteHousePoints[reasonKey]
     if (!student || !amount) return
+    // Preferred: the database awards it (own record only, points from Settings, once per day,
+    // log + totals together). Falls back to the old path only if that function isn't installed yet.
+    {
+      const fnMissing = e => e && (e.code === 'PGRST202' || /could not find the function/i.test(e.message || ''))
+      const { data: awarded, error } = await supabase.rpc('kc_award_my_points', { p_reason: reasonKey, p_detail: detail || null })
+      if (!error) {
+        if (awarded > 0) {
+          setStudent(prev => prev ? { ...prev, house_points: (prev.house_points || 0) + awarded, individual_points: (prev.individual_points || 0) + awarded } : prev)
+          celebrateHousePoint(awarded)
+        }
+        return
+      }
+      if (!fnMissing(error)) { console.warn('Award not saved:', error.message); return }
+    }
     const reasonLabels = {
       f2f_question: 'F2F question logged',
       checkin: 'Self check-in (app)',
@@ -4406,7 +4432,9 @@ export default function AthleteApp() {
     } else {
       // Also sync students.weight_kg from the latest weigh-in, same as elsewhere in the app
       if (updates[field] != null) {
-        await supabase.from('students').update({ weight_kg: updates[field] }).eq('id', student.id)
+        // own weigh-in via the database function (athletes can't write the students table directly)
+        const { error: wErr } = await supabase.rpc('kc_set_my_weight', { p_kg: updates[field] })
+        if (wErr) await supabase.from('students').update({ weight_kg: updates[field] }).eq('id', student.id)
       }
       // Also sync into today's fit2fight_sessions row (weight_before/
       // weight_after), same fields the standalone logger and Results
