@@ -1353,6 +1353,117 @@ function pdpSuggestLink(pillar, text) {
   return best
 }
 
+// ---- Shared: edit / move a PDP note (coach) ---------------------------------
+// Used by the PDP tab and the Home page pillar PDP cards. Moving keeps the
+// note's highlight, checked/done, timetable entry, sent-to-athlete, question
+// link and done-today count; the Notes-tab options take it out of the PDP.
+const pdpAreaOf = k => String(k || '').replace(/_(notes|maintain|work_on|what_to_do)$/, '')
+function pdpCustomSectionsFrom(pdp) {
+  return Object.keys(pdp || {}).filter(k => k.startsWith('__meta_')).map(k => {
+    const key = k.replace('__meta_', '')
+    if (PDP_SECTIONS.find(s => s.key === key)) return null
+    const meta = pdp[k] || {}
+    return { key, label: meta.label || '📝 Section', colour: meta.colour || '#378ADD', coachOnly: false }
+  }).filter(Boolean)
+}
+function buildPdpMoveRow(apData, studentId, fromKey, oldText, toKey, newText) {
+  const N = { ...(apData?.pdp_notes || {}) }
+  const from = N[fromKey] || []
+  if (toKey === fromKey) N[fromKey] = from.map(t => t === oldText ? newText : t)
+  else {
+    N[fromKey] = from.filter(t => t !== oldText)
+    if (toKey) { const to = N[toKey] || []; if (!to.includes(newText)) N[toKey] = [...to, newText] }
+  }
+  for (const prefix of ['__highlights_', '__completed_']) {
+    const a = N[`${prefix}${fromKey}`] || []
+    if (a.includes(oldText)) {
+      N[`${prefix}${fromKey}`] = a.filter(x => x !== oldText)
+      if (toKey) N[`${prefix}${toKey}`] = [...(N[`${prefix}${toKey}`] || []).filter(x => x !== newText), newText]
+    }
+  }
+  const tf = { ...(N[`__timetable_${fromKey}`] || {}) }
+  if (tf[oldText]) {
+    const entry = tf[oldText]; delete tf[oldText]; N[`__timetable_${fromKey}`] = tf
+    if (toKey) N[`__timetable_${toKey}`] = { ...(N[`__timetable_${toKey}`] || {}), [newText]: entry }
+  }
+  const row = { student_id: studentId, pdp_notes: N }
+  const sh = { ...(apData?.pdp_shared || {}) }
+  if ((sh[fromKey] || []).includes(oldText)) {
+    sh[fromKey] = sh[fromKey].filter(x => x !== oldText)
+    if (toKey) sh[toKey] = [...(sh[toKey] || []).filter(x => x !== newText), newText]
+    row.pdp_shared = sh
+  }
+  if (apData?.pdp_links) {
+    const L = { ...apData.pdp_links }
+    const oldKey = Object.keys(L).find(k => k.endsWith(`::${oldText}`) && pdpAreaOf(k.split('::')[0]) === pdpAreaOf(fromKey))
+    if (oldKey) { const link = L[oldKey]; delete L[oldKey]; if (toKey) L[`${toKey}::${newText}`] = link }
+    row.pdp_links = L
+  }
+  if (apData?.pdp_done) {
+    const D = { ...apData.pdp_done }
+    const ok = `${pdpAreaOf(fromKey)}::${oldText}`
+    if (D[ok]) { const v = D[ok]; delete D[ok]; if (toKey) D[`${pdpAreaOf(toKey)}::${newText}`] = v }
+    row.pdp_done = D
+  }
+  return row
+}
+// Save an edit / move. Returns true when done.
+async function savePdpItemMove({ apData, setApData, studentId, fromKey, oldText, dest, text }) {
+  if (!text) { alert('The note cannot be empty.'); return false }
+  if (dest === '__notes_coach' || dest === '__notes_athlete') {
+    const { error } = await supabase.from('athlete_notes_log').insert({ student_id: studentId, note_text: text, author_role: 'coach', visible_to_athlete: dest === '__notes_athlete' })
+    if (error) { alert('Could not move to Notes: ' + error.message); return false }
+    dest = null
+  } else if (dest !== fromKey && ((apData?.pdp_notes || {})[dest] || []).includes(text)) {
+    alert('That note is already in the chosen section.'); return false
+  }
+  const row = buildPdpMoveRow(apData, studentId, fromKey, oldText, dest, text)
+  const { error } = await supabase.from('athlete_profiles').upsert(row, { onConflict: 'student_id' })
+  if (error) { alert('Could not save: ' + error.message); return false }
+  setApData(a => ({ ...a, ...row }))
+  return true
+}
+function PdpItemEditorModal({ editor, apData, setApData, studentId, onClose, onEditSection }) {
+  const [draft, setDraft] = useState(editor.text)
+  const [dest, setDest] = useState(editor.sectionKey)
+  const [saving, setSaving] = useState(false)
+  const all = [...PDP_SECTIONS, ...pdpCustomSectionsFrom(apData?.pdp_notes)].filter(s => !(s.label === 'Skill' || /^skill_/.test(s.key)) || s.key === editor.sectionKey)
+  const labelFor = s => { const g = PDP_CATEGORY_GROUPS.find(g => g.keys.includes(s.key)); return g ? `${g.label} — ${s.label}` : s.label }
+  const save = async () => {
+    setSaving(true)
+    try { if (await savePdpItemMove({ apData, setApData, studentId, fromKey: editor.sectionKey, oldText: editor.text, dest, text: draft.trim() })) onClose() }
+    finally { setSaving(false) }
+  }
+  return (
+    <div role="dialog" aria-modal="true" onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 470, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div className="card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, padding: 18 }}>
+        <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 10 }}>Edit PDP note</h3>
+        <textarea value={draft} onChange={e => setDraft(e.target.value)} rows={3} style={{ width: '100%', boxSizing: 'border-box', fontSize: 14, marginBottom: 10 }} />
+        <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Section</label>
+        <select value={dest} onChange={e => setDest(e.target.value)} style={{ width: '100%', fontSize: 14, marginBottom: 12 }}>
+          <optgroup label="PDP">
+            {all.map(s => <option key={s.key} value={s.key}>{labelFor(s)}{s.key === editor.sectionKey ? ' (current)' : ''}</option>)}
+          </optgroup>
+          <optgroup label="Move to the Notes tab">
+            <option value="__notes_coach">📝 Coach note (coach only)</option>
+            <option value="__notes_athlete">📝 Athlete note (visible to the athlete)</option>
+          </optgroup>
+        </select>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" className="btn" onClick={onClose} style={{ flex: 1, justifyContent: 'center' }}>Cancel</button>
+          <button type="button" className="btn btn-primary" disabled={saving} onClick={save} style={{ flex: 1, justifyContent: 'center' }}>
+            {saving ? 'Saving…' : dest === editor.sectionKey ? 'Save' : String(dest).startsWith('__notes') ? 'Move to Notes' : 'Save & move'}
+          </button>
+        </div>
+        {onEditSection && (
+          <button type="button" onClick={() => { onClose(); onEditSection(editor.sectionKey) }}
+            style={{ marginTop: 10, background: 'none', border: 'none', padding: 0, fontSize: 11, color: 'var(--text-secondary)', textDecoration: 'underline', cursor: 'pointer' }}>Edit the whole section instead</button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOpponentNote, onToggleOpponentNoteShared, onDeleteOpponentNote, onUpdateOpponentNote, newOpponentName, setNewOpponentName, expandedOpponent, setExpandedOpponent, editingOpponentNoteId, setEditingOpponentNoteId, opponentNoteDraft, setOpponentNoteDraft, onAwardHousePoints }) {
   // "Add to calendar" scheduling wizard state -- local to this
   // component (previously referenced the same-named state from the
@@ -1571,107 +1682,13 @@ function PDPTab({ apData, setApData, student, isAdmin, opponentNotes, onAddOppon
 
   // Checking off a Maintain item removes it from Maintain and logs it
   // to the Notes tab as a dated "Completed PDP task".
-  // ---- Edit / move a PDP note (coach) --------------------------------------
-  // Press a note to edit its text and move it to any PDP section, or out of the
-  // PDP into the Notes tab as a coach note (coach only) or athlete note (visible
-  // to the athlete). Its highlight, done/checked state, timetable entry, "sent to
-  // athlete" state, question link and done-today count all move with it.
+  // Edit / move a PDP note -- shared pop-up (also used on the Home page PDP cards)
   const [itemEditor, setItemEditor] = useState(null) // { sectionKey, text }
-  const [itemDraft, setItemDraft] = useState('')
-  const [itemDest, setItemDest] = useState('')
-  const [itemSaving, setItemSaving] = useState(false)
-  function openItemEditor(sectionKey, text) { setItemEditor({ sectionKey, text }); setItemDraft(text); setItemDest(sectionKey) }
-  const pdpArea = k => String(k || '').replace(/_(notes|maintain|work_on|what_to_do)$/, '')
-  async function movePdpItem(fromKey, oldText, toKey, newText) {
-    const N = { ...(apData?.pdp_notes || {}) }
-    const from = N[fromKey] || []
-    if (toKey === fromKey) N[fromKey] = from.map(t => t === oldText ? newText : t)
-    else {
-      N[fromKey] = from.filter(t => t !== oldText)
-      if (toKey) { const to = N[toKey] || []; if (!to.includes(newText)) N[toKey] = [...to, newText] }
-    }
-    for (const prefix of ['__highlights_', '__completed_']) {
-      const a = N[`${prefix}${fromKey}`] || []
-      if (a.includes(oldText)) {
-        N[`${prefix}${fromKey}`] = a.filter(x => x !== oldText)
-        if (toKey) N[`${prefix}${toKey}`] = [...(N[`${prefix}${toKey}`] || []).filter(x => x !== newText), newText]
-      }
-    }
-    const tf = { ...(N[`__timetable_${fromKey}`] || {}) }
-    if (tf[oldText]) {
-      const entry = tf[oldText]; delete tf[oldText]; N[`__timetable_${fromKey}`] = tf
-      if (toKey) N[`__timetable_${toKey}`] = { ...(N[`__timetable_${toKey}`] || {}), [newText]: entry }
-    }
-    const row = { student_id: student.id, pdp_notes: N }
-    const sh = { ...(apData?.pdp_shared || {}) }
-    if ((sh[fromKey] || []).includes(oldText)) {
-      sh[fromKey] = sh[fromKey].filter(x => x !== oldText)
-      if (toKey) sh[toKey] = [...(sh[toKey] || []).filter(x => x !== newText), newText]
-      row.pdp_shared = sh
-    }
-    if (apData?.pdp_links) {
-      const L = { ...apData.pdp_links }
-      const oldKey = Object.keys(L).find(k => k.endsWith(`::${oldText}`) && pdpArea(k.split('::')[0]) === pdpArea(fromKey))
-      if (oldKey) { const link = L[oldKey]; delete L[oldKey]; if (toKey) L[`${toKey}::${newText}`] = link }
-      row.pdp_links = L
-    }
-    if (apData?.pdp_done) {
-      const D = { ...apData.pdp_done }
-      const ok = `${pdpArea(fromKey)}::${oldText}`
-      if (D[ok]) { const v = D[ok]; delete D[ok]; if (toKey) D[`${pdpArea(toKey)}::${newText}`] = v }
-      row.pdp_done = D
-    }
-    const { error } = await supabase.from('athlete_profiles').upsert(row, { onConflict: 'student_id' })
-    if (error) { alert('Could not save: ' + error.message); return false }
-    setApData(a => ({ ...a, ...row }))
-    return true
-  }
-  async function saveItemEditor() {
-    if (!itemEditor) return
-    const text = itemDraft.trim()
-    if (!text) { alert('The note cannot be empty.'); return }
-    setItemSaving(true)
-    try {
-      if (itemDest === '__notes_coach' || itemDest === '__notes_athlete') {
-        const { error } = await supabase.from('athlete_notes_log').insert({ student_id: student.id, note_text: text, author_role: 'coach', visible_to_athlete: itemDest === '__notes_athlete' })
-        if (error) { alert('Could not move to Notes: ' + error.message); return }
-        if (await movePdpItem(itemEditor.sectionKey, itemEditor.text, null, text)) setItemEditor(null)
-        return
-      }
-      if (itemDest !== itemEditor.sectionKey && ((apData?.pdp_notes || {})[itemDest] || []).includes(text)) { alert('That note is already in the chosen section.'); return }
-      if (await movePdpItem(itemEditor.sectionKey, itemEditor.text, itemDest, text)) setItemEditor(null)
-    } finally { setItemSaving(false) }
-  }
+  function openItemEditor(sectionKey, text) { setItemEditor({ sectionKey, text }) }
   function renderItemEditor() {
     if (!itemEditor) return null
-    const all = [...PDP_SECTIONS, ...customSections].filter(s => !(s.label === 'Skill' || /^skill_/.test(s.key)) || s.key === itemEditor.sectionKey)
-    const labelFor = s => { const g = PDP_CATEGORY_GROUPS.find(g => g.keys.includes(s.key)); return g ? `${g.label} — ${s.label}` : s.label }
-    return (
-      <div role="dialog" aria-modal="true" onClick={() => setItemEditor(null)} style={{ position: 'fixed', inset: 0, zIndex: 470, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-        <div className="card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, padding: 18 }}>
-          <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 10 }}>Edit PDP note</h3>
-          <textarea value={itemDraft} onChange={e => setItemDraft(e.target.value)} rows={3} style={{ width: '100%', boxSizing: 'border-box', fontSize: 14, marginBottom: 10 }} />
-          <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Section</label>
-          <select value={itemDest} onChange={e => setItemDest(e.target.value)} style={{ width: '100%', fontSize: 14, marginBottom: 12 }}>
-            <optgroup label="PDP">
-              {all.map(s => <option key={s.key} value={s.key}>{labelFor(s)}{s.key === itemEditor.sectionKey ? ' (current)' : ''}</option>)}
-            </optgroup>
-            <optgroup label="Move to the Notes tab">
-              <option value="__notes_coach">📝 Coach note (coach only)</option>
-              <option value="__notes_athlete">📝 Athlete note (visible to the athlete)</option>
-            </optgroup>
-          </select>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button type="button" className="btn" onClick={() => setItemEditor(null)} style={{ flex: 1, justifyContent: 'center' }}>Cancel</button>
-            <button type="button" className="btn btn-primary" disabled={itemSaving} onClick={saveItemEditor} style={{ flex: 1, justifyContent: 'center' }}>
-              {itemSaving ? 'Saving…' : itemDest === itemEditor.sectionKey ? 'Save' : itemDest.startsWith('__notes') ? 'Move to Notes' : 'Save & move'}
-            </button>
-          </div>
-          <button type="button" onClick={() => { const sec = all.find(s => s.key === itemEditor.sectionKey); setItemEditor(null); if (sec) startEdit(sec) }}
-            style={{ marginTop: 10, background: 'none', border: 'none', padding: 0, fontSize: 11, color: 'var(--text-secondary)', textDecoration: 'underline', cursor: 'pointer' }}>Edit the whole section instead</button>
-        </div>
-      </div>
-    )
+    return <PdpItemEditorModal key={itemEditor.sectionKey + itemEditor.text} editor={itemEditor} apData={apData} setApData={setApData} studentId={student.id}
+      onClose={() => setItemEditor(null)} onEditSection={k => { const sec = [...PDP_SECTIONS, ...customSections].find(s => s.key === k); if (sec) startEdit(sec) }} />
   }
 
   async function completeMaintainItem(sectionKey, item) {
@@ -3867,7 +3884,8 @@ export default function AthleteProfiles() {
                 {l.coachOnly && <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 7, letterSpacing: 1, color: '#9A9A9A' }}>COACH ONLY</span>}
                 {linkName && <button type="button" onClick={() => openLinkedQuestion(pillar, l.link)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: PDP_GOLD, fontSize: 11, cursor: 'pointer', padding: 0 }}>★ {linkName} ›</button>}
               </div>
-              <div style={{ fontSize: 14, lineHeight: 1.35, color: '#F2F2F2', marginBottom: 8 }}>{l.text}</div>
+              <div role="button" tabIndex={0} title="Edit / move" onClick={() => setHomePdpEditor({ sectionKey: l.sectionKey, text: l.text })}
+                style={{ fontSize: 14, lineHeight: 1.35, color: '#F2F2F2', marginBottom: 8, cursor: 'pointer' }}>{l.text} <span style={{ fontSize: 11, opacity: 0.6 }}>✎</span></div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <button type="button" onClick={() => togglePdpDone(l.sectionKey, l.text)}
                   style={{ height: 32, padding: '0 14px', border: 'none', cursor: 'pointer', clipPath: 'polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%)', background: doneToday ? '#22B14C' : '#2A3138', color: doneToday ? '#0A0A0A' : '#F2F2F2', fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 14, letterSpacing: 1 }}>
@@ -3905,6 +3923,7 @@ export default function AthleteProfiles() {
       awardHousePoints?.('pdp_complete')
     }
   }
+  const [homePdpEditor, setHomePdpEditor] = useState(null) // { sectionKey, text }
   function PdpAddButtonFree(pillar, pillarLabel) {
     return <button type="button" className="btn btn-sm" onClick={() => setPdpAddTarget({ pillar, pillarLabel, q: null, item: null, label: '' })}
       style={{ alignSelf: 'flex-end', fontSize: 11, borderColor: PDP_GOLD, color: PDP_GOLD, background: 'transparent' }}>+ Add to PDP</button>
@@ -9556,6 +9575,7 @@ export default function AthleteProfiles() {
                 <div className="neon-home">
                   {HistoryViewModal()}
                   {UndoBar()}
+                  {homePdpEditor && selected && <PdpItemEditorModal key={homePdpEditor.sectionKey + homePdpEditor.text} editor={homePdpEditor} apData={apData} setApData={setApData} studentId={selected.id} onClose={() => setHomePdpEditor(null)} />}
                   <PdpAddModal key={pdpAddTarget ? `${pdpAddTarget.q}:${pdpAddTarget.item}` : "none"} target={pdpAddTarget} onClose={() => setPdpAddTarget(null)} onSave={addToPdp} />
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 8 }}>
                     <div className="card neon-stat" style={{ textAlign: 'center', padding: '10px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, background: 'var(--bg-secondary)' }}>
