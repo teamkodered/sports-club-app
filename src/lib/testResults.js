@@ -56,6 +56,17 @@ export const TEST_CATEGORIES = [
     { name: '1600m time trial', unit: 'sec' },
     { name: '4800m time trial', unit: 'sec' },
   ]},
+  // Punch (Oct 2026): times come from 📹 Punch speed (mark hand starts moving ->
+  // impact on a slow-mo video), counts from 📹 Count punches (hits detected in
+  // a box drawn over the bag/pads, coach-corrected). Lower time = faster.
+  { key: 'punch', label: 'Punch', icon: '🥊', tests: [
+    { name: 'Jab time (ms)', unit: 'ms' },
+    { name: 'Cross time (ms)', unit: 'ms' },
+    { name: 'Lead hook time (ms)', unit: 'ms' },
+    { name: 'Rear hook time (ms)', unit: 'ms' },
+    { name: 'Punches per round', unit: 'punches' },
+    { name: 'Punches per minute', unit: 'per min' },
+  ]},
   { key: 'bodyweight', label: 'Body Weight Max Reps', icon: '💪', multiSet: true, tests: [
     { name: 'Push-ups - Regular (60s)', unit: 'reps' },
     { name: 'Push-ups - Tricep (60s)', unit: 'reps' },
@@ -73,7 +84,7 @@ export const lowerIsBetter = name => {
   const t = testInfo(name)
   if (!t) return false
   if (/pinch/i.test(name)) return false
-  return t.unit === 'sec'
+  return t.unit === 'sec' || t.unit === 'ms'
 }
 const num = v => (v === '' || v == null || isNaN(Number(v))) ? null : Number(v)
 

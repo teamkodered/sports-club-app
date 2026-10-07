@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase.js'
 import { TEST_CATEGORIES, bestByTest, lowerIsBetter, saveTestResults } from '../../lib/testResults.js'
 
 const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
-const fmtVal = (v, unit) => `${v}${unit === 'reps' ? ' reps' : unit ? unit === 'level' ? '' : unit : ''}`
+const fmtVal = (v, unit) => `${v}${unit === 'reps' || unit === 'punches' || unit === 'per min' ? ` ${unit}` : unit ? unit === 'level' ? '' : unit : ''}`
 
 // ── PB celebration (same feel as the "+1 house point" pop-up) ──
 export function PbPopup({ pbs, onDone, who }) {

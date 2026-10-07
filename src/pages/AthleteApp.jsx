@@ -4,6 +4,7 @@ import { TEST_CATEGORIES } from '../lib/testResults.js'
 import { TestSessionModal, TestBatchModal } from '../components/shared/TestSession.jsx'
 import { supabase } from '../lib/supabase.js'
 import VideoMeasureTool from '../components/shared/VideoMeasureTool.jsx'
+import PunchCountTool from '../components/shared/PunchCountTool.jsx'
 import { assignmentActiveOn, isPastAssignment, isFutureAssignment, askAssignmentDates, insertAssignment, endAssignment, setAssignmentDates, todayISO, fmtDMY } from '../lib/classAssignments.jsx'
 import { PDP_GOLD, pdpLinksFor, PdpNotes, PdpAddModal, pdpSectionKey, pdpLinkKey, pdpPillarForSection, pdpLinkForLine, pdpVisibleToAthlete, PDP_AREA_FOR_PILLAR } from '../components/shared/pdpLinks.jsx'
 import { newRunId, runKey, isSuicideTest, suicideMetres, SUICIDE_PRESETS, EffortSwitcher, SuicideInput } from '../components/shared/RunEfforts.jsx'
@@ -2801,11 +2802,18 @@ export default function AthleteApp() {
   // Saves a single test value directly into today's flat test map
   // (test: { [testName]: value }) -- same shape the log form and
   // results charts already use.
+  // Several results in one write (e.g. punch count saves per-round AND per-minute).
+  // Two separate saveTestValue calls back to back would each start from the same
+  // stale copy of today's results, so the second would wipe the first.
   async function saveTestValue(testName, value) {
+    return saveTestValues({ [testName]: value })
+  }
+
+  async function saveTestValues(values) {
     if (!student) return
     setSavingTest(true)
     const todaysDate = new Date().toISOString().split('T')[0]
-    const newTest = { ...todaysTest, [testName]: value }
+    const newTest = { ...todaysTest, ...values }
     setTodaysTest(newTest)
 
     const existing = sessions.find(s => s.session_date === todaysDate)
@@ -4868,7 +4876,8 @@ export default function AthleteApp() {
       {tab === 'home' && (
         <div className="neon-home">
           {HistoryViewModal()}
-          {videoTool && <VideoMeasureTool mode={videoTool.mode} defaultDistance={videoTool.distance} saveLabel={videoTool.label} onResult={videoTool.onSave} onClose={() => setVideoTool(null)} />}
+          {videoTool?.mode === 'count' && <PunchCountTool onSave={({ perRound, perMinute }) => saveTestValues({ 'Punches per round': String(perRound), 'Punches per minute': String(perMinute) })} onClose={() => setVideoTool(null)} />}
+          {videoTool && videoTool.mode !== 'count' && <VideoMeasureTool mode={videoTool.mode} defaultDistance={videoTool.distance} saveLabel={videoTool.label} onResult={videoTool.onSave} onClose={() => setVideoTool(null)} />}
           {UndoBar()}
           {student ? (
             <>
@@ -4904,13 +4913,14 @@ export default function AthleteApp() {
                           {cat.icon} {cat.key === 'stretches' ? 'Stretch ranges' : cat.key === 'wattbike' ? 'Single set' : cat.label}
                         </span>
                         {cat.key === 'jumps' && <button type="button" className="btn btn-sm" style={{ fontSize: 11, marginRight: 6 }} onClick={e => { e.stopPropagation(); setVideoTool({ mode: 'jump', label: v => `Save ${v} cm as Vertical Jump`, onSave: v => saveTestValue('Vertical Jump (distance)', String(v)) }) }}>📹 Measure from video</button>}
+                        {cat.key === 'punch' && <><button type="button" className="btn btn-sm" style={{ fontSize: 11, marginRight: 6 }} onClick={e => { e.stopPropagation(); setVideoTool({ mode: 'punch', label: (v, m) => `Save ${v} ms as ${m?.punchType || 'Jab'}`, onSave: (v, m) => saveTestValue(`${m?.punchType || 'Jab'} time (ms)`, String(v)) }) }}>📹 Punch speed</button><button type="button" className="btn btn-sm" style={{ fontSize: 11, marginRight: 6 }} onClick={e => { e.stopPropagation(); setVideoTool({ mode: 'count' }) }}>📹 Count punches</button></>}
                         {open && <button type="button" className="btn btn-sm" onClick={e => { e.stopPropagation(); clearTestCategory(cat.key) }} style={{ fontSize: 11 }}>✕ Clear</button>}
                       </div>
                       {open && cat.tests.map(t => {
                         const allValues = sorted.map(s => parseFloat(s.test?.[t.name])).filter(v => !isNaN(v))
                         const mostRecentSession = [...sorted].reverse().find(s => s.test?.[t.name] != null && s.test[t.name] !== '')
                         const mostRecent = mostRecentSession ? mostRecentSession.test[t.name] : null
-                        const isTimeBased = t.unit === 'sec'
+                        const isTimeBased = t.unit === 'sec' || t.unit === 'ms'
                         const pb = allValues.length ? (isTimeBased ? Math.min(...allValues) : Math.max(...allValues)) : null
                         return (
                           <div className="field" key={t.name}>
@@ -4925,7 +4935,7 @@ export default function AthleteApp() {
                             </div>
                             <SavableField type="text" defaultValue={todaysTest[t.name]}
                               onSave={val => saveTestValue(t.name, val)}
-                              placeholder={`e.g. ${t.unit === 'sec' ? '32:15' : t.unit === 'level' ? '11.4' : '25'}`} />
+                              placeholder={`e.g. ${t.unit === 'sec' ? '32:15' : t.unit === 'level' ? '11.4' : t.unit === 'ms' ? '180' : '25'}`} />
                           </div>
                         )
                       })}
@@ -5514,7 +5524,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                       })}
                       {/* Jumps + Grip tests as cards in the same grid (were separate cards below). The old separate
                           Fixed Load Circuit test card is gone -- the Fixed load circuit card above logs it; earlier test results stay in Results. */}
-                      {['jumps', 'grip'].map(tk => { const tc = TEST_CATEGORIES.find(c => c.key === tk); if (!tc) return null; const key = `__test:${tk}`; const active = expandedHomeBodyweight === key; const complete = tc.tests.some(t => todaysTest?.[t.name] != null && todaysTest[t.name] !== ''); return (
+                      {['jumps', 'grip', 'punch'].map(tk => { const tc = TEST_CATEGORIES.find(c => c.key === tk); if (!tc) return null; const key = `__test:${tk}`; const active = expandedHomeBodyweight === key; const complete = tc.tests.some(t => todaysTest?.[t.name] != null && todaysTest[t.name] !== ''); return (
                         <button key={key} className={`neon-q neon-q-physical${active ? ' is-active' : ''}${complete ? ' is-done' : ''}`} type="button" onClick={() => openOnlyPhysicalPanel('bodyweight', active ? null : key)}
                           style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 8px', borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)', border: '2px solid var(--border)', background: 'var(--bg-secondary)' }}>
                           <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{tc.label}</span>
