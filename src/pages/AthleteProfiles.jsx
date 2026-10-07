@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom'
 import { TEST_CATEGORIES } from '../lib/testResults.js'
 import { TestSessionModal, TestBatchModal } from '../components/shared/TestSession.jsx'
 import { supabase } from '../lib/supabase.js'
+import VideoMeasureTool from '../components/shared/VideoMeasureTool.jsx'
 import { assignmentActiveOn, isPastAssignment, isFutureAssignment, askAssignmentDates, insertAssignment, endAssignment, setAssignmentDates, todayISO, fmtDMY } from '../lib/classAssignments.jsx'
 import { PDP_GOLD, pdpLinksFor, PdpNotes, PdpAddModal, pdpSectionKey, pdpLinkKey, pdpPillarForSection, pdpLinkForLine, pdpVisibleToAthlete, PDP_AREA_FOR_PILLAR } from '../components/shared/pdpLinks.jsx'
 import { newRunId, runKey, isSuicideTest, suicideMetres, SUICIDE_PRESETS, EffortSwitcher, SuicideInput } from '../components/shared/RunEfforts.jsx'
@@ -3281,6 +3282,7 @@ export default function AthleteProfiles() {
   const [expandedHomeRun, setExpandedHomeRun] = useState(null)
   const [showCompoundLifts, setShowCompoundLifts] = useState(false) // Compound Lifts: its own card under Physical
   const [wattEffortSel, setWattEffortSel] = useState({}) // watt bike: which effort is being edited, per group
+  const [videoTool, setVideoTool] = useState(null) // { mode: 'jump'|'sprint', distance, onSave, label }
   const [runEffortSel, setRunEffortSel] = useState({}) // running: which effort is being edited, per type ('__new__' = a new one)
   const [showPhysicalSection, setShowPhysicalSection] = useState(false)
   const [showTechniqueSection, setShowTechniqueSection] = useState(false)
@@ -9362,6 +9364,7 @@ export default function AthleteProfiles() {
                   <div key={cat.key} className={`card ${extraClass}`} style={{ marginBottom: 8 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                       <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>{cat.icon} {cat.key === 'stretches' ? 'Ranges' : cat.key === 'wattbike' ? 'Single set' : cat.label}</span>
+                      {cat.key === 'jumps' && <button type="button" className="btn btn-sm" style={{ fontSize: 11, marginRight: 6 }} onClick={e => { e.stopPropagation(); setVideoTool({ mode: 'jump', label: v => `Save ${v} cm as Vertical Jump`, onSave: v => saveTestValue('Vertical Jump (distance)', String(v)) }) }}>📹 Measure from video</button>}
                       <button type="button" className="btn btn-sm" onClick={() => clearTestCategory(cat.key)} style={{ fontSize: 11 }}>✕ Clear</button>
                     </div>
                     {cat.tests.map(t => {
@@ -9574,6 +9577,7 @@ export default function AthleteProfiles() {
               return (
                 <div className="neon-home">
                   {HistoryViewModal()}
+                  {videoTool && <VideoMeasureTool mode={videoTool.mode} defaultDistance={videoTool.distance} saveLabel={videoTool.label} onResult={videoTool.onSave} onClose={() => setVideoTool(null)} />}
                   {UndoBar()}
                   {homePdpEditor && selected && <PdpItemEditorModal key={homePdpEditor.sectionKey + homePdpEditor.text} editor={homePdpEditor} apData={apData} setApData={setApData} studentId={selected.id} onClose={() => setHomePdpEditor(null)} />}
                   <PdpAddModal key={pdpAddTarget ? `${pdpAddTarget.q}:${pdpAddTarget.item}` : "none"} target={pdpAddTarget} onClose={() => setPdpAddTarget(null)} onSave={addToPdp} />
@@ -9761,6 +9765,7 @@ export default function AthleteProfiles() {
                             disabled={!current} onClick={removeCurrentEffort}>✕ Remove effort</button>
                         </div>
                         <div className="field"><label>Specific test</label>
+                          {expandedHomeRun === 'Timed Sprints' && <button type="button" className="btn btn-sm" style={{ fontSize: 11, marginBottom: 8 }} onClick={() => setVideoTool({ mode: 'sprint', distance: (/(\d+(?:\.\d+)?)\s*m\b/.exec(entry.test || '') || [])[1] || '', label: v => `Add ${v}s to ${entry.test || 'this effort'}`, onSave: v => upsert({ ...entry, sets: [...(entry.sets || []).filter(x => x !== '' && x != null), String(v)] }) })}>📹 Time a sprint from video</button>}
                           {runPk.bar}
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
                             {presets.map(t => (

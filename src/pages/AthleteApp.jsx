@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { TEST_CATEGORIES } from '../lib/testResults.js'
 import { TestSessionModal, TestBatchModal } from '../components/shared/TestSession.jsx'
 import { supabase } from '../lib/supabase.js'
+import VideoMeasureTool from '../components/shared/VideoMeasureTool.jsx'
 import { assignmentActiveOn, isPastAssignment, isFutureAssignment, askAssignmentDates, insertAssignment, endAssignment, setAssignmentDates, todayISO, fmtDMY } from '../lib/classAssignments.jsx'
 import { PDP_GOLD, pdpLinksFor, PdpNotes, PdpAddModal, pdpSectionKey, pdpLinkKey, pdpPillarForSection, pdpLinkForLine, pdpVisibleToAthlete, PDP_AREA_FOR_PILLAR } from '../components/shared/pdpLinks.jsx'
 import { newRunId, runKey, isSuicideTest, suicideMetres, SUICIDE_PRESETS, EffortSwitcher, SuicideInput } from '../components/shared/RunEfforts.jsx'
@@ -1630,6 +1631,8 @@ export default function AthleteApp() {
     return () => document.removeEventListener('click', onDown, { capture: true })
   }, [])
   const [wattEffortSel, setWattEffortSel] = useState({}) // watt bike: which effort is being edited, per group
+  const [sprintVideoTick, setSprintVideoTick] = useState(0) // re-mounts the sprint inputs after a video time is added
+  const [videoTool, setVideoTool] = useState(null) // { mode: 'jump'|'sprint', distance, onSave, label }
   const [runEffortSel, setRunEffortSel] = useState({}) // running: which effort is being edited, per type ('__new__' = a new one)
   const [showPhysicalSection, setShowPhysicalSection] = useState(false)
   const [showTechniqueSection, setShowTechniqueSection] = useState(false)
@@ -4865,6 +4868,7 @@ export default function AthleteApp() {
       {tab === 'home' && (
         <div className="neon-home">
           {HistoryViewModal()}
+          {videoTool && <VideoMeasureTool mode={videoTool.mode} defaultDistance={videoTool.distance} saveLabel={videoTool.label} onResult={videoTool.onSave} onClose={() => setVideoTool(null)} />}
           {UndoBar()}
           {student ? (
             <>
@@ -4899,6 +4903,7 @@ export default function AthleteApp() {
                           {collapsible && <span style={{ display: 'inline-block', width: 14 }}>{open ? '▾' : '▸'}</span>}
                           {cat.icon} {cat.key === 'stretches' ? 'Stretch ranges' : cat.key === 'wattbike' ? 'Single set' : cat.label}
                         </span>
+                        {cat.key === 'jumps' && <button type="button" className="btn btn-sm" style={{ fontSize: 11, marginRight: 6 }} onClick={e => { e.stopPropagation(); setVideoTool({ mode: 'jump', label: v => `Save ${v} cm as Vertical Jump`, onSave: v => saveTestValue('Vertical Jump (distance)', String(v)) }) }}>📹 Measure from video</button>}
                         {open && <button type="button" className="btn btn-sm" onClick={e => { e.stopPropagation(); clearTestCategory(cat.key) }} style={{ fontSize: 11 }}>✕ Clear</button>}
                       </div>
                       {open && cat.tests.map(t => {
@@ -5336,6 +5341,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                             </div>
                           )}
                           <div className="field"><label>{isTimedSprints ? (sprintMode === 'time' ? 'Fixed time' : 'Fixed distance') : 'Specific test'}</label>
+                            {isTimedSprints && <button type="button" className="btn btn-sm" style={{ fontSize: 11, marginBottom: 8 }} onClick={() => setVideoTool({ mode: 'sprint', distance: (/(\d+(?:\.\d+)?)\s*m\b/.exec(entry.test || '') || [])[1] || '', label: v => `Add ${v}s to ${entry.test || 'this effort'}`, onSave: v => { upsert({ ...entry, sets: [...(entry.sets || []).filter(x => x && (typeof x !== 'object' || x.isRest || (x.value !== '' && x.value != null))), { value: String(v), isRest: false }] }); setSprintVideoTick(t => t + 1) } })}>📹 Time a sprint from video</button>}
                             {runPk.bar}
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
                               {sprintPresets.map(t => (
@@ -5355,7 +5361,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                           </div>
                           <div className="field" style={{ marginBottom: 0 }}><label>{isTimedSprints ? 'Results' : isInterval ? (isSuicideNow ? 'Results (end line reached per rep)' : intervalMode === 'time' ? 'Results (time, sec)' : 'Results (distance, km)') : (cat?.resultLabel || 'Results (time)')}</label>
                             {isTimedSprints ? (
-                              <TimedSprintsInput key={`${sprintMode}-${current?.k || 'new'}`} sets={entry.sets || []} mode={sprintMode} fixedValue={entry.test}
+                              <TimedSprintsInput key={`${sprintMode}-${current?.k || 'new'}-${sprintVideoTick}`} sets={entry.sets || []} mode={sprintMode} fixedValue={entry.test}
                                 onChange={sets => upsert({ ...entry, sets })} />
                             ) : (
                               isSuicideNow ? (
