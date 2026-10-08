@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom'
 import { TEST_CATEGORIES } from '../lib/testResults.js'
 import { TestSessionModal, TestBatchModal } from '../components/shared/TestSession.jsx'
 import { supabase } from '../lib/supabase.js'
+import ChessGame from '../components/shared/ChessGame.jsx'
 import GuidedSession from '../components/shared/GuidedSession.jsx'
 import LeagueBoardSettings from '../components/shared/LeagueBoardSettings.jsx'
 import VideoMeasureTool from '../components/shared/VideoMeasureTool.jsx'
@@ -3285,6 +3286,7 @@ export default function AthleteProfiles() {
   const [expandedHomeRun, setExpandedHomeRun] = useState(null)
   const [showCompoundLifts, setShowCompoundLifts] = useState(false) // Compound Lifts: its own card under Physical
   const [wattEffortSel, setWattEffortSel] = useState({}) // watt bike: which effort is being edited, per group
+  const [chessOpen, setChessOpen] = useState(false) // in-app chess game for the Chess question
   const [guidedFor, setGuidedFor] = useState(null) // { field, type } -- guided meditation / visualisation session
   const [videoTool, setVideoTool] = useState(null) // { mode: 'jump'|'sprint', distance, onSave, label }
   const [runEffortSel, setRunEffortSel] = useState({}) // running: which effort is being edited, per type ('__new__' = a new one)
@@ -9596,6 +9598,7 @@ export default function AthleteProfiles() {
               return (
                 <div className="neon-home">
                   {HistoryViewModal()}
+                  {chessOpen && <ChessGame onClose={() => setChessOpen(false)} onFinished={() => saveMentalityField('chess', cur => ({ ...cur, count: (cur.count || 0) + 1 }))} />}
                   {guidedFor && <GuidedSession kind={guidedFor.field} type={guidedFor.type} colour="#22B14C" onClose={() => setGuidedFor(null)} onComplete={mins => saveMentalityField(guidedFor.field, cur => ({ ...cur, entries: [...(cur.entries || []), { type: guidedFor.type, duration: String(mins), guided: true }] }))} />}
                   {videoTool?.mode === 'count' && <PunchCountTool onSave={({ perRound, perMinute }) => saveTestValues({ 'Punches per round': String(perRound), 'Punches per minute': String(perMinute) })} onClose={() => setVideoTool(null)} />}
                   {videoTool && videoTool.mode !== 'count' && <VideoMeasureTool mode={videoTool.mode} defaultDistance={videoTool.distance} saveLabel={videoTool.label} onResult={videoTool.onSave} onClose={() => setVideoTool(null)} />}
@@ -10370,6 +10373,7 @@ export default function AthleteProfiles() {
                       {expandedHomeMentality === 'chess' && (
                         <>
                           <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.chess?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>game{(todaysMentalityLog.chess?.count || 0) === 1 ? '' : 's'} today</span></div>
+                          <button type="button" className="btn btn-sm" onClick={() => setChessOpen(true)} style={{ width: '100%', justifyContent: 'center', marginBottom: 10, borderColor: '#22B14C', color: '#22B14C' }}>♟ Play a game here</button>
                           {AmountPicker({ draftKey: 'HomeMentality:chess', presets: [1, 2, 3], unit: '', step: 1, colour: '#22B14C', onAdd: n => saveMentalityField('chess', cur => ({ count: (cur.count || 0) + n })) })}
                         </>
                       )}
