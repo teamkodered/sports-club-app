@@ -1,0 +1,257 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { supabasePublic as supabase } from '../lib/supabasePublic.js'
+import { CATEGORIES, buildLeaderboard, maskName } from './ResultsPublic.jsx'
+
+// Combined League board (Oct 2026) -- public display (/results-public) and the
+// athlete app's league tile. Rotates through: house standings, house points
+// (top individuals), most tasks completed (KR + KRBA: overall + each area),
+// exercise PBs and most notes. House + individual boards use the same scoring
+// and admin settings as the main public league (dates, top-N); task + exercise
+// boards use board_topn, rotation speed board_seconds.
+// Period: app = League / Month switch; public display = auto-alternates each
+// full cycle (league totals, then this month), with buttons to fix either.
+
+const HOUSE_COLOUR = { 'Dragon House': '#E24B4A', 'Super House': '#F5821F', 'Ice House': '#378ADD', 'Jet House': '#22B14C' }
+const HOUSE_LOGO = { 'Dragon House': '/logos/house-dragon.png', 'Super House': '/logos/house-super.png', 'Ice House': '/logos/house-ice.png', 'Jet House': '/logos/house-jet.png' }
+const AREAS = [
+  { key: 'all', label: 'Most tasks completed', colour: '#FFFFFF', icon: '/logos/f2f-logo-red.png' },
+  { key: 'mentality', label: 'Mentality', colour: '#22B14C', icon: '/logos/icon-mentality.png' },
+  { key: 'technical', label: 'Technical', colour: '#2F6BFF', icon: '/logos/icon-technical.png' },
+  { key: 'tactical', label: 'Tactical', colour: '#FF2A2A', icon: '/logos/icon-tactical.png' },
+  { key: 'physical', label: 'Physical', colour: '#E6B800', icon: '/logos/icon-physical.png' },
+  { key: 'foundation', label: 'Foundation', colour: '#C93BFF', icon: '/logos/icon-foundation.png' },
+]
+const TITLE = { fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, letterSpacing: 1, lineHeight: 1, textTransform: 'uppercase' }
+const NUM = { fontFamily: 'Orbitron, sans-serif' }
+const iso = d => d.toISOString().split('T')[0]
+const taskValue = (r, k) => k === 'all' ? Number(r.physical) + Number(r.technical) + Number(r.tactical) + Number(r.mentality) + Number(r.foundation) : Number(r[k] || 0)
+
+async function fetchAllRows(build) {
+  const out = []; const size = 1000
+  for (let from = 0; ; from += size) {
+    const { data, error } = await build().range(from, from + size - 1)
+    if (error) throw error
+    out.push(...(data || []))
+    if (!data || data.length < size) break
+  }
+  return out
+}
+
+async function loadPeriod(from, to) {
+  const args = { p_from: from, p_to: to + 'T23:59:59' }
+  let pts = []
+  const probe = await supabase.rpc('kc_public_league_points', args).range(0, 0)
+  if (!probe.error) pts = await fetchAllRows(() => supabase.rpc('kc_public_league_points', args))
+  const { data: studs } = await supabase.rpc('public_league_students')
+  const sm = Object.fromEntries((studs || []).map(s => [s.id, s]))
+  const indiv = {}, houses = {}
+  for (const r of pts) {
+    const s = sm[r.student_id]; if (!s) continue
+    indiv[r.student_id] = indiv[r.student_id] || { id: r.student_id, name: maskName(s.first_name, s.last_name), house: s.house_name || '', total: 0 }
+    indiv[r.student_id].total += r.points_awarded || 0
+    if (s.house_name && (r.point_scope === 'house' || r.point_scope === 'both')) houses[s.house_name] = (houses[s.house_name] || 0) + (r.points_awarded || 0)
+  }
+  const { data: tasks, error: tErr } = await supabase.rpc('public_f2f_tasks', { p_from: from, p_to: to })
+  return {
+    houses: Object.keys(HOUSE_COLOUR).map(n => ({ name: n, points: houses[n] || 0 })).concat(Object.keys(houses).filter(n => !HOUSE_COLOUR[n]).map(n => ({ name: n, points: houses[n] })))
+      .sort((a, b) => b.points - a.points),
+    individuals: Object.values(indiv).filter(x => x.total > 0).sort((a, b) => b.total - a.total),
+    tasks: tErr ? [] : (tasks || []),
+  }
+}
+
+function Row({ rank, name, sub, subColour, value, unit, colour, me }) {
+  const medal = rank <= 3 ? ['#F5C542', '#C0C4CC', '#CD7F32'][rank - 1] : null
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 6, background: '#1A1F24',
+      border: me ? `1px solid ${colour}` : '1px solid #2A3138', boxShadow: me ? `0 0 10px ${colour}66` : 'none' }}>
+      <span style={{ ...NUM, width: 26, textAlign: 'center', fontSize: 13, color: medal || '#9A9A9A', textShadow: medal ? `0 0 6px ${medal}` : 'none' }}>{rank}</span>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ display: 'block', fontFamily: 'Rajdhani, sans-serif', fontWeight: 700, fontSize: 16, color: '#FFFFFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}{me ? ' (you)' : ''}</span>
+        {sub && <span style={{ display: 'block', ...NUM, fontSize: 8, letterSpacing: 1.5, color: subColour || '#9A9A9A' }}>{String(sub).toUpperCase()}</span>}
+      </span>
+      <span style={{ ...NUM, fontSize: 16, color: colour, textShadow: `0 0 6px ${colour}66` }}>{value}<span style={{ fontSize: 9, color: '#9A9A9A', marginLeft: 3 }}>{unit}</span></span>
+    </div>
+  )
+}
+
+export default function LeagueBoard({ embedded = false, student = null, onBack }) {
+  const [cfg, setCfg] = useState({ from: null, to: null, topHouse: 10, topIndiv: 10, topBoard: 10, seconds: 8, club: 'KR Centre' })
+  const [data, setData] = useState({ league: null, month: null })
+  const [exRows, setExRows] = useState([])
+  const [notesRows, setNotesRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [periodMode, setPeriodMode] = useState(embedded ? 'league' : 'auto') // auto | league | month
+  const [cycle, setCycle] = useState(0)
+  const [idx, setIdx] = useState(0)
+  const [paused, setPaused] = useState(false)
+  const pauseTimer = useRef(null)
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      const { data: settings } = await supabase.from('settings').select('key,value')
+        .in('key', ['club_name', 'league_date_from', 'league_date_to', 'league_topn_house', 'league_topn_individual', 'board_topn', 'board_seconds'])
+      const sm = Object.fromEntries((settings || []).map(r => [r.key, r.value]))
+      const now = new Date(), today = iso(now)
+      const from = sm.league_date_from || iso(new Date(now.getFullYear(), now.getMonth(), 1, 12))
+      const to = (sm.league_date_to && sm.league_date_to >= today) ? sm.league_date_to : today
+      const monthFrom = iso(new Date(now.getFullYear(), now.getMonth(), 1, 12))
+      const c = { from, to, monthFrom, today, club: sm.club_name || 'KR Centre',
+        topHouse: parseInt(sm.league_topn_house) || 10, topIndiv: parseInt(sm.league_topn_individual) || 10,
+        topBoard: parseInt(sm.board_topn) || 10, seconds: parseInt(sm.board_seconds) || 8 }
+      const [league, month, ex, notes] = await Promise.all([
+        loadPeriod(from, to), loadPeriod(monthFrom, today),
+        supabase.from('public_results_leaderboard').select('*'), supabase.rpc('public_notes_leaderboard'),
+      ])
+      if (cancelled) return
+      setCfg(c); setData({ league, month }); setExRows(ex.data || []); setNotesRows(notes.data || []); setLoading(false)
+    }
+    load().catch(() => setLoading(false))
+    return () => { cancelled = true }
+  }, [])
+
+  const period = periodMode === 'auto' ? (cycle % 2 === 0 ? 'league' : 'month') : periodMode
+  const pd = data[period]
+  const periodLabel = period === 'league'
+    ? `League · ${cfg.from ? new Date(cfg.from + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''} – ${cfg.to ? new Date(cfg.to + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''}`
+    : `This month · ${new Date().toLocaleDateString('en-GB', { month: 'long' })}`
+
+  const slides = useMemo(() => {
+    if (!pd) return []
+    const out = []
+    if (pd.houses.some(h => h.points > 0)) out.push({ kind: 'houses' })
+    if (pd.individuals.length) out.push({ kind: 'individuals' })
+    for (const a of AREAS) if (pd.tasks.some(r => taskValue(r, a.key) > 0)) out.push({ kind: 'tasks', area: a })
+    for (const cat of CATEGORIES) if (buildLeaderboard(cat, exRows, cfg.topBoard).length) out.push({ kind: 'exercise', cat })
+    if (notesRows.length) out.push({ kind: 'notes' })
+    return out
+  }, [pd, exRows, notesRows, cfg.topBoard])
+
+  // rotation; a full cycle flips the period when on auto
+  useEffect(() => {
+    if (paused || slides.length === 0) return
+    const t = setInterval(() => setIdx(i => { const n = i + 1; if (n >= slides.length) { setCycle(c => c + 1); return 0 } return n }), cfg.seconds * 1000)
+    return () => clearInterval(t)
+  }, [paused, slides.length, cfg.seconds])
+  useEffect(() => { if (idx >= slides.length) setIdx(0) }, [slides.length, idx])
+
+  function interact() { setPaused(true); clearTimeout(pauseTimer.current); pauseTimer.current = setTimeout(() => setPaused(false), 30000) }
+  const go = d => { interact(); setIdx(i => (i + d + slides.length) % Math.max(1, slides.length)) }
+  const swipe = useRef(null)
+
+  const s = slides[idx]
+  const meId = student?.id
+  const ranked = (list, valueOf) => {
+    let rank = 0, prev = null
+    return list.map((r, i) => { const v = valueOf(r); if (v !== prev) { rank = i + 1; prev = v } return { ...r, v, rank } })
+  }
+
+  function Board() {
+    if (!s) return <p style={{ color: '#9A9A9A', textAlign: 'center', marginTop: 40 }}>Nothing to show yet.</p>
+    if (s.kind === 'houses') {
+      const max = Math.max(1, ...pd.houses.map(h => h.points))
+      return (
+        <Slide title="House standings" colour="#F5C542">
+          {pd.houses.map((h, i) => {
+            const c = HOUSE_COLOUR[h.name] || '#9A9A9A'
+            return (
+              <div key={h.name} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 6, background: '#1A1F24', border: `1px solid ${h.name === student?.house_name ? c : '#2A3138'}` }}>
+                <span style={{ ...NUM, width: 22, color: i === 0 ? '#F5C542' : '#9A9A9A' }}>{i + 1}</span>
+                {HOUSE_LOGO[h.name] && <img src={HOUSE_LOGO[h.name]} alt="" style={{ width: 40, height: 40, objectFit: 'contain' }} />}
+                <span style={{ flex: 1 }}>
+                  <span style={{ ...TITLE, display: 'block', fontSize: 22, color: c, textShadow: `0 0 8px ${c}88` }}>{h.name.replace(/ House$/, '')} <span style={{ fontSize: 14, color: '#fff' }}>HOUSE</span></span>
+                  <span style={{ display: 'block', height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.08)', marginTop: 6 }}><span style={{ display: 'block', width: `${(h.points / max) * 100}%`, height: '100%', borderRadius: 2, background: c, boxShadow: `0 0 6px ${c}` }} /></span>
+                </span>
+                <span style={{ ...NUM, fontSize: 20, color: '#fff' }}>{Math.round(h.points)}</span>
+              </div>
+            )
+          })}
+        </Slide>
+      )
+    }
+    if (s.kind === 'individuals') {
+      const list = ranked(pd.individuals, r => r.total)
+      const top = list.slice(0, cfg.topIndiv), me = list.find(r => r.id === meId)
+      return (
+        <Slide title="House points" colour="#F5C542">
+          {top.map(r => <Row key={r.id} rank={r.rank} name={r.name} sub={r.house} subColour={HOUSE_COLOUR[r.house]} value={r.total} unit="PTS" colour="#F5C542" me={r.id === meId} />)}
+          {me && !top.includes(me) && <><div style={{ textAlign: 'center', color: '#666' }}>···</div><Row rank={me.rank} name={me.name} sub={me.house} subColour={HOUSE_COLOUR[me.house]} value={me.total} unit="PTS" colour="#F5C542" me /></>}
+        </Slide>
+      )
+    }
+    if (s.kind === 'tasks') {
+      const a = s.area
+      const list = ranked(pd.tasks.map(r => ({ ...r, val: taskValue(r, a.key) })).filter(r => r.val > 0).sort((x, y) => y.val - x.val), r => r.val)
+      const top = list.slice(0, cfg.topBoard), me = list.find(r => r.student_id === meId)
+      const col = a.key === 'all' ? '#FF2A2A' : a.colour
+      return (
+        <Slide title={a.key === 'all' ? 'Most tasks completed' : `${a.label} · most completed`} colour={col} icon={a.icon} sub="KR + KRBA">
+          {top.map(r => <Row key={r.student_id} rank={r.rank} name={r.display_name} sub={r.house_name} subColour={HOUSE_COLOUR[r.house_name]} value={r.val} unit="DONE" colour={col} me={r.student_id === meId} />)}
+          {me && !top.includes(me) && <><div style={{ textAlign: 'center', color: '#666' }}>···</div><Row rank={me.rank} name={me.display_name} sub={me.house_name} value={me.val} unit="DONE" colour={col} me /></>}
+        </Slide>
+      )
+    }
+    if (s.kind === 'exercise') {
+      const cat = s.cat, list = buildLeaderboard(cat, exRows, cfg.topBoard)
+      return (
+        <Slide title={cat.label.replace(/^\S+\s/, '')} colour={cat.colour} emoji={cat.label.split(' ')[0]} sub="Personal bests" fixedPeriod>
+          {list.map((r, i) => <Row key={r.name + i} rank={i + 1} name={r.name} sub={r.sub} value={r.value} unit={cat.unit} colour={cat.colour} />)}
+        </Slide>
+      )
+    }
+    const notes = notesRows.map(r => ({ name: maskName(r.first_name, r.last_name), value: r.notes_count })).sort((a, b) => b.value - a.value).slice(0, cfg.topBoard)
+    return <Slide title="Most notes" colour="#9A9A9A" emoji="📝" fixedPeriod>{notes.map((r, i) => <Row key={r.name + i} rank={i + 1} name={r.name} value={r.value} unit="NOTES" colour="#C0C4CC" />)}</Slide>
+  }
+
+  function Slide({ title, colour, icon, emoji, sub, fixedPeriod, children }) {
+    return (
+      <div key={idx + ':' + period} style={{ animation: 'lbFade 0.4s ease' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+          {icon ? <img src={icon} alt="" style={{ width: 40, height: 40, objectFit: 'contain' }} /> : emoji ? <span style={{ fontSize: 30 }}>{emoji}</span> : null}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ ...TITLE, fontSize: 28, color: colour, textShadow: `0 0 10px ${colour}66` }}>{title}</div>
+            <div style={{ ...NUM, fontSize: 9, letterSpacing: 2, color: '#9A9A9A', marginTop: 4 }}>{(fixedPeriod ? 'ALL TIME' : periodLabel).toUpperCase()}{sub ? ` · ${sub.toUpperCase()}` : ''}</div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{children}</div>
+      </div>
+    )
+  }
+
+  const chip = (on, label, onClick, colour = '#F5C542') => (
+    <button type="button" onClick={onClick} aria-pressed={on} style={{ height: 30, padding: '0 12px', border: 'none', cursor: 'pointer', clipPath: 'polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%)', background: on ? colour : '#2A3138', color: on ? '#0A0A0A' : '#F2F2F2', ...TITLE, fontSize: 14 }}>{label}</button>
+  )
+
+  return (
+    <div onPointerDown={interact}
+      onTouchStart={e => { swipe.current = { x: e.touches[0].clientX, y: e.touches[0].clientY } }}
+      onTouchEnd={e => { const c = swipe.current; swipe.current = null; if (!c) return; const dx = e.changedTouches[0].clientX - c.x, dy = e.changedTouches[0].clientY - c.y; if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) go(dx < 0 ? 1 : -1) }}
+      style={{ background: '#000', color: '#F2F2F2', minHeight: '100vh', margin: embedded ? '-20px -16px' : 0, padding: embedded ? '20px 16px 40px' : '20px 16px 40px', boxSizing: 'border-box' }}>
+      <style>{'@keyframes lbFade { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }'}</style>
+      <div style={{ maxWidth: 640, margin: '0 auto' }}>
+        {embedded && onBack && <button onClick={onBack} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+          <img src="/logos/kr-dragon.gif" alt="KR" style={{ height: 44, width: 'auto' }} />
+          <img src="/logos/krba-logo.png" alt="KRBA" style={{ height: 40, width: 'auto' }} />
+          <img src="/logos/f2f-logo-red.png" alt="Fit II Fight" style={{ height: 40, width: 'auto' }} />
+          <div style={{ ...TITLE, fontSize: 26, marginLeft: 'auto', textShadow: '0 0 10px rgba(255,42,42,0.5)' }}>LEAGUE</div>
+        </div>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+          {!embedded && chip(periodMode === 'auto', 'AUTO', () => setPeriodMode('auto'))}
+          {chip(period === 'league' && periodMode !== 'auto', 'LEAGUE', () => setPeriodMode('league'))}
+          {chip(period === 'month' && periodMode !== 'auto', 'THIS MONTH', () => setPeriodMode('month'))}
+          {periodMode === 'auto' && <span style={{ ...NUM, fontSize: 9, letterSpacing: 1.5, color: '#9A9A9A', alignSelf: 'center' }}>NOW: {period === 'league' ? 'LEAGUE' : 'THIS MONTH'}</span>}
+        </div>
+        {loading ? <p style={{ color: '#9A9A9A' }}>Loading league…</p> : <Board />}
+        {slides.length > 1 && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, marginTop: 16 }}>
+            <button type="button" onClick={() => go(-1)} style={{ background: 'none', border: '1px solid #2A3138', color: '#F2F2F2', borderRadius: 6, width: 40, height: 36, cursor: 'pointer' }}>‹</button>
+            <span style={{ ...NUM, fontSize: 11, color: '#9A9A9A' }}>{idx + 1} / {slides.length}{paused ? ' · paused' : ''}</span>
+            <button type="button" onClick={() => go(1)} style={{ background: 'none', border: '1px solid #2A3138', color: '#F2F2F2', borderRadius: 6, width: 40, height: 36, cursor: 'pointer' }}>›</button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

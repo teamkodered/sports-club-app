@@ -8,7 +8,7 @@ import PunchCountTool from '../components/shared/PunchCountTool.jsx'
 import { assignmentActiveOn, isPastAssignment, isFutureAssignment, askAssignmentDates, insertAssignment, endAssignment, setAssignmentDates, todayISO, fmtDMY } from '../lib/classAssignments.jsx'
 import { PDP_GOLD, pdpLinksFor, PdpNotes, PdpAddModal, pdpSectionKey, pdpLinkKey, pdpPillarForSection, pdpLinkForLine, pdpVisibleToAthlete, PDP_AREA_FOR_PILLAR } from '../components/shared/pdpLinks.jsx'
 import { newRunId, runKey, isSuicideTest, suicideMetres, SUICIDE_PRESETS, EffortSwitcher, SuicideInput } from '../components/shared/RunEfforts.jsx'
-import F2FLeague from '../components/athlete/F2FLeague.jsx'
+import LeagueBoard from './LeagueBoard.jsx'
 import SectionRopes from '../components/shared/SectionRopes.jsx'
 import NeonTileIcon from '../components/shared/NeonTileIcon.jsx'
 import StatOutline from '../components/shared/StatOutline.jsx'
@@ -7465,7 +7465,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
 
       {/* ── Leagues -- choose House League or Exercise Leagues ── */}
       {tab === 'f2fleague' && student && (
-        <F2FLeague student={student} onBack={() => setTab('home')} />
+        <LeagueBoard embedded student={student} onBack={() => setTab('home')} />
       )}
 
       {tab === 'leagues' && (

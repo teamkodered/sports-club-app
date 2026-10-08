@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabasePublic as supabase } from '../lib/supabasePublic.js'
 
-function maskName(first, last) {
+export function maskName(first, last) {
   if (!first) return '—'
   const lastInitial = last ? last[0].toUpperCase() + '.' : ''
   return `${first} ${lastInitial}`
@@ -29,7 +29,7 @@ function setValues(sets) {
 // Each category: how to build one "best value" entry per athlete from
 // the public_results_leaderboard rows. Weight is deliberately not
 // included anywhere here -- it's excluded from what's shared publicly.
-const CATEGORIES = [
+export const CATEGORIES = [
   {
     key: 'watt_bike', label: '🚴 Watt Bike', unit: 'W', colour: '#378ADD',
     extract: r => toEntries(r.watt_bike).map(e => ({ value: Math.max(...setValues(e.sets), e.max_wattage || 0), sub: normalizeIntervalMode(e.interval_mode || e.type) })),
@@ -96,7 +96,7 @@ const AUTO_SCROLL_SECONDS = 8
 // activity-count leagues ("most Physical responses logged" etc), so
 // every row's count is added together per athlete instead of just
 // keeping their single best row.
-function buildLeaderboard(cat, rows) {
+export function buildLeaderboard(cat, rows, limit = 10) {
   const perAthlete = {}
   rows.forEach(r => {
     const name = maskName(r.first_name, r.last_name)
@@ -113,7 +113,7 @@ function buildLeaderboard(cat, rows) {
   })
   return Object.values(perAthlete)
     .sort((a, b) => cat.lowerIsBetter ? a.value - b.value : b.value - a.value)
-    .slice(0, 10)
+    .slice(0, limit)
 }
 
 export default function ResultsPublic() {

@@ -193,6 +193,21 @@ export default function LeagueViews() {
       })
   }, [])
 
+  // League board (public display + athlete app) settings
+  const [boardSeconds, setBoardSeconds] = useState(8)
+  const [boardTopN, setBoardTopN] = useState(10)
+  useEffect(() => {
+    supabase.from('settings').select('key,value').in('key', ['board_seconds', 'board_topn']).then(({ data }) => {
+      const m = Object.fromEntries((data || []).map(r => [r.key, r.value]))
+      if (m.board_seconds) setBoardSeconds(parseInt(m.board_seconds) || 8)
+      if (m.board_topn) setBoardTopN(parseInt(m.board_topn) || 10)
+    })
+  }, [])
+  async function saveBoardSetting(key, val) {
+    const { error } = await supabase.from('settings').upsert({ key, value: val }, { onConflict: 'key' })
+    if (error) alert('Error saving board setting: ' + error.message)
+  }
+
   async function updateTopN(n) {
     setTopN(n)
     const { error } = await supabase.from('settings').upsert({ key: 'league_topn_individual', value: n }, { onConflict: 'key' })
@@ -659,6 +674,23 @@ export default function LeagueViews() {
             updateDateRange(from.toISOString().split('T')[0], new Date().toISOString().split('T')[0])
           }}>{r.label}</button>
         ))}
+      </div>
+
+      {/* League board (rotating display + athlete app) */}
+      <div className="card" style={{ marginBottom: 12, padding: '10px 12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
+          <b style={{ marginRight: 4 }}>League board</b>
+          <a href="/results-public" target="_blank" rel="noreferrer" style={{ fontSize: 11 }}>open ↗</a>
+          <span style={{ color: 'var(--text-secondary)', marginLeft: 8 }}>Seconds per board:</span>
+          {[5, 8, 12, 20, 30].map(n => (
+            <button key={n} onClick={() => { setBoardSeconds(n); saveBoardSetting('board_seconds', n) }} style={{ padding: '3px 9px', borderRadius: 20, fontSize: 11, cursor: 'pointer', border: `1px solid ${boardSeconds === n ? 'var(--text)' : 'var(--border-strong)'}`, background: boardSeconds === n ? 'var(--text)' : 'var(--bg)', color: boardSeconds === n ? 'var(--bg)' : 'var(--text-secondary)' }}>{n}</button>
+          ))}
+          <span style={{ color: 'var(--text-secondary)', marginLeft: 8 }}>Show top (tasks / exercise):</span>
+          {[5, 10, 15, 20].map(n => (
+            <button key={n} onClick={() => { setBoardTopN(n); saveBoardSetting('board_topn', n) }} style={{ padding: '3px 9px', borderRadius: 20, fontSize: 11, cursor: 'pointer', border: `1px solid ${boardTopN === n ? 'var(--text)' : 'var(--border-strong)'}`, background: boardTopN === n ? 'var(--text)' : 'var(--bg)', color: boardTopN === n ? 'var(--bg)' : 'var(--text-secondary)' }}>{n}</button>
+          ))}
+        </div>
+        <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '6px 0 0' }}>House standings and house points use the dates and "show top" settings on this page.</p>
       </div>
 
       {/* Tabs */}
