@@ -2348,7 +2348,7 @@ export default function CRM() {
                   <div>
                     <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>Status</label>
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      {[['not_started', 'Enquiry', '#EF9F27'], ['contacted', 'Contacted', '#378ADD'], ['trial_booked', 'Trial booked', '#8B5CF6'], ['joined', 'Joined', '#1D9E75'], ['waiting_list', 'Waiting list', '#EF9F27'], ['not_interested', 'Not interested', '#9CA3AF']].map(([k, l, c]) => (
+                      {[['not_started', 'Enquiry', '#EF9F27'], ['contacted', 'Contacted', '#378ADD'], ['trial_booked', 'Trial booked', '#8B5CF6'], ['attended', 'Attended', '#0EA5A4'], ['joined', 'Joined', '#1D9E75'], ['waiting_list', 'Waiting list', '#EF9F27'], ['not_interested', 'Not interested', '#9CA3AF']].map(([k, l, c]) => (
                         <button key={k} type="button" onClick={() => setEnquiryDraft(d => ({ ...d, status: k }))}
                           style={{ padding: '6px 12px', borderRadius: 16, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)', border: `1px solid ${enquiryDraft.status === k ? c : 'var(--border-strong)'}`, background: enquiryDraft.status === k ? c + '22' : 'transparent', color: enquiryDraft.status === k ? c : 'var(--text-secondary)', fontWeight: enquiryDraft.status === k ? 700 : 400 }}>{l}</button>
                       ))}
@@ -2415,7 +2415,8 @@ export default function CRM() {
   const ENQUIRY_STAGES = [
     { key: 'not_started', label: 'Contact', colour: '#E24B4A' },
     { key: 'contacted', label: 'Trial booked?', colour: '#378ADD' },
-    { key: 'trial_booked', label: 'Joined?', colour: '#8B5CF6' },
+    { key: 'trial_booked', label: 'Attended?', colour: '#8B5CF6' },
+    { key: 'attended', label: 'Joined?', colour: '#0EA5A4' },
     { key: 'joined', label: '✓ Joined', colour: '#1D9E75' },
   ]
 
@@ -2437,6 +2438,8 @@ export default function CRM() {
     } else if (enq.status === 'contacted') {
       updateEnquiryStatus(enq.id, 'trial_booked')
     } else if (enq.status === 'trial_booked') {
+      updateEnquiryStatus(enq.id, 'attended')
+    } else if (enq.status === 'attended') {
       updateEnquiryStatus(enq.id, 'joined')
       openWelcomeMessagePopup(enq)
     } else if (enq.status === 'joined') {
@@ -3181,7 +3184,7 @@ export default function CRM() {
                 selected (e.g. pressing "Call" shows how many phone
                 enquiries are at each stage, not the club-wide total),
                 and doubles as the status filter itself when pressed. */}
-            {[['not_started', 'Enquiries', '#EF9F27'], ['contacted', 'Contacted', '#378ADD'], ['trial_booked', 'Booked', '#8B5CF6'], ['joined', 'Joined', '#1D9E75']].map(([val, label, colour]) => {
+            {[['not_started', 'Enquiries', '#EF9F27'], ['contacted', 'Contacted', '#378ADD'], ['trial_booked', 'Booked', '#8B5CF6'], ['attended', 'Attended', '#0EA5A4'], ['joined', 'Joined', '#1D9E75']].map(([val, label, colour]) => {
               const count = enquiries.filter(e => e.status === val && (enquiryMethodFilter === 'all' || e.contact_method === enquiryMethodFilter)).length
               const active = enquiryStatusFilter === val
               return (
@@ -3257,6 +3260,12 @@ export default function CRM() {
                         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
                           <div style={{ fontSize: 15, fontWeight: 600 }}>{enq.name}</div>
                           {enq.contact_phone && <div style={{ fontSize: 14, fontWeight: 600, color: '#378ADD' }}>📞 {enq.contact_phone}</div>}
+                          {enq.status === 'attended' && enq.matched_at && (
+                            <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: '#0EA5A422', color: '#0EA5A4' }}
+                              title="Moved here automatically: a join form came in with the same phone or email">
+                              📝 Form matched{enq.members ? ` · ${enq.members.first_name} ${enq.members.last_name}` : ''}
+                            </span>
+                          )}
                         </div>
                         <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
                           {new Date(enq.enquiry_date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -3313,7 +3322,7 @@ export default function CRM() {
                   </div>
                 </div>
               )}
-                const SECTIONS = [['not_started', 'Enquiries', '#EF9F27'], ['contacted', 'Contacted', '#378ADD'], ['trial_booked', 'Trial booked', '#8B5CF6'], ['joined', 'Joined', '#1D9E75'], ['waiting_list', 'Waiting list', '#EF9F27'], ['not_interested', 'Not interested', '#9CA3AF']]
+                const SECTIONS = [['not_started', 'Enquiries', '#EF9F27'], ['contacted', 'Contacted', '#378ADD'], ['trial_booked', 'Trial booked', '#8B5CF6'], ['attended', 'Attended', '#0EA5A4'], ['joined', 'Joined', '#1D9E75'], ['waiting_list', 'Waiting list', '#EF9F27'], ['not_interested', 'Not interested', '#9CA3AF']]
                 const known = new Set(SECTIONS.map(x => x[0]))
                 return SECTIONS.map(([key, label, colour]) => {
                   const items = shown.filter(e => (known.has(e.status) ? e.status : 'not_started') === key)
