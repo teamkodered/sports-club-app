@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom'
 import { TEST_CATEGORIES } from '../lib/testResults.js'
 import { TestSessionModal, TestBatchModal } from '../components/shared/TestSession.jsx'
 import { supabase } from '../lib/supabase.js'
+import FightGame from '../components/shared/FightGame.jsx'
 import ChessGame from '../components/shared/ChessGame.jsx'
 import GuidedSession from '../components/shared/GuidedSession.jsx'
 import LeagueBoardSettings from '../components/shared/LeagueBoardSettings.jsx'
@@ -3286,6 +3287,7 @@ export default function AthleteProfiles() {
   const [expandedHomeRun, setExpandedHomeRun] = useState(null)
   const [showCompoundLifts, setShowCompoundLifts] = useState(false) // Compound Lifts: its own card under Physical
   const [wattEffortSel, setWattEffortSel] = useState({}) // watt bike: which effort is being edited, per group
+  const [fightOpen, setFightOpen] = useState(false) // KR Fight game for Gaming (combat)
   const [chessOpen, setChessOpen] = useState(false) // in-app chess game for the Chess question
   const [guidedFor, setGuidedFor] = useState(null) // { field, type } -- guided meditation / visualisation session
   const [videoTool, setVideoTool] = useState(null) // { mode: 'jump'|'sprint', distance, onSave, label }
@@ -9599,6 +9601,7 @@ export default function AthleteProfiles() {
               return (
                 <div className="neon-home">
                   {HistoryViewModal()}
+                  {fightOpen && <FightGame onClose={() => setFightOpen(false)} onRound={() => saveMentalityField('gaming', cur => ({ ...cur, count: (cur.count || 0) + 1 }))} />}
                   {chessOpen && <ChessGame onClose={() => setChessOpen(false)} onFinished={() => saveMentalityField('chess', cur => ({ ...cur, count: (cur.count || 0) + 1 }))} />}
                   {guidedFor && <GuidedSession kind={guidedFor.field} type={guidedFor.type} colour="#22B14C" onClose={() => setGuidedFor(null)} onComplete={mins => saveMentalityField(guidedFor.field, cur => ({ ...cur, entries: [...(cur.entries || []), { type: guidedFor.type, duration: String(mins), guided: true }] }))} />}
                   {videoTool?.mode === 'count' && <PunchCountTool onSave={({ perRound, perMinute }) => saveTestValues({ 'Punches per round': String(perRound), 'Punches per minute': String(perMinute) })} onClose={() => setVideoTool(null)} />}
@@ -10387,6 +10390,7 @@ export default function AthleteProfiles() {
                       {expandedHomeMentality === 'gaming' && (
                         <>
                           <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.gaming?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>session{(todaysMentalityLog.gaming?.count || 0) === 1 ? '' : 's'} today</span></div>
+                          <button type="button" className="btn btn-sm" onClick={() => setFightOpen(true)} style={{ width: '100%', justifyContent: 'center', marginBottom: 10, borderColor: '#22B14C', color: '#22B14C' }}>🥊 Play KR Fight here</button>
                           {AmountPicker({ draftKey: 'HomeMentality:gaming', presets: [1, 2, 3], unit: '', step: 1, colour: '#22B14C', onAdd: n => saveMentalityField('gaming', cur => ({ count: (cur.count || 0) + n })) })}
                         </>
                       )}
