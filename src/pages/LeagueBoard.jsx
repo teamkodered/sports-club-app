@@ -25,7 +25,8 @@ const AREAS = [
 const TITLE = { fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, letterSpacing: 1, lineHeight: 1, textTransform: 'uppercase' }
 const NUM = { fontFamily: 'Orbitron, sans-serif' }
 const iso = d => d.toISOString().split('T')[0]
-const taskValue = (r, k) => k === 'all' ? Number(r.physical) + Number(r.technical) + Number(r.tactical) + Number(r.mentality) + Number(r.foundation) : Number(r[k] || 0)
+const num = v => Number(v) || 0
+const taskValue = (r, k) => k === 'all' ? num(r.physical) + num(r.technical) + num(r.tactical) + num(r.mentality) + num(r.foundation) : num(r[k])
 
 async function fetchAllRows(build) {
   const out = []; const size = 1000
@@ -43,6 +44,10 @@ async function loadPeriod(from, to) {
   let pts = []
   const probe = await supabase.rpc('kc_public_league_points', args).range(0, 0)
   if (!probe.error) pts = await fetchAllRows(() => supabase.rpc('kc_public_league_points', args))
+  else {
+    // same fallback as the main public league: read the points directly when the points function isn't there
+    try { pts = await fetchAllRows(() => supabase.from('points_log').select('points_awarded, point_scope, student_id').gte('awarded_at', from).lte('awarded_at', to + 'T23:59:59')) } catch { pts = [] }
+  }
   const { data: studs } = await supabase.rpc('public_league_students')
   const sm = Object.fromEntries((studs || []).map(s => [s.id, s]))
   const indiv = {}, houses = {}
