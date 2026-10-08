@@ -196,14 +196,16 @@ export default function LeagueViews() {
   // League board (public display + athlete app) settings
   const [boardSeconds, setBoardSeconds] = useState(8)
   const [boardTopN, setBoardTopN] = useState(10)
+  const [boardTopHouse, setBoardTopHouse] = useState(null) // null = use the main league's
   const [boardFrom, setBoardFrom] = useState('')
   const [boardTo, setBoardTo] = useState('')
   useEffect(() => {
-    supabase.from('settings').select('key,value').in('key', ['board_seconds', 'board_topn', 'board_date_from', 'board_date_to']).then(({ data }) => {
+    supabase.from('settings').select('key,value').in('key', ['board_seconds', 'board_topn', 'board_date_from', 'board_date_to', 'board_topn_house']).then(({ data }) => {
       const m = Object.fromEntries((data || []).map(r => [r.key, r.value]))
       if (m.board_seconds) setBoardSeconds(parseInt(m.board_seconds) || 8)
       if (m.board_topn) setBoardTopN(parseInt(m.board_topn) || 10)
       setBoardFrom(m.board_date_from || ''); setBoardTo(m.board_date_to || '')
+      if (m.board_topn_house) setBoardTopHouse(parseInt(m.board_topn_house) || null)
     })
   }, [])
   async function saveBoardSetting(key, val) {
@@ -694,6 +696,13 @@ export default function LeagueViews() {
           ))}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12, marginTop: 8 }}>
+          <span style={{ color: 'var(--text-secondary)' }}>House points — show top per house:</span>
+          {[3, 5, 10, 15, 20].map(n => (
+            <button key={n} onClick={() => { setBoardTopHouse(n); saveBoardSetting('board_topn_house', n) }} style={{ padding: '3px 9px', borderRadius: 20, fontSize: 11, cursor: 'pointer', border: `1px solid ${boardTopHouse === n ? 'var(--text)' : 'var(--border-strong)'}`, background: boardTopHouse === n ? 'var(--text)' : 'var(--bg)', color: boardTopHouse === n ? 'var(--bg)' : 'var(--text-secondary)' }}>{n}</button>
+          ))}
+          {boardTopHouse && <button onClick={() => { setBoardTopHouse(null); saveBoardSetting('board_topn_house', null) }} style={{ padding: '3px 9px', borderRadius: 20, fontSize: 11, cursor: 'pointer', border: '1px solid var(--border-strong)', background: 'var(--bg)', color: 'var(--text-secondary)' }}>Use main league's</button>}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12, marginTop: 8 }}>
           <span style={{ color: 'var(--text-secondary)' }}>League period:</span>
           <input type="date" value={boardFrom} onChange={e => { setBoardFrom(e.target.value); saveBoardSetting('board_date_from', e.target.value || null) }} style={{ fontSize: 12 }} />
           <span>to</span>
@@ -701,7 +710,7 @@ export default function LeagueViews() {
           {(boardFrom || boardTo) && <button onClick={() => { setBoardFrom(''); setBoardTo(''); saveBoardSetting('board_date_from', null); saveBoardSetting('board_date_to', null) }} style={{ padding: '3px 9px', borderRadius: 20, fontSize: 11, cursor: 'pointer', border: '1px solid var(--border-strong)', background: 'var(--bg)', color: 'var(--text-secondary)' }}>Use main league dates</button>}
         </div>
         <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '6px 0 0' }}>
-          {boardFrom ? 'The board uses its own league period (separate from the main league). No end date = up to today; once the end date has passed, the board stays frozen at it.' : 'No board dates set -- the board uses the main league dates on this page (or this month if none).'} House points per house uses the main league's "show top".
+          {boardFrom ? 'The board uses its own league period (separate from the main league). No end date = up to today; once the end date has passed, the board stays frozen at it.' : 'No board dates set -- the board uses the main league dates on this page (or this month if none).'} {boardTopHouse ? `House points shows the top ${boardTopHouse} per house.` : 'House points per house follows the main league\'s "show top" until you pick one above.'}
         </p>
       </div>
 

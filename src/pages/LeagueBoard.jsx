@@ -102,7 +102,7 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
     let cancelled = false
     async function load() {
       const { data: settings } = await supabase.from('settings').select('key,value')
-        .in('key', ['club_name', 'league_date_from', 'league_date_to', 'league_topn_house', 'league_topn_individual', 'board_topn', 'board_seconds', 'board_date_from', 'board_date_to'])
+        .in('key', ['club_name', 'league_date_from', 'league_date_to', 'league_topn_house', 'league_topn_individual', 'board_topn', 'board_seconds', 'board_date_from', 'board_date_to', 'board_topn_house'])
       const sm = Object.fromEntries((settings || []).map(r => [r.key, r.value]))
       const now = new Date(), today = iso(now)
       // League period: the board's own dates (League page -> League board), else the main league's, else this month.
@@ -113,7 +113,7 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
       const to = bTo ? (bTo < today ? bTo : today) : today
       const monthFrom = iso(new Date(now.getFullYear(), now.getMonth(), 1, 12))
       const c = { from, to, monthFrom, today, club: sm.club_name || 'KR Centre',
-        topHouse: parseInt(sm.league_topn_house) || 10, topIndiv: parseInt(sm.league_topn_individual) || 10,
+        topHouse: parseInt(sm.board_topn_house) || parseInt(sm.league_topn_house) || 10, // board's own 'show top per house', else the main league's topIndiv: parseInt(sm.league_topn_individual) || 10,
         topBoard: parseInt(sm.board_topn) || 10, seconds: parseInt(sm.board_seconds) || 8 }
       const [league, month, ex, notes] = await Promise.all([
         loadPeriod(from, to), loadPeriod(monthFrom, today),
