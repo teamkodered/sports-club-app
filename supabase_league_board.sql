@@ -39,7 +39,7 @@ language sql stable security definer set search_path = public as $$
   select kr.id, kr.display_name, kr.house_name,
          coalesce(f2f.physical, 0), coalesce(f2f.technical, 0), coalesce(f2f.tactical, 0),
          coalesce(f2f.mentality, 0), coalesce(f2f.foundation, 0), coalesce(f2f.days_logged, 0)
-  from kr join f2f on f2f.student_id = kr.id
+  from kr left join f2f on f2f.student_id = kr.id   -- every KR / KRBA athlete (0s included) so the board also knows who's KR / KRBA
 $$;
 
 grant execute on function public.public_f2f_tasks(date, date) to anon, authenticated;

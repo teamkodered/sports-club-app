@@ -52,10 +52,12 @@ async function loadPeriod(from, to) {
     if (s.house_name && (r.point_scope === 'house' || r.point_scope === 'both')) houses[s.house_name] = (houses[s.house_name] || 0) + (r.points_awarded || 0)
   }
   const { data: tasks, error: tErr } = await supabase.rpc('public_f2f_tasks', { p_from: from, p_to: to })
+  const krIds = new Set((tErr ? [] : tasks || []).map(t => t.student_id))
   return {
     houses: Object.keys(HOUSE_COLOUR).map(n => ({ name: n, points: houses[n] || 0 })).concat(Object.keys(houses).filter(n => !HOUSE_COLOUR[n]).map(n => ({ name: n, points: houses[n] })))
       .sort((a, b) => b.points - a.points),
-    individuals: Object.values(indiv).filter(x => x.total > 0).sort((a, b) => b.total - a.total),
+    // house points board: KR + KRBA athletes only (all students if the tasks function isn't set up yet)
+    individuals: Object.values(indiv).filter(x => x.total > 0 && (krIds.size === 0 || krIds.has(x.id))).sort((a, b) => b.total - a.total),
     tasks: tErr ? [] : (tasks || []),
   }
 }
@@ -171,12 +173,27 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
       )
     }
     if (s.kind === 'individuals') {
-      const list = ranked(pd.individuals, r => r.total)
-      const top = list.slice(0, cfg.topIndiv), me = list.find(r => r.id === meId)
+      const houseNames = [...Object.keys(HOUSE_COLOUR), ...[...new Set(pd.individuals.map(r => r.house))].filter(h => h && !HOUSE_COLOUR[h])]
       return (
-        <Slide title="House points" colour="#F5C542">
-          {top.map(r => <Row key={r.id} rank={r.rank} name={r.name} sub={r.house} subColour={HOUSE_COLOUR[r.house]} value={r.total} unit="PTS" colour="#F5C542" me={r.id === meId} />)}
-          {me && !top.includes(me) && <><div style={{ textAlign: 'center', color: '#666' }}>···</div><Row rank={me.rank} name={me.name} sub={me.house} subColour={HOUSE_COLOUR[me.house]} value={me.total} unit="PTS" colour="#F5C542" me /></>}
+        <Slide title="House points" colour="#F5C542" sub="KR + KRBA">
+          {houseNames.map(h => {
+            const list = ranked(pd.individuals.filter(r => r.house === h), r => r.total)
+            if (!list.length) return null
+            const c = HOUSE_COLOUR[h] || '#9A9A9A'
+            const top = list.slice(0, cfg.topHouse), me = list.find(r => r.id === meId)
+            return (
+              <div key={h} style={{ marginBottom: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 6px' }}>
+                  {HOUSE_LOGO[h] && <img src={HOUSE_LOGO[h]} alt="" style={{ width: 28, height: 28, objectFit: 'contain' }} />}
+                  <span style={{ ...TITLE, fontSize: 18, color: c, textShadow: `0 0 8px ${c}88` }}>{h.replace(/ House$/, '')} <span style={{ fontSize: 12, color: '#fff' }}>HOUSE</span></span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  {top.map(r => <Row key={r.id} rank={r.rank} name={r.name} value={r.total} unit="PTS" colour={c} me={r.id === meId} />)}
+                  {me && !top.includes(me) && <><div style={{ textAlign: 'center', color: '#666' }}>···</div><Row rank={me.rank} name={me.name} value={me.total} unit="PTS" colour={c} me /></>}
+                </div>
+              </div>
+            )
+          })}
         </Slide>
       )
     }
@@ -231,26 +248,25 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
       <style>{'@keyframes lbFade { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }'}</style>
       <div style={{ maxWidth: 640, margin: '0 auto' }}>
         {embedded && onBack && <button onClick={onBack} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-          <img src="/logos/kr-dragon.gif" alt="KR" style={{ height: 44, width: 'auto' }} />
-          <img src="/logos/krba-logo.png" alt="KRBA" style={{ height: 40, width: 'auto' }} />
-          <img src="/logos/f2f-logo-red.png" alt="Fit II Fight" style={{ height: 40, width: 'auto' }} />
-          <div style={{ ...TITLE, fontSize: 26, marginLeft: 'auto', textShadow: '0 0 10px rgba(255,42,42,0.5)' }}>LEAGUE</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
+          <img src="/logos/kr-dragon.gif" alt="KR" style={{ height: 48, width: 'auto' }} />
+          <img src="/logos/f2f-logo-red.png" alt="Fit II Fight" style={{ height: 48, width: 'auto', filter: 'drop-shadow(0 0 8px rgba(255,42,42,0.5))' }} />
+          <img src="/logos/krba-logo.png" alt="KRBA" style={{ height: 44, width: 'auto' }} />
         </div>
         <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
           {!embedded && chip(periodMode === 'auto', 'AUTO', () => setPeriodMode('auto'))}
-          {chip(period === 'league' && periodMode !== 'auto', 'LEAGUE', () => setPeriodMode('league'))}
+          {chip(period === 'league' && periodMode !== 'auto', 'LEAGUE PERIOD', () => setPeriodMode('league'))}
           {chip(period === 'month' && periodMode !== 'auto', 'THIS MONTH', () => setPeriodMode('month'))}
           {periodMode === 'auto' && <span style={{ ...NUM, fontSize: 9, letterSpacing: 1.5, color: '#9A9A9A', alignSelf: 'center' }}>NOW: {period === 'league' ? 'LEAGUE' : 'THIS MONTH'}</span>}
         </div>
-        {loading ? <p style={{ color: '#9A9A9A' }}>Loading league…</p> : <Board />}
         {slides.length > 1 && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, marginTop: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, marginBottom: 12 }}>
             <button type="button" onClick={() => go(-1)} style={{ background: 'none', border: '1px solid #2A3138', color: '#F2F2F2', borderRadius: 6, width: 40, height: 36, cursor: 'pointer' }}>‹</button>
             <span style={{ ...NUM, fontSize: 11, color: '#9A9A9A' }}>{idx + 1} / {slides.length}{paused ? ' · paused' : ''}</span>
             <button type="button" onClick={() => go(1)} style={{ background: 'none', border: '1px solid #2A3138', color: '#F2F2F2', borderRadius: 6, width: 40, height: 36, cursor: 'pointer' }}>›</button>
           </div>
         )}
+        {loading ? <p style={{ color: '#9A9A9A' }}>Loading league…</p> : <Board />}
       </div>
     </div>
   )
