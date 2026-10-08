@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { TEST_CATEGORIES } from '../lib/testResults.js'
 import { TestSessionModal, TestBatchModal } from '../components/shared/TestSession.jsx'
 import { supabase } from '../lib/supabase.js'
+import GuidedSession from '../components/shared/GuidedSession.jsx'
 import VideoMeasureTool from '../components/shared/VideoMeasureTool.jsx'
 import PunchCountTool from '../components/shared/PunchCountTool.jsx'
 import { assignmentActiveOn, isPastAssignment, isFutureAssignment, askAssignmentDates, insertAssignment, endAssignment, setAssignmentDates, todayISO, fmtDMY } from '../lib/classAssignments.jsx'
@@ -1633,6 +1634,7 @@ export default function AthleteApp() {
   }, [])
   const [wattEffortSel, setWattEffortSel] = useState({}) // watt bike: which effort is being edited, per group
   const [sprintVideoTick, setSprintVideoTick] = useState(0) // re-mounts the sprint inputs after a video time is added
+  const [guidedFor, setGuidedFor] = useState(null) // { field, type } -- guided meditation / visualisation session
   const [videoTool, setVideoTool] = useState(null) // { mode: 'jump'|'sprint', distance, onSave, label }
   const [runEffortSel, setRunEffortSel] = useState({}) // running: which effort is being edited, per type ('__new__' = a new one)
   const [showPhysicalSection, setShowPhysicalSection] = useState(false)
@@ -3988,6 +3990,12 @@ export default function AthleteApp() {
           <button type="button" className="btn btn-sm neon-save" disabled={!canSave} onClick={save}>Save</button>
         </div>
         {!sel && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '6px 0 0' }}>Pick an option, add minutes if you like, then Save.</p>}
+        {sel && (field === 'meditation' || field === 'visualisation') && (
+          <button type="button" className="btn btn-sm neon-guided" onClick={() => setGuidedFor({ field, type: sel.name })}
+            style={{ marginTop: 10, width: '100%', justifyContent: 'center', borderColor: colour, color: colour }}>
+            ▶ Start guided session · {sel.name}
+          </button>
+        )}
       </div>
     )
   }
@@ -4876,6 +4884,7 @@ export default function AthleteApp() {
       {tab === 'home' && (
         <div className="neon-home">
           {HistoryViewModal()}
+          {guidedFor && <GuidedSession kind={guidedFor.field} type={guidedFor.type} colour="#22B14C" onClose={() => setGuidedFor(null)} onComplete={mins => saveMentalityField(guidedFor.field, cur => ({ ...cur, entries: [...(cur.entries || []), { type: guidedFor.type, duration: String(mins), guided: true }] }))} />}
           {videoTool?.mode === 'count' && <PunchCountTool onSave={({ perRound, perMinute }) => saveTestValues({ 'Punches per round': String(perRound), 'Punches per minute': String(perMinute) })} onClose={() => setVideoTool(null)} />}
           {videoTool && videoTool.mode !== 'count' && <VideoMeasureTool mode={videoTool.mode} defaultDistance={videoTool.distance} saveLabel={videoTool.label} onResult={videoTool.onSave} onClose={() => setVideoTool(null)} />}
           {UndoBar()}
