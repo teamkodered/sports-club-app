@@ -4432,7 +4432,7 @@ export default function AthleteProfiles() {
   // Amount questions (games, sessions, drills, litres, minutes, conversations,
   // tasks): tap a quick amount OR type one -- ONE box, ONE Add. Adds exactly
   // what the old +N buttons / custom-add box added, so totals are unchanged.
-  function AmountPicker({ draftKey, presets = [1, 2, 3], unit = '', step = 1, onAdd, colour = '#22B14C', saveLabel = 'Add' }) {
+  function AmountPicker({ draftKey, presets = [1, 2, 3], unit = '', suffix = '', step = 1, onAdd, colour = '#22B14C', saveLabel = 'Add' }) {
     const raw = pickDraft[draftKey] ?? ''
     const n = step < 1 ? parseFloat(raw) : parseInt(raw, 10)
     const ok = Number.isFinite(n) && n > 0
@@ -4452,6 +4452,7 @@ export default function AthleteProfiles() {
                 </button>
               )
             })}
+            {suffix && <span style={{ alignSelf: 'center', fontSize: 13, color: 'var(--text-secondary)' }}>{suffix}</span>}
           </div>
         )}
         <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
@@ -10379,8 +10380,8 @@ export default function AthleteProfiles() {
                       )}
                       {expandedHomeMentality === 'reading' && (
                         <>
-                          <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.reading?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>session{(todaysMentalityLog.reading?.count || 0) === 1 ? '' : 's'} today</span></div>
-                          {AmountPicker({ draftKey: 'HomeMentality:reading', presets: [1, 2, 3], unit: '', step: 1, colour: '#22B14C', onAdd: n => saveMentalityField('reading', cur => ({ count: (cur.count || 0) + n })) })}
+                          <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.reading?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>chapter{(todaysMentalityLog.reading?.count || 0) === 1 ? '' : 's'} today</span></div>
+                          {AmountPicker({ draftKey: 'HomeMentality:reading', presets: [1, 2, 3], unit: '', suffix: 'chapters', step: 1, colour: '#22B14C', onAdd: n => saveMentalityField('reading', cur => ({ count: (cur.count || 0) + n })) })}
                         </>
                       )}
                       {expandedHomeMentality === 'gaming' && (
