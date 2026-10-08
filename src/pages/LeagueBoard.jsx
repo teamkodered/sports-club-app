@@ -12,6 +12,7 @@ import { CATEGORIES, buildLeaderboard, maskName } from './ResultsPublic.jsx'
 // full cycle (league totals, then this month), with buttons to fix either.
 
 const HOUSE_COLOUR = { 'Dragon House': '#E24B4A', 'Super House': '#F5821F', 'Ice House': '#378ADD', 'Jet House': '#22B14C' }
+const HOUSE_TEXT = { 'Dragon House': '/logos/text-dragon.png', 'Super House': '/logos/text-super.png', 'Ice House': '/logos/text-ice.png', 'Jet House': '/logos/text-jet.png' }
 const HOUSE_LOGO = { 'Dragon House': '/logos/house-dragon.png', 'Super House': '/logos/house-super.png', 'Ice House': '/logos/house-ice.png', 'Jet House': '/logos/house-jet.png' }
 const AREAS = [
   { key: 'all', label: 'Most tasks completed', colour: '#FFFFFF', icon: '/logos/f2f-logo-red.png' },
@@ -160,9 +161,8 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
             return (
               <div key={h.name} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 6, background: '#1A1F24', border: `1px solid ${h.name === student?.house_name ? c : '#2A3138'}` }}>
                 <span style={{ ...NUM, width: 22, color: i === 0 ? '#F5C542' : '#9A9A9A' }}>{i + 1}</span>
-                {HOUSE_LOGO[h.name] && <img src={HOUSE_LOGO[h.name]} alt="" style={{ width: 40, height: 40, objectFit: 'contain' }} />}
                 <span style={{ flex: 1 }}>
-                  <span style={{ ...TITLE, display: 'block', fontSize: 22, color: c, textShadow: `0 0 8px ${c}88` }}>{h.name.replace(/ House$/, '')} <span style={{ fontSize: 14, color: '#fff' }}>HOUSE</span></span>
+                  {HOUSE_TEXT[h.name] ? <img src={HOUSE_TEXT[h.name]} alt={h.name} style={{ height: 30, width: 'auto', objectFit: 'contain', display: 'block' }} /> : <span style={{ ...TITLE, display: 'block', fontSize: 22, color: c }}>{h.name}</span>}
                   <span style={{ display: 'block', height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.08)', marginTop: 6 }}><span style={{ display: 'block', width: `${(h.points / max) * 100}%`, height: '100%', borderRadius: 2, background: c, boxShadow: `0 0 6px ${c}` }} /></span>
                 </span>
                 <span style={{ ...NUM, fontSize: 20, color: '#fff' }}>{Math.round(h.points)}</span>
@@ -173,27 +173,46 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
       )
     }
     if (s.kind === 'individuals') {
-      const houseNames = [...Object.keys(HOUSE_COLOUR), ...[...new Set(pd.individuals.map(r => r.house))].filter(h => h && !HOUSE_COLOUR[h])]
+      // Same layout as the main league's "By house": four columns side by side, house text
+      // logo + house total at the top, then that house's athletes (KR + KRBA only here)
+      const order = pd.houses.map(h => h.name)
+      const extra = [...new Set(pd.individuals.map(r => r.house))].filter(h => h && !order.includes(h))
+      const medals = ['🥇', '🥈', '🥉']
       return (
         <Slide title="House points" colour="#F5C542" sub="KR + KRBA">
-          {houseNames.map(h => {
-            const list = ranked(pd.individuals.filter(r => r.house === h), r => r.total)
-            if (!list.length) return null
-            const c = HOUSE_COLOUR[h] || '#9A9A9A'
-            const top = list.slice(0, cfg.topHouse), me = list.find(r => r.id === meId)
-            return (
-              <div key={h} style={{ marginBottom: 10 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 6px' }}>
-                  {HOUSE_LOGO[h] && <img src={HOUSE_LOGO[h]} alt="" style={{ width: 28, height: 28, objectFit: 'contain' }} />}
-                  <span style={{ ...TITLE, fontSize: 18, color: c, textShadow: `0 0 8px ${c}88` }}>{h.replace(/ House$/, '')} <span style={{ fontSize: 12, color: '#fff' }}>HOUSE</span></span>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 6 }}>
+            {[...order, ...extra].map((h, hIdx) => {
+              const c = HOUSE_COLOUR[h] || '#9A9A9A'
+              const total = pd.houses.find(x => x.name === h)?.points || 0
+              const list = pd.individuals.filter(r => r.house === h)
+              const top = list.slice(0, cfg.topHouse)
+              const myIdx = list.findIndex(r => r.id === meId)
+              return (
+                <div key={h} style={{ background: '#1A1F24', border: '1px solid #2A3138', borderTop: `3px solid ${c}`, borderRadius: 6, overflow: 'hidden', minWidth: 0 }}>
+                  <div style={{ padding: '8px 6px', borderBottom: '1px solid #2A3138', textAlign: 'center' }}>
+                    <div style={{ ...NUM, fontSize: 9, color: '#9A9A9A' }}>{hIdx + 1}</div>
+                    {HOUSE_TEXT[h] ? <img src={HOUSE_TEXT[h]} alt={h} style={{ height: 20, maxWidth: '100%', objectFit: 'contain', display: 'block', margin: '2px auto' }} /> : <div style={{ ...TITLE, fontSize: 13, color: c }}>{h}</div>}
+                    <div style={{ ...NUM, fontSize: 14, color: c, textShadow: `0 0 6px ${c}66` }}>{Math.round(total)}</div>
+                    <div style={{ ...NUM, fontSize: 7, letterSpacing: 1, color: '#9A9A9A' }}>PTS</div>
+                  </div>
+                  {top.length === 0 ? <div style={{ padding: 8, fontSize: 11, color: '#666', textAlign: 'center' }}>—</div> : top.map((r, i) => (
+                    <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '5px 5px', borderBottom: '1px solid #20262c', background: r.id === meId ? c + '33' : i < 3 ? c + '10' : 'transparent' }}>
+                      <span style={{ width: 16, textAlign: 'center', fontSize: i < 3 ? 12 : 10, color: '#9A9A9A', flexShrink: 0 }}>{medals[i] || i + 1}</span>
+                      <span style={{ flex: 1, minWidth: 0, fontSize: 11, fontWeight: i < 3 ? 700 : 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</span>
+                      <span style={{ ...NUM, fontSize: 10, color: c, flexShrink: 0 }}>{r.total}</span>
+                    </div>
+                  ))}
+                  {myIdx >= cfg.topHouse && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '5px 5px', background: c + '33' }}>
+                      <span style={{ width: 16, textAlign: 'center', fontSize: 10, color: '#9A9A9A' }}>{myIdx + 1}</span>
+                      <span style={{ flex: 1, minWidth: 0, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{list[myIdx].name}</span>
+                      <span style={{ ...NUM, fontSize: 10, color: c }}>{list[myIdx].total}</span>
+                    </div>
+                  )}
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                  {top.map(r => <Row key={r.id} rank={r.rank} name={r.name} value={r.total} unit="PTS" colour={c} me={r.id === meId} />)}
-                  {me && !top.includes(me) && <><div style={{ textAlign: 'center', color: '#666' }}>···</div><Row rank={me.rank} name={me.name} value={me.total} unit="PTS" colour={c} me /></>}
-                </div>
-              </div>
-            )
-          })}
+              )
+            })}
+          </div>
         </Slide>
       )
     }
