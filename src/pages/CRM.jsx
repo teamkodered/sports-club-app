@@ -1325,44 +1325,80 @@ export default function CRM() {
   // already sitting in Contacted/Notes (moving them again doesn't make
   // sense), separate from markContactedForMessage below which does both
   // together for a fresh Inbox message.
+  // Website enquiry form emails ("… | Website Enquiry") arrive with the visitor's name and
+  // email glued together in the sender, but the body has a clean line:
+  //   ENQUIRY BY: Emilia Buxton, <emilia.buxton@gmail.com>, 07700 900000
+  //   SUBJECT: Ladies Only Kickboxing Classes
+  //   Message Body: …
+  // Returns { name, email, phone, subject, message } or null.
+  function parseWebsiteEnquiry(body) {
+    if (!body) return null
+    const m = body.match(/ENQUIRY BY:\s*([^,<\n]*?)\s*,\s*<?\s*([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})\s*>?\s*(?:,\s*([+0-9][0-9 ()-]{7,}))?/i)
+    if (!m) return null
+    const subj = body.match(/SUBJECT:\s*(.+)/i)
+    const msgBody = body.match(/Message Body:([\s\S]*)/i)
+    const msgText = msgBody ? msgBody[1].replace(/(^|\n)\s*--[\s\S]*$/, '').replace(/This e-mail was sent from[\s\S]*$/i, '').trim() : ''
+    return {
+      name: m[1].trim() || null,
+      email: m[2].trim().toLowerCase(),
+      phone: m[3] ? m[3].replace(/[\s()-]/g, '') : null,
+      subject: subj ? subj[1].trim() : null,
+      message: msgText || null,
+    }
+  }
+  async function fetchMessageBody(msg) {
+    if (msg.body !== undefined) return msg.body || ''
+    const { data: sessionData } = await supabase.auth.getSession()
+    const accessToken = sessionData?.session?.access_token
+    const res = await fetch(`/.netlify/functions/list-inbox?uid=${msg.uid}&folder=${encodeURIComponent(emailFolder)}`, { headers: { Authorization: `Bearer ${accessToken}` } })
+    const result = await res.json()
+    return result.message?.body || ''
+  }
+  // The enquiry fields for an email: website-form details when present, otherwise the sender
+  async function enquiryDetailsFromEmail(msg) {
+    const body = await fetchMessageBody(msg)
+    const web = parseWebsiteEnquiry(body)
+    const notesBase = msg.subject ? `From email: "${msg.subject}"` : 'From email'
+    if (web) return {
+      name: web.name || msg.fromName || web.email.split('@')[0], email: web.email, phone: web.phone || extractPhoneNumber(body),
+      notes: web.subject ? `Website enquiry: ${web.subject}${web.message ? ` — ${web.message}` : ''}` : notesBase,
+      // the scrambled address an earlier import may have saved (name glued onto the email)
+      oldEmail: msg.from && msg.from.toLowerCase() !== web.email ? msg.from : null,
+    }
+    return { name: msg.fromName || msg.from.split('@')[0], email: msg.from, phone: extractPhoneNumber(body), notes: notesBase, oldEmail: null }
+  }
+  // Find an existing enquiry for this email -- including one saved earlier with the scrambled address
+  async function findEnquiryForEmail(d) {
+    const { data: byEmail, error } = await supabase.from('enquiries').select('id, contact_phone, name').ilike('contact_email', d.email).maybeSingle()
+    if (error) throw error
+    if (byEmail) return byEmail
+    if (d.oldEmail) {
+      const { data: byOld } = await supabase.from('enquiries').select('id, contact_phone, name').ilike('contact_email', d.oldEmail).maybeSingle()
+      return byOld || null
+    }
+    return null
+  }
+
   async function addToEnquiries(msg) {
     if (!msg?.from) return
     try {
-      // The row-level button only has the list-mode message (no body),
-      // so a phone number mentioned in the message text couldn't be
-      // picked up at all -- fetches the full message first whenever
-      // the body isn't already present (e.g. the modal's own call
-      // already has it, from opening the message to read it).
-      let body = msg.body
-      if (body === undefined) {
-        const { data: sessionData } = await supabase.auth.getSession()
-        const accessToken = sessionData?.session?.access_token
-        const res = await fetch(`/.netlify/functions/list-inbox?uid=${msg.uid}&folder=${encodeURIComponent(emailFolder)}`, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        })
-        const result = await res.json()
-        body = result.message?.body || ''
-      }
-      const detectedPhone = extractPhoneNumber(body)
-
-      const { data: existing, error: selectErr } = await supabase.from('enquiries').select('id, contact_phone').ilike('contact_email', msg.from).maybeSingle()
-      if (selectErr) throw selectErr
+      const d = await enquiryDetailsFromEmail(msg)
+      const existing = await findEnquiryForEmail(d)
       if (existing) {
+        const badName = !existing.name || /^\|/.test(existing.name) || existing.name === 'Unknown'
         const { error: updateErr } = await supabase.from('enquiries').update({
           status: 'contacted',
           updated_at: new Date().toISOString(),
-          contact_phone: existing.contact_phone || detectedPhone || null, // don't overwrite an already-known number
+          contact_email: d.email,                                   // repairs a scrambled address
+          contact_phone: existing.contact_phone || d.phone || null,  // don't overwrite an already-known number
+          ...(badName && d.name ? { name: d.name } : {}),
         }).eq('id', existing.id)
         if (updateErr) throw updateErr
       } else {
         const { error: insertErr } = await supabase.from('enquiries').insert({
-          name: msg.fromName || msg.from.split('@')[0],
-          contact_email: msg.from,
-          contact_phone: detectedPhone || null,
-          contact_method: 'email',
+          name: d.name, contact_email: d.email, contact_phone: d.phone || null, contact_method: 'email',
           enquiry_date: msg.date ? new Date(msg.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-          notes: msg.subject ? `From email: "${msg.subject}"` : 'From email',
-          status: 'contacted',
+          notes: d.notes, status: 'contacted',
         })
         if (insertErr) throw insertErr
       }
@@ -1379,17 +1415,19 @@ export default function CRM() {
     const run = async () => {
       delete pendingContactTimers.current[msg.uid]
       try {
-        const { data: existing } = await supabase.from('enquiries').select('id').ilike('contact_email', msg.from).maybeSingle()
+        const d = await enquiryDetailsFromEmail(msg)
+        const existing = await findEnquiryForEmail(d)
         if (existing) {
-          await supabase.from('enquiries').update({ status: 'contacted', updated_at: new Date().toISOString() }).eq('id', existing.id)
+          const badName = !existing.name || /^\|/.test(existing.name) || existing.name === 'Unknown'
+          await supabase.from('enquiries').update({
+            status: 'contacted', updated_at: new Date().toISOString(), contact_email: d.email,
+            contact_phone: existing.contact_phone || d.phone || null, ...(badName && d.name ? { name: d.name } : {}),
+          }).eq('id', existing.id)
         } else {
           await supabase.from('enquiries').insert({
-            name: msg.fromName || msg.from.split('@')[0],
-            contact_email: msg.from,
-            contact_method: 'email',
+            name: d.name, contact_email: d.email, contact_phone: d.phone || null, contact_method: 'email',
             enquiry_date: msg.date ? new Date(msg.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-            notes: msg.subject ? `From email: "${msg.subject}"` : 'From email',
-            status: 'contacted',
+            notes: d.notes, status: 'contacted',
           })
         }
         if (enquiriesLoaded) loadEnquiries()
