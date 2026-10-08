@@ -26,7 +26,8 @@ const TITLE = { fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic'
 const NUM = { fontFamily: 'Orbitron, sans-serif' }
 const iso = d => d.toISOString().split('T')[0]
 const num = v => Number(v) || 0
-const taskValue = (r, k) => k === 'all' ? num(r.physical) + num(r.technical) + num(r.tactical) + num(r.mentality) + num(r.foundation) : num(r[k])
+// Overall = questions completed per day (same rule in every area); area boards = items logged
+const taskValue = (r, k) => k === 'all' ? (r.questions != null ? num(r.questions) : num(r.physical) + num(r.technical) + num(r.tactical) + num(r.mentality) + num(r.foundation)) : num(r[k])
 
 async function fetchAllRows(build) {
   const out = []; const size = 1000
@@ -227,8 +228,8 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
       const top = list.slice(0, cfg.topBoard), me = list.find(r => r.student_id === meId)
       const col = a.key === 'all' ? '#FF2A2A' : a.colour
       return (
-        <Slide title={a.key === 'all' ? 'Most tasks completed' : `${a.label} · most completed`} colour={col} icon={a.icon} sub="KR + KRBA">
-          {top.map(r => <Row key={r.student_id} rank={r.rank} name={r.display_name} sub={r.house_name} subColour={HOUSE_COLOUR[r.house_name]} value={r.val} unit="DONE" colour={col} me={r.student_id === meId} />)}
+        <Slide title={a.key === 'all' ? 'Most questions completed' : `${a.label} · most completed`} colour={col} icon={a.icon} sub={a.key === 'all' ? 'KR + KRBA · 1 per question per day' : 'KR + KRBA'}>
+          {top.map(r => <Row key={r.student_id} rank={r.rank} name={r.display_name} sub={r.house_name} subColour={HOUSE_COLOUR[r.house_name]} value={r.val} unit={a.key === 'all' ? 'QS' : 'DONE'} colour={col} me={r.student_id === meId} />)}
           {me && !top.includes(me) && <><div style={{ textAlign: 'center', color: '#666' }}>···</div><Row rank={me.rank} name={me.display_name} sub={me.house_name} value={me.val} unit="DONE" colour={col} me /></>}
         </Slide>
       )
