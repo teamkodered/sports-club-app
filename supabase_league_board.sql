@@ -51,9 +51,30 @@ language sql stable security definer set search_path = public as $$
       + (select count(distinct coalesce(e ->> 'category', e ->> 'group', '')) from jsonb_array_elements(public.f2f_league_arr(f.bodyweight::jsonb)) e)
       + case when public.f2f_league_jlen(f.snc::jsonb) > 0 then 1 else 0 end
       + case when public.f2f_league_jlen(f.other_session::jsonb) > 0 then 1 else 0 end
-      + case when public.f2f_league_jlen(f.stretch_flows::jsonb) > 0 then 1 else 0 end as q_other
+      + case when public.f2f_league_jlen(f.stretch_flows::jsonb) > 0 then 1 else 0 end
+      -- tests: +1 per test group done that day (Jumps, Grip, Bleep/VO2, Max lifts, Single set, Fixed load, Ranges, Timed runs)
+      + (select count(distinct case
+            when t.key ilike '%jump%' then 'jumps'
+            when t.key ilike 'bleep%' or t.key ilike 'vo2%' then 'bleep'
+            when t.key ilike '%grip%' or t.key ilike '%pinch%' then 'grip'
+            when t.key in ('Bench Press', 'Shoulder Press', 'Deadlift', 'Squat') then 'maxlifts'
+            when t.key ilike 'watt bike%' then 'wattbike'
+            when t.key ilike 'fixed load%' then 'fixedload'
+            when t.key ilike '%(range)%' then 'stretches'
+            when t.key ilike '%time trial%' or t.key ilike '%m sprint%' then 'timedrun'
+            else 'other:' || t.key end)
+         from jsonb_each_text(case when jsonb_typeof(f.test::jsonb) = 'object' then f.test::jsonb else '{}'::jsonb end) t
+         where t.value is not null and btrim(t.value) not in ('', 'null')) as q_other
     from fit2fight_sessions f
     where f.session_date >= p_from and f.session_date <= p_to
+  ),
+  note_days as (
+    -- +1 per day the athlete added a note (their own notes, not coach notes)
+    select n.student_id, count(distinct date(coalesce(n.logged_at, n.created_at))) as days
+    from athlete_notes_log n
+    where coalesce(n.author_role, 'athlete') <> 'coach'
+      and date(coalesce(n.logged_at, n.created_at)) between p_from and p_to
+    group by n.student_id
   ),
   f2f as (
     select student_id, count(*) as days_logged,
@@ -64,8 +85,26 @@ language sql stable security definer set search_path = public as $$
   )
   select kr.id, kr.display_name, kr.house_name,
          coalesce(f2f.physical, 0), coalesce(f2f.technical, 0), coalesce(f2f.tactical, 0),
-         coalesce(f2f.mentality, 0), coalesce(f2f.foundation, 0), coalesce(f2f.days_logged, 0), coalesce(f2f.questions, 0)
-  from kr left join f2f on f2f.student_id = kr.id
+         coalesce(f2f.mentality, 0), coalesce(f2f.foundation, 0), coalesce(f2f.days_logged, 0),
+         coalesce(f2f.questions, 0) + coalesce(nd.days, 0)
+  from kr
+  left join f2f on f2f.student_id = kr.id
+  left join note_days nd on nd.student_id = kr.id
 $$;
 
 grant execute on function public.public_f2f_tasks(date, date) to anon, authenticated;
+
+-- Most notes for a period (League period / This month on the board): the athlete's
+-- own notes, everyone with notes, names as first name + last initial.
+create or replace function public.public_notes_period(p_from date, p_to date)
+returns table (display_name text, notes_count bigint)
+language sql stable security definer set search_path = public as $$
+  select trim(coalesce(m.first_name, '') || ' ' || coalesce(upper(left(m.last_name, 1)) || '.', '')), count(*)
+  from athlete_notes_log n
+  join students s on s.id = n.student_id
+  join members m on m.id = s.member_id
+  where coalesce(n.author_role, 'athlete') <> 'coach'
+    and date(coalesce(n.logged_at, n.created_at)) between p_from and p_to
+  group by m.first_name, m.last_name
+$$;
+grant execute on function public.public_notes_period(date, date) to anon, authenticated;

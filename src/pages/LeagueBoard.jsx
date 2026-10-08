@@ -60,12 +60,14 @@ async function loadPeriod(from, to) {
   }
   const { data: tasks, error: tErr } = await supabase.rpc('public_f2f_tasks', { p_from: from, p_to: to })
   const krIds = new Set((tErr ? [] : tasks || []).map(t => t.student_id))
+  const { data: notesP, error: nErr } = await supabase.rpc('public_notes_period', { p_from: from, p_to: to })
   return {
     houses: Object.keys(HOUSE_COLOUR).map(n => ({ name: n, points: houses[n] || 0 })).concat(Object.keys(houses).filter(n => !HOUSE_COLOUR[n]).map(n => ({ name: n, points: houses[n] })))
       .sort((a, b) => b.points - a.points),
     // house points board: KR + KRBA athletes only (all students if the tasks function isn't set up yet)
     individuals: Object.values(indiv).filter(x => x.total > 0 && (krIds.size === 0 || krIds.has(x.id))).sort((a, b) => b.total - a.total),
     tasks: tErr ? [] : (tasks || []),
+    notes: nErr ? null : (notesP || []), // null = function not set up yet -> all-time notes
   }
 }
 
@@ -133,7 +135,7 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
     if (pd.individuals.length) out.push({ kind: 'individuals' })
     for (const a of AREAS) if (pd.tasks.some(r => taskValue(r, a.key) > 0)) out.push({ kind: 'tasks', area: a })
     for (const cat of CATEGORIES) if (buildLeaderboard(cat, exRows, cfg.topBoard).length) out.push({ kind: 'exercise', cat })
-    if (notesRows.length) out.push({ kind: 'notes' })
+    if ((pd.notes ? pd.notes.length : notesRows.length)) out.push({ kind: 'notes' })
     return out
   }, [pd, exRows, notesRows, cfg.topBoard])
 
@@ -228,7 +230,7 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
       const top = list.slice(0, cfg.topBoard), me = list.find(r => r.student_id === meId)
       const col = a.key === 'all' ? '#FF2A2A' : a.colour
       return (
-        <Slide title={a.key === 'all' ? 'Most questions completed' : `${a.label} · most completed`} colour={col} icon={a.icon} sub={a.key === 'all' ? 'KR + KRBA · 1 per question per day' : 'KR + KRBA'}>
+        <Slide title={a.key === 'all' ? 'Most questions completed' : `${a.label} · most completed`} colour={col} icon={a.icon} sub={a.key === 'all' ? 'KR + KRBA · 1 per question, test or note per day' : 'KR + KRBA'}>
           {top.map(r => <Row key={r.student_id} rank={r.rank} name={r.display_name} sub={r.house_name} subColour={HOUSE_COLOUR[r.house_name]} value={r.val} unit={a.key === 'all' ? 'QS' : 'DONE'} colour={col} me={r.student_id === meId} />)}
           {me && !top.includes(me) && <><div style={{ textAlign: 'center', color: '#666' }}>···</div><Row rank={me.rank} name={me.display_name} sub={me.house_name} value={me.val} unit="DONE" colour={col} me /></>}
         </Slide>
@@ -242,8 +244,8 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
         </Slide>
       )
     }
-    const notes = notesRows.map(r => ({ name: maskName(r.first_name, r.last_name), value: r.notes_count })).sort((a, b) => b.value - a.value).slice(0, cfg.topBoard)
-    return <Slide title="Most notes" colour="#9A9A9A" emoji="📝" fixedPeriod>{notes.map((r, i) => <Row key={r.name + i} rank={i + 1} name={r.name} value={r.value} unit="NOTES" colour="#C0C4CC" />)}</Slide>
+    const notes = (pd.notes ? pd.notes.map(r => ({ name: r.display_name, value: Number(r.notes_count) || 0 })) : notesRows.map(r => ({ name: maskName(r.first_name, r.last_name), value: r.notes_count }))).sort((a, b) => b.value - a.value).slice(0, cfg.topBoard)
+    return <Slide title="Most notes" colour="#9A9A9A" emoji="📝" fixedPeriod={!pd.notes}>{notes.map((r, i) => <Row key={r.name + i} rank={i + 1} name={r.name} value={r.value} unit="NOTES" colour="#C0C4CC" />)}</Slide>
   }
 
   function Slide({ title, colour, icon, emoji, sub, fixedPeriod, children }) {
