@@ -1519,6 +1519,31 @@ export default function CRM() {
   // the OS share sheet -- mailto:/sms:/wa.me links can never attach a
   // real file, only text and URLs, so this is the only way to send
   // the poster itself rather than a link to it.
+  // Send the poster to the printers: shares the poster image with a ready-made print request,
+  // and copies that request to the clipboard (many apps drop the text when an image is attached).
+  const PRINT_REQUEST = 'Hi, can we have 50 of these printed in A5 and 10 in A4 please.\n\nMassive thanks\nKR Team'
+  async function sendPosterToPrinters(course) {
+    try { await navigator.clipboard.writeText(PRINT_REQUEST) } catch {}
+    if (!course.poster_url || !navigator.canShare) {
+      alert('Print request copied — paste it into your message to the printers' + (course.poster_url ? ' and attach the poster.' : '.'))
+      return
+    }
+    try {
+      const res = await fetch(course.poster_url)
+      const blob = await res.blob()
+      const ext = (course.poster_url.split('.').pop() || 'jpg').split('?')[0]
+      const file = new File([blob], `${course.title.replace(/[^a-z0-9]/gi, '-')}-poster.${ext}`, { type: blob.type || 'image/jpeg' })
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: `Print: ${course.title}`, text: PRINT_REQUEST })
+        alert('Poster shared. The print request is also on your clipboard — paste it into the same chat if the app dropped it.')
+      } else {
+        alert('Print request copied — paste it into your message to the printers and attach the poster.')
+      }
+    } catch (err) {
+      if (err?.name !== 'AbortError') alert('Print request copied — paste it into your message to the printers and attach the poster.')
+    }
+  }
+
   async function sharePosterFile(course) {
     if (!course.poster_url) { alert('This course has no poster image set.'); return }
     try {
@@ -5359,14 +5384,22 @@ export default function CRM() {
                           return (
                             <div className="card" style={{ background: 'var(--bg-secondary)', marginBottom: 14 }}>
                               <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>📢 Send details</p>
-                              {c.poster_url && hasNativeFileShare && (
+                              {c.poster_url && (
                                 <>
-                                  <button className="btn btn-sm btn-primary" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
-                                    onClick={() => sharePosterFile(c)}>
-                                    🖼️ Send poster image
-                                  </button>
+                                  <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                                    {hasNativeFileShare && (
+                                      <button className="btn btn-sm btn-primary" style={{ flex: 1, justifyContent: 'center' }}
+                                        onClick={() => sharePosterFile(c)}>
+                                        🖼️ Send poster image
+                                      </button>
+                                    )}
+                                    <button className="btn btn-sm" style={{ flex: 1, justifyContent: 'center' }} title="Share the poster with a print request (50 × A5, 10 × A4)"
+                                      onClick={() => sendPosterToPrinters(c)}>
+                                      🖨️ Send to printers
+                                    </button>
+                                  </div>
                                   <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 10 }}>
-                                    Attaches the actual poster picture via your phone's share menu, instead of just a link to it.
+                                    {hasNativeFileShare ? "Send poster image attaches the actual picture via your phone's share menu. " : ''}Send to printers shares the poster with the print request (50 in A5, 10 in A4), also copied so you can paste it.
                                   </p>
                                 </>
                               )}
