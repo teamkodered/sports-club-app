@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom'
 import { TEST_CATEGORIES } from '../lib/testResults.js'
 import { TestSessionModal, TestBatchModal } from '../components/shared/TestSession.jsx'
 import { supabase } from '../lib/supabase.js'
+import LeagueBoardSettings from '../components/shared/LeagueBoardSettings.jsx'
 import VideoMeasureTool from '../components/shared/VideoMeasureTool.jsx'
 import PunchCountTool from '../components/shared/PunchCountTool.jsx'
 import { assignmentActiveOn, isPastAssignment, isFutureAssignment, askAssignmentDates, insertAssignment, endAssignment, setAssignmentDates, todayISO, fmtDMY } from '../lib/classAssignments.jsx'
@@ -8782,6 +8783,7 @@ export default function AthleteProfiles() {
             {dashboardTab === 'leagues' && (
               <div>
                 <button onClick={() => setDashboardTab('overview')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
+                {isAdmin && <LeagueBoardSettings />}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <a href="/league-public?limit=10" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 24, color: '#8B5CF6' }}>
                     <div style={{ fontSize: 36, marginBottom: 8 }}>🏠</div>
@@ -13037,6 +13039,7 @@ export default function AthleteProfiles() {
             {tab === 'leagues' && (
               <div>
                 <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
+                {isAdmin && <LeagueBoardSettings />}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <a href="/league-public?limit=10" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 24, color: '#8B5CF6' }}>
                     <div style={{ fontSize: 36, marginBottom: 8 }}>🏠</div>
