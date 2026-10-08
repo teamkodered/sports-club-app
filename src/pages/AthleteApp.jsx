@@ -4374,6 +4374,11 @@ export default function AthleteApp() {
   // plus thumbnails of anything already attached to today's entry for
   // this exact question.
   function QuestionMediaUpload({ sectionKey, questionLabel }) {
+    // No photo / video uploads on questions for athletes under 18 (questions themselves unchanged).
+    // If the date of birth is missing, uploads are hidden too, to be safe.
+    const dob = student?.members?.date_of_birth
+    const ageYears = dob ? (() => { const b = new Date(String(dob).slice(0, 10) + 'T12:00:00'), n = new Date(); let a = n.getFullYear() - b.getFullYear(); if (n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) a--; return a })() : null
+    if (ageYears == null || ageYears < 18) return null
     const idBase = `qmedia-${sectionKey}-${questionLabel}`.replace(/[^a-zA-Z0-9]/g, '-')
     const todayStr = new Date().toISOString().split('T')[0]
     const attached = (apData?.media_files || []).filter(f => f.section_key === sectionKey && f.question_label === questionLabel && f.session_date === todayStr)
