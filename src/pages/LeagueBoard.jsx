@@ -54,8 +54,9 @@ async function loadPeriod(from, to) {
   const indiv = {}, houses = {}
   for (const r of pts) {
     const s = sm[r.student_id]; if (!s) continue
-    indiv[r.student_id] = indiv[r.student_id] || { id: r.student_id, name: maskName(s.first_name, s.last_name), house: s.house_name || '', total: 0 }
+    indiv[r.student_id] = indiv[r.student_id] || { id: r.student_id, name: maskName(s.first_name, s.last_name), house: s.house_name || '', total: 0, housePts: 0 }
     indiv[r.student_id].total += r.points_awarded || 0
+    if (r.point_scope === 'house' || r.point_scope === 'both') indiv[r.student_id].housePts += r.points_awarded || 0
     if (s.house_name && (r.point_scope === 'house' || r.point_scope === 'both')) houses[s.house_name] = (houses[s.house_name] || 0) + (r.points_awarded || 0)
   }
   const { data: tasks, error: tErr } = await supabase.rpc('public_f2f_tasks', { p_from: from, p_to: to })
@@ -138,7 +139,7 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
     if (pd.houses.some(h => h.points > 0)) out.push({ kind: 'houses' })
     if (pd.individuals.length) out.push({ kind: 'individuals' })
     for (const a of AREAS) if (pd.tasks.some(r => taskValue(r, a.key) > 0)) out.push({ kind: 'tasks', area: a })
-    for (const cat of CATEGORIES) if (buildLeaderboard(cat, exRows, cfg.topBoard).length) out.push({ kind: 'exercise', cat })
+    for (const cat of CATEGORIES) if (!cat.aggregate && buildLeaderboard(cat, exRows, cfg.topBoard).length) out.push({ kind: 'exercise', cat })
     if ((pd.notes ? pd.notes.length : notesRows.length)) out.push({ kind: 'notes' })
     return out
   }, [pd, exRows, notesRows, cfg.topBoard])
@@ -149,7 +150,15 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
     const t = setInterval(() => setIdx(i => { const n = i + 1; if (n >= slides.length) { setCycle(c => c + 1); return 0 } return n }), cfg.seconds * 1000)
     return () => clearInterval(t)
   }, [paused, slides.length, cfg.seconds])
-  useEffect(() => { if (idx >= slides.length) setIdx(0) }, [slides.length, idx])
+  const slideKey = sl => !sl ? '' : sl.kind === 'tasks' ? `tasks:${sl.area.key}` : sl.kind === 'exercise' ? `ex:${sl.cat.key}` : sl.kind
+  const lastKeyRef = useRef('')
+  useEffect(() => {
+    // when the slide list changes (e.g. League period <-> This month) stay on the same board if it exists
+    const i = slides.findIndex(sl => slideKey(sl) === lastKeyRef.current)
+    if (i >= 0) { if (i !== idx) setIdx(i) } else if (idx >= slides.length) setIdx(0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slides])
+  useEffect(() => { lastKeyRef.current = slideKey(slides[idx]) }, [idx, slides])
 
   function interact() { setPaused(true); clearTimeout(pauseTimer.current); pauseTimer.current = setTimeout(() => setPaused(false), 30000) }
   const go = d => { interact(); setIdx(i => (i + d + slides.length) % Math.max(1, slides.length)) }
@@ -187,15 +196,17 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
     if (s.kind === 'individuals') {
       // Same layout as the main league's "By house": four columns side by side, house text
       // logo + house total at the top, then that house's athletes (KR + KRBA only here)
-      const order = pd.houses.map(h => h.name)
-      const extra = [...new Set(pd.individuals.map(r => r.house))].filter(h => h && !order.includes(h))
+      // totals here are KR + KRBA only (the House standings board keeps the full house scoring)
+      const krTotal = h => pd.individuals.filter(r => r.house === h).reduce((n, r) => n + (r.housePts || 0), 0)
+      const order = [...new Set([...Object.keys(HOUSE_COLOUR), ...pd.individuals.map(r => r.house).filter(Boolean)])].sort((a, b) => krTotal(b) - krTotal(a))
+      const extra = []
       const medals = ['🥇', '🥈', '🥉']
       return (
         <Slide title="House points" colour="#F5C542" sub="KR + KRBA">
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 6 }}>
             {[...order, ...extra].map((h, hIdx) => {
               const c = HOUSE_COLOUR[h] || '#9A9A9A'
-              const total = pd.houses.find(x => x.name === h)?.points || 0
+              const total = krTotal(h)
               const list = pd.individuals.filter(r => r.house === h)
               const top = list.slice(0, cfg.topHouse)
               const myIdx = list.findIndex(r => r.id === meId)
