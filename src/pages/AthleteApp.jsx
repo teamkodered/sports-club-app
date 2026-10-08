@@ -4373,12 +4373,19 @@ export default function AthleteApp() {
   // uses capture="environment" to open the camera directly on mobile),
   // plus thumbnails of anything already attached to today's entry for
   // this exact question.
-  function QuestionMediaUpload({ sectionKey, questionLabel }) {
-    // No photo / video uploads on questions for athletes under 18 (questions themselves unchanged).
-    // If the date of birth is missing, uploads are hidden too, to be safe.
+  // Photo / video / file uploads are off for athletes under 18 -- and when no date of
+  // birth is recorded, to be safe. Covers question uploads, notes (scan / photo / video)
+  // and the Media tab. Nothing already uploaded is removed.
+  const uploadsBlocked = (() => {
     const dob = student?.members?.date_of_birth
-    const ageYears = dob ? (() => { const b = new Date(String(dob).slice(0, 10) + 'T12:00:00'), n = new Date(); let a = n.getFullYear() - b.getFullYear(); if (n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) a--; return a })() : null
-    if (ageYears == null || ageYears < 18) return null
+    if (!dob) return true
+    const b = new Date(String(dob).slice(0, 10) + 'T12:00:00'), n = new Date()
+    let a = n.getFullYear() - b.getFullYear()
+    if (n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) a--
+    return a < 18
+  })()
+  function QuestionMediaUpload({ sectionKey, questionLabel }) {
+    if (uploadsBlocked) return null // under 18 (or no date of birth): no photo / video uploads
     const idBase = `qmedia-${sectionKey}-${questionLabel}`.replace(/[^a-zA-Z0-9]/g, '-')
     const todayStr = new Date().toISOString().split('T')[0]
     const attached = (apData?.media_files || []).filter(f => f.section_key === sectionKey && f.question_label === questionLabel && f.session_date === todayStr)
@@ -7570,6 +7577,9 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
           <div className="card" style={{ marginBottom: 12 }}>
             <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Media files</h2>
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>Upload your own photos, videos, and documents here.</p>
+            {uploadsBlocked ? (
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', padding: '12px 0' }}>Uploading photos, videos and files isn't available for athletes under 18.</p>
+            ) : (
             <div style={{ border: '2px dashed var(--border-strong)', borderRadius: 'var(--radius)', padding: '28px 20px', textAlign: 'center', color: 'var(--text-secondary)', marginBottom: 12 }}>
               <div style={{ fontSize: 28, marginBottom: 8 }}>📁</div>
               <p style={{ fontSize: 13, marginBottom: 8 }}>Tap to upload</p>
@@ -7592,6 +7602,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                 }} />
               <label htmlFor="my-file-upload" className="btn btn-primary" style={{ display: 'inline-flex', marginTop: 10, cursor: 'pointer' }}>Choose files</label>
             </div>
+            )}
             {apData?.media_files?.length > 0 ? (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 8 }}>
                 {apData.media_files.map((f, i) => (
@@ -7640,15 +7651,15 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
               onFocus={() => setShowFullscreenNoteComposer(true)} onClick={() => setShowFullscreenNoteComposer(true)}
               placeholder="Write a note for yourself…" rows={3} readOnly
               style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8, cursor: 'pointer' }} />
-            {/* Written notes on paper: snap a photo of the page and save it as a note */}
-            <div style={{ display: 'flex', gap: 8 }}>
+            {/* Written notes on paper: snap a photo of the page and save it as a note (18+ only) */}
+            {!uploadsBlocked && <div style={{ display: 'flex', gap: 8 }}>
               <input type="file" accept="image/*" capture="environment" id="note-scan-input" style={{ display: 'none' }}
                 onChange={e => { if (!e.target.files?.[0]) return; handleNoteMediaSelect(e); e.target.value = ''; setShowFullscreenNoteComposer(true) }} />
               <label htmlFor="note-scan-input" className="btn btn-sm" style={{ cursor: 'pointer', flex: 1, justifyContent: 'center' }}>📷 Scan written notes</label>
               <input type="file" accept="image/*" id="note-scan-upload-input" style={{ display: 'none' }}
                 onChange={e => { if (!e.target.files?.[0]) return; handleNoteMediaSelect(e); e.target.value = ''; setShowFullscreenNoteComposer(true) }} />
               <label htmlFor="note-scan-upload-input" className="btn btn-sm" style={{ cursor: 'pointer', flex: 1, justifyContent: 'center' }}>🖼️ Upload photo</label>
-            </div>
+            </div>}
           </div>
           {myNotesLog.length === 0 ? (
             <div className="empty-state"><h3>No notes yet</h3></div>
@@ -7711,12 +7722,12 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+          {!uploadsBlocked && <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
             <input type="file" accept="image/*,video/*" capture="environment" onChange={handleNoteMediaSelect} style={{ display: 'none' }} id="note-camera-input" />
             <label htmlFor="note-camera-input" className="btn btn-sm" style={{ cursor: 'pointer', flex: 1, justifyContent: 'center' }}>📷 Take photo/video</label>
             <input type="file" accept="image/*,video/*" onChange={handleNoteMediaSelect} style={{ display: 'none' }} id="note-gallery-input" />
             <label htmlFor="note-gallery-input" className="btn btn-sm" style={{ cursor: 'pointer', flex: 1, justifyContent: 'center' }}>🖼️ Upload</label>
-          </div>
+          </div>}
 
           <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={(!newNoteText.trim() && !pendingNoteMedia) || savingNote}
             onClick={async () => { await addNote(); setShowFullscreenNoteComposer(false) }}>
