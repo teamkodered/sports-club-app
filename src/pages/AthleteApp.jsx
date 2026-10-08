@@ -6011,7 +6011,8 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                           </div>
                         )}
                         {savingMentalityLog && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>Saving…</p>}
-                        <QuestionMediaUpload sectionKey="mentality" questionLabel={MENTALITY_QUESTIONS.find(q => q.key === expandedHomeMentality)?.label || expandedHomeMentality} />
+                        {/* no photo / video upload on personal questions (existing uploads are kept) */}
+                        {!['coldWater', 'gratitude', 'coachability'].includes(expandedHomeMentality) && <QuestionMediaUpload sectionKey="mentality" questionLabel={MENTALITY_QUESTIONS.find(q => q.key === expandedHomeMentality)?.label || expandedHomeMentality}  />}
                       </div>
                     )}
                     </div>
@@ -6036,6 +6037,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                           </div>
                           <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
                             {PdpNotes({ links: pdpInfo('mentality', 'alterEgo').links })}
+                            <div style={{ marginBottom: 14 }}><QuestionMediaUpload sectionKey="mentality" questionLabel="Alter Ego" /></div>
 
                             <div className="card" style={{ marginBottom: 14 }}>
                               <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Part 1: Understanding the Alter Ego</h3>
@@ -6425,7 +6427,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                           </>
                         )}
                         {savingWellbeing && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>Saving…</p>}
-                        <QuestionMediaUpload sectionKey="wellbeing" questionLabel={WELLBEING_QUESTIONS.find(q => q.key === expandedHomeWb)?.label || expandedHomeWb} />
+                        {!['sleep', 'journal'].includes(expandedHomeWb) && <QuestionMediaUpload sectionKey="wellbeing" questionLabel={WELLBEING_QUESTIONS.find(q => q.key === expandedHomeWb)?.label || expandedHomeWb}  />}
                       </div>
                     )}
                     </div>
