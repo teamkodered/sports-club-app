@@ -102,11 +102,15 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
     let cancelled = false
     async function load() {
       const { data: settings } = await supabase.from('settings').select('key,value')
-        .in('key', ['club_name', 'league_date_from', 'league_date_to', 'league_topn_house', 'league_topn_individual', 'board_topn', 'board_seconds'])
+        .in('key', ['club_name', 'league_date_from', 'league_date_to', 'league_topn_house', 'league_topn_individual', 'board_topn', 'board_seconds', 'board_date_from', 'board_date_to'])
       const sm = Object.fromEntries((settings || []).map(r => [r.key, r.value]))
       const now = new Date(), today = iso(now)
-      const from = sm.league_date_from || iso(new Date(now.getFullYear(), now.getMonth(), 1, 12))
-      const to = (sm.league_date_to && sm.league_date_to >= today) ? sm.league_date_to : today
+      // League period: the board's own dates (League page -> League board), else the main league's, else this month.
+      // A finished period stays frozen at its end date.
+      const bFrom = sm.board_date_from || sm.league_date_from
+      const bTo = sm.board_date_from ? sm.board_date_to : sm.league_date_to
+      const from = bFrom || iso(new Date(now.getFullYear(), now.getMonth(), 1, 12))
+      const to = bTo ? (bTo < today ? bTo : today) : today
       const monthFrom = iso(new Date(now.getFullYear(), now.getMonth(), 1, 12))
       const c = { from, to, monthFrom, today, club: sm.club_name || 'KR Centre',
         topHouse: parseInt(sm.league_topn_house) || 10, topIndiv: parseInt(sm.league_topn_individual) || 10,

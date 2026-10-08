@@ -196,11 +196,14 @@ export default function LeagueViews() {
   // League board (public display + athlete app) settings
   const [boardSeconds, setBoardSeconds] = useState(8)
   const [boardTopN, setBoardTopN] = useState(10)
+  const [boardFrom, setBoardFrom] = useState('')
+  const [boardTo, setBoardTo] = useState('')
   useEffect(() => {
-    supabase.from('settings').select('key,value').in('key', ['board_seconds', 'board_topn']).then(({ data }) => {
+    supabase.from('settings').select('key,value').in('key', ['board_seconds', 'board_topn', 'board_date_from', 'board_date_to']).then(({ data }) => {
       const m = Object.fromEntries((data || []).map(r => [r.key, r.value]))
       if (m.board_seconds) setBoardSeconds(parseInt(m.board_seconds) || 8)
       if (m.board_topn) setBoardTopN(parseInt(m.board_topn) || 10)
+      setBoardFrom(m.board_date_from || ''); setBoardTo(m.board_date_to || '')
     })
   }, [])
   async function saveBoardSetting(key, val) {
@@ -690,7 +693,16 @@ export default function LeagueViews() {
             <button key={n} onClick={() => { setBoardTopN(n); saveBoardSetting('board_topn', n) }} style={{ padding: '3px 9px', borderRadius: 20, fontSize: 11, cursor: 'pointer', border: `1px solid ${boardTopN === n ? 'var(--text)' : 'var(--border-strong)'}`, background: boardTopN === n ? 'var(--text)' : 'var(--bg)', color: boardTopN === n ? 'var(--bg)' : 'var(--text-secondary)' }}>{n}</button>
           ))}
         </div>
-        <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '6px 0 0' }}>House standings and house points use the dates and "show top" settings on this page.</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12, marginTop: 8 }}>
+          <span style={{ color: 'var(--text-secondary)' }}>League period:</span>
+          <input type="date" value={boardFrom} onChange={e => { setBoardFrom(e.target.value); saveBoardSetting('board_date_from', e.target.value || null) }} style={{ fontSize: 12 }} />
+          <span>to</span>
+          <input type="date" value={boardTo} min={boardFrom || undefined} onChange={e => { setBoardTo(e.target.value); saveBoardSetting('board_date_to', e.target.value || null) }} style={{ fontSize: 12 }} />
+          {(boardFrom || boardTo) && <button onClick={() => { setBoardFrom(''); setBoardTo(''); saveBoardSetting('board_date_from', null); saveBoardSetting('board_date_to', null) }} style={{ padding: '3px 9px', borderRadius: 20, fontSize: 11, cursor: 'pointer', border: '1px solid var(--border-strong)', background: 'var(--bg)', color: 'var(--text-secondary)' }}>Use main league dates</button>}
+        </div>
+        <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '6px 0 0' }}>
+          {boardFrom ? 'The board uses its own league period (separate from the main league). No end date = up to today; once the end date has passed, the board stays frozen at it.' : 'No board dates set -- the board uses the main league dates on this page (or this month if none).'} House points per house uses the main league's "show top".
+        </p>
       </div>
 
       {/* Tabs */}
