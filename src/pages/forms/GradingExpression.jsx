@@ -58,8 +58,18 @@ export default function GradingExpression() {
         if (EXCLUDED_CLASS_NAMES.includes(n)) return false
         if (/\bpts?\b.*register|leaders?\b.*register/i.test(n)) return false
         if (/^sat/i.test(c.day_of_week || '')) return false
+        if (/^thu/i.test(c.day_of_week || '') && String(c.start_time || '').startsWith('20:')) return false   // Thursday 8pm
         return true
-      })))
+      }).reduce((list, c) => {
+        // Wednesday 7pm and Sunday 12pm are one grading group: show a single "Wed 7pm / Sun 12pm" option
+        const isWed7 = /^wed/i.test(c.day_of_week || '') && String(c.start_time || '').startsWith('19:')
+        const isSun12 = /^sun/i.test(c.day_of_week || '') && String(c.start_time || '').startsWith('12:')
+        if (isWed7 || isSun12) {
+          if (list.some(x => x.combined)) return list
+          return [...list, { ...c, combined: true, label: 'Wed 7pm / Sun 12pm' }]
+        }
+        return [...list, c]
+      }, [])))
   }, [])
 
   // Checked once both name and age are filled in (on blur of either),
@@ -205,7 +215,7 @@ export default function GradingExpression() {
               <select value={form.session_class_id} onChange={set('session_class_id')}>
                 <option value="">Select your class…</option>
                 {pkaClasses.map(c => (
-                  <option key={c.id} value={c.id}>{c.name} — {c.day_of_week} {c.start_time?.slice(0, 5)}</option>
+                  <option key={c.id} value={c.id}>{c.label ? `${c.name} — ${c.label}` : `${c.name} — ${c.day_of_week} ${c.start_time?.slice(0, 5)}`}</option>
                 ))}
               </select>
             </div>
