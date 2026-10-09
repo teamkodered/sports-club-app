@@ -1003,3 +1003,8 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .ets-preview textarea, .ets-col textarea, .ets-col input { width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--bg); color: var(--text); font-size: 13px; font-family: inherit; }
 .ets-pre { white-space: pre-wrap; font-family: inherit; font-size: 13px; margin: 0; max-height: 40vh; overflow-y: auto; }
 .ets-tplrow { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+
+/* Test session sheet: opens near the top of the screen; test pills wrap onto rows (no sideways scrolling) */
+.ts-backdrop { align-items: flex-start !important; padding-top: 8px; }
+.ts-sheet { border-radius: 18px !important; max-height: calc(100dvh - 16px) !important; }
+.ts-cats { flex-wrap: wrap !important; overflow: visible !important; }

@@ -3293,6 +3293,7 @@ export default function AthleteProfiles() {
   const [chessOpen, setChessOpen] = useState(false) // in-app chess game for the Chess question
   const [guidedFor, setGuidedFor] = useState(null) // { field, type } -- guided meditation / visualisation session
   const [bwVideoTick, setBwVideoTick] = useState(0) // re-mounts bodyweight set inputs after a video count / time is added
+  const [circuitPicking, setCircuitPicking] = useState(false) // Fixed load circuit: Record -> pick colour
   const [videoTool, setVideoTool] = useState(null) // { mode: 'jump'|'sprint', distance, onSave, label }
   const [runEffortSel, setRunEffortSel] = useState({}) // running: which effort is being edited, per type ('__new__' = a new one)
   const [showPhysicalSection, setShowPhysicalSection] = useState(false)
@@ -9463,9 +9464,15 @@ export default function AthleteProfiles() {
                         </div>
                         <div className="field"><label>Add exercise</label>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                            {grp.key === 'circuit' && !circuitPicking ? (
+                              // Fixed load circuit: one Record button, then pick the colour
+                              <button type="button" className="btn btn-sm neon-opt" onClick={() => setCircuitPicking(true)}>+ Record circuit</button>
+                            ) : <>
                             {grp.exercises.filter(x => !groupEntries.some(e => e.type === x)).map(x => (
-                              <button key={x} type="button" className="btn btn-sm neon-opt" onClick={() => bwPk.picking ? bwPk.pick(x) : upsertExercise(x, cur => ({ ...cur, sets: cur.sets || [] }))} style={bwPk.gold.has(x) ? pdpGoldStyle(true) : undefined}>{bwPk.picking ? '' : '+ '}{x}</button>
+                              <button key={x} type="button" className="btn btn-sm neon-opt" onClick={() => { if (bwPk.picking) { bwPk.pick(x); return } upsertExercise(x, cur => ({ ...cur, sets: cur.sets || [] })); setCircuitPicking(false) }} style={bwPk.gold.has(x) ? pdpGoldStyle(true) : undefined}>{grp.key === 'circuit' && <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', marginRight: 6, background: ({ Red: '#E24B4A', Yellow: '#F5C542', Green: '#1D9E75', Blue: '#378ADD', Black: '#111', }[x]), border: '1px solid #666', verticalAlign: 'middle' }} />}{bwPk.picking || grp.key === 'circuit' ? '' : '+ '}{x}</button>
                             ))}
+                              {grp.key === 'circuit' && <button type="button" className="btn btn-sm" onClick={() => setCircuitPicking(false)}>Cancel</button>}
+                            </>}
                             {grp.exercises.every(x => groupEntries.some(e => e.type === x)) && <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>All added</span>}
                           </div>
                         </div>
@@ -9725,13 +9732,6 @@ export default function AthleteProfiles() {
                     <CoachSectionProgressBars sectionKey="physical" ropes="br" />
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showPhysicalSection ? '▲' : '▼'}</span>
                   </button>
-                    {showPhysicalSection && (
-                      <button type="button" className="neon-q neon-q-physical neon-compound ts-open-btn" onClick={() => setTestSessionOpen(true)}
-                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 6, padding: '14px 12px', borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)', border: '2px solid var(--border)', background: 'var(--bg-secondary)', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Test session — log results</span>
-                        <span style={{ fontSize: 22 }}>📋</span>
-                      </button>
-                    )}
                     {testSessionOpen && selected?.id && <TestSessionModal allowUpload studentId={selected?.id} studentName={`${selected?.members?.first_name || ''} ${selected?.members?.last_name || ''}`.trim()} onClose={() => setTestSessionOpen(false)} onSaved={async () => { const { data } = await supabase.from('fit2fight_sessions').select('*').eq('student_id', selected.id).order('session_date', { ascending: false }); setF2fData(data || []) }} />}
 
                   <div className={(pillarView['physical'] || 'questions') === 'pdp' ? 'pv-pdp' : undefined} style={{
@@ -9750,32 +9750,20 @@ export default function AthleteProfiles() {
                   </div>
                   {showRunCards && (
                   <div ref={runPanelRef}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeRun ? 10 : 8 }}>
-                    {RUN_CATEGORY_CARDS.map(cat => {
-                      const complete = todaysRunning.some(e => e.category === cat.key)
-                      const active = expandedHomeRun === cat.key
-                      return (
-                        <button className={`neon-q neon-q-physical${active ? ' is-active' : ''}${complete ? ' is-done' : ''}`} key={cat.key} type="button" onClick={() => openOnlyPhysicalPanel('run', active ? null : cat.key)} style={{
-                          display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: '10px 8px',
-                          borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                          border: `2px solid ${active ? SECTION_ACCENT_COLOURS.physical : complete ? '#E24B4A' : 'var(--border)'}`,
-                          background: complete ? '#E24B4A12' : 'var(--bg-secondary)',
-                        }}>
-                          <CoachQuestionProgressBarsVertical sectionKey="physical" questionLabel={`Running: ${cat.key}`} />{pdpInfo('physical', `run:${cat.key}`).links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}
-                          <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{cat.label}</span>
-                          <span style={{ fontSize: 22, flexShrink: 0 }}>{cat.icon}</span>
-                        </button>
-                      )
-                    })}
-                    {/* Bleep test: same neon card, lined up with the running cards (was a separate card below) */}
-                    {(() => { const active = expandedHomeRun === '__bleep__'; const complete = todaysTest?.['Bleep test'] != null && todaysTest['Bleep test'] !== ''; return (
-                      <button className={`neon-q neon-q-physical${active ? ' is-active' : ''}${complete ? ' is-done' : ''}`} type="button" onClick={() => openOnlyPhysicalPanel('run', active ? null : '__bleep__')}
-                        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '14px 8px', borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)', border: '2px solid var(--border)', background: 'var(--bg-secondary)' }}>
-                        <CoachQuestionProgressBarsVertical sectionKey="test" questionLabel="Bleep test" />
-                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>Bleep test</span>
-                        <span style={{ fontSize: 22 }}>📶</span>
-                      </button>
-                    ) })()}
+                  {/* Running in one panel: pick the run type here (one tap), its options + results open right below */}
+                  <div className="card neon-qpanel neon-q-physical neon-run-panel" style={{ marginBottom: expandedHomeRun ? 6 : 8, padding: '10px 12px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
+                      {[...RUN_CATEGORY_CARDS.map(c => ({ key: c.key, label: c.label, icon: c.icon, done: todaysRunning.some(e => e.category === c.key) })), { key: '__bleep__', label: 'Bleep test', icon: '📶', done: todaysTest?.['Bleep test'] != null && todaysTest['Bleep test'] !== '' }].map(c => {
+                        const on = expandedHomeRun === c.key
+                        return (
+                          <button key={c.key} type="button" className="btn btn-sm" onClick={() => openOnlyPhysicalPanel('run', on ? null : c.key)}
+                            style={{ justifyContent: 'flex-start', gap: 6, minHeight: 44, background: on ? '#E6B80026' : undefined, borderColor: on ? '#E6B800' : c.done ? '#1D9E75' : undefined, color: 'var(--text)' }}>
+                            <span style={{ fontSize: 18 }}>{c.icon}</span><span style={{ flex: 1, textAlign: 'left' }}>{c.label}</span>{c.done && <span style={{ color: '#1D9E75' }}>✓</span>}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {!expandedHomeRun && <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '8px 0 0' }}>Pick a run type to log it.</p>}
                   </div>
                   {expandedHomeRun && expandedHomeRun !== '__bleep__' && (() => {
                     const efforts = todaysRunning.map((e, i) => ({ e, k: runKey(e, i), i })).filter(x => x.e.category === expandedHomeRun)
@@ -9953,6 +9941,7 @@ export default function AthleteProfiles() {
 
                   {!activePhysicalCategory && (
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                    <div className="neon-snc-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
                     <div className="neon-snc-bar" style={{
                       display: 'flex', alignItems: 'stretch', width: '100%',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
@@ -9974,6 +9963,19 @@ export default function AthleteProfiles() {
                           {todaysSnc.length > 0 ? `Logged ${todaysSnc.length}×` : 'Not logged'}
                         </span>
                       </button>
+                    </div>
+                    <button type="button" className="neon-snc-bar ts-open-card" onClick={() => setTestSessionOpen(true)} style={{
+                      display: 'flex', alignItems: 'stretch', width: '100%', padding: 0, cursor: 'pointer', color: 'inherit',
+                      background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden', fontFamily: 'var(--font-sans)',
+                    }}>
+                      <span style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, padding: '8px 4px', borderRight: '1px solid var(--border)', minWidth: 0 }}>
+                        <span style={{ fontSize: 16 }}>📋</span>
+                        <span style={{ fontSize: 9, fontWeight: 500, whiteSpace: 'nowrap' }}>Tests</span>
+                      </span>
+                      <span style={{ width: 58, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px 4px' }}>
+                        <span style={{ fontSize: 8, color: 'var(--text-tertiary)', textAlign: 'center', lineHeight: 1.3 }}>{todaysTest && Object.values(todaysTest).some(v => v !== '' && v != null) ? 'Logged today' : 'Log results'}</span>
+                      </span>
+                    </button>
                     </div>
                     <div style={{
                       display: 'flex', alignItems: 'stretch', width: '100%',
