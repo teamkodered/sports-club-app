@@ -2644,8 +2644,10 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
         const awardTotal = awardList.reduce((n, p) => n + p.points, 0)
         const clearIfEmptySpace = e => { e.stopPropagation(); if (!e.target.closest('button, input, label, a, select, textarea')) setSelectedPoints([]) }
         return (
-        <div className="reg-award-modal" onClick={clearIfEmptySpace} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
-          <div className="card" onClick={clearIfEmptySpace} style={{ width: '100%', maxWidth: 500, maxHeight: '90vh', overflowY: 'auto', paddingBottom: 0 }}>
+        <div className="reg-award-modal" onClick={clearIfEmptySpace} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 60, padding: '8px 8px 0' }}>
+          <div className="card reg-award-card" onClick={clearIfEmptySpace} style={{ width: '100%', maxWidth: 500, maxHeight: 'calc(100dvh - 16px)', overflowY: 'auto', paddingTop: 0, paddingBottom: 0 }}>
+            {/* Name + search stay pinned at the top while scrolling / typing */}
+            <div style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--bg)', paddingTop: 14, marginBottom: 2 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
               <h2 style={{ fontSize: 15, fontWeight: 600 }}>Award points</h2>
               <button onClick={() => { setAwardingFor(null); setMultiAward(false); setSelectedPoints([]); setPointSearch('') }} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
@@ -2656,7 +2658,8 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
             {/* Search the reasons list, or type a new reason */}
             <input type="search" value={pointSearch} onChange={e => setPointSearch(e.target.value)} autoFocus
               placeholder="Search or write a reason…" aria-label="Search or write a reason"
-              style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', marginBottom: 12, border: '2px solid #378ADD', borderRadius: 'var(--radius)', fontSize: 15, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)' }} />
+              style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', marginBottom: 10, border: '2px solid #378ADD', borderRadius: 'var(--radius)', fontSize: 15, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)' }} />
+            </div>
             {/* Grouped points — Group → Reason: Points */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
               {(() => {
@@ -2672,12 +2675,13 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                 return Object.entries(groups).map(([grpName, pts]) => (
                   <div key={grpName}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6, paddingLeft: 2 }}>{grpName}</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: `repeat(${Math.ceil(pts.length / 2)}, auto)`, gridAutoFlow: 'column', gap: 6 }}>
                       {pts.map(pt => {
                         const sel = selectedPoints.find(p => p.label === pt.label)
                         const isNeg = pt.points < 0
                         return (
-                          <button key={pt.label} onClick={() => togglePoint(pt)} style={{
+                          <button key={pt.label} onClick={e => { togglePoint(pt); const el = e.currentTarget; setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 30) }} style={{
+                            scrollMarginTop: 150,
                             padding: '8px 10px', borderRadius: 'var(--radius)', cursor: 'pointer',
                             border: `${sel ? 2 : 1}px solid ${sel ? (isNeg?'#a32d2d':'var(--text)') : 'var(--border-strong)'}`,
                             background: sel ? (isNeg?'#fcebeb':'var(--bg-secondary)') : 'var(--bg)',
