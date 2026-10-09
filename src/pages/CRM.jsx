@@ -3361,7 +3361,6 @@ export default function CRM() {
               onSaveTemplates={saveEnquiryTemplates}
               sendEmail={sendRealEmail}
               onSent={enquiryTemplateSent}
-              toWhatsappNumber={toWhatsappNumber}
               onClose={() => { setEnqSendOpen(false); setEnqSel([]) }}
             />
           )}

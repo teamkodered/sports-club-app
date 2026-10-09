@@ -82,6 +82,9 @@ There is currently a waiting list for the tinys, would you like me to add {who} 
 ${SIGNATURE_SARA}` },
 ]
 
+// wa.me needs full international digits: 07... -> 447...
+const toWhatsappNumber = phone => { const d = String(phone || '').replace(/[^0-9]/g, ''); return d.startsWith('0') ? '44' + d.slice(1) : d }
+
 const joinNames = n => n.length <= 1 ? (n[0] || '') : `${n.slice(0, -1).join(', ')} and ${n[n.length - 1]}`
 
 // The class they asked about, from the notes the inbox writes
@@ -109,7 +112,7 @@ export function personaliseEnquiry(text, enq) {
     .replace(/^Hi \n/m, 'Hi\n')   // no name on file: "Hi {name}" reads "Hi"
 }
 
-export default function EnquirySendTemplates({ enquiries, templates, onSaveTemplates, sendEmail, onSent, toWhatsappNumber, onClose }) {
+export default function EnquirySendTemplates({ enquiries, templates, onSaveTemplates, sendEmail, onSent, onClose }) {
   const [tplId, setTplId] = useState(templates[0]?.id || null)
   const [channel, setChannel] = useState('email')        // 'email' | 'whatsapp' | 'text'
   const [overrides, setOverrides] = useState({})         // enquiry id -> edited text
