@@ -4204,17 +4204,34 @@ export default function AthleteApp() {
         })[0].classes.id
       }
     }
+    // Checking back in after checking out today (same class): re-open that session instead of
+    // trying to add a second attendance for it (which the register doesn't allow)
+    const todayStr = new Date().toISOString().split('T')[0]
+    const reopen = async row => {
+      const { data: upd, error: updErr } = await supabase.from('attendance').update({ checked_out_at: null, present: true }).eq('id', row.id).select().single()
+      if (updErr) { alert('Error checking in: ' + updErr.message); return }
+      setAttendanceData(prev => prev.map(a => a.id === upd.id ? upd : a))
+      setActiveCheckIn(upd)
+      setShowWeightCheckPrompt('in'); setWeightCheckValue('')
+    }
+    const earlier = attendanceData.find(a => a.session_date === todayStr && a.student_id === student.id && a.checked_out_at && (a.class_id || null) === (matchedClassId || null))
+    if (earlier) { await reopen(earlier); setCheckingIn(false); return }
     const { data, error } = await supabase.from('attendance').insert({
       student_id: student.id,
       present: true,
       late: false,
       attendance_type: attendanceType,
-      session_date: new Date().toISOString().split('T')[0],
+      session_date: todayStr,
       attended_at: new Date().toISOString(),
       self_checked_in: true,
       class_id: matchedClassId,
     }).select().single()
-    if (error) {
+    if (error && error.code === '23505') {
+      // already an attendance for this session today (e.g. marked on the register) -- re-open it
+      const { data: rows } = await supabase.from('attendance').select('*').eq('student_id', student.id).eq('session_date', todayStr)
+      const row = (rows || []).find(a => (a.class_id || null) === (matchedClassId || null)) || (rows || [])[0]
+      if (row) { await reopen(row) } else alert('Error checking in: ' + error.message)
+    } else if (error) {
       alert('Error checking in: ' + error.message)
     } else {
       setAttendanceData(prev => [data, ...prev])
