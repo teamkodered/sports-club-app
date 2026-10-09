@@ -967,5 +967,7 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .team-role-head_coach { background: #EF9F2722; border-color: #EF9F27; }
 
 /* View iT player: 📐 Measure sits under ⛶ in portrait, next to 📍 in landscape */
+.ffp-measure-land, .ffp-measure-port { align-items: center; justify-content: center; }
 .ffp-measure-land { display: none; }
-@media (orientation: landscape) { .ffp-measure-land { display: flex !important; } .ffp-measure-port { display: none !important; } }
+.ffp-measure-port { display: flex; }
+@media (orientation: landscape) { .ffp-measure-land { display: flex; } .ffp-measure-port { display: none; } }

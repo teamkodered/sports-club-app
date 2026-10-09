@@ -1577,11 +1577,11 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
             )
           )}
           <button className="view-it-btn ffp-measure-land" title="Measure (jump / sprint / punch)"
-            style={{ width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            style={{ width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer', padding: 0 }}
             onClick={e => { e.stopPropagation(); openMeasure() }}>📐</button>
         </div>
         <button className="view-it-btn ffp-measure-port" title="Measure (jump / sprint / punch)"
-          style={{ position: 'absolute', top: 56, left: 12, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          style={{ position: 'absolute', top: 56, left: 12, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer', padding: 0 }}
           onClick={e => { e.stopPropagation(); openMeasure() }}>📐</button>
         {/* Title sits between the fullscreen button's corner and the
             right-hand cluster, so it can't run underneath either. */}
