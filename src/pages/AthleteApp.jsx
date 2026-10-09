@@ -5541,7 +5541,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                       })}
                       {/* Jumps + Grip tests as cards in the same grid (were separate cards below). The old separate
                           Fixed Load Circuit test card is gone -- the Fixed load circuit card above logs it; earlier test results stay in Results. */}
-                      {['jumps', 'grip', 'punch'].map(tk => { const tc = TEST_CATEGORIES.find(c => c.key === tk); if (!tc) return null; const key = `__test:${tk}`; const active = expandedHomeBodyweight === key; const complete = tc.tests.some(t => todaysTest?.[t.name] != null && todaysTest[t.name] !== ''); return (
+                      {[].map(tk => /* Jumps / Grip / Punch now live in the Test session (📋 Tests card) */ { const tc = TEST_CATEGORIES.find(c => c.key === tk); if (!tc) return null; const key = `__test:${tk}`; const active = expandedHomeBodyweight === key; const complete = tc.tests.some(t => todaysTest?.[t.name] != null && todaysTest[t.name] !== ''); return (
                         <button key={key} className={`neon-q neon-q-physical${active ? ' is-active' : ''}${complete ? ' is-done' : ''}`} type="button" onClick={() => openOnlyPhysicalPanel('bodyweight', active ? null : key)}
                           style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 8px', borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)', border: '2px solid var(--border)', background: 'var(--bg-secondary)' }}>
                           <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{tc.label}</span>
