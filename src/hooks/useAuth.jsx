@@ -135,11 +135,12 @@ export function AuthProvider({ children }) {
   const isAdmin   = role === 'admin'
   const isCoach   = role === 'captain' || role === 'coach' // 'captain' is the actual role value assigned via Settings; 'coach' kept for safety
   const isLeader  = role === 'leader'
-  const isStaff   = isAdmin || isCoach || isLeader || !!profile?.access?.group || Object.values(profile?.access?.pages || {}).some(v => v === 'view' || v === 'edit')  // can take registers + points, or has been given page access
+  const isHeadCoach = role === 'head_coach'   // limited to their own classes (database-enforced)
+  const isStaff   = isAdmin || isCoach || isLeader || isHeadCoach || !!profile?.access?.group || Object.values(profile?.access?.pages || {}).some(v => v === 'view' || v === 'edit')  // can take registers + points, or has been given page access
   const isAthlete = !!(profile?.student?.is_kr || profile?.student?.discipline === 'KRBA' || profile?.student?.is_pts)
 
   return (
-    <AuthContext.Provider value={{ session, profile, role, isAdmin, isCoach, isLeader, isStaff, isAthlete, loading, profileError, pageAccess: page => pageAccessFor(profile, page, accessGroups), registerAccess: registerAccessFor(profile, accessGroups), accessGroups, refreshProfile: () => fetchProfile(session?.user?.id, session?.access_token) }}>
+    <AuthContext.Provider value={{ session, profile, role, isAdmin, isCoach, isLeader, isHeadCoach, isStaff, isAthlete, loading, profileError, pageAccess: page => pageAccessFor(profile, page, accessGroups), registerAccess: registerAccessFor(profile, accessGroups), accessGroups, refreshProfile: () => fetchProfile(session?.user?.id, session?.access_token) }}>
       {children}
     </AuthContext.Provider>
   )

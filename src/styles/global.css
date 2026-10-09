@@ -964,3 +964,4 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .reg-m-reasons-grid .reg-m-reason { height: auto; min-height: 44px; padding: 8px 14px; border-radius: 22px; white-space: normal; }
 .reg-m-reasons-grid .reg-m-reason-label { flex: 1 1 auto; min-width: 0; line-height: 1.2; overflow-wrap: break-word; }
 .reg-m-reasons-grid .reg-m-reason b { padding-left: 4px; white-space: nowrap; }
+.team-role-head_coach { background: #EF9F2722; border-color: #EF9F27; }

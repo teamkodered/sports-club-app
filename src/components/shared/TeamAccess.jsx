@@ -28,7 +28,7 @@ export default function TeamAccess() {
   }
   useEffect(() => { load() }, [])
 
-  const normRole = r => (r === 'coach' ? 'captain' : (r || 'member'))
+  const normRole = r => (r === 'coach' ? 'captain' : (r || 'member'))   // head_coach stays head_coach
   const groupOf = m => groups.find(g => g.id === m.access?.group)
   const label = m => {
     const g = groupOf(m)
@@ -158,6 +158,9 @@ export default function TeamAccess() {
               {ROLE_OPTIONS.map(r => <button key={r.key} type="button" className={editing.role === r.key ? 'on' : ''} onClick={() => pickRole(r.key)}>{r.label}</button>)}
             </div>
 
+            {editing.role === 'head_coach' && (
+              <div className="team-group-note">Head Coach: tick their classes under Registers. They'll only see those classes' registers and those students (with contact details), enforced by the database.</div>
+            )}
             {(editing.role === 'captain' || editing.role === 'leader') && <>
               <div className="team-label">TEAM</div>
               <div className="team-seg">
@@ -179,7 +182,7 @@ export default function TeamAccess() {
             )}
             {editing.role === 'admin' && <div className="team-group-note">Admins have full access to everything.</div>}
 
-            {editing.role !== 'admin' && (editing.team || editing.role === 'member') && editing.role !== 'member' && <>
+            {editing.role !== 'admin' && editing.role !== 'member' && (editing.team || editing.role === 'head_coach') && <>
               <div className="team-label">PAGES</div>
               <div className="team-pages">
                 {PAGES.map(p => {
@@ -201,7 +204,7 @@ export default function TeamAccess() {
 
             <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
               {editing.role !== 'admin' && editing.team && <button type="button" className="btn" onClick={() => setEditing(e => ({ ...e, access: emptyAccess() }))}>Reset to role defaults</button>}
-              <button type="button" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} disabled={saving || ((editing.role === 'captain' || editing.role === 'leader') && !editing.team)} onClick={save}>
+              <button type="button" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} disabled={saving || ((editing.role === 'captain' || editing.role === 'leader') && !editing.team) || (editing.role === 'head_coach' && !editing.access.registers.classes?.length)} onClick={save}>
                 {saving ? 'Saving…' : inGroup ? `Save — ${editing.team} ${editing.role === 'leader' ? 'Leader' : 'Coach'}` : 'Save'}
               </button>
             </div>

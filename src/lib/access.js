@@ -30,6 +30,7 @@ export const ROLE_OPTIONS = [
   { key: 'member',  label: 'Member',  hint: 'Student access only' },
   { key: 'leader',  label: 'Leader',  hint: 'Registers only' },
   { key: 'captain', label: 'Coach',   hint: 'Everything except admin settings' },
+  { key: 'head_coach', label: 'Head Coach', hint: 'Only the classes ticked below, and their students' },
   { key: 'admin',   label: 'Admin',   hint: 'Full access' },
 ]
 
@@ -37,6 +38,8 @@ export function roleDefault(role, page) {
   if (role === 'admin') return 'edit'
   if (role === 'captain' || role === 'coach') return 'edit'
   if (role === 'leader') return page === 'registers' ? 'edit' : 'none'
+  // Head Coach: registers + their own students (the database limits both to the classes ticked)
+  if (role === 'head_coach') return page === 'registers' ? 'edit' : page === 'students' ? 'view' : 'none'
   return 'none'
 }
 
