@@ -90,7 +90,9 @@ export async function awardTestPoints(studentId, testNames) {
 export function TestSessionModal({ studentId, studentName, onClose, onSaved, allowUpload = false, onPoints }) {
   // 📹 measuring from video: jump height / punch speed / punch count fill the boxes below;
   // the video is also kept with the athlete's test uploads (and in View iT when onViewIt is given)
-  const [tool, setTool] = useState(null) // null | 'jump' | 'punch' | 'count' | 'bleep20' | 'bleep10' | 'photo' | 'timer:<test>' | 'reps:<test>'
+  const [tool, setTool] = useState(null) // null | 'jump' | 'punch' | 'count'
+  const [flPicking, setFlPicking] = useState(false) // fixed load circuit: choosing the colour
+  const [flColour, setFlColour] = useState(null)    // fixed load circuit: the colour being recorded | 'bleep20' | 'bleep10' | 'photo' | 'timer:<test>' | 'reps:<test>'
   const toolFile = useRef(null)
   function keepVideo(label) {
     const f = toolFile.current; if (!f) return
@@ -205,8 +207,26 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
                 keepVideo(tool === 'jump' ? 'Vertical jump' : `${m?.punchType || 'Jab'} speed`)
               }} />, document.body)}
 
+        {/* Fixed load circuit: one Record button, then pick the colour (only that colour's box shows) */}
+        {cat.key === 'fixedload' && (
+          <div className="ts-measure">
+            {!flPicking ? (
+              <button type="button" className="ts-measure-btn" onClick={() => setFlPicking(true)}>⏱ Record circuit</button>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {cat.tests.map(t => { const colour = t.name.split(' - ').pop(); return (
+                  <button key={t.name} type="button" className="btn btn-sm" onClick={() => { setFlColour(t.name); setFlPicking(false) }}
+                    style={{ gap: 6, borderColor: flColour === t.name ? '#E6B800' : undefined }}>
+                    <span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: '50%', background: ({ Red: '#E24B4A', Yellow: '#F5C542', Green: '#1D9E75', Blue: '#378ADD', Black: '#111' })[colour] || '#888', border: '1px solid #666' }} />{colour}
+                  </button>
+                ) })}
+                <button type="button" className="btn btn-sm" onClick={() => setFlPicking(false)}>Cancel</button>
+              </div>
+            )}
+          </div>
+        )}
         <div className="ts-tests">
-          {cat.tests.map(t => {
+          {cat.tests.filter(t => cat.key !== 'fixedload' || t.name === flColour || (vals[t.name] !== '' && vals[t.name] != null)).map(t => {
             const b = best[t.name], l = last[t.name]
             const hint = <div className="ts-hint">{b != null ? <>Best <b>{fmtVal(b, t.unit)}</b>{l ? <> · Last {fmtVal(l.value, t.unit)} ({new Date(l.date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })})</> : null}</> : 'No result yet'}{lowerIsBetter(t.name) ? ' · lower is better' : ''}</div>
             if (cat.multiSet) {
