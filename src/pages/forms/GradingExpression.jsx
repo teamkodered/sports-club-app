@@ -47,9 +47,19 @@ export default function GradingExpression() {
   }
 
   useEffect(() => {
-    supabase.from('classes').select('id, name, day_of_week, start_time').eq('active', true).eq('discipline', 'PKA')
+    // PKA classes, plus any Alvaston Project session whatever its discipline; minus the
+    // admin-only registers (PTs, Leaders) and the Saturday sessions
+    supabase.from('classes').select('id, name, day_of_week, start_time, discipline').eq('active', true)
+      .or('discipline.eq.PKA,name.ilike.%alvaston%')
       .order('day_of_week').order('start_time')
-      .then(({ data }) => setPkaClasses((data || []).filter(c => !EXCLUDED_CLASS_NAMES.includes(c.name?.trim()))))
+      .then(({ data }) => setPkaClasses((data || []).filter(c => {
+        const n = (c.name || '').trim()
+        if (/alvaston/i.test(n)) return true
+        if (EXCLUDED_CLASS_NAMES.includes(n)) return false
+        if (/\bpts?\b.*register|leaders?\b.*register/i.test(n)) return false
+        if (/^sat/i.test(c.day_of_week || '')) return false
+        return true
+      })))
   }, [])
 
   // Checked once both name and age are filled in (on blur of either),
