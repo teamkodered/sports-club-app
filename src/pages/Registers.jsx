@@ -1780,7 +1780,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
             onPointerUp={() => clearTimeout(reasonHoldTimer.current)} onPointerLeave={() => clearTimeout(reasonHoldTimer.current)} onPointerCancel={() => clearTimeout(reasonHoldTimer.current)}
             onContextMenu={e => e.preventDefault()}
             onClick={() => { if (reasonHeld.current) { reasonHeld.current = false; return } onPick(pt) }}>
-            {pt.label} <b>{pt.points > 0 ? '+' : ''}{pt.points}</b>
+            <span className="reg-m-reason-label">{pt.label}</span> <b>{pt.points > 0 ? '+' : ''}{pt.points}</b>
           </button>
         )
         const toggleSel = id => {
