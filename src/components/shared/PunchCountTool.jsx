@@ -46,11 +46,12 @@ function detectHits(series, sensitivity, slow) {
   return { hits: accepted.map(i => series[i].t).sort((a, b) => a - b), resid, thresh }
 }
 
-export default function PunchCountTool({ onSave, onClose }) {
+export default function PunchCountTool({ onSave, onClose, initialUrl = null, zIndex = 480, onSwitchMode }) {
+  // initialUrl: count an already-uploaded video (from the media viewer)
   const videoRef = useRef(null)
   const stageRef = useRef(null)
   const cancelRef = useRef(false)
-  const [url, setUrl] = useState(null)
+  const [url, setUrl] = useState(initialUrl)
   const [aspect, setAspect] = useState(16 / 9)
   const [dur, setDur] = useState(0)
   const [t, setT] = useState(0)
@@ -69,7 +70,7 @@ export default function PunchCountTool({ onSave, onClose }) {
   const [added, setAdded] = useState([])        // video times added by the coach
   const [selected, setSelected] = useState(null)
   const [saving, setSaving] = useState(false)
-  useEffect(() => () => { if (url) URL.revokeObjectURL(url) }, [url])
+  useEffect(() => () => { if (url && url.startsWith('blob:')) URL.revokeObjectURL(url) }, [url])
 
   const rs = roundStart ?? 0
   const re = roundEnd ?? dur
@@ -189,9 +190,9 @@ export default function PunchCountTool({ onSave, onClose }) {
   const maxResid = Math.max(detection.thresh * 1.5, ...detection.resid.filter(r => isFinite(r)), 1)
 
   return (
-    <div role="dialog" aria-modal="true" style={{ position: 'fixed', inset: 0, zIndex: 480, background: 'var(--bg, #0B0F12)', display: 'flex', flexDirection: 'column', color: 'var(--text, #fff)' }}>
+    <div role="dialog" aria-modal="true" style={{ position: 'fixed', inset: 0, zIndex, background: 'var(--bg, #0B0F12)', display: 'flex', flexDirection: 'column', color: 'var(--text, #fff)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderBottom: '1px solid var(--border, #2A3138)' }}>
-        <button type="button" onClick={() => { cancelRef.current = true; onClose() }} style={{ ...btn, height: 36 }}>✕</button>
+        <button type="button" onClick={() => { cancelRef.current = true; onClose() }} style={{ ...btn, height: 36 }}>{initialUrl ? '← Back' : '✕'}</button>
         <h2 style={{ fontSize: 16, fontWeight: 700, flex: 1 }}>📹 Count punches from video</h2>
       </div>
 
@@ -210,7 +211,7 @@ export default function PunchCountTool({ onSave, onClose }) {
           <>
             <div ref={stageRef} style={{ position: 'relative', width: `min(100%, calc(45vh * ${aspect}))`, aspectRatio: aspect, margin: '0 auto', background: '#000', borderRadius: 8, overflow: 'hidden', touchAction: drawMode ? 'none' : 'auto' }}
               onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
-              <video ref={videoRef} src={url} playsInline muted preload="auto"
+              <video ref={videoRef} src={url} crossOrigin={url && !url.startsWith('blob:') ? 'anonymous' : undefined} playsInline muted preload="auto"
                 onLoadedMetadata={e => { const v = e.currentTarget; setDur(v.duration || 0); if (v.videoWidth && v.videoHeight) setAspect(v.videoWidth / v.videoHeight) }}
                 onTimeUpdate={e => setT(e.currentTarget.currentTime)} onEnded={() => setPlaying(false)}
                 style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block' }} />
@@ -308,7 +309,7 @@ export default function PunchCountTool({ onSave, onClose }) {
 
       {url && status === 'done' && (
         <div style={{ padding: 14, borderTop: '1px solid var(--border, #2A3138)', display: 'flex', gap: 8 }}>
-          <button type="button" style={{ ...btn, flex: 1 }} onClick={() => { setUrl(null); setBox(null); setDrawMode(true); setRoundStart(null); setRoundEnd(null); reset() }}>Another video</button>
+          {!initialUrl && <button type="button" style={{ ...btn, flex: 1 }} onClick={() => { setUrl(null); setBox(null); setDrawMode(true); setRoundStart(null); setRoundEnd(null); reset() }}>Another video</button>}
           <button type="button" disabled={saving || perMinute == null} style={{ ...btn, flex: 2, background: '#22B14C', color: '#0A0A0A', borderColor: 'transparent' }}
             onClick={async () => { setSaving(true); try { await onSave({ perRound: hits.length, perMinute: +perMinute.toFixed(1) }); onClose() } finally { setSaving(false) } }}>
             {saving ? 'Saving…' : `Save ${hits.length} punches · ${fmt(perMinute, 1)}/min`}

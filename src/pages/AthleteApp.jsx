@@ -4973,8 +4973,8 @@ export default function AthleteApp() {
           {fightOpen && <FightGame onClose={() => setFightOpen(false)} onRound={() => saveMentalityField('gaming', cur => ({ ...cur, count: (cur.count || 0) + 1 }))} />}
           {chessOpen && <ChessGame onClose={() => setChessOpen(false)} onFinished={() => saveMentalityField('chess', cur => ({ ...cur, count: (cur.count || 0) + 1 }))} />}
           {guidedFor && <GuidedSession kind={guidedFor.field} type={guidedFor.type} colour="#22B14C" onClose={() => setGuidedFor(null)} onComplete={mins => saveMentalityField(guidedFor.field, cur => ({ ...cur, entries: [...(cur.entries || []), { type: guidedFor.type, duration: String(mins), guided: true }] }))} />}
-          {videoTool?.mode === 'count' && <PunchCountTool onSave={({ perRound, perMinute }) => saveTestValues({ 'Punches per round': String(perRound), 'Punches per minute': String(perMinute) })} onClose={() => setVideoTool(null)} />}
-          {videoTool && videoTool.mode !== 'count' && <VideoMeasureTool mode={videoTool.mode} defaultDistance={videoTool.distance} saveLabel={videoTool.label} onResult={videoTool.onSave} onClose={() => setVideoTool(null)} initialUrl={videoTool.fromViewer || null} switchable={!!videoTool.fromViewer} zIndex={videoTool.fromViewer ? 540 : 480} />}
+          {videoTool?.mode === 'count' && <PunchCountTool initialUrl={videoTool.fromViewer || null} zIndex={videoTool.fromViewer ? 540 : 480} onSave={({ perRound, perMinute }) => saveTestValues({ 'Punches per round': String(perRound), 'Punches per minute': String(perMinute) })} onClose={() => setVideoTool(null)} />}
+          {videoTool && videoTool.mode !== 'count' && <VideoMeasureTool mode={videoTool.mode} defaultDistance={videoTool.distance} saveLabel={videoTool.label} onResult={videoTool.onSave} onClose={() => setVideoTool(null)} initialUrl={videoTool.fromViewer || null} switchable={!!videoTool.fromViewer} zIndex={videoTool.fromViewer ? 540 : 480} onCount={videoTool.fromViewer ? () => setVideoTool(v => ({ ...v, mode: 'count' })) : undefined} />}
           {UndoBar()}
           {student ? (
             <>
