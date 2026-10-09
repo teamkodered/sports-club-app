@@ -4374,26 +4374,47 @@ export default function AthleteApp() {
   const mediaFileRef = useRef(null)
   const mediaCameraRef = useRef(null)
   const mediaTargetRef = useRef(null)
-  const [mediaUploading, setMediaUploading] = useState(null)
   const [mediaViewer, setMediaViewer] = useState(null) // { items, index }
-  async function uploadQuestionMedia(sectionKey, questionLabel, file) {
+  // Background uploads: files upload while the athlete carries on using the app (other
+  // questions, tabs, pages). A small tracker shows progress; several can run at once.
+  // Saving the list of files is done one at a time so parallel uploads never overwrite each other.
+  const [bgUploads, setBgUploads] = useState([]) // { id, name, status: 'up'|'done'|'fail', error, retry }
+  const mediaSaveChain = useRef(Promise.resolve())
+  useEffect(() => {
+    const busy = bgUploads.some(u => u.status === 'up')
+    if (!busy) return
+    const warn = e => { e.preventDefault(); e.returnValue = '' } // leaving the app mid-upload would cancel it
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [bgUploads])
+  function uploadQuestionMedia(sectionKey, questionLabel, file) {
     if (!student || !file) return
-    // storage keys don't like spaces / brackets / emoji in phone file names
-    const safeName = (file.name || 'upload').replace(/[^a-zA-Z0-9._-]+/g, '_').slice(-80)
-    const path = `athletes/${student.id}/${Date.now()}-${safeName}`
-    setMediaUploading(`${sectionKey}:${questionLabel}`)
-    const { error } = await supabase.storage.from('athlete-media').upload(path, file, { contentType: file.type || undefined })
-    setMediaUploading(null)
-    if (error) { alert('Upload failed: ' + error.message + (/size|large|exceed/i.test(error.message) ? ' -- the file is too big; trim the video or send a shorter clip.' : '')); return }
-    const { data: urlData } = supabase.storage.from('athlete-media').getPublicUrl(path)
-    const existing = apData?.media_files || []
-    const updated = [...existing, {
-      name: file.name, url: urlData.publicUrl, type: file.type, uploaded_at: new Date().toISOString(),
-      section_key: sectionKey, question_label: questionLabel, session_date: new Date().toISOString().split('T')[0],
-    }]
-    const { error: saveError } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, media_files: updated }, { onConflict: 'student_id' })
-    if (saveError) { alert('Error saving upload: ' + saveError.message); return }
-    setApData(p => ({ ...(p || {}), media_files: updated }))
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    const run = async () => {
+      setBgUploads(u => [...u.filter(x => x.id !== id), { id, name: file.name || 'file', status: 'up' }])
+      // storage keys don't like spaces / brackets / emoji in phone file names
+      const safeName = (file.name || 'upload').replace(/[^a-zA-Z0-9._-]+/g, '_').slice(-80)
+      const path = `athletes/${student.id}/${Date.now()}-${safeName}`
+      const { error } = await supabase.storage.from('athlete-media').upload(path, file, { contentType: file.type || undefined })
+      if (error) {
+        const msg = error.message + (/size|large|exceed/i.test(error.message) ? ' -- the file is too big; trim the video or send a shorter clip.' : '')
+        setBgUploads(u => u.map(x => x.id === id ? { ...x, status: 'fail', error: msg, retry: run } : x)); return
+      }
+      const { data: urlData } = supabase.storage.from('athlete-media').getPublicUrl(path)
+      const entry = { name: file.name, url: urlData.publicUrl, type: file.type, uploaded_at: new Date().toISOString(),
+        section_key: sectionKey, question_label: questionLabel, session_date: new Date().toISOString().split('T')[0] }
+      // add to the athlete's file list (queued so parallel uploads don't clash)
+      mediaSaveChain.current = mediaSaveChain.current.then(async () => {
+        const { data: cur } = await supabase.from('athlete_profiles').select('media_files').eq('student_id', student.id).maybeSingle()
+        const updated = [...(cur?.media_files || []), entry]
+        const { error: saveError } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, media_files: updated }, { onConflict: 'student_id' })
+        if (saveError) { setBgUploads(u => u.map(x => x.id === id ? { ...x, status: 'fail', error: saveError.message, retry: run } : x)); return }
+        setApData(p => ({ ...(p || {}), media_files: updated }))
+        setBgUploads(u => u.map(x => x.id === id ? { ...x, status: 'done' } : x))
+        setTimeout(() => setBgUploads(u => u.filter(x => x.id !== id)), 4000)
+      }).catch(() => {})
+    }
+    run()
   }
   // Reusable "attach photo/video" block for a question's expanded detail
   // view -- separate Upload file / Take photo-video buttons (the second
@@ -4418,7 +4439,7 @@ export default function AthleteApp() {
   function QuestionMediaUpload({ sectionKey, questionLabel }) {
     if (uploadsBlocked) return null // under 18 (or no date of birth): no photo / video uploads
     const todayStr = new Date().toISOString().split('T')[0]
-    const busy = mediaUploading === `${sectionKey}:${questionLabel}`
+    const busy = false // uploads run in the background -- buttons stay usable
     const attached = (apData?.media_files || []).filter(f => f.section_key === sectionKey && f.question_label === questionLabel && f.session_date === todayStr)
     return (
       <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
@@ -4426,7 +4447,7 @@ export default function AthleteApp() {
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button type="button" className="btn btn-sm" disabled={busy} onClick={() => openMediaPicker(sectionKey, questionLabel, false)}>📁 Upload file</button>
           <button type="button" className="btn btn-sm" disabled={busy} onClick={() => openMediaPicker(sectionKey, questionLabel, true)}>📷 Take photo/video</button>
-          {busy && <span style={{ fontSize: 12, color: 'var(--text-secondary)', alignSelf: 'center' }}>Uploading…</span>}
+
         </div>
         {attached.length > 0 && (
           <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
@@ -4929,11 +4950,23 @@ export default function AthleteApp() {
       {tab === 'home' && (
         <div className="neon-home">
           {HistoryViewModal()}
-          <input ref={mediaFileRef} type="file" accept="image/*,video/*" style={{ display: 'none' }}
-            onChange={e => { const f = e.target.files?.[0]; const t = mediaTargetRef.current; e.target.value = ''; if (f && t) uploadQuestionMedia(t.sectionKey, t.questionLabel, f) }} />
+          <input ref={mediaFileRef} type="file" accept="image/*,video/*" multiple style={{ display: 'none' }}
+            onChange={e => { const files = [...(e.target.files || [])]; const t = mediaTargetRef.current; e.target.value = ''; if (t) files.forEach(f => uploadQuestionMedia(t.sectionKey, t.questionLabel, f)) }} />
           <input ref={mediaCameraRef} type="file" accept="image/*,video/*" capture="environment" style={{ display: 'none' }}
             onChange={e => { const f = e.target.files?.[0]; const t = mediaTargetRef.current; e.target.value = ''; if (f && t) uploadQuestionMedia(t.sectionKey, t.questionLabel, f) }} />
           {mediaViewer && <MediaViewer items={mediaViewer.items} start={mediaViewer.index} onClose={() => setMediaViewer(null)} />}
+          {bgUploads.length > 0 && (
+            <div style={{ position: 'fixed', left: 12, right: 12, bottom: 'calc(14px + env(safe-area-inset-bottom, 0px))', zIndex: 530, display: 'flex', flexDirection: 'column', gap: 6, pointerEvents: 'none' }}>
+              {bgUploads.map(u => (
+                <div key={u.id} style={{ pointerEvents: 'auto', alignSelf: 'center', maxWidth: 420, width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, background: '#1A1F24', border: `1px solid ${u.status === 'fail' ? '#E24B4A' : u.status === 'done' ? '#1D9E75' : '#2A3138'}`, color: '#F2F2F2', fontSize: 13, boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}>
+                  <span>{u.status === 'up' ? '⬆' : u.status === 'done' ? '✓' : '✕'}</span>
+                  <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.status === 'up' ? 'Uploading ' : u.status === 'done' ? 'Uploaded ' : 'Upload failed: '}{u.name}</span>
+                  {u.status === 'fail' && <button type="button" className="btn btn-sm" onClick={() => { alert(u.error); u.retry?.() }}>Retry</button>}
+                  {u.status !== 'up' && <button type="button" onClick={() => setBgUploads(x => x.filter(y => y.id !== u.id))} style={{ background: 'none', border: 'none', color: '#9A9A9A', cursor: 'pointer' }}>✕</button>}
+                </div>
+              ))}
+            </div>
+          )}
           {fightOpen && <FightGame onClose={() => setFightOpen(false)} onRound={() => saveMentalityField('gaming', cur => ({ ...cur, count: (cur.count || 0) + 1 }))} />}
           {chessOpen && <ChessGame onClose={() => setChessOpen(false)} onFinished={() => saveMentalityField('chess', cur => ({ ...cur, count: (cur.count || 0) + 1 }))} />}
           {guidedFor && <GuidedSession kind={guidedFor.field} type={guidedFor.type} colour="#22B14C" onClose={() => setGuidedFor(null)} onComplete={mins => saveMentalityField(guidedFor.field, cur => ({ ...cur, entries: [...(cur.entries || []), { type: guidedFor.type, duration: String(mins), guided: true }] }))} />}
