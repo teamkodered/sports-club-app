@@ -16,11 +16,11 @@ const HOUSE_TEXT = { 'Dragon House': '/logos/text-dragon.png', 'Super House': '/
 const HOUSE_LOGO = { 'Dragon House': '/logos/house-dragon.png', 'Super House': '/logos/house-super.png', 'Ice House': '/logos/house-ice.png', 'Jet House': '/logos/house-jet.png' }
 const AREAS = [
   { key: 'all', label: 'Most tasks completed', colour: '#FFFFFF', icon: '/logos/f2f-logo-red.png' },
-  { key: 'mentality', label: 'Mentality', colour: '#22B14C', icon: '/logos/icon-mentality.png' },
-  { key: 'technical', label: 'Technical', colour: '#2F6BFF', icon: '/logos/icon-technical.png' },
-  { key: 'tactical', label: 'Tactical', colour: '#FF2A2A', icon: '/logos/icon-tactical.png' },
-  { key: 'physical', label: 'Physical', colour: '#E6B800', icon: '/logos/icon-physical.png' },
-  { key: 'foundation', label: 'Foundation', colour: '#C93BFF', icon: '/logos/icon-foundation.png' },
+  { key: 'mentality', label: 'Mentality', colour: '#22B14C' },
+  { key: 'technical', label: 'Technical', colour: '#2F6BFF' },
+  { key: 'tactical', label: 'Tactical', colour: '#FF2A2A' },
+  { key: 'physical', label: 'Physical', colour: '#E6B800' },
+  { key: 'foundation', label: 'Foundation', colour: '#C93BFF' },
 ]
 const TITLE = { fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, letterSpacing: 1, lineHeight: 1, textTransform: 'uppercase' }
 const NUM = { fontFamily: 'Orbitron, sans-serif' }
