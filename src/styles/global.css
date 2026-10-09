@@ -968,4 +968,4 @@ tbody tr:hover td { background: var(--bg-secondary); }
 
 /* View iT player: 📐 Measure sits under ⛶ in portrait, next to 📍 in landscape */
 .ffp-measure-land { display: none; }
-@media (orientation: landscape) { .ffp-measure-land { display: inline-block; } .ffp-measure-port { display: none; } }
+@media (orientation: landscape) { .ffp-measure-land { display: flex !important; } .ffp-measure-port { display: none !important; } }

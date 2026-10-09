@@ -24,7 +24,7 @@ export default function MediaViewer({ items = [], start = 0, onClose, onMeasure 
         {/* top-left buttons: Measure sits under ✕ in portrait, beside it in landscape */}
         <div className="mv-top">
           <button type="button" onClick={onClose} style={btn} aria-label="Close">✕</button>
-          {onMeasure && isVideo && <button type="button" onClick={() => onMeasure(item)} style={{ ...btn, width: 'auto', padding: '0 14px', fontSize: 13, fontWeight: 700 }}>📐 Measure</button>}
+          {onMeasure && isVideo && <button type="button" onClick={() => onMeasure(item)} style={btn} aria-label="Measure" title="Measure">📐</button>}
         </div>
         <div style={{ flex: 1, minWidth: 0, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', opacity: 0.8 }}>{item.name || ''}</div>
         {items.length > 1 && <span style={{ fontSize: 13, opacity: 0.8 }}>{i + 1} / {items.length}</span>}
