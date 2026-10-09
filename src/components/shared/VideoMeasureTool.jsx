@@ -33,6 +33,7 @@ export default function VideoMeasureTool({ mode: modeProp = 'jump', defaultDista
 
   const isJump = mode === 'jump'
   const isPunch = mode === 'punch'
+  const isTimer = mode === 'timer' // e.g. a Fixed Load Circuit: start -> finish time, no distance
   const real = a != null && b != null && b > a ? (b - a) / (slow || 1) : null
   const heightCm = isJump && real != null ? (G * real * real / 8) * 100 : null
   const dist = parseFloat(distance)
@@ -42,6 +43,7 @@ export default function VideoMeasureTool({ mode: modeProp = 'jump', defaultDista
   const plausible = isJump ? (real != null && real >= 0.1 && real <= 1.3)
     : isPunch ? (real != null && real >= 0.04 && real <= 0.7)
     : (real != null && real > 0.5)
+  const mss = v => v == null ? '—' : `${Math.floor(v / 60)}:${(v % 60).toFixed(1).padStart(4, '0')}`
   const resultValue = isJump ? (heightCm != null ? +heightCm.toFixed(1) : null)
     : isPunch ? punchMs
     : (real != null ? +real.toFixed(2) : null)
@@ -59,7 +61,7 @@ export default function VideoMeasureTool({ mode: modeProp = 'jump', defaultDista
     <div role="dialog" aria-modal="true" style={{ position: 'fixed', inset: 0, zIndex, background: 'var(--bg, #0B0F12)', display: 'flex', flexDirection: 'column', color: 'var(--text, #fff)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderBottom: '1px solid var(--border, #2A3138)' }}>
         <button type="button" onClick={onClose} style={{ ...btn, height: 36 }}>{initialUrl ? '← Back' : '✕'}</button>
-        <h2 style={{ fontSize: 16, fontWeight: 700, flex: 1 }}>{isJump ? '📹 Jump height from video' : isPunch ? '📹 Punch speed from video' : '📹 Sprint time from video'}</h2>
+        <h2 style={{ fontSize: 16, fontWeight: 700, flex: 1 }}>{isJump ? '📹 Jump height from video' : isPunch ? '📹 Punch speed from video' : isTimer ? '📹 Time from video' : '📹 Sprint time from video'}</h2>
         {switchable && (
           <div style={{ display: 'flex', gap: 4 }}>
             {[['jump', 'Jump'], ['sprint', 'Sprint'], ['punch', 'Punch']].map(([k, l]) => (
@@ -76,6 +78,8 @@ export default function VideoMeasureTool({ mode: modeProp = 'jump', defaultDista
             <p style={{ fontSize: 14, lineHeight: 1.5, marginBottom: 12 }}>
               {isJump
                 ? 'Film the jump side-on with the phone camera in slow-motion, feet clearly in view, phone kept still. Then choose the video.'
+                : isTimer
+                ? 'Film the whole effort with the phone kept still, so you can see the moment it starts and the moment it finishes. Normal speed is fine. Then choose the video.'
                 : isPunch
                 ? 'Film the punch side-on in slow-motion (240 fps if your phone has it), phone kept still, with the glove and the pad / bag in view. Then choose the video.'
                 : 'Film side-on in slow-motion so the start line and finish line are both in view (or film the finish and use a clear start cue). Then choose the video.'}
@@ -126,7 +130,7 @@ export default function VideoMeasureTool({ mode: modeProp = 'jump', defaultDista
                   <option value={1}>Normal speed (×1)</option><option value={4}>Plays 4× slower</option><option value={8}>Plays 8× slower</option>
                 </select>
               </label>
-              {!isJump && <label>{isPunch ? 'Reach (optional)' : 'Distance'}{' '}<input type="number" inputMode="decimal" value={distance} onChange={e => setDistance(e.target.value)} style={{ ...sel, width: 70 }} /> {isPunch ? 'cm' : 'm'}</label>}
+              {!isJump && !isTimer && <label>{isPunch ? 'Reach (optional)' : 'Distance'}{' '}<input type="number" inputMode="decimal" value={distance} onChange={e => setDistance(e.target.value)} style={{ ...sel, width: 70 }} /> {isPunch ? 'cm' : 'm'}</label>}
             </div>
             {isPunch && fps < 120 && <p style={{ fontSize: 11, color: '#EF9F27', lineHeight: 1.45, margin: '0 0 8px' }}>At {fps} fps each frame is {Math.round(1000 / fps)} ms, too coarse for punch times -- use slow-mo (120 or 240 fps) for a usable result.</p>}
             <p style={{ fontSize: 11, color: 'var(--text-tertiary, #777)', lineHeight: 1.45, margin: '0 0 12px' }}>
@@ -140,6 +144,8 @@ export default function VideoMeasureTool({ mode: modeProp = 'jump', defaultDista
                   <div style={{ fontSize: 34, fontWeight: 800, fontFamily: 'Orbitron, monospace' }}>{punchMs != null ? `${punchMs} ms` : '—'}</div>
                   <div style={{ fontSize: 12, color: 'var(--text-secondary, #9A9A9A)' }}>{speed ? `${fmt(speed, 1)} m/s average hand speed` : 'Add the reach (guard to target) for speed'}</div>
                 </>
+              ) : isTimer ? (
+                <div style={{ fontSize: 34, fontWeight: 800, fontFamily: 'Orbitron, monospace' }}>{mss(real)}</div>
               ) : isJump ? (
                 <>
                   <div style={{ fontSize: 12, color: 'var(--text-secondary, #9A9A9A)' }}>Flight time {fmt(real, 3)} s</div>

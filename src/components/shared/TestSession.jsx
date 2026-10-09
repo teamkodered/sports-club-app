@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import VideoMeasureTool from './VideoMeasureTool.jsx'
 import PunchCountTool from './PunchCountTool.jsx'
+import BleepTestPlayer from './BleepTestPlayer.jsx'
+import PhotoMeasureTool from './PhotoMeasureTool.jsx'
 import { supabase } from '../../lib/supabase.js'
 import { TEST_CATEGORIES, bestByTest, lowerIsBetter, saveTestResults } from '../../lib/testResults.js'
 
@@ -88,7 +90,7 @@ export async function awardTestPoints(studentId, testNames) {
 export function TestSessionModal({ studentId, studentName, onClose, onSaved, allowUpload = false, onPoints }) {
   // 📹 measuring from video: jump height / punch speed / punch count fill the boxes below;
   // the video is also kept with the athlete's test uploads (and in View iT when onViewIt is given)
-  const [tool, setTool] = useState(null) // null | 'jump' | 'punch' | 'count'
+  const [tool, setTool] = useState(null) // null | 'jump' | 'punch' | 'count' | 'bleep20' | 'bleep10' | 'photo' | 'timer:<test>' | 'reps:<test>'
   const toolFile = useRef(null)
   function keepVideo(label) {
     const f = toolFile.current; if (!f) return
@@ -157,8 +159,16 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
           })}
         </div>
 
-        {(cat.key === 'jumps' || cat.key === 'punch') && (
+        {['jumps', 'punch', 'bleep', 'stretches', 'fixedload'].includes(cat.key) && (
           <div className="ts-measure">
+            {cat.key === 'bleep' && <>
+              <button type="button" className="ts-measure-btn" onClick={() => setTool('bleep20')}>▶ Run 20 m bleep test</button>
+              <button type="button" className="ts-measure-btn" onClick={() => setTool('bleep10')}>▶ Run 10 m bleep test</button>
+            </>}
+            {cat.key === 'stretches' && <button type="button" className="ts-measure-btn" onClick={() => setTool('photo')}>📷 Measure from photo</button>}
+            {cat.key === 'fixedload' && cat.tests.map(t => (
+              <button key={t.name} type="button" className="ts-measure-btn" onClick={() => setTool(`timer:${t.name}`)}>📹 Time {t.name.replace(/^Fixed load circuit - /, '')}</button>
+            ))}
             {cat.key === 'jumps' && <button type="button" className="ts-measure-btn" onClick={() => setTool('jump')}>📹 Open jump measuring</button>}
             {cat.key === 'punch' && <>
               <button type="button" className="ts-measure-btn" onClick={() => setTool('punch')}>📹 Open punch speed</button>
@@ -166,7 +176,25 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
             </>}
           </div>
         )}
-        {tool && createPortal(tool === 'count'
+        {tool === 'bleep20' || tool === 'bleep10' ? createPortal(
+          <BleepTestPlayer zIndex={700} course={tool === 'bleep10' ? 10 : 20} runners={[{ id: 'me', name: studentName || 'Athlete' }]} onClose={() => setTool(null)}
+            onDone={res => { if (res.me) setVals(p => ({ ...p, [tool === 'bleep10' ? 'Bleep test (10m)' : 'Bleep test']: res.me })) }} />, document.body)
+        : tool === 'photo' ? createPortal(
+          <PhotoMeasureTool zIndex={700} tests={cat.key === 'stretches' ? cat.tests.map(t => t.name) : []} onClose={() => setTool(null)}
+            onSave={(name, v) => setVals(p => ({ ...p, [name]: String(v) }))} />, document.body)
+        : tool?.startsWith?.('timer:') ? createPortal(
+          <VideoMeasureTool mode="timer" zIndex={700} onFile={f => { toolFile.current = f }} onClose={() => setTool(null)}
+            saveLabel={v => `Use ${v}s for ${tool.slice(6).replace(/^Fixed load circuit - /, '')}`}
+            onResult={v => { setVals(p => ({ ...p, [tool.slice(6)]: String(v) })); keepVideo(tool.slice(6)) }} />, document.body)
+        : tool?.startsWith?.('reps:') ? createPortal(
+          <PunchCountTool mode="reps" title={`📹 Count reps · ${tool.slice(5)}`} zIndex={700} onFile={f => { toolFile.current = f }} onClose={() => setTool(null)}
+            onSave={({ perRound }) => {
+              const name = tool.slice(5)
+              // fills the first empty set, or adds a new one
+              setSets(p => { const a = [...(p[name] || [''])]; const i = a.findIndex(v => v === '' || v == null); if (i >= 0) a[i] = String(perRound); else a.push(String(perRound)); return { ...p, [name]: a } })
+              keepVideo(`${name} reps`)
+            }} />, document.body)
+        : tool && createPortal(tool === 'count'
           ? <PunchCountTool zIndex={700} onFile={f => { toolFile.current = f }} onClose={() => setTool(null)}
               onSave={({ perRound, perMinute }) => { setVals(p => ({ ...p, 'Punches per round': String(perRound), 'Punches per minute': String(perMinute) })); keepVideo('Punch count') }} />
           : <VideoMeasureTool mode={tool} zIndex={700} onFile={f => { toolFile.current = f }} onClose={() => setTool(null)}
@@ -192,6 +220,7 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
                         onChange={e => setSets(p => { const a = [...(p[t.name] || [''])]; a[i] = e.target.value; return { ...p, [t.name]: a } })} />
                     ))}
                     <button type="button" className="btn btn-sm" onClick={() => setSets(p => ({ ...p, [t.name]: [...(p[t.name] || ['']), ''] }))}>+ Set</button>
+                    <button type="button" className="btn btn-sm" title="Count the reps from a video" onClick={() => setTool(`reps:${t.name}`)}>📹 Count</button>
                   </div>
                   {hint}
                 </div>
@@ -238,6 +267,7 @@ export function TestBatchModal({ onClose }) {
   const list = athletes.filter(a => (group === 'all' || (group === 'kr' ? a.is_kr : a.discipline === 'KRBA')) &&
     (!q || `${a.members?.first_name} ${a.members?.last_name}`.toLowerCase().includes(q)))
   const filled = Object.entries(vals).filter(([, v]) => v !== '' && v != null)
+  const [bleepOpen, setBleepOpen] = useState(false)
 
   async function saveAll() {
     setSaving(true)
@@ -289,6 +319,13 @@ export function TestBatchModal({ onClose }) {
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…" className="ts-input" style={{ flex: 1, height: 32 }} aria-label="Search athletes" />
           </div>
           <div className="ts-hint" style={{ marginBottom: 6 }}>Fill in just the athletes who did it · unit: {info?.unit}{lowerIsBetter(testName) ? ' · lower is better' : ''}{info?.cat?.multiSet ? ' · best 60s set' : ''}</div>
+          {testName.startsWith('Bleep test') && (
+            <button type="button" className="ts-measure-btn" style={{ marginBottom: 8 }} onClick={() => setBleepOpen(true)}>▶ Run the {testName === 'Bleep test (10m)' ? '10 m' : '20 m'} bleep test for a group</button>
+          )}
+          {bleepOpen && createPortal(
+            <BleepTestPlayer zIndex={700} course={testName === 'Bleep test (10m)' ? 10 : 20} onClose={() => setBleepOpen(false)}
+              candidates={list.map(a => ({ id: a.id, name: `${a.members?.first_name || ''} ${a.members?.last_name || ''}`.trim() }))}
+              onDone={res => setVals(p => ({ ...p, ...res }))} />, document.body)}
           <div className="ts-batch">
             {list.map(a => (
               <label key={a.id} className="ts-batch-row">

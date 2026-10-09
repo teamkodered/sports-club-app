@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-// 📹 Count punches from a video (Oct 2026).
+// 📹 Count punches (mode 'punches') or reps (mode 'reps') from a video (Oct 2026).
+// Reps work differently from punches: a rep is a smooth down-and-up, not a
+// spike, so each frame's box is compared with the FIRST frame (the start
+// position) -- the difference rises as the athlete moves away and falls as
+// they come back. One full rise-and-return (hysteresis between a low and a
+// high level, at least MIN_REP_S apart) = one rep.
 //   1. Choose a video of a round (phone kept still), 2. drag a box over the
 //   bag / pads, 3. optionally mark the round's start + end, 4. Count.
 // While the video plays (muted, sped up) every frame's box area is shrunk to
@@ -15,6 +20,30 @@ const GRID = 48            // box is sampled at 48x48 pixels
 const MIN_GAP_S = 0.15     // two hits closer than this (real time) count as one
 const BASE_WIN_S = 0.75    // rolling-median window either side (real time)
 const TOL = 0.03           // seconds -- matching a removed/added mark
+const MIN_REP_S = 0.5      // two reps can't be closer than this (real time)
+
+// Distance-from-start-position series -> rep times (video seconds).
+function detectReps(series, sensitivity, slow) {
+  const n = series.length
+  if (n < 5) return { hits: [], resid: [], thresh: 0 }
+  const raw = series.map(p => p.r)
+  const sm = raw.map((v, i) => { let a = 0, c = 0; for (let j = Math.max(0, i - 2); j <= Math.min(n - 1, i + 2); j++) { a += raw[j]; c++ } return a / c })
+  const sorted = [...sm].sort((a, b) => a - b)
+  const lo = sorted[Math.floor(n * 0.05)], hiP = sorted[Math.floor(n * 0.95)]
+  const range = Math.max(0.5, hiP - lo)
+  const high = lo + range * (0.65 - (sensitivity - 1) * 0.04) // sensitivity 1..10 -> 65% .. 29% of the way out
+  const low = lo + range * 0.2
+  const hits = []
+  let armed = true
+  for (let i = 0; i < n; i++) {
+    if (armed && sm[i] >= high) {
+      const t = series[i].t
+      if (!hits.length || t - hits[hits.length - 1] >= MIN_REP_S * slow) hits.push(t)
+      armed = false
+    } else if (!armed && sm[i] <= low) armed = true
+  }
+  return { hits, resid: sm.map(v => v - lo), thresh: high - lo }
+}
 
 const fmt = (n, d = 1) => (n == null || isNaN(n) ? '—' : Number(n).toFixed(d))
 const median = arr => { if (!arr.length) return 0; const a = [...arr].sort((x, y) => x - y); const m = a.length >> 1; return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2 }
@@ -46,7 +75,8 @@ function detectHits(series, sensitivity, slow) {
   return { hits: accepted.map(i => series[i].t).sort((a, b) => a - b), resid, thresh }
 }
 
-export default function PunchCountTool({ onSave, onClose, initialUrl = null, zIndex = 480, onSwitchMode, onFile }) {
+export default function PunchCountTool({ mode = 'punches', title, onSave, onClose, initialUrl = null, zIndex = 480, onSwitchMode, onFile }) {
+  const isReps = mode === 'reps'
   // initialUrl: count an already-uploaded video (from the media viewer)
   const videoRef = useRef(null)
   const stageRef = useRef(null)
@@ -74,7 +104,7 @@ export default function PunchCountTool({ onSave, onClose, initialUrl = null, zIn
 
   const rs = roundStart ?? 0
   const re = roundEnd ?? dur
-  const detection = useMemo(() => detectHits(series, sensitivity, slow || 1), [series, sensitivity, slow])
+  const detection = useMemo(() => (isReps ? detectReps : detectHits)(series, sensitivity, slow || 1), [series, sensitivity, slow, isReps])
   const hits = useMemo(() => {
     const kept = detection.hits.filter(h => !removed.some(r => Math.abs(r - h) < TOL))
     return [...kept, ...added].filter(h => h >= rs && h <= re).sort((a, b) => a - b)
@@ -122,14 +152,19 @@ export default function PunchCountTool({ onSave, onClose, initialUrl = null, zIn
     const sx = box.x * W, sy = box.y * H, sw = Math.max(1, box.w * W), sh = Math.max(1, box.h * H)
     const canvas = document.createElement('canvas'); canvas.width = GRID; canvas.height = GRID
     const ctx = canvas.getContext('2d', { willReadFrequently: true })
-    let prev = null
+    let prev = null, first = null
     const out = []
     const grab = mediaTime => {
       ctx.drawImage(v, sx, sy, sw, sh, 0, 0, GRID, GRID)
       const d = ctx.getImageData(0, 0, GRID, GRID).data
       const g = new Float32Array(GRID * GRID)
       for (let i = 0, j = 0; i < d.length; i += 4, j++) g[j] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]
-      if (prev) { let sum = 0; for (let j = 0; j < g.length; j++) sum += Math.abs(g[j] - prev[j]); out.push({ t: mediaTime, s: sum / g.length }) }
+      if (!first) first = g
+      if (prev) {
+        let sum = 0, sumR = 0
+        for (let j = 0; j < g.length; j++) { sum += Math.abs(g[j] - prev[j]); sumR += Math.abs(g[j] - first[j]) }
+        out.push({ t: mediaTime, s: sum / g.length, r: sumR / g.length })
+      }
       prev = g
       setProgress(Math.min(1, (mediaTime - rs) / Math.max(0.001, re - rs)))
     }
@@ -194,14 +229,16 @@ export default function PunchCountTool({ onSave, onClose, initialUrl = null, zIn
     <div role="dialog" aria-modal="true" style={{ position: 'fixed', inset: 0, zIndex, background: 'var(--bg, #0B0F12)', display: 'flex', flexDirection: 'column', color: 'var(--text, #fff)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderBottom: '1px solid var(--border, #2A3138)' }}>
         <button type="button" onClick={() => { cancelRef.current = true; onClose() }} style={{ ...btn, height: 36 }}>{initialUrl ? '← Back' : '✕'}</button>
-        <h2 style={{ fontSize: 16, fontWeight: 700, flex: 1 }}>📹 Count punches from video</h2>
+        <h2 style={{ fontSize: 16, fontWeight: 700, flex: 1 }}>{title || (isReps ? '📹 Count reps from video' : '📹 Count punches from video')}</h2>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 14 }}>
         {!url ? (
           <div>
             <p style={{ fontSize: 14, lineHeight: 1.5, marginBottom: 12 }}>
-              Film the round with the phone kept still (on a stand or ledge), with the bag or pads clearly in view. Normal speed is fine. Then choose the video.
+              {isReps
+                ? 'Film side-on with the phone kept still (on a stand or ledge), one athlete in view, starting in the start position (e.g. top of the push-up). Normal speed is fine. Then choose the video.'
+                : 'Film the round with the phone kept still (on a stand or ledge), with the bag or pads clearly in view. Normal speed is fine. Then choose the video.'}
             </p>
             <label style={{ ...btn, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '100%', boxSizing: 'border-box' }}>
               Choose / record video
@@ -217,7 +254,7 @@ export default function PunchCountTool({ onSave, onClose, initialUrl = null, zIn
                 onTimeUpdate={e => setT(e.currentTarget.currentTime)} onEnded={() => setPlaying(false)}
                 style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block' }} />
               {shown && <div style={{ position: 'absolute', left: `${shown.x * 100}%`, top: `${shown.y * 100}%`, width: `${shown.w * 100}%`, height: `${shown.h * 100}%`, border: '2px solid #EF9F27', boxShadow: '0 0 0 9999px rgba(0,0,0,0.35)', pointerEvents: 'none' }} />}
-              {drawMode && !drawing && <div style={{ position: 'absolute', left: 0, right: 0, bottom: 8, textAlign: 'center', fontSize: 13, fontWeight: 700, textShadow: '0 1px 3px #000', pointerEvents: 'none' }}>Drag a box over the bag / pads</div>}
+              {drawMode && !drawing && <div style={{ position: 'absolute', left: 0, right: 0, bottom: 8, textAlign: 'center', fontSize: 13, fontWeight: 700, textShadow: '0 1px 3px #000', pointerEvents: 'none' }}>{isReps ? 'Drag a box over the part that moves (e.g. head and shoulders)' : 'Drag a box over the bag / pads'}</div>}
             </div>
 
             <input type="range" min={0} max={dur || 0} step={0.01} value={t} onChange={e => seek(parseFloat(e.target.value))} disabled={status === 'running'} style={{ width: '100%', margin: '10px 0 4px' }} aria-label="Position" />
@@ -245,13 +282,15 @@ export default function PunchCountTool({ onSave, onClose, initialUrl = null, zIn
               <span style={{ color: 'var(--text-secondary, #9A9A9A)' }}>Counting {fmt(realDur, 0)} s{roundStart == null && roundEnd == null ? ' (whole video)' : ''}</span>
             </div>
             <p style={{ fontSize: 11, color: 'var(--text-tertiary, #777)', lineHeight: 1.45, margin: '0 0 12px' }}>
-              Draw the box tight around where the punches land, so the athlete's body and other people stay outside it. Very fast combinations can merge into one -- check and correct below.
+              {isReps
+                ? 'Draw the box over the part that moves most (head and shoulders for push-ups, hips for squats), and mark the round start on a frame in the start position. Half reps may not count -- check and correct below.'
+                : "Draw the box tight around where the punches land, so the athlete's body and other people stay outside it. Very fast combinations can merge into one -- check and correct below."}
             </p>
 
             {status === 'idle' && (
               <button type="button" disabled={!box || realDur <= 0} onClick={analyse}
                 style={{ ...btn, width: '100%', background: box ? '#EF9F27' : btn.background, color: box ? '#0A0A0A' : btn.color, borderColor: 'transparent' }}>
-                {box ? 'Count punches' : 'Draw a box first'}
+                {box ? (isReps ? 'Count reps' : 'Count punches') : 'Draw a box first'}
               </button>
             )}
             {status === 'running' && (
@@ -270,7 +309,7 @@ export default function PunchCountTool({ onSave, onClose, initialUrl = null, zIn
               <>
                 <div style={{ padding: 14, borderRadius: 10, border: '1px solid #22B14C', background: 'var(--bg-secondary, #1A1F24)', textAlign: 'center', marginBottom: 10 }}>
                   <div style={{ fontSize: 34, fontWeight: 800, fontFamily: 'Orbitron, monospace' }}>{hits.length}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary, #9A9A9A)' }}>punches · {perMinute != null ? `${fmt(perMinute, 1)} per minute` : ''} · {fmt(realDur, 0)} s</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary, #9A9A9A)' }}>{isReps ? 'reps' : 'punches'} · {perMinute != null ? `${fmt(perMinute, 1)} per minute` : ''} · {fmt(realDur, 0)} s</div>
                   {splits.length > 1 && (
                     <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginTop: 8, flexWrap: 'wrap' }}>
                       {splits.map((c, i) => <span key={i} style={{ fontSize: 11, padding: '2px 6px', borderRadius: 6, border: '1px solid var(--border, #2A3138)' }}>{i * 30}–{Math.min((i + 1) * 30, Math.round(realDur))}s: <b>{c}</b></span>)}
@@ -300,7 +339,7 @@ export default function PunchCountTool({ onSave, onClose, initialUrl = null, zIn
                 <label style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>Sensitivity: {sensitivity} {sensitivity <= 3 ? '(only clear hits)' : sensitivity >= 8 ? '(picks up lighter touches)' : ''}</label>
                 <input type="range" min={1} max={10} step={1} value={sensitivity} onChange={e => setSensitivity(+e.target.value)} style={{ width: '100%' }} />
                 <p style={{ fontSize: 11, color: 'var(--text-tertiary, #777)', lineHeight: 1.45, marginTop: 6 }}>
-                  Orange marks = counted hits (green = added by you). Tap a mark to jump the video there and check it. Too many counts? Lower the sensitivity. Missing hits? Raise it, or add them at the playhead.
+                  Orange marks = counted {isReps ? 'reps' : 'hits'} (green = added by you). Tap a mark to jump the video there and check it. Too many counts? Lower the sensitivity. Missing hits? Raise it, or add them at the playhead.
                 </p>
               </>
             )}
@@ -313,7 +352,7 @@ export default function PunchCountTool({ onSave, onClose, initialUrl = null, zIn
           {!initialUrl && <button type="button" style={{ ...btn, flex: 1 }} onClick={() => { setUrl(null); setBox(null); setDrawMode(true); setRoundStart(null); setRoundEnd(null); reset() }}>Another video</button>}
           <button type="button" disabled={saving || perMinute == null} style={{ ...btn, flex: 2, background: '#22B14C', color: '#0A0A0A', borderColor: 'transparent' }}
             onClick={async () => { setSaving(true); try { await onSave({ perRound: hits.length, perMinute: +perMinute.toFixed(1) }); onClose() } finally { setSaving(false) } }}>
-            {saving ? 'Saving…' : `Save ${hits.length} punches · ${fmt(perMinute, 1)}/min`}
+            {saving ? 'Saving…' : (isReps ? `Use ${hits.length} reps` : `Save ${hits.length} punches · ${fmt(perMinute, 1)}/min`)}
           </button>
         </div>
       )}

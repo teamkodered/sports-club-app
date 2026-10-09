@@ -13,6 +13,8 @@ export const TEST_CATEGORIES = [
   ]},
   { key: 'bleep', label: 'Bleep test', icon: '🏃', tests: [
     { name: 'Bleep test', unit: 'level' },
+    // 10 m shuttles (same speeds) for small halls -- its own test, never mixed with 20 m
+    { name: 'Bleep test (10m)', unit: 'level' },
   ]},
   { key: 'vo2max', label: 'VO2 Max', icon: '🫁', tests: [
     { name: 'VO2 Max', unit: 'ml/kg/min' },
