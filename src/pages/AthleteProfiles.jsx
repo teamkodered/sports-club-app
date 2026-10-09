@@ -3861,7 +3861,14 @@ export default function AthleteProfiles() {
     const n = pillarPdpLines(pillar).length
     const view = pillarView[pillar] || 'questions'
     const tab = (key, text) => (
-      <button type="button" aria-pressed={view === key} onClick={() => setPillarView(v => ({ ...v, [pillar]: key }))}
+      <button type="button" aria-pressed={view === key} onClick={() => {
+          // pressing the card that's already showing closes the section (PDP goes back to the questions next time)
+          if (view === key) {
+            const close = { mentality: setShowMentalitySection, tactical: setShowTacticalSection, technique: setShowTechniqueSection, physical: setShowPhysicalSection }[pillar]
+            close?.(false); setPillarView(v => ({ ...v, [pillar]: 'questions' })); return
+          }
+          setPillarView(v => ({ ...v, [pillar]: key }))
+        }}
         style={{ flex: 1, height: 40, border: 'none', cursor: 'pointer', clipPath: 'polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%)',
           background: view === key ? (key === 'pdp' ? PDP_GOLD : colour) : '#1A1F24', color: view === key ? '#0A0A0A' : '#F2F2F2',
           boxShadow: view === key ? `0 0 12px ${key === 'pdp' ? PDP_GOLD : colour}88` : 'none',
