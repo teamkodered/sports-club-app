@@ -474,6 +474,22 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   const [fightersMenuOpen, setFightersMenuOpen] = useState(false)
   const [fightersCopied, setFightersCopied] = useState('')
   const [saveNewReason, setSaveNewReason] = useState(true)
+  const [editReason, setEditReason] = useState(null) // hold a reason chip: { original, label, points }
+  const reasonHoldTimer = useRef(null)
+  const reasonHeld = useRef(false)
+  async function saveEditedReason(del = false) {
+    const er = editReason; if (!er) return
+    const label = er.label.trim(), points = parseInt(er.points)
+    if (!del && (!label || isNaN(points) || points === 0)) { alert('Give the reason a name and non-zero points.'); return }
+    if (!del && label.toLowerCase() !== er.original.label.toLowerCase() && pointTypes.some(p => p.label.toLowerCase() === label.toLowerCase())) { alert('A reason with that name already exists.'); return }
+    if (del && !confirm(`Delete the reason "${er.original.label}"? Points already awarded with it are kept.`)) return
+    const next = del ? pointTypes.filter(p => p.label !== er.original.label) : pointTypes.map(p => p.label === er.original.label ? { ...p, label, points } : p)
+    const { error } = await supabase.from('settings').update({ value: next }).eq('key', 'point_types')
+    if (error) { alert('Could not save the reason: ' + error.message); return }
+    setPointTypes(next)
+    if (pmReason?.label === er.original.label) setPmReason(del ? null : { ...pmReason, label, points })
+    setEditReason(null)
+  }
   const [pmOn, setPmOn] = useState(false)
   // Points mode: bring the reason panel to the top of the screen (class buttons are hidden while it's on)
   const pmToTop = () => setTimeout(() => document.querySelector('.reg-m-pm')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60)
@@ -1750,8 +1766,17 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
         const selecting = selectedStudents.length > 0
         const isMainReg = !initialRegType   // standalone Registers page (not the Athlete Profile's embedded register)
         const reasonsByUse = [...pointTypes].map((pt, i) => ({ pt, i })).sort((a, b) => ((reasonUsage || {})[b.pt.label] || 0) - ((reasonUsage || {})[a.pt.label] || 0) || a.i - b.i).map(x => x.pt)
+        // Reason order everywhere: A-Z, negative (deduction) reasons at the bottom -- stable every time
+        const reasonOrder = (a, b) => ((a.points < 0) - (b.points < 0)) || a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })
+        const reasonsAZ = [...pointTypes].sort(reasonOrder)
+        const quickReasons = n => reasonsByUse.slice(0, n).sort(reasonOrder) // the most-used n, shown A-Z
+        // Tap = pick; hold = edit the reason (name / points)
         const ReasonChip = ({ pt, onPick, on }) => (
-          <button type="button" className={`reg-m-reason${on ? ' on' : ''}${pt.points < 0 ? ' neg' : ''}`} onClick={() => onPick(pt)}>
+          <button type="button" className={`reg-m-reason${on ? ' on' : ''}${pt.points < 0 ? ' neg' : ''}`}
+            onPointerDown={() => { reasonHeld.current = false; clearTimeout(reasonHoldTimer.current); reasonHoldTimer.current = setTimeout(() => { reasonHeld.current = true; if (navigator.vibrate) navigator.vibrate(25); setEditReason({ original: pt, label: pt.label, points: pt.points }) }, 550) }}
+            onPointerUp={() => clearTimeout(reasonHoldTimer.current)} onPointerLeave={() => clearTimeout(reasonHoldTimer.current)} onPointerCancel={() => clearTimeout(reasonHoldTimer.current)}
+            onContextMenu={e => e.preventDefault()}
+            onClick={() => { if (reasonHeld.current) { reasonHeld.current = false; return } onPick(pt) }}>
             {pt.label} <b>{pt.points > 0 ? '+' : ''}{pt.points}</b>
           </button>
         )
@@ -1859,14 +1884,14 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                   <button type="button" onClick={() => { setPmOn(false); setPmPickerOpen(false) }}>Done</button>
                 </div>
                 <div className="reg-m-reasons">
-                  {reasonsByUse.slice(0, 6).map(pt => <ReasonChip key={pt.label} pt={pt} on={pmReason?.label === pt.label} onPick={r => { setPmReason(r); setPmPickerOpen(false); pmToTop() }} />)}
+                  {quickReasons(6).map(pt => <ReasonChip key={pt.label} pt={pt} on={pmReason?.label === pt.label} onPick={r => { setPmReason(r); setPmPickerOpen(false); pmToTop() }} />)}
                   <button type="button" className="reg-m-reason more" onClick={() => setPmPickerOpen(v => !v)}>{pmPickerOpen ? 'Less' : 'More…'}</button>
                 </div>
                 {pmPickerOpen && (
                   <div className="reg-m-pm-picker">
                     <input type="search" value={pmSearch} onChange={e => setPmSearch(e.target.value)} onFocus={pmToTop} placeholder="Search reasons…" aria-label="Search reasons" />
                     <div className="reg-m-reasons wrap">
-                      {[...reasonsByUse].sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })).filter(pt => !pmSearch.trim() || `${pt.label} ${pt.group || ''}`.toLowerCase().includes(pmSearch.trim().toLowerCase()))
+                      {reasonsAZ.filter(pt => !pmSearch.trim() || `${pt.label} ${pt.group || ''}`.toLowerCase().includes(pmSearch.trim().toLowerCase()))
                         .map(pt => <ReasonChip key={pt.label} pt={pt} on={pmReason?.label === pt.label} onPick={r => { setPmReason(r); setPmPickerOpen(false); setPmSearch(''); pmToTop() }} />)}
                     </div>
                     {pmSearch.trim() && !pointTypes.some(pt => pt.label.toLowerCase() === pmSearch.trim().toLowerCase()) && (
@@ -2124,7 +2149,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                   <button type="button" onClick={() => { setSelectedStudents([]); setSelectedFirst(false) }}>Cancel</button>
                 </div>
                 <div className="reg-m-reasons">
-                  {reasonsByUse.slice(0, 3).map(pt => <ReasonChip key={pt.label} pt={pt} onPick={r => quickAward([...selectedStudents], r)} />)}
+                  {quickReasons(3).map(pt => <ReasonChip key={pt.label} pt={pt} onPick={r => quickAward([...selectedStudents], r)} />)}
                   <button type="button" className="reg-m-reason more" onClick={() => setMultiAward(true)}>More…</button>
                 </div>
                 <div className="reg-m-bulk-actions">
@@ -2639,6 +2664,28 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
       })()}
 
       {/* Award points modal */}
+      {editReason && createPortal(
+        <div onClick={() => setEditReason(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 70, padding: '60px 12px 0' }}>
+          <div className="card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 380, padding: 16 }}>
+            <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 10 }}>Edit reason</h3>
+            <input value={editReason.label} onChange={e => setEditReason(r => ({ ...r, label: e.target.value }))} aria-label="Reason name"
+              style={{ width: '100%', boxSizing: 'border-box', padding: '9px 10px', fontSize: 15, marginBottom: 10, border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', background: 'var(--bg-secondary)', color: 'var(--text)' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+              <span style={{ fontSize: 13, color: 'var(--text-secondary)', flex: 1 }}>Points</span>
+              <button type="button" className="btn btn-sm" onClick={() => setEditReason(r => ({ ...r, points: (parseInt(r.points) || 0) - 1 }))}>−</button>
+              <input type="number" value={editReason.points} onChange={e => setEditReason(r => ({ ...r, points: e.target.value }))} aria-label="Points"
+                style={{ width: 70, padding: '7px 8px', textAlign: 'center', fontSize: 15, fontWeight: 700, border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', background: 'var(--bg-secondary)', color: parseInt(editReason.points) < 0 ? '#E24B4A' : '#1D9E75' }} />
+              <button type="button" className="btn btn-sm" onClick={() => setEditReason(r => ({ ...r, points: (parseInt(r.points) || 0) + 1 }))}>+</button>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" className="btn btn-sm" style={{ color: '#E24B4A', borderColor: '#E24B4A' }} onClick={() => saveEditedReason(true)}>Delete</button>
+              <button type="button" className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setEditReason(null)}>Cancel</button>
+              <button type="button" className="btn btn-sm btn-primary" onClick={() => saveEditedReason(false)}>Save</button>
+            </div>
+            <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '10px 0 0' }}>Changes apply from now on -- points already awarded keep their old name and value.</p>
+          </div>
+        </div>, document.body)}
+
       {(awardingFor || multiAward) && (() => {
         // A typed reason that isn't in the list is used straight away by Award
         // (points preset to 5, adjustable); no separate Add step.
@@ -2676,7 +2723,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                   if (!groups[grp]) groups[grp] = []
                   groups[grp].push(pt)
                 })
-                Object.values(groups).forEach(list => list.sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })))
+                Object.values(groups).forEach(list => list.sort((a, b) => ((a.points < 0) - (b.points < 0)) || a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })))
                 return Object.entries(groups).map(([grpName, pts]) => (
                   <div key={grpName}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6, paddingLeft: 2 }}>{grpName}</div>
