@@ -493,6 +493,9 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   const [pmOn, setPmOn] = useState(false)
   // Points mode: bring the reason panel to the top of the screen (class buttons are hidden while it's on)
   const pmToTop = () => setTimeout(() => document.querySelector('.reg-m-pm')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60)
+  // Once a reason is chosen: slide up a little further so the reason chips line up under the
+  // menu button (the 'Tap students to give…' line scrolls away) -- search + names stay in view
+  const pmReasonToTop = () => setTimeout(() => document.querySelector('.reg-m-pm .reg-m-reasons')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80)
   const searchToTop = () => setTimeout(() => document.querySelector('.reg-m-search')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 250)
                // Points mode: tap a card to award pmReason
   const [pmReason, setPmReason] = useState(null)
@@ -1884,7 +1887,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                   <button type="button" onClick={() => { setPmOn(false); setPmPickerOpen(false) }}>Done</button>
                 </div>
                 <div className="reg-m-reasons">
-                  {quickReasons(6).map(pt => <ReasonChip key={pt.label} pt={pt} on={pmReason?.label === pt.label} onPick={r => { setPmReason(r); setPmPickerOpen(false); pmToTop() }} />)}
+                  {quickReasons(6).map(pt => <ReasonChip key={pt.label} pt={pt} on={pmReason?.label === pt.label} onPick={r => { setPmReason(r); setPmPickerOpen(false); pmReasonToTop() }} />)}
                   <button type="button" className="reg-m-reason more" onClick={() => setPmPickerOpen(v => !v)}>{pmPickerOpen ? 'Less' : 'More…'}</button>
                 </div>
                 {pmPickerOpen && (
@@ -1892,7 +1895,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                     <input type="search" value={pmSearch} onChange={e => setPmSearch(e.target.value)} onFocus={pmToTop} placeholder="Search reasons…" aria-label="Search reasons" />
                     <div className="reg-m-reasons wrap">
                       {reasonsAZ.filter(pt => !pmSearch.trim() || `${pt.label} ${pt.group || ''}`.toLowerCase().includes(pmSearch.trim().toLowerCase()))
-                        .map(pt => <ReasonChip key={pt.label} pt={pt} on={pmReason?.label === pt.label} onPick={r => { setPmReason(r); setPmPickerOpen(false); setPmSearch(''); pmToTop() }} />)}
+                        .map(pt => <ReasonChip key={pt.label} pt={pt} on={pmReason?.label === pt.label} onPick={r => { setPmReason(r); setPmPickerOpen(false); setPmSearch(''); pmReasonToTop() }} />)}
                     </div>
                     {pmSearch.trim() && !pointTypes.some(pt => pt.label.toLowerCase() === pmSearch.trim().toLowerCase()) && (
                       <div className="reg-m-newreason">
@@ -1910,7 +1913,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                               if (error) alert('Using it for now, but it could not be added to the reasons list: ' + error.message)
                               else setPointTypes(next)
                             }
-                            setPmReason(reason); setPmPickerOpen(false); setPmSearch(''); setPmNewPts(1); pmToTop()
+                            setPmReason(reason); setPmPickerOpen(false); setPmSearch(''); setPmNewPts(1); pmReasonToTop()
                           }}>Add &amp; use</button>
                         </div>
                         <label><input type="checkbox" checked={saveNewReason} onChange={e => setSaveNewReason(e.target.checked)} /> Save to the reasons list for next time</label>

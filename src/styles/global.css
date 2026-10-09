@@ -945,5 +945,6 @@ tbody tr:hover td { background: var(--bg-secondary); }
 @media (max-width: 767px) {
   .reg-pm-active .reg-hide-in-pm { display: none !important; }
   .reg-m-pm { scroll-margin-top: 64px; }
-  .reg-m-pm .reg-m-reasons, .reg-m-search { scroll-margin-top: 8px; }
+  .reg-m-pm .reg-m-reasons { scroll-margin-top: 66px; } /* clear of the menu button */
+  .reg-m-search { scroll-margin-top: 8px; }
 }
