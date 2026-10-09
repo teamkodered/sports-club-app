@@ -1,6 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
 import { rotationLayout, drawRotatedFrame, normaliseRotation } from '../../lib/videoRotation.js'
 import { supabase } from '../../lib/supabase.js'
+import VideoMeasureTool from './VideoMeasureTool.jsx'
+import { createPortal } from 'react-dom'
+import PunchCountTool from './PunchCountTool.jsx'
 
 const SPEEDS = [0.25, 0.5, 1, 1.5, 2]
 // Standard video frame rate assumption for "one frame" stepping --
@@ -142,6 +145,14 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
   const [duration, setDuration] = useState(0)
   const [videoAspect, setVideoAspect] = useState(16 / 9) // updated once real metadata loads; used to keep overlays aligned to the actual visible video, not the full (possibly letterboxed) screen
   const [isFullscreen, setIsFullscreen] = useState(false)
+  // 📐 Measure: jump / sprint / punch speed / punch count on this video. Results are shown
+  // to read off (View iT footage isn't tied to one athlete's test results).
+  const [measureMode, setMeasureMode] = useState(null) // null | 'jump' | 'sprint' | 'punch' | 'count'
+  function openMeasure() {
+    try { videoRef.current?.pause() } catch { /* */ }
+    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {})
+    setMeasureMode('jump')
+  }
 
   // Rotation: anyone can turn the view; for a coach on a View IT clip it's
   // also saved to fight_footage.rotation so everyone sees it that way up.
@@ -1565,7 +1576,13 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
                 onClick={e => { e.stopPropagation(); handleMarkerButtonPress() }}>🏁</button>
             )
           )}
+          <button className="view-it-btn ffp-measure-land" title="Measure (jump / sprint / punch)"
+            style={{ height: 36, borderRadius: 18, fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: '0 12px' }}
+            onClick={e => { e.stopPropagation(); openMeasure() }}>📐 Measure</button>
         </div>
+        <button className="view-it-btn ffp-measure-port" title="Measure (jump / sprint / punch)"
+          style={{ position: 'absolute', top: 56, left: 12, height: 36, borderRadius: 18, fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: '0 12px' }}
+          onClick={e => { e.stopPropagation(); openMeasure() }}>📐 Measure</button>
         {/* Title sits between the fullscreen button's corner and the
             right-hand cluster, so it can't run underneath either. */}
         <span style={{
@@ -1944,6 +1961,11 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
           </div>
         </div>
       )}
+      {measureMode && createPortal(measureMode !== 'count'
+        ? <VideoMeasureTool mode={measureMode} initialUrl={videoUrl} switchable zIndex={600}
+            onCount={() => setMeasureMode('count')}
+            saveLabel={v => `Done (${v})`} onResult={() => {}} onClose={() => setMeasureMode(null)} />
+        : <PunchCountTool initialUrl={videoUrl} zIndex={600} onSave={() => {}} onClose={() => setMeasureMode(null)} />, document.body)}
     </div>
   )
 }
