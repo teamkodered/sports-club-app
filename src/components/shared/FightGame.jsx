@@ -339,6 +339,11 @@ export default function FightGame({ onRound, onClose }) {
     onPointerDown: e => { e.preventDefault(); e.currentTarget.setPointerCapture?.(e.pointerId); if (!input.current[k]) pressed.current[k] = true; input.current[k] = true },
     onPointerUp: () => { input.current[k] = false }, onPointerCancel: () => { input.current[k] = false }, onPointerLeave: () => { input.current[k] = false },
   })
+  // diagonals hold two directions at once (e.g. ↙ = down + back: crouch-block / crouch-walk; ↗ = jump forward)
+  const hold2 = (a, b) => ({
+    onPointerDown: e => { e.preventDefault(); e.currentTarget.setPointerCapture?.(e.pointerId); for (const k of [a, b]) { if (!input.current[k]) pressed.current[k] = true; input.current[k] = true } },
+    onPointerUp: () => { input.current[a] = false; input.current[b] = false }, onPointerCancel: () => { input.current[a] = false; input.current[b] = false }, onPointerLeave: () => { input.current[a] = false; input.current[b] = false },
+  })
   const pad = { width: 54, height: 54, borderRadius: 12, border: '1px solid #2A3138', background: 'rgba(26,31,36,0.85)', color: '#F2F2F2', fontSize: 20, fontWeight: 800, touchAction: 'none', userSelect: 'none' }
   const atk = (bg) => ({ width: 58, height: 58, borderRadius: '50%', border: 'none', background: bg, color: '#0A0A0A', fontSize: 13, fontWeight: 900, touchAction: 'none', userSelect: 'none' })
   const done = screen === 'fight' && sim.current?.phase === 'done'
@@ -398,9 +403,9 @@ export default function FightGame({ onRound, onClose }) {
           ) : (
             <div style={{ width: '100%', maxWidth: 900, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', padding: '10px 14px', boxSizing: 'border-box' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 54px)', gridTemplateRows: 'repeat(3, 54px)', gap: 4 }}>
-                <span /><button type="button" style={pad} {...hold('up')}>▲</button><span />
+                <button type="button" style={{ ...pad, fontSize: 17, opacity: 0.85 }} {...hold2('up', 'left')}>◤</button><button type="button" style={pad} {...hold('up')}>▲</button><button type="button" style={{ ...pad, fontSize: 17, opacity: 0.85 }} {...hold2('up', 'right')}>◥</button>
                 <button type="button" style={pad} {...hold('left')}>◀</button><span /><button type="button" style={pad} {...hold('right')}>▶</button>
-                <span /><button type="button" style={pad} {...hold('down')}>▼</button><span />
+                <button type="button" style={{ ...pad, fontSize: 17, opacity: 0.85 }} {...hold2('down', 'left')}>◣</button><button type="button" style={pad} {...hold('down')}>▼</button><button type="button" style={{ ...pad, fontSize: 17, opacity: 0.85 }} {...hold2('down', 'right')}>◢</button>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 58px)', gap: 6, alignItems: 'center' }}>
                 <button type="button" style={atk('#F2F2F2')} {...hold('lp')}>LP</button>
