@@ -112,7 +112,7 @@ export function personaliseEnquiry(text, enq) {
     .replace(/^Hi \n/m, 'Hi\n')   // no name on file: "Hi {name}" reads "Hi"
 }
 
-export default function EnquirySendTemplates({ enquiries, templates, onSaveTemplates, sendEmail, onSent, onClose }) {
+export default function EnquirySendTemplates({ enquiries = [], templates, onSaveTemplates, sendEmail, onSent, onClose, manageOnly = false }) {
   const [tplId, setTplId] = useState(templates[0]?.id || null)
   const [channel, setChannel] = useState('email')        // 'email' | 'whatsapp' | 'text'
   const [overrides, setOverrides] = useState({})         // enquiry id -> edited text
@@ -120,7 +120,7 @@ export default function EnquirySendTemplates({ enquiries, templates, onSaveTempl
   const [cursor, setCursor] = useState(0)                // WhatsApp / text: who's next
   const [sentIds, setSentIds] = useState(new Set())
   const [skipped, setSkipped] = useState([])
-  const [managing, setManaging] = useState(false)
+  const [managing, setManaging] = useState(manageOnly)   // manageOnly: opened from 'Templates' just to view / edit them
   const [draft, setDraft] = useState(null)               // template being edited
 
   const tpl = templates.find(t => t.id === tplId)
@@ -156,7 +156,7 @@ export default function EnquirySendTemplates({ enquiries, templates, onSaveTempl
     <div className="ets-backdrop" onClick={onClose}>
       <div className="ets-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-label="Send a template">
         <div className="ets-head">
-          <b>📨 Send template · {enquiries.length} selected</b>
+          <b>{manageOnly ? '📝 Enquiry templates' : `📨 Send template · ${enquiries.length} selected`}</b>
           <button className="btn btn-sm" onClick={onClose}>Close</button>
         </div>
 
@@ -179,7 +179,10 @@ export default function EnquirySendTemplates({ enquiries, templates, onSaveTempl
             <div className="ets-col">
               {templates.map(t => (
                 <div key={t.id} className="ets-tplrow">
-                  <span>{t.label}</span>
+                  <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+                    <b style={{ fontWeight: 600 }}>{t.label}</b>
+                    <span style={{ fontSize: 12, color: 'var(--text-tertiary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 380 }}>{String(t.body || '').replace(/\s+/g, ' ').slice(0, 90)}…</span>
+                  </span>
                   <span className="ets-row">
                     <button className="btn btn-sm" onClick={() => setDraft({ ...t })}>Edit</button>
                     <button className="btn btn-sm" style={{ color: '#E24B4A' }} onClick={() => { if (window.confirm(`Delete "${t.label}"?`)) onSaveTemplates(templates.filter(x => x.id !== t.id)) }}>Delete</button>
@@ -188,7 +191,7 @@ export default function EnquirySendTemplates({ enquiries, templates, onSaveTempl
               ))}
               <div className="ets-row">
                 <button className="btn btn-primary" onClick={() => setDraft({ id: null, label: '', subject: '', body: 'Hi {name}\n\n' })}>+ New template</button>
-                <button className="btn" onClick={() => setManaging(false)}>Done</button>
+                <button className="btn" onClick={() => manageOnly ? onClose() : setManaging(false)}>Done</button>
               </div>
             </div>
           )

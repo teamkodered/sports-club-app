@@ -502,6 +502,7 @@ export default function CRM() {
   // Enquiries: hold a card to select several, then send a template to them
   const [enqSel, setEnqSel] = useState([])
   const [enqSendOpen, setEnqSendOpen] = useState(false)
+  const [enqTemplatesOpen, setEnqTemplatesOpen] = useState(false)
   const [enquiryTemplates, setEnquiryTemplates] = useState(DEFAULT_ENQUIRY_TEMPLATES)
   const enqHold = useRef(null)
   const enqHoldFired = useRef(false)
@@ -3292,6 +3293,7 @@ export default function CRM() {
               <option value="not_interested">Not interested</option>
               <option value="waiting_list">Waiting list</option>
             </select>
+            <button className="btn btn-sm" onClick={() => setEnqTemplatesOpen(true)} title="View, edit and add enquiry message templates">📝 Templates</button>
             <button className="btn btn-sm" disabled={repairing} onClick={repairWebsiteEnquiries}
               title="Re-read recent website enquiry and booking emails and fix enquiries saved with a scrambled name/email or missing phone">
               {repairing ? 'Repairing…' : '🔧 Repair website enquiries'}
@@ -3353,6 +3355,9 @@ export default function CRM() {
               <button className="btn btn-sm btn-primary" onClick={() => setEnqSendOpen(true)}>📨 Send template</button>
               <button className="btn btn-sm" onClick={() => setEnqSel([])}>Cancel</button>
             </div>
+          )}
+          {enqTemplatesOpen && (
+            <EnquirySendTemplates manageOnly templates={enquiryTemplates} onSaveTemplates={saveEnquiryTemplates} onClose={() => setEnqTemplatesOpen(false)} />
           )}
           {enqSendOpen && (
             <EnquirySendTemplates
