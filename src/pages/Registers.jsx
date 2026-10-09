@@ -596,7 +596,9 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     const moorways   = allToday.filter(c => c.name?.toLowerCase().includes('moorway'))
     const todayFiltered = allToday.filter(c => !derbyMoore.includes(c) && !moorways.includes(c))
 
-    setTodayClasses(todayFiltered)
+    // Pills: normal classes in time order, then the PTs Register, then the Leader Register
+    const specialRank = c => /\bpts?\b[^a-z]*register/i.test(c.name || '') ? 1 : /leaders?\b[^a-z]*register/i.test(c.name || '') ? 2 : 0
+    setTodayClasses([...todayFiltered].sort((a, b) => specialRank(a) - specialRank(b) || String(a.start_time).localeCompare(String(b.start_time))))
     setDerbyMooreClasses(derbyMoore)
     setMoorwaysClasses(moorways)
     setClassFilter('all')
