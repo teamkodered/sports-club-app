@@ -46,16 +46,37 @@ returns setof uuid language sql stable security definer set search_path = public
   where a.class_id in (select public.kc_my_class_ids())
 $$;
 
+-- Their students' member records (looked up without going through the students rules,
+-- so the members and students rules can't call each other in a loop)
+create or replace function public.kc_my_coached_member_ids()
+returns setof uuid language sql stable security definer set search_path = public as $$
+  select s.member_id from students s where s.id in (select public.kc_my_coached_student_ids())
+$$;
+
 create or replace function public.kc_is_head_coach()
 returns boolean language sql stable security definer set search_path = public as $$
   select exists (select 1 from members where auth_id = auth.uid() and role = 'head_coach')
 $$;
 
+-- (re-runnable: clear any head-coach rules from an earlier attempt)
+drop policy if exists students_read_coach on public.students;
+drop policy if exists members_read_coach on public.members;
+drop policy if exists attendance_read_coach on public.attendance;
+drop policy if exists points_read_coach on public.points_log;
+drop policy if exists holidays_read_coach on public.holidays;
+drop policy if exists sca_read_coach on public.student_class_assignments;
+drop policy if exists attendance_insert_coach on public.attendance;
+drop policy if exists attendance_update_coach on public.attendance;
+drop policy if exists attendance_delete_coach on public.attendance;
+drop policy if exists points_insert_coach on public.points_log;
+drop policy if exists points_update_coach on public.points_log;
+drop policy if exists points_delete_coach on public.points_log;
+
 -- 4. Read: their students, those students' members, attendance, points, holidays, class assignments
 create policy students_read_coach on public.students for select
   using (public.kc_is_head_coach() and id in (select public.kc_my_coached_student_ids()));
 create policy members_read_coach on public.members for select
-  using (public.kc_is_head_coach() and id in (select member_id from students where id in (select public.kc_my_coached_student_ids())));
+  using (public.kc_is_head_coach() and id in (select public.kc_my_coached_member_ids()));
 create policy attendance_read_coach on public.attendance for select
   using (public.kc_is_head_coach() and student_id in (select public.kc_my_coached_student_ids()));
 create policy points_read_coach on public.points_log for select
@@ -103,4 +124,4 @@ begin
   update houses set points = points + p_delta where name = p_house_name;
 end $$;
 
-grant execute on function public.kc_my_class_ids(), public.kc_my_coached_student_ids(), public.kc_is_head_coach() to authenticated;
+grant execute on function public.kc_my_class_ids(), public.kc_my_coached_student_ids(), public.kc_my_coached_member_ids(), public.kc_is_head_coach() to authenticated;

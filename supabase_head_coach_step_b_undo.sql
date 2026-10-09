@@ -26,4 +26,5 @@ create or replace function public.adjust_student_points(p_student_id uuid, p_hou
       individual_points = coalesce(individual_points, 0) + p_individual_delta
   where id = p_student_id;
 $function$;
+drop function if exists public.kc_my_coached_member_ids();
 -- (Anyone set to role 'head_coach' should be changed back to another role in Settings -> Team.)
