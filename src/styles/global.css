@@ -948,3 +948,14 @@ tbody tr:hover td { background: var(--bg-secondary); }
   .reg-m-pm .reg-m-reasons { scroll-margin-top: 66px; } /* clear of the menu button */
   .reg-m-search { scroll-margin-top: 8px; }
 }
+
+/* Register reasons list (More…): two neat columns, A-Z down the left then the right; name left, points right */
+.reg-m-reasons.reg-m-reasons-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-auto-flow: column; gap: 8px; }
+.reg-m-reasons-grid .reg-m-reason { width: 100%; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 6px; text-align: left; }
+.reg-m-reasons-grid .reg-m-reason b { margin-left: auto; flex-shrink: 0; }
+/* No text-selection / copy pop-up when holding buttons, chips or cards on the register */
+.reg-root button, .reg-root .reg-m-card, .reg-root .reg-m-reason, .reg-root .reg-m-avatar, .reg-root label, .reg-root .reg-m-pm {
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+.reg-root input, .reg-root textarea { -webkit-user-select: text; user-select: text; }
+.reg-award-modal button { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }

@@ -1893,10 +1893,12 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                 {pmPickerOpen && (
                   <div className="reg-m-pm-picker">
                     <input type="search" value={pmSearch} onChange={e => setPmSearch(e.target.value)} onFocus={pmToTop} placeholder="Search reasons…" aria-label="Search reasons" />
-                    <div className="reg-m-reasons wrap">
+                    {(() => { const n = reasonsAZ.filter(pt => !pmSearch.trim() || `${pt.label} ${pt.group || ''}`.toLowerCase().includes(pmSearch.trim().toLowerCase())).length; return (
+                    <div className="reg-m-reasons wrap reg-m-reasons-grid" style={{ gridTemplateRows: `repeat(${Math.max(1, Math.ceil(n / 2))}, auto)` }}>
                       {reasonsAZ.filter(pt => !pmSearch.trim() || `${pt.label} ${pt.group || ''}`.toLowerCase().includes(pmSearch.trim().toLowerCase()))
                         .map(pt => <ReasonChip key={pt.label} pt={pt} on={pmReason?.label === pt.label} onPick={r => { setPmReason(r); setPmPickerOpen(false); setPmSearch(''); pmReasonToTop() }} />)}
                     </div>
+                    ) })()}
                     {pmSearch.trim() && !pointTypes.some(pt => pt.label.toLowerCase() === pmSearch.trim().toLowerCase()) && (
                       <div className="reg-m-newreason">
                         <div>Add “<b>{pmSearch.trim()}</b>” as a new reason</div>
