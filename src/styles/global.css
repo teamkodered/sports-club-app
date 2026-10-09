@@ -1034,3 +1034,7 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .coach-dash .coach-stat-pdp { --cd-accent: #E6B800; }
 .coach-dash .coach-stat > span:first-child span:last-child { font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800 !important; font-size: 16px !important; text-transform: uppercase; letter-spacing: 0.5px; }
 .coach-dash .coach-stat-num { font-family: 'Orbitron', sans-serif; font-size: 24px !important; color: var(--cd-accent, #E6B800) !important; }
+/* stat tile titles on one line on phones (FIT II FIGHT was wrapping) */
+.coach-dash .coach-stat > span:first-child { flex-wrap: nowrap; min-width: 0; }
+.coach-dash .coach-stat > span:first-child span:last-child { font-size: 14px !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 480px) { .coach-dash .coach-stat { padding: 8px 8px !important; } .coach-dash .coach-stat > span:first-child span:first-child { font-size: 14px !important; } .coach-dash .coach-stat-num { font-size: 20px !important; } }
