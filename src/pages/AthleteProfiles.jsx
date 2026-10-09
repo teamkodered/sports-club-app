@@ -3057,7 +3057,10 @@ export default function AthleteProfiles() {
   const targetFormRef = useRef(null)
   const targetDropdownRef = useRef(null)
   const [expandedDashSection, setExpandedDashSection] = useState(null)
-  const [dashClubFilter, setDashClubFilter] = useState('all') // 'all' | 'PKA' | 'KRBA'
+  // Coach dashboard team filter (All / KR / KRBA) -- remembered on this device for next time
+  const [dashClubFilter, setDashClubFilterRaw] = useState(() => { try { return localStorage.getItem('coach_dash_team') || 'all' } catch { return 'all' } }) // 'all' | 'PKA' | 'KRBA'
+  const setDashClubFilter = v => { setDashClubFilterRaw(v); try { localStorage.setItem('coach_dash_team', v) } catch { /* ignore */ } }
+  const inDashTeam = s => (s.is_kr || s.is_pts || s.discipline === 'KRBA') && (dashClubFilter === 'all' || s.discipline === dashClubFilter)
   const [dashboardTab, setDashboardTab] = useState('overview') // 'overview' | 'calendar' | 'results' | 'pdp'
   const [wearableAthletes, setWearableAthletes] = useState(null) // [{ student_id, providers: [...], last_sync_at }] for the Wearables list
   const [teamTemplateStudent, setTeamTemplateStudent] = useState(null)
@@ -6643,7 +6646,7 @@ export default function AthleteProfiles() {
       {/* ── Athlete Dashboard / profile detail ── */}
       <div style={{ minWidth: 0 }}>
         {!selected ? (
-          <div style={{ maxWidth: 900 }}
+          <div className="coach-dash" style={{ maxWidth: 900 }}
             onTouchStart={e => {
               swipeStartX.current = e.target.closest('.swipe-zone') ? e.touches[0].clientX : null
             }}
@@ -6664,163 +6667,9 @@ export default function AthleteProfiles() {
             </div>
 
             {testBatchOpen && <TestBatchModal onClose={() => setTestBatchOpen(false)} />}
-            {/* Team KR / KRBA -- slides down the full Registers page for that
-                register type in place of the dashboard below, rather than
-                the small athlete-picker dropdown this used to open. */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
-              {(!registerAccess?.types || registerAccess.types.includes('kr')) ? (
-                <button className={showKrRegister ? 'btn btn-sm btn-primary' : 'btn btn-sm'}
-                  onClick={() => { setShowKrRegister(v => !v); setShowKrbaRegister(false); setShowAllAthRegister(false) }}>
-                  👥 Team KR {showKrRegister ? '▲' : '▼'}
-                </button>
-              ) : <span />}
-              {(!registerAccess?.types || (registerAccess.types.includes('kr') && registerAccess.types.includes('krba'))) && (
-                <button className={showAllAthRegister ? 'btn btn-sm btn-primary' : 'btn btn-sm'}
-                  onClick={() => { setShowAllAthRegister(v => !v); setShowKrRegister(false); setShowKrbaRegister(false) }}>
-                  👥 View all {showAllAthRegister ? '▲' : '▼'}
-                </button>
-              )}
-              {(!registerAccess?.types || registerAccess.types.includes('krba')) && (
-                <button className={showKrbaRegister ? 'btn btn-sm btn-primary' : 'btn btn-sm'}
-                  onClick={() => { setShowKrbaRegister(v => !v); setShowKrRegister(false); setShowAllAthRegister(false) }}>
-                  👥 KRBA {showKrbaRegister ? '▲' : '▼'}
-                </button>
-              )}
-            </div>
-
-            {!(showKrRegister || showKrbaRegister || showAllAthRegister) && (
-              <button className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 10 }} onClick={() => setTestBatchOpen(true)}>📋 Group test entry</button>
-            )}
-
-            {(showKrRegister || showKrbaRegister || showAllAthRegister) ? (
-              <Registers key={showKrRegister ? 'kr' : showKrbaRegister ? 'krba' : 'allath'} initialRegType={showKrRegister ? 'kr' : showKrbaRegister ? 'krba' : 'allath'}
-                onStudentNameClick={registerStudent => {
-                  // Registers.jsx fetches its own students with a
-                  // different query shape than this page's own
-                  // `students` array -- looking the full record up
-                  // here by id (shared across both, since both query
-                  // the same students table) rather than passing the
-                  // register's own version through, so the profile
-                  // that opens has everything this page's own views
-                  // expect on a selected student.
-                  const full = students.find(x => x.id === registerStudent.id)
-                  if (!full) return
-                  setCameFromRegisterType(showKrRegister ? 'kr' : showKrbaRegister ? 'krba' : 'allath')
-                  selectStudent(full)
-                }}
-                onWeightClick={registerStudent => {
-                  const full = students.find(x => x.id === registerStudent.id)
-                  if (!full) return
-                  setCameFromRegisterType(showKrRegister ? 'kr' : showKrbaRegister ? 'krba' : 'allath')
-                  selectStudent(full)
-                  setPendingWeightNavStudentId(full.id)
-                }} />
-            ) : (
-            <>
-
-            {/* All sessions / F2F sessions / PDP -- above Physical, side by side */}
-            {(() => {
-              const teamAthletes = students.filter(s => s.is_kr || s.is_pts || s.discipline === 'KRBA')
-              const teamCount = teamAthletes.length || 1
-              const teamIds = new Set(teamAthletes.map(s => s.id))
-              const todayStr = new Date().toISOString().split('T')[0]
-              const hasContent = v => Array.isArray(v) ? v.length > 0 : (v && typeof v === 'object' ? Object.keys(v).length > 0 : !!v)
-              const pctFromIds = idList => {
-                const loggedIds = new Set(idList.filter(id => teamIds.has(id)))
-                return { count: loggedIds.size, pct: Math.round((loggedIds.size / teamCount) * 100) }
-              }
-              const targetsFor = key => teamTargets.filter(t => t.section_key === key && !t.question_label && !t.student_id)
-
-              const attendedIds = todaysAllAttendance.map(a => a.student_id)
-              const allSessions = pctFromIds(attendedIds)
-
-              const f2fIds = todaysAllSessions.filter(s =>
-                ['running','watt_bike','bodyweight','stretch_flows','snc','other_session','techniques','tactical','mentality_log','wellbeing','test'].some(f => hasContent(s[f]))
-              ).map(s => s.student_id)
-              const f2fSessions = pctFromIds(f2fIds)
-
-              const pdpUseRange = cardDateSettings.pdp.scope === 'coach' || cardDateSettings.pdp.scope === 'both'
-              const pdpFrom = pdpUseRange ? cardDateSettings.pdp.from : todayStr
-              const pdpTo = pdpUseRange ? cardDateSettings.pdp.to : todayStr
-              const pdpIds = allAthleteProfiles.filter(ap => {
-                const pdp = ap.pdp_notes || {}
-                return Array.from(PDP_CHECKABLE_SECTIONS).some(k =>
-                  Object.values(pdp[`__timetable_${k}`] || {}).some(e => e.date >= pdpFrom && e.date <= pdpTo))
-              }).map(ap => ap.student_id)
-              const pdp = pctFromIds(pdpIds)
-
-              const cards = [
-                { key: 'all_sessions', icon: '📅', label: 'Attendance', ...allSessions },
-                { key: 'f2f_sessions', icon: '💪', label: 'Fit II Fight', ...f2fSessions },
-                { key: 'pdp', icon: '🎯', label: 'PDP', ...pdp },
-              ]
-
-              return (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 14 }}>
-                  {cards.map(c => {
-                    const targets = targetsFor(c.key)
-                    return (
-                      <div key={c.key} style={{
-                        display: 'flex', flexDirection: 'column', gap: 6,
-                        padding: '10px 12px', fontFamily: 'var(--font-sans)',
-                        background: 'var(--bg-secondary)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)',
-                      }}>
-                        <span
-                          onClick={c.key === 'all_sessions' ? () => setDashboardTab('calendar') : c.key === 'pdp' ? () => setDashboardTab('pdp') : c.key === 'f2f_sessions' ? () => setDashboardTab('results') : undefined}
-                          style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: (c.key === 'all_sessions' || c.key === 'pdp' || c.key === 'f2f_sessions') ? 'pointer' : 'default' }}>
-                          <span style={{ fontSize: 16 }}>{c.icon}</span>
-                          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{c.label}</span>
-                        </span>
-                        {/* Click the pct/count/date-range area to reveal
-                            the Target/Set date/Log controls below -- kept
-                            separate from the icon+label click above, which
-                            still navigates to that tab as before. */}
-                        <div
-                          onClick={() => setExpandedSummaryCards(prev => ({ ...prev, [c.key]: !prev[c.key] }))}
-                          style={{ display: 'flex', flexDirection: 'column', cursor: 'pointer' }}>
-                          <span style={{ fontSize: 18, fontWeight: 700, color: colour }}>{c.pct}%</span>
-                          <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{c.count}/{teamCount}</span>
-                          {cardDateSettings[c.key].from !== todayStr0 || cardDateSettings[c.key].to !== todayStr0 ? (
-                            <span style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>
-                              {new Date(cardDateSettings[c.key].from).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – {new Date(cardDateSettings[c.key].to).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                            </span>
-                          ) : null}
-                        </div>
-                        <div style={{
-                          display: 'flex', flexDirection: 'column', gap: 6,
-                          maxHeight: expandedSummaryCards[c.key] ? 300 : 0,
-                          opacity: expandedSummaryCards[c.key] ? 1 : 0,
-                          overflow: 'hidden',
-                          transition: 'max-height 0.25s ease, opacity 0.2s ease',
-                        }}>
-                          {targets.map(t => (
-                            <span key={t.id} style={{ fontSize: 10, color: '#EF9F27', display: 'flex', alignItems: 'center', gap: 4 }}>
-                              🎯 {t.preset_label ? `${t.preset_label}: ` : ''}{t.target_value}
-                              <button onClick={() => deleteTeamTarget(t.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 11, padding: 0 }}>✕</button>
-                            </span>
-                          ))}
-                          <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => {
-                            if (showAddTarget && newTargetSection === c.key && newTargetQuestion === '') { setShowAddTarget(false); return }
-                            setNewTargetSection(c.key); setNewTargetQuestion(''); setShowAddTarget(true)
-                          }}>{targets.length ? '+ Add another target' : '+ Target'}</button>
-                          <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => setShowSetDatePopup(c.key)}>📅 Set date</button>
-                          <button className="btn btn-sm btn-primary" style={{ fontSize: 10 }} onClick={() => {
-                            if (c.key === 'all_sessions') navigate('/registers')
-                            else if (c.key === 'pdp') setDashboardTab('pdp')
-                            else if (c.key === 'f2f_sessions') { setGroupLoggerRestrictIds(null); setShowGroupLogger(true) }
-                          }}>+ Log</button>
-                        </div>
-                        {showAddTarget && newTargetSection === c.key && newTargetQuestion === '' && renderInlineTargetForm()}
-                      </div>
-                    )
-                  })}
-                </div>
-              )
-            })()}
-
-            {/* Coach Profile card -- team-wide, mirrors the athlete's own Profile card structure */}
-            <div className="card" style={{ padding: 0, marginBottom: 14 }}>
-              <div style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)' }}>Profile</div>
+            {/* Team banner (was the Profile card): the filters for the whole dashboard + team record / level / weight */}
+            <div className="card coach-banner" style={{ padding: 0, marginBottom: 10 }}>
+              <div style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)' }}>Team</div>
               {(() => {
                 const clubFiltered = students.filter(s =>
                   (s.is_kr || s.is_pts || s.discipline === 'KRBA') && (dashClubFilter === 'all' || s.discipline === dashClubFilter)
@@ -6842,14 +6691,14 @@ export default function AthleteProfiles() {
                 return (
                   <>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 14px', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Club</span>
+                      <span style={{ color: 'var(--text-secondary)' }}>Show</span>
                       <div style={{ display: 'flex', gap: 4 }}>
                         {['all', 'PKA', 'KRBA'].map(f => (
                           <button key={f} onClick={() => setDashClubFilter(f)} style={{
                             fontSize: 11, padding: '3px 8px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font-sans)',
                             border: `1px solid ${dashClubFilter === f ? '#378ADD' : 'var(--border-strong)'}`,
                             background: dashClubFilter === f ? '#378ADD20' : 'none', color: dashClubFilter === f ? '#378ADD' : 'var(--text-secondary)',
-                          }}>{f === 'all' ? 'All' : f}</button>
+                          }}>{f === 'all' ? 'All' : f === 'PKA' ? 'KR' : f}</button>
                         ))}
                       </div>
                     </div>
@@ -6922,6 +6771,160 @@ export default function AthleteProfiles() {
                 )
               })()}
             </div>
+
+            {/* Team KR / KRBA -- slides down the full Registers page for that
+                register type in place of the dashboard below, rather than
+                the small athlete-picker dropdown this used to open. */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+              {(!registerAccess?.types || registerAccess.types.includes('kr')) ? (
+                <button className={showKrRegister ? 'btn btn-sm btn-primary' : 'btn btn-sm'}
+                  onClick={() => { setShowKrRegister(v => !v); setShowKrbaRegister(false); setShowAllAthRegister(false) }}>
+                  👥 Team KR {showKrRegister ? '▲' : '▼'}
+                </button>
+              ) : <span />}
+              {(!registerAccess?.types || (registerAccess.types.includes('kr') && registerAccess.types.includes('krba'))) && (
+                <button className={showAllAthRegister ? 'btn btn-sm btn-primary' : 'btn btn-sm'}
+                  onClick={() => { setShowAllAthRegister(v => !v); setShowKrRegister(false); setShowKrbaRegister(false) }}>
+                  👥 View all {showAllAthRegister ? '▲' : '▼'}
+                </button>
+              )}
+              {(!registerAccess?.types || registerAccess.types.includes('krba')) && (
+                <button className={showKrbaRegister ? 'btn btn-sm btn-primary' : 'btn btn-sm'}
+                  onClick={() => { setShowKrbaRegister(v => !v); setShowKrRegister(false); setShowAllAthRegister(false) }}>
+                  👥 KRBA {showKrbaRegister ? '▲' : '▼'}
+                </button>
+              )}
+            </div>
+
+            {!(showKrRegister || showKrbaRegister || showAllAthRegister) && (
+              <button className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 10 }} onClick={() => setTestBatchOpen(true)}>📋 Group test entry</button>
+            )}
+
+            {(showKrRegister || showKrbaRegister || showAllAthRegister) ? (
+              <Registers key={showKrRegister ? 'kr' : showKrbaRegister ? 'krba' : 'allath'} initialRegType={showKrRegister ? 'kr' : showKrbaRegister ? 'krba' : 'allath'}
+                onStudentNameClick={registerStudent => {
+                  // Registers.jsx fetches its own students with a
+                  // different query shape than this page's own
+                  // `students` array -- looking the full record up
+                  // here by id (shared across both, since both query
+                  // the same students table) rather than passing the
+                  // register's own version through, so the profile
+                  // that opens has everything this page's own views
+                  // expect on a selected student.
+                  const full = students.find(x => x.id === registerStudent.id)
+                  if (!full) return
+                  setCameFromRegisterType(showKrRegister ? 'kr' : showKrbaRegister ? 'krba' : 'allath')
+                  selectStudent(full)
+                }}
+                onWeightClick={registerStudent => {
+                  const full = students.find(x => x.id === registerStudent.id)
+                  if (!full) return
+                  setCameFromRegisterType(showKrRegister ? 'kr' : showKrbaRegister ? 'krba' : 'allath')
+                  selectStudent(full)
+                  setPendingWeightNavStudentId(full.id)
+                }} />
+            ) : (
+            <>
+
+            {/* All sessions / F2F sessions / PDP -- above Physical, side by side */}
+            {(() => {
+              const teamAthletes = students.filter(inDashTeam)
+              const teamCount = teamAthletes.length || 1
+              const teamIds = new Set(teamAthletes.map(s => s.id))
+              const todayStr = new Date().toISOString().split('T')[0]
+              const hasContent = v => Array.isArray(v) ? v.length > 0 : (v && typeof v === 'object' ? Object.keys(v).length > 0 : !!v)
+              const pctFromIds = idList => {
+                const loggedIds = new Set(idList.filter(id => teamIds.has(id)))
+                return { count: loggedIds.size, pct: Math.round((loggedIds.size / teamCount) * 100) }
+              }
+              const targetsFor = key => teamTargets.filter(t => t.section_key === key && !t.question_label && !t.student_id)
+
+              const attendedIds = todaysAllAttendance.map(a => a.student_id)
+              const allSessions = pctFromIds(attendedIds)
+
+              const f2fIds = todaysAllSessions.filter(s =>
+                ['running','watt_bike','bodyweight','stretch_flows','snc','other_session','techniques','tactical','mentality_log','wellbeing','test'].some(f => hasContent(s[f]))
+              ).map(s => s.student_id)
+              const f2fSessions = pctFromIds(f2fIds)
+
+              const pdpUseRange = cardDateSettings.pdp.scope === 'coach' || cardDateSettings.pdp.scope === 'both'
+              const pdpFrom = pdpUseRange ? cardDateSettings.pdp.from : todayStr
+              const pdpTo = pdpUseRange ? cardDateSettings.pdp.to : todayStr
+              const pdpIds = allAthleteProfiles.filter(ap => {
+                const pdp = ap.pdp_notes || {}
+                return Array.from(PDP_CHECKABLE_SECTIONS).some(k =>
+                  Object.values(pdp[`__timetable_${k}`] || {}).some(e => e.date >= pdpFrom && e.date <= pdpTo))
+              }).map(ap => ap.student_id)
+              const pdp = pctFromIds(pdpIds)
+
+              const cards = [
+                { key: 'all_sessions', icon: '📅', label: 'Attendance', ...allSessions },
+                { key: 'f2f_sessions', icon: '💪', label: 'Fit II Fight', ...f2fSessions },
+                { key: 'pdp', icon: '🎯', label: 'PDP', ...pdp },
+              ]
+
+              return (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 14 }}>
+                  {cards.map(c => {
+                    const targets = targetsFor(c.key)
+                    return (
+                      <div key={c.key} className={`coach-stat coach-stat-${c.key}`} style={{
+                        display: 'flex', flexDirection: 'column', gap: 6,
+                        padding: '10px 12px', fontFamily: 'var(--font-sans)',
+                        background: 'var(--bg-secondary)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)',
+                      }}>
+                        <span
+                          onClick={c.key === 'all_sessions' ? () => setDashboardTab('calendar') : c.key === 'pdp' ? () => setDashboardTab('pdp') : c.key === 'f2f_sessions' ? () => setDashboardTab('results') : undefined}
+                          style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: (c.key === 'all_sessions' || c.key === 'pdp' || c.key === 'f2f_sessions') ? 'pointer' : 'default' }}>
+                          <span style={{ fontSize: 16 }}>{c.icon}</span>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{c.label}</span>
+                        </span>
+                        {/* Click the pct/count/date-range area to reveal
+                            the Target/Set date/Log controls below -- kept
+                            separate from the icon+label click above, which
+                            still navigates to that tab as before. */}
+                        <div
+                          onClick={() => setExpandedSummaryCards(prev => ({ ...prev, [c.key]: !prev[c.key] }))}
+                          style={{ display: 'flex', flexDirection: 'column', cursor: 'pointer' }}>
+                          <span className="coach-stat-num" style={{ fontSize: 18, fontWeight: 700, color: colour }}>{c.pct}%</span>
+                          <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{c.count}/{teamCount}</span>
+                          {cardDateSettings[c.key].from !== todayStr0 || cardDateSettings[c.key].to !== todayStr0 ? (
+                            <span style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>
+                              {new Date(cardDateSettings[c.key].from).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – {new Date(cardDateSettings[c.key].to).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                            </span>
+                          ) : null}
+                        </div>
+                        <div style={{
+                          display: 'flex', flexDirection: 'column', gap: 6,
+                          maxHeight: expandedSummaryCards[c.key] ? 300 : 0,
+                          opacity: expandedSummaryCards[c.key] ? 1 : 0,
+                          overflow: 'hidden',
+                          transition: 'max-height 0.25s ease, opacity 0.2s ease',
+                        }}>
+                          {targets.map(t => (
+                            <span key={t.id} style={{ fontSize: 10, color: '#EF9F27', display: 'flex', alignItems: 'center', gap: 4 }}>
+                              🎯 {t.preset_label ? `${t.preset_label}: ` : ''}{t.target_value}
+                              <button onClick={() => deleteTeamTarget(t.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 11, padding: 0 }}>✕</button>
+                            </span>
+                          ))}
+                          <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => {
+                            if (showAddTarget && newTargetSection === c.key && newTargetQuestion === '') { setShowAddTarget(false); return }
+                            setNewTargetSection(c.key); setNewTargetQuestion(''); setShowAddTarget(true)
+                          }}>{targets.length ? '+ Add another target' : '+ Target'}</button>
+                          <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => setShowSetDatePopup(c.key)}>📅 Set date</button>
+                          <button className="btn btn-sm btn-primary" style={{ fontSize: 10 }} onClick={() => {
+                            if (c.key === 'all_sessions') navigate('/registers')
+                            else if (c.key === 'pdp') setDashboardTab('pdp')
+                            else if (c.key === 'f2f_sessions') { setGroupLoggerRestrictIds(null); setShowGroupLogger(true) }
+                          }}>+ Log</button>
+                        </div>
+                        {showAddTarget && newTargetSection === c.key && newTargetQuestion === '' && renderInlineTargetForm()}
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
 
             {showAllWeightsGraph && (() => {
               const activeStudentIds = new Set(students.filter(s => s.members?.status === 'active').map(s => s.id))
@@ -7517,7 +7520,7 @@ export default function AthleteProfiles() {
                 }}>🔗 Share leaderboard</button>
               </div>
               {(() => {
-                const teamIds = new Set(students.filter(s => s.is_kr || s.is_pts || s.discipline === 'KRBA').map(s => s.id))
+                const teamIds = new Set(students.filter(inDashTeam).map(s => s.id))
                 const teamSessions = allTeamSessions.filter(s => teamIds.has(s.student_id))
 
                 // Sessions logged per week, last 8 weeks
@@ -8011,7 +8014,7 @@ export default function AthleteProfiles() {
               <>
             {/* Athlete Home overview -- same banner/card form as a real athlete's Home page */}
             {(() => {
-              const teamAthletes = students.filter(s => s.is_kr || s.is_pts || s.discipline === 'KRBA')
+              const teamAthletes = students.filter(inDashTeam)
               const teamCount = teamAthletes.length || 1
               const teamIds = new Set(teamAthletes.map(s => s.id))
               const teamSessions = todaysAllSessions.filter(s => teamIds.has(s.student_id))
@@ -8288,7 +8291,7 @@ export default function AthleteProfiles() {
 
             {/* Media/Notes/MTP/Check in -- stay at the bottom, laid out two by two */}
             {(() => {
-              const teamAthletes = students.filter(s => s.is_kr || s.is_pts || s.discipline === 'KRBA')
+              const teamAthletes = students.filter(inDashTeam)
               const teamCount = teamAthletes.length || 1
               const teamIds = new Set(teamAthletes.map(s => s.id))
               const todayStr = new Date().toISOString().split('T')[0]
