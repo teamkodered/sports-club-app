@@ -888,6 +888,10 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
       if (explicitAssignments.some(a => a.student_id === s.id && a.class_id === classFilter)) return true
 
       if (!selectedClass) return true
+      // Special registers share a time slot with normal classes (PTs Register is Mon/Fri 18:00,
+      // Leader Register 19:00) -- their students are the PT / Leader groups, never "everyone at 6pm"
+      if (/\bpts?\b[^a-z]*register/i.test(selectedClass.name || '')) return !!s.is_pts
+      if (/leaders?\b[^a-z]*register/i.test(selectedClass.name || '')) return !!s.is_leader
       const classStart = selectedClass.start_time?.slice(0, 5)
       const shortDay = _fullToShort[selectedClass.day_of_week] || selectedClass.day_of_week
       const fullDay2 = _shortToFull[selectedClass.day_of_week] || selectedClass.day_of_week
