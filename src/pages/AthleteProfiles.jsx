@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom'
 import { TEST_CATEGORIES } from '../lib/testResults.js'
 import { TestSessionModal, TestBatchModal } from '../components/shared/TestSession.jsx'
 import { supabase } from '../lib/supabase.js'
+import { useFightFootageUpload } from '../hooks/useFightFootageUpload.jsx'
 import FightGame from '../components/shared/FightGame.jsx'
 import ChessGame from '../components/shared/ChessGame.jsx'
 import GuidedSession from '../components/shared/GuidedSession.jsx'
@@ -2956,6 +2957,19 @@ export default function AthleteProfiles() {
   const [testSessionOpen, setTestSessionOpen] = useState(false)
   const [testBatchOpen, setTestBatchOpen] = useState(false)
   const { profile, isAdmin, registerAccess } = useAuth()
+  // Test videos measured in the Test session go to View iT too: a folder per athlete ("Name — Tests"),
+  // visible to that athlete only (plus staff), published straight away.
+  const footageUpload = useFightFootageUpload()
+  async function testVideoToViewIt(file, title) {
+    if (!selected || !footageUpload?.startUpload) return
+    const name = `${selected.members?.first_name || ''} ${selected.members?.last_name || ''}`.trim() || 'Athlete'
+    const folderName = `${name} — Tests`
+    let { data: folder } = await supabase.from('footage_folders').select('*').ilike('name', folderName).maybeSingle()
+    if (!folder) { const r = await supabase.from('footage_folders').insert({ name: folderName }).select().single(); folder = r.data }
+    await footageUpload.startUpload({ file, title, description: 'Test video', accessMode: 'select_athletes', featuredIds: new Set([selected.id]), viewerIds: new Set([selected.id]), folderId: folder?.id || null, tags: ['test'], gradeTag: null })
+    const { data: row } = await supabase.from('fight_footage').select('id').eq('title', title.trim()).order('created_at', { ascending: false }).limit(1).maybeSingle()
+    if (row) await supabase.from('fight_footage').update({ published: true }).eq('id', row.id)
+  }
   const navigate = useNavigate()
   // Quick logger (pick another athlete to log a session for without
   // leaving this screen) is paused for now -- its old trigger (hold on
@@ -9696,7 +9710,7 @@ export default function AthleteProfiles() {
                     {showPhysicalSection && (
                       <button type="button" className="btn btn-sm ts-open-btn" onClick={() => setTestSessionOpen(true)}>📋 Test session — log results</button>
                     )}
-                    {testSessionOpen && selected?.id && <TestSessionModal studentId={selected?.id} studentName={`${selected?.members?.first_name || ''} ${selected?.members?.last_name || ''}`.trim()} onClose={() => setTestSessionOpen(false)} onSaved={async () => { const { data } = await supabase.from('fit2fight_sessions').select('*').eq('student_id', selected.id).order('session_date', { ascending: false }); setF2fData(data || []) }} />}
+                    {testSessionOpen && selected?.id && <TestSessionModal allowUpload onViewIt={testVideoToViewIt} studentId={selected?.id} studentName={`${selected?.members?.first_name || ''} ${selected?.members?.last_name || ''}`.trim()} onClose={() => setTestSessionOpen(false)} onSaved={async () => { const { data } = await supabase.from('fit2fight_sessions').select('*').eq('student_id', selected.id).order('session_date', { ascending: false }); setF2fData(data || []) }} />}
 
                   <div className={(pillarView['physical'] || 'questions') === 'pdp' ? 'pv-pdp' : undefined} style={{
                     overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',

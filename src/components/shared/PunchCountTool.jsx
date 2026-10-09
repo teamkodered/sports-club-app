@@ -46,7 +46,7 @@ function detectHits(series, sensitivity, slow) {
   return { hits: accepted.map(i => series[i].t).sort((a, b) => a - b), resid, thresh }
 }
 
-export default function PunchCountTool({ onSave, onClose, initialUrl = null, zIndex = 480, onSwitchMode }) {
+export default function PunchCountTool({ onSave, onClose, initialUrl = null, zIndex = 480, onSwitchMode, onFile }) {
   // initialUrl: count an already-uploaded video (from the media viewer)
   const videoRef = useRef(null)
   const stageRef = useRef(null)
@@ -90,6 +90,7 @@ export default function PunchCountTool({ onSave, onClose, initialUrl = null, zIn
 
   function reset() { setSeries([]); setRemoved([]); setAdded([]); setSelected(null); setStatus('idle') }
   function pickFile(f) {
+    onFile?.(f)
     if (!f) return
     setUrl(URL.createObjectURL(f)); setBox(null); setDrawMode(true); setRoundStart(null); setRoundEnd(null); reset()
   }

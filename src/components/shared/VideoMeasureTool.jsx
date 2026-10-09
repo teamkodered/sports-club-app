@@ -14,7 +14,7 @@ import { useEffect, useRef, useState } from 'react'
 const G = 9.81
 const fmt = (n, d = 2) => (n == null || isNaN(n) ? '—' : Number(n).toFixed(d))
 
-export default function VideoMeasureTool({ mode: modeProp = 'jump', defaultDistance = '', saveLabel, onResult, onClose, initialUrl = null, switchable = false, zIndex = 480, onCount }) {
+export default function VideoMeasureTool({ mode: modeProp = 'jump', defaultDistance = '', saveLabel, onResult, onClose, initialUrl = null, switchable = false, zIndex = 480, onCount, onFile }) {
   // initialUrl: measure an already-uploaded video (opened from the media viewer); switchable: Jump / Sprint / Punch toggle
   const [mode, setMode] = useState(modeProp)
   const videoRef = useRef(null)
@@ -82,7 +82,7 @@ export default function VideoMeasureTool({ mode: modeProp = 'jump', defaultDista
             </p>
             <label style={{ ...btn, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '100%', boxSizing: 'border-box' }}>
               Choose / record video
-              <input type="file" accept="video/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) { setUrl(URL.createObjectURL(f)); setA(null); setB(null) } }} />
+              <input type="file" accept="video/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) { onFile?.(f); setUrl(URL.createObjectURL(f)); setA(null); setB(null) } }} />
             </label>
           </div>
         ) : (

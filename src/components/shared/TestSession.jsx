@@ -1,4 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import VideoMeasureTool from './VideoMeasureTool.jsx'
+import PunchCountTool from './PunchCountTool.jsx'
 import { supabase } from '../../lib/supabase.js'
 import { TEST_CATEGORIES, bestByTest, lowerIsBetter, saveTestResults } from '../../lib/testResults.js'
 
@@ -27,7 +30,31 @@ export function PbPopup({ pbs, onDone, who }) {
 }
 
 // ── One athlete: pick a date and a category, fill in any tests (several sets for body weight) ──
-export function TestSessionModal({ studentId, studentName, onClose, onSaved }) {
+// Saves the test video to the athlete's question uploads (Physical -> tests) so it shows with the
+// test, alongside their other uploads. (Under-18s: no uploads -- allowUpload is false.)
+async function attachTestVideo(studentId, file, label, date) {
+  const safeName = (file.name || 'video').replace(/[^a-zA-Z0-9._-]+/g, '_').slice(-80)
+  const path = `athletes/${studentId}/${Date.now()}-${safeName}`
+  const { error } = await supabase.storage.from('athlete-media').upload(path, file, { contentType: file.type || undefined })
+  if (error) return error
+  const { data: urlData } = supabase.storage.from('athlete-media').getPublicUrl(path)
+  const { data: cur } = await supabase.from('athlete_profiles').select('media_files').eq('student_id', studentId).maybeSingle()
+  const updated = [...(cur?.media_files || []), { name: file.name, url: urlData.publicUrl, type: file.type, uploaded_at: new Date().toISOString(), section_key: 'test', question_label: label, session_date: date }]
+  const { error: e2 } = await supabase.from('athlete_profiles').upsert({ student_id: studentId, media_files: updated }, { onConflict: 'student_id' })
+  return e2 || null
+}
+
+export function TestSessionModal({ studentId, studentName, onClose, onSaved, allowUpload = false, onViewIt }) {
+  // 📹 measuring from video: jump height / punch speed / punch count fill the boxes below;
+  // the video is also kept with the athlete's test uploads (and in View iT when onViewIt is given)
+  const [tool, setTool] = useState(null) // null | 'jump' | 'punch' | 'count'
+  const toolFile = useRef(null)
+  function keepVideo(label) {
+    const f = toolFile.current; if (!f) return
+    toolFile.current = null
+    if (allowUpload) attachTestVideo(studentId, f, label, date).then(err => { if (err) alert('Result saved, but the video could not be attached: ' + err.message) })
+    onViewIt?.(f, `${studentName || 'Athlete'} — ${label} · ${new Date(date + 'T12:00:00').toLocaleDateString('en-GB')}`)
+  }
   const [date, setDate] = useState(todayISO())
   const [catKey, setCatKey] = useState(TEST_CATEGORIES[0].key)
   const [history, setHistory] = useState([])
@@ -84,6 +111,26 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved }) {
             return <button key={c.key} type="button" className={catKey === c.key ? 'on' : ''} onClick={() => setCatKey(c.key)}>{c.icon} {c.label}{n ? <b> {n}</b> : null}</button>
           })}
         </div>
+
+        {(cat.key === 'jumps' || cat.key === 'punch') && (
+          <div className="ts-measure">
+            {cat.key === 'jumps' && <button type="button" className="ts-measure-btn" onClick={() => setTool('jump')}>📹 Open jump measuring</button>}
+            {cat.key === 'punch' && <>
+              <button type="button" className="ts-measure-btn" onClick={() => setTool('punch')}>📹 Open punch speed</button>
+              <button type="button" className="ts-measure-btn" onClick={() => setTool('count')}>📹 Open punch counter</button>
+            </>}
+          </div>
+        )}
+        {tool && createPortal(tool === 'count'
+          ? <PunchCountTool zIndex={700} onFile={f => { toolFile.current = f }} onClose={() => setTool(null)}
+              onSave={({ perRound, perMinute }) => { setVals(p => ({ ...p, 'Punches per round': String(perRound), 'Punches per minute': String(perMinute) })); keepVideo('Punch count') }} />
+          : <VideoMeasureTool mode={tool} zIndex={700} onFile={f => { toolFile.current = f }} onClose={() => setTool(null)}
+              saveLabel={(v, m) => tool === 'jump' ? `Use ${v} cm for Vertical Jump` : `Use ${v} ms for ${m?.punchType || 'Jab'}`}
+              onResult={(v, m) => {
+                const name = tool === 'jump' ? 'Vertical Jump (distance)' : `${m?.punchType || 'Jab'} time (ms)`
+                setVals(p => ({ ...p, [name]: String(v) }))
+                keepVideo(tool === 'jump' ? 'Vertical jump' : `${m?.punchType || 'Jab'} speed`)
+              }} />, document.body)}
 
         <div className="ts-tests">
           {cat.tests.map(t => {

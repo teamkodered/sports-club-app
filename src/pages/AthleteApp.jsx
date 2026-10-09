@@ -5320,7 +5320,7 @@ export default function AthleteApp() {
                     {showPhysicalSection && (
                       <button type="button" className="btn btn-sm ts-open-btn" onClick={() => setTestSessionOpen(true)}>📋 Test session — log results</button>
                     )}
-                    {testSessionOpen && student?.id && <TestSessionModal studentId={student?.id} studentName={`${student?.members?.first_name || ''} ${student?.members?.last_name || ''}`.trim()} onClose={() => setTestSessionOpen(false)} onSaved={async () => { const { data } = await supabase.from('fit2fight_sessions').select('*').eq('student_id', student.id).order('session_date', { ascending: false }); setSessions(data || []) }} />}
+                    {testSessionOpen && student?.id && <TestSessionModal allowUpload={!uploadsBlocked} studentId={student?.id} studentName={`${student?.members?.first_name || ''} ${student?.members?.last_name || ''}`.trim()} onClose={() => setTestSessionOpen(false)} onSaved={async () => { const { data } = await supabase.from('fit2fight_sessions').select('*').eq('student_id', student.id).order('session_date', { ascending: false }); setSessions(data || []) }} />}
 
                     <div className={(pillarView['physical'] || 'questions') === 'pdp' ? 'pv-pdp' : undefined} style={{
                       overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',

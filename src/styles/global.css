@@ -971,3 +971,10 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .ffp-measure-land { display: none; }
 .ffp-measure-port { display: flex; }
 @media (orientation: landscape) { .ffp-measure-land { display: flex; } .ffp-measure-port { display: none; } }
+
+/* Test session: 📹 measuring buttons -- full size, neon style like the other buttons */
+.ts-measure { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 12px; }
+.ts-measure-btn { height: 48px; width: 100%; border: 1px solid #E6B800; border-radius: 12px; background: rgba(230,184,0,0.12); color: #F2F2F2;
+  font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800; font-size: 18px; letter-spacing: 1px; text-transform: uppercase;
+  box-shadow: 0 0 10px rgba(230,184,0,0.35); cursor: pointer; -webkit-user-select: none; user-select: none; }
+.ts-measure-btn:active { background: rgba(230,184,0,0.25); }
