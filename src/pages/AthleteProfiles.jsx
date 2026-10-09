@@ -3061,6 +3061,7 @@ export default function AthleteProfiles() {
   const [dashClubFilter, setDashClubFilterRaw] = useState(() => { try { return localStorage.getItem('coach_dash_team') || 'all' } catch { return 'all' } }) // 'all' | 'PKA' | 'KRBA'
   const setDashClubFilter = v => { setDashClubFilterRaw(v); try { localStorage.setItem('coach_dash_team', v) } catch { /* ignore */ } }
   const inDashTeam = s => (s.is_kr || s.is_pts || s.discipline === 'KRBA') && (dashClubFilter === 'all' || s.discipline === dashClubFilter)
+  const [dashWhoOpen, setDashWhoOpen] = useState({}) // coach dashboard: who's done / missing lists open
   const [dashboardTab, setDashboardTab] = useState('overview') // 'overview' | 'calendar' | 'results' | 'pdp'
   const [wearableAthletes, setWearableAthletes] = useState(null) // [{ student_id, providers: [...], last_sync_at }] for the Wearables list
   const [teamTemplateStudent, setTeamTemplateStudent] = useState(null)
@@ -8103,13 +8104,45 @@ export default function AthleteProfiles() {
                 return { ...pctFor([sub]), numeric: false }
               }
 
-              return DASHBOARD_SECTIONS.map(section => {
+              const PILLAR = { mentality: { order: 1, colour: '#22B14C', img: '/logos/neon/mentality.png' }, tactical: { order: 2, colour: '#FF2A2A', img: '/logos/neon/tactical.png' },
+                technique: { order: 3, colour: '#2F6BFF', img: '/logos/neon/technical.png' }, physical: { order: 4, colour: '#E6B800', img: '/logos/neon/physical.png' },
+                wellbeing: { order: 5, colour: '#C93BFF', img: '/logos/neon/foundation.png' }, test: { order: 6, colour: '#EF9F27', img: null } }
+              // who has / hasn't logged something (used under every pillar and question)
+              const whoLists = (subItems, requiredCount = 1) => {
+                const doneIds = new Set(teamSessions.filter(s => subItems.filter(si => subItemLogged(si, s)).length >= requiredCount).map(s => s.student_id))
+                const byName = (a, b) => (a.members?.first_name || '').localeCompare(b.members?.first_name || '')
+                return { done: teamAthletes.filter(a => doneIds.has(a.id)).sort(byName), missing: teamAthletes.filter(a => !doneIds.has(a.id)).sort(byName) }
+              }
+              const WhoList = ({ lists, k }) => {
+                const open = dashWhoOpen[k]
+                return (
+                  <div className="coach-who">
+                    <button type="button" className="btn btn-sm" onClick={() => setDashWhoOpen(o => ({ ...o, [k]: !o[k] }))}>
+                      👥 Who's done {lists.done.length} · missing {lists.missing.length} {open ? '▲' : '▼'}
+                    </button>
+                    {open && (
+                      <div className="coach-who-cols">
+                        {[['✓ Done', lists.done, '#1D9E75'], ['✗ Not yet', lists.missing, '#E24B4A']].map(([title, list, c]) => (
+                          <div key={title}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: c, marginBottom: 4 }}>{title} ({list.length})</div>
+                            {list.length === 0 ? <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>—</div> : list.map(a => (
+                              <button key={a.id} type="button" onClick={() => selectStudent(a)} className="coach-who-name">{a.members?.first_name} {a.members?.last_name}</button>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              }
+              return <div className="coach-pillars">{DASHBOARD_SECTIONS.map(section => {
                 const sectionTarget = targetFor(section.key)
                 const requiredCount = sectionTarget ? (parseFrequency(sectionTarget.target_value) || 1) : 1
                 const overall = pctFor(section.subItems, requiredCount)
                 const isOpen = expandedDashSection === section.key
+                const pil = PILLAR[section.key] || { order: 9, colour: colour }
                 return (
-                  <div key={section.key} style={{ marginBottom: 8 }}>
+                  <div key={section.key} className={`coach-pillar${isOpen ? ' is-open' : ''}`} style={{ order: pil.order, '--pillar': pil.colour }}>
                     <button type="button" onClick={() => { setExpandedDashSection(isOpen ? null : section.key); setExpandedDashSubItem(null) }}
                       title={sectionTarget ? `% of team who completed at least ${requiredCount} item${requiredCount === 1 ? '' : 's'} in this section today` : '% of team who logged anything in this section today'}
                       style={{
@@ -8117,9 +8150,9 @@ export default function AthleteProfiles() {
                       padding: '10px 14px', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)',
                     }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 18 }}>{section.icon}</span>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{section.label}</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                        {pil.img ? <img src={pil.img} alt="" className="coach-pillar-img" /> : <span style={{ fontSize: 22 }}>{section.icon}</span>}
+                        <span className="coach-pillar-title">{section.label}</span>
                       </span>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <span style={{ fontSize: 15, fontWeight: 700, color: colour }}>{overall.pct}%</span>
@@ -8139,6 +8172,7 @@ export default function AthleteProfiles() {
                           }}>+ Section target</button>
                         </div>
                         {showAddTarget && newTargetSection === section.key && newTargetQuestion === '' && renderInlineTargetForm()}
+                        <WhoList lists={whoLists(section.subItems, requiredCount)} k={`sec:${section.key}`} />
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 8 }}>
                           {section.subItems.map(sub => {
                             const target = targetFor(section.key, sub.label)
@@ -8195,6 +8229,7 @@ export default function AthleteProfiles() {
                                 setNewTargetSection(section.key); setNewTargetQuestion(sub.label); setShowAddTarget(true)
                               }}>{targets.length ? '+ Add another target' : '+ Set target'}</button>
                               {showAddTarget && newTargetSection === section.key && newTargetQuestion === sub.label && renderInlineTargetForm()}
+                              <WhoList lists={whoLists([sub])} k={`q:${subKey}`} />
 
                               {/* Log result for this question, for one or
                                   more athletes at once. For Physical
@@ -8286,7 +8321,7 @@ export default function AthleteProfiles() {
                     )}
                   </div>
                 )
-              })
+              })}</div>
             })()}
 
             {/* Media/Notes/MTP/Check in -- stay at the bottom, laid out two by two */}
@@ -8327,7 +8362,7 @@ export default function AthleteProfiles() {
                   {cards.map(c => {
                     const targets = targetsFor(c.key)
                     return (
-                      <div key={c.key} style={{
+                      <div key={c.key} className="coach-mini" style={{
                         display: 'flex', flexDirection: 'column', gap: 6,
                         padding: '10px 14px', fontFamily: 'var(--font-sans)',
                         background: 'var(--bg-secondary)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)',

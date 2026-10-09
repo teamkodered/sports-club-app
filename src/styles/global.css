@@ -1038,3 +1038,25 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .coach-dash .coach-stat > span:first-child { flex-wrap: nowrap; min-width: 0; }
 .coach-dash .coach-stat > span:first-child span:last-child { font-size: 14px !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 480px) { .coach-dash .coach-stat { padding: 8px 8px !important; } .coach-dash .coach-stat > span:first-child span:first-child { font-size: 14px !important; } .coach-dash .coach-stat-num { font-size: 20px !important; } }
+
+/* Coach dashboard pillars: laid out like the athlete Home (2 columns; an open pillar spans the width) */
+.coach-dash .coach-pillars { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin-bottom: 8px; }
+.coach-dash .coach-pillar { min-width: 0; }
+.coach-dash .coach-pillar.is-open { grid-column: 1 / -1; }
+.coach-dash .coach-pillar > button:first-child { flex-direction: column; align-items: flex-start !important; gap: 10px !important; min-height: 104px;
+  background: #14181C !important; border: 1px solid #2A3138 !important; border-top: 3px solid var(--pillar) !important; border-radius: 10px !important; padding: 12px !important; }
+.coach-dash .coach-pillar > button:first-child > span:last-child { width: 100%; justify-content: flex-start; flex-wrap: wrap; gap: 8px !important; }
+.coach-dash .coach-pillar > button:first-child > span:last-child > span:first-child { font-family: 'Orbitron', sans-serif; font-size: 22px !important; color: var(--pillar) !important; }
+.coach-dash .coach-pillar > button:first-child > span:last-child > span:last-child { margin-left: auto; }
+.coach-dash .coach-pillar-title { font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800; font-size: 20px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--pillar); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.coach-dash .coach-pillar-img { height: 36px; width: auto; flex-shrink: 0; }
+.coach-dash .coach-pillar.is-open > .card { border-top: 2px solid var(--pillar) !important; }
+/* who's done / missing */
+.coach-dash .coach-who { margin: 4px 0 10px; }
+.coach-dash .coach-who-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; padding: 10px; border: 1px solid #2A3138; border-radius: 8px; background: #0F1316; max-height: 320px; overflow-y: auto; }
+.coach-dash .coach-who-name { display: block; width: 100%; text-align: left; padding: 5px 4px; font-size: 13px; background: none; border: none; border-bottom: 1px solid #20262c; color: #F2F2F2; cursor: pointer; font-family: inherit; }
+.coach-dash .coach-who-name:active { background: #1A1F24; }
+
+/* Media / Notes / MTP / Check in -- tile style */
+.coach-dash .coach-mini { background: #14181C !important; border: 1px solid #2A3138 !important; border-radius: 10px !important; }
+.coach-dash .coach-mini > span:first-child > span:last-child { font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800 !important; font-size: 17px !important; text-transform: uppercase; }
