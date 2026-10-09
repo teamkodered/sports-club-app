@@ -72,6 +72,7 @@ function OneOffStudent({ displayStudents, onAdd, date }) {
 
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
+import { createPortal } from 'react-dom'
 import { supabase } from '../lib/supabase.js'
 import { assignmentActiveOn, todayISO } from '../lib/classAssignments.jsx'
 import { matchesSearch } from '../lib/searchMatch.js'
@@ -2643,7 +2644,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
         const awardList = [...selectedPoints, ...(isNewReason && !isNaN(newPts) && !selectedPoints.some(p => p.label === newLabel) ? [{ label: newLabel, points: newPts }] : [])]
         const awardTotal = awardList.reduce((n, p) => n + p.points, 0)
         const clearIfEmptySpace = e => { e.stopPropagation(); if (!e.target.closest('button, input, label, a, select, textarea')) setSelectedPoints([]) }
-        return (
+        return createPortal(
         <div className="reg-award-modal" onClick={clearIfEmptySpace} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 60, padding: '8px 8px 0' }}>
           <div className="card reg-award-card" onClick={clearIfEmptySpace} style={{ width: '100%', maxWidth: 500, maxHeight: 'calc(100dvh - 16px)', overflowY: 'auto', paddingTop: 0, paddingBottom: 0 }}>
             {/* Name + search stay pinned at the top while scrolling / typing */}
@@ -2656,7 +2657,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
               {multiAward ? `${selectedStudents.length} students selected` : `${awardingFor?.members?.first_name} ${awardingFor?.members?.last_name}`}
             </p>
             {/* Search the reasons list, or type a new reason */}
-            <input type="search" value={pointSearch} onChange={e => setPointSearch(e.target.value)} autoFocus
+            <input type="search" value={pointSearch} onChange={e => { setPointSearch(e.target.value); const card = e.currentTarget.closest('.reg-award-card'); if (card) card.scrollTo({ top: 0 }) }} autoFocus
               placeholder="Search or write a reason…" aria-label="Search or write a reason"
               style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', marginBottom: 10, border: '2px solid #378ADD', borderRadius: 'var(--radius)', fontSize: 15, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)' }} />
             </div>
@@ -2751,7 +2752,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
             </div>
           </div>
         </div>
-        )
+        , document.body)
       })()}
 
       {/* Athlete register: Fighters list -- copy to paste to other coaches for matching */}
