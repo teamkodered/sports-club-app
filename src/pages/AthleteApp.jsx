@@ -6564,14 +6564,14 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                   { label: 'Wearables', icon: '⌚', colour: '#1D9E75', tab: 'whoop' },
                   { label: 'MTP', icon: '📊', colour: '#E24B4A', tab: 'tpt' },
                 ].map(l => (
-                  <button key={l.label} onClick={() => l.tab && setTab(l.tab)} style={{
+                  <button key={l.label} onClick={() => l.tab && setTab(l.tab)} className="neon-tile" style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
                     padding: '14px 8px', background: l.colour + '12',
                     border: `1px solid ${l.colour}30`, borderRadius: 'var(--border-radius-lg)',
                     cursor: l.tab ? 'pointer' : 'default', fontFamily: 'var(--font-sans)',
                     opacity: l.tab ? 1 : 0.6,
                   }}>
-                    <span style={{ fontSize: 24 }}>{l.icon}</span>
+                    <span className="neon-emoji" style={{ fontSize: 24 }}>{l.icon}</span><NeonTileIcon name={l.label} />
                     <span style={{ fontSize: 12, fontWeight: 500, color: l.colour }}>{l.label}</span>
                   </button>
                 ))}
