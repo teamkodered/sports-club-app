@@ -94,6 +94,7 @@ const REGISTER_TYPES = [
   { key: 'pts',    label: 'PTs',    discipline: 'PKA'  },
   { key: 'leader', label: 'Leader', discipline: 'PKA'  },
   { key: 'krba',   label: 'KRBA',   discipline: 'KRBA' },
+  { key: 'allath', label: 'All athletes', discipline: 'PKA', hidden: true }, // KR + KRBA together (coach dashboard 'View all')
   { key: 'adhoc',  label: 'Adhoc',  discipline: 'PKA'  },
 ]
 
@@ -562,7 +563,8 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
       .from('students')
       .select('*, members(id, first_name, last_name, phone, email, date_of_birth, status, joined_date, houses(name))')
 
-    if (regType === 'krba')        query = query.eq('discipline', 'KRBA')
+    if (regType === 'allath')      query = query.or('is_kr.eq.true,discipline.eq.KRBA')
+    else if (regType === 'krba')   query = query.eq('discipline', 'KRBA')
     else if (regType === 'kr')     query = query.eq('discipline', 'PKA').eq('is_kr', true)
     else if (regType === 'pts')    query = query.eq('discipline', 'PKA').eq('is_pts', true)
     else if (regType === 'leader') query = query.eq('discipline', 'PKA').eq('is_leader', true)
@@ -618,7 +620,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     // sessions' weight_before/weight_after, and athlete_profiles'
     // free-text weight_division for comp weight), computed here per
     // student for the whole visible list at once.
-    if (regType === 'kr' || regType === 'krba') {
+    if (regType === 'kr' || regType === 'krba' || regType === 'allath') {
       const allStudentIds = [...filteredStudents, ...stillMissing].map(s => s.id)
       if (allStudentIds.length > 0) {
         const [{ data: sessions }, { data: profiles }, { data: targetSettings }] = await Promise.all([
@@ -1529,7 +1531,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
         <div className="card" style={{ marginBottom: 10, padding: 12 }}>
           <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Show / hide columns</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
-            {ALL_REG_COLS.filter(c => (regType === 'kr' || regType === 'krba') || !['record', 'weight_trend', 'weight_last5', 'weight_current', 'weight_comp', 'weight_pctdiff', 'weight_entries'].includes(c.key)).map(c => (
+            {ALL_REG_COLS.filter(c => (regType === 'kr' || regType === 'krba' || regType === 'allath') || !['record', 'weight_trend', 'weight_last5', 'weight_current', 'weight_comp', 'weight_pctdiff', 'weight_entries'].includes(c.key)).map(c => (
               <button key={c.key} onClick={() => toggleRegCol(c.key)} style={{
                 padding: '4px 10px', borderRadius: 20, fontSize: 11, cursor: 'pointer',
                 border: `1px solid ${visibleCols.includes(c.key) ? 'var(--text)' : 'var(--border-strong)'}`,
@@ -1546,7 +1548,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
           set), since that's the only context Team KR/KRBA buttons there
           are meant to offer, not the full set of registers. */}
       <div className={`reg-hide-in-pm${initialRegType ? ' reg-desktop-only' : ''}`} style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
-        {(initialRegType ? REGISTER_TYPES.filter(r => r.key === 'kr' || r.key === 'krba') : REGISTER_TYPES).filter(r => regTypeAllowed(r.key)).map(r => (
+        {(initialRegType ? REGISTER_TYPES.filter(r => r.key === 'kr' || r.key === 'krba' || (r.key === 'allath' && initialRegType === 'allath')) : REGISTER_TYPES.filter(r => !r.hidden)).filter(r => regTypeAllowed(r.key)).map(r => (
           <button key={r.key} onClick={() => setRegType(r.key)} style={{
             padding: '8px 14px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
             borderBottom: `2px solid ${regType === r.key ? 'var(--text)' : 'transparent'}`,
@@ -2277,14 +2279,14 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                 {visibleCols.includes('house')       && <SortTh col="house" label="House" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
                 {visibleCols.includes('grade')       && <SortTh col="grade" label="Grade" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
                 {visibleCols.includes('weight') && !isKR && regType !== 'krba' && <SortTh col="weight_kg" label="Weight" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} style={{ textAlign: 'center' }} />}
-                {visibleCols.includes('record') && (regType === 'kr' || regType === 'krba') && <SortTh col="wins" label="Record" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} style={{ textAlign: 'center' }} />}
+                {visibleCols.includes('record') && (regType === 'kr' || regType === 'krba' || regType === 'allath') && <SortTh col="wins" label="Record" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} style={{ textAlign: 'center' }} />}
                 {visibleCols.includes('class_time')  && <th style={{ background: 'var(--bg)' }}>Class time</th>}
                 {isKR && <>
                   <SortTh col="competition_team" label="Experience" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                   <SortTh col="discipline_codes" label="Discipline" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                   <SortTh col="age_category_kr" label="Age cat." sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                 </>}
-                {(regType === 'kr' || regType === 'krba') && <>
+                {(regType === 'kr' || regType === 'krba' || regType === 'allath') && <>
                   {visibleCols.includes('weight_trend')   && <th style={{ background: 'var(--bg)', textAlign: 'center' }} title="Since the previous weigh-in">Trend</th>}
                   {visibleCols.includes('weight_last5')   && <th style={{ background: 'var(--bg)' }}>Last 5 weights</th>}
                   {visibleCols.includes('weight_current') && <th style={{ background: 'var(--bg)', textAlign: 'center' }}>Current weight</th>}
@@ -2295,7 +2297,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                 {visibleCols.includes('att_total') && <th style={{ background: 'var(--bg)', textAlign: 'center' }} title="All-time sessions attended">Total sessions</th>}
                 {visibleCols.includes('att_last') && <th style={{ background: 'var(--bg)', textAlign: 'center' }}>Last attended</th>}
                 {visibleCols.includes('att_pct') && <th style={{ background: 'var(--bg)', textAlign: 'center' }} title="Days attended out of days attended + missed (same rules as the attendance calendar)">Attendance %</th>}
-                {(regType === 'kr' || regType === 'krba') && (() => {
+                {(regType === 'kr' || regType === 'krba' || regType === 'allath') && (() => {
                   const inCount = displayStudents.filter(s => s.in_comp).length
                   const outCount = displayStudents.length - inCount
                   return (
@@ -2399,7 +2401,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                     </td>}
                     {visibleCols.includes('grade') && <td style={{ fontSize: 12, fontWeight: 600, color: gradeColour(s.pka_belt || s.krba_level) }}>{s.pka_belt || s.krba_level || '—'}</td>}
                     {visibleCols.includes('weight') && !isKR && regType !== 'krba' && <td style={{ fontSize: 12, textAlign: 'center' }}>{s.weight_kg ? `${s.weight_kg}kg` : '—'}</td>}
-                    {visibleCols.includes('record') && (regType === 'kr' || regType === 'krba') && (
+                    {visibleCols.includes('record') && (regType === 'kr' || regType === 'krba' || regType === 'allath') && (
                       <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()} onTouchStart={e => e.stopPropagation()} onTouchEnd={e => e.stopPropagation()}>
                         <div style={{ display: 'flex', gap: 2, alignItems: 'center', justifyContent: 'center' }}>
                           <input type="number" min="0" defaultValue={s.wins || 0} title="Wins"
@@ -2422,7 +2424,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                         <td style={{ fontSize: 11 }}>{s.age_category_kr || s.age_category || '—'}</td>
                       </>
                     )}
-                    {(regType === 'kr' || regType === 'krba') && (() => {
+                    {(regType === 'kr' || regType === 'krba' || regType === 'allath') && (() => {
                       const wd = weightDataByStudent[s.id]
                       return <>
                         {visibleCols.includes('weight_trend') && (
@@ -2496,7 +2498,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                         </div>
                       </td>
                     )}
-                    {(regType === 'kr' || regType === 'krba') && (
+                    {(regType === 'kr' || regType === 'krba' || regType === 'allath') && (
                       <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
                         <button onClick={() => toggleInComp(s)}
                           className={`badge ${s.in_comp ? 'badge-green' : 'badge-gray'}`}

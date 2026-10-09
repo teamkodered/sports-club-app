@@ -3125,6 +3125,7 @@ export default function AthleteProfiles() {
   const [exporting, setExporting] = useState(false)
   const [showTeamKrbaDropdown, setShowTeamKrbaDropdown] = useState(false)
   const [showKrbaRegister, setShowKrbaRegister] = useState(false)
+  const [showAllAthRegister, setShowAllAthRegister] = useState(false) // coach dashboard 'View all' (KR + KRBA together)
   const [cameFromRegisterType, setCameFromRegisterType] = useState(null) // 'kr' | 'krba' | null -- if set, the back button on an individual profile should return to that register instead of the dashboard
   const [pendingWeightNavStudentId, setPendingWeightNavStudentId] = useState(null)
   const [teamKrSearch, setTeamKrSearch] = useState('')
@@ -6238,6 +6239,7 @@ export default function AthleteProfiles() {
     // to the dashboard, losing the register that was actually open.
     if (cameFromRegisterType === 'kr') { setShowKrRegister(true); setShowKrbaRegister(false) }
     else if (cameFromRegisterType === 'krba') { setShowKrbaRegister(true); setShowKrRegister(false) }
+    else if (cameFromRegisterType === 'allath') { setShowAllAthRegister(true); setShowKrRegister(false); setShowKrbaRegister(false) }
     setCameFromRegisterType(null)
   }
 
@@ -6650,8 +6652,8 @@ export default function AthleteProfiles() {
               swipeStartX.current = null
             }}>
             <div className="empty-state swipe-zone" style={{ paddingTop: 20, paddingBottom: 20 }}>
-              {(showKrRegister || showKrbaRegister) ? (
-                <button className="btn btn-sm" onClick={() => { setShowKrRegister(false); setShowKrbaRegister(false) }} style={{ marginBottom: 4 }}>
+              {(showKrRegister || showKrbaRegister || showAllAthRegister) ? (
+                <button className="btn btn-sm" onClick={() => { setShowKrRegister(false); setShowKrbaRegister(false); setShowAllAthRegister(false) }} style={{ marginBottom: 4 }}>
                   ← Athlete Dashboard
                 </button>
               ) : (
@@ -6666,21 +6668,30 @@ export default function AthleteProfiles() {
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
               {(!registerAccess?.types || registerAccess.types.includes('kr')) ? (
                 <button className={showKrRegister ? 'btn btn-sm btn-primary' : 'btn btn-sm'}
-                  onClick={() => { setShowKrRegister(v => !v); setShowKrbaRegister(false) }}>
+                  onClick={() => { setShowKrRegister(v => !v); setShowKrbaRegister(false); setShowAllAthRegister(false) }}>
                   👥 Team KR {showKrRegister ? '▲' : '▼'}
                 </button>
               ) : <span />}
-              <button className="btn btn-sm" onClick={() => setTestBatchOpen(true)}>📋 Group test entry</button>
+              {(!registerAccess?.types || (registerAccess.types.includes('kr') && registerAccess.types.includes('krba'))) && (
+                <button className={showAllAthRegister ? 'btn btn-sm btn-primary' : 'btn btn-sm'}
+                  onClick={() => { setShowAllAthRegister(v => !v); setShowKrRegister(false); setShowKrbaRegister(false) }}>
+                  👥 View all {showAllAthRegister ? '▲' : '▼'}
+                </button>
+              )}
               {(!registerAccess?.types || registerAccess.types.includes('krba')) && (
                 <button className={showKrbaRegister ? 'btn btn-sm btn-primary' : 'btn btn-sm'}
-                  onClick={() => { setShowKrbaRegister(v => !v); setShowKrRegister(false) }}>
+                  onClick={() => { setShowKrbaRegister(v => !v); setShowKrRegister(false); setShowAllAthRegister(false) }}>
                   👥 KRBA {showKrbaRegister ? '▲' : '▼'}
                 </button>
               )}
             </div>
 
-            {(showKrRegister || showKrbaRegister) ? (
-              <Registers key={showKrRegister ? 'kr' : 'krba'} initialRegType={showKrRegister ? 'kr' : 'krba'}
+            {!(showKrRegister || showKrbaRegister || showAllAthRegister) && (
+              <button className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 10 }} onClick={() => setTestBatchOpen(true)}>📋 Group test entry</button>
+            )}
+
+            {(showKrRegister || showKrbaRegister || showAllAthRegister) ? (
+              <Registers key={showKrRegister ? 'kr' : showKrbaRegister ? 'krba' : 'allath'} initialRegType={showKrRegister ? 'kr' : showKrbaRegister ? 'krba' : 'allath'}
                 onStudentNameClick={registerStudent => {
                   // Registers.jsx fetches its own students with a
                   // different query shape than this page's own
@@ -6692,13 +6703,13 @@ export default function AthleteProfiles() {
                   // expect on a selected student.
                   const full = students.find(x => x.id === registerStudent.id)
                   if (!full) return
-                  setCameFromRegisterType(showKrRegister ? 'kr' : 'krba')
+                  setCameFromRegisterType(showKrRegister ? 'kr' : showKrbaRegister ? 'krba' : 'allath')
                   selectStudent(full)
                 }}
                 onWeightClick={registerStudent => {
                   const full = students.find(x => x.id === registerStudent.id)
                   if (!full) return
-                  setCameFromRegisterType(showKrRegister ? 'kr' : 'krba')
+                  setCameFromRegisterType(showKrRegister ? 'kr' : showKrbaRegister ? 'krba' : 'allath')
                   selectStudent(full)
                   setPendingWeightNavStudentId(full.id)
                 }} />
