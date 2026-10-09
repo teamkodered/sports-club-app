@@ -1,5 +1,6 @@
 import { useState, useEffect, Fragment, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import EnquirySendTemplates, { DEFAULT_ENQUIRY_TEMPLATES } from '../components/crm/EnquiryTemplates.jsx'
 import { isDateOnHoliday } from '../lib/attendanceDays.js'
 import { studentProfileLink } from '../lib/studentLinks.js'
 import { useLocation } from 'react-router-dom'
@@ -498,6 +499,29 @@ export default function CRM() {
   const [showNewEnquiryForm, setShowNewEnquiryForm] = useState(false)
   const [editingEnquiryId, setEditingEnquiryId] = useState(null)
   const [enquirySectionsOpen, setEnquirySectionsOpen] = useState({})   // all sections start collapsed
+  // Enquiries: hold a card to select several, then send a template to them
+  const [enqSel, setEnqSel] = useState([])
+  const [enqSendOpen, setEnqSendOpen] = useState(false)
+  const [enquiryTemplates, setEnquiryTemplates] = useState(DEFAULT_ENQUIRY_TEMPLATES)
+  const enqHold = useRef(null)
+  const enqHoldFired = useRef(false)
+  useEffect(() => {
+    supabase.from('settings').select('value').eq('key', 'crm_enquiry_message_templates').maybeSingle()
+      .then(({ data }) => { if (Array.isArray(data?.value) && data.value.length) setEnquiryTemplates(data.value) })
+  }, [])
+  async function saveEnquiryTemplates(next) {
+    setEnquiryTemplates(next)
+    const { error } = await supabase.from('settings').upsert({ key: 'crm_enquiry_message_templates', value: next }, { onConflict: 'key' })
+    if (error) alert('Could not save templates: ' + error.message)
+  }
+  // A template sent: counts as a contact, and a new enquiry moves to Contacted
+  async function enquiryTemplateSent(enq) {
+    const now = new Date().toISOString()
+    const nextStatus = enq.status === 'not_started' ? 'contacted' : enq.status
+    const next = (enq.contact_count || 0) + 1
+    setEnquiries(prev => prev.map(e => e.id === enq.id ? { ...e, contact_count: next, last_contacted_at: now, status: nextStatus } : e))
+    await supabase.from('enquiries').update({ contact_count: next, last_contacted_at: now, status: nextStatus, updated_at: now }).eq('id', enq.id)
+  }
   const [viewingEnquiry, setViewingEnquiry] = useState(null)
   const [expandedEnquiryId, setExpandedEnquiryId] = useState(null)
   const [contactPopupFor, setContactPopupFor] = useState(null)
@@ -2402,6 +2426,7 @@ export default function CRM() {
       enquiry_date: enquiryDraft.enquiry_date || new Date().toISOString().split('T')[0],
       notes: enquiryDraft.notes?.trim() || null,
       ...(enquiryDraft.status ? { status: enquiryDraft.status } : {}),
+      ...(enquiryDraft.enquiry_for ? { enquiry_for: { self: !!enquiryDraft.enquiry_for.self, names: (enquiryDraft.enquiry_for.names || []).map(x => x.trim()).filter(Boolean) } } : {}),
       updated_at: new Date().toISOString(),
     }).eq('id', editingEnquiryId)
     setSavingEnquiry(false)
@@ -2452,6 +2477,15 @@ export default function CRM() {
                   <div style={{ flex: 1 }}>
                     <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>Date</label>
                     <input type="date" value={enquiryDraft.enquiry_date} onChange={e => setEnquiryDraft(d => ({ ...d, enquiry_date: e.target.value }))} style={{ fontSize: 13, width: '100%' }} />
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>Enquiring for</label>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <button type="button" className={`btn btn-sm${enquiryDraft.enquiry_for?.self ? ' btn-primary' : ''}`} onClick={() => setEnquiryDraft(d => ({ ...d, enquiry_for: { self: true, names: [] } }))}>Themselves</button>
+                    <input value={(enquiryDraft.enquiry_for?.names || []).join(', ')} placeholder="…or child names, e.g. Alfie, Mia"
+                      onChange={e => setEnquiryDraft(d => ({ ...d, enquiry_for: { self: false, names: e.target.value.split(',').map(x => x.trim()).filter((x, i, a) => x || i === a.length - 1) } }))}
+                      style={{ flex: 1, minWidth: 180, padding: '7px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
                   </div>
                 </div>
                 {editingEnquiryId && (
@@ -3313,6 +3347,24 @@ export default function CRM() {
             })}
           </div>
           {showNewEnquiryForm && !editingEnquiryId && enquiryForm()}
+          {enqSel.length > 0 && (
+            <div className="enq-bulk">
+              <b>{enqSel.length} selected</b>
+              <button className="btn btn-sm btn-primary" onClick={() => setEnqSendOpen(true)}>📨 Send template</button>
+              <button className="btn btn-sm" onClick={() => setEnqSel([])}>Cancel</button>
+            </div>
+          )}
+          {enqSendOpen && (
+            <EnquirySendTemplates
+              enquiries={enquiries.filter(e => enqSel.includes(e.id))}
+              templates={enquiryTemplates}
+              onSaveTemplates={saveEnquiryTemplates}
+              sendEmail={sendRealEmail}
+              onSent={enquiryTemplateSent}
+              toWhatsappNumber={toWhatsappNumber}
+              onClose={() => { setEnqSendOpen(false); setEnqSel([]) }}
+            />
+          )}
           {!enquiriesLoaded ? (
             <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Loading…</p>
           ) : (
@@ -3326,7 +3378,21 @@ export default function CRM() {
                 const sentTo = enq.status === 'sent_derby_moore' ? 'Derby Moore' : enq.status === 'sent_moorways' ? 'Moorways' : null
                 const borderColour = enq.status === 'not_interested' ? '#9CA3AF' : enq.status === 'waiting_list' ? '#EF9F27' : sentTo ? '#6366F1' : stage.colour
                 return (
-                <div key={enq.id} className="card" style={{ padding: 14, borderLeft: `4px solid ${borderColour}` }}>
+                <div key={enq.id} className="card" style={{ padding: 14, borderLeft: `4px solid ${borderColour}`, ...(enqSel.includes(enq.id) ? { outline: '2px solid #378ADD', background: 'color-mix(in srgb, #378ADD 8%, var(--bg))' } : {}) }}
+                  onPointerDown={e => {
+                    if (e.target.closest('button, a, input, textarea, select')) return
+                    enqHoldFired.current = false
+                    enqHold.current = setTimeout(() => { enqHoldFired.current = true; if (navigator.vibrate) navigator.vibrate(20); setEnqSel(p => p.includes(enq.id) ? p : [...p, enq.id]) }, 450)
+                  }}
+                  onPointerUp={() => clearTimeout(enqHold.current)} onPointerLeave={() => clearTimeout(enqHold.current)} onPointerMove={e => { if (Math.abs(e.movementY) > 3) clearTimeout(enqHold.current) }}
+                  onClickCapture={e => {
+                    if (enqHoldFired.current) { enqHoldFired.current = false; e.stopPropagation(); e.preventDefault(); return }
+                    if (enqSel.length && !e.target.closest('button, a, input, textarea, select')) {
+                      e.stopPropagation(); e.preventDefault()
+                      setEnqSel(p => p.includes(enq.id) ? p.filter(x => x !== enq.id) : [...p, enq.id])
+                    }
+                  }}
+                  onContextMenu={e => e.preventDefault()}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 10, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       {sentTo ? (
@@ -3377,17 +3443,22 @@ export default function CRM() {
                       </span>
                     )}
                     <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                      <button className="btn btn-sm" onClick={() => { setEditingEnquiryId(enq.id); setShowNewEnquiryForm(false); setEnquiryDraft({ status: enq.status, name: enq.name === 'Unknown' ? '' : enq.name, contact_phone: enq.contact_phone || '', contact_email: enq.contact_email || '', contact_method: enq.contact_method, enquiry_date: enq.enquiry_date, notes: enq.notes || '' }) }}>Edit</button>
+                      <button className="btn btn-sm" onClick={() => { setEditingEnquiryId(enq.id); setShowNewEnquiryForm(false); setEnquiryDraft({ status: enq.status, enquiry_for: enq.enquiry_for || null, name: enq.name === 'Unknown' ? '' : enq.name, contact_phone: enq.contact_phone || '', contact_email: enq.contact_email || '', contact_method: enq.contact_method, enquiry_date: enq.enquiry_date, notes: enq.notes || '' }) }}>Edit</button>
                       <button className="btn btn-sm" style={{ color: '#E24B4A' }} onClick={() => deleteEnquiry(enq.id)}>Delete</button>
                     </div>
                   </div>
                   <div style={{ textAlign: 'left', cursor: 'pointer' }} title="Tap to edit"
-                    onClick={e => { if (e.target.closest('button, a, input, textarea, select')) return; setEditingEnquiryId(enq.id); setShowNewEnquiryForm(false); setEnquiryDraft({ status: enq.status, name: enq.name === 'Unknown' ? '' : enq.name, contact_phone: enq.contact_phone || '', contact_email: enq.contact_email || '', contact_method: enq.contact_method, enquiry_date: enq.enquiry_date, notes: enq.notes || '' }) }}>
+                    onClick={e => { if (e.target.closest('button, a, input, textarea, select')) return; setEditingEnquiryId(enq.id); setShowNewEnquiryForm(false); setEnquiryDraft({ status: enq.status, enquiry_for: enq.enquiry_for || null, name: enq.name === 'Unknown' ? '' : enq.name, contact_phone: enq.contact_phone || '', contact_email: enq.contact_email || '', contact_method: enq.contact_method, enquiry_date: enq.enquiry_date, notes: enq.notes || '' }) }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
                       <div>
                         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
                           <div style={{ fontSize: 15, fontWeight: 600 }}>{enq.name}</div>
                           {enq.contact_phone && <div style={{ fontSize: 14, fontWeight: 600, color: '#378ADD' }}>📞 {enq.contact_phone}</div>}
+                          {(enq.enquiry_for?.self || enq.enquiry_for?.names?.length) ? (
+                            <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}>
+                              For: {enq.enquiry_for.self ? 'themselves' : enq.enquiry_for.names.join(', ')}
+                            </span>
+                          ) : null}
                           {enq.status === 'attended' && enq.matched_at && (
                             <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: '#0EA5A422', color: '#0EA5A4' }}
                               title="Moved here automatically: a join form came in with the same phone or email">
@@ -3461,6 +3532,10 @@ export default function CRM() {
                     <button type="button" onClick={() => setEnquirySectionsOpen(o => ({ ...o, [key]: !open }))} aria-expanded={open}
                       style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 2px', marginTop: 8, border: 'none', borderBottom: `2px solid ${colour}`, background: 'none', color: 'var(--text)', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-sans)', textAlign: 'left' }}>
                       <span style={{ color: colour }}>{open ? '▾' : '▸'}</span> {label} <span style={{ fontWeight: 400, color: 'var(--text-tertiary)' }}>{items.length}</span>
+                      {open && enqSel.length > 0 && (
+                        <span role="button" tabIndex={0} onClick={e => { e.stopPropagation(); setEnqSel(p => [...new Set([...p, ...items.map(x => x.id)])]) }}
+                          style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 600, color: '#378ADD' }}>Select all {items.length}</span>
+                      )}
                     </button>
                   )
                   if (!open) return <Fragment key={key}>{header}</Fragment>
