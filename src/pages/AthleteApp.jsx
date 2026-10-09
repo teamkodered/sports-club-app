@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { TEST_CATEGORIES } from '../lib/testResults.js'
 import { TestSessionModal, TestBatchModal } from '../components/shared/TestSession.jsx'
 import { supabase } from '../lib/supabase.js'
+import MediaViewer from '../components/shared/MediaViewer.jsx'
 import FightGame from '../components/shared/FightGame.jsx'
 import ChessGame from '../components/shared/ChessGame.jsx'
 import GuidedSession from '../components/shared/GuidedSession.jsx'
@@ -4370,11 +4371,20 @@ export default function AthleteApp() {
   // entry, but stored in the same media_files array the athlete's own
   // "Media" gallery tab already reads from, so it shows up there too
   // alongside everything else they've uploaded.
+  const mediaFileRef = useRef(null)
+  const mediaCameraRef = useRef(null)
+  const mediaTargetRef = useRef(null)
+  const [mediaUploading, setMediaUploading] = useState(null)
+  const [mediaViewer, setMediaViewer] = useState(null) // { items, index }
   async function uploadQuestionMedia(sectionKey, questionLabel, file) {
     if (!student || !file) return
-    const path = `athletes/${student.id}/${Date.now()}-${file.name}`
-    const { error } = await supabase.storage.from('athlete-media').upload(path, file)
-    if (error) { alert('Upload failed: ' + error.message); return }
+    // storage keys don't like spaces / brackets / emoji in phone file names
+    const safeName = (file.name || 'upload').replace(/[^a-zA-Z0-9._-]+/g, '_').slice(-80)
+    const path = `athletes/${student.id}/${Date.now()}-${safeName}`
+    setMediaUploading(`${sectionKey}:${questionLabel}`)
+    const { error } = await supabase.storage.from('athlete-media').upload(path, file, { contentType: file.type || undefined })
+    setMediaUploading(null)
+    if (error) { alert('Upload failed: ' + error.message + (/size|large|exceed/i.test(error.message) ? ' -- the file is too big; trim the video or send a shorter clip.' : '')); return }
     const { data: urlData } = supabase.storage.from('athlete-media').getPublicUrl(path)
     const existing = apData?.media_files || []
     const updated = [...existing, {
@@ -4401,26 +4411,27 @@ export default function AthleteApp() {
     if (n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) a--
     return a < 18
   })()
+  function openMediaPicker(sectionKey, questionLabel, camera) {
+    mediaTargetRef.current = { sectionKey, questionLabel }
+    ;(camera ? mediaCameraRef : mediaFileRef).current?.click()
+  }
   function QuestionMediaUpload({ sectionKey, questionLabel }) {
     if (uploadsBlocked) return null // under 18 (or no date of birth): no photo / video uploads
-    const idBase = `qmedia-${sectionKey}-${questionLabel}`.replace(/[^a-zA-Z0-9]/g, '-')
     const todayStr = new Date().toISOString().split('T')[0]
+    const busy = mediaUploading === `${sectionKey}:${questionLabel}`
     const attached = (apData?.media_files || []).filter(f => f.section_key === sectionKey && f.question_label === questionLabel && f.session_date === todayStr)
     return (
       <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
         <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Attach photo/video</label>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <input type="file" accept="image/*,video/*" style={{ display: 'none' }} id={`${idBase}-file`}
-            onChange={e => { const f = e.target.files[0]; if (f) uploadQuestionMedia(sectionKey, questionLabel, f); e.target.value = '' }} />
-          <label htmlFor={`${idBase}-file`} className="btn btn-sm" style={{ cursor: 'pointer' }}>📁 Upload file</label>
-          <input type="file" accept="image/*,video/*" capture="environment" style={{ display: 'none' }} id={`${idBase}-camera`}
-            onChange={e => { const f = e.target.files[0]; if (f) uploadQuestionMedia(sectionKey, questionLabel, f); e.target.value = '' }} />
-          <label htmlFor={`${idBase}-camera`} className="btn btn-sm" style={{ cursor: 'pointer' }}>📷 Take photo/video</label>
+          <button type="button" className="btn btn-sm" disabled={busy} onClick={() => openMediaPicker(sectionKey, questionLabel, false)}>📁 Upload file</button>
+          <button type="button" className="btn btn-sm" disabled={busy} onClick={() => openMediaPicker(sectionKey, questionLabel, true)}>📷 Take photo/video</button>
+          {busy && <span style={{ fontSize: 12, color: 'var(--text-secondary)', alignSelf: 'center' }}>Uploading…</span>}
         </div>
         {attached.length > 0 && (
           <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
             {attached.map((f, i) => (
-              <a key={i} href={f.url} target="_blank" rel="noreferrer">
+              <a key={i} href={f.url} onClick={e => { e.preventDefault(); setMediaViewer({ items: attached, index: i }) }}>
                 {f.type?.startsWith('image') ? (
                   <img src={f.url} alt={f.name} style={{ width: 50, height: 50, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)' }} />
                 ) : (
@@ -4918,6 +4929,11 @@ export default function AthleteApp() {
       {tab === 'home' && (
         <div className="neon-home">
           {HistoryViewModal()}
+          <input ref={mediaFileRef} type="file" accept="image/*,video/*" style={{ display: 'none' }}
+            onChange={e => { const f = e.target.files?.[0]; const t = mediaTargetRef.current; e.target.value = ''; if (f && t) uploadQuestionMedia(t.sectionKey, t.questionLabel, f) }} />
+          <input ref={mediaCameraRef} type="file" accept="image/*,video/*" capture="environment" style={{ display: 'none' }}
+            onChange={e => { const f = e.target.files?.[0]; const t = mediaTargetRef.current; e.target.value = ''; if (f && t) uploadQuestionMedia(t.sectionKey, t.questionLabel, f) }} />
+          {mediaViewer && <MediaViewer items={mediaViewer.items} start={mediaViewer.index} onClose={() => setMediaViewer(null)} />}
           {fightOpen && <FightGame onClose={() => setFightOpen(false)} onRound={() => saveMentalityField('gaming', cur => ({ ...cur, count: (cur.count || 0) + 1 }))} />}
           {chessOpen && <ChessGame onClose={() => setChessOpen(false)} onFinished={() => saveMentalityField('chess', cur => ({ ...cur, count: (cur.count || 0) + 1 }))} />}
           {guidedFor && <GuidedSession kind={guidedFor.field} type={guidedFor.type} colour="#22B14C" onClose={() => setGuidedFor(null)} onComplete={mins => saveMentalityField(guidedFor.field, cur => ({ ...cur, entries: [...(cur.entries || []), { type: guidedFor.type, duration: String(mins), guided: true }] }))} />}
