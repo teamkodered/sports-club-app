@@ -100,7 +100,7 @@ const FORMS = [
   },
 ]
 
-function ShareModal({ form, onClose }) {
+export function ShareModal({ form, onClose }) {
   const url = `${BASE_URL}${form.path}`
   const [copied, setCopied] = useState(false)
   const msg = `Hi! Please use this link to complete your ${form.label} form: ${url}`
@@ -529,3 +529,6 @@ export default function Forms() {
   )
 }
 
+
+// Used by Settings -> Team to share the coach sign-up link with the same share window
+export const COACH_SIGNUP_FORM = FORMS.find(f => f.key === 'coach_signup')
