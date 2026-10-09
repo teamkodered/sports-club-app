@@ -7,11 +7,11 @@ import { useEffect, useRef, useState } from 'react'
 
 const W = 800, H = 450, FLOOR = 380, GRAV = 0.9
 const FIGHTERS = [
-  { key: 'mentality', name: 'MENTALITY', colour: '#22B14C', trim: '#0E5F27', speed: 4.2, power: 1.0, reach: 1.0, special: 'wave', specialName: 'Focus Wave' },
-  { key: 'technical', name: 'TECHNICAL', colour: '#2F6BFF', trim: '#13306F', speed: 4.6, power: 0.95, reach: 1.05, special: 'rush', specialName: 'Combo Rush' },
-  { key: 'tactical', name: 'TACTICAL', colour: '#FF2A2A', trim: '#6F1010', speed: 4.3, power: 1.0, reach: 1.0, special: 'counter', specialName: 'Counter' },
-  { key: 'physical', name: 'PHYSICAL', colour: '#E6B800', trim: '#6A5400', speed: 3.8, power: 1.2, reach: 0.95, special: 'upper', specialName: 'Power Uppercut' },
-  { key: 'foundation', name: 'FOUNDATION', colour: '#C93BFF', trim: '#55157A', speed: 3.9, power: 1.05, reach: 1.0, special: 'quake', specialName: 'Shockwave' },
+  { key: 'mentality', name: 'MENTALITY', colour: '#22B14C', trim: '#0E5F27', speed: 4.2, power: 1.0, reach: 1.0, special: 'wave', specialName: 'Focus Wave' , combos: [{ name: 'Calm Storm', seq: ['lp', 'lp', 'hp'], bonus: 1.6 }, { name: 'Mind Lock', seq: ['d', 'lk', 'hk'], bonus: 1.7 }, { name: 'Focus Chain', seq: ['lp', 'hk', 'sp'], bonus: 1.5 }] },
+  { key: 'technical', name: 'TECHNICAL', colour: '#2F6BFF', trim: '#13306F', speed: 4.6, power: 0.95, reach: 1.05, special: 'rush', specialName: 'Combo Rush' , combos: [{ name: '1-2-Hook', seq: ['lp', 'lp', 'hp'], bonus: 1.5 }, { name: 'Teep & Cross', seq: ['lk', 'lp', 'hk'], bonus: 1.7 }, { name: 'Blitz', seq: ['lp', 'lp', 'lp', 'lp'], bonus: 2.0 }] },
+  { key: 'tactical', name: 'TACTICAL', colour: '#FF2A2A', trim: '#6F1010', speed: 4.3, power: 1.0, reach: 1.0, special: 'counter', specialName: 'Counter' , combos: [{ name: 'Check & Counter', seq: ['b', 'lp', 'hp'], bonus: 1.7 }, { name: 'Feint Kick', seq: ['lp', 'f', 'hk'], bonus: 1.7 }, { name: 'Ring Cutter', seq: ['lk', 'lk', 'hp'], bonus: 1.6 }] },
+  { key: 'physical', name: 'PHYSICAL', colour: '#E6B800', trim: '#6A5400', speed: 3.8, power: 1.2, reach: 0.95, special: 'upper', specialName: 'Power Uppercut' , combos: [{ name: 'Bulldozer', seq: ['hp', 'hp', 'hk'], bonus: 1.5 }, { name: 'Body Breaker', seq: ['d', 'hp', 'hp'], bonus: 1.7 }, { name: 'Power Drive', seq: ['f', 'f', 'hp'], bonus: 1.8 }] },
+  { key: 'foundation', name: 'FOUNDATION', colour: '#C93BFF', trim: '#55157A', speed: 3.9, power: 1.05, reach: 1.0, special: 'quake', specialName: 'Shockwave' , combos: [{ name: 'Ground Pound', seq: ['lk', 'lk', 'hk'], bonus: 1.6 }, { name: 'Anchor', seq: ['d', 'lk', 'hp'], bonus: 1.7 }, { name: 'Rooted Rush', seq: ['lp', 'lk', 'hp', 'hk'], bonus: 1.9 }] },
 ]
 // startup / active / recovery frames, damage, reach (px), hitbox height: 'high' | 'mid' | 'low'
 const MOVES = {
@@ -24,8 +24,14 @@ const MOVES = {
   jk: { s: 3, a: 8, r: 4, dmg: 9, reach: 70, h: 'high', push: 6 },
 }
 
+// Combos: press the inputs in order (each within ~0.6 s). The finishing move hits harder.
+// f = towards the opponent, b = away, d = down.
+const COMBO_GAP = 36 // frames allowed between inputs
+const TOKEN = { f: '▶', b: '◀', d: '▼', lp: 'LP', hp: 'HP', lk: 'LK', hk: 'HK', sp: 'SP' }
+export const comboLabel = seq => seq.map(t => TOKEN[t] || t).join(' ')
+
 function makeFighter(def, x, facing) {
-  return { def, x, y: FLOOR, vx: 0, vy: 0, facing, hp: 100, state: 'idle', t: 0, move: null, hitDone: false, stun: 0, crouch: false, blocking: false, specialCd: 0, counterT: 0, flash: 0, wins: 0 }
+  return { buf: [], prevDir: {}, comboNext: null, comboText: 0, comboName: '', def, x, y: FLOOR, vx: 0, vy: 0, facing, hp: 100, state: 'idle', t: 0, move: null, hitDone: false, stun: 0, crouch: false, blocking: false, specialCd: 0, counterT: 0, flash: 0, wins: 0 }
 }
 
 // ---------------- sound ----------------
@@ -154,9 +160,11 @@ export default function FightGame({ onRound, onClose }) {
     const lvl = { easy: { react: 26, aggro: 0.25, block: 0.15, special: 0.002 }, medium: { react: 14, aggro: 0.45, block: 0.45, special: 0.006 }, hard: { react: 7, aggro: 0.65, block: 0.75, special: 0.012 } }[level]
 
     function startMove(f, k) {
-      if (f.move || f.stun > 0 || f.state === 'ko') return
+      if (f.stun > 0 || f.state === 'ko') return
+      if (f.move && !(f.hitDone && f.t >= f.move.s + f.move.a && k !== 'sp' || f.comboNext)) return // chain only after a landed hit (or a combo input)
       if (k === 'sp') {
-        if (f.specialCd > 0) return
+        if (f.specialCd > 0 && !f.comboNext) return
+        if (f.comboNext) { f.comboName = f.comboNext.name; f.comboText = 70; S.sfx.special() }
         f.specialCd = 150; S.sfx.special()
         const sp = f.def.special
         if (sp === 'wave') { f.move = { k: 'lp', s: 8, a: 2, r: 16, dmg: 0, reach: 30, h: 'high', push: 0 }; S.projectiles.push({ owner: f, x: f.x + 50 * f.facing, y: f.y - 110, vx: 7 * f.facing, dmg: 11, h: 'high', colour: f.def.colour, low: false, life: 140, delay: 8 }) }
@@ -164,13 +172,14 @@ export default function FightGame({ onRound, onClose }) {
         else if (sp === 'rush') { f.move = { k: 'rush', s: 4, a: 14, r: 14, dmg: 13, reach: 75, h: 'high', push: 9 }; f.vx = 8.5 * f.facing }
         else if (sp === 'upper') { f.move = { k: 'upper', s: 3, a: 8, r: 20, dmg: 15, reach: 66, h: 'high', push: 12 }; f.vy = -15 }
         else if (sp === 'counter') { f.counterT = 40; f.move = { k: 'lp', s: 40, a: 0, r: 6, dmg: 0, reach: 0, h: 'high', push: 0 } }
-        f.t = 0; f.hitDone = false; return
+        f.t = 0; f.hitDone = false; f.comboNext = null; return
       }
       let key = k
       if (f.y < FLOOR) { if (k === 'lk' || k === 'hk' || k === 'lp' || k === 'hp') key = 'jk'; else return }
       else if (f.crouch) key = (k === 'lp' || k === 'hp') ? 'clp' : 'clk'
       const m = MOVES[key]
       f.move = { k: key, ...m, reach: m.reach * f.def.reach, dmg: m.dmg * f.def.power }
+      if (f.comboNext) { f.move.combo = f.comboNext; f.move.dmg *= f.comboNext.bonus; f.move.push *= 1.4; f.comboNext = null }
       f.t = 0; f.hitDone = false; S.sfx.whoosh()
     }
     // standing block stops high + mid; low attacks must be blocked crouching (down-back)
@@ -185,6 +194,7 @@ export default function FightGame({ onRound, onClose }) {
     }
     function update(f, o, ctl) {
       if (f.specialCd > 0) f.specialCd--
+      if (f.comboText > 0) f.comboText--
       if (f.counterT > 0) f.counterT--
       if (f.flash > 0) f.flash--
       f.facing = o.x > f.x ? 1 : -1
@@ -203,7 +213,22 @@ export default function FightGame({ onRound, onClose }) {
           }
           f.state = !grounded ? 'jump' : f.vx !== 0 ? 'walk' : 'idle'
         }
-        for (const k of ['lp', 'hp', 'lk', 'hk', 'sp']) if (ctl[k + 'Pressed']) { startMove(f, k); break }
+        // record inputs for combos: direction taps (relative) and buttons
+        const dirNow = { f: !!fwd, b: !!back, d: !!ctl.down }
+        for (const t of ['f', 'b', 'd']) if (dirNow[t] && !f.prevDir[t]) f.buf.push({ t, at: S.frame })
+        f.prevDir = dirNow
+        for (const k of ['lp', 'hp', 'lk', 'hk', 'sp']) if (ctl[k + 'Pressed']) {
+          f.buf.push({ t: k, at: S.frame })
+          f.buf = f.buf.filter(x => S.frame - x.at < COMBO_GAP * 5).slice(-8)
+          // does the end of the buffer complete one of this fighter's combos?
+          for (const c of (f.def.combos || [])) {
+            const tail = f.buf.slice(-c.seq.length)
+            if (tail.length === c.seq.length && tail.every((x, i) => x.t === c.seq[i] && (i === 0 || x.at - tail[i - 1].at <= COMBO_GAP))) {
+              f.comboNext = c; f.buf = []; break
+            }
+          }
+          startMove(f, k); break
+        }
       }
       // move timeline
       if (f.move) {
@@ -211,7 +236,7 @@ export default function FightGame({ onRound, onClose }) {
         const m = f.move
         if (!f.hitDone && m.dmg > 0 && f.t >= m.s && f.t < m.s + m.a) {
           const dist = Math.abs(o.x - f.x), heightOK = m.h === 'high' ? o.y > f.y - 120 : true
-          if (dist <= m.reach + 20 && heightOK) { f.hitDone = true; applyHit(f, o, m.dmg, m.push, m.h) }
+          if (dist <= m.reach + 20 && heightOK) { f.hitDone = true; if (m.combo) { f.comboName = m.combo.name; f.comboText = 70; S.shake = 10; S.sfx.special() } applyHit(f, o, m.dmg, m.push, m.h) }
         }
         if (f.move && f.t >= m.s + m.a + m.r) { f.move = null; if (grounded) f.vx = 0 }
         if (f.move && f.move.k === 'rush' && f.t > m.s + m.a) f.vx *= 0.8
@@ -238,7 +263,20 @@ export default function FightGame({ onRound, onClose }) {
       else if (a.plan === 'backoff') ctl[away] = true
       else if (a.plan === 'jumpin') { ctl[toward] = true; ctl.upPressed = cpu.y >= FLOOR; a.plan = 'airkick' }
       else if (a.plan === 'airkick') { ctl[toward] = true; if (cpu.y < FLOOR - 60 && dist < 110) { ctl.hkPressed = true; a.plan = 'wait' } }
-      else if (a.plan === 'attack') { const opts = ['lp', 'lp', 'hp', 'lk', 'hk']; ctl[opts[Math.floor(Math.random() * opts.length)] + 'Pressed'] = true; a.plan = 'wait' }
+      else if (a.plan === 'attack') {
+        const combos = cpu.def.combos || []
+        if (combos.length && Math.random() < lvl.aggro * 0.6) { const c = combos[Math.floor(Math.random() * combos.length)]; a.queue = [...c.seq]; a.qWait = 0; a.plan = 'combo' }
+        else { const opts = ['lp', 'lp', 'hp', 'lk', 'hk']; ctl[opts[Math.floor(Math.random() * opts.length)] + 'Pressed'] = true; a.plan = 'wait' }
+      }
+      else if (a.plan === 'combo') {
+        // feed the combo inputs a few frames apart
+        if (a.qWait > 0) a.qWait--
+        else if (a.queue?.length) {
+          const t = a.queue.shift()
+          if (t === 'f') ctl[toward] = true; else if (t === 'b') ctl[away] = true; else if (t === 'd') ctl.down = true; else ctl[t + 'Pressed'] = true
+          a.qWait = 8 + Math.floor(Math.random() * 6)
+        } else a.plan = 'wait'
+      }
       else if (a.plan === 'crouchkick') { ctl.down = true; ctl.lkPressed = true; a.plan = 'wait' }
       else if (a.plan === 'special') { if (['wave', 'quake'].includes(cpu.def.special) || dist < 150) ctl.spPressed = true; else ctl[toward] = true; if (ctl.spPressed) a.plan = 'wait' }
       return ctl
@@ -307,6 +345,13 @@ export default function FightGame({ onRound, onClose }) {
       // projectiles
       for (const pj of S.projectiles) { if (pj.delay > 0) continue; g.fillStyle = pj.colour; g.shadowColor = pj.colour; g.shadowBlur = 20; g.beginPath(); if (pj.low) g.ellipse(pj.x, pj.y, 26, 10, 0, 0, Math.PI * 2); else g.arc(pj.x, pj.y, 16, 0, Math.PI * 2); g.fill(); g.shadowBlur = 0 }
       drawFighter(g, p1, S.frame); drawFighter(g, p2, S.frame)
+      for (const f of [p1, p2]) if (f.comboText > 0) {
+        g.save(); g.globalAlpha = Math.min(1, f.comboText / 20); g.textAlign = 'center'
+        g.font = 'italic 900 26px sans-serif'; g.fillStyle = '#F5C542'; g.strokeStyle = '#000'; g.lineWidth = 5
+        const y = f.y - 190 - (70 - f.comboText) * 0.4
+        g.strokeText(f.comboName.toUpperCase() + '!', f.x, y); g.fillText(f.comboName.toUpperCase() + '!', f.x, y)
+        g.restore()
+      }
       g.restore()
       // HUD
       const bar = (x, f, right) => {
@@ -367,7 +412,16 @@ export default function FightGame({ onRound, onClose }) {
               </button>
             ))}
           </div>
-          <p style={{ fontSize: 13, margin: '0 0 14px' }}>Special: <b style={{ color: FIGHTERS[pick].colour }}>{FIGHTERS[pick].specialName}</b></p>
+          <p style={{ fontSize: 13, margin: '0 0 6px' }}>Special: <b style={{ color: FIGHTERS[pick].colour }}>{FIGHTERS[pick].specialName}</b></p>
+          <div style={{ fontSize: 12, margin: '0 0 14px', padding: '8px 10px', borderRadius: 8, background: '#1A1F24', border: '1px solid #2A3138' }}>
+            <div style={{ color: '#9A9A9A', marginBottom: 4 }}>Combos (press in order, quickly)</div>
+            {(FIGHTERS[pick].combos || []).map(c => (
+              <div key={c.name} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '2px 0' }}>
+                <b style={{ color: FIGHTERS[pick].colour }}>{c.name}</b>
+                <span style={{ fontFamily: 'monospace', color: '#F2F2F2' }}>{comboLabel(c.seq)}</span>
+              </div>
+            ))}
+          </div>
           <p style={{ fontSize: 12, color: '#9A9A9A', margin: '0 0 6px' }}>Opponent</p>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
             <button type="button" onClick={() => setCpuPick(null)} style={{ ...pad, width: 'auto', height: 34, padding: '0 10px', fontSize: 12, borderColor: cpuPick == null ? '#F5C542' : '#2A3138' }}>Random</button>
