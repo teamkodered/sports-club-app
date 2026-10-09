@@ -1392,7 +1392,7 @@ export default function CRM() {
   function nextEnquiryStatus(current, hint) {
     const ORDER = ['not_started', 'contacted', 'trial_booked', 'attended', 'joined']
     const target = hint || 'contacted'
-    if (!current || current === 'waiting_list' || current === 'not_interested') return current || target
+    if (!current || current === 'waiting_list' || current === 'not_interested' || String(current).startsWith('sent_')) return current || target
     return ORDER.indexOf(current) >= ORDER.indexOf(target) ? current : target
   }
   // Find an existing enquiry for this email -- including one saved earlier with the scrambled address
@@ -2458,7 +2458,7 @@ export default function CRM() {
                   <div>
                     <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>Status</label>
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      {[['not_started', 'Enquiry', '#EF9F27'], ['contacted', 'Contacted', '#378ADD'], ['trial_booked', 'Trial booked', '#8B5CF6'], ['attended', 'Attended', '#0EA5A4'], ['joined', 'Joined', '#1D9E75'], ['waiting_list', 'Waiting list', '#EF9F27'], ['not_interested', 'Not interested', '#9CA3AF']].map(([k, l, c]) => (
+                      {[['not_started', 'Enquiry', '#EF9F27'], ['contacted', 'Contacted', '#378ADD'], ['trial_booked', 'Trial booked', '#8B5CF6'], ['attended', 'Attended', '#0EA5A4'], ['joined', 'Joined', '#1D9E75'], ['waiting_list', 'Waiting list', '#EF9F27'], ['not_interested', 'Not interested', '#9CA3AF'], ['sent_derby_moore', 'Sent to Derby Moore', '#6366F1'], ['sent_moorways', 'Sent to Moorways', '#6366F1']].map(([k, l, c]) => (
                         <button key={k} type="button" onClick={() => setEnquiryDraft(d => ({ ...d, status: k }))}
                           style={{ padding: '6px 12px', borderRadius: 16, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)', border: `1px solid ${enquiryDraft.status === k ? c : 'var(--border-strong)'}`, background: enquiryDraft.status === k ? c + '22' : 'transparent', color: enquiryDraft.status === k ? c : 'var(--text-secondary)', fontWeight: enquiryDraft.status === k ? 700 : 400 }}>{l}</button>
                       ))}
@@ -3323,12 +3323,18 @@ export default function CRM() {
                 if (editingEnquiryId === enq.id) return <div key={enq.id} id={`enq-${enq.id}`}>{enquiryForm()}</div>
                 const stageIdx = ENQUIRY_STAGES.findIndex(s => s.key === enq.status)
                 const stage = stageIdx >= 0 ? ENQUIRY_STAGES[stageIdx] : ENQUIRY_STAGES[0]
-                const borderColour = enq.status === 'not_interested' ? '#9CA3AF' : enq.status === 'waiting_list' ? '#EF9F27' : stage.colour
+                const sentTo = enq.status === 'sent_derby_moore' ? 'Derby Moore' : enq.status === 'sent_moorways' ? 'Moorways' : null
+                const borderColour = enq.status === 'not_interested' ? '#9CA3AF' : enq.status === 'waiting_list' ? '#EF9F27' : sentTo ? '#6366F1' : stage.colour
                 return (
                 <div key={enq.id} className="card" style={{ padding: 14, borderLeft: `4px solid ${borderColour}` }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 10, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      {enq.status === 'not_interested' ? (
+                      {sentTo ? (
+                        <>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: '#6366F1' }}>➡️ Sent to {sentTo}</span>
+                          <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => updateEnquiryStatus(enq.id, 'not_started')}>↺ Reopen</button>
+                        </>
+                      ) : enq.status === 'not_interested' ? (
                         <>
                           <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Not interested</span>
                           <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => updateEnquiryStatus(enq.id, 'not_started')}>↺ Reopen</button>
@@ -3351,6 +3357,14 @@ export default function CRM() {
                           )}
                           {enq.status !== 'joined' && (
                             <button className="btn btn-sm" style={{ fontSize: 10, color: 'var(--text-tertiary)' }} onClick={() => updateEnquiryStatus(enq.id, 'not_interested')}>Not interested</button>
+                          )}
+                          {enq.status !== 'joined' && (
+                            <select value="" aria-label="Send this enquiry to another venue" onChange={e => e.target.value && updateEnquiryStatus(enq.id, e.target.value)}
+                              style={{ fontSize: 10, height: 26, padding: '0 6px', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'var(--bg)', color: 'var(--text-tertiary)', cursor: 'pointer' }}>
+                              <option value="">Sent to…</option>
+                              <option value="sent_derby_moore">Derby Moore</option>
+                              <option value="sent_moorways">Moorways</option>
+                            </select>
                           )}
                         </>
                       )}
@@ -3436,10 +3450,11 @@ export default function CRM() {
                   </div>
                 </div>
               )}
-                const SECTIONS = [['not_started', 'Enquiries', '#EF9F27'], ['contacted', 'Contacted', '#378ADD'], ['trial_booked', 'Trial booked', '#8B5CF6'], ['attended', 'Attended', '#0EA5A4'], ['joined', 'Joined', '#1D9E75'], ['waiting_list', 'Waiting list', '#EF9F27'], ['not_interested', 'Not interested', '#9CA3AF']]
-                const known = new Set(SECTIONS.map(x => x[0]))
+                const SECTIONS = [['not_started', 'Enquiries', '#EF9F27'], ['contacted', 'Contacted', '#378ADD'], ['trial_booked', 'Trial booked', '#8B5CF6'], ['attended', 'Attended', '#0EA5A4'], ['joined', 'Joined', '#1D9E75'], ['waiting_list', 'Waiting list', '#EF9F27'], ['not_interested', 'Not interested', '#9CA3AF'], ['sent', 'Sent to other venues', '#6366F1']]
+                const known = new Set([...SECTIONS.map(x => x[0]), 'sent_derby_moore', 'sent_moorways'])
+                const sectionOf = st => String(st || '').startsWith('sent_') ? 'sent' : (known.has(st) ? st : 'not_started')
                 return SECTIONS.map(([key, label, colour]) => {
-                  const items = shown.filter(e => (known.has(e.status) ? e.status : 'not_started') === key)
+                  const items = shown.filter(e => sectionOf(e.status) === key)
                   if (!items.length) return null
                   const open = enquirySectionsOpen[key] === true
                   const header = (
@@ -3449,6 +3464,16 @@ export default function CRM() {
                     </button>
                   )
                   if (!open) return <Fragment key={key}>{header}</Fragment>
+                  if (key === 'sent') return (
+                    <Fragment key={key}>
+                      {header}
+                      {[['sent_derby_moore', 'Derby Moore'], ['sent_moorways', 'Moorways']].map(([st, venue]) => {
+                        const v = items.filter(e => e.status === st)
+                        if (!v.length) return null
+                        return <Fragment key={st}><div style={{ fontSize: 12, fontWeight: 600, color: '#6366F1', margin: '6px 0 2px 4px' }}>➡️ {venue} · {v.length}</div>{v.map(renderCard)}</Fragment>
+                      })}
+                    </Fragment>
+                  )
                   if (key !== 'trial_booked') return <Fragment key={key}>{header}{items.map(renderCard)}</Fragment>
                   // Trial booked: sub-grouped by how many times we've contacted them
                   const buckets = [[0, 'Not contacted yet'], [1, 'Contacted once'], [2, 'Contacted twice'], [3, 'Contacted 3+ times']]
