@@ -39,12 +39,11 @@ begin
   return query select (jsonb_array_elements_text(coalesce(a -> 'registers' -> 'classes', '[]'::jsonb)))::uuid;
 end $$;
 
--- 3. Students in those classes (current assignments, as the app counts them)
+-- 3. Students in those classes (everyone assigned to them)
 create or replace function public.kc_my_coached_student_ids()
 returns setof uuid language sql stable security definer set search_path = public as $$
   select distinct a.student_id from student_class_assignments a
   where a.class_id in (select public.kc_my_class_ids())
-    and (a.end_date is null or a.end_date >= current_date)
 $$;
 
 create or replace function public.kc_is_head_coach()
