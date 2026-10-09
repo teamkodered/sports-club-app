@@ -474,7 +474,10 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   const [fightersMenuOpen, setFightersMenuOpen] = useState(false)
   const [fightersCopied, setFightersCopied] = useState('')
   const [saveNewReason, setSaveNewReason] = useState(true)
-  const [pmOn, setPmOn] = useState(false)               // Points mode: tap a card to award pmReason
+  const [pmOn, setPmOn] = useState(false)
+  // Points mode: bring the reason panel to the top of the screen (class buttons are hidden while it's on)
+  const pmToTop = () => setTimeout(() => document.querySelector('.reg-m-pm')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60)
+               // Points mode: tap a card to award pmReason
   const [pmReason, setPmReason] = useState(null)
   const [pmPickerOpen, setPmPickerOpen] = useState(false)
   const [pmSearch, setPmSearch] = useState('')
@@ -1480,13 +1483,13 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   const isKR = regType === 'kr'
 
   return (
-    <div className={`reg-root${mShowTable ? ' reg-force-table' : ''}`} style={{ zoom: `${registerZoom}%` }} onClick={e => {
+    <div className={`reg-root${mShowTable ? ' reg-force-table' : ''}${pmOn ? ' reg-pm-active' : ''}`} style={{ zoom: `${registerZoom}%` }} onClick={e => {
       if (!e.target.closest('tr') && !e.target.closest('button') && !e.target.closest('input') && !e.target.closest('select') && !e.target.closest('.reg-m-card') && !e.target.closest('.reg-m-bulk') && !e.target.closest('.reg-award-modal'))
         setSelectedStudents([])
       if (groupFilterOpen) setGroupFilterOpen(false)
     }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+      <div className="reg-hide-in-pm" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
         <div className="page-header" style={{ marginBottom: 0 }}>
           {searchParams.get('student_id') && (
             <button className="btn btn-sm" style={{ marginBottom: 8 }} onClick={() => navigate(-1)}>← Back</button>
@@ -1522,7 +1525,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
           the Athlete Profile page (signalled by initialRegType being
           set), since that's the only context Team KR/KRBA buttons there
           are meant to offer, not the full set of registers. */}
-      <div className={initialRegType ? 'reg-desktop-only' : ''} style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
+      <div className={`reg-hide-in-pm${initialRegType ? ' reg-desktop-only' : ''}`} style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
         {(initialRegType ? REGISTER_TYPES.filter(r => r.key === 'kr' || r.key === 'krba') : REGISTER_TYPES).filter(r => regTypeAllowed(r.key)).map(r => (
           <button key={r.key} onClick={() => setRegType(r.key)} style={{
             padding: '8px 14px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
@@ -1570,7 +1573,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
           Hidden entirely when embedded in the Athlete Profile (initialRegType set) -- always shows the full
           KR/KRBA register there for now, rather than narrowing down to one specific class time. */}
       {!initialRegType && (todayClasses.length > 0 || derbyMooreClasses.length > 0 || moorwaysClasses.length > 0) && (
-        <div className="reg-class-pills" style={{ marginBottom: 12 }}>
+        <div className="reg-class-pills reg-hide-in-pm" style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {todayClasses.filter(classAllowed).map(c => (
               <div key={c.id} onClick={() => setClassFilter(c.id)} style={{
@@ -1832,7 +1835,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                 <button type="button" aria-label="Next day" onClick={() => stepDate(1)}>›</button>
               </div>
               <button type="button" className={`reg-m-icon reg-m-text${pmOn ? ' reg-m-pm-on' : ''}`} aria-pressed={pmOn}
-                onClick={() => { setSelectedStudents([]); setMExpanded(null); setPmOn(v => !v); if (!pmReason) setPmPickerOpen(true) }}
+                onClick={() => { setSelectedStudents([]); setMExpanded(null); setPmOn(v => { if (!v) pmToTop(); return !v }); if (!pmReason) setPmPickerOpen(true) }}
                 title="Points mode: pick a reason, then tap students to award it">⭐ Points</button>
               <button type="button" className="reg-m-icon reg-m-text" onClick={() => setMShowTable(true)} title="Show the full table (all columns and editing)">Table</button>
               <button type="button" className="reg-m-icon" aria-label="Register settings" onClick={() => setMSettingsOpen(true)}>
@@ -1855,15 +1858,15 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                   <button type="button" onClick={() => { setPmOn(false); setPmPickerOpen(false) }}>Done</button>
                 </div>
                 <div className="reg-m-reasons">
-                  {reasonsByUse.slice(0, 6).map(pt => <ReasonChip key={pt.label} pt={pt} on={pmReason?.label === pt.label} onPick={r => { setPmReason(r); setPmPickerOpen(false) }} />)}
+                  {reasonsByUse.slice(0, 6).map(pt => <ReasonChip key={pt.label} pt={pt} on={pmReason?.label === pt.label} onPick={r => { setPmReason(r); setPmPickerOpen(false); pmToTop() }} />)}
                   <button type="button" className="reg-m-reason more" onClick={() => setPmPickerOpen(v => !v)}>{pmPickerOpen ? 'Less' : 'More…'}</button>
                 </div>
                 {pmPickerOpen && (
                   <div className="reg-m-pm-picker">
-                    <input type="search" value={pmSearch} onChange={e => setPmSearch(e.target.value)} placeholder="Search reasons…" aria-label="Search reasons" />
+                    <input type="search" value={pmSearch} onChange={e => setPmSearch(e.target.value)} onFocus={pmToTop} placeholder="Search reasons…" aria-label="Search reasons" />
                     <div className="reg-m-reasons wrap">
-                      {reasonsByUse.filter(pt => !pmSearch.trim() || `${pt.label} ${pt.group || ''}`.toLowerCase().includes(pmSearch.trim().toLowerCase()))
-                        .map(pt => <ReasonChip key={pt.label} pt={pt} on={pmReason?.label === pt.label} onPick={r => { setPmReason(r); setPmPickerOpen(false); setPmSearch('') }} />)}
+                      {[...reasonsByUse].sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })).filter(pt => !pmSearch.trim() || `${pt.label} ${pt.group || ''}`.toLowerCase().includes(pmSearch.trim().toLowerCase()))
+                        .map(pt => <ReasonChip key={pt.label} pt={pt} on={pmReason?.label === pt.label} onPick={r => { setPmReason(r); setPmPickerOpen(false); setPmSearch(''); pmToTop() }} />)}
                     </div>
                     {pmSearch.trim() && !pointTypes.some(pt => pt.label.toLowerCase() === pmSearch.trim().toLowerCase()) && (
                       <div className="reg-m-newreason">
@@ -1881,7 +1884,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                               if (error) alert('Using it for now, but it could not be added to the reasons list: ' + error.message)
                               else setPointTypes(next)
                             }
-                            setPmReason(reason); setPmPickerOpen(false); setPmSearch(''); setPmNewPts(1)
+                            setPmReason(reason); setPmPickerOpen(false); setPmSearch(''); setPmNewPts(1); pmToTop()
                           }}>Add &amp; use</button>
                         </div>
                         <label><input type="checkbox" checked={saveNewReason} onChange={e => setSaveNewReason(e.target.checked)} /> Save to the reasons list for next time</label>

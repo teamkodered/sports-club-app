@@ -940,3 +940,9 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .reg-m-sortchain button { margin-left: 6px; width: 24px; height: 24px; border-radius: 12px; border: 1px solid var(--border-strong); background: var(--bg-secondary); color: var(--text); cursor: pointer; font-size: 11px; }
 .reg-m-sortrank { font-size: 9px; color: #378ADD; margin-left: 1px; }
 .reg-m-bulk-top button.on { background: #378ADD; border-color: #378ADD; color: #fff; }
+
+/* Register points mode (mobile): hide the header / register tabs / class buttons so the reason panel sits at the top */
+@media (max-width: 767px) {
+  .reg-pm-active .reg-hide-in-pm { display: none !important; }
+  .reg-m-pm { scroll-margin-top: 64px; }
+}
