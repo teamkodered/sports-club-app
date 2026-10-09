@@ -4954,7 +4954,10 @@ export default function AthleteApp() {
             onChange={e => { const files = [...(e.target.files || [])]; const t = mediaTargetRef.current; e.target.value = ''; if (t) files.forEach(f => uploadQuestionMedia(t.sectionKey, t.questionLabel, f)) }} />
           <input ref={mediaCameraRef} type="file" accept="image/*,video/*" capture="environment" style={{ display: 'none' }}
             onChange={e => { const f = e.target.files?.[0]; const t = mediaTargetRef.current; e.target.value = ''; if (f && t) uploadQuestionMedia(t.sectionKey, t.questionLabel, f) }} />
-          {mediaViewer && <MediaViewer items={mediaViewer.items} start={mediaViewer.index} onClose={() => setMediaViewer(null)} />}
+          {mediaViewer && <MediaViewer items={mediaViewer.items} start={mediaViewer.index} onClose={() => setMediaViewer(null)} onMeasure={item => setVideoTool({ mode: 'jump', fromViewer: item.url, label: (v, m) => m?.punchType ? `Save ${v} ms as ${m.punchType}` : `Save ${v}`, onSave: (v, info) => info?.mode === 'sprint'
+          ? savePhysicalField('running', [...todaysRunning, { id: newRunId(), category: 'Timed Sprints', mode: 'distance', test: info.distance ? `${info.distance}m` : '', sets: [{ value: String(v), isRest: false }] }], setTodaysRunning)
+          : info?.mode === 'punch' ? saveTestValue(`${info.punchType || 'Jab'} time (ms)`, String(v))
+          : saveTestValue('Vertical Jump (distance)', String(v)) })} />}
           {bgUploads.length > 0 && (
             <div style={{ position: 'fixed', left: 12, right: 12, bottom: 'calc(14px + env(safe-area-inset-bottom, 0px))', zIndex: 530, display: 'flex', flexDirection: 'column', gap: 6, pointerEvents: 'none' }}>
               {bgUploads.map(u => (
@@ -4971,7 +4974,7 @@ export default function AthleteApp() {
           {chessOpen && <ChessGame onClose={() => setChessOpen(false)} onFinished={() => saveMentalityField('chess', cur => ({ ...cur, count: (cur.count || 0) + 1 }))} />}
           {guidedFor && <GuidedSession kind={guidedFor.field} type={guidedFor.type} colour="#22B14C" onClose={() => setGuidedFor(null)} onComplete={mins => saveMentalityField(guidedFor.field, cur => ({ ...cur, entries: [...(cur.entries || []), { type: guidedFor.type, duration: String(mins), guided: true }] }))} />}
           {videoTool?.mode === 'count' && <PunchCountTool onSave={({ perRound, perMinute }) => saveTestValues({ 'Punches per round': String(perRound), 'Punches per minute': String(perMinute) })} onClose={() => setVideoTool(null)} />}
-          {videoTool && videoTool.mode !== 'count' && <VideoMeasureTool mode={videoTool.mode} defaultDistance={videoTool.distance} saveLabel={videoTool.label} onResult={videoTool.onSave} onClose={() => setVideoTool(null)} />}
+          {videoTool && videoTool.mode !== 'count' && <VideoMeasureTool mode={videoTool.mode} defaultDistance={videoTool.distance} saveLabel={videoTool.label} onResult={videoTool.onSave} onClose={() => setVideoTool(null)} initialUrl={videoTool.fromViewer || null} switchable={!!videoTool.fromViewer} zIndex={videoTool.fromViewer ? 540 : 480} />}
           {UndoBar()}
           {student ? (
             <>

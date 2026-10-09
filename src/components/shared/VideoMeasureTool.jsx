@@ -14,9 +14,11 @@ import { useEffect, useRef, useState } from 'react'
 const G = 9.81
 const fmt = (n, d = 2) => (n == null || isNaN(n) ? '—' : Number(n).toFixed(d))
 
-export default function VideoMeasureTool({ mode = 'jump', defaultDistance = '', saveLabel, onResult, onClose }) {
+export default function VideoMeasureTool({ mode: modeProp = 'jump', defaultDistance = '', saveLabel, onResult, onClose, initialUrl = null, switchable = false, zIndex = 480 }) {
+  // initialUrl: measure an already-uploaded video (opened from the media viewer); switchable: Jump / Sprint / Punch toggle
+  const [mode, setMode] = useState(modeProp)
   const videoRef = useRef(null)
-  const [url, setUrl] = useState(null)
+  const [url, setUrl] = useState(initialUrl)
   const [fps, setFps] = useState(240)
   const [slow, setSlow] = useState(1)
   const [t, setT] = useState(0)
@@ -27,7 +29,7 @@ export default function VideoMeasureTool({ mode = 'jump', defaultDistance = '', 
   const [distance, setDistance] = useState(String(defaultDistance || ''))
   const [saving, setSaving] = useState(false)
   const [punchType, setPunchType] = useState('Jab')
-  useEffect(() => () => { if (url) URL.revokeObjectURL(url) }, [url])
+  useEffect(() => () => { if (url && url.startsWith('blob:')) URL.revokeObjectURL(url) }, [url])
 
   const isJump = mode === 'jump'
   const isPunch = mode === 'punch'
@@ -54,10 +56,17 @@ export default function VideoMeasureTool({ mode = 'jump', defaultDistance = '', 
   const sel = { padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border-strong, #444)', background: 'var(--bg-secondary, #111)', color: 'var(--text, #fff)', fontSize: 13 }
 
   return (
-    <div role="dialog" aria-modal="true" style={{ position: 'fixed', inset: 0, zIndex: 480, background: 'var(--bg, #0B0F12)', display: 'flex', flexDirection: 'column', color: 'var(--text, #fff)' }}>
+    <div role="dialog" aria-modal="true" style={{ position: 'fixed', inset: 0, zIndex, background: 'var(--bg, #0B0F12)', display: 'flex', flexDirection: 'column', color: 'var(--text, #fff)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderBottom: '1px solid var(--border, #2A3138)' }}>
-        <button type="button" onClick={onClose} style={{ ...btn, height: 36 }}>✕</button>
+        <button type="button" onClick={onClose} style={{ ...btn, height: 36 }}>{initialUrl ? '← Back' : '✕'}</button>
         <h2 style={{ fontSize: 16, fontWeight: 700, flex: 1 }}>{isJump ? '📹 Jump height from video' : isPunch ? '📹 Punch speed from video' : '📹 Sprint time from video'}</h2>
+        {switchable && (
+          <div style={{ display: 'flex', gap: 4 }}>
+            {[['jump', 'Jump'], ['sprint', 'Sprint'], ['punch', 'Punch']].map(([k, l]) => (
+              <button key={k} type="button" onClick={() => { setMode(k); setA(null); setB(null) }} style={{ ...btn, height: 34, minWidth: 0, padding: '0 10px', fontSize: 13, borderColor: mode === k ? '#22B14C' : btn.border, color: mode === k ? '#22B14C' : btn.color }}>{l}</button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 14 }}>
@@ -149,9 +158,9 @@ export default function VideoMeasureTool({ mode = 'jump', defaultDistance = '', 
 
       {url && (
         <div style={{ padding: 14, borderTop: '1px solid var(--border, #2A3138)', display: 'flex', gap: 8 }}>
-          <button type="button" style={{ ...btn, flex: 1 }} onClick={() => { setUrl(null); setA(null); setB(null) }}>Another video</button>
+          {!initialUrl && <button type="button" style={{ ...btn, flex: 1 }} onClick={() => { setUrl(null); setA(null); setB(null) }}>Another video</button>}
           <button type="button" disabled={resultValue == null || saving} style={{ ...btn, flex: 2, background: resultValue != null ? '#22B14C' : btn.background, color: resultValue != null ? '#0A0A0A' : btn.color, borderColor: 'transparent' }}
-            onClick={async () => { setSaving(true); try { await onResult(resultValue, meta) ; onClose() } finally { setSaving(false) } }}>
+            onClick={async () => { setSaving(true); try { await onResult(resultValue, { ...(meta || {}), mode, distance: dist }) ; onClose() } finally { setSaving(false) } }}>
             {saving ? 'Saving…' : resultValue == null ? 'Mark both points' : (saveLabel ? saveLabel(resultValue, meta) : `Save ${resultValue}`)}
           </button>
         </div>
