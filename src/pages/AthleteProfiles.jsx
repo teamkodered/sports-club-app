@@ -3290,6 +3290,7 @@ export default function AthleteProfiles() {
   const [fightOpen, setFightOpen] = useState(false) // KR Fight game for Gaming (combat)
   const [chessOpen, setChessOpen] = useState(false) // in-app chess game for the Chess question
   const [guidedFor, setGuidedFor] = useState(null) // { field, type } -- guided meditation / visualisation session
+  const [bwVideoTick, setBwVideoTick] = useState(0) // re-mounts bodyweight set inputs after a video count / time is added
   const [videoTool, setVideoTool] = useState(null) // { mode: 'jump'|'sprint', distance, onSave, label }
   const [runEffortSel, setRunEffortSel] = useState({}) // running: which effort is being edited, per type ('__new__' = a new one)
   const [showPhysicalSection, setShowPhysicalSection] = useState(false)
@@ -9486,9 +9487,20 @@ export default function AthleteProfiles() {
                                         { key: 'reps', type: 'number', placeholder: 'Reps' },
                                       ]} />
                                   ) : (
-                                    <SetInput key={ex} sets={entry.sets || []} onChange={sets => upsertExercise(ex, cur => ({ ...cur, sets }))}
+                                    <>
+                                    {(grp.metric === 'reps' || grp.metric === 'time') && (
+                                      <button type="button" className="btn btn-sm" style={{ fontSize: 11, marginBottom: 6 }}
+                                        onClick={() => {
+                                          // Same as the Jumps question's 📹 button: measure on a video, the result is added as a set
+                                          const addSet = val => { upsertExercise(ex, cur => ({ ...cur, sets: [...(cur.sets || []).filter(x => x !== '' && x != null && typeof x !== 'object'), String(val)] })); setBwVideoTick(t => t + 1) }
+                                          if (grp.metric === 'reps') setVideoTool({ mode: 'reps', title: `📹 Count reps · ${ex}`, onSaveReps: addSet })
+                                          else setVideoTool({ mode: 'timer', label: v => `Add ${Math.floor(v / 60)}:${(v % 60).toFixed(1).padStart(4, '0')} to ${ex}`, onSave: v => addSet(`${Math.floor(v / 60)}:${(v % 60).toFixed(1).padStart(4, '0')}`) })
+                                        }}>{grp.metric === 'reps' ? '📹 Count reps from video' : '📹 Time from video'}</button>
+                                    )}
+                                    <SetInput key={`${ex}-${bwVideoTick}`} sets={entry.sets || []} onChange={sets => upsertExercise(ex, cur => ({ ...cur, sets }))}
                                       inputType={grp.metric === 'reps' ? 'number' : 'text'}
                                       placeholder={grp.metric === 'reps' ? 'e.g. 20' : 'e.g. 1:30'} />
+                                    </>
                                   )}
                                 </div>
                               )}
@@ -9611,8 +9623,9 @@ export default function AthleteProfiles() {
                   {fightOpen && <FightGame onClose={() => setFightOpen(false)} onRound={() => saveMentalityField('gaming', cur => ({ ...cur, count: (cur.count || 0) + 1 }))} />}
                   {chessOpen && <ChessGame onClose={() => setChessOpen(false)} onFinished={() => saveMentalityField('chess', cur => ({ ...cur, count: (cur.count || 0) + 1 }))} />}
                   {guidedFor && <GuidedSession kind={guidedFor.field} type={guidedFor.type} colour="#22B14C" onClose={() => setGuidedFor(null)} onComplete={mins => saveMentalityField(guidedFor.field, cur => ({ ...cur, entries: [...(cur.entries || []), { type: guidedFor.type, duration: String(mins), guided: true }] }))} />}
-                  {videoTool?.mode === 'count' && <PunchCountTool onSave={({ perRound, perMinute }) => saveTestValues({ 'Punches per round': String(perRound), 'Punches per minute': String(perMinute) })} onClose={() => setVideoTool(null)} />}
-                  {videoTool && videoTool.mode !== 'count' && <VideoMeasureTool mode={videoTool.mode} defaultDistance={videoTool.distance} saveLabel={videoTool.label} onResult={videoTool.onSave} onClose={() => setVideoTool(null)} />}
+                  {(videoTool?.mode === 'count' || videoTool?.mode === 'reps') && <PunchCountTool mode={videoTool.mode === 'reps' ? 'reps' : 'punches'} title={videoTool.title}
+                    onSave={({ perRound, perMinute, mode }) => mode === 'reps' ? videoTool.onSaveReps?.(perRound) : saveTestValues({ 'Punches per round': String(perRound), 'Punches per minute': String(perMinute) })} onClose={() => setVideoTool(null)} />}
+                  {videoTool && videoTool.mode !== 'count' && videoTool.mode !== 'reps' && <VideoMeasureTool mode={videoTool.mode} defaultDistance={videoTool.distance} saveLabel={videoTool.label} onResult={videoTool.onSave} onClose={() => setVideoTool(null)} />}
                   {UndoBar()}
                   {homePdpEditor && selected && <PdpItemEditorModal key={homePdpEditor.sectionKey + homePdpEditor.text} editor={homePdpEditor} apData={apData} setApData={setApData} studentId={selected.id} onClose={() => setHomePdpEditor(null)} />}
                   <PdpAddModal key={pdpAddTarget ? `${pdpAddTarget.q}:${pdpAddTarget.item}` : "none"} target={pdpAddTarget} onClose={() => setPdpAddTarget(null)} onSave={addToPdp} />

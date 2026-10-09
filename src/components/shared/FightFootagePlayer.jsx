@@ -147,7 +147,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
   const [isFullscreen, setIsFullscreen] = useState(false)
   // 📐 Measure: jump / sprint / punch speed / punch count on this video. Results are shown
   // to read off (View iT footage isn't tied to one athlete's test results).
-  const [measureMode, setMeasureMode] = useState(null) // null | 'jump' | 'sprint' | 'punch' | 'count'
+  const [measureMode, setMeasureMode] = useState(null) // null | 'jump' | 'sprint' | 'punch' | 'timer' | 'count' | 'reps'
   function openMeasure() {
     try { videoRef.current?.pause() } catch { /* */ }
     if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {})
@@ -1961,11 +1961,12 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
           </div>
         </div>
       )}
-      {measureMode && createPortal(measureMode !== 'count'
-        ? <VideoMeasureTool mode={measureMode} initialUrl={videoUrl} switchable zIndex={600}
-            onCount={() => setMeasureMode('count')}
+      {measureMode && createPortal(measureMode !== 'count' && measureMode !== 'reps'
+        ? <VideoMeasureTool key={measureMode} mode={measureMode} initialUrl={videoUrl} switchable zIndex={600}
+            onCount={() => setMeasureMode('count')} onReps={() => setMeasureMode('reps')}
             saveLabel={v => `Done (${v})`} onResult={() => {}} onClose={() => setMeasureMode(null)} />
-        : <PunchCountTool initialUrl={videoUrl} zIndex={600} onSave={() => {}} onClose={() => setMeasureMode(null)} />, document.body)}
+        : <PunchCountTool key={measureMode} mode={measureMode === 'reps' ? 'reps' : 'punches'} initialUrl={videoUrl} zIndex={600}
+            onSwitchMode={k => setMeasureMode(k)} onSave={() => {}} onClose={() => setMeasureMode(null)} />, document.body)}
     </div>
   )
 }

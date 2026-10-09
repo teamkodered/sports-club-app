@@ -76,7 +76,10 @@ function detectHits(series, sensitivity, slow) {
 }
 
 export default function PunchCountTool({ mode = 'punches', title, onSave, onClose, initialUrl = null, zIndex = 480, onSwitchMode, onFile }) {
-  const isReps = mode === 'reps'
+  // Count <-> Reps can be switched in place (only with onSwitchMode, i.e. opened on a video
+  // from View iT / the media viewer): each analysis keeps both signals, so it re-counts instantly.
+  const [cmode, setCmode] = useState(mode)
+  const isReps = cmode === 'reps'
   // initialUrl: count an already-uploaded video (from the media viewer)
   const videoRef = useRef(null)
   const stageRef = useRef(null)
@@ -229,7 +232,17 @@ export default function PunchCountTool({ mode = 'punches', title, onSave, onClos
     <div role="dialog" aria-modal="true" style={{ position: 'fixed', inset: 0, zIndex, background: 'var(--bg, #0B0F12)', display: 'flex', flexDirection: 'column', color: 'var(--text, #fff)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderBottom: '1px solid var(--border, #2A3138)' }}>
         <button type="button" onClick={() => { cancelRef.current = true; onClose() }} style={{ ...btn, height: 36 }}>{initialUrl ? '← Back' : '✕'}</button>
-        <h2 style={{ fontSize: 16, fontWeight: 700, flex: 1 }}>{title || (isReps ? '📹 Count reps from video' : '📹 Count punches from video')}</h2>
+        <h2 style={{ fontSize: 16, fontWeight: 700, flex: 1 }}>{onSwitchMode ? (isReps ? '📹 Count reps' : '📹 Count punches') : (title || (isReps ? '📹 Count reps from video' : '📹 Count punches from video'))}</h2>
+        {onSwitchMode && (
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            {[['jump', 'Jump'], ['sprint', 'Sprint'], ['punch', 'Punch'], ['timer', 'Time']].map(([k, l]) => (
+              <button key={k} type="button" onClick={() => { cancelRef.current = true; onSwitchMode(k) }} style={{ ...btn, height: 34, minWidth: 0, padding: '0 10px', fontSize: 13 }}>{l}</button>
+            ))}
+            {[['punches', 'Count'], ['reps', 'Reps']].map(([k, l]) => (
+              <button key={k} type="button" onClick={() => setCmode(k)} style={{ ...btn, height: 34, minWidth: 0, padding: '0 10px', fontSize: 13, borderColor: cmode === k ? '#22B14C' : btn.border, color: cmode === k ? '#22B14C' : btn.color }}>{l}</button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 14 }}>
@@ -351,7 +364,7 @@ export default function PunchCountTool({ mode = 'punches', title, onSave, onClos
         <div style={{ padding: 14, borderTop: '1px solid var(--border, #2A3138)', display: 'flex', gap: 8 }}>
           {!initialUrl && <button type="button" style={{ ...btn, flex: 1 }} onClick={() => { setUrl(null); setBox(null); setDrawMode(true); setRoundStart(null); setRoundEnd(null); reset() }}>Another video</button>}
           <button type="button" disabled={saving || perMinute == null} style={{ ...btn, flex: 2, background: '#22B14C', color: '#0A0A0A', borderColor: 'transparent' }}
-            onClick={async () => { setSaving(true); try { await onSave({ perRound: hits.length, perMinute: +perMinute.toFixed(1) }); onClose() } finally { setSaving(false) } }}>
+            onClick={async () => { setSaving(true); try { await onSave({ perRound: hits.length, perMinute: +perMinute.toFixed(1) , mode: cmode }); onClose() } finally { setSaving(false) } }}>
             {saving ? 'Saving…' : (isReps ? `Use ${hits.length} reps` : `Save ${hits.length} punches · ${fmt(perMinute, 1)}/min`)}
           </button>
         </div>

@@ -14,7 +14,7 @@ import { useEffect, useRef, useState } from 'react'
 const G = 9.81
 const fmt = (n, d = 2) => (n == null || isNaN(n) ? '—' : Number(n).toFixed(d))
 
-export default function VideoMeasureTool({ mode: modeProp = 'jump', defaultDistance = '', saveLabel, onResult, onClose, initialUrl = null, switchable = false, zIndex = 480, onCount, onFile }) {
+export default function VideoMeasureTool({ mode: modeProp = 'jump', defaultDistance = '', saveLabel, onResult, onClose, initialUrl = null, switchable = false, zIndex = 480, onCount, onReps, onFile }) {
   // initialUrl: measure an already-uploaded video (opened from the media viewer); switchable: Jump / Sprint / Punch toggle
   const [mode, setMode] = useState(modeProp)
   const videoRef = useRef(null)
@@ -64,10 +64,11 @@ export default function VideoMeasureTool({ mode: modeProp = 'jump', defaultDista
         <h2 style={{ fontSize: 16, fontWeight: 700, flex: 1 }}>{isJump ? '📹 Jump height from video' : isPunch ? '📹 Punch speed from video' : isTimer ? '📹 Time from video' : '📹 Sprint time from video'}</h2>
         {switchable && (
           <div style={{ display: 'flex', gap: 4 }}>
-            {[['jump', 'Jump'], ['sprint', 'Sprint'], ['punch', 'Punch']].map(([k, l]) => (
+            {[['jump', 'Jump'], ['sprint', 'Sprint'], ['punch', 'Punch'], ['timer', 'Time']].map(([k, l]) => (
               <button key={k} type="button" onClick={() => { setMode(k); setA(null); setB(null) }} style={{ ...btn, height: 34, minWidth: 0, padding: '0 10px', fontSize: 13, borderColor: mode === k ? '#22B14C' : btn.border, color: mode === k ? '#22B14C' : btn.color }}>{l}</button>
             ))}
             {onCount && <button type="button" onClick={onCount} style={{ ...btn, height: 34, minWidth: 0, padding: '0 10px', fontSize: 13 }}>Count</button>}
+            {onReps && <button type="button" onClick={onReps} style={{ ...btn, height: 34, minWidth: 0, padding: '0 10px', fontSize: 13 }}>Reps</button>}
           </div>
         )}
       </div>
