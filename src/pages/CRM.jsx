@@ -1397,15 +1397,17 @@ export default function CRM() {
   }
   // Find an existing enquiry for this email -- including one saved earlier with the scrambled address
   async function findEnquiryForEmail(d) {
-    const { data: byEmail, error } = await supabase.from('enquiries').select('id, contact_phone, name, status').ilike('contact_email', d.email).maybeSingle()
-    if (error) throw error
-    if (byEmail) return byEmail
-    if (d.oldEmail) {
-      const { data: byOld } = await supabase.from('enquiries').select('id, contact_phone, name, status').ilike('contact_email', d.oldEmail).maybeSingle()
-      return byOld || null
-    }
-    return null
+    // 1. exact address; 2. a saved address that ENDS with it (website emails glued the name onto
+    // the front, e.g. 'AdamKowalewskima.kowalewska@yahoo.com'); 3. the scrambled sender itself.
+    // Never errors on duplicates -- takes the most recent match.
+    const pick = async q => { const { data } = await q.order('updated_at', { ascending: false }).limit(1); return data?.[0] || null }
+    const cols = 'id, contact_phone, name, status, contact_email'
+    const esc = v => String(v).replace(/[%_]/g, m => '\\' + m)
+    return (await pick(supabase.from('enquiries').select(cols).ilike('contact_email', esc(d.email))))
+      || (d.email ? await pick(supabase.from('enquiries').select(cols).ilike('contact_email', '%' + esc(d.email))) : null)
+      || (d.oldEmail ? await pick(supabase.from('enquiries').select(cols).ilike('contact_email', esc(d.oldEmail))) : null)
   }
+
 
 
   // Re-reads recent website enquiry / booking emails (Inbox + Contacted) and repairs enquiries that
@@ -1416,13 +1418,15 @@ export default function CRM() {
     try {
       const { data: sessionData } = await supabase.auth.getSession()
       const accessToken = sessionData?.session?.access_token
-      let fixed = 0, checked = 0
+      let fixed = 0, checked = 0, failed = 0
       for (const folder of ['INBOX', 'Contacted']) {
         const res = await fetch(`/.netlify/functions/list-inbox?folder=${encodeURIComponent(folder)}&limit=300`, { headers: { Authorization: `Bearer ${accessToken}` } })
         const result = await res.json()
+        if (!res.ok || result.error) throw new Error(`${folder}: ${result.error || res.statusText}`)
         const msgs = (result.messages || []).filter(m => /website enquiry|new booking for event/i.test(m.subject || ''))
         for (const m of msgs) {
           checked++
+          try {
           const r = await fetch(`/.netlify/functions/list-inbox?uid=${m.uid}&folder=${encodeURIComponent(folder)}`, { headers: { Authorization: `Bearer ${accessToken}` } })
           const full = await r.json()
           const msg = { ...m, body: full.message?.body || '' }
@@ -1430,18 +1434,19 @@ export default function CRM() {
           const existing = await findEnquiryForEmail(d)
           if (!existing) continue
           const badName = !existing.name || /^\|/.test(existing.name)
-          const needs = badName || !existing.contact_phone || (d.oldEmail && true)
+          const needs = badName || !existing.contact_phone || (existing.contact_email || '').toLowerCase() !== (d.email || '').toLowerCase()
           if (!needs) continue
           const { error } = await supabase.from('enquiries').update({
             contact_email: d.email, contact_phone: existing.contact_phone || d.phone || null,
             ...(badName && d.name ? { name: d.name } : {}),
             status: nextEnquiryStatus(existing.status, d.status), updated_at: new Date().toISOString(),
           }).eq('id', existing.id)
-          if (!error) fixed++
+          if (!error) fixed++; else failed++
+          } catch { failed++ }
         }
       }
       await loadEnquiries()
-      alert(`Checked ${checked} website emails — repaired ${fixed} enquir${fixed === 1 ? 'y' : 'ies'}.`)
+      alert(`Checked ${checked} website emails — repaired ${fixed} enquir${fixed === 1 ? 'y' : 'ies'}${failed ? ` (${failed} couldn't be read)` : ''}.`)
     } catch (e) {
       alert('Repair failed: ' + e.message)
     } finally { setRepairing(false) }
