@@ -978,3 +978,5 @@ tbody tr:hover td { background: var(--bg-secondary); }
   font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800; font-size: 18px; letter-spacing: 1px; text-transform: uppercase;
   box-shadow: 0 0 10px rgba(230,184,0,0.35); cursor: pointer; -webkit-user-select: none; user-select: none; }
 .ts-measure-btn:active { background: rgba(230,184,0,0.25); }
+/* Primary buttons inside the dark athlete home: readable text */
+.neon-home .btn-primary { background: #F2F2F2 !important; color: #0A0A0A !important; border-color: #F2F2F2 !important; }
