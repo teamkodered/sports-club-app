@@ -4759,7 +4759,7 @@ export default function AthleteApp() {
           <div className="neon-header">
             <div className="neon-header-chips">
               <div className="neon-chip neon-chip-left" style={{ '--house': NEON_HOUSE_COLOURS[houseName] || colour }} title="House points earned this month">
-                    {monthHousePoints != null ? monthHousePoints.toLocaleString() : '—'}
+                    {monthHousePoints != null ? monthHousePoints.toLocaleString() : '—'}<span className="neon-chip-pts">PTS</span>
                   </div>
               <span className="neon-hex neon-hex-centre" onClick={e => { e.stopPropagation(); setTab('home') }}>
                 {student.is_kr && <img src="/logos/kr-dragon.gif" alt="Kode Red Kickboxing" />}

@@ -1008,3 +1008,5 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .ts-backdrop { align-items: flex-start !important; padding-top: 8px; }
 .ts-sheet { border-radius: 18px !important; max-height: calc(100dvh - 16px) !important; }
 .ts-cats { flex-wrap: wrap !important; overflow: visible !important; }
+
+.neon-chip-pts { font-family: 'Orbitron', sans-serif; font-style: normal; font-weight: 600; font-size: 9px; letter-spacing: 1.5px; margin-left: 5px; opacity: 0.85; align-self: center; }
