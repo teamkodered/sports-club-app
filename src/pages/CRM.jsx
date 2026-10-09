@@ -1346,6 +1346,21 @@ export default function CRM() {
       message: msgText || null,
     }
   }
+  // Website schedule bookings ("New booking for event: Ladies Only"):
+  //   User: Suraiyah lewis / Mail: name@x.com / Mail: 07514985769 / Event: Ladies Only / Day: Sunday / Time: 11.00 - 12.00
+  function parseBookingEmail(body) {
+    if (!body || !/Booking details/i.test(body)) return null
+    const field = k => { const m = body.match(new RegExp(k + '\\s*:\\s*([^\\n]+)', 'i')); return m ? m[1].trim() : null }
+    const email = (body.match(/Mail\s*:\s*([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})/i) || [])[1] || null
+    const phone = (body.match(/Mail\s*:\s*([+0-9][0-9 ()-]{7,})/i) || [])[1] || null
+    if (!email && !phone) return null
+    const event = field('Event'), day = field('Day'), time = field('Time'), where = field('Description 1')
+    return {
+      name: field('User'), email: email ? email.toLowerCase() : null, phone: phone ? phone.replace(/[\s()-]/g, '') : null,
+      notes: `Booked online: ${[event, day && time ? `${day} ${time}` : day || time, where].filter(Boolean).join(', ')}`,
+      booking: true,
+    }
+  }
   async function fetchMessageBody(msg) {
     if (msg.body !== undefined) return msg.body || ''
     const { data: sessionData } = await supabase.auth.getSession()
@@ -1359,6 +1374,12 @@ export default function CRM() {
     const body = await fetchMessageBody(msg)
     const web = parseWebsiteEnquiry(body)
     const notesBase = msg.subject ? `From email: "${msg.subject}"` : 'From email'
+    const booking = !web ? parseBookingEmail(body) : null
+    if (booking) return {
+      name: booking.name || booking.email?.split('@')[0] || 'Website booking', email: booking.email || msg.from, phone: booking.phone,
+      notes: booking.notes, status: 'trial_booked',   // they've booked a session -> straight to Trial booked
+      oldEmail: msg.from && booking.email && msg.from.toLowerCase() !== booking.email ? msg.from : null,
+    }
     if (web) return {
       name: web.name || msg.fromName || web.email.split('@')[0], email: web.email, phone: web.phone || extractPhoneNumber(body),
       notes: web.subject ? `Website enquiry: ${web.subject}${web.message ? ` — ${web.message}` : ''}` : notesBase,
@@ -1367,18 +1388,64 @@ export default function CRM() {
     }
     return { name: msg.fromName || msg.from.split('@')[0], email: msg.from, phone: extractPhoneNumber(body), notes: notesBase, oldEmail: null }
   }
+  // Emailing / booking only ever moves an enquiry FORWARD (never back from Trial booked, Attended or Joined)
+  function nextEnquiryStatus(current, hint) {
+    const ORDER = ['not_started', 'contacted', 'trial_booked', 'attended', 'joined']
+    const target = hint || 'contacted'
+    if (!current || current === 'waiting_list' || current === 'not_interested') return current || target
+    return ORDER.indexOf(current) >= ORDER.indexOf(target) ? current : target
+  }
   // Find an existing enquiry for this email -- including one saved earlier with the scrambled address
   async function findEnquiryForEmail(d) {
-    const { data: byEmail, error } = await supabase.from('enquiries').select('id, contact_phone, name').ilike('contact_email', d.email).maybeSingle()
+    const { data: byEmail, error } = await supabase.from('enquiries').select('id, contact_phone, name, status').ilike('contact_email', d.email).maybeSingle()
     if (error) throw error
     if (byEmail) return byEmail
     if (d.oldEmail) {
-      const { data: byOld } = await supabase.from('enquiries').select('id, contact_phone, name').ilike('contact_email', d.oldEmail).maybeSingle()
+      const { data: byOld } = await supabase.from('enquiries').select('id, contact_phone, name, status').ilike('contact_email', d.oldEmail).maybeSingle()
       return byOld || null
     }
     return null
   }
 
+
+  // Re-reads recent website enquiry / booking emails (Inbox + Contacted) and repairs enquiries that
+  // were saved with the scrambled sender: real name, clean email, phone number. Never moves status back.
+  const [repairing, setRepairing] = useState(false)
+  async function repairWebsiteEnquiries() {
+    setRepairing(true)
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData?.session?.access_token
+      let fixed = 0, checked = 0
+      for (const folder of ['INBOX', 'Contacted']) {
+        const res = await fetch(`/.netlify/functions/list-inbox?folder=${encodeURIComponent(folder)}&limit=300`, { headers: { Authorization: `Bearer ${accessToken}` } })
+        const result = await res.json()
+        const msgs = (result.messages || []).filter(m => /website enquiry|new booking for event/i.test(m.subject || ''))
+        for (const m of msgs) {
+          checked++
+          const r = await fetch(`/.netlify/functions/list-inbox?uid=${m.uid}&folder=${encodeURIComponent(folder)}`, { headers: { Authorization: `Bearer ${accessToken}` } })
+          const full = await r.json()
+          const msg = { ...m, body: full.message?.body || '' }
+          const d = await enquiryDetailsFromEmail(msg)
+          const existing = await findEnquiryForEmail(d)
+          if (!existing) continue
+          const badName = !existing.name || /^\|/.test(existing.name)
+          const needs = badName || !existing.contact_phone || (d.oldEmail && true)
+          if (!needs) continue
+          const { error } = await supabase.from('enquiries').update({
+            contact_email: d.email, contact_phone: existing.contact_phone || d.phone || null,
+            ...(badName && d.name ? { name: d.name } : {}),
+            status: nextEnquiryStatus(existing.status, d.status), updated_at: new Date().toISOString(),
+          }).eq('id', existing.id)
+          if (!error) fixed++
+        }
+      }
+      await loadEnquiries()
+      alert(`Checked ${checked} website emails — repaired ${fixed} enquir${fixed === 1 ? 'y' : 'ies'}.`)
+    } catch (e) {
+      alert('Repair failed: ' + e.message)
+    } finally { setRepairing(false) }
+  }
   async function addToEnquiries(msg) {
     if (!msg?.from) return
     try {
@@ -1387,7 +1454,7 @@ export default function CRM() {
       if (existing) {
         const badName = !existing.name || /^\|/.test(existing.name) || existing.name === 'Unknown'
         const { error: updateErr } = await supabase.from('enquiries').update({
-          status: 'contacted',
+          status: nextEnquiryStatus(existing.status, d.status),
           updated_at: new Date().toISOString(),
           contact_email: d.email,                                   // repairs a scrambled address
           contact_phone: existing.contact_phone || d.phone || null,  // don't overwrite an already-known number
@@ -1398,7 +1465,7 @@ export default function CRM() {
         const { error: insertErr } = await supabase.from('enquiries').insert({
           name: d.name, contact_email: d.email, contact_phone: d.phone || null, contact_method: 'email',
           enquiry_date: msg.date ? new Date(msg.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-          notes: d.notes, status: 'contacted',
+          notes: d.notes, status: d.status || 'contacted',
         })
         if (insertErr) throw insertErr
       }
@@ -1420,14 +1487,14 @@ export default function CRM() {
         if (existing) {
           const badName = !existing.name || /^\|/.test(existing.name) || existing.name === 'Unknown'
           await supabase.from('enquiries').update({
-            status: 'contacted', updated_at: new Date().toISOString(), contact_email: d.email,
+            status: nextEnquiryStatus(existing.status, d.status), updated_at: new Date().toISOString(), contact_email: d.email,
             contact_phone: existing.contact_phone || d.phone || null, ...(badName && d.name ? { name: d.name } : {}),
           }).eq('id', existing.id)
         } else {
           await supabase.from('enquiries').insert({
             name: d.name, contact_email: d.email, contact_phone: d.phone || null, contact_method: 'email',
             enquiry_date: msg.date ? new Date(msg.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-            notes: d.notes, status: 'contacted',
+            notes: d.notes, status: d.status || 'contacted',
           })
         }
         if (enquiriesLoaded) loadEnquiries()
@@ -3186,6 +3253,10 @@ export default function CRM() {
               <option value="not_interested">Not interested</option>
               <option value="waiting_list">Waiting list</option>
             </select>
+            <button className="btn btn-sm" disabled={repairing} onClick={repairWebsiteEnquiries}
+              title="Re-read recent website enquiry and booking emails and fix enquiries saved with a scrambled name/email or missing phone">
+              {repairing ? 'Repairing…' : '🔧 Repair website enquiries'}
+            </button>
             <button className="btn btn-sm btn-primary" onClick={() => { setShowNewEnquiryForm(true); setEnquiryDraft({ name: '', contact_phone: '', contact_email: '', contact_method: 'call', enquiry_date: new Date().toISOString().split('T')[0], notes: '' }) }}>+ Log new enquiry</button>
             <button className="btn btn-sm" onClick={() => exportToExcel(enquiries.map(e => ({
               Name: e.name, Phone: e.contact_phone || '', Email: e.contact_email || '',

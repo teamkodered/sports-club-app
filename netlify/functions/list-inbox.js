@@ -192,7 +192,8 @@ exports.handler = async (event) => {
         // selected mailbox).
         const total = client.mailbox?.exists || 0
         if (total > 0) {
-          const start = Math.max(1, total - 29)
+          const limit = Math.min(300, Math.max(1, parseInt(event.queryStringParameters?.limit, 10) || 30))
+          const start = Math.max(1, total - limit + 1)
           try {
             for await (const msg of client.fetch(`${start}:${total}`, { envelope: true, flags: true }, { uid: false })) {
               const replyTo = msg.envelope?.replyTo?.[0]
