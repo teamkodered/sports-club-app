@@ -44,7 +44,48 @@ async function attachTestVideo(studentId, file, label, date) {
   return e2 || null
 }
 
-export function TestSessionModal({ studentId, studentName, onClose, onSaved, allowUpload = false, onViewIt }) {
+// Test video -> View iT ("<Name> — Tests" folder, private to the athlete). Works for the athlete
+// themselves and for coaches; the server checks who may upload for whom.
+export async function uploadTestVideoToViewIt(studentId, file, title) {
+  const { data: sess } = await supabase.auth.getSession()
+  const call = body => fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fight-footage-url`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sess?.session?.access_token}` }, body: JSON.stringify(body),
+  }).then(r => r.json())
+  const up = await call({ mode: 'test_upload', student_id: studentId, file_name: file.name || 'video.mp4' })
+  if (up.error) throw new Error(up.error)
+  await new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('PUT', up.upload_url)
+    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300) ? resolve() : reject(new Error(`Upload failed (${xhr.status})`))
+    xhr.onerror = () => reject(new Error('Upload failed'))
+    xhr.send(file)
+  })
+  const reg = await call({ mode: 'test_register', student_id: studentId, storage_path: up.storage_path, title, file_size: file.size })
+  if (reg.error) throw new Error(reg.error)
+  return reg.footage_id
+}
+
+// +5 points for each test completed (once per test per day)
+export const TEST_POINTS = 5
+export async function awardTestPoints(studentId, testNames) {
+  if (!testNames.length) return 0
+  const today = new Date().toISOString().split('T')[0]
+  const labels = testNames.map(n => `Test completed: ${n}`)
+  const { data: done } = await supabase.from('points_log').select('point_type').eq('student_id', studentId).in('point_type', labels).gte('awarded_at', today)
+  const already = new Set((done || []).map(r => r.point_type))
+  const fresh = labels.filter(l => !already.has(l))
+  if (!fresh.length) return 0
+  const total = fresh.length * TEST_POINTS
+  const { data: s } = await supabase.from('students').select('house_name, members(houses(name))').eq('id', studentId).single()
+  const { error } = await supabase.from('points_log').insert(fresh.map(l => ({ student_id: studentId, point_type: l, points_awarded: TEST_POINTS, point_scope: 'both', awarded_at: new Date().toISOString() })))
+  if (error) { console.warn('Test points not saved:', error.message); return 0 }
+  await supabase.rpc('adjust_student_points', { p_student_id: studentId, p_house_delta: total, p_individual_delta: total })
+  const house = s?.house_name || s?.members?.houses?.name
+  if (house) await supabase.rpc('adjust_house_points', { p_house_name: house, p_delta: total })
+  return total
+}
+
+export function TestSessionModal({ studentId, studentName, onClose, onSaved, allowUpload = false, onPoints }) {
   // 📹 measuring from video: jump height / punch speed / punch count fill the boxes below;
   // the video is also kept with the athlete's test uploads (and in View iT when onViewIt is given)
   const [tool, setTool] = useState(null) // null | 'jump' | 'punch' | 'count'
@@ -53,7 +94,8 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
     const f = toolFile.current; if (!f) return
     toolFile.current = null
     if (allowUpload) attachTestVideo(studentId, f, label, date).then(err => { if (err) alert('Result saved, but the video could not be attached: ' + err.message) })
-    onViewIt?.(f, `${studentName || 'Athlete'} — ${label} · ${new Date(date + 'T12:00:00').toLocaleDateString('en-GB')}`)
+    if (allowUpload) uploadTestVideoToViewIt(studentId, f, `${studentName || 'Athlete'} — ${label} · ${new Date(date + 'T12:00:00').toLocaleDateString('en-GB')}`)
+      .catch(err => alert('Result kept, but the video could not be added to View iT: ' + err.message))
   }
   const [date, setDate] = useState(todayISO())
   const [catKey, setCatKey] = useState(TEST_CATEGORIES[0].key)
@@ -86,7 +128,10 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
       if (nums.length) values[k] = Math.max(...nums)
     })
     setSaving(true)
+    const before = history.find(s => s.session_date === date)?.test || {}
+    const completed = Object.entries(values).filter(([k, v]) => v !== '' && v != null && (before[k] === '' || before[k] == null)).map(([k]) => k)
     const { error, pbs: newPbs } = await saveTestResults(studentId, date, values, sets)
+    if (!error && completed.length) { const pts = await awardTestPoints(studentId, completed); if (pts) onPoints?.(pts) }
     setSaving(false)
     if (error) return alert('Could not save results: ' + error.message)
     onSaved && onSaved()

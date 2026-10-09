@@ -871,7 +871,7 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .neon-home .neon-pillar .neon-rope-letter { font-family: 'Saira Condensed', sans-serif !important; font-style: italic; font-weight: 800 !important; font-size: 13px !important; color: #9A9A9A !important; background: transparent !important; text-shadow: 0 0 3px #000, 0 0 3px #000; }
 
 /* ── Test sessions (TestSession.jsx) ── */
-.ts-open-btn { width: 100%; margin: 6px 0 4px; height: 40px; font-weight: 600; }
+.ts-open-btn { width: 100%; margin: 6px 0 8px; }
 .ts-backdrop { position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,0.55); display: flex; align-items: flex-end; justify-content: center; }
 .ts-sheet { position: relative; width: 100%; max-width: 560px; max-height: 92vh; overflow-y: auto; box-sizing: border-box; padding: 14px 16px calc(18px + env(safe-area-inset-bottom, 0px)); border-radius: 18px 18px 0 0; background: var(--bg); color: var(--text); border-top: 3px solid #EF9F27; }
 .ts-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 17px; }

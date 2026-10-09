@@ -5318,9 +5318,13 @@ export default function AthleteApp() {
                       <SectionProgressBars sectionKey="physical" ropes="br" />
                     </button>
                     {showPhysicalSection && (
-                      <button type="button" className="btn btn-sm ts-open-btn" onClick={() => setTestSessionOpen(true)}>📋 Test session — log results</button>
+                      <button type="button" className="neon-q neon-q-physical neon-compound ts-open-btn" onClick={() => setTestSessionOpen(true)}
+                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 6, padding: '14px 12px', borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)', border: '2px solid var(--border)', background: 'var(--bg-secondary)', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Test session — log results</span>
+                        <span style={{ fontSize: 22 }}>📋</span>
+                      </button>
                     )}
-                    {testSessionOpen && student?.id && <TestSessionModal allowUpload={!uploadsBlocked} studentId={student?.id} studentName={`${student?.members?.first_name || ''} ${student?.members?.last_name || ''}`.trim()} onClose={() => setTestSessionOpen(false)} onSaved={async () => { const { data } = await supabase.from('fit2fight_sessions').select('*').eq('student_id', student.id).order('session_date', { ascending: false }); setSessions(data || []) }} />}
+                    {testSessionOpen && student?.id && <TestSessionModal allowUpload={!uploadsBlocked} onPoints={pts => { setStudent(prev => prev ? { ...prev, house_points: (prev.house_points || 0) + pts, individual_points: (prev.individual_points || 0) + pts } : prev); celebrateHousePoint(pts) }} studentId={student?.id} studentName={`${student?.members?.first_name || ''} ${student?.members?.last_name || ''}`.trim()} onClose={() => setTestSessionOpen(false)} onSaved={async () => { const { data } = await supabase.from('fit2fight_sessions').select('*').eq('student_id', student.id).order('session_date', { ascending: false }); setSessions(data || []) }} />}
 
                     <div className={(pillarView['physical'] || 'questions') === 'pdp' ? 'pv-pdp' : undefined} style={{
                       overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
