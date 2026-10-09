@@ -11142,9 +11142,9 @@ export default function AthleteProfiles() {
                           <button className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 10, gap: 6 }}
                             onClick={() => setSessionsCalendarView(v => v === 'sessions' ? 'f2f' : v === 'f2f' ? 'pdp' : 'sessions')}>
                             {sessionsCalendarView === 'sessions' ? (
-                              <><img src="/logos/icon-schedule.png" alt="" style={{ height: 18, width: 'auto', objectFit: 'contain' }} /> Sessions</>
+                              <>Sessions</>
                             ) : sessionsCalendarView === 'f2f' ? '🔥 Fit II Fight' : (
-                              <><img src="/logos/icon-pdp.png" alt="" style={{ height: 18, width: 'auto', objectFit: 'contain' }} /> PDP</>
+                              <>PDP</>
                             )}
                             <span style={{ marginLeft: 6, fontSize: 10, opacity: 0.6 }}>tap to switch</span>
                           </button>
