@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom'
 import { TEST_CATEGORIES } from '../lib/testResults.js'
 import { TestSessionModal, TestBatchModal } from '../components/shared/TestSession.jsx'
 import { supabase } from '../lib/supabase.js'
+import WattBikePanel from '../components/shared/WattBikePanel.jsx'
 import FightGame from '../components/shared/FightGame.jsx'
 import ChessGame from '../components/shared/ChessGame.jsx'
 import GuidedSession from '../components/shared/GuidedSession.jsx'
@@ -9864,106 +9865,10 @@ export default function AthleteProfiles() {
 
                   {showWattCards && (
                   <div ref={wattPanelRef}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeWatt ? 10 : 8 }}>
-                    {WATT_BIKE_GROUPS.map(grp => {
-                      const complete = todaysWattBike.some(e => e.group === grp.key || (!e.group && grp.match(e.interval_mode || e.type)))
-                      const active = expandedHomeWatt === grp.key
-                      return (
-                        <button className={`neon-q neon-q-physical${active ? ' is-active' : ''}${complete ? ' is-done' : ''}`} key={grp.key} type="button" onClick={() => openOnlyPhysicalPanel('watt', active ? null : grp.key)} style={{
-                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 8px',
-                          borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                          border: `2px solid ${active ? SECTION_ACCENT_COLOURS.physical : complete ? '#378ADD' : 'var(--border)'}`,
-                          background: complete ? '#378ADD12' : 'var(--bg-secondary)',
-                        }}>
-                          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{grp.label}</span>{pdpInfo('physical', `watt:${grp.key}`).links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}
-                          <span style={{ fontSize: 22 }}>{grp.icon}</span>
-                        </button>
-                      )
-                    })}
-                    {/* Single set (the old Watt Bike test card): same card as Output / Standard / Distance */}
-                    {(() => { const active = expandedHomeWatt === '__single__'; const complete = (TEST_CATEGORIES.find(c => c.key === 'wattbike')?.tests || []).some(t => todaysTest?.[t.name] != null && todaysTest[t.name] !== ''); return (
-                      <button className={`neon-q neon-q-physical${active ? ' is-active' : ''}${complete ? ' is-done' : ''}`} type="button" onClick={() => openOnlyPhysicalPanel('watt', active ? null : '__single__')}
-                        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 8px', borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)', border: '2px solid var(--border)', background: 'var(--bg-secondary)' }}>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>Single set</span>
-                        <span style={{ fontSize: 22 }}>1️⃣</span>
-                      </button>
-                    ) })()}
-                  </div>
-                  {expandedHomeWatt && expandedHomeWatt !== '__single__' && (() => {
-                    const grp = WATT_BIKE_GROUPS.find(g => g.key === expandedHomeWatt)
-                    const presets = WATT_BIKE_PRESETS[grp.key] || []
-                    const inGroup = e => e.group === grp.key || (!e.group && grp.match(e.interval_mode || e.type))
-                    const efforts = todaysWattBike.map((e, i) => ({ e, k: runKey(e, i), i })).filter(x => inGroup(x.e))
-                    const selKey = wattEffortSel[grp.key]
-                    const current = (selKey === '__new__' || efforts.length === 0) ? null : (efforts.find(x => x.k === selKey) || efforts[efforts.length - 1])
-                    const entry = current ? current.e : { group: grp.key, interval_mode: '', sets: [] }
-                    const pickEffort = k => setWattEffortSel(p => ({ ...p, [grp.key]: k }))
-                    // One saved item per effort (like running): edits change only this effort
-                    const upsert = updatedEntry => {
-                      if (current) {
-                        const id = current.e.id || newRunId()
-                        savePhysicalField('watt_bike', todaysWattBike.map((e, i) => i === current.i ? { ...updatedEntry, group: grp.key, id } : e), setTodaysWattBike)
-                        if (!current.e.id) pickEffort(id)
-                      } else {
-                        const id = newRunId()
-                        savePhysicalField('watt_bike', [...todaysWattBike, { ...updatedEntry, group: grp.key, id }], setTodaysWattBike)
-                        pickEffort(id)
-                      }
-                    }
-                    // Changing the interval of an effort that already has results starts a NEW effort
-                    const upsertSetup = patch => {
-                      if (current && (entry.sets || []).length > 0) {
-                        const id = newRunId()
-                        savePhysicalField('watt_bike', [...todaysWattBike, { group: grp.key, interval_mode: '', sets: [], ...patch, id }], setTodaysWattBike)
-                        pickEffort(id)
-                      } else upsert({ ...entry, ...patch })
-                    }
-                    const removeCurrentEffort = () => {
-                      if (!current) return
-                      savePhysicalField('watt_bike', todaysWattBike.filter((_, i) => i !== current.i), setTodaysWattBike)
-                      pickEffort(null)
-                    }
-                    const wattPk = pdpItemPick(`watt:${grp.key}`, 'physical', 'Physical', `watt:${grp.key}`, grp.label)
-                    return (
-                      <div className="card neon-qpanel neon-q-physical neon-run-panel" style={{ marginBottom: 8 }}>
-                        <EffortSwitcher efforts={efforts} currentKey={current?.k} isNew={!current} onPick={pickEffort} onNew={() => pickEffort('__new__')} labelOf={e => e.interval_mode} />
-                        {PdpNotes({ links: pdpInfo('physical', `watt:${grp.key}`).links })}
-                        {PdpAddButton({ target: { pillar: 'physical', pillarLabel: 'Physical', q: `watt:${grp.key}`, item: null, label: grp.label }, style: { marginBottom: 8 } })}
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-                          <button type="button" className="btn btn-sm neon-danger" style={{ fontSize: 11 }}
-                            disabled={!current} onClick={removeCurrentEffort}>✕ Remove effort</button>
-                        </div>
-                        <div className="field"><label>Interval</label>
-                          {wattPk.bar}
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-                            {presets.map(m => (
-                              <button key={m} type="button" onClick={() => wattPk.picking ? wattPk.pick(m) : upsertSetup({ interval_mode: m })}
-                                className="btn btn-sm" style={{ background: normalizeIntervalMode(entry.interval_mode) === m ? '#378ADD20' : undefined, borderColor: normalizeIntervalMode(entry.interval_mode) === m ? '#378ADD' : undefined, ...(wattPk.gold.has(m) && normalizeIntervalMode(entry.interval_mode) !== m ? pdpGoldStyle(true) : {}) }}>{formatIntervalLabel(m)}</button>
-                            ))}
-                            <SavableField defaultValue={presets.includes(normalizeIntervalMode(entry.interval_mode)) ? '' : (entry.interval_mode || '')}
-                              onSave={val => { if (val) upsertSetup({ interval_mode: val }) }}
-                              placeholder="Other…" style={{ width: 'auto', flexShrink: 0 }} inputStyle={{ width: 90 }} />
-                          </div>
-                          <div style={{ marginTop: 8 }}>
-                            <OnOffInput onAdd={val => upsertSetup({ interval_mode: val })} />
-                          </div>
-                        </div>
-                        <div className="field" style={{ marginBottom: 0 }}><label>Results — Wattage &amp; Distance</label>
-                          <DualSetInput
-                            key={`${grp.key}-${current?.k || 'new'}`}
-                            sets={(entry.sets || []).map(s => (s && typeof s === 'object') ? s : { wattage: s, distance: '' })}
-                            onChange={sets => upsert({ ...entry, sets })}
-                            fields={[
-                              { key: 'wattage', type: 'number', placeholder: 'Watts e.g. 650' },
-                              { key: 'distance', type: 'number', placeholder: 'Distance km' },
-                            ]} />
-                        </div>
-                        {savingPhysical && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>Saving…</p>}
-                      </div>
-                    )
-                  })()}
-                  {/* Watt bike results, moved here from the old Test tab */}
-                  {expandedHomeWatt === '__single__' && renderMovedTest(['wattbike'], 'neon-qpanel neon-q-physical neon-run-panel')}
+                  <WattBikePanel entries={todaysWattBike} onSaveEntries={list => savePhysicalField('watt_bike', list, setTodaysWattBike)}
+                    history={f2fData || []} groups={WATT_BIKE_GROUPS} presets={WATT_BIKE_PRESETS} normalize={normalizeIntervalMode}
+                    singleTests={TEST_CATEGORIES.find(c => c.key === 'wattbike')?.tests || []} todaysTest={todaysTest} onSaveTest={saveTestValue} saving={savingPhysical}
+                    pdpNotesFor={gk => PdpNotes({ links: pdpInfo('physical', `watt:${gk}`).links })} />
                   </div>
                   )}
 
