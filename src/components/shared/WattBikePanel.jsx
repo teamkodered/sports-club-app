@@ -9,6 +9,8 @@ import { newRunId, runKey, EffortSwitcher } from './RunEfforts.jsx'
 // and the Single set test values), so history, PBs, bars and Results all carry on.
 
 const SINGLE_SHORT = { 'Watt bike 10 second (output)': '10 sec output', 'Watt bike 30 sec (distance)': '30 sec distance', 'Watt bike 1 min (distance)': '1 min distance', 'Watt bike 2 min (distance)': '2 min distance', 'Watt bike 3 min (distance)': '3 min distance' }
+// '10s on 90s off' -> the s after each number in black so the numbers stand out
+const secLabel = t => t.split(/(\d+)s\b/).map((part, i) => i % 2 ? <span key={i}>{part}<span style={{ color: '#000', textShadow: 'none' }}>s</span></span> : part)
 const num = v => { const n = parseFloat(v); return isNaN(n) ? null : n }
 
 export default function WattBikePanel({ entries = [], onSaveEntries, history = [], groups, presets, normalize = m => m, singleTests = [], todaysTest = {}, onSaveTest, saving, pdpNotesFor, groupLabel }) {
@@ -81,7 +83,7 @@ export default function WattBikePanel({ entries = [], onSaveEntries, history = [
         <div key={g.key} style={{ marginBottom: 8 }}>
           <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>{g.icon} {groupLabel ? groupLabel(g) : g.label}</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {(presets[g.key] || []).map(m => <span key={m}>{chip(!single && mode === m, m.replace(' seconds on ', 's on ').replace(' seconds off', 's off').replace('1 min 30 sec', '90s'), () => pickInterval(m))}</span>)}
+            {(presets[g.key] || []).map(m => <span key={m}>{chip(!single && mode === m, secLabel(m.replace(' seconds on ', 's on ').replace(' seconds off', 's off').replace('1 min 30 sec', '90s')), () => pickInterval(m))}</span>)}
           </div>
         </div>
       ))}
