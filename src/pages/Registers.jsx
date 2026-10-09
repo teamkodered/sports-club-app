@@ -880,6 +880,10 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     .filter(s => !groupFilter || studentGroups(s, s.members).includes(groupFilter))
     .filter(s => {
       if (classFilter === 'all') return true
+      // Special registers share a time slot with normal classes (PTs Register Mon/Fri 18:00, Leader
+      // Register 19:00): their students are ONLY the PT / Leader groups -- not everyone at 6pm, and
+      // not someone who got assigned to them by being marked there by mistake
+      if (selectedClass && specialRegisterFlag(selectedClass)) return !!s[specialRegisterFlag(selectedClass)]
 
       // Explicit assignment (student_class_assignments) is a second,
       // independent way to match -- covers anyone assigned via the
@@ -888,10 +892,6 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
       if (explicitAssignments.some(a => a.student_id === s.id && a.class_id === classFilter)) return true
 
       if (!selectedClass) return true
-      // Special registers share a time slot with normal classes (PTs Register is Mon/Fri 18:00,
-      // Leader Register 19:00) -- their students are the PT / Leader groups, never "everyone at 6pm"
-      if (/\bpts?\b[^a-z]*register/i.test(selectedClass.name || '')) return !!s.is_pts
-      if (/leaders?\b[^a-z]*register/i.test(selectedClass.name || '')) return !!s.is_leader
       const classStart = selectedClass.start_time?.slice(0, 5)
       const shortDay = _fullToShort[selectedClass.day_of_week] || selectedClass.day_of_week
       const fullDay2 = _shortToFull[selectedClass.day_of_week] || selectedClass.day_of_week
@@ -1092,6 +1092,8 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   // sessions" list on their profile going forward.
   async function ensureClassAssignment(studentId) {
     if (!classFilter || classFilter === 'all') return
+    const flag = specialRegisterFlag([...todayClasses, ...derbyMooreClasses, ...moorwaysClasses].find(c => c.id === classFilter))
+    if (flag && !students.find(x => x.id === studentId)?.[flag]) return   // don't add non-PTs / non-Leaders to those registers
     const { data: existingRows } = await supabase.from('student_class_assignments')
       .select('*').eq('student_id', studentId).eq('class_id', classFilter)
     if ((existingRows || []).some(a => !a.end_date || String(a.end_date).slice(0, 10) >= todayISO())) return
@@ -1107,6 +1109,14 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   // one assigned class matching today's day-of-week, use that;
   // multiple (a double-session day) stays null rather than guessing
   // which one was actually meant.
+  // 'is_pts' for the PTs Register class, 'is_leader' for the Leader Register class, else null
+  function specialRegisterFlag(c) {
+    const n = c?.name || ''
+    if (/\bpts?\b[^a-z]*register/i.test(n)) return 'is_pts'
+    if (/leaders?\b[^a-z]*register/i.test(n)) return 'is_leader'
+    return null
+  }
+
   function detectClassIdForStudent(studentId) {
     const allTodayClasses = [...todayClasses, ...derbyMooreClasses, ...moorwaysClasses]
     const assignedIds = new Set(explicitAssignments.filter(a => a.student_id === studentId).map(a => a.class_id))
