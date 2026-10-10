@@ -12,17 +12,29 @@ const API = 'https://www.polaraccesslink.com/v3'
 const TOKEN_URL = 'https://polarremote.com/v2/oauth2/token'
 
 function creds() {
-  return { clientId: Deno.env.get('POLAR_CLIENT_ID')!, clientSecret: Deno.env.get('POLAR_CLIENT_SECRET')! }
+  // trim: stray spaces / newlines / quotes from pasting into PowerShell break the login
+  const clean = (v: string | undefined) => (v || '').trim().replace(/^['"]|['"]$/g, '')
+  return { clientId: clean(Deno.env.get('POLAR_CLIENT_ID')), clientSecret: clean(Deno.env.get('POLAR_CLIENT_SECRET')) }
 }
 
 export async function exchangePolarCode(code: string, redirectUri: string) {
   const { clientId, clientSecret } = creds()
-  const res = await fetch(TOKEN_URL, {
+  if (!clientId || !clientSecret) throw new Error('POLAR_CLIENT_ID / POLAR_CLIENT_SECRET not set on the server')
+  // 1st try: credentials in the Authorization header (Polar's documented way)
+  let res = await fetch(TOKEN_URL, {
     method: 'POST',
-    headers: { Authorization: 'Basic ' + btoa(`${clientId}:${clientSecret}`), 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+    headers: { Authorization: 'Basic ' + btoa(`${clientId}:${clientSecret}`), 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json;charset=UTF-8' },
     body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: redirectUri }),
   })
-  if (!res.ok) throw new Error(`Polar token exchange failed (${res.status}): ${await res.text()}`)
+  // 2nd try: credentials in the body (some client setups only accept this)
+  if (res.status === 401) {
+    res = await fetch(TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json;charset=UTF-8' },
+      body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: redirectUri, client_id: clientId, client_secret: clientSecret }),
+    })
+  }
+  if (!res.ok) throw new Error(`Polar token exchange failed (${res.status}): ${await res.text()} [id ${clientId.slice(0, 6)}…, secret ${clientSecret.length} chars]`)
   return await res.json() as { access_token: string; token_type: string; expires_in?: number; x_user_id: number | string }
 }
 
