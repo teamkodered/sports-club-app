@@ -123,6 +123,14 @@ function drawFighter(g, f, frame) {
 
 export default function FightGame({ onRound, onClose }) {
   const canvasRef = useRef(null)
+  // Landscape on a phone: arena fills the height, controls sit over its bottom corners
+  const [landscape, setLandscape] = useState(() => typeof window !== 'undefined' && window.matchMedia('(orientation: landscape) and (max-height: 600px)').matches)
+  useEffect(() => {
+    const mq = window.matchMedia('(orientation: landscape) and (max-height: 600px)')
+    const on = () => setLandscape(mq.matches)
+    mq.addEventListener ? mq.addEventListener('change', on) : mq.addListener(on)
+    return () => { mq.removeEventListener ? mq.removeEventListener('change', on) : mq.removeListener(on) }
+  }, [])
   const [screen, setScreen] = useState('select') // select | fight
   const [pick, setPick] = useState(0)
   const [cpuPick, setCpuPick] = useState(null) // null = random
@@ -396,7 +404,7 @@ export default function FightGame({ onRound, onClose }) {
   return (
     <div role="dialog" aria-modal="true" style={{ position: 'fixed', inset: 0, zIndex: 495, background: '#05070A', color: '#F2F2F2', display: 'flex', flexDirection: 'column', userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'none' }}
       onContextMenu={e => e.preventDefault()}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: landscape && screen === 'fight' ? '4px calc(10px + env(safe-area-inset-right, 0px)) 4px calc(10px + env(safe-area-inset-left, 0px))' : '10px 12px' }}>
         <button type="button" onClick={onClose} style={{ ...pad, width: 'auto', height: 36, padding: '0 12px', fontSize: 14 }}>Close</button>
         <div style={{ fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 22, letterSpacing: 1, flex: 1 }}>KR FIGHT</div>
         {screen === 'fight' && <button type="button" onClick={() => setScreen('select')} style={{ ...pad, width: 'auto', height: 36, padding: '0 12px', fontSize: 14 }}>Fighters</button>}
@@ -438,9 +446,15 @@ export default function FightGame({ onRound, onClose }) {
           </p>
         </div>
       ) : (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 'calc(10px + env(safe-area-inset-bottom, 0px))' }}>
-          <div style={{ position: 'relative', width: '100%', maxWidth: 900 }}>
-            <canvas ref={canvasRef} width={W} height={H} style={{ width: '100%', height: 'auto', display: 'block', background: '#000' }} />
+        <div style={landscape
+          ? { flex: 1, minHeight: 0, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }
+          : { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 'calc(10px + env(safe-area-inset-bottom, 0px))' }}>
+          <div style={landscape
+            ? { position: 'relative', height: '100%', maxWidth: '100%', aspectRatio: `${W} / ${H}` }
+            : { position: 'relative', width: '100%', maxWidth: 900 }}>
+            <canvas ref={canvasRef} width={W} height={H} style={landscape
+              ? { width: '100%', height: '100%', display: 'block', background: '#000' }
+              : { width: '100%', height: 'auto', display: 'block', background: '#000' }} />
             {overlay && (
               <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', textAlign: 'center' }}>
                 <div style={{ fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 'min(12vw, 72px)', color: '#F5C542', textShadow: '0 0 18px #E24B4A, 3px 3px 0 #000' }}>{overlay.big}</div>
@@ -450,12 +464,18 @@ export default function FightGame({ onRound, onClose }) {
             )}
           </div>
           {done || overlay?.match ? (
-            <div style={{ display: 'flex', gap: 10, margin: '14px 0' }}>
+            <div style={landscape
+              ? { position: 'absolute', left: '50%', bottom: 'calc(14px + env(safe-area-inset-bottom, 0px))', transform: 'translateX(-50%)', display: 'flex', gap: 10 }
+              : { display: 'flex', gap: 10, margin: '14px 0' }}>
               <button type="button" onClick={startMatch} style={{ ...pad, width: 'auto', padding: '0 18px', fontSize: 16 }}>Rematch</button>
               <button type="button" onClick={() => setScreen('select')} style={{ ...pad, width: 'auto', padding: '0 18px', fontSize: 16 }}>Change fighter</button>
             </div>
           ) : (
-            <div style={{ width: '100%', maxWidth: 900, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', padding: '10px 14px', boxSizing: 'border-box' }}>
+            <div style={landscape
+              ? { position: 'absolute', left: 0, right: 0, bottom: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', pointerEvents: 'none', boxSizing: 'border-box',
+                  padding: '0 calc(14px + env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) calc(14px + env(safe-area-inset-left, 0px))' }
+              : { width: '100%', maxWidth: 900, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', padding: '10px 14px', boxSizing: 'border-box' }}
+              className={landscape ? 'fg-ls-controls' : undefined}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 54px)', gridTemplateRows: 'repeat(3, 54px)', gap: 4 }}>
                 <button type="button" style={{ ...pad, fontSize: 17, opacity: 0.85 }} {...hold2('up', 'left')}>◤</button><button type="button" style={pad} {...hold('up')}>▲</button><button type="button" style={{ ...pad, fontSize: 17, opacity: 0.85 }} {...hold2('up', 'right')}>◥</button>
                 <button type="button" style={pad} {...hold('left')}>◀</button><span /><button type="button" style={pad} {...hold('right')}>▶</button>
