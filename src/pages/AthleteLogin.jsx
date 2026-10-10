@@ -45,7 +45,7 @@ export default function AthleteLogin() {
       setError(error.message)
     } else {
       const { data: member } = await supabase.from('members').select('role').eq('auth_id', data.user.id).single()
-      const isStaff = member?.role === 'admin' || member?.role === 'captain' || member?.role === 'coach' || member?.role === 'leader'
+      const isStaff = ['admin', 'captain', 'coach', 'leader', 'head_coach'].includes(member?.role)
       navigate(isStaff ? '/dashboard' : '/athlete-app')
     }
     setLoading(false)

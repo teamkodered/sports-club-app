@@ -58,8 +58,10 @@ export default function Login() {
     if (error) {
       setError(error.message)
     } else {
-      const { data: member } = await supabase.from('members').select('role').eq('auth_id', data.user.id).single()
-      const isStaff = member?.role === 'admin' || member?.role === 'captain' || member?.role === 'coach' || member?.role === 'leader'
+      const { data: member } = await supabase.from('members').select('role, access').eq('auth_id', data.user.id).single()
+      // Same rule as the rest of the app: staff roles, Head Coach, or anyone given page access in Settings -> Team
+      const isStaff = ['admin', 'captain', 'coach', 'leader', 'head_coach'].includes(member?.role)
+        || !!member?.access?.group || Object.values(member?.access?.pages || {}).some(v => v === 'view' || v === 'edit')
       navigate(isStaff ? '/dashboard' : '/athlete-app')
     }
     setLoading(false)
