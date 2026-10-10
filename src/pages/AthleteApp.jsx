@@ -7817,7 +7817,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
               const today = new Date().toISOString().split('T')[0]
               const cur = (sessions.find(x => x.session_date === today) || {}).other_session
               const list = Array.isArray(cur) ? cur : (cur ? [cur] : [])
-              const entry = { type: 'Heart rate session (Polar H10)', sets: [`${hr.minutes} min`, `avg ${hr.avg} bpm`, `max ${hr.max} bpm`], heart_rate: hr }
+              const entry = { type: `Heart rate session (${/whoop/i.test(hr.device || '') ? 'Whoop' : /polar/i.test(hr.device || '') ? 'Polar H10' : hr.device || 'strap'})`, sets: [`${hr.minutes} min`, `avg ${hr.avg} bpm`, `max ${hr.max} bpm`], heart_rate: hr }
               await savePhysicalField('other_session', [...list, entry], () => {})
               alert('Saved to today as an Other session.')
             }} />

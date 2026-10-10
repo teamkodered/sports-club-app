@@ -73,7 +73,7 @@ export default function LiveHeartRate({ age, onSave }) {
     const zones = {}
     for (let i = 1; i < list.length; i++) { const z = zoneOf(list[i - 1].bpm, maxHr); if (z) zones[`z${z.n}`] = (zones[`z${z.n}`] || 0) + (list[i].t - list[i - 1].t) / 1000 }
     const zoneMins = Object.fromEntries(Object.entries(zones).map(([k, sec]) => [k, Math.round(sec / 60)]))
-    if (confirm(`Save this heart rate session?\n${minutes} min · average ${avg} bpm · max ${max} bpm`)) await onSave?.({ minutes, avg, max, zones: zoneMins, maxHr })
+    if (confirm(`Save this heart rate session?\n${minutes} min · average ${avg} bpm · max ${max} bpm`)) await onSave?.({ minutes, avg, max, zones: zoneMins, maxHr, device: device?.name || 'Heart rate strap' })
   }
 
   const z = bpm ? zoneOf(bpm, maxHr) : null
@@ -81,13 +81,14 @@ export default function LiveHeartRate({ age, onSave }) {
     <div className="card" style={{ marginBottom: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
         <h3 style={{ fontSize: 15, fontWeight: 700 }}>❤️ Live heart rate</h3>
-        <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Polar H10 or any Bluetooth HR strap</span>
+        <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Polar H10 · Whoop · any Bluetooth HR strap</span>
       </div>
       {!supported ? (
         <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>Live heart rate needs <b>Chrome on Android</b> (or a computer). iPhone browsers don't allow Bluetooth -- use the Polar account sync instead.</p>
       ) : !device ? (
         <>
-          <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 8px' }}>Put the strap on (wet the sensors), then connect.</p>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 6px' }}><b>Polar H10:</b> put the strap on (wet the sensors), then connect.</p>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 8px' }}><b>Whoop:</b> first turn on <b>Heart Rate Broadcast</b> in the Whoop app (Device settings), then connect -- it shows up as your Whoop.</p>
           <button type="button" className="btn btn-primary" onClick={connect}>Connect strap</button>
         </>
       ) : (
