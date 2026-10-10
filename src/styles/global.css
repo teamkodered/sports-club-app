@@ -1060,3 +1060,6 @@ tbody tr:hover td { background: var(--bg-secondary); }
 /* Media / Notes / MTP / Check in -- tile style */
 .coach-dash .coach-mini { background: #14181C !important; border: 1px solid #2A3138 !important; border-radius: 10px !important; }
 .coach-dash .coach-mini > span:first-child > span:last-child { font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800 !important; font-size: 17px !important; text-transform: uppercase; }
+
+.coach-dash .coach-attention { border-top: 3px solid #E24B4A !important; }
+.coach-dash .coach-attention-title { font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800; font-size: 20px; text-transform: uppercase; letter-spacing: 1px; color: #E24B4A; }

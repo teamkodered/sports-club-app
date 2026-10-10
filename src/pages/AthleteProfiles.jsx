@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom'
 import { TEST_CATEGORIES } from '../lib/testResults.js'
 import { TestSessionModal, TestBatchModal } from '../components/shared/TestSession.jsx'
 import { supabase } from '../lib/supabase.js'
+import NeedsAttention from '../components/shared/NeedsAttention.jsx'
 import WattBikePanel from '../components/shared/WattBikePanel.jsx'
 import FightGame from '../components/shared/FightGame.jsx'
 import ChessGame from '../components/shared/ChessGame.jsx'
@@ -8010,6 +8011,8 @@ export default function AthleteProfiles() {
                 )}
               </div>
             )}
+
+            {dashboardTab === 'overview' && !(showKrRegister || showKrbaRegister || showAllAthRegister) && <NeedsAttention athletes={students.filter(inDashTeam)} onOpen={a => selectStudent(a)} />}
 
             {dashboardTab === 'overview' && (
               <>
