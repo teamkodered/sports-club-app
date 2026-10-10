@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useJoinVenue, VenueQuestion, venueSchedule } from '../../lib/joinVenue.jsx'
 import { submitJoinApplication } from '../../lib/submitJoinApplication.js'
 import { supabase } from '../../lib/supabase.js'
 import { generateStudentId } from '../../lib/studentId.js'
@@ -30,6 +31,7 @@ export default function JoinPKAAdult() {
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [studentRef, setStudentRef] = useState('')
+  const { venue, setVenue, fromLink: venueFromLink } = useJoinVenue()
   const [form, setForm] = useState({
     first_name: '', last_name: '', dob: '', address: '',
     home_phone: '', work_phone: '', mobile_phone: '', email: '', other_contact: '',
@@ -62,6 +64,7 @@ export default function JoinPKAAdult() {
       const ageCategory = age < 18 ? '16-17' : '18+'
 
       const memberId = crypto.randomUUID()
+      if (!venue) throw new Error('Please choose where you will train.')
       await submitJoinApplication({
         member: {
         id: memberId,
@@ -71,11 +74,13 @@ export default function JoinPKAAdult() {
         joined_date: new Date().toISOString().split('T')[0],
       },
         student: {
+          ...(venueSchedule(venue) ? { class_schedule: venueSchedule(venue) } : {}),
         member_id: memberId, student_ref: ref, discipline: 'PKA', age_category: ageCategory,
         media_restriction: form.media_permission === 'Yes' ? 'Yes' : 'No',
         medical_conditions: form.medical_concerns || null,
       },
         form: {
+          venue: venue || null,
         member_id: memberId, form_type: 'pka_adult',
         first_name: form.first_name, last_name: form.last_name, email: form.email, phone: form.mobile_phone, date_of_birth: form.dob,
         hear_about: form.hear_about, promo_code: form.promo_code,
@@ -191,6 +196,7 @@ export default function JoinPKAAdult() {
                 <option value="No">No — I do not consent</option>
               </select>
             </div>
+            <VenueQuestion venue={venue} setVenue={setVenue} fromLink={venueFromLink} />
             <div className="field"><label>How did you hear about us?</label>
               <select value={form.hear_about} onChange={set('hear_about')}>
                 <option value="">Select…</option>

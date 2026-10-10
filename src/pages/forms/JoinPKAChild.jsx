@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useJoinVenue, VenueQuestion, venueSchedule } from '../../lib/joinVenue.jsx'
 import { submitJoinApplication } from '../../lib/submitJoinApplication.js'
 import { supabase } from '../../lib/supabase.js'
 import { generateStudentId } from '../../lib/studentId.js'
@@ -26,6 +27,7 @@ export default function JoinPKAChild() {
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [studentRef, setStudentRef] = useState('')
+  const { venue, setVenue, fromLink: venueFromLink } = useJoinVenue()
   const [form, setForm] = useState({
     // Child
     first_name: '', last_name: '', dob: '', school: '', year: '', other_activities: '',
@@ -74,6 +76,7 @@ export default function JoinPKAChild() {
       // session yet, so that read-back would fail RLS even though the
       // insert itself is correctly allowed for anonymous submissions.
       const memberId = crypto.randomUUID()
+      if (!venue) throw new Error('Please choose where you will train.')
       await submitJoinApplication({
         member: {
         id: memberId,
@@ -83,6 +86,7 @@ export default function JoinPKAChild() {
         role: 'member', status: 'pending', joined_date: new Date().toISOString().split('T')[0],
       },
         student: {
+          ...(venueSchedule(venue) ? { class_schedule: venueSchedule(venue) } : {}),
         member_id: memberId, student_ref: ref, discipline: 'PKA',
         age_category: ageCategory,
         guardian_name: form.guardian_name, guardian_phone: form.mobile_phone,
@@ -91,6 +95,7 @@ export default function JoinPKAChild() {
         school: form.school,
       },
         form: {
+          venue: venue || null,
         member_id: memberId, form_type: 'pka_child',
         first_name: form.first_name, last_name: form.last_name, email: form.email, phone: form.mobile_phone, date_of_birth: form.dob,
         sponsor_name: form.sponsor_name, school: form.school, year: form.year,
@@ -222,6 +227,7 @@ export default function JoinPKAChild() {
                 <option value="No">No — I do not consent to media</option>
               </select>
             </div>
+            <VenueQuestion venue={venue} setVenue={setVenue} fromLink={venueFromLink} />
             <div className="field"><label>How did you hear about us?</label>
               <select value={form.hear_about} onChange={set('hear_about')}>
                 <option value="">Select…</option>

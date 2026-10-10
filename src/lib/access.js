@@ -39,7 +39,7 @@ export function roleDefault(role, page) {
   if (role === 'captain' || role === 'coach') return 'edit'
   if (role === 'leader') return page === 'registers' ? 'edit' : 'none'
   // Head Coach: registers + their own students (the database limits both to the classes ticked)
-  if (role === 'head_coach') return page === 'registers' ? 'edit' : page === 'students' ? 'view' : 'none'
+  if (role === 'head_coach') return page === 'registers' ? 'edit' : page === 'students' ? 'view' : page === 'forms' ? 'edit' : 'none'   // forms: only his venue's join forms (database-enforced)
   return 'none'
 }
 

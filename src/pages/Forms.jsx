@@ -101,7 +101,12 @@ const FORMS = [
 ]
 
 export function ShareModal({ form, onClose }) {
-  const url = `${BASE_URL}${form.path}`
+  // Join forms: pick the venue before sending (one tap) -- the link carries it, so the
+  // applicant isn't asked. A Head Coach's share window starts on Derby Moore.
+  const isJoinForm = /^\/join-/.test(form.path || '')
+  const { role } = useAuth()
+  const [venue, setVenue] = useState(role === 'head_coach' ? 'derby-moore' : 'kr-centre')
+  const url = `${BASE_URL}${form.path}${isJoinForm ? `?venue=${venue}` : ''}`
   const [copied, setCopied] = useState(false)
   const msg = `Hi! Please use this link to complete your ${form.label} form: ${url}`
 
@@ -158,6 +163,20 @@ export function ShareModal({ form, onClose }) {
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer' }}>✕</button>
         </div>
+
+        {isJoinForm && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: 'var(--text-tertiary)', marginBottom: 6 }}>WHICH VENUE?</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {[['kr-centre', 'KR Centre'], ['derby-moore', 'Derby Moore'], ['moorways', 'Moorways']].map(([k, l]) => (
+                <button key={k} type="button" onClick={() => setVenue(k)}
+                  style={{ flex: 1, padding: '8px 6px', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                    border: `1px solid ${venue === k ? '#E24B4A' : 'var(--border-strong)'}`, background: venue === k ? '#E24B4A14' : 'transparent',
+                    color: 'var(--text)', fontWeight: venue === k ? 700 : 400 }}>{l}</button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* URL display */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>

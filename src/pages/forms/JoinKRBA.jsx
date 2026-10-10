@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useJoinVenue, VenueQuestion, venueSchedule } from '../../lib/joinVenue.jsx'
 import { submitJoinApplication } from '../../lib/submitJoinApplication.js'
 import { supabase } from '../../lib/supabase.js'
 import FormLogo from '../../components/shared/FormLogo.jsx'
@@ -14,6 +15,7 @@ export default function JoinKRBA() {
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [studentRef, setStudentRef] = useState('')
+  const { venue, setVenue, fromLink: venueFromLink } = useJoinVenue()
   const [form, setForm] = useState({
     full_name: '', address: '', postcode: '', dob: '',
     home_phone: '', mobile_phone: '', email: '',
@@ -45,6 +47,7 @@ export default function JoinKRBA() {
       setStudentRef(ref)
 
       const memberId = crypto.randomUUID()
+      if (!venue) throw new Error('Please choose where you will train.')
       await submitJoinApplication({
         member: {
         id: memberId,
@@ -54,12 +57,14 @@ export default function JoinKRBA() {
         joined_date: new Date().toISOString().split('T')[0],
       },
         student: {
+          ...(venueSchedule(venue) ? { class_schedule: venueSchedule(venue) } : {}),
         member_id: memberId, student_ref: ref, discipline: 'KRBA',
         media_restriction: form.media_permission === 'Yes' ? 'Yes' : 'No',
         medical_conditions: form.medical_concerns || null,
         medication: form.medication || null,
       },
         form: {
+          venue: venue || null,
         member_id: memberId, form_type: 'krba',
         first_name, last_name, email: form.email, phone: form.mobile_phone, date_of_birth: form.dob,
         additional_needs: form.additional_needs,
@@ -163,6 +168,7 @@ export default function JoinKRBA() {
               </div>
             )}
             <div className="field"><label>Previous club details</label><input value={form.previous_club} onChange={set('previous_club')} /></div>
+            <VenueQuestion venue={venue} setVenue={setVenue} fromLink={venueFromLink} />
             <div className="field"><label>How did you hear about us?</label>
               <select value={form.hear_about} onChange={set('hear_about')}>
                 <option value="">Select…</option>

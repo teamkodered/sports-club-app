@@ -12,12 +12,15 @@ const EDITABLE = [
   ['date_of_birth', 'Date of birth', 'date'], ['email', 'Email', 'email'], ['phone', 'Phone', 'tel'],
 ]
 
+const VENUE_LABEL = { 'kr-centre': 'KR Centre', 'derby-moore': 'Derby Moore', 'moorways': 'Moorways' }
+
 export default function JoinApplicationsPanel() {
   const [apps, setApps] = useState(null) // null = not loaded / table not installed
   const [showCompleted, setShowCompleted] = useState(false)
   const [openId, setOpenId] = useState(null)
   const [edits, setEdits] = useState({})
   const [busyId, setBusyId] = useState(null)
+  const [venueFilter, setVenueFilter] = useState('all')   // 'all' | 'kr-centre' | 'derby-moore' | 'moorways' | 'unknown'
 
   async function load() {
     let q = supabase.from('join_applications').select('*').order('created_at', { ascending: false }).limit(100)
@@ -78,7 +81,16 @@ export default function JoinApplicationsPanel() {
         </label>
       </div>
 
-      {apps.map(app => {
+      {apps.some(a => a.venue) && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+          {[['all', 'All'], ['kr-centre', 'KR Centre'], ['derby-moore', 'Derby Moore'], ['moorways', 'Moorways'], ['unknown', 'No venue']].map(([k, l]) => {
+            const n = k === 'all' ? apps.length : apps.filter(a => (a.venue || 'unknown') === k).length
+            if (k !== 'all' && !n) return null
+            return <button key={k} type="button" className={`btn btn-sm${venueFilter === k ? ' btn-primary' : ''}`} onClick={() => setVenueFilter(k)}>{l} {n}</button>
+          })}
+        </div>
+      )}
+      {apps.filter(a => venueFilter === 'all' || (a.venue || 'unknown') === venueFilter).map(app => {
         const open = openId === app.id
         const m = app.payload?.member || {}
         const e = edits[app.id] || {}
@@ -87,7 +99,9 @@ export default function JoinApplicationsPanel() {
           <div key={app.id} style={{ borderTop: '1px solid var(--border)', padding: '10px 0' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <div style={{ cursor: 'pointer' }} onClick={() => setOpenId(open ? null : app.id)}>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>{open ? '▾' : '▸'} {app.applicant_name || '(no name)'}</div>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{open ? '▾' : '▸'} {app.applicant_name || '(no name)'}
+                  {app.venue && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 600, padding: '1px 8px', borderRadius: 10, background: '#E24B4A14', color: '#E24B4A' }}>{VENUE_LABEL[app.venue] || app.venue}</span>}
+                </div>
                 <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
                   {FORM_LABELS[app.form_type] || app.form_type} · {new Date(app.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · {app.email}
                   {' · '}<span style={{ color: done ? '#1D9E75' : app.status === 'dismissed' ? 'var(--text-tertiary)' : '#E24B4A', fontWeight: 600 }}>{app.status}</span>
