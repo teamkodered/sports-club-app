@@ -45,11 +45,10 @@ export default function LiveHeartRate({ age, onSave }) {
   const recordingRef = useRef(false)
   useEffect(() => { recordingRef.current = recording }, [recording])
 
-  async function connect() {
+  // Attach to a strap (already chosen once) and start the live readings
+  async function attach(dev, quiet = false) {
     try {
-      setStatus('Choose your strap…')
-      const dev = await navigator.bluetooth.requestDevice({ filters: [{ services: ['heart_rate'] }] })
-      setStatus('Connecting…')
+      setStatus(quiet ? `Reconnecting to ${dev.name || 'your strap'}…` : 'Connecting…')
       dev.addEventListener('gattserverdisconnected', () => { setStatus('Disconnected -- tap Connect to reconnect'); setBpm(null) })
       const server = await dev.gatt.connect()
       const svc = await server.getPrimaryService('heart_rate')
@@ -58,10 +57,50 @@ export default function LiveHeartRate({ age, onSave }) {
       ch.addEventListener('characteristicvaluechanged', onValue)
       charRef.current = ch
       setDevice(dev); setStatus(`Connected to ${dev.name || 'heart rate strap'}`)
+      try { localStorage.setItem('kc_hr_strap', dev.id) } catch { /* ignore */ }
+      return true
+    } catch (e) {
+      setStatus(quiet ? `Tap Connect to use ${dev.name || 'your strap'} (make sure it's on${/whoop/i.test(dev.name || '') ? ' and broadcasting' : ''})` : 'Could not connect: ' + (e?.message || e))
+      return false
+    }
+  }
+  async function connect() {
+    // a strap this phone already knows -> connect straight away, no list
+    const known = await rememberedStrap()
+    if (known && await attach(known)) return
+    try {
+      setStatus('Choose your strap…')
+      const dev = await navigator.bluetooth.requestDevice({ filters: [{ services: ['heart_rate'] }] })
+      await attach(dev)
     } catch (e) {
       setStatus(e?.name === 'NotFoundError' ? '' : 'Could not connect: ' + (e?.message || e))
     }
   }
+  async function rememberedStrap() {
+    try {
+      if (!navigator.bluetooth?.getDevices) return null
+      const list = await navigator.bluetooth.getDevices()
+      const id = localStorage.getItem('kc_hr_strap')
+      return list.find(d => d.id === id) || list[0] || null
+    } catch { return null }
+  }
+  // On opening Wearables: quietly reconnect to the strap used last time (no picking from a list)
+  useEffect(() => {
+    if (!supported) return
+    let stop = false
+    ;(async () => {
+      const known = await rememberedStrap()
+      if (!known || stop) return
+      // wait until the strap is in range / broadcasting, then connect
+      if (known.watchAdvertisements) {
+        const onAd = async () => { known.removeEventListener('advertisementreceived', onAd); if (!stop) await attach(known, true) }
+        known.addEventListener('advertisementreceived', onAd)
+        try { await known.watchAdvertisements() } catch { await attach(known, true) }
+        setStatus(`Looking for ${known.name || 'your strap'}…`)
+      } else await attach(known, true)
+    })()
+    return () => { stop = true }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   function start() { samples.current = []; startAt.current = Date.now(); setElapsed(0); setRecording(true) }
   async function stop() {
     setRecording(false)
