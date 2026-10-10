@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { TEST_CATEGORIES } from '../lib/testResults.js'
 import { TestSessionModal, TestBatchModal } from '../components/shared/TestSession.jsx'
 import { supabase } from '../lib/supabase.js'
+import LiveHeartRate from '../components/shared/LiveHeartRate.jsx'
 import WattBikePanel from '../components/shared/WattBikePanel.jsx'
 import MediaViewer from '../components/shared/MediaViewer.jsx'
 import FightGame from '../components/shared/FightGame.jsx'
@@ -7809,6 +7810,17 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
       {tab === 'whoop' && (
         <div>
           <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
+
+          {/* Live heart rate from a Bluetooth strap (Polar H10) -- saved as an Other session on today's log */}
+          <LiveHeartRate age={(() => { const d = student?.members?.date_of_birth; if (!d) return null; const b = new Date(d), n = new Date(); return n.getFullYear() - b.getFullYear() - ((n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) ? 1 : 0) })()}
+            onSave={async hr => {
+              const today = new Date().toISOString().split('T')[0]
+              const cur = (sessions.find(x => x.session_date === today) || {}).other_session
+              const list = Array.isArray(cur) ? cur : (cur ? [cur] : [])
+              const entry = { type: 'Heart rate session (Polar H10)', sets: [`${hr.minutes} min`, `avg ${hr.avg} bpm`, `max ${hr.max} bpm`], heart_rate: hr }
+              await savePhysicalField('other_session', [...list, entry], () => {})
+              alert('Saved to today as an Other session.')
+            }} />
 
           {/* Connected devices + connect buttons, one card per provider */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
