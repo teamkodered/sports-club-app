@@ -118,15 +118,21 @@ export async function saveTestResults(studentId, date, values, sets = {}) {
   const newTest = { ...prevTest, ...clean }
   const payload = { test: newTest }
   if (Object.keys(cleanSets).length) payload.test_sets = { ...(existing?.test_sets || {}), ...cleanSets }
+  // Don't demand exactly one row back (that turned a quiet permission block into a confusing
+  // "cannot coerce the result to a single JSON object"): check what really happened instead.
   const write = pl => existing
-    ? supabase.from('fit2fight_sessions').update(pl).eq('id', existing.id).select().single()
-    : supabase.from('fit2fight_sessions').insert({ student_id: studentId, session_date: date, ...pl }).select().single()
-  let { data, error } = await write(payload)
+    ? supabase.from('fit2fight_sessions').update(pl).eq('id', existing.id).select()
+    : supabase.from('fit2fight_sessions').insert({ student_id: studentId, session_date: date, ...pl }).select()
+  let { data: rows, error } = await write(payload)
   if (error && payload.test_sets && /test_sets/.test(error.message || '')) {
     // test_sets column not added yet -- still save the results (best set), just not every set
-    ;({ data, error } = await write({ test: newTest }))
+    ;({ data: rows, error } = await write({ test: newTest }))
   }
   if (error) return { error, pbs: [] }
+  if (existing && (!rows || rows.length === 0)) {
+    return { error: { message: "This login isn't allowed to change that session (the save was blocked). Ask a coach to log it, or tell the admin." }, pbs: [] }
+  }
+  const data = rows?.[0] || null
   const pbs = Object.entries(clean).filter(([k, v]) => best[k] != null && (lowerIsBetter(k) ? v < best[k] : v > best[k])).map(([k, v]) => ({ name: k, value: v, previous: best[k], unit: testInfo(k)?.unit }))
   return { error: null, pbs, session: data }
 }
