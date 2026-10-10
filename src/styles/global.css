@@ -1009,7 +1009,7 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .ts-sheet { border-radius: 18px !important; max-height: calc(100dvh - 16px) !important; }
 .ts-cats { flex-wrap: wrap !important; overflow: visible !important; }
 
-.neon-chip-pts { font-family: 'Orbitron', sans-serif; font-style: normal; font-weight: 600; font-size: 9px; letter-spacing: 1.5px; margin-left: 5px; opacity: 0.85; align-self: center; }
+.neon-chip-pts { font-family: 'Orbitron', sans-serif; font-style: normal; font-weight: 700; font-size: 10px !important; letter-spacing: 1px; margin-left: 5px; opacity: 1; align-self: center; display: inline-block !important; color: inherit; }
 
 /* ── Coach Athlete Dashboard: neon theme, easy-to-read admin version ─────────
    Same dark cards / pillar colours / italic headings as the athlete app, but
