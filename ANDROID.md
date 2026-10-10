@@ -53,3 +53,32 @@ from that source). Fine for a handful of testers.
 - `android/app/src/main/AndroidManifest.xml` — health permissions + rationale intents
 - `src/lib/healthConnect.js` — web side: permissions, sync, auto-sync on app open
 - `supabase/functions/wearable-ingest` — receives the data
+
+## Background heart rate (Polar H10 / Whoop / any Bluetooth HR strap)
+
+Native pieces: `HeartRatePlugin.kt` (permissions, scan, start/stop/status, live "hr"
+events) + `HrRecorderService.kt` (foreground service, type `connectedDevice`, keeps
+recording with the phone locked, reconnects if the strap drops out, stops itself
+after 2 h). Web side: `src/lib/nativeHr.js`; the Wearables card switches to
+"Heart rate (background)" inside the app.
+
+How it works for an athlete:
+1. Wearables → **Find my strap** once (Whoop: turn on Heart Rate Broadcast first).
+2. Leave **Record automatically from class check-in to check-out** ticked.
+3. Check in to a class → recording starts (notification "Klass Champ — class session").
+4. Check out → it stops and saves a "Heart rate session" (minutes, avg, max, zones)
+   to today's Other session.
+
+Permissions asked the first time: Nearby devices (Bluetooth) and Notifications.
+
+Play Console (when publishing): App content → **Foreground service permissions** →
+declare `FOREGROUND_SERVICE_CONNECTED_DEVICE`: "Records heart rate from the athlete's
+Bluetooth chest strap during a training class they have checked in to; a persistent
+notification is shown and recording stops at check-out or after 2 hours." Google may
+ask for a short screen recording of this in use.
+
+## In-house only (not public)
+
+Play Console → Testing → **Internal testing**: add up to 100 testers by email; only
+they can see/install it via the opt-in link. Nothing is listed publicly until you
+promote a release to Production.

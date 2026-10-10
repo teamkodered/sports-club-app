@@ -4,6 +4,7 @@ import { TEST_CATEGORIES } from '../lib/testResults.js'
 import { TestSessionModal, TestBatchModal } from '../components/shared/TestSession.jsx'
 import { supabase } from '../lib/supabase.js'
 import LiveHeartRate from '../components/shared/LiveHeartRate.jsx'
+import * as NativeHr from '../lib/nativeHr.js'
 import WattBikePanel from '../components/shared/WattBikePanel.jsx'
 import MediaViewer from '../components/shared/MediaViewer.jsx'
 import FightGame from '../components/shared/FightGame.jsx'
@@ -4251,9 +4252,21 @@ export default function AthleteApp() {
       setShowWeightCheckPrompt('in')
       setWeightCheckValue('')
       awardHousePoints('checkin')
+      // Android app: start background heart rate recording for the class
+      if (NativeHr.isNativeHr() && NativeHr.autoRecord() && NativeHr.savedStrap()) NativeHr.start(120).catch(() => {})
     }
     setCheckingIn(false)
   }
+
+  // Heart rate session -> today's Other session (live reader, or the Android app's background recorder)
+  async function saveHrSession(hr) {
+    const today = new Date().toISOString().split('T')[0]
+    const cur = (sessions.find(x => x.session_date === today) || {}).other_session
+    const list = Array.isArray(cur) ? cur : (cur ? [cur] : [])
+    const entry = { type: `Heart rate session (${/whoop/i.test(hr.device || '') ? 'Whoop' : /polar/i.test(hr.device || '') ? 'Polar H10' : hr.device || 'strap'})`, sets: [`${hr.minutes} min`, `avg ${hr.avg} bpm`, `max ${hr.max} bpm`], heart_rate: hr }
+    await savePhysicalField('other_session', [...list, entry], () => {})
+  }
+  const athleteMaxHr = () => { const d = student?.members?.date_of_birth; if (!d) return 190; const b = new Date(d), n = new Date(); const age = n.getFullYear() - b.getFullYear() - ((n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) ? 1 : 0); return Math.max(150, 220 - age) }
 
   async function checkOutNow() {
     setShowWeightCheckPrompt('out')
@@ -4521,6 +4534,14 @@ export default function AthleteApp() {
     // neither raises an error, and the checkout would otherwise just
     // quietly revert once the UI re-syncs with the real, unchanged row.
     const { data, error } = await supabase.from('attendance').update(updates).eq('id', activeCheckIn.id).select()
+    // Android app: check-out ends the class heart rate recording and saves it to today
+    if (!error && showWeightCheckPrompt === 'out' && NativeHr.isNativeHr()) {
+      NativeHr.status().then(async st => {
+        if (!st.recording) return
+        const hr = await NativeHr.stop(athleteMaxHr())
+        if ((hr.samples || 0) >= 5) await saveHrSession({ minutes: hr.minutes, avg: hr.avg, max: hr.max, zones: hr.zones, maxHr: athleteMaxHr(), device: NativeHr.savedStrap()?.name })
+      }).catch(() => {})
+    }
     if (error) {
       alert('Error saving: ' + error.message)
     } else if (!data?.length) {
@@ -7813,14 +7834,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
 
           {/* Live heart rate from a Bluetooth strap (Polar H10) -- saved as an Other session on today's log */}
           <LiveHeartRate age={(() => { const d = student?.members?.date_of_birth; if (!d) return null; const b = new Date(d), n = new Date(); return n.getFullYear() - b.getFullYear() - ((n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) ? 1 : 0) })()}
-            onSave={async hr => {
-              const today = new Date().toISOString().split('T')[0]
-              const cur = (sessions.find(x => x.session_date === today) || {}).other_session
-              const list = Array.isArray(cur) ? cur : (cur ? [cur] : [])
-              const entry = { type: `Heart rate session (${/whoop/i.test(hr.device || '') ? 'Whoop' : /polar/i.test(hr.device || '') ? 'Polar H10' : hr.device || 'strap'})`, sets: [`${hr.minutes} min`, `avg ${hr.avg} bpm`, `max ${hr.max} bpm`], heart_rate: hr }
-              await savePhysicalField('other_session', [...list, entry], () => {})
-              alert('Saved to today as an Other session.')
-            }} />
+            onSave={async hr => { await saveHrSession(hr); alert('Saved to today as an Other session.') }} />
 
           {/* Connected devices + connect buttons, one card per provider */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
