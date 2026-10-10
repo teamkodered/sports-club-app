@@ -31,6 +31,7 @@ import LeagueViews from './pages/LeagueViews.jsx'
 import LeaguePublic from './pages/LeaguePublic.jsx'
 import PrivacyPolicy from './pages/PrivacyPolicy.jsx'
 import LeagueBoard from './pages/LeagueBoard.jsx'
+import PolarCallback from './pages/PolarCallback.jsx'
 import Profile from './pages/Profile.jsx'
 import AdminImport from './pages/AdminImport.jsx'
 import StudentDatabase from './pages/StudentDatabase.jsx'
@@ -125,6 +126,8 @@ function App() {
           <Route path="/join-krba"       element={<JoinKRBA />} />
           <Route path="/grading"         element={<GradingExpression />} />
           <Route path="/league-public"   element={<LeaguePublic />} />
+          {/* Polar sends athletes back here after they approve; forward the code to the server to finish connecting */}
+          <Route path="/wearables/polar-callback" element={<PolarCallback />} />
           <Route path="/privacy"         element={<PrivacyPolicy />} />
           <Route path="/results-public"  element={<LeagueBoard />} />
           <Route path="/checkin-public"  element={<CheckInPublic />} />

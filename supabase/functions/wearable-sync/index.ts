@@ -14,7 +14,9 @@
 //   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 
 import { serviceClient, ensureAccessToken, upsertWorkouts, upsertDaily, markSynced, markError, type Connection } from '../_shared/wearables.ts'
-import { PROVIDERS } from '../_shared/whoop-client.ts'
+import { PROVIDERS as WHOOP_PROVIDERS } from '../_shared/whoop-client.ts'
+import { polarProvider } from '../_shared/polar-client.ts'
+const PROVIDERS = { ...WHOOP_PROVIDERS, polar: polarProvider }
 
 Deno.serve(async (req) => {
   const secret = Deno.env.get('WEARABLE_SYNC_SECRET')

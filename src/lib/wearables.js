@@ -19,6 +19,15 @@ export const PROVIDERS = {
       return `https://api.prod.whoop.com/oauth/oauth2/auth?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${studentId}`
     },
   },
+  polar: {
+    key: 'polar', label: 'Polar', icon: '❤️', colour: '#D10027', enabled: true,
+    provides: ['workouts', 'heart rate', 'heart rate zones', 'calories'],
+    blurb: 'Training sessions from your Polar account (Polar H10 with Polar Flow / Polar Beat): duration, average + max heart rate, zones, calories.',
+    connectUrl: studentId => {
+      const clientId = import.meta.env.VITE_POLAR_CLIENT_ID || 'fc655ba6-833c-40ab-8f33-7e422ef9139f' // public client id (not secret)
+      return `https://flow.polar.com/oauth2/authorization?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent('https://klasschamp.netlify.app/wearables/polar-callback')}&scope=accesslink.read_all&state=${encodeURIComponent(studentId)}`
+    },
+  },
   fitbit:        { key: 'fitbit',        label: 'Fitbit',         icon: '⌚', colour: '#00B0B9', enabled: false, provides: ['steps', 'heart rate', 'sleep', 'workouts'] },
   garmin:        { key: 'garmin',        label: 'Garmin',         icon: '⌚', colour: '#007CC3', enabled: false, provides: ['steps', 'heart rate', 'sleep', 'workouts'] },
   oura:          { key: 'oura',          label: 'Oura',           icon: '💍', colour: '#7B61FF', enabled: false, provides: ['sleep', 'readiness', 'heart rate'] },
