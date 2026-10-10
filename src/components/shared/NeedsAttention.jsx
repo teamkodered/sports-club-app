@@ -110,7 +110,7 @@ export default function NeedsAttention({ athletes = [], onOpen }) {
       {data && groups.map(([k, label, sub, c]) => {
         const list = data[k] || []
         if (!list.length) return null
-        const isOpen = open[k] ?? (k === 'low')
+        const isOpen = !!open[k] // all groups start collapsed
         return (
           <div key={k} style={{ borderTop: '1px solid var(--border)', padding: '6px 0' }}>
             <button type="button" onClick={() => setOpen(o => ({ ...o, [k]: !isOpen }))}
