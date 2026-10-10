@@ -230,6 +230,10 @@ export default function Layout() {
               </NavLink>
             )
           })}
+          <button type="button" onClick={() => { close && close(); handleLogout() }} title="Sign out"
+            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', marginTop: 8, padding: expanded ? '9px 12px' : '9px 0', justifyContent: expanded ? 'flex-start' : 'center', border: 'none', borderTop: '1px solid var(--border)', background: 'none', color: '#e24b4a', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+            <span>↩</span>{expanded && <span>Sign out</span>}
+          </button>
         </nav>
 
         {/* Profile footer */}

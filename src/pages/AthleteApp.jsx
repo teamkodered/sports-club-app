@@ -4727,11 +4727,17 @@ export default function AthleteApp() {
         </div>
       )}
 
-      {isStaff && (
-        <Link to="/dashboard" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 10, fontSize: 13, color: 'var(--text-secondary)', textDecoration: 'none' }}>
-          ← Back to main site
-        </Link>
-      )}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        {isStaff ? (
+          <Link to="/dashboard" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-secondary)', textDecoration: 'none' }}>
+            ← Back to main site
+          </Link>
+        ) : <span />}
+        <button type="button" onClick={async () => { await supabase.auth.signOut(); window.location.href = '/athlete-login' }}
+          style={{ background: 'none', border: 'none', padding: '4px 0', fontSize: 13, color: '#e24b4a', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+          ↩ Sign out
+        </button>
+      </div>
 
       {/* Profile header -- two swipeable views (Name/Club/Age/Level,
           and House info), avatar stays fixed on the left in both.
