@@ -18,7 +18,7 @@ begin
   end loop;
   if had_check then
     alter table public.enquiries add constraint enquiries_status_check
-      check (status in ('not_started','contacted','trial_booked','attended','joined','waiting_list','not_interested'));
+      check (status in ('not_started','contacted','trial_booked','attended','joined','waiting_list','not_interested','sent_derby_moore','sent_moorways'));
   end if;
 end $$;
 
