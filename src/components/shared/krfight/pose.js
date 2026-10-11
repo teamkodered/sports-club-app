@@ -1,7 +1,7 @@
 // KR FIGHT 2 -- jointed fighter rendering. Each fighter has a target pose (hands, feet, hips,
 // shoulders, head) worked out from what they're doing; the drawn pose eases towards it every step,
 // so moves blend instead of snapping. Elbows and knees come from simple two-bone IK.
-import { FLOOR, hex, LOOKS } from './data.js'
+import { FLOOR, hex, LOOKS, getLook } from './data.js'
 
 const KEYS = ['hipX', 'hipY', 'shX', 'shY', 'headX', 'headY', 'lhX', 'lhY', 'rhX', 'rhY', 'lfX', 'lfY', 'rfX', 'rfY', 'lean']
 const lerp = (a, b, t) => a + (b - a) * t
@@ -106,7 +106,7 @@ export function targetPose(f, frame) {
   return P
 }
 
-export function makePose(f, frame) { const p = targetPose(f, frame); return { cur: { ...p }, prev: { ...p }, trail: [] } }
+export function makePose(f, frame) { const p = targetPose(f, frame); return { cur: { ...p }, prev: { ...p }, trail: [], sw: [] } }
 
 // called once per simulation step
 export function stepPose(pose, f, frame) {
@@ -120,6 +120,37 @@ export function stepPose(pose, f, frame) {
   if (fast && frame % 2 === 0) pose.trail.push({ p: { ...pose.cur }, x: f.x, y: f.y, facing: f.facing, life: 10 })
   for (const tr of pose.trail) tr.life--
   pose.trail = pose.trail.filter(t => t.life > 0)
+  // swoosh: remember where the striking hand / foot has been during the attack
+  const m = f.move, sw = pose.sw || (pose.sw = [])
+  const limb = m && TIP[m.k]
+  if (limb && f.t >= m.s - 2 && f.t <= m.s + m.a + 3 && f.state !== 'ko') {
+    const lx = pose.cur[limb + 'X'], ly = pose.cur[limb + 'Y']
+    sw.push({ x: f.x + lx * f.facing, y: f.y + ly })
+    if (sw.length > 8) sw.shift()
+    pose.swHeavy = HEAVY.has(m.k) || !!m.super
+  } else if (sw.length) { sw.shift(); if (sw.length) sw.shift() }
+}
+const TIP = { lp: 'lh', clp: 'lh', cast: 'lh', hp: 'rh', rush: 'rh', upper: 'rh', lk: 'lf', clk: 'lf', jk: 'lf', stomp: 'lf', hk: 'rf' }
+const HEAVY = new Set(['hp', 'hk', 'rush', 'upper', 'clk'])
+
+// glowing ribbon along the swoosh points, thin at the tail and wide at the newest point
+function drawSwoosh(g, pose, colour) {
+  const pts = pose.sw
+  if (!pts || pts.length < 3) return
+  const maxW = pose.swHeavy ? 20 : 12, n = pts.length
+  const ribbon = (scale) => {
+    const L = [], R = []
+    for (let i = 0; i < n; i++) {
+      const a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)]
+      let dx = b.x - a.x, dy = b.y - a.y; const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d
+      const w = maxW * scale * Math.pow(i / (n - 1), 1.3) / 2
+      L.push({ x: pts[i].x - dy * w, y: pts[i].y + dx * w }); R.push({ x: pts[i].x + dy * w, y: pts[i].y - dx * w })
+    }
+    return [...L, ...R.reverse()]
+  }
+  g.fillStyle(colour, 0.35); g.fillPoints(ribbon(1.9), true)
+  g.fillStyle(colour, 0.7); g.fillPoints(ribbon(1.15), true)
+  g.fillStyle(0xffffff, 0.85); g.fillPoints(ribbon(0.45), true)
 }
 
 // two-bone IK: returns the joint (elbow / knee) between a and b. bend = +1 / -1 picks the side.
@@ -149,12 +180,14 @@ export function drawFighter(g, f, pose, frame, alpha = 1, opts = {}) {
   // afterimages first
   if (!opts.noTrail) for (const tr of pose.trail) drawBody(g, f, tr.p, tr.x, tr.y, tr.facing, frame, { ghost: tr.life / 10 * 0.35 })
   drawBody(g, f, P, opts.x ?? f.x, opts.y ?? f.y, f.facing, frame, opts)
+  if (!opts.noTrail) drawSwoosh(g, pose, hex(f.def.colour))
 }
 
 const shade = (c, k) => (Math.min(255, ((c >> 16) & 255) * k) << 16) | (Math.min(255, ((c >> 8) & 255) * k) << 8) | Math.min(255, (c & 255) * k)
 const OUTLINE = 0x07090c
 
 function drawBody(g, f, P, fx, fy, dir, frame, opts) {
+  if (getLook() === 'stick') return drawStick(g, f, P, fx, fy, dir, frame, opts)
   const L = LOOKS[f.def.key] || LOOKS.mentality
   const ghost = opts.ghost
   const flash = !ghost && f.flash > 0 && f.flash % 4 < 2
@@ -328,5 +361,97 @@ function drawBody(g, f, P, fx, fy, dir, frame, opts) {
     const r = 58 + Math.sin(frame / 2) * 4
     g.lineStyle(3, 0xffffff, 0.75); g.strokeCircle(f.x, f.y - 72, r)
     g.lineStyle(8, kit, 0.25); g.strokeCircle(f.x, f.y - 72, r + 4)
+  }
+}
+
+
+// ---------------- silhouette stickman ----------------
+// Player = white, CPU = black (like the classic stickman brawlers). The pillar colour shows on a
+// flowing scarf and belt sash. Thin round-capped limbs, solid round head, no face.
+function drawStick(g, f, P, fx, fy, dir, frame, opts) {
+  const L = LOOKS[f.def.key] || LOOKS.mentality
+  const ghost = opts.ghost
+  const kit = hex(f.def.colour)
+  const light = (opts.side || f.side || 'p1') === 'p1'
+  const flash = !ghost && f.flash > 0 && f.flash % 4 < 2
+  const A = ghost || 1
+  let front = light ? 0xf4f4f2 : 0x0c0d0f, back = light ? 0xbfc4c8 : 0x34383e
+  if (flash) { front = light ? kit : 0xffffff; back = front }
+  if (ghost) { front = kit; back = kit }
+
+  let rot = 0, lift = 0
+  if (f.state === 'ko' && !opts.noKo) {
+    const p = Math.min(1, (f.koT || 0) / 18)
+    rot = -dir * (Math.PI / 2) * (p * p) * 0.96
+    lift = (fy - FLOOR) * (1 - p)
+    fy = FLOOR
+  }
+  const cr = Math.cos(rot), sr = Math.sin(rot)
+  const W = (lx, ly) => { const x = lx * dir; return { x: fx + x * cr - ly * sr, y: fy + lift + x * sr + ly * cr } }
+  const V = (x, y) => ({ x, y })
+  if (!ghost) {
+    const airK = Math.max(0.35, 1 - (FLOOR - f.y) / 220)
+    g.fillStyle(0x000000, 0.3 * airK); g.fillEllipse(fx, (opts.shadowY ?? FLOOR) + 6, 76 * airK, 12 * airK)
+  }
+  const ls = 0.85 + (L.limb - 1) * 0.9
+  const cap = (a, b, w, col) => {
+    const p = W(a.x, a.y), q = W(b.x, b.y)
+    g.lineStyle(w, col, A); g.lineBetween(p.x, p.y, q.x, q.y)
+    g.fillStyle(col, A); g.fillCircle(p.x, p.y, w / 2); g.fillCircle(q.x, q.y, w / 2)
+  }
+  const hipL = V(P.hipX + 4, P.hipY), hipR = V(P.hipX - 4, P.hipY)
+  const shF = V(P.shX + 2, P.shY + 6), shB = V(P.shX - 4, P.shY + 7)
+  const lf = V(P.lfX, P.lfY), rf = V(P.rfX, P.rfY), lh = V(P.lhX, P.lhY), rh = V(P.rhX, P.rhY)
+  const J = (a, b, l, bend) => { const j = joint(a.x, a.y, b.x, b.y, l, l, bend); return V(j[0], j[1]) }
+  const lk = J(hipL, lf, 27, -1), rk = J(hipR, rf, 27, -1)
+  const le = J(shF, lh, 27, 1), re = J(shB, rh, 27, 1)
+  const legW = 10 * ls, armW = 8.5 * ls, torsoW = 14 * (0.85 + (L.sh - 18) / 30)
+  const foot = (ft, knee, col) => { const k = ft.y < -14 && ft.x > knee.x ? 1 : 0; const dx = ft.x - knee.x, dy = ft.y - knee.y, d = Math.hypot(dx, dy) || 1; cap(ft, V(ft.x + (k ? dx / d : 1) * 10, ft.y + (k ? dy / d * 10 : 0)), legW * 0.8, col) }
+
+  // scarf (behind everything) flowing from the neck
+  const H = V(P.headX, P.headY)
+  if (!ghost) {
+    const sway = Math.sin(frame / 6) * 4, sway2 = Math.cos(frame / 7) * 5
+    const n0 = V(P.shX - 2, P.shY - 2)
+    const s1 = V(n0.x - 16, n0.y + 2 + sway), s2 = V(n0.x - 30, n0.y + 8 + sway2), s3 = V(n0.x - 40, n0.y + 16 + sway)
+    cap(n0, s1, 6, kit); cap(s1, s2, 5, kit); cap(s2, s3, 3.5, kit)
+  }
+  // back limbs
+  cap(hipR, rk, legW, back); cap(rk, rf, legW * 0.92, back); foot(rf, rk, back)
+  cap(shB, re, armW, back); cap(re, rh, armW * 0.9, back)
+  { const p = W(rh.x, rh.y); g.fillStyle(back, A); g.fillCircle(p.x, p.y, armW * 0.85) }
+  // torso: slightly tapered (chest wider than hips)
+  const hc = V(P.hipX, P.hipY), sc = V(P.shX, P.shY + 4)
+  cap(hc, V((hc.x + sc.x) / 2, (hc.y + sc.y) / 2), torsoW * 0.9, front); cap(V((hc.x + sc.x) / 2, (hc.y + sc.y) / 2), sc, torsoW, front)
+  // belt sash in pillar colour
+  if (!ghost) {
+    const b1 = V(P.hipX - torsoW * 0.5, P.hipY - 4), b2 = V(P.hipX + torsoW * 0.5, P.hipY - 5)
+    cap(b1, b2, 4, kit)
+    const t0 = V(P.hipX - torsoW * 0.45, P.hipY - 4), sw = Math.sin(frame / 5) * 3
+    cap(t0, V(t0.x - 9, t0.y + 9 + sw), 3, kit); cap(t0, V(t0.x - 4, t0.y + 12 - sw), 3, kit)
+  }
+  // neck + head
+  cap(V(P.shX + 1, P.shY), V(H.x - 1, H.y + 8), 7, front)
+  { const p = W(H.x, H.y); g.fillStyle(front, A); g.fillCircle(p.x, p.y, 13.5)
+    // hair silhouette bump so builds still read (bun / ponytail / spikes / mohawk)
+    const hp = (x, y, r) => { const q = W(H.x + x, H.y + y); g.fillCircle(q.x, q.y, r) }
+    if (L.hair === 'bun') hp(-10, -12, 6.5)
+    if (L.hair === 'ponytail') { const sw = Math.sin(frame / 6) * 3; cap(V(H.x - 11, H.y - 6), V(H.x - 24, H.y + 6 + sw), 6, front) }
+    if (L.hair === 'spiky') for (const [x, y] of [[-11, -9], [-5, -14], [2, -15]]) { const a = W(H.x + x - 4, H.y + y + 3), b = W(H.x + x - 4, H.y + y - 9), c = W(H.x + x + 4, H.y + y + 3); g.fillTriangle(a.x, a.y, b.x, b.y, c.x, c.y) }
+    if (L.hair === 'mohawk') { const a = W(H.x - 12, H.y - 6), b = W(H.x - 2, H.y - 24), c = W(H.x + 6, H.y - 10); g.fillTriangle(a.x, a.y, b.x, b.y, c.x, c.y) }
+    // headband in pillar colour
+    if (!ghost) { const a = W(H.x - 13, H.y - 5), b = W(H.x + 13, H.y - 6); g.lineStyle(4, kit, 1); g.lineBetween(a.x, a.y, b.x, b.y) }
+  }
+  // front leg + arm
+  cap(hipL, lk, legW, front); cap(lk, lf, legW * 0.92, front); foot(lf, lk, front)
+  cap(shF, le, armW, front); cap(le, lh, armW * 0.9, front)
+  { const p = W(lh.x, lh.y); g.fillStyle(front, A); g.fillCircle(p.x, p.y, armW * 0.9) }
+  // white figure gets a soft dark edge so it reads on light backgrounds
+  if (light && !ghost && !flash) { const p = W(H.x, H.y); g.lineStyle(1.5, 0x000000, 0.25); g.strokeCircle(p.x, p.y, 13.5) }
+
+  if (!ghost && f.counterT > 0) {
+    const r = 58 + Math.sin(frame / 2) * 4
+    g.lineStyle(3, 0xffffff, 0.75); g.strokeCircle(f.x, f.y - 72, r)
+    g.lineStyle(8, kit, 0.3); g.strokeCircle(f.x, f.y - 72, r + 4)
   }
 }

@@ -1,7 +1,7 @@
 // KR FIGHT 2 -- Phaser scenes: Boot (makes textures), Title, Select, Fight, Results.
 // The world is 800x450; cameras zoom x2 onto a 1600x900 canvas so everything stays crisp on phones.
 import Phaser from 'phaser'
-import { W, H, FLOOR, FIGHTERS, MOVES, SUPER_NAME, LEVELS, comboLabel, hex } from './data.js'
+import { W, H, FLOOR, FIGHTERS, MOVES, SUPER_NAME, LEVELS, comboLabel, hex, getLook, setLook } from './data.js'
 import { Match, makeFighter } from './core.js'
 import { makePose, stepPose, drawFighter, targetPose } from './pose.js'
 
@@ -45,6 +45,7 @@ function button(scene, x, y, w, h, label, colour, onClick, opts = {}) {
 
 // ---------------- arena (KR Centre neon ring) ----------------
 function buildArena(scene, opts = {}) {
+  if (getLook() === 'stick') return buildArenaStick(scene, opts)
   const objs = []
   const g = scene.add.graphics(); objs.push(g)
   g.fillGradientStyle(0x120a1e, 0x120a1e, 0x1a1f24, 0x1a1f24, 1); g.fillRect(-60, -60, W + 120, FLOOR + 66)
@@ -81,6 +82,43 @@ function buildArena(scene, opts = {}) {
   return objs
 }
 
+// ---------------- arena for the stickman look: misty ruined city, grey ground ----------------
+function buildArenaStick(scene, opts = {}) {
+  const objs = []
+  const rnd = new Phaser.Math.RandomDataGenerator(['krs'])
+  const g = scene.add.graphics(); objs.push(g)
+  g.fillGradientStyle(0x93a08a, 0x93a08a, 0x6a7466, 0x6a7466, 1); g.fillRect(-60, -60, W + 120, FLOOR - 20)
+  // haze glow behind the fighters
+  g.fillStyle(0xd9dcc4, 0.18); g.fillEllipse(W / 2, 170, 620, 220)
+  // far skyline
+  const city = (col, alpha, baseY, minH, maxH, wMin, wMax) => {
+    g.fillStyle(col, alpha)
+    let x = -40
+    while (x < W + 40) {
+      const w = rnd.between(wMin, wMax), h = rnd.between(minH, maxH)
+      g.fillRect(x, baseY - h, w, h + 80)
+      if (rnd.frac() < 0.35) g.fillRect(x + w / 2 - 2, baseY - h - rnd.between(14, 40), 4, 40) // spire / mast
+      if (rnd.frac() < 0.25) g.fillTriangle(x, baseY - h, x + w, baseY - h, x + w * 0.3, baseY - h - rnd.between(10, 30)) // broken roof
+      x += w + rnd.between(-6, 10)
+    }
+  }
+  city(0x7e8a78, 1, 300, 60, 170, 30, 70)
+  g.fillStyle(0xb9c0a8, 0.25); g.fillRect(-60, 200, W + 120, 120) // fog layer
+  city(0x5c6559, 1, 330, 40, 120, 24, 60)
+  g.fillStyle(0xaab29a, 0.22); g.fillRect(-60, 260, W + 120, 90)
+  // ground
+  g.fillGradientStyle(0x55594f, 0x55594f, 0x2f322e, 0x2f322e, 1); g.fillRect(-60, FLOOR - 50, W + 120, H - FLOOR + 110)
+  g.fillStyle(0x7a8072, 0.5); g.fillRect(-60, FLOOR - 52, W + 120, 3)
+  for (let i = 0; i < 40; i++) { g.fillStyle(0x000000, rnd.realInRange(0.05, 0.14)); g.fillEllipse(rnd.between(0, W), rnd.between(FLOOR - 40, H), rnd.between(20, 90), rnd.between(3, 8)) }
+  const wm = txt(scene, W / 2, 120, 'KR FIGHT', { fontSize: '96px', color: '#2a2f2a' }).setOrigin(0.5).setAlpha(0.12); objs.push(wm)
+  // drifting embers
+  const em = scene.add.particles(0, 0, 'dot', { x: { min: 0, max: W }, y: { min: 120, max: FLOOR }, speedX: { min: -8, max: 14 }, speedY: { min: -18, max: -6 }, scale: { start: 0.18, end: 0 }, alpha: { start: 0.7, end: 0 }, lifespan: 4000, frequency: 160, tint: [0xe8d6a0, 0xffffff], blendMode: 'ADD' })
+  objs.push(em)
+  scene.crowd = null
+  if (opts.dim) { const d = scene.add.rectangle(W / 2, H / 2, W + 200, H + 200, 0x0b0d0c, opts.dim * 0.75); objs.push(d) }
+  return objs
+}
+
 // ---------------- Boot ----------------
 export class BootScene extends Phaser.Scene {
   constructor() { super('Boot') }
@@ -107,7 +145,7 @@ export class TitleScene extends Phaser.Scene {
     setupCam(this); bridge(this).onScene?.('title')
     buildArena(this, { dim: 0.45 })
     // two fighters squaring off in the background
-    this.demo = [0, 3].map((i, n) => { const f = makeFighter(FIGHTERS[i], n ? 560 : 240, n ? -1 : 1); return { f, pose: makePose(f, 0) } })
+    this.demo = [0, 3].map((i, n) => { const f = makeFighter(FIGHTERS[i], n ? 560 : 240, n ? -1 : 1); f.side = n ? 'p2' : 'p1'; return { f, pose: makePose(f, 0) } })
     this.fg = this.add.graphics(); this.frame = 0
     const logo = txt(this, W / 2, 150, 'KR FIGHT', { fontSize: '120px', color: GOLD, stroke: '#000', strokeThickness: 10 }).setOrigin(0.5)
     logo.setShadow(0, 0, RED, 24, true, true)
@@ -173,6 +211,8 @@ export class SelectScene extends Phaser.Scene {
     txt(this, 256, 356, 'Level', { fontFamily: BODY, fontStyle: '600', fontSize: '16px', color: '#9AA3AE' })
     this.lvlBtns = ['easy', 'medium', 'hard'].map((l, i) => button(this, 296 + i * 86, 404, 80, 44, l[0].toUpperCase() + l.slice(1), GOLD, () => { cfg.level = l; this.refresh() }, { size: 20 }))
     this.fightBtn = button(this, 668, 404, 200, 52, 'FIGHT!', FIGHTERS[cfg.pick].colour, () => this.start(), { solid: true, size: 34, r: 10 })
+    // Look: stickman silhouettes or cartoon fighters (rebuilds this screen to show it)
+    button(this, 712, 128, 124, 32, getLook() === 'stick' ? 'Look: Stickman' : 'Look: Cartoon', '#9AA3AE', () => { setLook(getLook() === 'stick' ? 'cartoon' : 'stick'); this.scene.restart() }, { size: 17 })
     this.refresh()
   }
   choose(i) {
@@ -528,7 +568,7 @@ export class ResultsScene extends Phaser.Scene {
     buildArena(this, { dim: 0.7 })
     const youWon = data.winner === 'p1'
     const wDef = FIGHTERS[youWon ? data.p1 : data.p2], lDef = FIGHTERS[youWon ? data.p2 : data.p1]
-    this.win = makeFighter(wDef, 190, 1)
+    this.win = makeFighter(wDef, 190, 1); this.win.side = youWon ? 'p1' : 'p2'
     this.pose = makePose(this.win, 0); this.frame = 0
     this.fg = this.add.graphics()
     this.conf = this.add.particles(0, 0, 'shard', { x: { min: 40, max: 340 }, y: -10, speedY: { min: 80, max: 180 }, speedX: { min: -40, max: 40 }, rotate: { min: 0, max: 360 }, scale: { start: 0.6, end: 0.6 }, lifespan: 3200, frequency: 60, tint: [hex(wDef.colour), 0xf5c542, 0xffffff] })

@@ -19,6 +19,7 @@ export class Match {
     this.lvl = LEVELS[level] || LEVELS.medium
     this.p1 = makeFighter(p1def, 220, 1)
     this.p2 = makeFighter(p2def, 580, -1)
+    this.p1.side = 'p1'; this.p2.side = 'p2'
     this.stats = { p1: newStats(), p2: newStats() }
     this.round = 1; this.timer = 60 * 60; this.phase = 'intro'; this.phaseT = 0
     this.projectiles = []; this.frame = 0; this.freeze = 0

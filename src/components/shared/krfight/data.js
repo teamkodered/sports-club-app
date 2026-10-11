@@ -43,3 +43,8 @@ export const LEVELS = {
 const TOKEN = { f: '▶', b: '◀', d: '▼', lp: 'LP', hp: 'HP', lk: 'LK', hk: 'HK', sp: 'SP' }
 export const comboLabel = seq => seq.map(t => TOKEN[t] || t).join(' ')
 export const hex = s => parseInt(s.slice(1), 16)
+
+// Look setting: 'stick' (silhouette stickmen, default) or 'cartoon'. Remembered on the device.
+let LOOK = (() => { try { return localStorage.getItem('krfight-look') || 'stick' } catch (e) { return 'stick' } })()
+export const getLook = () => LOOK
+export const setLook = v => { LOOK = v; try { localStorage.setItem('krfight-look', v) } catch (e) { /* ignore */ } }
