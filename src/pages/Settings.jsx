@@ -1,9 +1,19 @@
 import { useEffect, useState } from 'react'
 import TeamAccess from '../components/shared/TeamAccess.jsx'
+import { moveAllOldMemberDocs } from '../lib/memberDocs.js'
 import { supabase } from '../lib/supabase.js'
 import { matchesSearch } from '../lib/searchMatch.js'
 
 export default function Settings() {
+  const [docMove, setDocMove] = useState(null)   // { done, total, failed } while moving
+  async function moveDocs() {
+    if (!window.confirm("Move all older membership documents into private storage? Afterwards they'll only open for staff, the member's head coach / parent, or the member.")) return
+    try {
+      const r = await moveAllOldMemberDocs(setDocMove)
+      alert(r.total ? `Moved ${r.done} of ${r.total}${r.failed ? ` — ${r.failed} couldn't be moved (try again later)` : ''}.` : 'All membership documents are already in private storage.')
+    } catch (e) { alert('Could not move documents: ' + e.message) }
+    setDocMove(null)
+  }
   const [settings, setSettings] = useState({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(null)
@@ -427,6 +437,10 @@ export default function Settings() {
 
   return (
     <div style={{ maxWidth: 640 }}>
+      <div className="card" style={{ marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 13 }}><b>🔒 Membership documents</b><div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>New uploads are private. Move older ones too, so they can't be opened from a link.</div></div>
+        <button className="btn btn-sm btn-primary" disabled={!!docMove} onClick={moveDocs}>{docMove ? `Moving ${docMove.done}/${docMove.total}…` : 'Move older documents to private storage'}</button>
+      </div>
       <div className="page-header">
         <h1>Settings</h1>
         <p>Configure club details, belt levels, age categories, point types and Fit II Fight options</p>

@@ -52,3 +52,23 @@ export async function movePublicDocToPrivate(memberId, publicUrl) {
   if (m) await supabase.storage.from('athlete-media').remove([decodeURIComponent(m[1])])
   return ref
 }
+
+// Move every older (public-link) membership document into private storage.
+// onProgress({ done, total, failed }) is called as it goes. Returns the final counts.
+export async function moveAllOldMemberDocs(onProgress) {
+  const { data: rows, error } = await supabase.from('membership_forms').select('id, member_id, document_url').not('document_url', 'is', null)
+  if (error) throw error
+  const todo = (rows || []).filter(r => r.document_url && !isPrivateDoc(r.document_url) && /\/storage\/v1\/object\/public\//.test(r.document_url))
+  let done = 0, failed = 0
+  onProgress && onProgress({ done, total: todo.length, failed })
+  for (const r of todo) {
+    try {
+      const ref = await movePublicDocToPrivate(r.member_id, r.document_url)
+      const { data: upd, error: uErr } = await supabase.from('membership_forms').update({ document_url: ref }).eq('id', r.id).select('id')
+      if (uErr || !upd?.length) throw new Error(uErr?.message || 'not saved')
+      done++
+    } catch { failed++ }
+    onProgress && onProgress({ done, total: todo.length, failed })
+  }
+  return { done, total: todo.length, failed }
+}
