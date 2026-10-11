@@ -12,7 +12,7 @@ const HOUSE_COLOURS = {
 const MEDALS = ['🥇','🥈','🥉','🎖️']
 
 export default function Dashboard() {
-  const { profile, isAdmin } = useAuth()
+  const { profile, isAdmin, isHeadCoach, pageAccess } = useAuth()
   const [stats, setStats]         = useState({})
   const [memberBreakdownIndex, setMemberBreakdownIndex] = useState(0)
   const [athleteBreakdownIndex, setAthleteBreakdownIndex] = useState(0)
@@ -241,7 +241,7 @@ export default function Dashboard() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 18 }}>
         {(() => {
           const MEMBER_BREAKDOWN_STEPS = [
-            { key: 'all', label: 'Active members' },
+            { key: 'all', label: isHeadCoach ? 'Your active members' : 'Active members' },
             { key: 'pka', label: 'PKA' },
             { key: 'krCentrePka', label: 'KR Centre PKA' },
             { key: 'derbyMoore', label: 'Derby Moore' },
@@ -253,7 +253,7 @@ export default function Dashboard() {
           const breakdownValue = stats.memberBreakdown ? stats.memberBreakdown[step.key] : stats.memberCount
 
           const ATHLETE_BREAKDOWN_STEPS = [
-            { key: 'all', label: 'Athletes' },
+            { key: 'all', label: isHeadCoach ? 'Your athletes' : 'Athletes' },
             { key: 'kr', label: 'KR Athletes' },
             { key: 'krba', label: 'KRBA Athletes' },
           ]
@@ -350,7 +350,12 @@ export default function Dashboard() {
           { label: 'My App',     icon: '🎽', to: '/athlete-app', colour: '#8B5CF6' },
           { label: 'Add Points', icon: '⭐', to: null, action: 'addPoints', colour: '#EC4899' },
           { label: 'Fixtures',   icon: '📅', to: '/fixtures',   colour: '#06B6D4' },
-        ].map(l => l.action ? (
+        ].filter(l => {
+          // only show shortcuts to pages this person can open (e.g. a Head Coach)
+          const PAGE = { '/classes': 'classes', '/forms': 'forms', '/trackers': 'crm', '/fixtures': 'fixtures', '/checkin': 'registers' }
+          if (l.action === 'addPoints') return pageAccess('registers') === 'edit'
+          return !PAGE[l.to] || pageAccess(PAGE[l.to]) !== 'none'
+        }).map(l => l.action ? (
           <button key={l.label} onClick={() => setShowAddPoints(true)} style={{
             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
             padding: '14px 8px', background: l.colour + '12',
