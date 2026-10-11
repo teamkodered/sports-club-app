@@ -358,7 +358,7 @@ export default function CRM() {
   const { isAdmin, isHeadCoach } = useAuth()
   // Head Coach: his venue's CRM -- enquiries (venue-limited in the database) and the tabs whose data
   // is already limited to his students. Club inbox, payments, gradings, notices etc. stay hidden.
-  const HEAD_COACH_TABS = ['enquiries', 'missed_training', 'trackers', 'birthdays']
+  const HEAD_COACH_TABS = ['enquiries', 'missed_training', 'stopped_training', 'standing_orders', 'trackers', 'birthdays']
   const [enqVenue, setEnqVenue] = useState('all')   // admin's venue filter on enquiries
   const location = useLocation()
   const DEFAULT_TAB_ORDER = ['standing_orders', 'missed_training', 'stopped_training', 'grading_requests', 'birthdays', 'enquiries', 'trackers', 'messages', 'email', 'courses', 'parent_requests']
@@ -1096,9 +1096,11 @@ export default function CRM() {
   useEffect(() => { loadPastUploads() }, [])
 
   async function loadPastUploads() {
-    const { data } = await supabase.from('standing_order_uploads')
-      .select('id, uploaded_at, filename').order('uploaded_at', { ascending: false }).limit(30)
-    setPastUploads(data || [])
+    let { data, error } = await supabase.from('standing_order_uploads')
+      .select('id, uploaded_at, filename, venue').order('uploaded_at', { ascending: false }).limit(30)
+    if (error) ({ data } = await supabase.from('standing_order_uploads').select('id, uploaded_at, filename').order('uploaded_at', { ascending: false }).limit(30))
+    // label other venues' statements so they're never mixed up with KR Centre's
+    setPastUploads((data || []).map(u => u.venue && u.venue !== 'kr-centre' ? { ...u, filename: `[${u.venue === 'derby-moore' ? 'Derby Moore' : 'Moorways'}] ${u.filename || ''}` } : u))
   }
 
   async function openPastUpload(id) {
