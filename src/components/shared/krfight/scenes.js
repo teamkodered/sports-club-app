@@ -36,7 +36,7 @@ function button(scene, x, y, w, h, label, colour, onClick, opts = {}) {
   draw(!!opts.on)
   const t = txt(scene, 0, 0, label, { fontSize: (opts.size || 22) + 'px', color: opts.solid ? '#0A0A0A' : opts.textColour || '#F2F2F2' }).setOrigin(0.5)
   c.add([g, t]); c.setSize(w, h)
-  c.setInteractive(new Phaser.Geom.Rectangle(-w / 2, -h / 2, w, h), Phaser.Geom.Rectangle.Contains)
+  c.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains)
   c.on('pointerdown', () => { sfx(scene).ui?.(); scene.tweens.add({ targets: c, scale: 0.94, duration: 60, yoyo: true }); onClick() })
   c.setOn = on => draw(on)
   c.label = t
@@ -150,7 +150,7 @@ export class SelectScene extends Phaser.Scene {
       const icon = this.add.graphics()
       icon.fillStyle(hex(f.colour), 1); icon.fillCircle(0, -10, 14); icon.fillStyle(0xf1c9a5, 1); icon.fillCircle(0, -12, 7)
       c.add([g, icon, t]); c.setSize(140, 76)
-      c.setInteractive(new Phaser.Geom.Rectangle(-70, -38, 140, 76), Phaser.Geom.Rectangle.Contains)
+      c.setInteractive(new Phaser.Geom.Rectangle(0, 0, 140, 76), Phaser.Geom.Rectangle.Contains)
       c.on('pointerdown', () => { sfx(this).ui?.(); this.choose(i) })
       c.g = g; c.def = f
       return c
