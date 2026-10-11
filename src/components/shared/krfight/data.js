@@ -44,7 +44,37 @@ const TOKEN = { f: '▶', b: '◀', d: '▼', lp: 'LP', hp: 'HP', lk: 'LK', hk: 
 export const comboLabel = seq => seq.map(t => TOKEN[t] || t).join(' ')
 export const hex = s => parseInt(s.slice(1), 16)
 
-// Look setting: 'stick' (silhouette stickmen, default) or 'cartoon'. Remembered on the device.
+// Looks are levels. Level 1 Cartoon, Level 2 Stickman, Level 3 House themes. Everything is open while
+// testing; later isLookUnlocked() can check the athlete's game level so better looks unlock as they progress.
+export const LOOK_LEVELS = [
+  { key: 'cartoon', level: 1, name: 'Cartoon' },
+  { key: 'stick', level: 2, name: 'Stickman' },
+  { key: 'house', level: 3, name: 'Houses' },
+]
+export const isLookUnlocked = () => true
 let LOOK = (() => { try { return localStorage.getItem('krfight-look') || 'stick' } catch (e) { return 'stick' } })()
 export const getLook = () => LOOK
 export const setLook = v => { LOOK = v; try { localStorage.setItem('krfight-look', v) } catch (e) { /* ignore */ } }
+
+// House themes (level 3): black silhouette, glowing house-colour rim + eyes, and a signature effect.
+export const HOUSES = {
+  dragon: { name: 'Dragon', colour: '#E0262B', glow: '#FF5A45', head: 'band', aura: 'dragon' },
+  super: { name: 'Super', colour: '#FF7A1A', glow: '#FFE0A0', head: 'spiky', aura: 'flame' },
+  jet: { name: 'Jet', colour: '#62D836', glow: '#C4FF8A', head: 'band', aura: 'speed' },
+  ice: { name: 'Ice', colour: '#4FB2FF', glow: '#D6F1FF', head: 'mask', aura: 'frost' },
+  storm: { name: 'Storm', colour: '#A04BFF', glow: '#E6CCFF', head: 'hood', aura: 'storm' },
+}
+export const HOUSE_KEYS = Object.keys(HOUSES)
+let HOUSE = (() => { try { const h = localStorage.getItem('krfight-house'); return HOUSES[h] ? h : 'dragon' } catch (e) { return 'dragon' } })()
+export const getHouse = () => HOUSE
+export const setHouse = v => { HOUSE = v; try { localStorage.setItem('krfight-house', v) } catch (e) { /* ignore */ } }
+// colour used for a fighter's trails, sparks and effects in the current look
+export const fxColour = f => getLook() === 'house' && HOUSES[f.theme] ? HOUSES[f.theme].colour : f.def.colour
+
+// CPU's house in the house look: its fighter's natural house, or the next one if that's the player's
+const NATURAL_HOUSE = { tactical: 'dragon', physical: 'super', mentality: 'jet', technical: 'ice', foundation: 'storm' }
+export function cpuHouse(def, playerHouse) {
+  let h = NATURAL_HOUSE[def.key] || 'dragon'
+  if (h === playerHouse) h = HOUSE_KEYS[(HOUSE_KEYS.indexOf(h) + 1) % HOUSE_KEYS.length]
+  return h
+}

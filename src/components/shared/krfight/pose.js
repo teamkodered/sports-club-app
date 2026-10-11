@@ -1,7 +1,7 @@
 // KR FIGHT 2 -- jointed fighter rendering. Each fighter has a target pose (hands, feet, hips,
 // shoulders, head) worked out from what they're doing; the drawn pose eases towards it every step,
 // so moves blend instead of snapping. Elbows and knees come from simple two-bone IK.
-import { FLOOR, hex, LOOKS, getLook } from './data.js'
+import { FLOOR, hex, LOOKS, getLook, HOUSES, fxColour } from './data.js'
 
 const KEYS = ['hipX', 'hipY', 'shX', 'shY', 'headX', 'headY', 'lhX', 'lhY', 'rhX', 'rhY', 'lfX', 'lfY', 'rfX', 'rfY', 'lean']
 const lerp = (a, b, t) => a + (b - a) * t
@@ -13,11 +13,13 @@ export function targetPose(f, frame) {
   const air = f.y < FLOOR
   const bob = (f.state === 'idle' || f.state === 'walk') && !f.move ? Math.sin(frame / 9) * 2.2 : 0
   // fighting stance: bladed, knees soft, chin tucked behind the gloves
-  let hipY = crouch ? -30 : -47, shY = crouch ? -84 : -122
+  // stickman / house looks: shorter body, longer legs (legs 2 x 33 instead of 2 x 27)
+  const long = getLook() !== 'cartoon'
+  let hipY = crouch ? (long ? -38 : -30) : (long ? -60 : -47), shY = crouch ? (long ? -86 : -84) : (long ? -114 : -122)
   const P = {
     hipX: -2, hipY: hipY + bob, shX: 5, shY: shY + bob, headX: 8, headY: shY - 21 + bob,
     lhX: 32, lhY: shY - 2 + bob, rhX: 19, rhY: shY - 8 + bob,
-    lfX: crouch ? 26 : 22, lfY: 0, rfX: crouch ? -24 : -20, rfY: 0, lean: 0,
+    lfX: crouch ? 28 : (long ? 24 : 22), lfY: 0, rfX: crouch ? -26 : (long ? -22 : -20), rfY: 0, lean: 0,
   }
   if (f.state === 'walk' && !f.move) {
     const w = Math.sin(frame / 4.5)
@@ -180,7 +182,7 @@ export function drawFighter(g, f, pose, frame, alpha = 1, opts = {}) {
   // afterimages first
   if (!opts.noTrail) for (const tr of pose.trail) drawBody(g, f, tr.p, tr.x, tr.y, tr.facing, frame, { ghost: tr.life / 10 * 0.35 })
   drawBody(g, f, P, opts.x ?? f.x, opts.y ?? f.y, f.facing, frame, opts)
-  if (!opts.noTrail) drawSwoosh(g, pose, hex(f.def.colour))
+  if (!opts.noTrail) drawSwoosh(g, pose, hex(fxColour(f)))
 }
 
 const shade = (c, k) => (Math.min(255, ((c >> 16) & 255) * k) << 16) | (Math.min(255, ((c >> 8) & 255) * k) << 8) | Math.min(255, (c & 255) * k)
@@ -188,6 +190,7 @@ const OUTLINE = 0x07090c
 
 function drawBody(g, f, P, fx, fy, dir, frame, opts) {
   if (getLook() === 'stick') return drawStick(g, f, P, fx, fy, dir, frame, opts)
+  if (getLook() === 'house') return drawHouse(g, f, P, fx, fy, dir, frame, opts)
   const L = LOOKS[f.def.key] || LOOKS.mentality
   const ghost = opts.ghost
   const flash = !ghost && f.flash > 0 && f.flash % 4 < 2
@@ -403,7 +406,7 @@ function drawStick(g, f, P, fx, fy, dir, frame, opts) {
   const shF = V(P.shX + 2, P.shY + 6), shB = V(P.shX - 4, P.shY + 7)
   const lf = V(P.lfX, P.lfY), rf = V(P.rfX, P.rfY), lh = V(P.lhX, P.lhY), rh = V(P.rhX, P.rhY)
   const J = (a, b, l, bend) => { const j = joint(a.x, a.y, b.x, b.y, l, l, bend); return V(j[0], j[1]) }
-  const lk = J(hipL, lf, 27, -1), rk = J(hipR, rf, 27, -1)
+  const lk = J(hipL, lf, 33, -1), rk = J(hipR, rf, 33, -1)
   const le = J(shF, lh, 27, 1), re = J(shB, rh, 27, 1)
   const legW = 10 * ls, armW = 8.5 * ls, torsoW = 14 * (0.85 + (L.sh - 18) / 30)
   const foot = (ft, knee, col) => { const k = ft.y < -14 && ft.x > knee.x ? 1 : 0; const dx = ft.x - knee.x, dy = ft.y - knee.y, d = Math.hypot(dx, dy) || 1; cap(ft, V(ft.x + (k ? dx / d : 1) * 10, ft.y + (k ? dy / d * 10 : 0)), legW * 0.8, col) }
@@ -453,5 +456,177 @@ function drawStick(g, f, P, fx, fy, dir, frame, opts) {
     const r = 58 + Math.sin(frame / 2) * 4
     g.lineStyle(3, 0xffffff, 0.75); g.strokeCircle(f.x, f.y - 72, r)
     g.lineStyle(8, kit, 0.3); g.strokeCircle(f.x, f.y - 72, r + 4)
+  }
+}
+
+
+// ---------------- house themes (level 3) ----------------
+// Black silhouette with a glowing house-colour rim and glowing eyes, plus the house's signature effect:
+// Dragon = a red serpent coiling up around them, Super = flame aura + orbiting energy ring,
+// Jet = speed streaks, Ice = orbiting ice shards + frost, Storm = crackling purple lightning.
+function noise(n) { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x) }
+function drawHouse(g, f, P, fx, fy, dir, frame, opts) {
+  const T = HOUSES[f.theme] || HOUSES.dragon
+  const L = LOOKS[f.def.key] || LOOKS.mentality
+  const ghost = opts.ghost
+  const col = hex(T.colour), glow = hex(T.glow)
+  const flash = !ghost && f.flash > 0 && f.flash % 4 < 2
+  const A = ghost || 1
+  const body = ghost ? col : flash ? 0xffffff : 0x07080a, bodyBack = ghost ? col : flash ? 0xffffff : 0x1a1c21
+  const hot = (f.move && f.move.dmg > 0) || f.counterT > 0 || (f.meter || 0) >= 100 ? 1 : 0
+
+  let rot = 0, lift = 0
+  if (f.state === 'ko' && !opts.noKo) {
+    const p = Math.min(1, (f.koT || 0) / 18)
+    rot = -dir * (Math.PI / 2) * (p * p) * 0.96
+    lift = (fy - FLOOR) * (1 - p)
+    fy = FLOOR
+  }
+  const ko = f.state === 'ko'
+  const cr = Math.cos(rot), sr = Math.sin(rot)
+  const W = (lx, ly) => { const x = lx * dir; return { x: fx + x * cr - ly * sr, y: fy + lift + x * sr + ly * cr } }
+  const V = (x, y) => ({ x, y })
+  const cx = fx, cy = fy - 75
+
+  // ---- signature effect behind the fighter ----
+  if (!ghost && !ko) {
+    const a0 = 0.45 + hot * 0.35
+    if (T.aura === 'dragon') {
+      // serpent coiling upward around the body, head at the top
+      const n = 26, pts = []
+      for (let i = 0; i <= n; i++) {
+        const t = i / n, ang = t * Math.PI * 2.6 + frame * 0.05
+        pts.push({ x: cx + Math.cos(ang) * (44 - t * 14) * dir, y: fy - 6 - t * 150 + Math.sin(ang) * 10, w: 3 + Math.sin(t * Math.PI) * 9, front: Math.sin(ang) > 0 })
+      }
+      for (let i = 1; i < pts.length; i++) {
+        const a = pts[i - 1], b = pts[i]
+        if (b.front) continue // front half drawn after the body
+        g.lineStyle(b.w + 4, col, a0 * 0.35); g.lineBetween(a.x, a.y, b.x, b.y)
+        g.lineStyle(b.w, col, a0); g.lineBetween(a.x, a.y, b.x, b.y)
+      }
+      f._dragon = pts
+    } else if (T.aura === 'flame') {
+      const pts = [], n = 22
+      for (let i = 0; i <= n; i++) {
+        const t = i / n, ang = Math.PI * (1.05 + t * 0.9) // upper arc
+        const spike = i % 2 ? 1 : 0.62
+        const r = (78 + hot * 18) * spike * (0.85 + noise(i + Math.floor(frame / 3) * 7) * 0.3)
+        pts.push({ x: cx + Math.cos(ang) * r * 0.8, y: cy + 20 + Math.sin(ang) * r * 1.25 })
+      }
+      pts.push({ x: cx + 40, y: fy - 4 }, { x: cx - 40, y: fy - 4 })
+      g.fillStyle(col, a0 * 0.55); g.fillPoints(pts, true)
+      g.fillStyle(glow, a0 * 0.35); g.fillPoints(pts.map(p => ({ x: cx + (p.x - cx) * 0.62, y: cy + 20 + (p.y - cy - 20) * 0.7 })), true)
+    } else if (T.aura === 'speed') {
+      const moving = Math.abs(f.vx) > 0.5 || f.move
+      const k = moving ? 1 : 0.45
+      for (let i = 0; i < 9; i++) {
+        const y = fy - 18 - noise(i * 3.1) * 150, len = 30 + noise(i * 7.7) * 70
+        const off = ((frame * (6 + i % 3 * 3) + noise(i) * 200) % 120)
+        const x0 = cx - dir * (20 + off), x1 = x0 - dir * len * k
+        g.lineStyle(i % 3 ? 2 : 4, i % 2 ? col : glow, a0 * 0.7 * k * (1 - off / 140)); g.lineBetween(x0, y, x1, y)
+      }
+    } else if (T.aura === 'frost') {
+      for (let i = 0; i < 9; i++) {
+        const ang = i / 9 * Math.PI * 2 + frame * 0.02, r = 62 + Math.sin(frame / 20 + i) * 6
+        const x = cx + Math.cos(ang) * r, y = cy + Math.sin(ang) * r * 1.1
+        const s2 = 9 + noise(i) * 7, rot2 = ang + Math.PI / 2
+        const p = (dx, dy) => ({ x: x + dx * Math.cos(rot2) - dy * Math.sin(rot2), y: y + dx * Math.sin(rot2) + dy * Math.cos(rot2) })
+        g.fillStyle(col, a0 * 0.75); g.fillPoints([p(0, -s2), p(s2 * 0.35, 0), p(0, s2), p(-s2 * 0.35, 0)], true)
+        g.fillStyle(glow, a0 * 0.7); g.fillPoints([p(0, -s2 * 0.6), p(s2 * 0.15, 0), p(0, s2 * 0.6), p(-s2 * 0.15, 0)], true)
+      }
+      g.lineStyle(2, col, a0 * 0.35); g.strokeEllipse(cx, cy, 128, 148)
+    } else if (T.aura === 'storm') {
+      const seed = Math.floor(frame / 4)
+      g.lineStyle(2, col, a0 * 0.3); g.strokeEllipse(cx, cy, 136, 156)
+      for (let b = 0; b < 2 + hot * 2; b++) {
+        const ang = noise(seed * 5 + b) * Math.PI * 2, r = 70
+        let x = cx + Math.cos(ang) * r, y = cy + Math.sin(ang) * r * 1.1
+        const pts = [{ x, y }]
+        for (let k = 0; k < 5; k++) { x += (cx - x) * 0.22 + (noise(seed * 11 + b * 7 + k) - 0.5) * 26; y += (cy - y) * 0.22 + (noise(seed * 13 + b * 5 + k) - 0.5) * 26; pts.push({ x, y }) }
+        g.lineStyle(5, col, a0 * 0.5); g.strokePoints(pts, false)
+        g.lineStyle(1.8, glow, a0); g.strokePoints(pts, false)
+      }
+    }
+  }
+
+  // ---- skeleton (long legs) ----
+  const hipL = V(P.hipX + 4, P.hipY), hipR = V(P.hipX - 4, P.hipY)
+  const shF = V(P.shX + 2, P.shY + 6), shB = V(P.shX - 4, P.shY + 7)
+  const lf = V(P.lfX, P.lfY), rf = V(P.rfX, P.rfY), lh = V(P.lhX, P.lhY), rh = V(P.rhX, P.rhY)
+  const J = (a, b, l, bend) => { const j = joint(a.x, a.y, b.x, b.y, l, l, bend); return V(j[0], j[1]) }
+  const lk = J(hipL, lf, 33, -1), rk = J(hipR, rf, 33, -1)
+  const le = J(shF, lh, 27, 1), re = J(shB, rh, 27, 1)
+  const ls = 0.85 + (L.limb - 1) * 0.9
+  const legW = 10 * ls, armW = 8.5 * ls, torsoW = 14 * (0.85 + (L.sh - 18) / 30)
+  const H = V(P.headX, P.headY)
+  const hc = V(P.hipX, P.hipY), sc = V(P.shX, P.shY + 4), mc = V((hc.x + sc.x) / 2, (hc.y + sc.y) / 2)
+  const toe = (ft, knee) => { const k = ft.y < -14 && ft.x > knee.x ? 1 : 0; const dx = ft.x - knee.x, dy = ft.y - knee.y, d = Math.hypot(dx, dy) || 1; return V(ft.x + (k ? dx / d : 1) * 10, ft.y + (k ? dy / d * 10 : 0)) }
+  const segs = [
+    [hipR, rk, legW, 1], [rk, rf, legW * 0.92, 1], [rf, toe(rf, rk), legW * 0.8, 1],
+    [shB, re, armW, 1], [re, rh, armW * 0.9, 1],
+    [hc, mc, torsoW * 0.9, 0], [mc, sc, torsoW, 0], [V(P.shX + 1, P.shY), V(H.x - 1, H.y + 8), 7, 0],
+    [hipL, lk, legW, 0], [lk, lf, legW * 0.92, 0], [lf, toe(lf, lk), legW * 0.8, 0],
+    [shF, le, armW, 0], [le, lh, armW * 0.9, 0],
+  ]
+  const cap = (a, b, w, c, al) => { const p = W(a.x, a.y), q = W(b.x, b.y); g.lineStyle(w, c, al); g.lineBetween(p.x, p.y, q.x, q.y); g.fillStyle(c, al); g.fillCircle(p.x, p.y, w / 2); g.fillCircle(q.x, q.y, w / 2) }
+  const headShape = (c, al, grow) => {
+    const p = W(H.x, H.y); g.fillStyle(c, al); g.fillCircle(p.x, p.y, 13.5 + grow)
+    const tri = (pts) => g.fillTriangle(...pts.flatMap(([x, y]) => { const q = W(H.x + x, H.y + y); return [q.x, q.y] }))
+    if (T.head === 'spiky') { for (const [x, y] of [[-12, -6], [-7, -12], [0, -14], [6, -11]]) tri([[x - 5 - grow, y + 4], [x - 6, y - 14 - grow * 1.5], [x + 5 + grow, y + 4]]) }
+    if (T.head === 'mask' || T.head === 'hood') tri([[-14 - grow, -4], [-22 - grow, 10 + grow], [-6, 12]]) // hood falls behind
+    if (T.head === 'hood') tri([[-10 - grow, -10], [-4, -22 - grow * 1.5], [6 + grow, -11]])
+    const hd = W(H.x, H.y)
+    for (const [ax, ay] of [[-11, 4], [-10, 9]]) { const q = W(H.x + ax, H.y + ay); g.fillCircle((q.x + hd.x) / 2, (q.y + hd.y) / 2, 9 + grow) }
+  }
+  // pass 1: glowing rim
+  if (!ghost) {
+    const rim = 5 + hot * 2
+    for (const [a, b, w] of segs) cap(a, b, w + rim, col, 0.55)
+    headShape(col, 0.55, rim / 2)
+  }
+  // pass 2: black body (back limbs a touch lighter)
+  for (const [a, b, w, back] of segs.slice(0, 5)) cap(a, b, w, back ? bodyBack : body, A)
+  for (const [a, b, w] of segs.slice(5, 8)) cap(a, b, w, body, A)
+  headShape(body, A, 0)
+  for (const [a, b, w] of segs.slice(8)) cap(a, b, w, body, A)
+  { const p = W(rh.x, rh.y); g.fillStyle(bodyBack, A); g.fillCircle(p.x, p.y, armW * 0.85); const q = W(lh.x, lh.y); g.fillStyle(body, A); g.fillCircle(q.x, q.y, armW * 0.9) }
+
+  if (ghost) return
+  // headband tails (Dragon / Jet), belt in house colour
+  if (T.head === 'band') {
+    const a = W(H.x - 13, H.y - 5), b = W(H.x + 12, H.y - 6); g.lineStyle(3.5, col, 1); g.lineBetween(a.x, a.y, b.x, b.y)
+    const long2 = T.aura === 'speed' ? 1.6 : 1
+    const t1 = W(H.x - 13 - 22 * long2, H.y + 2 + Math.sin(frame / 4) * 4), t2 = W(H.x - 13 - 18 * long2, H.y - 4 + Math.cos(frame / 5) * 4)
+    g.lineStyle(3.5, col, 1); g.lineBetween(a.x, a.y, t1.x, t1.y); g.lineStyle(2.5, col, 0.8); g.lineBetween(a.x, a.y, t2.x, t2.y)
+  }
+  { const b1 = W(P.hipX - torsoW * 0.5, P.hipY - 4), b2 = W(P.hipX + torsoW * 0.5, P.hipY - 5); g.lineStyle(3.5, col, 1); g.lineBetween(b1.x, b1.y, b2.x, b2.y) }
+  // glowing eyes (ice mask gets a visor slit)
+  if (!ko) {
+    const e = W(H.x + 8, H.y - 1), e2 = W(H.x + 2, H.y - 1)
+    g.fillStyle(col, 0.6); g.fillEllipse(e.x, e.y, 9, 6); g.fillEllipse(e2.x, e2.y, 7, 5)
+    g.fillStyle(0xffffff, 1); g.fillEllipse(e.x, e.y, 4.5, 2.6); g.fillEllipse(e2.x, e2.y, 3.4, 2.2)
+    if (T.head === 'mask') { const m1 = W(H.x - 2, H.y + 5), m2 = W(H.x + 13, H.y + 4); g.lineStyle(2, col, 0.7); g.lineBetween(m1.x, m1.y, m2.x, m2.y) }
+  } else { const e = W(H.x + 7, H.y - 1); g.lineStyle(2, col, 0.8); g.lineBetween(e.x - 3, e.y - 3, e.x + 3, e.y + 3); g.lineBetween(e.x - 3, e.y + 3, e.x + 3, e.y - 3) }
+
+  // ---- in front of the body ----
+  if (!ko && T.aura === 'dragon' && f._dragon) {
+    const pts = f._dragon, a0 = 0.45 + hot * 0.35
+    for (let i = 1; i < pts.length; i++) { const a = pts[i - 1], b = pts[i]; if (!b.front) continue; g.lineStyle(b.w + 4, col, a0 * 0.35); g.lineBetween(a.x, a.y, b.x, b.y); g.lineStyle(b.w, col, a0); g.lineBetween(a.x, a.y, b.x, b.y) }
+    // dragon head at the top of the coil
+    const hd = pts[pts.length - 1], pr = pts[pts.length - 3], ang = Math.atan2(hd.y - pr.y, hd.x - pr.x)
+    const P2 = (d, s) => ({ x: hd.x + Math.cos(ang) * d - Math.sin(ang) * s, y: hd.y + Math.sin(ang) * d + Math.cos(ang) * s })
+    g.fillStyle(col, Math.min(1, a0 + 0.2)); g.fillPoints([P2(-6, -7), P2(14, -4), P2(18, 0), P2(12, 3), P2(16, 7), P2(-4, 6)], true)
+    g.fillStyle(0xffffff, 0.9); const ey = P2(4, -3); g.fillCircle(ey.x, ey.y, 1.8)
+  }
+  if (!ko && T.aura === 'flame') {
+    // orbiting energy ring (tilted ellipse), front half over the body
+    const pts = []
+    for (let i = 0; i <= 24; i++) { const a = i / 24 * Math.PI * 2 + frame * 0.08, x = Math.cos(a) * 62, y = Math.sin(a) * 16; const tilt = -0.35; pts.push({ x: cx + x * Math.cos(tilt) - y * Math.sin(tilt), y: cy + 10 + x * Math.sin(tilt) + y * Math.cos(tilt), front: Math.sin(a) > 0 }) }
+    for (let i = 1; i < pts.length; i++) if (pts[i].front) { g.lineStyle(4, glow, 0.85); g.lineBetween(pts[i - 1].x, pts[i - 1].y, pts[i].x, pts[i].y) }
+  }
+  if (f.counterT > 0) {
+    const r = 58 + Math.sin(frame / 2) * 4
+    g.lineStyle(3, 0xffffff, 0.75); g.strokeCircle(f.x, f.y - 72, r)
+    g.lineStyle(8, col, 0.3); g.strokeCircle(f.x, f.y - 72, r + 4)
   }
 }

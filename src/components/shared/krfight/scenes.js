@@ -1,7 +1,7 @@
 // KR FIGHT 2 -- Phaser scenes: Boot (makes textures), Title, Select, Fight, Results.
 // The world is 800x450; cameras zoom x2 onto a 1600x900 canvas so everything stays crisp on phones.
 import Phaser from 'phaser'
-import { W, H, FLOOR, FIGHTERS, MOVES, SUPER_NAME, LEVELS, comboLabel, hex, getLook, setLook } from './data.js'
+import { W, H, FLOOR, FIGHTERS, MOVES, SUPER_NAME, LEVELS, comboLabel, hex, getLook, setLook, LOOK_LEVELS, HOUSES, HOUSE_KEYS, getHouse, setHouse, fxColour, cpuHouse } from './data.js'
 import { Match, makeFighter } from './core.js'
 import { makePose, stepPose, drawFighter, targetPose } from './pose.js'
 
@@ -45,7 +45,7 @@ function button(scene, x, y, w, h, label, colour, onClick, opts = {}) {
 
 // ---------------- arena (KR Centre neon ring) ----------------
 function buildArena(scene, opts = {}) {
-  if (getLook() === 'stick') return buildArenaStick(scene, opts)
+  if (getLook() !== 'cartoon') return buildArenaStick(scene, { ...opts, dark: getLook() === 'house' })
   const objs = []
   const g = scene.add.graphics(); objs.push(g)
   g.fillGradientStyle(0x120a1e, 0x120a1e, 0x1a1f24, 0x1a1f24, 1); g.fillRect(-60, -60, W + 120, FLOOR + 66)
@@ -87,9 +87,14 @@ function buildArenaStick(scene, opts = {}) {
   const objs = []
   const rnd = new Phaser.Math.RandomDataGenerator(['krs'])
   const g = scene.add.graphics(); objs.push(g)
-  g.fillGradientStyle(0x93a08a, 0x93a08a, 0x6a7466, 0x6a7466, 1); g.fillRect(-60, -60, W + 120, FLOOR - 20)
+  // dark = house look: night version so the glowing silhouettes pop
+  const D = opts.dark, C = D
+    ? { skyA: 0x141821, skyB: 0x0a0c11, haze: 0x6a5a8a, far: 0x1c202a, fog: 0x2a2f3c, near: 0x10131a, fog2: 0x262a36, grA: 0x1a1d24, grB: 0x07080b, line: 0x3a3f4c, wm: '#ffffff' }
+    : { skyA: 0x93a08a, skyB: 0x6a7466, haze: 0xd9dcc4, far: 0x7e8a78, fog: 0xb9c0a8, near: 0x5c6559, fog2: 0xaab29a, grA: 0x55594f, grB: 0x2f322e, line: 0x7a8072, wm: '#2a2f2a' }
+  g.fillGradientStyle(C.skyA, C.skyA, C.skyB, C.skyB, 1); g.fillRect(-60, -60, W + 120, FLOOR - 20)
   // haze glow behind the fighters
-  g.fillStyle(0xd9dcc4, 0.18); g.fillEllipse(W / 2, 170, 620, 220)
+  g.fillStyle(C.haze, D ? 0.12 : 0.18); g.fillEllipse(W / 2, 170, 620, 220)
+  if (D) { g.lineStyle(3, 0xffffff, 0.06); g.strokeCircle(W / 2, 200, 150); g.lineStyle(10, 0xffffff, 0.025); g.strokeCircle(W / 2, 200, 160) } // emblem ring
   // far skyline
   const city = (col, alpha, baseY, minH, maxH, wMin, wMax) => {
     g.fillStyle(col, alpha)
@@ -102,15 +107,15 @@ function buildArenaStick(scene, opts = {}) {
       x += w + rnd.between(-6, 10)
     }
   }
-  city(0x7e8a78, 1, 300, 60, 170, 30, 70)
-  g.fillStyle(0xb9c0a8, 0.25); g.fillRect(-60, 200, W + 120, 120) // fog layer
-  city(0x5c6559, 1, 330, 40, 120, 24, 60)
-  g.fillStyle(0xaab29a, 0.22); g.fillRect(-60, 260, W + 120, 90)
+  city(C.far, 1, 300, 60, 170, 30, 70)
+  g.fillStyle(C.fog, D ? 0.35 : 0.25); g.fillRect(-60, 200, W + 120, 120) // fog layer
+  city(C.near, 1, 330, 40, 120, 24, 60)
+  g.fillStyle(C.fog2, D ? 0.3 : 0.22); g.fillRect(-60, 260, W + 120, 90)
   // ground
-  g.fillGradientStyle(0x55594f, 0x55594f, 0x2f322e, 0x2f322e, 1); g.fillRect(-60, FLOOR - 50, W + 120, H - FLOOR + 110)
-  g.fillStyle(0x7a8072, 0.5); g.fillRect(-60, FLOOR - 52, W + 120, 3)
+  g.fillGradientStyle(C.grA, C.grA, C.grB, C.grB, 1); g.fillRect(-60, FLOOR - 50, W + 120, H - FLOOR + 110)
+  g.fillStyle(C.line, 0.5); g.fillRect(-60, FLOOR - 52, W + 120, 3)
   for (let i = 0; i < 40; i++) { g.fillStyle(0x000000, rnd.realInRange(0.05, 0.14)); g.fillEllipse(rnd.between(0, W), rnd.between(FLOOR - 40, H), rnd.between(20, 90), rnd.between(3, 8)) }
-  const wm = txt(scene, W / 2, 120, 'KR FIGHT', { fontSize: '96px', color: '#2a2f2a' }).setOrigin(0.5).setAlpha(0.12); objs.push(wm)
+  const wm = txt(scene, W / 2, 120, 'KR FIGHT', { fontSize: '96px', color: C.wm }).setOrigin(0.5).setAlpha(D ? 0.04 : 0.12); objs.push(wm)
   // drifting embers
   const em = scene.add.particles(0, 0, 'dot', { x: { min: 0, max: W }, y: { min: 120, max: FLOOR }, speedX: { min: -8, max: 14 }, speedY: { min: -18, max: -6 }, scale: { start: 0.18, end: 0 }, alpha: { start: 0.7, end: 0 }, lifespan: 4000, frequency: 160, tint: [0xe8d6a0, 0xffffff], blendMode: 'ADD' })
   objs.push(em)
@@ -145,7 +150,7 @@ export class TitleScene extends Phaser.Scene {
     setupCam(this); bridge(this).onScene?.('title')
     buildArena(this, { dim: 0.45 })
     // two fighters squaring off in the background
-    this.demo = [0, 3].map((i, n) => { const f = makeFighter(FIGHTERS[i], n ? 560 : 240, n ? -1 : 1); f.side = n ? 'p2' : 'p1'; return { f, pose: makePose(f, 0) } })
+    this.demo = [0, 3].map((i, n) => { const f = makeFighter(FIGHTERS[i], n ? 560 : 240, n ? -1 : 1); f.side = n ? 'p2' : 'p1'; f.theme = n ? cpuHouse(f.def, getHouse()) : getHouse(); return { f, pose: makePose(f, 0) } })
     this.fg = this.add.graphics(); this.frame = 0
     const logo = txt(this, W / 2, 150, 'KR FIGHT', { fontSize: '120px', color: GOLD, stroke: '#000', strokeThickness: 10 }).setOrigin(0.5)
     logo.setShadow(0, 0, RED, 24, true, true)
@@ -194,7 +199,7 @@ export class SelectScene extends Phaser.Scene {
       return c
     })
     // preview fighter
-    this.prev = makeFighter(FIGHTERS[cfg.pick], 170, 1)
+    this.prev = makeFighter(FIGHTERS[cfg.pick], 170, 1); this.prev.theme = getHouse()
     this.prevPose = makePose(this.prev, 0)
     this.fg = this.add.graphics()
     this.name = txt(this, 340, 108, '', { fontSize: '48px', stroke: '#000', strokeThickness: 6 })
@@ -212,13 +217,26 @@ export class SelectScene extends Phaser.Scene {
     this.lvlBtns = ['easy', 'medium', 'hard'].map((l, i) => button(this, 296 + i * 86, 404, 80, 44, l[0].toUpperCase() + l.slice(1), GOLD, () => { cfg.level = l; this.refresh() }, { size: 20 }))
     this.fightBtn = button(this, 668, 404, 200, 52, 'FIGHT!', FIGHTERS[cfg.pick].colour, () => this.start(), { solid: true, size: 34, r: 10 })
     // Look: stickman silhouettes or cartoon fighters (rebuilds this screen to show it)
-    button(this, 712, 128, 124, 32, getLook() === 'stick' ? 'Look: Stickman' : 'Look: Cartoon', '#9AA3AE', () => { setLook(getLook() === 'stick' ? 'cartoon' : 'stick'); this.scene.restart() }, { size: 17 })
+    // Look levels: 1 Cartoon, 2 Stickman, 3 Houses (all open while testing; later they unlock with game level)
+    const lv = LOOK_LEVELS.find(l => l.key === getLook()) || LOOK_LEVELS[1]
+    button(this, 712, 128, 124, 32, `Look ${lv.level}: ${lv.name}`, '#9AA3AE', () => { setLook(LOOK_LEVELS[(LOOK_LEVELS.indexOf(lv) + 1) % LOOK_LEVELS.length].key); this.scene.restart() }, { size: 17 })
+    // house picker (house look only): one glowing swatch per house
+    if (getLook() === 'house') {
+      HOUSE_KEYS.forEach((h, i) => {
+        const x = 44 + i * 30, y = 112, col = hex(HOUSES[h].colour), on = h === getHouse()
+        const sw = this.add.graphics()
+        if (on) { sw.lineStyle(3, 0xffffff, 1); sw.strokeCircle(x, y, 14) }
+        sw.fillStyle(col, 0.35); sw.fillCircle(x, y, 12); sw.fillStyle(col, 1); sw.fillCircle(x, y, 8)
+        sw.setInteractive(new Phaser.Geom.Circle(x, y, 15), Phaser.Geom.Circle.Contains)
+        sw.on('pointerdown', () => { sfx(this).ui?.(); setHouse(h); this.scene.restart() })
+      })
+    }
     this.refresh()
   }
   choose(i) {
     const cfg = this.game.cfg
     cfg.pick = i; if (cfg.cpu === i) cfg.cpu = null
-    this.prev = makeFighter(FIGHTERS[i], 170, 1); this.prevPose = makePose(this.prev, this.frame)
+    this.prev = makeFighter(FIGHTERS[i], 170, 1); this.prev.theme = getHouse(); this.prevPose = makePose(this.prev, this.frame)
     this.demoT = 20
     this.refresh()
   }
@@ -277,7 +295,7 @@ export class SelectScene extends Phaser.Scene {
     if (f.counterT > 0) f.counterT--
     this.fg.clear()
     this.fg.setScale(1.3).setPosition(-170 * 0.3, -330 * 0.3)
-    this.fg.lineStyle(2, hex(f.def.colour), 0.4); this.fg.strokeEllipse(170, 336, 170, 22)
+    this.fg.lineStyle(2, hex(fxColour(f)), 0.4); this.fg.strokeEllipse(170, 336, 170, 22)
     stepPose(this.prevPose, f, this.frame)
     // draw the preview standing on its own little floor (y = 330)
     drawFighter(this.fg, f, this.prevPose, this.frame, 1, { noKo: true, y: 330, shadowY: 330 })
@@ -292,6 +310,7 @@ export class FightScene extends Phaser.Scene {
     setupCam(this)
     const b = bridge(this); b.onScene?.('fight')
     this.m = new Match(FIGHTERS[data.p1], FIGHTERS[data.p2], data.level)
+    this.m.p1.theme = getHouse(); this.m.p2.theme = cpuHouse(this.m.p2.def, this.m.p1.theme)
     this.poses = { p1: makePose(this.m.p1, 0), p2: makePose(this.m.p2, 0) }
     this.acc = 0; this.slow = 1; this.shakeT = null
     this.world = []
@@ -385,7 +404,7 @@ export class FightScene extends Phaser.Scene {
         case 'fight': this.showBanner('FIGHT!', '', 500, '#FFFFFF'); sx.bell?.(); sx.say?.('Fight!', 0.7); this.crowdJump(true); break
         case 'whoosh': sx.whoosh?.(e.heavy); break
         case 'hit': {
-          const big = e.dmg >= 20, col = hex(e.att.def.colour)
+          const big = e.dmg >= 20, col = hex(fxColour(e.att))
           this.sparkAt(e.x, e.y, col, big ? 2 : e.heavy ? 1.4 : 0.9)
           sx.hit?.(e.heavy, big)
           this.shake(big ? 260 : e.heavy ? 150 : 80, big ? 10 : e.heavy ? 6 : 3)
@@ -396,13 +415,13 @@ export class FightScene extends Phaser.Scene {
           break
         }
         case 'block': this.sparkAt(e.x, e.y, 0x8fd3ff, 0.8, true); sx.block?.(); break
-        case 'counter': this.sparkAt(e.x, e.y, 0xffffff, 1.8); this.ringAt(e.att.x, e.att.y - 72, hex(e.att.def.colour), 1.6); sx.hit?.(true, true); this.popText(e.att.x, e.att.y - 200, 'COUNTER!', '#FFFFFF', 34); this.shake(220, 8); this.crowdJump(true); break
+        case 'counter': this.sparkAt(e.x, e.y, 0xffffff, 1.8); this.ringAt(e.att.x, e.att.y - 72, hex(fxColour(e.att)), 1.6); sx.hit?.(true, true); this.popText(e.att.x, e.att.y - 200, 'COUNTER!', '#FFFFFF', 34); this.shake(220, 8); this.crowdJump(true); break
         case 'combo': this.popText(e.f.x, e.f.y - 205, e.name.toUpperCase() + '!', GOLD, 30); sx.special?.(); break
         case 'special': {
           sx.special?.()
-          const col = hex(e.f.def.colour)
+          const col = hex(fxColour(e.f))
           this.ringAt(e.f.x, e.f.y - 80, col, 0.9)
-          this.popText(e.f.x, e.f.y - 205, e.f.def.specialName.toUpperCase(), e.f.def.colour, 24)
+          this.popText(e.f.x, e.f.y - 205, e.f.def.specialName.toUpperCase(), fxColour(e.f), 24)
           if (e.kind === 'quake') { this.shake(200, 5); this.dustE().explode(16, e.f.x + 20 * e.f.facing, FLOOR) }
           break
         }
@@ -432,7 +451,7 @@ export class FightScene extends Phaser.Scene {
         case 'matchOver': {
           this.time.delayedCall(700, () => {
             this.cameras.main.fadeOut(350, 5, 7, 10)
-            this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Results', { ...this.data0, winner: e.winner, stats: m.stats, wins: [m.p1.wins, m.p2.wins] }))
+            this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Results', { ...this.data0, themes: [m.p1.theme, m.p2.theme], winner: e.winner, stats: m.stats, wins: [m.p1.wins, m.p2.wins] }))
           })
           break
         }
@@ -447,7 +466,7 @@ export class FightScene extends Phaser.Scene {
     this.tweens.add({ targets: t, alpha: 0, delay: 900, duration: 300 })
   }
   superCutIn(f, name) {
-    const sx = this.sx, col = hex(f.def.colour)
+    const sx = this.sx, col = hex(fxColour(f))
     sx.superStart?.(); sx.say?.(name, 0.6)
     this.vibe(40)
     this.tweens.add({ targets: this.dark, fillAlpha: 0.65, duration: 120, yoyo: true, hold: 380 })
@@ -464,7 +483,7 @@ export class FightScene extends Phaser.Scene {
     this.emitter(col).sparks.explode(30, f.x, f.y - 80)
   }
   spawnProjectile(pj) {
-    const col = hex(pj.colour)
+    const col = hex(fxColour(pj.owner))
     const s = this.W(this.add.image(pj.x, pj.y, 'orb').setTint(col).setBlendMode('ADD').setScale(pj.big ? 1.3 : pj.low ? 0.8 : 0.7))
     if (pj.low) s.setScale(1.1, 0.45)
     const core = this.W(this.add.image(pj.x, pj.y, 'dot').setBlendMode('ADD').setScale(pj.big ? 1.1 : 0.6))
@@ -474,7 +493,7 @@ export class FightScene extends Phaser.Scene {
   }
   killProjectile(pj) {
     const o = this.pjSprites.get(pj.id); if (!o) return
-    this.sparkAt(o.s.x, o.s.y, hex(pj.colour), pj.big ? 1.4 : 0.8)
+    this.sparkAt(o.s.x, o.s.y, hex(fxColour(pj.owner)), pj.big ? 1.4 : 0.8)
     o.s.destroy(); o.core.destroy(); o.trail.stop(); this.time.delayedCall(400, () => o.trail.destroy())
     this.pjSprites.delete(pj.id)
   }
@@ -532,7 +551,7 @@ export class FightScene extends Phaser.Scene {
       g.fillStyle(0x2a3138, 1); g.fillPoints(shape(x0, w), true)
       if (lag > f.hp) { g.fillStyle(0xffffff, 0.85); g.fillPoints(shape(x0, w * lag / 100), true) }
       const low = f.hp <= 30
-      g.fillStyle(low ? (m.frame % 20 < 10 ? 0xe24b4a : 0xff7a6e) : hex(f.def.colour), 1); g.fillPoints(shape(x0, Math.max(0, w * f.hp / 100)), true)
+      g.fillStyle(low ? (m.frame % 20 < 10 ? 0xe24b4a : 0xff7a6e) : hex(fxColour(f)), 1); g.fillPoints(shape(x0, Math.max(0, w * f.hp / 100)), true)
       g.fillStyle(0xffffff, 0.18); g.fillRect(right ? x0 + 4 : x0 + 12, y + 3, w - 18, 5)
       g.lineStyle(2, 0xf2f2f2, 0.9); g.strokePoints(shape(x0, w), true)
       // round wins
@@ -551,8 +570,8 @@ export class FightScene extends Phaser.Scene {
     const secs = Math.max(0, Math.ceil(m.timer / 60))
     setT(this.timerT, String(secs), secs <= 10 && m.phase === 'fight' ? RED : '#FFFFFF')
     const spTxt = (f) => (f.meter || 0) >= 100 ? `SUPER READY: ${SUPER_NAME[f.def.special]}` : f.specialCd === 0 ? `${f.def.specialName} ready` : f.def.specialName
-    setT(this.sp1, spTxt(m.p1), (m.p1.meter || 0) >= 100 ? GOLD : m.p1.specialCd === 0 ? m.p1.def.colour : '#5c6670')
-    setT(this.sp2, spTxt(m.p2), (m.p2.meter || 0) >= 100 ? GOLD : m.p2.specialCd === 0 ? m.p2.def.colour : '#5c6670')
+    setT(this.sp1, spTxt(m.p1), (m.p1.meter || 0) >= 100 ? GOLD : m.p1.specialCd === 0 ? fxColour(m.p1) : '#5c6670')
+    setT(this.sp2, spTxt(m.p2), (m.p2.meter || 0) >= 100 ? GOLD : m.p2.specialCd === 0 ? fxColour(m.p2) : '#5c6670')
     // live readings for the React buttons' charge rings
     if (m.frame % 6 === 0) bridge(this).onHud?.({ sp: 1 - Math.min(1, (m.p1.specialCd || 0) / 150), sup: Math.min(1, (m.p1.meter || 0) / 100) })
   }
@@ -568,7 +587,7 @@ export class ResultsScene extends Phaser.Scene {
     buildArena(this, { dim: 0.7 })
     const youWon = data.winner === 'p1'
     const wDef = FIGHTERS[youWon ? data.p1 : data.p2], lDef = FIGHTERS[youWon ? data.p2 : data.p1]
-    this.win = makeFighter(wDef, 190, 1); this.win.side = youWon ? 'p1' : 'p2'
+    this.win = makeFighter(wDef, 190, 1); this.win.side = youWon ? 'p1' : 'p2'; this.win.theme = (data.themes || [])[youWon ? 0 : 1] || getHouse()
     this.pose = makePose(this.win, 0); this.frame = 0
     this.fg = this.add.graphics()
     this.conf = this.add.particles(0, 0, 'shard', { x: { min: 40, max: 340 }, y: -10, speedY: { min: 80, max: 180 }, speedX: { min: -40, max: 40 }, rotate: { min: 0, max: 360 }, scale: { start: 0.6, end: 0.6 }, lifespan: 3200, frequency: 60, tint: [hex(wDef.colour), 0xf5c542, 0xffffff] })
@@ -606,7 +625,7 @@ export class ResultsScene extends Phaser.Scene {
     P.lhX = 18; P.lhY = P.shY - 44 - up * 8; P.rhX = -2; P.rhY = P.shY - 40 - (1 - up) * 8; P.headY -= 2
     this.pose.prev = { ...this.pose.cur }; this.pose.cur = P
     this.fg.clear()
-    this.fg.lineStyle(2, hex(f.def.colour), 0.5); this.fg.strokeEllipse(190, 368, 200, 26)
+    this.fg.lineStyle(2, hex(fxColour(f)), 0.5); this.fg.strokeEllipse(190, 368, 200, 26)
     this.fg.setScale(1.25); this.fg.setPosition(-190 * 0.25, -366 * 0.25)
     drawFighter(this.fg, f, this.pose, this.frame, 1, { noKo: true, noTrail: true, y: 360, shadowY: 360 })
   }
