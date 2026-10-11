@@ -67,6 +67,21 @@ function makeSfx() {
 
 // ---------------- drawing ----------------
 function drawFighter(g, f, frame) {
+  // K.O.: tip over backwards around the feet and stay flat on the floor until the next round
+  if (f.state === 'ko') {
+    f.koT = (f.koT || 0) + 1
+    const p = Math.min(1, f.koT / 18)
+    g.save()
+    g.translate(f.x, FLOOR)
+    g.rotate(-f.facing * (Math.PI / 2) * (p * p))          // ease into the fall
+    g.translate(-f.x, -FLOOR + (f.y - FLOOR) * (1 - p))     // follows the small hop, then lies on the floor
+    drawFighterBody(g, { ...f, y: FLOOR, crouch: false, blocking: false, move: null, state: 'ko' }, frame)
+    g.restore()
+    return
+  }
+  drawFighterBody(g, f, frame)
+}
+function drawFighterBody(g, f, frame) {
   const c = f.def.colour, trim = f.def.trim
   const dir = f.facing
   const crouch = f.crouch && f.y >= FLOOR
@@ -165,7 +180,7 @@ export default function FightGame({ onRound, onClose }) {
     if (screen !== 'fight') return
     const cv = canvasRef.current, g = cv.getContext('2d')
     let raf, last = performance.now(), acc = 0
-    const lvl = { easy: { react: 26, aggro: 0.25, block: 0.15, special: 0.002 }, medium: { react: 14, aggro: 0.45, block: 0.45, special: 0.006 }, hard: { react: 7, aggro: 0.65, block: 0.75, special: 0.012 } }[level]
+    const lvl = { easy: { react: 22, aggro: 0.3, block: 0.25, special: 0.002 }, medium: { react: 10, aggro: 0.5, block: 0.55, special: 0.006 }, hard: { react: 5, aggro: 0.65, block: 0.8, special: 0.012 } }[level]
 
     function startMove(f, k) {
       if (f.stun > 0 || f.state === 'ko') return
@@ -197,7 +212,13 @@ export default function FightGame({ onRound, onClose }) {
       if (def.counterT > 0) { def.counterT = 0; S.sfx.hit(true); att.hp = Math.max(0, att.hp - 14); att.stun = 24; att.vx = -10 * att.facing; att.flash = 12; S.shake = 8; def.move = null; return }
       if (h === 'high' && def.crouch && def.y >= FLOOR) return // ducked under
       if (blocks(def, h)) { def.hp = Math.max(0, def.hp - dmg * 0.15); def.vx = push * 0.6 * att.facing; def.stun = 8; S.sfx.block(); return }
-      def.hp = Math.max(0, def.hp - dmg); def.stun = 14 + dmg; def.vx = push * att.facing; def.flash = 10; def.move = null
+      // Each hit in a row stuns for less, and the 3rd+ pushes them out of range -- so spamming one
+      // button can't lock someone down forever (they get a window to block, counter or escape)
+      def.chain = (S.frame - (def.lastHitAt || -999) < 40) ? (def.chain || 0) + 1 : 0
+      def.lastHitAt = S.frame
+      def.hp = Math.max(0, def.hp - dmg)
+      def.stun = Math.max(5, Math.round((10 + dmg * 0.8) - def.chain * 4))
+      def.vx = push * att.facing * (def.chain >= 2 ? 2.4 : 1); def.flash = 10; def.move = null
       S.sfx.hit(dmg >= 10); S.shake = dmg >= 10 ? 6 : 3
     }
     function update(f, o, ctl) {
@@ -258,8 +279,37 @@ export default function FightGame({ onRound, onClose }) {
       const a = S.ai, ctl = { left: false, right: false, down: false }
       const dist = Math.abs(me.x - cpu.x), toward = me.x > cpu.x ? 'right' : 'left', away = toward === 'right' ? 'left' : 'right'
       a.think--
-      const meAttacking = (me.move && me.move.dmg > 0 && me.t < me.move.s + 2) || S.projectiles.some(p => p.owner === me && Math.abs(p.x - cpu.x) < 160)
-      if (meAttacking && dist < 140 && Math.random() < lvl.block) { ctl[away] = true; if (me.move && (me.move.h === 'low')) ctl.down = true; return ctl }
+      // how much the player has been attacking lately (button mashing makes the CPU defend and punish)
+      if (me.move && me.t === 1) (a.presses ||= []).push(S.frame)
+      a.presses = (a.presses || []).filter(t => S.frame - t < 90)
+      const mashing = a.presses.length >= 3
+      const meStartup = me.move && me.move.dmg > 0 && me.t < me.move.s + me.move.a
+      const meRecovering = me.move && me.move.dmg > 0 && me.t >= me.move.s + me.move.a
+      const meProjectile = S.projectiles.some(p => p.owner === me && Math.abs(p.x - cpu.x) < 170)
+      const meApproaching = me.state === 'walk' && Math.sign(me.vx) === Math.sign(cpu.x - me.x)
+      const smart = { easy: 0.25, medium: 0.6, hard: 0.9 }[level] ?? 0.6
+
+      // a) block what's coming -- decided once per attack (not a dice roll every frame), more likely when mashed
+      if ((meStartup || meProjectile) && dist < 150) {
+        const key = me.move ? `m${S.frame - me.t}` : 'p'
+        if (a.blockKey !== key) { a.blockKey = key; a.blockIt = Math.random() < Math.min(0.95, lvl.block + (mashing ? 0.25 : 0)) }
+        if (a.blockIt && !cpu.move) { ctl[away] = true; if (me.move?.h === 'low') ctl.down = true; return ctl }
+      }
+      // b) punish: the player has just swung -- hit back before they recover
+      if (meRecovering && dist < 85 && !cpu.move && Math.random() < smart) { ctl[me.move.r >= 12 ? 'hpPressed' : 'lpPressed'] = true; a.plan = 'wait'; a.think = 4; return ctl }
+      // c) wake-up: just got out of hit-stun with the player close -- jab back, jump away or block
+      if (a.wasStunned && cpu.stun === 0 && dist < 90) {
+        a.wasStunned = false
+        const r = Math.random()
+        if (r < smart * 0.5) { ctl.lpPressed = true; return ctl }
+        if (r < smart * 0.8) { ctl[away] = true; ctl.upPressed = true; return ctl }
+        ctl[away] = true; return ctl
+      }
+      a.wasStunned = cpu.stun > 0
+      // d) poke the player as they walk in -- kicks reach further than punches
+      if (meApproaching && dist > 62 && dist < 95 && !cpu.move && Math.random() < smart * 0.35) { ctl[dist > 80 ? 'hkPressed' : 'lkPressed'] = true; a.plan = 'wait'; a.think = 6; return ctl }
+      // e) being mashed at close range: step back out of jab range and wait to punish
+      if (mashing && dist < 75 && Math.random() < smart * 0.5) { ctl[away] = true; return ctl }
       if (a.think <= 0) {
         a.think = lvl.react + Math.floor(Math.random() * lvl.react)
         const r = Math.random()
@@ -274,7 +324,7 @@ export default function FightGame({ onRound, onClose }) {
       else if (a.plan === 'attack') {
         const combos = cpu.def.combos || []
         if (combos.length && Math.random() < lvl.aggro * 0.6) { const c = combos[Math.floor(Math.random() * combos.length)]; a.queue = [...c.seq]; a.qWait = 0; a.plan = 'combo' }
-        else { const opts = ['lp', 'lp', 'hp', 'lk', 'hk']; ctl[opts[Math.floor(Math.random() * opts.length)] + 'Pressed'] = true; a.plan = 'wait' }
+        else { const opts = dist < 70 ? ['lp', 'lp', 'lk', 'hp'] : ['lk', 'hk', 'hk', 'lp']; ctl[opts[Math.floor(Math.random() * opts.length)] + 'Pressed'] = true; a.plan = 'wait' }
       }
       else if (a.plan === 'combo') {
         // feed the combo inputs a few frames apart
@@ -333,7 +383,7 @@ export default function FightGame({ onRound, onClose }) {
       S.projectiles = S.projectiles.filter(p => p.life > 0 && p.x > -40 && p.x < W + 40)
       S.timer--
       if (p1.hp <= 0 || p2.hp <= 0) {
-        const loser = p1.hp <= 0 ? p1 : p2; loser.state = 'ko'; loser.vy = -8; loser.vx = -6 * loser.facing; S.sfx.ko(); S.shake = 14
+        const loser = p1.hp <= 0 ? p1 : p2; loser.state = 'ko'; loser.koT = 0; loser.vy = -8; loser.vx = -6 * loser.facing; loser.move = null; S.sfx.ko(); S.shake = 14
         endRound(p1.hp <= 0 && p2.hp <= 0 ? null : (p1.hp <= 0 ? p2 : p1))
       } else if (S.timer <= 0) endRound(p1.hp === p2.hp ? null : p1.hp > p2.hp ? p1 : p2)
     }
@@ -476,7 +526,7 @@ export default function FightGame({ onRound, onClose }) {
                   padding: '0 calc(14px + env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) calc(14px + env(safe-area-inset-left, 0px))' }
               : { width: '100%', maxWidth: 900, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', padding: '10px 14px', boxSizing: 'border-box' }}
               className={landscape ? 'fg-ls-controls' : undefined}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 54px)', gridTemplateRows: 'repeat(3, 54px)', gap: 4 }}>
+              <div className="fg-dpad" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 50px)', gridTemplateRows: 'repeat(3, 50px)', gap: 2, padding: 8, borderRadius: '50%', background: 'rgba(26,31,36,0.6)', border: '1px solid #2A3138' }}>
                 <button type="button" style={{ ...pad, fontSize: 17, opacity: 0.85 }} {...hold2('up', 'left')}>◤</button><button type="button" style={pad} {...hold('up')}>▲</button><button type="button" style={{ ...pad, fontSize: 17, opacity: 0.85 }} {...hold2('up', 'right')}>◥</button>
                 <button type="button" style={pad} {...hold('left')}>◀</button><span /><button type="button" style={pad} {...hold('right')}>▶</button>
                 <button type="button" style={{ ...pad, fontSize: 17, opacity: 0.85 }} {...hold2('down', 'left')}>◣</button><button type="button" style={pad} {...hold('down')}>▼</button><button type="button" style={{ ...pad, fontSize: 17, opacity: 0.85 }} {...hold2('down', 'right')}>◢</button>
