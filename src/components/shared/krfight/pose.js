@@ -1,7 +1,7 @@
 // KR FIGHT 2 -- jointed fighter rendering. Each fighter has a target pose (hands, feet, hips,
 // shoulders, head) worked out from what they're doing; the drawn pose eases towards it every step,
 // so moves blend instead of snapping. Elbows and knees come from simple two-bone IK.
-import { FLOOR, hex } from './data.js'
+import { FLOOR, hex, LOOKS } from './data.js'
 
 const KEYS = ['hipX', 'hipY', 'shX', 'shY', 'headX', 'headY', 'lhX', 'lhY', 'rhX', 'rhY', 'lfX', 'lfY', 'rfX', 'rfY', 'lean']
 const lerp = (a, b, t) => a + (b - a) * t
@@ -151,16 +151,23 @@ export function drawFighter(g, f, pose, frame, alpha = 1, opts = {}) {
   drawBody(g, f, P, opts.x ?? f.x, opts.y ?? f.y, f.facing, frame, opts)
 }
 
+const shade = (c, k) => (Math.min(255, ((c >> 16) & 255) * k) << 16) | (Math.min(255, ((c >> 8) & 255) * k) << 8) | Math.min(255, (c & 255) * k)
+const OUTLINE = 0x07090c
+
 function drawBody(g, f, P, fx, fy, dir, frame, opts) {
-  const c = hex(f.def.colour), trim = hex(f.def.trim)
+  const L = LOOKS[f.def.key] || LOOKS.mentality
   const ghost = opts.ghost
   const flash = !ghost && f.flash > 0 && f.flash % 4 < 2
   const A = ghost || 1
-  const col = ghost ? c : flash ? 0xffffff : c
-  const dark = ghost ? c : flash ? 0xffffff : trim
-  const skin = ghost ? c : flash ? 0xffffff : 0xf1c9a5
-  const glove = ghost ? c : flash ? 0xffffff : 0xe24b4a
-  const torsoCol = ghost ? c : flash ? 0xffffff : 0x1a1f24
+  const W8 = 0xffffff
+  const kit = hex(f.def.colour), kitDark = hex(f.def.trim)
+  const pick = c => ghost ? kit : flash ? W8 : c
+  const skin = pick(hex(L.skin)), skinBack = pick(shade(hex(L.skin), 0.74))
+  const shorts = pick(kit), shortsBack = pick(shade(kit, 0.72))
+  const top = pick(0x1b2027), topSide = pick(0x12161b)
+  const glove = pick(kit), gloveBack = pick(shade(kit, 0.72)), cuff = pick(0xf2f2f2)
+  const boot = pick(0x15191e), hairC = pick(hex(L.hairCol))
+  const ls = L.limb
 
   // K.O.: tip over backwards around the feet and lie flat
   let rot = 0, lift = 0
@@ -171,68 +178,155 @@ function drawBody(g, f, P, fx, fy, dir, frame, opts) {
     fy = FLOOR
   }
   const cr = Math.cos(rot), sr = Math.sin(rot)
-  const X = (lx, ly) => { const x = lx * dir, y = ly; return fx + x * cr - y * sr }
-  const Y = (lx, ly) => { const x = lx * dir, y = ly; return fy + lift + x * sr + y * cr }
-  const pt = (lx, ly) => [X(lx, ly), Y(lx, ly)]
+  // local (facing +x, y down, origin at feet) -> world
+  const W = (lx, ly) => { const x = lx * dir; return { x: fx + x * cr - ly * sr, y: fy + lift + x * sr + ly * cr } }
+  const V = (x, y) => ({ x, y })
 
-  // shadow (stays on the floor)
   if (!ghost) {
     const airK = Math.max(0.35, 1 - (FLOOR - f.y) / 220)
-    g.fillStyle(0x000000, 0.45 * airK); g.fillEllipse(fx, (opts.shadowY ?? FLOOR) + 6, 80 * airK, 14 * airK)
+    g.fillStyle(0x000000, 0.45 * airK); g.fillEllipse(fx, (opts.shadowY ?? FLOOR) + 6, 84 * airK, 14 * airK)
   }
 
-  const hipL = pt(P.hipX + 7, P.hipY), hipR = pt(P.hipX - 7, P.hipY)
-  const sh = pt(P.shX, P.shY + 8)
-  const shR = pt(P.shX - 8, P.shY + 10)
-  const lf = pt(P.lfX, P.lfY), rf = pt(P.rfX, P.rfY)
-  const lh = pt(P.lhX, P.lhY), rh = pt(P.rhX, P.rhY)
-  // knees bend forward, elbows bend down
-  const kneeBend = dir * (Math.cos(rot) >= 0 ? -1 : 1)
-  const lk = joint(hipL[0], hipL[1], lf[0], lf[1], 27, 27, kneeBend)
-  const rk = joint(hipR[0], hipR[1], rf[0], rf[1], 27, 27, kneeBend)
-  const le = joint(sh[0], sh[1], lh[0], lh[1], 27, 27, dir)
-  const re = joint(shR[0], shR[1], rh[0], rh[1], 27, 27, dir)
+  // ---- skeleton in local space ----
+  const hipL = V(P.hipX + 6, P.hipY), hipR = V(P.hipX - 6, P.hipY)
+  const shF = V(P.shX + 3, P.shY + 7), shB = V(P.shX - 9, P.shY + 9)
+  const lf = V(P.lfX, P.lfY), rf = V(P.rfX, P.rfY), lh = V(P.lhX, P.lhY), rh = V(P.rhX, P.rhY)
+  const J = (a, b, l, bend) => { const j = joint(a.x, a.y, b.x, b.y, l, l, bend); return V(j[0], j[1]) }
+  const lk = J(hipL, lf, 27, -1), rk = J(hipR, rf, 27, -1)
+  const le = J(shF, lh, 27, 1), re = J(shB, rh, 27, 1)
 
-  const rearAttack = f.move && f.t >= f.move.s && ['hp', 'rush', 'upper'].includes(f.move.k)
-  const rearKick = f.move && f.t >= f.move.s && f.move.k === 'hk'
+  // ---- drawing helpers (outline first, then fill) ----
+  const poly = (pts, col, out = true) => {
+    const w = pts.map(p => W(p.x, p.y))
+    if (out && !ghost) { g.lineStyle(3, OUTLINE, A); g.strokePoints(w, true) }
+    g.fillStyle(col, A); g.fillPoints(w, true)
+  }
+  // tapered segment a -> b, widths wa / wb (local units)
+  const seg = (a, b, wa, wb, col, out = true) => {
+    const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 0.001, nx = -dy / d, ny = dx / d
+    const pa = W(a.x, a.y), pb = W(b.x, b.y)
+    if (out && !ghost) {
+      g.fillStyle(OUTLINE, A); g.fillCircle(pa.x, pa.y, wa / 2 + 1.5); g.fillCircle(pb.x, pb.y, wb / 2 + 1.5)
+      const q = [V(a.x + nx * (wa / 2 + 1.5), a.y + ny * (wa / 2 + 1.5)), V(b.x + nx * (wb / 2 + 1.5), b.y + ny * (wb / 2 + 1.5)), V(b.x - nx * (wb / 2 + 1.5), b.y - ny * (wb / 2 + 1.5)), V(a.x - nx * (wa / 2 + 1.5), a.y - ny * (wa / 2 + 1.5))]
+      g.fillPoints(q.map(p => W(p.x, p.y)), true)
+    }
+    g.fillStyle(col, A); g.fillCircle(pa.x, pa.y, wa / 2); g.fillCircle(pb.x, pb.y, wb / 2)
+    const q = [V(a.x + nx * wa / 2, a.y + ny * wa / 2), V(b.x + nx * wb / 2, b.y + ny * wb / 2), V(b.x - nx * wb / 2, b.y - ny * wb / 2), V(a.x - nx * wa / 2, a.y - ny * wa / 2)]
+    g.fillPoints(q.map(p => W(p.x, p.y)), true)
+  }
+  const circ = (c, r, col, out = true) => { const p = W(c.x, c.y); if (out && !ghost) { g.fillStyle(OUTLINE, A); g.fillCircle(p.x, p.y, r + 1.5) } g.fillStyle(col, A); g.fillCircle(p.x, p.y, r) }
+  const line = (a, b, w, col, alpha = A) => { const p = W(a.x, a.y), q = W(b.x, b.y); g.lineStyle(w, col, alpha); g.lineBetween(p.x, p.y, q.x, q.y) }
+  const mid = (a, b, t) => V(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t)
 
-  // rear leg + rear arm (behind the body)
-  capsule(g, hipR[0], hipR[1], rk[0], rk[1], 15, rearKick ? col : dark, A); capsule(g, rk[0], rk[1], rf[0], rf[1], 13, rearKick ? col : dark, A)
-  capsule(g, shR[0], shR[1], re[0], re[1], 11, rearAttack ? col : dark, A); capsule(g, re[0], re[1], rh[0], rh[1], 10, rearAttack ? col : dark, A)
-  g.fillStyle(glove, A); g.fillCircle(rh[0], rh[1], 9)
+  const leg = (hip, knee, foot, back) => {
+    const sk = back ? skinBack : skin
+    seg(hip, knee, 17 * ls, 12 * ls, sk)                           // thigh
+    const calf = mid(knee, foot, 0.35)
+    seg(knee, calf, 11 * ls, 12.5 * ls, sk); seg(calf, foot, 12.5 * ls, 8 * ls, sk) // calf bulge
+    // boot: toe points forward, or along the leg when it's kicking out
+    const dx = foot.x - knee.x, dy = foot.y - knee.y, d = Math.hypot(dx, dy) || 1
+    const k = foot.y < -14 && dx > 0 ? Math.min(1, (dx / d) * 1.2) : 0 // only a raised, forward foot points along the leg
+    const tx = (1 - k) * 1 + k * (dx / d), ty = k * (dy / d) * 0.6, tl = Math.hypot(tx, ty) || 1
+    const toe = V(foot.x + tx / tl * 14, foot.y + ty / tl * 14 + (1 - k) * 1), heel = V(foot.x - tx / tl * 3, foot.y - ty / tl * 3)
+    seg(heel, toe, 10, 8, boot)
+    line(mid(heel, toe, 0.1), mid(heel, toe, 0.9), 2, back ? shortsBack : shorts, A)
+    // shorts leg over the top of the thigh
+    {
+      const e = mid(hip, knee, 0.48), ddx = e.x - hip.x, ddy = e.y - hip.y, dd = Math.hypot(ddx, ddy) || 1, px = -ddy / dd, py = ddx / dd
+      // top edge level across the hip (joins the waistband), bottom edge square to the thigh
+      const wa = 12 * ls, wb = 10.5 * ls
+      const tA = V(hip.x + wa, hip.y - 7), tB = V(hip.x - wa, hip.y - 7)
+      poly([tA, tB, V(e.x + px * wb, e.y + py * wb), V(e.x - px * wb, e.y - py * wb)], back ? shortsBack : shorts)
+      if (!ghost) line(V(e.x + px * wb * 0.9, e.y + py * wb * 0.9), V(e.x - px * wb * 0.9, e.y - py * wb * 0.9), 2.5, cuff, 0.85) // hem stripe
+    }
+  }
+  const arm = (sh, el, hand, back) => {
+    const sk = back ? skinBack : skin
+    seg(sh, el, 13 * ls, 10 * ls, sk)                              // upper arm (shoulder -> elbow)
+    seg(el, mid(el, hand, 0.5), 10 * ls, 11 * ls, sk); seg(mid(el, hand, 0.5), hand, 11 * ls, 8 * ls, sk) // forearm
+    // glove + cuff
+    const dx = hand.x - el.x, dy = hand.y - el.y, d = Math.hypot(dx, dy) || 1
+    const gc = V(hand.x + dx / d * 3, hand.y + dy / d * 3)
+    circ(V(hand.x - dx / d * 3, hand.y - dy / d * 3), 6.5 * Math.max(1, ls * 0.9), cuff)
+    circ(gc, 10 * Math.max(1, ls * 0.85), back ? gloveBack : glove)
+    if (!ghost) { const hp = W(gc.x - 3, gc.y - 3); g.fillStyle(0xffffff, 0.35); g.fillCircle(hp.x, hp.y, 3) }
+  }
 
-  // torso: neon rim + dark core
-  const hipC = pt(P.hipX, P.hipY), shC = pt(P.shX, P.shY)
-  capsule(g, hipC[0], hipC[1], shC[0], shC[1], 34, col, A)
-  if (!ghost) capsule(g, hipC[0], hipC[1], shC[0], shC[1], 28, torsoCol, A)
-  // belt
-  if (!ghost) { const b1 = pt(P.hipX - 15, P.hipY - 4), b2 = pt(P.hipX + 15, P.hipY - 4); g.lineStyle(6, col, 1); g.lineBetween(b1[0], b1[1], b2[0], b2[1]) }
+  // ---- back limbs ----
+  leg(hipR, rk, rf, true)
+  arm(shB, re, rh, true)
 
-  // lead leg (in front)
-  capsule(g, hipL[0], hipL[1], lk[0], lk[1], 16, col, A); capsule(g, lk[0], lk[1], lf[0], lf[1], 14, col, A)
-
-  // head + headband
-  const hd = pt(P.headX, P.headY)
-  g.fillStyle(skin, A); g.fillCircle(hd[0], hd[1], 17)
+  // ---- torso: tapered rash guard along the hip -> shoulder axis ----
+  const hc = V(P.hipX, P.hipY), sc = V(P.shX, P.shY)
+  const ax = sc.x - hc.x, ay = sc.y - hc.y, len = Math.hypot(ax, ay) || 1, ux = ax / len, uy = ay / len, nx = -uy, ny = ux
+  const T = (t, w) => V(hc.x + ux * len * t + nx * w, hc.y + uy * len * t + ny * w)
+  const torso = [T(0, L.hip), T(0.38, L.waist), T(0.78, L.chest), T(1.0, L.sh * 0.8), T(1.06, L.sh * 0.35), T(1.06, -L.sh * 0.35), T(1.0, -L.sh * 0.8), T(0.78, -L.chest), T(0.38, -L.waist), T(0, -L.hip)]
+  // neck
+  seg(T(0.95, 0), V(P.headX - 2, P.headY + 12), 11 * ls, 10 * ls, skinBack)
+  poly(torso, top)
   if (!ghost) {
-    const b1 = pt(P.headX - 17, P.headY - 6), b2 = pt(P.headX + 17, P.headY - 6)
-    g.lineStyle(6, col, 1); g.lineBetween(b1[0], b1[1], b2[0], b2[1])
-    const tail = pt(P.headX - 34, P.headY + 4 + Math.sin(frame / 5) * 4), tail2 = pt(P.headX - 30, P.headY - 2 + Math.cos(frame / 6) * 4)
-    g.lineStyle(5, col, 1); g.lineBetween(b1[0], b1[1], tail[0], tail[1]); g.lineStyle(4, col, 0.8); g.lineBetween(b1[0], b1[1], tail2[0], tail2[1])
-    const eye = pt(P.headX + 8, P.headY - 1)
-    if (f.state === 'ko') { g.lineStyle(2.5, 0x111111, 1); g.lineBetween(eye[0] - 3, eye[1] - 3, eye[0] + 3, eye[1] + 3); g.lineBetween(eye[0] - 3, eye[1] + 3, eye[0] + 3, eye[1] - 3) }
-    else { g.fillStyle(0x111111, 1); g.fillCircle(eye[0], eye[1], 2.6) }
+    // side panel + diagonal pillar stripe + neon trim
+    g.fillStyle(topSide, A); g.fillPoints([T(0, -L.hip), T(0.38, -L.waist), T(0.78, -L.chest), T(1.0, -L.sh * 0.8), T(1.0, -L.sh * 0.3), T(0.4, -L.waist * 0.4), T(0, -L.hip * 0.4)].map(p => W(p.x, p.y)), true)
+    g.fillStyle(kit, 1); g.fillPoints([T(0.86, L.chest * 0.9), T(0.98, L.chest * 0.5), T(0.42, -L.waist * 0.9), T(0.3, -L.waist * 0.9)].map(p => W(p.x, p.y)), true)
+    line(T(0.06, L.hip), T(0.38, L.waist), 2, kit, 0.8); line(T(0.38, L.waist), T(0.78, L.chest), 2, kit, 0.8)
+  }
+  // shorts waistband + seat
+  poly([T(-0.08, L.hip + 3), T(0.14, L.waist + 3), T(0.14, -L.waist - 3), T(-0.08, -L.hip - 3), T(-0.2, -L.hip), T(-0.2, L.hip)], shorts)
+  if (!ghost) { line(T(0.1, L.waist + 3), T(0.1, -L.waist - 3), 3.5, cuff, 0.9) }
+
+  // ---- front leg ----
+  leg(hipL, lk, lf, false)
+
+  // ---- head ----
+  const H = V(P.headX, P.headY)
+  const at = (x, y) => V(H.x + x, H.y + y)
+  // ponytail / bun go behind the head
+  if (L.hair === 'ponytail') { const sw = Math.sin(frame / 6) * 4; seg(at(-13, -8), at(-26, 4 + sw), 9, 6, hairC); seg(at(-26, 4 + sw), at(-30, 16 + sw), 6, 3, hairC) }
+  if (L.hair === 'bun') circ(at(-11, -15), 7.5, hairC)
+  circ(at(-1, 0), 16, skin)                                             // skull
+  poly([at(4, 6), at(15, 4), at(16, 10), at(9, 16), at(0, 14)], skin, true) // jaw / chin
+  if (!ghost) { g.fillStyle(skin, A); const c0 = W(H.x - 1, H.y); g.fillCircle(c0.x, c0.y, 15) }    // hide the seam
+  // hair cap
+  const arc = (r, a0, a1, n = 9) => { const pts = []; for (let i = 0; i <= n; i++) { const a = (a0 + (a1 - a0) * i / n) * Math.PI / 180; pts.push(at(-1 + Math.cos(a) * r, Math.sin(a) * r)) } return pts }
+  if (L.hair !== 'none') {
+    const capBack = L.hair === 'buzz' ? 150 : 165
+    poly([...arc(17, -40, -90 - 95, 10), ...arc(L.hair === 'buzz' ? 15 : 13, -90 - 95 + (180 - capBack), -55, 6)], hairC)
+  }
+  if (L.hair === 'spiky') for (const [x, y, x2, y2] of [[-14, -10, -24, -18], [-8, -15, -14, -27], [0, -17, 0, -30], [7, -15, 12, -26]]) poly([at(x - 4, y + 2), at(x2, y2), at(x + 5, y + 2)], hairC)
+  if (L.hair === 'mohawk') poly([at(-15, -8), at(-22, -20), at(-12, -18), at(-12, -31), at(-4, -21), at(0, -34), at(4, -21), at(10, -28), at(8, -15), at(-2, -16), at(-10, -10)], hairC)
+  // headband (the signature) + tails
+  if (!ghost) {
+    line(at(-16, -7), at(15, -8), 5.5, kit, 1)
+    const b1 = at(-15, -7)
+    line(b1, at(-33, 3 + Math.sin(frame / 5) * 4), 5, kit, 1); line(b1, at(-29, -3 + Math.cos(frame / 6) * 4), 4, kit, 0.8)
+  }
+  // face
+  if (!ghost) {
+    const ko = f.state === 'ko', hurt = !ko && (f.stun > 0 || f.flash > 0)
+    const attacking = !ko && !hurt && (f.move || f.blocking || f.counterT > 0)
+    circ(at(-6, 1), 4, skinBack, false)                                  // ear
+    line(at(14, -1), at(17, 4), 2, shade(hex(L.skin), 0.6), 0.9)          // nose
+    if (ko) {
+      line(at(6, -5), at(12, 1), 2.4, 0x111111); line(at(6, 1), at(12, -5), 2.4, 0x111111)
+      line(at(7, 9), at(13, 9), 2, 0x111111)
+    } else if (hurt) {
+      line(at(5, -3), at(12, -1), 2.4, 0x111111)                         // squeezed eye
+      const m = W(H.x + 10, H.y + 9); g.fillStyle(0x2a0f0f, 1); g.fillCircle(m.x, m.y, 3.2)
+    } else {
+      const e = W(H.x + 9, H.y - 2); g.fillStyle(0xffffff, 1); g.fillEllipse(e.x, e.y, 7, 5)
+      const pu = W(H.x + 10.5, H.y - 2); g.fillStyle(0x111111, 1); g.fillCircle(pu.x, pu.y, 2)
+      if (attacking) { line(at(4, -9), at(13, -5), 2.6, hairC); const a = W(H.x + 7, H.y + 8), b = W(H.x + 13, H.y + 8); g.fillStyle(0xffffff, 1); g.fillRect(Math.min(a.x, b.x), Math.min(a.y, b.y) - 1.5, Math.abs(b.x - a.x) + 1, 3); line(at(7, 8), at(13, 8), 1, 0x111111) }
+      else { line(at(4, -8), at(13, -8), 2.2, hairC); line(at(8, 9), at(13, 8), 1.8, 0x3a1a14) }
+    }
   }
 
-  // lead arm (in front)
-  capsule(g, sh[0], sh[1], le[0], le[1], 12, col, A); capsule(g, le[0], le[1], lh[0], lh[1], 11, col, A)
-  g.fillStyle(glove, A); g.fillCircle(lh[0], lh[1], 10)
-  if (!ghost) { g.lineStyle(2, 0xffffff, 0.35); g.strokeCircle(lh[0] - 2, lh[1] - 2, 5) }
+  // ---- front arm (over everything) ----
+  arm(shF, le, lh, false)
 
   // Counter stance aura
   if (!ghost && f.counterT > 0) {
     const r = 58 + Math.sin(frame / 2) * 4
     g.lineStyle(3, 0xffffff, 0.75); g.strokeCircle(f.x, f.y - 72, r)
-    g.lineStyle(8, c, 0.25); g.strokeCircle(f.x, f.y - 72, r + 4)
+    g.lineStyle(8, kit, 0.25); g.strokeCircle(f.x, f.y - 72, r + 4)
   }
 }

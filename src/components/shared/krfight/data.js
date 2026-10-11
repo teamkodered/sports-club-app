@@ -4,6 +4,17 @@ export const COMBO_GAP = 36 // frames allowed between combo inputs
 
 export const SUPER_NAME = { wave: 'Mind Storm', rush: 'Thousand Fists', counter: 'Perfect Read', upper: 'Titan Smash', quake: 'Earthbreaker' }
 
+// How each fighter looks (drawn in code on the shared skeleton). build: shoulder/hip half-widths,
+// limb thickness scale. hair: style + colour. Everyone wears the KR kit: dark rash guard with a pillar-
+// colour stripe, pillar-colour shorts, gloves and headband.
+export const LOOKS = {
+  mentality: { skin: '#8D5524', hair: 'bun', hairCol: '#1B1210', sh: 19, chest: 17, waist: 13, hip: 15, limb: 0.95 },
+  technical: { skin: '#F1C27D', hair: 'spiky', hairCol: '#D9A441', sh: 18, chest: 16, waist: 12, hip: 13, limb: 0.88 },
+  tactical: { skin: '#C68642', hair: 'mohawk', hairCol: '#20140C', sh: 20, chest: 18, waist: 13, hip: 14, limb: 0.95 },
+  physical: { skin: '#E0AC69', hair: 'buzz', hairCol: '#3A2A1E', sh: 25, chest: 23, waist: 16, hip: 16, limb: 1.22 },
+  foundation: { skin: '#5C3A21', hair: 'ponytail', hairCol: '#120C08', sh: 20, chest: 17, waist: 14, hip: 17, limb: 1.05 },
+}
+
 export const FIGHTERS = [
   { key: 'mentality', name: 'MENTALITY', colour: '#22B14C', trim: '#0E5F27', speed: 4.2, power: 1.0, reach: 1.0, special: 'wave', specialName: 'Focus Wave', combos: [{ name: 'Calm Storm', seq: ['lp', 'lp', 'hp'], bonus: 1.6 }, { name: 'Mind Lock', seq: ['d', 'lk', 'hk'], bonus: 1.7 }, { name: 'Focus Chain', seq: ['lp', 'hk', 'sp'], bonus: 1.5 }] },
   { key: 'technical', name: 'TECHNICAL', colour: '#2F6BFF', trim: '#13306F', speed: 4.6, power: 0.95, reach: 1.05, special: 'rush', specialName: 'Combo Rush', combos: [{ name: '1-2-Hook', seq: ['lp', 'lp', 'hp'], bonus: 1.5 }, { name: 'Teep & Cross', seq: ['lk', 'lp', 'hk'], bonus: 1.7 }, { name: 'Blitz', seq: ['lp', 'lp', 'lp', 'lp'], bonus: 2.0 }] },
