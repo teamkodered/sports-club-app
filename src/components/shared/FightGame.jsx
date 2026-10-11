@@ -153,6 +153,27 @@ function drawFighterBody(g, f, frame) {
   g.restore()
 }
 
+
+// Neon line icons for the attack buttons (same look as the athlete app's tiles)
+function FgIcon({ name, colour, size = 28 }) {
+  const P = {
+    jab:   <><rect x="5" y="9" width="11" height="8" rx="3" /><path d="M16 11h2.5a1.5 1.5 0 0 1 0 3H16" /><path d="M8 9V7.5M11 9V7M14 9V7.5" /><path d="M2 12h2M2 15h2" /></>,
+    glove: <><path d="M6 10a5 5 0 0 1 10 0v4a4 4 0 0 1-4 4H9a3 3 0 0 1-3-3z" /><path d="M16 11h1.5a2 2 0 0 1 0 4H16" /><path d="M7 18v3h7v-3" /></>,
+    foot:  <><path d="M9 3v9l-4 4a2 2 0 0 0 1.5 3.4H17a2 2 0 0 0 1.8-2.8L17 13" /><path d="M9 12h7" /></>,
+    kick:  <><circle cx="7" cy="4" r="2" /><path d="M7 6v6l-3 6" /><path d="M7 9l4-1" /><path d="M7 12l6-3 7-1" /></>,
+    bolt:  <path d="M13 2 4 14h7l-1 8 9-12h-7z" />,
+    wave:  <path d="M12 12a2 2 0 1 0 2 2 4 4 0 1 0-4-4 6 6 0 1 0 6 6 8 8 0 1 0-8-8" />,
+    rush:  <><rect x="9" y="8" width="10" height="8" rx="3" /><path d="M2 9h5M1 12h6M2 15h5" /></>,
+    counter: <path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z" />,
+    upper: <><path d="M12 2v6M12 16v6M2 12h6M16 12h6M5 5l4 4M15 15l4 4M19 5l-4 4M9 15l-4 4" /></>,
+    quake: <><path d="M2 20 8 9l4 6 3-4 7 9z" /><path d="M11 20l1-3-1-2 1-3" /></>,
+  }
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={colour} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      style={{ filter: `drop-shadow(0 0 4px ${colour})`, pointerEvents: 'none' }} aria-hidden="true">{P[name] || P.bolt}</svg>
+  )
+}
+
 export default function FightGame({ onRound, onClose }) {
   const canvasRef = useRef(null)
   const [hud, setHud] = useState({ sp: 1, sup: 0 })   // special cooldown + super meter for the button rings
@@ -512,7 +533,19 @@ export default function FightGame({ onRound, onClose }) {
   // Attack pad: slide your thumb from button to button and each one fires as you reach it
   // (good for combos). Several fingers work at once.
   const atkTouch = useRef({})   // pointerId -> key under that finger
-  function atkKeyAt(x, y) { const el = document.elementFromPoint(x, y)?.closest?.('[data-atk]'); return el ? el.getAttribute('data-atk') : null }
+  const atkBtns = useRef({})    // key -> button element (to find which button a finger is over)
+  // Which button is under the finger: nearest button centre within its radius (+ a little slack).
+  // Done by position rather than elementFromPoint, which some phone browsers get wrong.
+  function atkKeyAt(x, y) {
+    let best = null, bestD = Infinity
+    for (const [k, el] of Object.entries(atkBtns.current)) {
+      if (!el) continue
+      const r = el.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2
+      const d = Math.hypot(x - cx, y - cy)
+      if (d <= r.width / 2 + 6 && d < bestD) { best = k; bestD = d }
+    }
+    return best
+  }
   function atkSet(id, k) {
     const prev = atkTouch.current[id]
     if (prev === k) return
@@ -634,24 +667,24 @@ export default function FightGame({ onRound, onClose }) {
                   SP and SUPER show a charge ring (SP = cooldown, SUPER = meter from landing / taking hits). */}
               <div {...atkPadHandlers} className="fg-atkpad" style={{ position: 'relative', width: 236, height: 196, touchAction: 'none', flexShrink: 0 }}>
                 {[
-                  { k: 'lp', icon: '👊', label: 'LP', size: 78, right: 0, bottom: 0, bg: '#F2F2F2' },
-                  { k: 'hp', icon: '🥊', label: 'HP', size: 56, right: 86, bottom: 2, bg: '#E24B4A' },
-                  { k: 'lk', icon: '🦶', label: 'LK', size: 56, right: 72, bottom: 66, bg: '#C0C4CC' },
-                  { k: 'hk', icon: '🦵', label: 'HK', size: 56, right: 12, bottom: 88, bg: '#378ADD' },
-                  { k: 'sp', icon: SPECIAL_ICON[FIGHTERS[pick]?.special] || '★', label: 'SP', size: 58, right: 152, bottom: 30, bg: FIGHTERS[pick]?.colour || '#F5C542', ring: hud.sp },
-                  { k: 'super', icon: SUPER_ICON, label: 'SUPER', size: 66, right: 136, bottom: 112, bg: '#F5C542', ring: hud.sup },
+                  { k: 'lp', icon: 'jab', label: 'Light punch (lead hand)', size: 78, right: 0, bottom: 0, bg: '#F2F2F2' },
+                  { k: 'hp', icon: 'glove', label: 'Heavy punch (rear hand)', size: 56, right: 86, bottom: 2, bg: '#E24B4A' },
+                  { k: 'lk', icon: 'foot', label: 'Light kick (lead leg)', size: 56, right: 72, bottom: 66, bg: '#22B14C' },
+                  { k: 'hk', icon: 'kick', label: 'Heavy kick (rear leg)', size: 56, right: 12, bottom: 88, bg: '#378ADD' },
+                  { k: 'sp', icon: FIGHTERS[pick]?.special || 'bolt', label: 'Special', size: 58, right: 152, bottom: 30, bg: FIGHTERS[pick]?.colour || '#F5C542', ring: hud.sp },
+                  { k: 'super', icon: 'bolt', label: 'Super', size: 66, right: 136, bottom: 112, bg: '#F5C542', ring: hud.sup },
                 ].map(b => {
                   const charged = b.ring == null || b.ring >= 1
                   return (
-                    <div key={b.k} style={{ position: 'absolute', right: b.right, bottom: b.bottom, width: b.size + 10, height: b.size + 10, borderRadius: '50%', padding: 5, boxSizing: 'border-box',
+                    <div key={b.k} ref={el => { atkBtns.current[b.k] = el }} style={{ position: 'absolute', right: b.right, bottom: b.bottom, width: b.size + 10, height: b.size + 10, borderRadius: '50%', padding: 5, boxSizing: 'border-box',
                       background: b.ring == null ? 'transparent' : `conic-gradient(${b.k === 'super' ? '#F5C542' : b.bg} ${Math.round(b.ring * 360)}deg, rgba(42,49,56,0.9) 0)`,
                       boxShadow: b.ring != null && charged ? `0 0 16px ${b.k === 'super' ? '#F5C542' : b.bg}` : 'none' }}
                       className={b.ring != null && charged ? 'fg-ready' : undefined}>
                       <button type="button" data-atk={b.k} aria-label={b.label}
-                        style={{ width: '100%', height: '100%', borderRadius: '50%', border: '2px solid rgba(255,255,255,0.25)', touchAction: 'none', userSelect: 'none', cursor: 'pointer',
-                          background: `radial-gradient(circle at 35% 30%, ${b.bg}, #111 115%)`, opacity: charged ? 1 : 0.55, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 0, padding: 0 }}>
-                        <span style={{ fontSize: b.size * 0.42, lineHeight: 1, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))', pointerEvents: 'none' }}>{b.icon}</span>
-                        <span style={{ fontSize: 9, fontWeight: 900, color: '#0A0A0A', textShadow: '0 0 3px rgba(255,255,255,0.8)', pointerEvents: 'none', letterSpacing: 0.5 }}>{b.label}</span>
+                        style={{ width: '100%', height: '100%', borderRadius: '50%', border: `2px solid ${b.bg}`, touchAction: 'none', userSelect: 'none', cursor: 'pointer',
+                          background: 'radial-gradient(circle at 35% 30%, #2A3138, #0B0E12 80%)', boxShadow: `inset 0 0 10px ${b.bg}55, 0 0 6px ${b.bg}66`,
+                          opacity: charged ? 1 : 0.5, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
+                        <FgIcon name={b.icon} colour={b.bg} size={Math.round(b.size * 0.5)} />
                       </button>
                     </div>
                   )
