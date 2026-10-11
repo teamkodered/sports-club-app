@@ -176,7 +176,17 @@ export function FgIcon({ name, colour, size = 28 }) {
 
 // KR FIGHT 2 (Phaser rebuild) -- in testing. Only loads for devices that opted in by opening the app
 // once with ?krfight2=1 (?krfight2=0 turns it off again; see main.jsx). Everyone else gets the classic game.
-const KRFight2 = lazy(() => import('./krfight/KRFight2.jsx'))
+// If the app was updated while this page was open, the old game file is gone ("Failed to fetch
+// dynamically imported module") -- reload the page once to pick up the new version instead of erroring.
+const KRFight2 = lazy(() => import('./krfight/KRFight2.jsx').then(mod => {
+  try { sessionStorage.removeItem('krfight2-reloaded') } catch (e) { /* ignore */ }
+  return mod
+}).catch(err => {
+  let tried = false
+  try { tried = sessionStorage.getItem('krfight2-reloaded') === '1'; if (!tried) sessionStorage.setItem('krfight2-reloaded', '1') } catch (e) { tried = true }
+  if (!tried) { window.location.reload(); return new Promise(() => {}) }
+  throw err
+}))
 const krFight2On = () => { try { return localStorage.getItem('krfight2') === '1' } catch (e) { return false } }
 
 export default function FightGame(props) {
