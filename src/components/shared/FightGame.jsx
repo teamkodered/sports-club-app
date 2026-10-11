@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 
 // "KR Fight" -- a small SF2-style 2D fighter for the Gaming (combat) question.
 // Five original fighters, one per pillar, each with its own special. vs the
@@ -155,7 +155,7 @@ function drawFighterBody(g, f, frame) {
 
 
 // Neon line icons for the attack buttons (same look as the athlete app's tiles)
-function FgIcon({ name, colour, size = 28 }) {
+export function FgIcon({ name, colour, size = 28 }) {
   const P = {
     jab:   <><rect x="5" y="9" width="11" height="8" rx="3" /><path d="M16 11h2.5a1.5 1.5 0 0 1 0 3H16" /><path d="M8 9V7.5M11 9V7M14 9V7.5" /><path d="M2 12h2M2 15h2" /></>,
     glove: <><path d="M6 10a5 5 0 0 1 10 0v4a4 4 0 0 1-4 4H9a3 3 0 0 1-3-3z" /><path d="M16 11h1.5a2 2 0 0 1 0 4H16" /><path d="M7 18v3h7v-3" /></>,
@@ -174,7 +174,22 @@ function FgIcon({ name, colour, size = 28 }) {
   )
 }
 
-export default function FightGame({ onRound, onClose }) {
+// KR FIGHT 2 (Phaser rebuild) -- in testing. Only loads for devices that opted in by opening the app
+// once with ?krfight2=1 (?krfight2=0 turns it off again; see main.jsx). Everyone else gets the classic game.
+const KRFight2 = lazy(() => import('./krfight/KRFight2.jsx'))
+const krFight2On = () => { try { return localStorage.getItem('krfight2') === '1' } catch (e) { return false } }
+
+export default function FightGame(props) {
+  const [v2, setV2] = useState(krFight2On)
+  if (v2) return (
+    <Suspense fallback={<div style={{ position: 'fixed', inset: 0, zIndex: 495, background: '#05070A', color: '#9AA3AE', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>Loading KR FIGHT…</div>}>
+      <KRFight2 {...props} onClassic={() => setV2(false)} />
+    </Suspense>
+  )
+  return <FightGameClassic {...props} />
+}
+
+function FightGameClassic({ onRound, onClose }) {
   const canvasRef = useRef(null)
   const [hud, setHud] = useState({ sp: 1, sup: 0 })   // special cooldown + super meter for the button rings
   // Landscape on a phone: arena fills the height, controls sit over its bottom corners

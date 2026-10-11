@@ -8,6 +8,9 @@ import { supabase } from './lib/supabase.js'
 import ErrorBoundary from './components/shared/ErrorBoundary.jsx'
 import './styles/global.css'
 
+// KR FIGHT 2 test switch: open the app once with ?krfight2=1 to try the new Phaser game on this device (=0 to go back)
+try { const v = new URLSearchParams(window.location.search).get('krfight2'); if (v === '1' || v === '0') localStorage.setItem('krfight2', v) } catch (e) { /* ignore */ }
+
 import Login from './pages/Login.jsx'
 import AthleteLogin from './pages/AthleteLogin.jsx'
 import ResetPassword from './pages/ResetPassword.jsx'
