@@ -1,7 +1,7 @@
 // KR FIGHT 2 -- Phaser scenes: Boot (makes textures), Title, Select, Fight, Results.
 // The world is 800x450; cameras zoom x2 onto a 1600x900 canvas so everything stays crisp on phones.
 import Phaser from 'phaser'
-import { W, H, FLOOR, FIGHTERS, MOVES, SUPER_NAME, LEVELS, comboLabel, hex, getLook, setLook, LOOK_LEVELS, HOUSES, HOUSE_KEYS, getHouse, setHouse, fxColour, cpuHouse } from './data.js'
+import { W, H, FLOOR, FIGHTERS, MOVES, SUPER_NAME, LEVELS, comboLabel, hex, getLook, setLook, LOOK_LEVELS, HOUSES, HOUSE_KEYS, getHouse, setHouse, fxColour, cpuHouse, NATURAL_HOUSE } from './data.js'
 import { Match, makeFighter } from './core.js'
 import { makePose, stepPose, drawFighter, targetPose } from './pose.js'
 
@@ -220,22 +220,22 @@ export class SelectScene extends Phaser.Scene {
     // Look levels: 1 Cartoon, 2 Stickman, 3 Houses (all open while testing; later they unlock with game level)
     const lv = LOOK_LEVELS.find(l => l.key === getLook()) || LOOK_LEVELS[1]
     button(this, 712, 128, 124, 32, `Look ${lv.level}: ${lv.name}`, '#9AA3AE', () => { setLook(LOOK_LEVELS[(LOOK_LEVELS.indexOf(lv) + 1) % LOOK_LEVELS.length].key); this.scene.restart() }, { size: 17 })
-    // house picker (house look only): one glowing swatch per house
-    if (getLook() === 'house') {
-      HOUSE_KEYS.forEach((h, i) => {
-        const x = 44 + i * 30, y = 112, col = hex(HOUSES[h].colour), on = h === getHouse()
-        const sw = this.add.graphics()
-        if (on) { sw.lineStyle(3, 0xffffff, 1); sw.strokeCircle(x, y, 14) }
-        sw.fillStyle(col, 0.35); sw.fillCircle(x, y, 12); sw.fillStyle(col, 1); sw.fillCircle(x, y, 8)
-        sw.setInteractive(new Phaser.Geom.Circle(x, y, 15), Phaser.Geom.Circle.Contains)
-        sw.on('pointerdown', () => { sfx(this).ui?.(); setHouse(h); this.scene.restart() })
-      })
-    }
+    // house picker (house look only): one glowing swatch per house; picking a fighter switches to their
+    // own house, the swatches let you swap
+    this.swatches = getLook() === 'house' ? HOUSE_KEYS.map((h, i) => {
+      const x = 44 + i * 30, y = 112
+      const sw = this.add.graphics()
+      sw.setInteractive(new Phaser.Geom.Circle(x, y, 15), Phaser.Geom.Circle.Contains)
+      sw.on('pointerdown', () => { sfx(this).ui?.(); setHouse(h); this.prev.theme = h; this.refresh() })
+      sw.h = h; sw.cx = x; sw.cy = y
+      return sw
+    }) : []
     this.refresh()
   }
   choose(i) {
     const cfg = this.game.cfg
     cfg.pick = i; if (cfg.cpu === i) cfg.cpu = null
+    if (getLook() === 'house') setHouse(NATURAL_HOUSE[FIGHTERS[i].key] || getHouse())
     this.prev = makeFighter(FIGHTERS[i], 170, 1); this.prev.theme = getHouse(); this.prevPose = makePose(this.prev, this.frame)
     this.demoT = 20
     this.refresh()
@@ -254,6 +254,12 @@ export class SelectScene extends Phaser.Scene {
       t.g.lineStyle(on ? 3 : 1.5, on ? col : 0x2a3138, 1); t.g.strokeRoundedRect(-70, -38, 140, 76, 8)
       this.tweens.add({ targets: t, scale: on ? 1.06 : 1, duration: 120 })
     })
+    for (const sw of this.swatches || []) {
+      const col = hex(HOUSES[sw.h].colour), on = sw.h === getHouse()
+      sw.clear()
+      if (on) { sw.lineStyle(3, 0xffffff, 1); sw.strokeCircle(sw.cx, sw.cy, 14) }
+      sw.fillStyle(col, 0.35); sw.fillCircle(sw.cx, sw.cy, 12); sw.fillStyle(col, 1); sw.fillCircle(sw.cx, sw.cy, 8)
+    }
     this.name.setText(f.name).setColor(f.colour)
     this.special.setText(`Special: ${f.specialName}     Super: ${SUPER_NAME[f.special]}`)
     const g = this.statG; g.clear()

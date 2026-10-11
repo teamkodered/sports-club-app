@@ -72,7 +72,7 @@ export const setHouse = v => { HOUSE = v; try { localStorage.setItem('krfight-ho
 export const fxColour = f => getLook() === 'house' && HOUSES[f.theme] ? HOUSES[f.theme].colour : f.def.colour
 
 // CPU's house in the house look: its fighter's natural house, or the next one if that's the player's
-const NATURAL_HOUSE = { tactical: 'dragon', physical: 'super', mentality: 'jet', technical: 'ice', foundation: 'storm' }
+export const NATURAL_HOUSE = { tactical: 'dragon', physical: 'super', mentality: 'jet', technical: 'ice', foundation: 'storm' }
 export function cpuHouse(def, playerHouse) {
   let h = NATURAL_HOUSE[def.key] || 'dragon'
   if (h === playerHouse) h = HOUSE_KEYS[(HOUSE_KEYS.indexOf(h) + 1) % HOUSE_KEYS.length]
