@@ -38,30 +38,79 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
     return () => { window.removeEventListener('keydown', dn); window.removeEventListener('keyup', up) }
   }, [])
 
-  // boot Phaser once
+  // boot Phaser -- and rebuild it if it ever freezes (lost graphics after rotating / leaving the app)
   useEffect(() => {
-    let dead = false
+    let dead = false, lastFrame = -1, stuckSince = 0, rebuilding = false
     const sfx = makeSfx(); sfxRef.current = sfx; sfx.setMuted(muted); sfx.resume()
     const fonts = document.fonts ? Promise.race([
       Promise.all(["italic 800 40px 'Saira Condensed'", "700 20px 'Rajdhani'", "600 20px 'Rajdhani'"].map(f => document.fonts.load(f).catch(() => {}))),
       new Promise(r => setTimeout(r, 1500)),
     ]) : Promise.resolve()
-    fonts.then(() => {
+
+    function create(keep) {
       if (dead || !hostRef.current) return
       try {
         const game = new Phaser.Game({
           type: Phaser.AUTO, parent: hostRef.current, width: 800 * Z, height: 450 * Z, backgroundColor: '#05070A',
-          scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
+          // min size: while the phone is mid-rotation the arena can measure 0 x 0, which breaks the renderer
+          scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, min: { width: 160, height: 90 } },
           scene: [BootScene, TitleScene, SelectScene, FightScene, ResultsScene],
           input: { activePointers: 3, keyboard: false }, audio: { noAudio: true }, banner: false,
           render: { antialias: true, powerPreference: 'high-performance' },
         })
-        game.bridge = { input: input.current, pressed: pressed.current, sfx, onScene: s => !dead && setScene(s), onHud: h => !dead && setHud(h), onRound: () => onRoundRef.current?.() }
+        game.bridge = { input: input.current, pressed: pressed.current, sfx, skipTitle: !!keep, onScene: s => !dead && setScene(s), onHud: h => !dead && setHud(h), onRound: () => onRoundRef.current?.() }
+        if (keep?.cfg) game.cfg = keep.cfg
+        game.canvas?.addEventListener('webglcontextlost', e => { e.preventDefault(); setTimeout(rebuild, 300) })
         gameRef.current = game
+        lastFrame = -1; stuckSince = 0
         if (import.meta.env.DEV) window.__krgame = game
       } catch (e) { setFailed(String(e?.message || e)) }
-    })
-    return () => { dead = true; gameRef.current?.destroy(true); gameRef.current = null; sfx.close() }
+    }
+    // throw the old game away and start a fresh one on the select screen (same fighter / level)
+    function rebuild() {
+      if (dead || rebuilding) return
+      rebuilding = true
+      const old = gameRef.current
+      const keep = { cfg: old?.cfg }
+      sfx.stopMusic(); gameRef.current = null
+      try { old?.destroy(true) } catch (e) { /* ignore */ }
+      // a frozen loop never runs Phaser's own clean-up, so make sure the old canvas really goes
+      setTimeout(() => { try { old?.loop?.stop(); if (old?.canvas?.parentNode) old.canvas.remove() } catch (e) { /* ignore */ } }, 120)
+      setScene('boot')
+      setTimeout(() => { rebuilding = false; create(keep) }, 150)
+    }
+    fonts.then(() => create(null))
+
+    // watchdog: page visible but the game hasn't drawn a frame for 2.5 s -> rebuild it
+    const watch = setInterval(() => {
+      const g = gameRef.current
+      if (!g || document.hidden || !g.isBooted) { stuckSince = 0; return }
+      if (g.renderer?.contextLost) { rebuild(); return }
+      const f = g.loop.frame
+      if (f !== lastFrame) { lastFrame = f; stuckSince = 0; return }
+      if (!stuckSince) stuckSince = Date.now()
+      else if (Date.now() - stuckSince > 2500) rebuild()
+    }, 500)
+
+    // rotating: Android reports the new size late, so re-measure a few times
+    const remeasure = () => { for (const ms of [100, 350, 800]) setTimeout(() => { try { gameRef.current?.scale.refresh() } catch (e) { /* ignore */ } }, ms) }
+    // leaving / returning: silence everything while away, wake the sound and re-measure on return
+    const vis = () => {
+      if (document.hidden) { sfx.stopMusic(); sfx.suspend(); return }
+      sfx.resume(); remeasure(); stuckSince = 0; lastFrame = -1
+      const g = gameRef.current
+      if (g?.scene.isActive('Fight')) sfx.music()
+    }
+    window.addEventListener('resize', remeasure)
+    window.addEventListener('orientationchange', remeasure)
+    document.addEventListener('visibilitychange', vis)
+    return () => {
+      dead = true; clearInterval(watch)
+      window.removeEventListener('resize', remeasure); window.removeEventListener('orientationchange', remeasure)
+      document.removeEventListener('visibilitychange', vis)
+      try { gameRef.current?.destroy(true) } catch (e) { /* ignore */ }
+      gameRef.current = null; sfx.close()
+    }
   }, [])
 
   function toggleMute() {

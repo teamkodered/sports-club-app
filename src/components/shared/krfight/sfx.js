@@ -3,7 +3,7 @@
 export function makeSfx() {
   const Ctx = window.AudioContext || window.webkitAudioContext
   const nop = () => {}
-  if (!Ctx) return { hit: nop, block: nop, whoosh: nop, special: nop, superStart: nop, ko: nop, bell: nop, land: nop, cheer: nop, ui: nop, music: nop, stopMusic: nop, setMuted: nop, resume: nop, close: nop, say: nop }
+  if (!Ctx) return { suspend: nop, hit: nop, block: nop, whoosh: nop, special: nop, superStart: nop, ko: nop, bell: nop, land: nop, cheer: nop, ui: nop, music: nop, stopMusic: nop, setMuted: nop, resume: nop, close: nop, say: nop }
   const ctx = new Ctx()
   const master = ctx.createGain(); master.gain.value = 0.9; master.connect(ctx.destination)
   // short echo bus for big moments
@@ -45,6 +45,8 @@ export function makeSfx() {
   const BPM = 132, S16 = 60 / BPM / 4
   const bass = [0, 0, 0, 0, 3, 3, 5, 5, 0, 0, 0, 0, 7, 7, 5, 3] // semitones over A1, one per beat-pair
   function schedule() {
+    // after the phone was away (timers paused), skip the missed notes instead of playing them all at once
+    if (nextNote < now() - 0.1) nextNote = now() + 0.05
     while (nextNote < now() + 0.15) {
       const s = step16 % 64, at = nextNote - now()
       if (s % 4 === 0) { tone({ freq: 140, to: 42, dur: 0.22, vol: 0.9, at, out: musicBus }) } // kick
@@ -88,6 +90,7 @@ export function makeSfx() {
       try { ss.cancel(); const u = new SpeechSynthesisUtterance(text); u.rate = 0.95; u.pitch = pitch; u.volume = 1; sayQ.push(u); ss.speak(u) } catch (e) { /* ignore */ }
     },
     resume: () => ctx.resume().catch(() => {}),
+    suspend: () => { window.speechSynthesis?.cancel(); ctx.suspend().catch(() => {}) },
     close: () => { clearInterval(musicTimer); window.speechSynthesis?.cancel(); ctx.close().catch(() => {}) },
   }
 }
