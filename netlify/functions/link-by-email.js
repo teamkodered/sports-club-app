@@ -55,6 +55,14 @@ exports.handler = async (event) => {
       return { statusCode: 409, body: JSON.stringify({ error: `This email is already linked to a different login. Ask an admin for help, or sign in with whichever login you originally set up.` }) }
     }
 
+    // Never move a staff / admin login off its own record onto another one
+    const mineRes = await fetch(`${supabaseUrl}/rest/v1/members?auth_id=eq.${user.id}&select=id,role,access`, { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } })
+    const mine = mineRes.ok ? await mineRes.json() : []
+    const STAFF = ['admin', 'captain', 'coach', 'leader', 'head_coach']
+    if ((mine || []).some(m => m.id !== member.id && (STAFF.includes(m.role) || m.access?.group || Object.values(m.access?.pages || {}).some(v => v === 'view' || v === 'edit')))) {
+      return { statusCode: 409, body: JSON.stringify({ error: 'This is a staff login already linked to its own record, so it was left as it is. Ask an admin if something looks wrong.' }) }
+    }
+
     // Release any OTHER members row this new auth id might already be
     // attached to (e.g. a stray self-registration), so only one
     // members row ever holds a given auth_id.

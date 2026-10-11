@@ -11,7 +11,7 @@ exports.handler = async (event) => {
     return { statusCode: 405, body: 'Method not allowed' }
   }
 
-  const { studentId } = JSON.parse(event.body || '{}')
+  const { studentId, dob } = JSON.parse(event.body || '{}')
   const authHeader = event.headers.authorization || event.headers.Authorization
   if (!studentId) return { statusCode: 400, body: JSON.stringify({ error: 'studentId required' }) }
   if (!authHeader) return { statusCode: 401, body: JSON.stringify({ error: 'Missing session' }) }
@@ -33,9 +33,21 @@ exports.handler = async (event) => {
     if (!userRes.ok) return { statusCode: 401, body: JSON.stringify({ error: 'Invalid or expired session' }) }
     const user = await userRes.json()
 
+    const svc = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` }
+
+    // 1. Staff / admin logins are never moved onto an athlete's record (that's how an admin
+    //    once ended up signed in as an athlete and lost their own admin access)
+    const mineRes = await fetch(`${supabaseUrl}/rest/v1/members?auth_id=eq.${user.id}&select=id,role,access`, { headers: svc })
+    const mine = mineRes.ok ? await mineRes.json() : []
+    const STAFF = ['admin', 'captain', 'coach', 'leader', 'head_coach']
+    const isStaffLogin = (mine || []).some(m => STAFF.includes(m.role) || m.access?.group || Object.values(m.access?.pages || {}).some(v => v === 'view' || v === 'edit'))
+    if (isStaffLogin) {
+      return { statusCode: 403, body: JSON.stringify({ error: "This is a staff login, so it can't be linked to an athlete's profile. To use an athlete's app, sign out and sign in with that athlete's own email." }) }
+    }
+
     // Look up the target student and their currently-linked member row
     const studentRes = await fetch(
-      `${supabaseUrl}/rest/v1/students?id=eq.${studentId}&select=id,member_id,members(auth_id,first_name,last_name)`,
+      `${supabaseUrl}/rest/v1/students?id=eq.${studentId}&select=id,member_id,members(auth_id,first_name,last_name,email,date_of_birth)`,
       { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } }
     )
     const students = await studentRes.json()
@@ -48,6 +60,17 @@ exports.handler = async (event) => {
     const currentAuthId = student.members?.auth_id
     if (currentAuthId && currentAuthId !== user.id) {
       return { statusCode: 409, body: JSON.stringify({ error: 'This profile is already linked to a different login. Ask an admin for help.' }) }
+    }
+
+    // 2. Prove it's really them: the login's email matches the profile's email, OR they give
+    //    the athlete's date of birth exactly as the club has it
+    const recEmail = String(student.members?.email || '').trim().toLowerCase()
+    const loginEmail = String(user.email || '').trim().toLowerCase()
+    const recDob = String(student.members?.date_of_birth || '').slice(0, 10)
+    const emailMatch = recEmail && loginEmail && recEmail === loginEmail
+    const dobMatch = recDob && dob && String(dob).slice(0, 10) === recDob
+    if (!emailMatch && !dobMatch) {
+      return { statusCode: 403, body: JSON.stringify({ error: recDob ? "That date of birth doesn't match our records for this athlete. Check it and try again, or ask a coach to link your account." : "We can't confirm this profile is yours. Ask a coach to link your account for you.", needsDob: !!recDob }) }
     }
 
     // If this login is already attached to a different members row (e.g. it

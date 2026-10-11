@@ -8946,19 +8946,26 @@ function AthleteSearch() {
     return () => clearTimeout(t)
   }, [query])
 
-  async function claimProfile(s) {
-    const m = s.members
-    if (!confirm(`Link your login to ${m?.first_name} ${m?.last_name}'s profile? You won't need to search for it again.`)) return
+  // Linking a profile: confirm it's really you -- the athlete's date of birth must match the club's
+  // records (or your login email must match the profile's email). Staff logins are refused by the server.
+  const [confirmFor, setConfirmFor] = useState(null)   // the student being claimed
+  const [confirmDob, setConfirmDob] = useState('')
+  const [confirmSure, setConfirmSure] = useState(false)
+  function claimProfile(s) { setConfirmFor(s); setConfirmDob(''); setConfirmSure(false) }
+  async function doClaim() {
+    const s = confirmFor
+    if (!s) return
     setClaimingId(s.id)
     try {
       const { data: { session } } = await supabase.auth.getSession()
       const res = await fetch('/.netlify/functions/link-profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
-        body: JSON.stringify({ studentId: s.id }),
+        body: JSON.stringify({ studentId: s.id, dob: confirmDob || null }),
       })
       const data = await res.json()
       if (data.success) {
+        setConfirmFor(null)
         alert('Linked! Reloading your profile…')
         window.location.href = '/athlete-app'
       } else {
@@ -8972,6 +8979,27 @@ function AthleteSearch() {
 
   return (
     <div>
+      {confirmFor && (
+        <div onClick={() => setConfirmFor(null)} style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div className="card" onClick={e => e.stopPropagation()} role="dialog" aria-label="Confirm this is you" style={{ width: '100%', maxWidth: 380 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Is this you?</h3>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>
+              You're linking this login to <b>{confirmFor.members?.first_name} {confirmFor.members?.last_name}</b>. Only do this if it's your own profile (or your child's, if you're their parent).
+            </p>
+            <label htmlFor="claim-dob" style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>{confirmFor.members?.first_name}'s date of birth</label>
+            <input id="claim-dob" type="date" value={confirmDob} onChange={e => setConfirmDob(e.target.value)} max={new Date().toISOString().slice(0, 10)}
+              style={{ width: '100%', boxSizing: 'border-box', padding: '9px 10px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'var(--bg-secondary)', color: 'var(--text)', fontSize: 15, marginBottom: 10 }} />
+            <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 13, marginBottom: 14, cursor: 'pointer' }}>
+              <input type="checkbox" checked={confirmSure} onChange={e => setConfirmSure(e.target.checked)} style={{ marginTop: 2 }} />
+              <span>Yes, this is my profile (or my child's).</span>
+            </label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} disabled={!confirmSure || !confirmDob || claimingId} onClick={doClaim}>{claimingId ? 'Linking…' : 'Link my login'}</button>
+              <button type="button" className="btn" onClick={() => setConfirmFor(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
       <input value={query} onChange={e => setQuery(e.target.value)}
         placeholder="Type name to find athlete…" autoFocus
         style={{ width: '100%', padding: '12px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 15, background: 'var(--bg-secondary)', color: 'var(--text)', marginBottom: 10 }} />
