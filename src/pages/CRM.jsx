@@ -1093,14 +1093,17 @@ export default function CRM() {
     setAdhocKeywords(next)
     await supabase.from('settings').upsert({ key: 'standing_order_adhoc_keywords', value: next }, { onConflict: 'key' })
   }
-  useEffect(() => { loadPastUploads() }, [])
+  const [soVenue, setSoVenue] = useState('kr-centre')   // staff: whose statements (separate lists)
+  useEffect(() => { loadPastUploads(); setPayments([]); setActiveUploadId(null) }, [soVenue])
 
   async function loadPastUploads() {
-    let { data, error } = await supabase.from('standing_order_uploads')
-      .select('id, uploaded_at, filename, venue').order('uploaded_at', { ascending: false }).limit(30)
-    if (error) ({ data } = await supabase.from('standing_order_uploads').select('id, uploaded_at, filename').order('uploaded_at', { ascending: false }).limit(30))
-    // label other venues' statements so they're never mixed up with KR Centre's
-    setPastUploads((data || []).map(u => u.venue && u.venue !== 'kr-centre' ? { ...u, filename: `[${u.venue === 'derby-moore' ? 'Derby Moore' : 'Moorways'}] ${u.filename || ''}` } : u))
+    // Each venue has its OWN list of statements -- never mixed. Staff choose the venue (KR Centre by
+    // default); a head coach only ever has his own venue's (the database limits it).
+    let q = supabase.from('standing_order_uploads').select('id, uploaded_at, filename, venue').order('uploaded_at', { ascending: false }).limit(30)
+    if (!isHeadCoach) q = soVenue === 'kr-centre' ? q.or('venue.is.null,venue.eq.kr-centre') : q.eq('venue', soVenue)
+    let { data, error } = await q
+    if (error && soVenue === 'kr-centre') ({ data } = await supabase.from('standing_order_uploads').select('id, uploaded_at, filename').order('uploaded_at', { ascending: false }).limit(30))
+    setPastUploads(data || [])
   }
 
   async function openPastUpload(id) {
@@ -2835,7 +2838,7 @@ export default function CRM() {
       // Save this list so it can be reopened later by date, rather than
       // being lost the moment the page reloads or someone navigates away.
       const { data, error } = await supabase.from('standing_order_uploads')
-        .insert({ payments: parsed, filename: file.name }).select('id, uploaded_at, filename').single()
+        .insert({ payments: parsed, filename: file.name, ...(!isHeadCoach && soVenue !== 'kr-centre' ? { venue: soVenue } : {}) }).select('id, uploaded_at, filename').single()
       if (!error && data) {
         setPastUploads(prev => [data, ...prev])
         setActiveUploadId(data.id)
@@ -3781,6 +3784,15 @@ export default function CRM() {
 
       {tab === 'standing_orders' && (
         <div>
+          {!isHeadCoach && (
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Statements for:</span>
+              {[['kr-centre', 'KR Centre'], ['derby-moore', 'Derby Moore'], ['moorways', 'Moorways']].map(([k, l]) => (
+                <button key={k} type="button" className={`btn btn-sm${soVenue === k ? ' btn-primary' : ''}`} onClick={() => setSoVenue(k)}>{l}</button>
+              ))}
+              <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Each venue has its own separate list.</span>
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
             {[
               { key: 'all', label: 'All' },
