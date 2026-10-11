@@ -189,8 +189,27 @@ const KRFight2 = lazy(() => import('./krfight/KRFight2.jsx').then(mod => {
 }))
 const krFight2On = () => { try { return localStorage.getItem('krfight2') === '1' } catch (e) { return false } }
 
+// The app may have been updated since this page loaded (the game would then be the old version until a
+// refresh). When the new game opens, compare the live index.html's main script with ours; if it changed,
+// reload once to get the latest version.
+function useLatestBuild(active) {
+  useEffect(() => {
+    if (!active) return
+    const mine = document.querySelector('script[type="module"][src*="/assets/index-"]')?.getAttribute('src')
+    if (!mine) return
+    fetch('/', { cache: 'no-store' }).then(r => r.text()).then(html => {
+      const live = (html.match(/\/assets\/index-[^"']+\.js/) || [])[0]
+      if (!live || mine.endsWith(live)) { try { sessionStorage.removeItem('krfight2-update-reload') } catch (e) { /* ignore */ } return }
+      let tried = false
+      try { tried = sessionStorage.getItem('krfight2-update-reload') === live; if (!tried) sessionStorage.setItem('krfight2-update-reload', live) } catch (e) { tried = true }
+      if (!tried) window.location.reload()
+    }).catch(() => {})
+  }, [active])
+}
+
 export default function FightGame(props) {
   const [v2, setV2] = useState(krFight2On)
+  useLatestBuild(v2)
   if (v2) return (
     <Suspense fallback={<div style={{ position: 'fixed', inset: 0, zIndex: 495, background: '#05070A', color: '#9AA3AE', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>Loading KR FIGHT…</div>}>
       <KRFight2 {...props} onClassic={() => setV2(false)} />
