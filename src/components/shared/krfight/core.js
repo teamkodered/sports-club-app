@@ -1,7 +1,7 @@
 // KR FIGHT 2 -- the fight simulation. A straight port of the classic game's rules (same frame data,
 // blocking, combos, chain-stun, meter, CPU brain) with no drawing in it. It runs at a fixed 60 steps
 // a second and reports what happened as events, which the Phaser scene turns into sparks, sound, etc.
-import { W, FLOOR, GRAV, COMBO_GAP, MOVES, LEVELS, SUPER_NAME } from './data.js'
+import { W, FLOOR, GRAV, COMBO_GAP, MOVES, LEVELS, SUPER_NAME, LEVEL_SCALE } from './data.js'
 
 let pjId = 1
 
@@ -121,13 +121,15 @@ export class Match {
       return
     }
     let key = k
-    if (f.y < FLOOR) { if (k === 'lk' || k === 'hk' || k === 'lp' || k === 'hp') key = 'jk'; else return }
-    else if (f.crouch) key = (k === 'lp' || k === 'hp') ? 'clp' : 'clk'
-    const m = MOVES[key]
-    f.move = { k: key, ...m, reach: m.reach * f.def.reach, dmg: m.dmg * f.def.power }
+    const lvl = LEVEL_SCALE[k[0]] || LEVEL_SCALE.l, isPunch = k[1] === 'p'
+    if (!MOVES[k]) return
+    if (f.y < FLOOR) key = 'jk'
+    else if (f.crouch) key = isPunch ? 'clp' : 'clk'
+    const m = MOVES[key], scaled = key !== k
+    f.move = { k: key, ...m, s: m.s + (scaled ? lvl.s : 0), reach: m.reach * f.def.reach, dmg: m.dmg * f.def.power * (scaled ? lvl.dmg : 1), level: k[0] }
     if (f.comboNext) { f.move.combo = f.comboNext; f.move.dmg *= f.comboNext.bonus; f.move.push *= 1.4; f.comboNext = null }
     f.t = 0; f.hitDone = false
-    this.emit({ type: 'whoosh', heavy: key === 'hp' || key === 'hk' })
+    this.emit({ type: 'whoosh', heavy: k[0] === 'h' || key === 'mk' })
   }
 
   // standing block stops high + mid; low attacks must be blocked crouching (down-back)
@@ -180,10 +182,11 @@ export class Match {
       const back = f.facing === 1 ? ctl.left : ctl.right, fwd = f.facing === 1 ? ctl.right : ctl.left
       f.crouch = grounded && !!ctl.down
       const oAttacking = !!o.move && o.move.dmg > 0
-      f.blocking = grounded && !!back && !f.move && (oAttacking || this.projectiles.some(p => p.owner === o))
+      // Block button: guard whenever held (stands still; with down = low guard). Holding back still blocks attacks.
+      f.blocking = grounded && !f.move && (!!ctl.block || (!!back && (oAttacking || this.projectiles.some(p => p.owner === o))))
       if (!f.move) {
         if (grounded) {
-          f.vx = f.crouch ? 0 : fwd ? f.def.speed * f.facing : back ? -f.def.speed * 0.75 * f.facing : 0
+          f.vx = f.crouch || ctl.block ? 0 : fwd ? f.def.speed * f.facing : back ? -f.def.speed * 0.75 * f.facing : 0
           if (ctl.upPressed && !f.crouch) { f.vy = -16; f.vx = fwd ? 4.5 * f.facing : back ? -4.5 * f.facing : 0; this.emit({ type: 'jump', f }) }
         }
         f.state = !grounded ? 'jump' : f.vx !== 0 ? 'walk' : 'idle'
@@ -192,7 +195,7 @@ export class Match {
       const dirNow = { f: !!fwd, b: !!back, d: !!ctl.down }
       for (const t of ['f', 'b', 'd']) if (dirNow[t] && !f.prevDir[t]) f.buf.push({ t, at: this.frame })
       f.prevDir = dirNow
-      for (const k of ['lp', 'hp', 'lk', 'hk', 'sp', 'super']) if (ctl[k + 'Pressed']) {
+      for (const k of ['lp', 'mp', 'hp', 'lk', 'mk', 'hk', 'sp', 'super']) if (ctl[k + 'Pressed']) {
         f.buf.push({ t: k, at: this.frame })
         f.buf = f.buf.filter(x => this.frame - x.at < COMBO_GAP * 5).slice(-8)
         for (const c of (f.def.combos || [])) {
@@ -243,7 +246,7 @@ export class Match {
       if (a.blockIt && !cpu.move) { ctl[away] = true; if (me.move?.h === 'low') ctl.down = true; return ctl }
     }
     // b) punish recovery
-    if (meRecovering && dist < 85 && !cpu.move && Math.random() < smart) { ctl[me.move.r >= 12 ? 'hpPressed' : 'lpPressed'] = true; a.plan = 'wait'; a.think = 4; return ctl }
+    if (meRecovering && dist < 85 && !cpu.move && Math.random() < smart) { ctl[me.move.r >= 14 ? 'hpPressed' : me.move.r >= 10 ? 'mpPressed' : 'lpPressed'] = true; a.plan = 'wait'; a.think = 4; return ctl }
     // c) wake-up
     if (a.wasStunned && cpu.stun === 0 && dist < 90) {
       a.wasStunned = false
@@ -254,7 +257,7 @@ export class Match {
     }
     a.wasStunned = cpu.stun > 0
     // d) poke as the player walks in
-    if (meApproaching && dist > 62 && dist < 95 && !cpu.move && Math.random() < smart * 0.35) { ctl[dist > 80 ? 'hkPressed' : 'lkPressed'] = true; a.plan = 'wait'; a.think = 6; return ctl }
+    if (meApproaching && dist > 62 && dist < 95 && !cpu.move && Math.random() < smart * 0.35) { ctl[dist > 86 ? 'hkPressed' : dist > 78 ? 'mkPressed' : 'lkPressed'] = true; a.plan = 'wait'; a.think = 6; return ctl }
     // e) step out of jab range when mashed
     if (mashing && dist < 75 && Math.random() < smart * 0.5) { ctl[away] = true; return ctl }
     if ((cpu.meter || 0) >= 100 && dist < 160 && !cpu.move && Math.random() < 0.04 + 0.05 * smart) { ctl.superPressed = true; return ctl }
@@ -272,7 +275,7 @@ export class Match {
     else if (a.plan === 'attack') {
       const combos = cpu.def.combos || []
       if (combos.length && Math.random() < lvl.aggro * 0.6) { const c = combos[Math.floor(Math.random() * combos.length)]; a.queue = [...c.seq]; a.qWait = 0; a.plan = 'combo' }
-      else { const opts = dist < 70 ? ['lp', 'lp', 'lk', 'hp'] : ['lk', 'hk', 'hk', 'lp']; ctl[opts[Math.floor(Math.random() * opts.length)] + 'Pressed'] = true; a.plan = 'wait' }
+      else { const opts = dist < 70 ? ['lp', 'lp', 'mp', 'hp', 'lk'] : ['lk', 'mk', 'hk', 'mk', 'lp']; ctl[opts[Math.floor(Math.random() * opts.length)] + 'Pressed'] = true; a.plan = 'wait' }
     }
     else if (a.plan === 'combo') {
       if (a.qWait > 0) a.qWait--

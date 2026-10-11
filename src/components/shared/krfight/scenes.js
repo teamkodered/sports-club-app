@@ -169,7 +169,7 @@ export class TitleScene extends Phaser.Scene {
     if (b.pressed && (b.pressed.super || b.pressed.lp || b.pressed.sp)) { b.pressed.super = b.pressed.lp = b.pressed.sp = false; this.go(); return }
     this.fg.clear()
     for (const d of this.demo) {
-      if (!d.f.move && this.frame % 90 === (d.f.facing > 0 ? 30 : 75)) { const k = ['lp', 'hk', 'hp', 'lk'][Math.floor(Math.random() * 4)]; d.f.move = { k, ...MOVES[k] }; d.f.t = 0 }
+      if (!d.f.move && this.frame % 90 === (d.f.facing > 0 ? 30 : 75)) { const k = ['lp', 'mp', 'hp', 'lk', 'mk', 'hk'][Math.floor(Math.random() * 6)]; d.f.move = { k, ...MOVES[k] }; d.f.t = 0 }
       if (d.f.move) { d.f.t++; if (d.f.t > d.f.move.s + d.f.move.a + d.f.move.r) d.f.move = null }
       stepPose(d.pose, d.f, this.frame); drawFighter(this.fg, d.f, d.pose, this.frame)
     }
@@ -210,6 +210,7 @@ export class SelectScene extends Phaser.Scene {
       txt(this, 342, 276 + i * 24, '', { fontFamily: BODY, fontStyle: '700', fontSize: '19px' }),
       txt(this, 776, 276 + i * 24, '', { fontFamily: BODY, fontStyle: '700', fontSize: '19px', color: '#F2F2F2' }).setOrigin(1, 0),
     ])
+    txt(this, 776, 350, 'L = tap   M = hold   H = long hold', { fontFamily: BODY, fontStyle: '600', fontSize: '15px', color: '#9AA3AE' }).setOrigin(1, 0)
     // opponent / level / fight
     txt(this, 24, 356, 'Opponent', { fontFamily: BODY, fontStyle: '600', fontSize: '16px', color: '#9AA3AE' })
     this.oppBtn = button(this, 130, 404, 212, 44, '', '#F2F2F2', () => this.cycleOpp(), { size: 22 })
@@ -291,7 +292,7 @@ export class SelectScene extends Phaser.Scene {
     if (!f.move) {
       this.demoT = (this.demoT ?? 40) - 1
       if (this.demoT <= 0) {
-        const seq = ['lp', 'lp', 'hp', 'lk', 'hk', 'sp']
+        const seq = ['lp', 'mp', 'hp', 'lk', 'mk', 'hk', 'sp']
         const k = seq[(this.demoN = ((this.demoN || 0) + 1) % seq.length)]
         if (k === 'sp') { const sp = f.def.special; f.move = sp === 'wave' ? { k: 'cast', s: 8, a: 6, r: 16, reach: 30 } : sp === 'quake' ? { k: 'stomp', s: 10, a: 4, r: 18 } : sp === 'upper' ? { k: 'upper', s: 3, a: 8, r: 20, reach: 66 } : sp === 'rush' ? { k: 'rush', s: 4, a: 14, r: 14, reach: 75 } : { k: 'counter', s: 40, a: 0, r: 6 }; if (sp === 'counter') f.counterT = 40 }
         else f.move = { k, ...MOVES[k], reach: MOVES[k].reach * f.def.reach }
@@ -506,7 +507,7 @@ export class FightScene extends Phaser.Scene {
 
   getInput() {
     const b = bridge(this), inp = b.input || {}, pr = b.pressed || {}
-    const c = { left: inp.left, right: inp.right, down: inp.down, upPressed: pr.up || !!inp.up, superPressed: pr.super, lpPressed: pr.lp, hpPressed: pr.hp, lkPressed: pr.lk, hkPressed: pr.hk, spPressed: pr.sp }
+    const c = { left: inp.left, right: inp.right, down: inp.down, upPressed: pr.up || !!inp.up, superPressed: pr.super, lpPressed: pr.lp, mpPressed: pr.mp, hpPressed: pr.hp, lkPressed: pr.lk, mkPressed: pr.mk, hkPressed: pr.hk, spPressed: pr.sp, block: !!inp.block }
     for (const k in pr) pr[k] = false
     return c
   }

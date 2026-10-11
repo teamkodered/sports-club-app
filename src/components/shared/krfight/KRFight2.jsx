@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Phaser from 'phaser'
 import { FgIcon } from '../FightGame.jsx'
-import { FIGHTERS } from './data.js'
+import { FIGHTERS, CHARGE_MS } from './data.js'
 import { makeSfx } from './sfx.js'
 import { BootScene, TitleScene, SelectScene, FightScene, ResultsScene, Z } from './scenes.js'
 
@@ -9,6 +9,18 @@ import { BootScene, TitleScene, SelectScene, FightScene, ResultsScene, Z } from 
 // hit sparks, hit-stop, super cut-ins, KO slow-mo, title / select / fight / results scenes.
 // React keeps the top bar and the touch controls; Phaser draws everything inside the arena.
 const LS_MUTE = 'krfight-muted'
+const BTN = 64 // every attack button the same size
+
+// line icons for the two new buttons (same style as the others)
+function PadIcon({ name, colour, size }) {
+  const p = { fill: 'none', stroke: colour, strokeWidth: 2.2, strokeLinecap: 'round', strokeLinejoin: 'round' }
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" style={{ filter: `drop-shadow(0 0 4px ${colour})` }}>
+      {name === 'jump' && <g {...p}><path d="M6 13l6-6 6 6" /><path d="M6 19l6-6 6 6" /></g>}
+      {name === 'shield' && <g {...p}><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z" /><path d="M12 7v10" /></g>}
+    </svg>
+  )
+}
 
 export default function KRFight2({ onRound, onClose, onClassic }) {
   const hostRef = useRef(null)
@@ -29,11 +41,46 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
   const onRoundRef = useRef(onRound); onRoundRef.current = onRound
   const sfxRef = useRef(null)
 
-  // keyboard
+  // ---- charging Punch / Kick: tap = Light, hold = Medium, long hold = Heavy; fires on release ----
+  const charge = useRef({ punch: null, kick: null })
+  const [chargeLv, setChargeLv] = useState({ punch: 0, kick: 0 })
+  const chargeTimer = useRef(null)
+  const levelOf = ms => ms >= CHARGE_MS.h ? 'h' : ms >= CHARGE_MS.m ? 'm' : 'l'
+  function tickCharge() {
+    const now = performance.now(), c = charge.current
+    const lv = k => c[k] == null ? 0 : Math.min(1, (now - c[k]) / CHARGE_MS.h)
+    setChargeLv({ punch: lv('punch'), kick: lv('kick') })
+    if (c.punch != null || c.kick != null) chargeTimer.current = requestAnimationFrame(tickCharge)
+    else chargeTimer.current = null
+  }
+  // times come from the input events themselves (when the finger/key actually went down/up), so a busy
+  // phone that handles the event late can't turn a tap into a heavy
+  function startCharge(kind, at) {
+    if (charge.current[kind] != null) return
+    charge.current[kind] = at ?? performance.now()
+    if (!chargeTimer.current) chargeTimer.current = requestAnimationFrame(tickCharge)
+  }
+  function releaseCharge(kind, at) {
+    const t0 = charge.current[kind]
+    if (t0 == null) return
+    charge.current[kind] = null
+    const lv = levelOf((at ?? performance.now()) - t0)
+    pressed.current[lv + (kind === 'punch' ? 'p' : 'k')] = true
+    if (navigator.vibrate) navigator.vibrate(lv === 'h' ? 22 : lv === 'm' ? 14 : 8)
+  }
+  useEffect(() => () => cancelAnimationFrame(chargeTimer.current), [])
+
+  // keyboard: arrows/WASD move, J punch and K kick (hold for power), I/up jump, B or Shift block, L/Space special, O/Enter super
   useEffect(() => {
-    const map = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', KeyJ: 'lp', KeyU: 'hp', KeyK: 'lk', KeyI: 'hk', KeyL: 'sp', Space: 'sp', KeyO: 'super', Enter: 'super' }
-    const dn = e => { const k = map[e.code]; if (!k) return; e.preventDefault(); if (!input.current[k]) pressed.current[k] = true; input.current[k] = true }
-    const up = e => { const k = map[e.code]; if (!k) return; input.current[k] = false }
+    const map = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'up', KeyW: 'up', KeyI: 'up', ArrowDown: 'down', KeyS: 'down', KeyL: 'sp', Space: 'sp', KeyO: 'super', Enter: 'super', KeyB: 'block', ShiftLeft: 'block', ShiftRight: 'block' }
+    const dn = e => {
+      if (e.code === 'KeyJ' || e.code === 'KeyK') { e.preventDefault(); if (!e.repeat) startCharge(e.code === 'KeyJ' ? 'punch' : 'kick', e.timeStamp); return }
+      const k = map[e.code]; if (!k) return; e.preventDefault(); if (!input.current[k]) pressed.current[k] = true; input.current[k] = true
+    }
+    const up = e => {
+      if (e.code === 'KeyJ' || e.code === 'KeyK') { releaseCharge(e.code === 'KeyJ' ? 'punch' : 'kick', e.timeStamp); return }
+      const k = map[e.code]; if (!k) return; input.current[k] = false
+    }
     window.addEventListener('keydown', dn); window.addEventListener('keyup', up)
     return () => { window.removeEventListener('keydown', dn); window.removeEventListener('keyup', up) }
   }, [])
@@ -160,22 +207,30 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
       if (!el) continue
       const r = el.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2
       const d = Math.hypot(x - cx, y - cy)
-      if (d <= r.width / 2 + 6 && d < bestD) { best = k; bestD = d }
+      if (x >= r.left - 4 && x <= r.right + 4 && y >= r.top - 4 && y <= r.bottom + 4 && d < bestD) { best = k; bestD = d }
     }
     return best
   }
-  function atkSet(id, k) {
+  function atkSet(id, k, at) {
     const prev = atkTouch.current[id]
     if (prev === k) return
-    if (prev && !Object.entries(atkTouch.current).some(([pid, v]) => pid !== String(id) && v === prev)) input.current[prev] = false
-    if (k) { if (!input.current[k]) pressed.current[k] = true; input.current[k] = true; if (navigator.vibrate) navigator.vibrate(8) }
+    const stillHeld = key => Object.entries(atkTouch.current).some(([pid, v]) => pid !== String(id) && v === key)
+    // leaving a button
+    if (prev === 'punch' || prev === 'kick') { if (!stillHeld(prev)) releaseCharge(prev, at) }
+    else if (prev === 'block') { if (!stillHeld('block')) input.current.block = false }
+    // entering a button
+    if (k === 'punch' || k === 'kick') startCharge(k, at)
+    else if (k === 'block') input.current.block = true
+    else if (k === 'jump') pressed.current.up = true
+    else if (k) pressed.current[k] = true // special / super fire straight away
+    if (k && navigator.vibrate) navigator.vibrate(6)
     if (k) atkTouch.current[id] = k; else delete atkTouch.current[id]
   }
   const atkPadHandlers = {
-    onPointerDown: e => { e.preventDefault(); sfxRef.current?.resume(); e.currentTarget.setPointerCapture?.(e.pointerId); atkSet(e.pointerId, atkKeyAt(e.clientX, e.clientY)) },
-    onPointerMove: e => { if (e.pointerId in atkTouch.current || e.buttons) atkSet(e.pointerId, atkKeyAt(e.clientX, e.clientY)) },
-    onPointerUp: e => atkSet(e.pointerId, null),
-    onPointerCancel: e => atkSet(e.pointerId, null),
+    onPointerDown: e => { e.preventDefault(); sfxRef.current?.resume(); e.currentTarget.setPointerCapture?.(e.pointerId); atkSet(e.pointerId, atkKeyAt(e.clientX, e.clientY), e.timeStamp) },
+    onPointerMove: e => { if (e.pointerId in atkTouch.current || e.buttons) atkSet(e.pointerId, atkKeyAt(e.clientX, e.clientY), e.timeStamp) },
+    onPointerUp: e => atkSet(e.pointerId, null, e.timeStamp),
+    onPointerCancel: e => atkSet(e.pointerId, null, e.timeStamp),
   }
 
   const pick = gameRef.current?.cfg?.pick ?? 0
@@ -230,26 +285,31 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
                 transform: `translate(calc(-50% + ${knob.x}px), calc(-50% + ${knob.y}px))`, transition: stick.current.id == null ? 'transform 0.12s' : 'none',
                 border: '7px solid rgba(240,240,240,0.92)', background: 'rgba(255,255,255,0.06)', boxShadow: '0 2px 8px rgba(0,0,0,0.6)' }} />
             </div>
-            <div {...atkPadHandlers} className="fg-atkpad" style={{ position: 'relative', width: 236, height: 196, touchAction: 'none', flexShrink: 0 }}>
+            <div {...atkPadHandlers} className="fg-atkpad" role="group" aria-label="Attack buttons"
+              style={{ display: 'grid', gridTemplateColumns: `repeat(3, ${BTN}px)`, gridAutoRows: `${BTN}px`, gap: 10, touchAction: 'none', flexShrink: 0 }}>
               {[
-                { k: 'lp', icon: 'jab', label: 'Light punch (lead hand)', size: 78, right: 0, bottom: 0, bg: '#F2F2F2' },
-                { k: 'hp', icon: 'glove', label: 'Heavy punch (rear hand)', size: 56, right: 86, bottom: 2, bg: '#E24B4A' },
-                { k: 'lk', icon: 'foot', label: 'Light kick (lead leg)', size: 56, right: 72, bottom: 66, bg: '#22B14C' },
-                { k: 'hk', icon: 'kick', label: 'Heavy kick (rear leg)', size: 56, right: 12, bottom: 88, bg: '#378ADD' },
-                { k: 'sp', icon: FIGHTERS[pick]?.special || 'bolt', label: 'Special', size: 58, right: 152, bottom: 30, bg: FIGHTERS[pick]?.colour || '#F5C542', ring: hud.sp },
-                { k: 'super', icon: 'bolt', label: 'Super', size: 66, right: 136, bottom: 112, bg: '#F5C542', ring: hud.sup },
+                { k: 'sp', icon: FIGHTERS[pick]?.special || 'bolt', label: 'Special', bg: FIGHTERS[pick]?.colour || '#F5C542', ring: hud.sp },
+                { k: 'punch', icon: 'glove', label: 'Punch: tap light, hold medium, long hold heavy', bg: '#F2F2F2', charge: chargeLv.punch },
+                { k: 'jump', icon: 'jump', label: 'Jump', bg: '#9AA3AE' },
+                { k: 'super', icon: 'bolt', label: 'Super', bg: '#F5C542', ring: hud.sup },
+                { k: 'kick', icon: 'kick', label: 'Kick: tap light, hold medium, long hold heavy', bg: '#378ADD', charge: chargeLv.kick },
+                { k: 'block', icon: 'shield', label: 'Block (hold)', bg: '#8FD3FF' },
               ].map(b => {
-                const charged = b.ring == null || b.ring >= 1
+                const ready = b.ring == null || b.ring >= 1
+                // charge ring: white (light) -> gold (medium) -> red (heavy)
+                const cl = b.charge || 0, lvCol = cl >= 1 ? '#FF4D3D' : cl >= CHARGE_MS.m / CHARGE_MS.h ? '#F5C542' : '#F2F2F2'
+                const ringBg = b.charge != null && cl > 0 ? `conic-gradient(${lvCol} ${Math.round(cl * 360)}deg, rgba(42,49,56,0.9) 0)`
+                  : b.ring != null ? `conic-gradient(${b.bg} ${Math.round(b.ring * 360)}deg, rgba(42,49,56,0.9) 0)` : 'rgba(42,49,56,0.6)'
+                const glow = (b.ring != null && ready) ? `0 0 14px ${b.bg}` : cl >= 1 ? '0 0 16px #FF4D3D' : 'none'
                 return (
-                  <div key={b.k} ref={el => { atkBtns.current[b.k] = el }} style={{ position: 'absolute', right: b.right, bottom: b.bottom, width: b.size + 10, height: b.size + 10, borderRadius: '50%', padding: 5, boxSizing: 'border-box',
-                    background: b.ring == null ? 'transparent' : `conic-gradient(${b.k === 'super' ? '#F5C542' : b.bg} ${Math.round(b.ring * 360)}deg, rgba(42,49,56,0.9) 0)`,
-                    boxShadow: b.ring != null && charged ? `0 0 16px ${b.k === 'super' ? '#F5C542' : b.bg}` : 'none' }}
-                    className={b.ring != null && charged ? 'fg-ready' : undefined}>
+                  <div key={b.k} ref={el => { atkBtns.current[b.k] = el }} className={b.ring != null && ready ? 'fg-ready' : undefined}
+                    style={{ width: BTN, height: BTN, borderRadius: 16, padding: 4, boxSizing: 'border-box', background: ringBg, boxShadow: glow }}>
                     <button type="button" data-atk={b.k} aria-label={b.label}
-                      style={{ width: '100%', height: '100%', borderRadius: '50%', border: `2px solid ${b.bg}`, touchAction: 'none', userSelect: 'none', cursor: 'pointer',
-                        background: 'radial-gradient(circle at 35% 30%, #2A3138, #0B0E12 80%)', boxShadow: `inset 0 0 10px ${b.bg}55, 0 0 6px ${b.bg}66`,
-                        opacity: charged ? 1 : 0.5, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
-                      <FgIcon name={b.icon} colour={b.bg} size={Math.round(b.size * 0.5)} />
+                      style={{ width: '100%', height: '100%', borderRadius: 12, border: `2px solid ${b.bg}`, touchAction: 'none', userSelect: 'none', cursor: 'pointer',
+                        background: 'radial-gradient(circle at 35% 30%, #2A3138, #0B0E12 80%)', boxShadow: `inset 0 0 10px ${b.bg}44`,
+                        opacity: ready ? 1 : 0.5, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+                        transform: cl > 0 ? `scale(${1 - cl * 0.06})` : 'none' }}>
+                      {b.icon === 'jump' || b.icon === 'shield' ? <PadIcon name={b.icon} colour={b.bg} size={Math.round(BTN * 0.46)} /> : <FgIcon name={b.icon} colour={b.bg} size={Math.round(BTN * 0.5)} />}
                     </button>
                   </div>
                 )

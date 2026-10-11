@@ -55,19 +55,38 @@ export function targetPose(f, frame) {
         P.shX += 6 * ext; P.headX += 3 * ext
         break
       }
-      case 'hp': {
+      case 'mp': {
+        // Cross: rear hand straight down the middle, hips and shoulders turn in
         P.rhX = lerp(lerp(19, -12, wind), reach, ext); P.rhY = lerp(lerp(P.rhY, shY + 10, wind), shY + 2, ext)
         P.lhX = 24; P.lhY = shY - 4
         P.shX += lerp(-6 * wind, 12, ext); P.headX += lerp(-4 * wind, 8, ext); P.rfX -= 4 * ext; P.lean = lerp(-6 * wind, 8, ext)
         break
       }
+      case 'hp': {
+        // Hook: rear hand loads low and wide, then sweeps round in a high arc (shorter, bent arm)
+        const act = t < m.s ? 0 : Math.min(1, (t - m.s) / Math.max(1, m.a))
+        const arcX = lerp(4, reach * 0.82, act), arcY = shY - 4 - Math.sin(act * Math.PI) * 14
+        P.rhX = lerp(lerp(19, -6, wind), arcX, ext); P.rhY = lerp(lerp(P.rhY, shY + 20, wind), arcY, ext)
+        P.lhX = 22; P.lhY = shY - 6
+        P.shX += lerp(-10 * wind, 14, ext); P.headX += lerp(-8 * wind, 10, ext); P.headY += 4 * ext
+        P.rfX -= 6 * ext; P.lean = lerp(-10 * wind, 12, ext)
+        break
+      }
       case 'lk': case 'clk': case 'jk': {
-        const kickY = m.k === 'clk' ? -6 : m.k === 'jk' ? hipY + 18 : hipY - 4
-        const chamberX = m.k === 'clk' ? 30 : 24, chamberY = m.k === 'clk' ? -10 : hipY + 14
+        // Teep (push kick): knee up, then the lead foot drives straight out at hip height
+        const kickY = m.k === 'clk' ? -6 : m.k === 'jk' ? hipY + 18 : hipY + 2
+        const chamberX = m.k === 'clk' ? 30 : 18, chamberY = m.k === 'clk' ? -10 : hipY + 6
         P.lfX = lerp(lerp(P.lfX, chamberX, wind), reach, ext); P.lfY = lerp(lerp(P.lfY, chamberY, wind), kickY, ext)
-        P.shX -= 10 * Math.max(wind, ext) * (m.k === 'clk' ? 0.3 : 1); P.headX -= 10 * Math.max(wind, ext) * (m.k === 'clk' ? 0.3 : 1)
-        P.lean = -8 * ext
+        P.shX -= 8 * Math.max(wind, ext) * (m.k === 'clk' ? 0.3 : 1); P.headX -= 8 * Math.max(wind, ext) * (m.k === 'clk' ? 0.3 : 1)
+        P.lean = -6 * ext
         if (m.k === 'jk') { P.rfX = -12; P.rfY = -20 }
+        break
+      }
+      case 'mk': {
+        // Body kick: lead-leg roundhouse -- knee turns over and the shin snaps round to the ribs
+        P.lfX = lerp(lerp(P.lfX, 10, wind), reach, ext); P.lfY = lerp(lerp(0, hipY + 4, wind), hipY - 18, ext)
+        P.hipX += 4 * Math.max(wind, ext); P.shX -= 12 * ext; P.headX -= 14 * ext; P.headY += 4 * ext; P.lean = -12 * ext
+        P.lhX = 14; P.lhY = shY; P.rhX = -6; P.rhY = shY + 18; P.rfX -= 4
         break
       }
       case 'hk': {
@@ -129,11 +148,11 @@ export function stepPose(pose, f, frame) {
     const lx = pose.cur[limb + 'X'], ly = pose.cur[limb + 'Y']
     sw.push({ x: f.x + lx * f.facing, y: f.y + ly })
     if (sw.length > 8) sw.shift()
-    pose.swHeavy = HEAVY.has(m.k) || !!m.super
+    pose.swHeavy = HEAVY.has(m.k) || m.level === 'h' || !!m.super
   } else if (sw.length) { sw.shift(); if (sw.length) sw.shift() }
 }
-const TIP = { lp: 'lh', clp: 'lh', cast: 'lh', hp: 'rh', rush: 'rh', upper: 'rh', lk: 'lf', clk: 'lf', jk: 'lf', stomp: 'lf', hk: 'rf' }
-const HEAVY = new Set(['hp', 'hk', 'rush', 'upper', 'clk'])
+const TIP = { lp: 'lh', clp: 'lh', cast: 'lh', mp: 'rh', hp: 'rh', rush: 'rh', upper: 'rh', lk: 'lf', mk: 'lf', clk: 'lf', jk: 'lf', stomp: 'lf', hk: 'rf' }
+const HEAVY = new Set(['hp', 'hk', 'mk', 'rush', 'upper'])
 
 // glowing ribbon along the swoosh points, thin at the tail and wide at the newest point
 function drawSwoosh(g, pose, colour) {
