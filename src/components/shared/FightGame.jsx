@@ -6,6 +6,10 @@ import { useEffect, useRef, useState } from 'react'
 // reported via onRound() so it can be logged. Canvas + Web Audio only.
 
 const W = 800, H = 450, FLOOR = 380, GRAV = 0.9
+// Icons on the special buttons
+const SPECIAL_ICON = { wave: '🌀', rush: '👊', counter: '🛡️', upper: '💥', quake: '🌋' }
+const SUPER_ICON = '⚡'
+const SUPER_NAME = { wave: 'Mind Storm', rush: 'Thousand Fists', counter: 'Perfect Read', upper: 'Titan Smash', quake: 'Earthbreaker' }
 const FIGHTERS = [
   { key: 'mentality', name: 'MENTALITY', colour: '#22B14C', trim: '#0E5F27', speed: 4.2, power: 1.0, reach: 1.0, special: 'wave', specialName: 'Focus Wave' , combos: [{ name: 'Calm Storm', seq: ['lp', 'lp', 'hp'], bonus: 1.6 }, { name: 'Mind Lock', seq: ['d', 'lk', 'hk'], bonus: 1.7 }, { name: 'Focus Chain', seq: ['lp', 'hk', 'sp'], bonus: 1.5 }] },
   { key: 'technical', name: 'TECHNICAL', colour: '#2F6BFF', trim: '#13306F', speed: 4.6, power: 0.95, reach: 1.05, special: 'rush', specialName: 'Combo Rush' , combos: [{ name: '1-2-Hook', seq: ['lp', 'lp', 'hp'], bonus: 1.5 }, { name: 'Teep & Cross', seq: ['lk', 'lp', 'hk'], bonus: 1.7 }, { name: 'Blitz', seq: ['lp', 'lp', 'lp', 'lp'], bonus: 2.0 }] },
@@ -151,6 +155,7 @@ function drawFighterBody(g, f, frame) {
 
 export default function FightGame({ onRound, onClose }) {
   const canvasRef = useRef(null)
+  const [hud, setHud] = useState({ sp: 1, sup: 0 })   // special cooldown + super meter for the button rings
   // Landscape on a phone: arena fills the height, controls sit over its bottom corners
   const [landscape, setLandscape] = useState(() => typeof window !== 'undefined' && window.matchMedia('(orientation: landscape) and (max-height: 600px)').matches)
   useEffect(() => {
@@ -172,7 +177,7 @@ export default function FightGame({ onRound, onClose }) {
 
   // keyboard
   useEffect(() => {
-    const map = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', KeyJ: 'lp', KeyU: 'hp', KeyK: 'lk', KeyI: 'hk', KeyL: 'sp', Space: 'sp' }
+    const map = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', KeyJ: 'lp', KeyU: 'hp', KeyK: 'lk', KeyI: 'hk', KeyL: 'sp', Space: 'sp', KeyO: 'super', Enter: 'super' }
     const dn = e => { const k = map[e.code]; if (!k) return; e.preventDefault(); if (!input.current[k]) pressed.current[k] = true; input.current[k] = true }
     const up = e => { const k = map[e.code]; if (!k) return; input.current[k] = false }
     window.addEventListener('keydown', dn); window.addEventListener('keyup', up)
@@ -198,6 +203,16 @@ export default function FightGame({ onRound, onClose }) {
     function startMove(f, k) {
       if (f.stun > 0 || f.state === 'ko') return
       if (f.move && !(f.hitDone && f.t >= f.move.s + f.move.a && k !== 'sp' || f.comboNext)) return // chain only after a landed hit (or a combo input)
+      if (k === 'super') {
+        if ((f.meter || 0) < 100) return
+        f.meter = 0
+        f.comboName = SUPER_NAME[f.def.special] || 'SUPER'; f.comboText = 90; S.shake = 18; S.superFlash = 14; S.sfx.special(); S.sfx.ko()
+        f.move = { k: 'rush', s: 6, a: 18, r: 20, dmg: 26 * f.def.power, reach: 96, h: 'mid', push: 18 }
+        f.vx = 10.5 * f.facing
+        // projectile fighters also fire a big wave alongside the rush
+        if (f.def.special === 'wave' || f.def.special === 'quake') S.projectiles.push({ owner: f, x: f.x + 50 * f.facing, y: f.y - 80, vx: 9 * f.facing, dmg: 16, h: 'mid', colour: f.def.colour, life: 120, big: true })
+        f.t = 0; f.hitDone = false; f.comboNext = null; return
+      }
       if (k === 'sp') {
         if (f.specialCd > 0 && !f.comboNext) return
         if (f.comboNext) { f.comboName = f.comboNext.name; f.comboText = 70; S.sfx.special() }
@@ -224,7 +239,8 @@ export default function FightGame({ onRound, onClose }) {
       if (def.state === 'ko') return
       if (def.counterT > 0) { def.counterT = 0; S.sfx.hit(true); att.hp = Math.max(0, att.hp - 14); att.stun = 24; att.vx = -10 * att.facing; att.flash = 12; S.shake = 8; def.move = null; return }
       if (h === 'high' && def.crouch && def.y >= FLOOR) return // ducked under
-      if (blocks(def, h)) { def.hp = Math.max(0, def.hp - dmg * 0.15); def.vx = push * 0.6 * att.facing; def.stun = 8; S.sfx.block(); return }
+      if (blocks(def, h)) { def.hp = Math.max(0, def.hp - dmg * 0.15); def.vx = push * 0.6 * att.facing; def.stun = 8; S.sfx.block(); att.meter = Math.min(100, (att.meter || 0) + 2); def.meter = Math.min(100, (def.meter || 0) + 3); return }
+      att.meter = Math.min(100, (att.meter || 0) + dmg * 2.2); def.meter = Math.min(100, (def.meter || 0) + dmg * 1.2)
       // Each hit in a row stuns for less, and the 3rd+ pushes them out of range -- so spamming one
       // button can't lock someone down forever (they get a window to block, counter or escape)
       def.chain = (S.frame - (def.lastHitAt || -999) < 40) ? (def.chain || 0) + 1 : 0
@@ -259,7 +275,7 @@ export default function FightGame({ onRound, onClose }) {
         const dirNow = { f: !!fwd, b: !!back, d: !!ctl.down }
         for (const t of ['f', 'b', 'd']) if (dirNow[t] && !f.prevDir[t]) f.buf.push({ t, at: S.frame })
         f.prevDir = dirNow
-        for (const k of ['lp', 'hp', 'lk', 'hk', 'sp']) if (ctl[k + 'Pressed']) {
+        for (const k of ['lp', 'hp', 'lk', 'hk', 'sp', 'super']) if (ctl[k + 'Pressed']) {
           f.buf.push({ t: k, at: S.frame })
           f.buf = f.buf.filter(x => S.frame - x.at < COMBO_GAP * 5).slice(-8)
           // does the end of the buffer complete one of this fighter's combos?
@@ -323,6 +339,7 @@ export default function FightGame({ onRound, onClose }) {
       if (meApproaching && dist > 62 && dist < 95 && !cpu.move && Math.random() < smart * 0.35) { ctl[dist > 80 ? 'hkPressed' : 'lkPressed'] = true; a.plan = 'wait'; a.think = 6; return ctl }
       // e) being mashed at close range: step back out of jab range and wait to punish
       if (mashing && dist < 75 && Math.random() < smart * 0.5) { ctl[away] = true; return ctl }
+      if ((cpu.meter || 0) >= 100 && dist < 160 && !cpu.move && Math.random() < 0.04 + 0.05 * smart) { ctl.superPressed = true; return ctl }
       if (a.think <= 0) {
         a.think = lvl.react + Math.floor(Math.random() * lvl.react)
         const r = Math.random()
@@ -380,7 +397,7 @@ export default function FightGame({ onRound, onClose }) {
       }
       if (S.phase !== 'fight') return
       const inp = input.current, pr = pressed.current
-      const c1 = { left: inp.left, right: inp.right, down: inp.down, upPressed: pr.up || false, lpPressed: pr.lp, hpPressed: pr.hp, lkPressed: pr.lk, hkPressed: pr.hk, spPressed: pr.sp }
+      const c1 = { left: inp.left, right: inp.right, down: inp.down, upPressed: pr.up || !!inp.up, superPressed: pr.super, lpPressed: pr.lp, hpPressed: pr.hp, lkPressed: pr.lk, hkPressed: pr.hk, spPressed: pr.sp }
       pressed.current = {}
       update(p1, p2, c1); update(p2, p1, aiControl(p2, p1))
       // push apart
@@ -433,9 +450,16 @@ export default function FightGame({ onRound, onClose }) {
         g.fillStyle = '#fff'; g.font = 'italic 800 16px sans-serif'; g.textAlign = right ? 'right' : 'left'
         g.fillText(f.def.name + (right ? ' (CPU)' : ''), right ? x + 320 : x, 64)
         for (let i = 0; i < 2; i++) { g.fillStyle = i < f.wins ? '#F5C542' : '#2A3138'; g.beginPath(); g.arc(right ? x + 300 - i * 18 : x + 20 + i * 18, 80, 6, 0, Math.PI * 2); g.fill() }
+        const mt = f.meter || 0
+        g.fillStyle = '#1A1F24'; g.fillRect(x, 108, 320, 7)
+        g.fillStyle = mt >= 100 ? (S.frame % 10 < 5 ? '#F5C542' : '#FFF6C9') : '#F5C542'
+        g.fillRect(right ? x + 320 - 320 * mt / 100 : x, 108, 320 * mt / 100, 7)
         const cd = f.specialCd; g.fillStyle = cd === 0 ? f.def.colour : '#2A3138'; g.font = '700 11px sans-serif'; g.fillText(cd === 0 ? `★ ${f.def.specialName} ready` : f.def.specialName, right ? x + 320 : x, 100)
       }
       bar(20, p1, false); bar(W - 340, p2, true)
+      if (S.superFlash > 0) { g.fillStyle = `rgba(255,240,180,${S.superFlash / 30})`; g.fillRect(0, 0, W, H); S.superFlash-- }
+      // live readings for the special buttons' charge rings (a few times a second)
+      if (S.frame % 6 === 0) setHud({ sp: 1 - Math.min(1, (p1.specialCd || 0) / 150), sup: Math.min(1, (p1.meter || 0) / 100) })
       g.fillStyle = '#fff'; g.font = '900 30px sans-serif'; g.textAlign = 'center'; g.fillText(String(Math.max(0, Math.ceil(S.timer / 60))), W / 2, 46)
     }
     function loop(now) {
@@ -454,7 +478,7 @@ export default function FightGame({ onRound, onClose }) {
   // Joystick: drag the knob (or touch anywhere on the pad) -- 8 directions, with a small dead zone.
   const stick = useRef({ id: null, dx: 0, dy: 0 })
   const [knob, setKnob] = useState({ x: 0, y: 0 })
-  const STICK_R = 62, DEAD = 14
+  const STICK_R = 78, DEAD = 14
   function setStickDirs(dx, dy) {
     const len = Math.hypot(dx, dy)
     const dirs = { left: false, right: false, up: false, down: false }
@@ -591,22 +615,47 @@ export default function FightGame({ onRound, onClose }) {
                   padding: '0 calc(14px + env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) calc(14px + env(safe-area-inset-left, 0px))' }
               : { width: '100%', maxWidth: 900, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', padding: '10px 14px', boxSizing: 'border-box' }}
               className={landscape ? 'fg-ls-controls' : undefined}>
-              <div className="fg-stick" {...stickHandlers} role="group" aria-label="Joystick: drag to move, up to jump, down to crouch"
+              <div className="fg-stick" {...stickHandlers} role="group" aria-label="Joystick: drag to move, push up to jump, down to crouch"
                 style={{ width: STICK_R * 2, height: STICK_R * 2, borderRadius: '50%', position: 'relative', touchAction: 'none', flexShrink: 0,
-                  background: 'radial-gradient(circle, rgba(42,49,56,0.9) 0%, rgba(26,31,36,0.85) 70%)', border: '2px solid #2A3138' }}>
-                {['▲', '▶', '▼', '◀'].map((t, i) => (
-                  <span key={t} style={{ position: 'absolute', left: '50%', top: '50%', transform: `translate(-50%, -50%) rotate(${i * 90}deg) translateY(-${STICK_R - 13}px) rotate(-${i * 90}deg)`, fontSize: 11, color: '#6B7280', pointerEvents: 'none' }}>{t}</span>
+                  border: '3px solid rgba(220,220,220,0.55)', boxShadow: 'inset 0 0 0 10px rgba(255,255,255,0.04), 0 0 0 1px rgba(0,0,0,0.4)', background: 'rgba(10,12,16,0.25)' }}>
+                {/* inner guide ring + arrow ticks */}
+                <div style={{ position: 'absolute', inset: 22, borderRadius: '50%', border: '1.5px solid rgba(220,220,220,0.25)', pointerEvents: 'none' }} />
+                {[0, 90, 180, 270].map(r => (
+                  <span key={r} style={{ position: 'absolute', left: '50%', top: '50%', width: 0, height: 0, pointerEvents: 'none',
+                    transform: `translate(-50%, -50%) rotate(${r}deg) translateY(-44px)`,
+                    borderLeft: '7px solid transparent', borderRight: '7px solid transparent', borderBottom: '9px solid rgba(230,230,230,0.8)' }} />
                 ))}
-                <div style={{ position: 'absolute', left: '50%', top: '50%', width: 52, height: 52, borderRadius: '50%', pointerEvents: 'none',
+                {/* knob: a hollow ring that follows your thumb */}
+                <div style={{ position: 'absolute', left: '50%', top: '50%', width: 58, height: 58, borderRadius: '50%', pointerEvents: 'none', boxSizing: 'border-box',
                   transform: `translate(calc(-50% + ${knob.x}px), calc(-50% + ${knob.y}px))`, transition: stick.current.id == null ? 'transform 0.12s' : 'none',
-                  background: 'radial-gradient(circle at 35% 30%, #4B5563, #1F2937)', border: '2px solid #9CA3AF', boxShadow: '0 3px 10px rgba(0,0,0,0.6)' }} />
+                  border: '7px solid rgba(240,240,240,0.92)', background: 'rgba(255,255,255,0.06)', boxShadow: '0 2px 8px rgba(0,0,0,0.6)' }} />
               </div>
-              <div {...atkPadHandlers} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 58px)', gap: 6, alignItems: 'center', touchAction: 'none', padding: 4 }}>
-                <button type="button" style={atk('#F2F2F2')} data-atk="lp">LP</button>
-                <button type="button" style={atk('#E24B4A')} data-atk="hp">HP</button>
-                <button type="button" style={{ ...atk(FIGHTERS[pick]?.colour || '#F5C542'), gridRow: 'span 2', height: 64, width: 64 }} data-atk="sp">SP</button>
-                <button type="button" style={atk('#C0C4CC')} data-atk="lk">LK</button>
-                <button type="button" style={atk('#378ADD')} data-atk="hk">HK</button>
+              {/* Attack pad (slide between buttons). Big punch in the corner, the rest in an arc around it;
+                  SP and SUPER show a charge ring (SP = cooldown, SUPER = meter from landing / taking hits). */}
+              <div {...atkPadHandlers} className="fg-atkpad" style={{ position: 'relative', width: 236, height: 196, touchAction: 'none', flexShrink: 0 }}>
+                {[
+                  { k: 'lp', icon: '👊', label: 'LP', size: 78, right: 0, bottom: 0, bg: '#F2F2F2' },
+                  { k: 'hp', icon: '🥊', label: 'HP', size: 56, right: 86, bottom: 2, bg: '#E24B4A' },
+                  { k: 'lk', icon: '🦶', label: 'LK', size: 56, right: 72, bottom: 66, bg: '#C0C4CC' },
+                  { k: 'hk', icon: '🦵', label: 'HK', size: 56, right: 12, bottom: 88, bg: '#378ADD' },
+                  { k: 'sp', icon: SPECIAL_ICON[FIGHTERS[pick]?.special] || '★', label: 'SP', size: 58, right: 152, bottom: 30, bg: FIGHTERS[pick]?.colour || '#F5C542', ring: hud.sp },
+                  { k: 'super', icon: SUPER_ICON, label: 'SUPER', size: 66, right: 136, bottom: 112, bg: '#F5C542', ring: hud.sup },
+                ].map(b => {
+                  const charged = b.ring == null || b.ring >= 1
+                  return (
+                    <div key={b.k} style={{ position: 'absolute', right: b.right, bottom: b.bottom, width: b.size + 10, height: b.size + 10, borderRadius: '50%', padding: 5, boxSizing: 'border-box',
+                      background: b.ring == null ? 'transparent' : `conic-gradient(${b.k === 'super' ? '#F5C542' : b.bg} ${Math.round(b.ring * 360)}deg, rgba(42,49,56,0.9) 0)`,
+                      boxShadow: b.ring != null && charged ? `0 0 16px ${b.k === 'super' ? '#F5C542' : b.bg}` : 'none' }}
+                      className={b.ring != null && charged ? 'fg-ready' : undefined}>
+                      <button type="button" data-atk={b.k} aria-label={b.label}
+                        style={{ width: '100%', height: '100%', borderRadius: '50%', border: '2px solid rgba(255,255,255,0.25)', touchAction: 'none', userSelect: 'none', cursor: 'pointer',
+                          background: `radial-gradient(circle at 35% 30%, ${b.bg}, #111 115%)`, opacity: charged ? 1 : 0.55, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 0, padding: 0 }}>
+                        <span style={{ fontSize: b.size * 0.42, lineHeight: 1, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))', pointerEvents: 'none' }}>{b.icon}</span>
+                        <span style={{ fontSize: 9, fontWeight: 900, color: '#0A0A0A', textShadow: '0 0 3px rgba(255,255,255,0.8)', pointerEvents: 'none', letterSpacing: 0.5 }}>{b.label}</span>
+                      </button>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}

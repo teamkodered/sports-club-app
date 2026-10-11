@@ -1069,3 +1069,6 @@ tbody tr:hover td { background: var(--bg-secondary); }
 /* Fight game: round D-pad -- round buttons inside a circular pad, diagonals tucked in */
 .fg-dpad > button { border-radius: 50% !important; width: 50px !important; height: 50px !important; }
 .fg-dpad > button:nth-child(1), .fg-dpad > button:nth-child(3), .fg-dpad > button:nth-child(7), .fg-dpad > button:nth-child(9) { transform: scale(0.78); opacity: 0.75; }
+/* Fight game: special / super buttons pulse when charged */
+@keyframes fgReady { 0%, 100% { filter: brightness(1) } 50% { filter: brightness(1.35) } }
+.fg-ready { animation: fgReady 1s ease-in-out infinite; }
