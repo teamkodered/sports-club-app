@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { uploadMemberDoc, isPrivateDoc, movePublicDocToPrivate } from '../lib/memberDocs.js'
 import { supabase } from '../lib/supabase.js'
 import * as XLSXModule from 'xlsx'
 // See CRM.jsx for why this exists -- some bundlers wrap xlsx's exports
@@ -135,6 +136,29 @@ export default function AdminImport() {
     return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]/g, '_')
   }
 
+  // One-off: move older membership documents (public links) into private storage
+  const [moving, setMoving] = useState(null)   // { done, total, failed }
+  async function moveOldDocs() {
+    const { data: rows, error } = await supabase.from('membership_forms').select('id, member_id, document_url').not('document_url', 'is', null)
+    if (error) return alert(error.message)
+    const todo = (rows || []).filter(r => r.document_url && !isPrivateDoc(r.document_url) && /\/storage\/v1\/object\/public\//.test(r.document_url))
+    if (!todo.length) return alert('All membership documents are already in private storage.')
+    if (!window.confirm(`Move ${todo.length} membership document${todo.length === 1 ? '' : 's'} into private storage? They'll then only open for staff, the member's head coach / parent, or the member.`)) return
+    let done = 0, failed = 0
+    setMoving({ done, total: todo.length, failed })
+    for (const r of todo) {
+      try {
+        const ref = await movePublicDocToPrivate(r.member_id, r.document_url)
+        const { data: upd, error: uErr } = await supabase.from('membership_forms').update({ document_url: ref }).eq('id', r.id).select('id')
+        if (uErr || !upd?.length) throw new Error(uErr?.message || 'not saved')
+        done++
+      } catch { failed++ }
+      setMoving({ done, total: todo.length, failed })
+    }
+    alert(`Moved ${done} of ${todo.length}${failed ? ` — ${failed} couldn't be moved (try again later)` : ''}.`)
+    setMoving(null)
+  }
+
   async function uploadMatchedScans() {
     setScanUploading(true)
     let success = 0, failed = 0
@@ -142,10 +166,8 @@ export default function AdminImport() {
     for (const m of scanMatches) {
       if (m.status !== 'matched') continue
       try {
-        const path = `membership-forms/${m.student.member_id}-${Date.now()}-${safeStorageFilename(m.file.name)}`
-        const { error: uploadErr } = await supabase.storage.from('athlete-media').upload(path, m.file)
-        if (uploadErr) throw uploadErr
-        const { data: urlData } = supabase.storage.from('athlete-media').getPublicUrl(path)
+        // private storage (opens only for people allowed to see this member)
+        const urlData = { publicUrl: await uploadMemberDoc(m.student.member_id, m.file) }
         // Fetches every row for this member rather than picking one
         // via a database-level ORDER BY -- sorting by submitted_at is
         // unreliable once any row has a null value there (which one
@@ -479,6 +501,10 @@ export default function AdminImport() {
 
   return (
     <div style={{ maxWidth: 640 }}>
+      <div className="card" style={{ marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 13 }}><b>🔒 Membership documents</b><div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>New uploads go to private storage. Move older ones there too, so they can't be opened from a link.</div></div>
+        <button className="btn btn-sm btn-primary" disabled={!!moving} onClick={moveOldDocs}>{moving ? `Moving ${moving.done}/${moving.total}…` : 'Move older documents to private storage'}</button>
+      </div>
       <div className="page-header">
         <h1>Import data</h1>
         <p>Import members from Google Sheets or a CSV file</p>

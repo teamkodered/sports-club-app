@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useBackableTab } from '../../hooks/useBackableTab.js'
+import { uploadMemberDoc, openMemberDoc } from '../../lib/memberDocs.js'
 import AppInviteButton from '../parent/AppInviteButton.jsx'
 import { useAuth } from '../../hooks/useAuth.jsx'
 import { supabase } from '../../lib/supabase.js'
@@ -77,11 +78,11 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
       // failure the try/catch below is now here to actually catch and
       // show, instead of failing with nothing visible to the user at
       // all.
-      const safeName = file.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]/g, '_')
-      const path = `membership-forms/${memberId}-${Date.now()}-${safeName}`
-      const { error: uploadErr } = await supabase.storage.from('athlete-media').upload(path, file)
-      if (uploadErr) { alert('Error uploading document: ' + uploadErr.message); setUploadingMembershipDoc(false); return }
-      const { data: urlData } = supabase.storage.from('athlete-media').getPublicUrl(path)
+      // Private storage: the document opens only for people allowed to see this member
+      let docRef
+      try { docRef = await uploadMemberDoc(memberId, file) }
+      catch (uploadErr) { alert('Error uploading document: ' + uploadErr.message + (/bucket/i.test(uploadErr.message || '') ? '\n\n(Has supabase_private_membership_docs.sql been run?)' : '')); setUploadingMembershipDoc(false); return }
+      const urlData = { publicUrl: docRef }
       if (membershipForm?.id) {
         // .select() after an update returns the actual updated row(s) --
         // an empty array here means the update genuinely matched zero
@@ -800,7 +801,7 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
                     </div>
                     {f.document_url && (
                       <div className="no-print" style={{ marginTop: 6 }}>
-                        <a href={f.document_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#378ADD' }}>📎 View original scanned/photographed form</a>
+                        <a href="#" onClick={e => { e.preventDefault(); openMemberDoc(f.document_url) }} style={{ fontSize: 12, color: '#378ADD' }}>📎 View original scanned/photographed form</a>
                       </div>
                     )}
                   </div>

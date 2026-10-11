@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
+import { openMemberDoc } from '../lib/memberDocs.js'
 
 // Parent screen: one parent login, any number of children (linked only through a coach's invite).
 // The database decides what's visible: a child aged 16+ with their own login shows attendance,
@@ -152,8 +153,8 @@ export default function ParentView() {
           <div className="pv-h">📝 Membership form</div>
           <p className="pv-muted">Signed {fmt(String(data.form.created_at).slice(0, 10))}</p>
           <div style={{ display: 'flex', gap: 8 }}>
-            <a className="btn btn-sm" href={data.form.document_url} target="_blank" rel="noreferrer">View</a>
-            <button className="btn btn-sm" onClick={() => { const w = window.open(data.form.document_url, '_blank'); if (w) setTimeout(() => { try { w.print() } catch {} }, 1200) }}>Print</button>
+            <button className="btn btn-sm" onClick={() => openMemberDoc(data.form.document_url)}>View</button>
+            <button className="btn btn-sm" onClick={() => openMemberDoc(data.form.document_url, { print: true })}>Print</button>
           </div>
         </div>
       )}
