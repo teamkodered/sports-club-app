@@ -123,24 +123,44 @@ export function AuthProvider({ children }) {
     setLoading(false)
   }
 
+  // ADMIN "VIEW AS": preview the app as another team member (e.g. a Head Coach) -- menus, pages and
+  // registers follow their role/access, and student lists narrow to their classes. App-only: the
+  // admin's real login (and database access) is unchanged underneath, so Exit always works.
+  const realIsAdmin = profile?.role === 'admin'
+  const [viewAs, setViewAs] = useState(() => { try { return JSON.parse(sessionStorage.getItem('kc_view_as') || 'null') } catch { return null } })
+  const [viewAsStudentIds, setViewAsStudentIds] = useState(null)
+  const startViewAs = m => { const v = { id: m.id, name: `${m.first_name || ''} ${m.last_name || ''}`.trim(), role: m.role, access: m.access || null }; try { sessionStorage.setItem('kc_view_as', JSON.stringify(v)) } catch {} ; setViewAs(v); window.location.href = '/dashboard' }
+  const stopViewAs = () => { try { sessionStorage.removeItem('kc_view_as') } catch {} ; setViewAs(null); setViewAsStudentIds(null); window.location.href = '/settings' }
+  const effProfile = realIsAdmin && viewAs ? { ...profile, role: viewAs.role, access: viewAs.access } : profile
+
   // Access groups (e.g. "KRBA Coach") -- loaded once signed in, so page/register access follows the group
   const [accessGroups, setAccessGroups] = useState([])
   useEffect(() => {
-    if (!profile?.access?.group) return
+    if (!effProfile?.access?.group) return
     supabase.from('settings').select('value').eq('key', 'access_groups').maybeSingle()
       .then(({ data }) => setAccessGroups(Array.isArray(data?.value) ? data.value : []))
-  }, [profile?.access?.group])
+  }, [effProfile?.access?.group])
 
-  const role      = profile?.role || 'member'
+  // While viewing as someone with set classes: the students in those classes (to narrow lists)
+  useEffect(() => {
+    if (!(realIsAdmin && viewAs)) { setViewAsStudentIds(null); return }
+    const a = viewAs.access?.group ? (accessGroups.find(g => g.id === viewAs.access.group)?.access || {}) : (viewAs.access || {})
+    const classIds = a?.registers?.classes
+    if (!classIds?.length) { setViewAsStudentIds(null); return }
+    supabase.from('student_class_assignments').select('student_id').in('class_id', classIds)
+      .then(({ data }) => setViewAsStudentIds(new Set((data || []).map(r => r.student_id))))
+  }, [realIsAdmin, viewAs?.id, accessGroups])
+
+  const role      = effProfile?.role || 'member'
   const isAdmin   = role === 'admin'
   const isCoach   = role === 'captain' || role === 'coach' // 'captain' is the actual role value assigned via Settings; 'coach' kept for safety
   const isLeader  = role === 'leader'
   const isHeadCoach = role === 'head_coach'   // limited to their own classes (database-enforced)
-  const isStaff   = isAdmin || isCoach || isLeader || isHeadCoach || !!profile?.access?.group || Object.values(profile?.access?.pages || {}).some(v => v === 'view' || v === 'edit')  // can take registers + points, or has been given page access
+  const isStaff   = isAdmin || isCoach || isLeader || isHeadCoach || !!effProfile?.access?.group || Object.values(effProfile?.access?.pages || {}).some(v => v === 'view' || v === 'edit')  // can take registers + points, or has been given page access
   const isAthlete = !!(profile?.student?.is_kr || profile?.student?.discipline === 'KRBA' || profile?.student?.is_pts)
 
   return (
-    <AuthContext.Provider value={{ session, profile, role, isAdmin, isCoach, isLeader, isHeadCoach, isStaff, isAthlete, loading, profileError, pageAccess: page => pageAccessFor(profile, page, accessGroups), registerAccess: registerAccessFor(profile, accessGroups), accessGroups, refreshProfile: () => fetchProfile(session?.user?.id, session?.access_token) }}>
+    <AuthContext.Provider value={{ session, profile, role, isAdmin, isCoach, isLeader, isHeadCoach, isStaff, isAthlete, loading, profileError, pageAccess: page => pageAccessFor(effProfile, page, accessGroups), registerAccess: registerAccessFor(effProfile, accessGroups), viewAs: realIsAdmin ? viewAs : null, viewAsStudentIds, startViewAs, stopViewAs, realIsAdmin, accessGroups, refreshProfile: () => fetchProfile(session?.user?.id, session?.access_token) }}>
       {children}
     </AuthContext.Provider>
   )

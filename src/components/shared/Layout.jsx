@@ -8,7 +8,7 @@ const SIDEBAR_FULL = 220
 const SIDEBAR_ICON = 52
 
 export default function Layout() {
-  const { profile, isAdmin, isCoach, isLeader, isStaff, role, isAthlete, pageAccess } = useAuth()
+  const { profile, isAdmin, isCoach, isLeader, isStaff, role, isAthlete, pageAccess, viewAs, stopViewAs } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   // The Session logger (fit2fight) has its own "← Back" button and is
@@ -313,6 +313,12 @@ export default function Layout() {
         marginLeft: sidebarW,
         transition: 'margin-left 0.2s ease',
       }}>
+        {viewAs && (
+          <div className="kc-viewas" role="status">
+            <span>👁 Viewing as <b>{viewAs.name || 'team member'}</b> ({viewAs.role === 'head_coach' ? 'Head Coach' : viewAs.role}) — menus, pages and student lists as they see them</span>
+            <button type="button" onClick={stopViewAs}>Exit</button>
+          </div>
+        )}
         <Outlet />
       </main>
 

@@ -191,7 +191,7 @@ const mmyy = d => { const [yy, mm] = String(d).slice(0, 10).split('-'); return `
 const lastInColour = d => ((Date.now() - new Date(String(d).slice(0, 10) + 'T12:00:00')) / 86400000 < 28 ? '#EF9F27' : '#E24B4A') // < 4 weeks orange, else red
 
 export default function Registers({ initialRegType, onStudentNameClick, onWeightClick } = {}) {
-  const { isAdmin, isCoach, isLeader, isStaff, registerAccess } = useAuth()
+  const { isAdmin, isCoach, isLeader, isStaff, registerAccess, viewAsStudentIds } = useAuth()
   // Per-person register access (Settings -> Team): which register types and classes this person may take
   const allowedRegTypes = registerAccess?.types || null     // null = all
   const allowedClassIds = registerAccess?.classes || null   // null = all
@@ -878,6 +878,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   }
 
   const sortedStudents = (regType === 'adhoc' ? adhocPills.map(p => students.find(s => s.id === p.id)).filter(Boolean) : students)
+    .filter(s => !viewAsStudentIds || viewAsStudentIds.has(s.id))   // admin previewing as a head coach
     .filter(s => !showOnlyAttended || (attendance[s.id] && attendance[s.id] !== 'none'))
     .filter(s => !groupFilter || studentGroups(s, s.members).includes(groupFilter))
     .filter(s => {

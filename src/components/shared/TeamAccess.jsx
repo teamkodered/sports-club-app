@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useAuth } from '../../hooks/useAuth.jsx'
 import { ShareModal, COACH_SIGNUP_FORM } from '../../pages/Forms.jsx'
 import { supabase } from '../../lib/supabase.js'
 import { PAGES, REGISTER_TYPE_OPTIONS, ROLE_OPTIONS, TEAMS, roleDefault, groupId, groupName } from '../../lib/access.js'
@@ -12,6 +13,7 @@ const emptyAccess = () => ({ pages: {}, registers: { types: null, classes: null 
 const cloneAccess = a => ({ pages: { ...(a?.pages || {}) }, registers: { types: a?.registers?.types || null, classes: a?.registers?.classes || null } })
 
 export default function TeamAccess() {
+  const { startViewAs } = useAuth()
   const [members, setMembers] = useState([])
   const [classes, setClasses] = useState([])
   const [groups, setGroups] = useState([])       // [{ id, role, team, access }]
@@ -159,7 +161,12 @@ export default function TeamAccess() {
           <div className="team-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-label={`Access for ${editing.member.first_name} ${editing.member.last_name}`}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
               <div><b style={{ fontSize: 17 }}>{editing.member.first_name} {editing.member.last_name}</b><div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{editing.member.email}</div></div>
-              <button type="button" className="btn btn-sm" onClick={() => setEditing(null)}>Cancel</button>
+              <span style={{ display: 'flex', gap: 6 }}>
+                {normRole(editing.member.role) !== 'admin' && normRole(editing.member.role) !== 'member' && (
+                  <button type="button" className="btn btn-sm" title="Preview the app as this person sees it" onClick={() => startViewAs(editing.member)}>👁 View as</button>
+                )}
+                <button type="button" className="btn btn-sm" onClick={() => setEditing(null)}>Cancel</button>
+              </span>
             </div>
 
             <div className="team-label">ROLE</div>

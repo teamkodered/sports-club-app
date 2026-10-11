@@ -85,7 +85,7 @@ function GroupFilterTh({ sortKey, sortDir, onSort, groupFilter, setGroupFilter, 
 }
 
 export default function StudentDatabase() {
-  const { isAdmin, profile } = useAuth()
+  const { isAdmin, profile, viewAsStudentIds } = useAuth()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [students, setStudents]       = useState([])
@@ -229,6 +229,7 @@ export default function StudentDatabase() {
     if (groupFilter === 'venue_moorways')   list = list.filter(s => s.class_schedule === 'Moorways')
     if (groupFilter === 'venue_derbymoore') list = list.filter(s => s.class_schedule === 'Derby Moore')
     if (groupFilter === 'venue_krcentre')   list = list.filter(s => s.class_schedule && s.class_schedule !== 'Moorways' && s.class_schedule !== 'Derby Moore')
+    if (viewAsStudentIds) list = list.filter(s => viewAsStudentIds.has(s.id))   // admin previewing as a head coach
     if (groupFilter === 'venue_none')       list = list.filter(s => s.discipline === 'PKA' && !s.class_schedule)   // No class / pending
     if (joinedFilter === 'month') { const pre = new Date().toISOString().slice(0, 7); list = list.filter(s => s.members?.joined_date?.startsWith(pre)) }
     if (joinedFilter === '30d') { const from = new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10); list = list.filter(s => (s.members?.joined_date || '') >= from) }
@@ -251,7 +252,7 @@ export default function StudentDatabase() {
       })
     }
     setFiltered(list)
-  }, [search, tab, houseFilter, groupFilter, statusFilter, joinedFilter, students, sortKey, sortDir])
+  }, [search, tab, houseFilter, groupFilter, statusFilter, joinedFilter, students, sortKey, sortDir, viewAsStudentIds])
 
   const houses = (() => {
     const seen = new Map() // normalised key -> original display name (first one encountered)
