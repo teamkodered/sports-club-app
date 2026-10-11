@@ -98,16 +98,20 @@ function drawFighterBody(g, f, frame) {
   const walk = f.state === 'walk' ? Math.sin(frame / 4) * 12 : 0
   let kick = null
   if (f.move && (f.move.k === 'lk' || f.move.k === 'hk' || f.move.k === 'clk' || f.move.k === 'jk') && f.t >= f.move.s) kick = f.move
-  g.strokeStyle = trim; g.lineWidth = 16
-  g.beginPath(); g.moveTo(f.x - 8 * dir, hipY + bob); g.lineTo(f.x - (14 + walk) * dir, f.y); g.stroke()
-  g.strokeStyle = limb
-  if (kick) {
+  // Light kicks (LK, low kick, jump kick) use the LEAD (front) leg; the heavy kick (HK) the REAR leg
+  const rearKick = kick && kick.k === 'hk'
+  const kickLine = (fromX) => {
     const ext = Math.min(1, (f.t - kick.s + 1) / 2)
     const ky = kick.k === 'clk' ? f.y - 6 : kick.k === 'hk' ? hipY - 30 : hipY - 6
-    g.beginPath(); g.moveTo(f.x + 6 * dir, hipY + bob); g.lineTo(f.x + (12 + (kick.reach - 12) * ext) * dir, ky); g.stroke()
-  } else {
-    g.beginPath(); g.moveTo(f.x + 8 * dir, hipY + bob); g.lineTo(f.x + (16 + walk) * dir, f.y); g.stroke()
+    g.beginPath(); g.moveTo(f.x + fromX * dir, hipY + bob); g.lineTo(f.x + (12 + (kick.reach - 12) * ext) * dir, ky); g.stroke()
   }
+  g.lineWidth = 16
+  g.strokeStyle = rearKick ? limb : trim
+  if (rearKick) kickLine(-8)
+  else { g.beginPath(); g.moveTo(f.x - 8 * dir, hipY + bob); g.lineTo(f.x - (14 + walk) * dir, f.y); g.stroke() }
+  g.strokeStyle = limb
+  if (kick && !rearKick) kickLine(6)
+  else { g.beginPath(); g.moveTo(f.x + 8 * dir, hipY + bob); g.lineTo(f.x + (16 + walk) * dir, f.y); g.stroke() }
   // torso
   g.strokeStyle = flash ? '#fff' : '#1A1F24'; g.lineWidth = 30
   g.beginPath(); g.moveTo(f.x, hipY + bob); g.lineTo(f.x + 4 * dir, shY + bob); g.stroke()
@@ -121,10 +125,19 @@ function drawFighterBody(g, f, frame) {
   const guard = (ox, oy) => { g.beginPath(); g.moveTo(f.x + 4 * dir, shY + 8 + bob); g.lineTo(f.x + ox * dir, oy); g.stroke(); g.fillStyle = flash ? '#fff' : '#E24B4A'; g.beginPath(); g.arc(f.x + ox * dir, oy, 9, 0, Math.PI * 2); g.fill() }
   if (f.blocking) { guard(22, shY - 2 + bob); guard(18, shY + 14 + bob) }
   else if (punch) {
+    // Light punches (LP, crouch jab) use the LEAD hand; heavy punches (HP, rush, uppercut) the REAR hand,
+    // thrown from the back shoulder across the body
     const ext = Math.min(1, (f.t - punch.s + 1) / 2)
-    if (punch.k === 'upper') guard(26, shY - 40 * ext + bob)
-    else guard(16 + ((punch.reach || 70) - 16) * ext, punch.k === 'clp' ? handY + 10 : shY + 6 + bob)
-    guard(14, handY)
+    const rear = punch.k === 'hp' || punch.k === 'rush' || punch.k === 'upper'
+    const target = punch.k === 'upper' ? [26, shY - 40 * ext + bob] : [16 + ((punch.reach || 70) - 16) * ext, punch.k === 'clp' ? handY + 10 : shY + 6 + bob]
+    if (rear) {
+      guard(24, shY + 6 + bob)                                   // lead hand stays up on guard
+      g.beginPath(); g.moveTo(f.x - 8 * dir, shY + 10 + bob); g.lineTo(f.x + target[0] * dir, target[1]); g.stroke()
+      g.fillStyle = flash ? '#fff' : '#E24B4A'; g.beginPath(); g.arc(f.x + target[0] * dir, target[1], 8, 0, Math.PI * 2); g.fill()
+    } else {
+      guard(target[0], target[1])                                // lead hand jabs
+      guard(14, handY)                                           // rear hand guards the chin
+    }
   } else { guard(24, shY + 6 + bob); guard(14, handY) }
   // head + headband
   g.fillStyle = flash ? '#fff' : '#F1C9A5'; g.beginPath(); g.arc(f.x + 6 * dir, headY + bob, 17, 0, Math.PI * 2); g.fill()
@@ -438,6 +451,58 @@ export default function FightGame({ onRound, onClose }) {
   useEffect(() => () => sim.current?.sfx?.close(), [])
 
   // touch controls
+  // Joystick: drag the knob (or touch anywhere on the pad) -- 8 directions, with a small dead zone.
+  const stick = useRef({ id: null, dx: 0, dy: 0 })
+  const [knob, setKnob] = useState({ x: 0, y: 0 })
+  const STICK_R = 62, DEAD = 14
+  function setStickDirs(dx, dy) {
+    const len = Math.hypot(dx, dy)
+    const dirs = { left: false, right: false, up: false, down: false }
+    if (len > DEAD) {
+      const ang = Math.atan2(dy, dx) * 180 / Math.PI   // 0 = right, 90 = down
+      if (ang > -67.5 && ang < 67.5) dirs.right = true
+      if (ang > 112.5 || ang < -112.5) dirs.left = true
+      if (ang < -22.5 && ang > -157.5) dirs.up = true
+      if (ang > 22.5 && ang < 157.5) dirs.down = true
+    }
+    for (const k of ['left', 'right', 'up', 'down']) {
+      if (dirs[k] && !input.current[k]) pressed.current[k] = true
+      input.current[k] = dirs[k]
+    }
+  }
+  const stickHandlers = {
+    onPointerDown: e => { e.preventDefault(); e.currentTarget.setPointerCapture?.(e.pointerId); stick.current.id = e.pointerId; stickMove(e) },
+    onPointerMove: e => { if (stick.current.id === e.pointerId) stickMove(e) },
+    onPointerUp: e => { if (stick.current.id === e.pointerId) stickEnd() },
+    onPointerCancel: () => stickEnd(),
+  }
+  function stickMove(e) {
+    const r = e.currentTarget.getBoundingClientRect()
+    let dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2)
+    const len = Math.hypot(dx, dy), max = STICK_R - 22
+    if (len > max) { dx = dx / len * max; dy = dy / len * max }
+    setKnob({ x: dx, y: dy }); setStickDirs(dx, dy)
+  }
+  function stickEnd() { stick.current.id = null; setKnob({ x: 0, y: 0 }); setStickDirs(0, 0) }
+
+  // Attack pad: slide your thumb from button to button and each one fires as you reach it
+  // (good for combos). Several fingers work at once.
+  const atkTouch = useRef({})   // pointerId -> key under that finger
+  function atkKeyAt(x, y) { const el = document.elementFromPoint(x, y)?.closest?.('[data-atk]'); return el ? el.getAttribute('data-atk') : null }
+  function atkSet(id, k) {
+    const prev = atkTouch.current[id]
+    if (prev === k) return
+    if (prev && !Object.entries(atkTouch.current).some(([pid, v]) => pid !== String(id) && v === prev)) input.current[prev] = false
+    if (k) { if (!input.current[k]) pressed.current[k] = true; input.current[k] = true; if (navigator.vibrate) navigator.vibrate(8) }
+    if (k) atkTouch.current[id] = k; else delete atkTouch.current[id]
+  }
+  const atkPadHandlers = {
+    onPointerDown: e => { e.preventDefault(); e.currentTarget.setPointerCapture?.(e.pointerId); atkSet(e.pointerId, atkKeyAt(e.clientX, e.clientY)) },
+    onPointerMove: e => { if (e.pointerId in atkTouch.current || e.buttons) atkSet(e.pointerId, atkKeyAt(e.clientX, e.clientY)) },
+    onPointerUp: e => atkSet(e.pointerId, null),
+    onPointerCancel: e => atkSet(e.pointerId, null),
+  }
+
   const hold = k => ({
     onPointerDown: e => { e.preventDefault(); e.currentTarget.setPointerCapture?.(e.pointerId); if (!input.current[k]) pressed.current[k] = true; input.current[k] = true },
     onPointerUp: () => { input.current[k] = false }, onPointerCancel: () => { input.current[k] = false }, onPointerLeave: () => { input.current[k] = false },
@@ -526,17 +591,22 @@ export default function FightGame({ onRound, onClose }) {
                   padding: '0 calc(14px + env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) calc(14px + env(safe-area-inset-left, 0px))' }
               : { width: '100%', maxWidth: 900, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', padding: '10px 14px', boxSizing: 'border-box' }}
               className={landscape ? 'fg-ls-controls' : undefined}>
-              <div className="fg-dpad" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 50px)', gridTemplateRows: 'repeat(3, 50px)', gap: 2, padding: 8, borderRadius: '50%', background: 'rgba(26,31,36,0.6)', border: '1px solid #2A3138' }}>
-                <button type="button" style={{ ...pad, fontSize: 17, opacity: 0.85 }} {...hold2('up', 'left')}>◤</button><button type="button" style={pad} {...hold('up')}>▲</button><button type="button" style={{ ...pad, fontSize: 17, opacity: 0.85 }} {...hold2('up', 'right')}>◥</button>
-                <button type="button" style={pad} {...hold('left')}>◀</button><span /><button type="button" style={pad} {...hold('right')}>▶</button>
-                <button type="button" style={{ ...pad, fontSize: 17, opacity: 0.85 }} {...hold2('down', 'left')}>◣</button><button type="button" style={pad} {...hold('down')}>▼</button><button type="button" style={{ ...pad, fontSize: 17, opacity: 0.85 }} {...hold2('down', 'right')}>◢</button>
+              <div className="fg-stick" {...stickHandlers} role="group" aria-label="Joystick: drag to move, up to jump, down to crouch"
+                style={{ width: STICK_R * 2, height: STICK_R * 2, borderRadius: '50%', position: 'relative', touchAction: 'none', flexShrink: 0,
+                  background: 'radial-gradient(circle, rgba(42,49,56,0.9) 0%, rgba(26,31,36,0.85) 70%)', border: '2px solid #2A3138' }}>
+                {['▲', '▶', '▼', '◀'].map((t, i) => (
+                  <span key={t} style={{ position: 'absolute', left: '50%', top: '50%', transform: `translate(-50%, -50%) rotate(${i * 90}deg) translateY(-${STICK_R - 13}px) rotate(-${i * 90}deg)`, fontSize: 11, color: '#6B7280', pointerEvents: 'none' }}>{t}</span>
+                ))}
+                <div style={{ position: 'absolute', left: '50%', top: '50%', width: 52, height: 52, borderRadius: '50%', pointerEvents: 'none',
+                  transform: `translate(calc(-50% + ${knob.x}px), calc(-50% + ${knob.y}px))`, transition: stick.current.id == null ? 'transform 0.12s' : 'none',
+                  background: 'radial-gradient(circle at 35% 30%, #4B5563, #1F2937)', border: '2px solid #9CA3AF', boxShadow: '0 3px 10px rgba(0,0,0,0.6)' }} />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 58px)', gap: 6, alignItems: 'center' }}>
-                <button type="button" style={atk('#F2F2F2')} {...hold('lp')}>LP</button>
-                <button type="button" style={atk('#E24B4A')} {...hold('hp')}>HP</button>
-                <button type="button" style={{ ...atk(FIGHTERS[pick]?.colour || '#F5C542'), gridRow: 'span 2', height: 64, width: 64 }} {...hold('sp')}>SP</button>
-                <button type="button" style={atk('#C0C4CC')} {...hold('lk')}>LK</button>
-                <button type="button" style={atk('#378ADD')} {...hold('hk')}>HK</button>
+              <div {...atkPadHandlers} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 58px)', gap: 6, alignItems: 'center', touchAction: 'none', padding: 4 }}>
+                <button type="button" style={atk('#F2F2F2')} data-atk="lp">LP</button>
+                <button type="button" style={atk('#E24B4A')} data-atk="hp">HP</button>
+                <button type="button" style={{ ...atk(FIGHTERS[pick]?.colour || '#F5C542'), gridRow: 'span 2', height: 64, width: 64 }} data-atk="sp">SP</button>
+                <button type="button" style={atk('#C0C4CC')} data-atk="lk">LK</button>
+                <button type="button" style={atk('#378ADD')} data-atk="hk">HK</button>
               </div>
             </div>
           )}
