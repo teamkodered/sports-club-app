@@ -12,6 +12,8 @@ import Login from './pages/Login.jsx'
 import AthleteLogin from './pages/AthleteLogin.jsx'
 import ResetPassword from './pages/ResetPassword.jsx'
 import CoachSignup from './pages/CoachSignup.jsx'
+import InviteRedeem from './pages/InviteRedeem.jsx'
+import ParentView from './pages/ParentView.jsx'
 import Claim from './pages/Claim.jsx'
 import JoinPKAChild from './pages/forms/JoinPKAChild.jsx'
 import JoinPKAAdult from './pages/forms/JoinPKAAdult.jsx'
@@ -120,6 +122,8 @@ function App() {
           <Route path="/athlete-login"   element={<AthleteLogin />} />
           <Route path="/reset-password"  element={<ResetPassword />} />
           <Route path="/coach-signup"    element={<CoachSignup />} />
+          <Route path="/invite/:token"   element={<InviteRedeem />} />
+          <Route path="/parent"          element={<ProtectedRoute><ParentView /></ProtectedRoute>} />
           <Route path="/claim"           element={<Claim />} />
           <Route path="/join-pka-child"  element={<JoinPKAChild />} />
           <Route path="/join-pka-adult"  element={<JoinPKAAdult />} />

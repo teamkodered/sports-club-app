@@ -1,5 +1,6 @@
 import { useState, useEffect, Fragment, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import ParentRequestsPanel from '../components/parent/ParentRequestsPanel.jsx'
 import EnquirySendTemplates, { DEFAULT_ENQUIRY_TEMPLATES } from '../components/crm/EnquiryTemplates.jsx'
 import { isDateOnHoliday } from '../lib/attendanceDays.js'
 import { studentProfileLink } from '../lib/studentLinks.js'
@@ -356,7 +357,7 @@ export default function CRM() {
   }
   const { isAdmin } = useAuth()
   const location = useLocation()
-  const DEFAULT_TAB_ORDER = ['standing_orders', 'missed_training', 'stopped_training', 'grading_requests', 'birthdays', 'enquiries', 'trackers', 'messages', 'email', 'courses']
+  const DEFAULT_TAB_ORDER = ['standing_orders', 'missed_training', 'stopped_training', 'grading_requests', 'birthdays', 'enquiries', 'trackers', 'messages', 'email', 'courses', 'parent_requests']
   const [tabOrder, setTabOrder] = useSyncedPreference('crm_tab_order', DEFAULT_TAB_ORDER)
   // Adds any newly-introduced tab that predates a saved order, and
   // drops any that no longer exist, rather than silently hiding/
@@ -502,6 +503,13 @@ export default function CRM() {
   // Enquiries: hold a card to select several, then send a template to them
   const [enqSel, setEnqSel] = useState([])
   const [enqSendOpen, setEnqSendOpen] = useState(false)
+  const [parentReqCount, setParentReqCount] = useState(0)
+  useEffect(() => {
+    Promise.all([
+      supabase.from('absence_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabase.from('contact_update_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+    ]).then(([a, c]) => setParentReqCount((a.count || 0) + (c.count || 0))).catch(() => {})
+  }, [])
   const [enqTemplatesOpen, setEnqTemplatesOpen] = useState(false)
   const [enquiryTemplates, setEnquiryTemplates] = useState(DEFAULT_ENQUIRY_TEMPLATES)
   const enqHold = useRef(null)
@@ -3209,6 +3217,7 @@ export default function CRM() {
 
       {(() => {
         const TAB_DEFS = {
+          parent_requests: { label: `Parent requests${parentReqCount > 0 ? ` (${parentReqCount})` : ''}`, colour: '#E24B4A', onSelect: () => setTab('parent_requests') },
           standing_orders:  { label: 'Standing orders', colour: '#378ADD', onSelect: () => setTab('standing_orders') },
           missed_training:  { label: `Missed training${missedActiveCount > 0 ? ` (${missedActiveCount})` : ''}`, colour: '#EF9F27', onSelect: () => { setTab('missed_training'); if (!missedTrainingLoaded) loadMissedTraining() } },
           stopped_training: { label: `Stopped training${stoppedStudents.length > 0 ? ` (${stoppedStudents.length})` : ''}`, colour: '#E24B4A', onSelect: () => { setTab('stopped_training'); if (!stoppedLoaded) loadStoppedStudents() } },
@@ -3280,6 +3289,8 @@ export default function CRM() {
         )
       })()}
 
+
+      {tab === 'parent_requests' && <ParentRequestsPanel onCount={setParentReqCount} />}
 
       {tab === 'enquiries' && (
         <div>

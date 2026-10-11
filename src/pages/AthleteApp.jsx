@@ -1837,6 +1837,13 @@ export default function AthleteApp() {
   const [savingPhysical, setSavingPhysical] = useState(false)
   const [moduleSubType, setModuleSubType] = useState({})
   const [loading, setLoading]   = useState(true)
+  // A parent (linked to children by a coach's invite) who isn't an athlete themselves -> parent screen.
+  // Athletes are unaffected: this only runs when no athlete record is linked to this login.
+  useEffect(() => {
+    if (loading || student || !profile?.id) return
+    supabase.from('guardians').select('id', { count: 'exact', head: true }).eq('parent_member_id', profile.id)
+      .then(({ count }) => { if (count > 0) window.location.replace('/parent') })
+  }, [loading, student, profile?.id])
   const [editNote, setEditNote] = useState(false)
   const [noteText, setNoteText] = useState('')
   const [saving, setSaving]     = useState(false)
