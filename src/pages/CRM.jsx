@@ -355,7 +355,11 @@ export default function CRM() {
     }
     return allRows
   }
-  const { isAdmin } = useAuth()
+  const { isAdmin, isHeadCoach } = useAuth()
+  // Head Coach: his venue's CRM -- enquiries (venue-limited in the database) and the tabs whose data
+  // is already limited to his students. Club inbox, payments, gradings, notices etc. stay hidden.
+  const HEAD_COACH_TABS = ['enquiries', 'missed_training', 'trackers', 'birthdays']
+  const [enqVenue, setEnqVenue] = useState('all')   // admin's venue filter on enquiries
   const location = useLocation()
   const DEFAULT_TAB_ORDER = ['standing_orders', 'missed_training', 'stopped_training', 'grading_requests', 'birthdays', 'enquiries', 'trackers', 'messages', 'email', 'courses', 'parent_requests']
   const [tabOrder, setTabOrder] = useSyncedPreference('crm_tab_order', DEFAULT_TAB_ORDER)
@@ -377,6 +381,7 @@ export default function CRM() {
   // been dragged around, since this default never looked at tabOrder
   // at all.
   const [tab, setTab] = useBackableTab(tabOrder[0])
+  useEffect(() => { if (isHeadCoach && !HEAD_COACH_TABS.includes(tab)) setTab('enquiries') }, [isHeadCoach, tab])
   const [draggingTab, setDraggingTab] = useState(null)
   const tabHoldTimerRef = useRef(null)
   const tabDragStartXRef = useRef(0)
@@ -3180,7 +3185,7 @@ export default function CRM() {
         const standingOrderNeverChecked = standingOrderCheckMonth === null
         const birthdaysToday = birthdays.filter(b => b.daysUntil === 0)
         const birthdaysThisWeek = birthdays.filter(b => b.daysUntil > 0 && b.daysUntil <= 7)
-        const hasAnyReminder = standingOrderDue || standingOrderNeverChecked || missedActiveCount > 0 || birthdaysToday.length > 0 || birthdaysThisWeek.length > 0
+        const hasAnyReminder = !isHeadCoach && (standingOrderDue || standingOrderNeverChecked || missedActiveCount > 0 || birthdaysToday.length > 0 || birthdaysThisWeek.length > 0)
         if (!hasAnyReminder) return null
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
@@ -3267,6 +3272,7 @@ export default function CRM() {
             {tabOrder.map(key => {
               const def = TAB_DEFS[key]
               if (!def) return null
+              if (isHeadCoach && !HEAD_COACH_TABS.includes(key)) return null
               const active = tab === key
               return (
                 <button key={key} data-tab-key={key}
@@ -3305,10 +3311,10 @@ export default function CRM() {
               <option value="waiting_list">Waiting list</option>
             </select>
             <button className="btn btn-sm" onClick={() => setEnqTemplatesOpen(true)} title="View, edit and add enquiry message templates">📝 Templates</button>
-            <button className="btn btn-sm" disabled={repairing} onClick={repairWebsiteEnquiries}
+            {!isHeadCoach && <button className="btn btn-sm" disabled={repairing} onClick={repairWebsiteEnquiries}
               title="Re-read recent website enquiry and booking emails and fix enquiries saved with a scrambled name/email or missing phone">
               {repairing ? 'Repairing…' : '🔧 Repair website enquiries'}
-            </button>
+            </button>}
             <button className="btn btn-sm btn-primary" onClick={() => { setShowNewEnquiryForm(true); setEnquiryDraft({ name: '', contact_phone: '', contact_email: '', contact_method: 'call', enquiry_date: new Date().toISOString().split('T')[0], notes: '' }) }}>+ Log new enquiry</button>
             <button className="btn btn-sm" onClick={() => exportToExcel(enquiries.map(e => ({
               Name: e.name, Phone: e.contact_phone || '', Email: e.contact_email || '',
@@ -3359,6 +3365,14 @@ export default function CRM() {
               )
             })}
           </div>
+          {!isHeadCoach && enquiries.some(e => e.venue) && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+              {[['all', 'All venues'], ['kr-centre', 'KR Centre'], ['derby-moore', 'Derby Moore'], ['moorways', 'Moorways']].map(([k, l]) => {
+                const n = k === 'all' ? enquiries.length : enquiries.filter(e => (e.venue || 'kr-centre') === k).length
+                return <button key={k} type="button" className={`btn btn-sm${enqVenue === k ? ' btn-primary' : ''}`} onClick={() => setEnqVenue(k)}>{l} {n}</button>
+              })}
+            </div>
+          )}
           {showNewEnquiryForm && !editingEnquiryId && enquiryForm()}
           {enqSel.length > 0 && (
             <div className="enq-bulk">
@@ -3372,6 +3386,7 @@ export default function CRM() {
           )}
           {enqSendOpen && (
             <EnquirySendTemplates
+              noEmail={isHeadCoach}
               enquiries={enquiries.filter(e => enqSel.includes(e.id))}
               templates={enquiryTemplates}
               onSaveTemplates={saveEnquiryTemplates}
@@ -3385,7 +3400,8 @@ export default function CRM() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {(() => {
-                const shown = enquiries.filter(e => (enquiryStatusFilter === 'all' || e.status === enquiryStatusFilter) && (enquiryMethodFilter === 'all' || e.contact_method === enquiryMethodFilter))
+                const shown = enquiries.filter(e => (enquiryStatusFilter === 'all' || e.status === enquiryStatusFilter) && (enquiryMethodFilter === 'all' || e.contact_method === enquiryMethodFilter)
+                  && (enqVenue === 'all' || (e.venue || 'kr-centre') === enqVenue))
                 const renderCard = enq => {
                 if (editingEnquiryId === enq.id) return <div key={enq.id} id={`enq-${enq.id}`}>{enquiryForm()}</div>
                 const stageIdx = ENQUIRY_STAGES.findIndex(s => s.key === enq.status)
@@ -3439,7 +3455,7 @@ export default function CRM() {
                           {enq.status !== 'joined' && (
                             <button className="btn btn-sm" style={{ fontSize: 10, color: 'var(--text-tertiary)' }} onClick={() => updateEnquiryStatus(enq.id, 'not_interested')}>Not interested</button>
                           )}
-                          {enq.status !== 'joined' && (
+                          {enq.status !== 'joined' && !isHeadCoach && (
                             <select value="" aria-label="Send this enquiry to another venue" onChange={e => e.target.value && updateEnquiryStatus(enq.id, e.target.value)}
                               style={{ fontSize: 10, height: 26, padding: '0 6px', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'var(--bg)', color: 'var(--text-tertiary)', cursor: 'pointer' }}>
                               <option value="">Sent to…</option>
@@ -3469,6 +3485,9 @@ export default function CRM() {
                         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
                           <div style={{ fontSize: 15, fontWeight: 600 }}>{enq.name}</div>
                           {enq.contact_phone && <div style={{ fontSize: 14, fontWeight: 600, color: '#378ADD' }}>📞 {enq.contact_phone}</div>}
+                          {!isHeadCoach && enq.venue && enq.venue !== 'kr-centre' && (
+                            <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 10, background: '#6366F118', color: '#6366F1' }}>{enq.venue === 'derby-moore' ? 'Derby Moore' : 'Moorways'}</span>
+                          )}
                           {(enq.enquiry_for?.self || enq.enquiry_for?.names?.length) ? (
                             <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}>
                               For: {enq.enquiry_for.self ? 'themselves' : enq.enquiry_for.names.join(', ')}
@@ -3538,7 +3557,8 @@ export default function CRM() {
               )}
                 const SECTIONS = [['not_started', 'Enquiries', '#EF9F27'], ['contacted', 'Contacted', '#378ADD'], ['trial_booked', 'Trial booked', '#8B5CF6'], ['attended', 'Attended', '#0EA5A4'], ['joined', 'Joined', '#1D9E75'], ['waiting_list', 'Waiting list', '#EF9F27'], ['not_interested', 'Not interested', '#9CA3AF'], ['sent', 'Sent to other venues', '#6366F1']]
                 const known = new Set([...SECTIONS.map(x => x[0]), 'sent_derby_moore', 'sent_moorways'])
-                const sectionOf = st => String(st || '').startsWith('sent_') ? 'sent' : (known.has(st) ? st : 'not_started')
+                // For the head coach, enquiries sent over to his venue are new enquiries in his pipeline
+                const sectionOf = st => String(st || '').startsWith('sent_') ? (isHeadCoach ? 'not_started' : 'sent') : (known.has(st) ? st : 'not_started')
                 return SECTIONS.map(([key, label, colour]) => {
                   const items = shown.filter(e => sectionOf(e.status) === key)
                   if (!items.length) return null

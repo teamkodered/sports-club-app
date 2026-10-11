@@ -112,9 +112,9 @@ export function personaliseEnquiry(text, enq) {
     .replace(/^Hi \n/m, 'Hi\n')   // no name on file: "Hi {name}" reads "Hi"
 }
 
-export default function EnquirySendTemplates({ enquiries = [], templates, onSaveTemplates, sendEmail, onSent, onClose, manageOnly = false }) {
+export default function EnquirySendTemplates({ enquiries = [], templates, onSaveTemplates, sendEmail, onSent, onClose, manageOnly = false, noEmail = false }) {
   const [tplId, setTplId] = useState(templates[0]?.id || null)
-  const [channel, setChannel] = useState('email')        // 'email' | 'whatsapp' | 'text'
+  const [channel, setChannel] = useState(noEmail ? 'whatsapp' : 'email')   // 'email' | 'whatsapp' | 'text'
   const [overrides, setOverrides] = useState({})         // enquiry id -> edited text
   const [step, setStep] = useState('choose')             // 'choose' | 'preview' | 'sending' | 'done'
   const [cursor, setCursor] = useState(0)                // WhatsApp / text: who's next
@@ -203,7 +203,7 @@ export default function EnquirySendTemplates({ enquiries = [], templates, onSave
             </div>
             <div className="ets-label">SEND BY</div>
             <div className="ets-seg">
-              {[['email', '✉️ Email'], ['whatsapp', '🟢 WhatsApp'], ['text', '💬 Text']].map(([k, l]) => (
+              {[['email', '✉️ Email'], ['whatsapp', '🟢 WhatsApp'], ['text', '💬 Text']].filter(([k]) => !(noEmail && k === 'email')).map(([k, l]) => (
                 <button key={k} type="button" className={channel === k ? 'on' : ''} onClick={() => setChannel(k)}>{l}</button>
               ))}
             </div>
