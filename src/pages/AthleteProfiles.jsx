@@ -4,6 +4,7 @@ import { TEST_CATEGORIES } from '../lib/testResults.js'
 import { TestSessionModal, TestBatchModal } from '../components/shared/TestSession.jsx'
 import OtherSessions from '../components/shared/OtherSessions.jsx'
 import { supabase } from '../lib/supabase.js'
+import WearableCompare from '../components/shared/WearableCompare.jsx'
 import NeedsAttention from '../components/shared/NeedsAttention.jsx'
 import PdpOverview from '../components/dashboard/PdpOverview.jsx'
 import WattBikePanel from '../components/shared/WattBikePanel.jsx'
@@ -3064,6 +3065,7 @@ export default function AthleteProfiles() {
   const [dashClubFilter, setDashClubFilterRaw] = useState(() => { try { return localStorage.getItem('coach_dash_team') || 'all' } catch { return 'all' } }) // 'all' | 'PKA' | 'KRBA'
   const setDashClubFilter = v => { setDashClubFilterRaw(v); try { localStorage.setItem('coach_dash_team', v) } catch { /* ignore */ } }
   const inDashTeam = s => (s.is_kr || s.is_pts || s.discipline === 'KRBA') && (dashClubFilter === 'all' || s.discipline === dashClubFilter)
+  const [wearView, setWearView] = useState('athletes') // coach Wearables: athletes | day | session
   const [dashWhoOpen, setDashWhoOpen] = useState({}) // coach dashboard: who's done / missing lists open
   const [dashboardTab, setDashboardTab] = useState('overview') // 'overview' | 'calendar' | 'results' | 'pdp'
   const [wearableAthletes, setWearableAthletes] = useState(null) // [{ student_id, providers: [...], last_sync_at }] for the Wearables list
@@ -8845,6 +8847,15 @@ export default function AthleteProfiles() {
             {dashboardTab === 'wearables' && (
               <div>
                 <button onClick={() => setDashboardTab('overview')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
+                {/* View: athletes list / compare a day / compare a class session */}
+                <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+                  {[['athletes', 'Athletes'], ['day', 'View by day'], ['session', 'View by session']].map(([k, l]) => (
+                    <button key={k} type="button" className={wearView === k ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setWearView(k)}>{l}</button>
+                  ))}
+                </div>
+                {wearView !== 'athletes' ? (
+                  <WearableCompare mode={wearView} students={students} classes={allClasses} providerLabel={providerLabel} onOpen={s => { selectStudent(s); setTab('whoop') }} />
+                ) : (
                 <div className="card" style={{ padding: 0 }}>
                   <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
                     <h2 style={{ fontSize: 14, fontWeight: 600 }}>⌚ Athletes with wearables</h2>
@@ -8875,6 +8886,7 @@ export default function AthleteProfiles() {
                       ))
                   )}
                 </div>
+                )}
               </div>
             )}
 
