@@ -86,7 +86,9 @@ export default function CoachSignup() {
       // Redirect straight into the app
       navigate('/dashboard')
     } catch (err) {
-      setError(err.message || 'Something went wrong.')
+      setError(/rate limit|exceeded/i.test(err.message || '')
+        ? "We've sent too many sign-up emails in the last hour. Your account may already have been created — try signing in, or wait an hour and try again."
+        : (err.message || 'Something went wrong.'))
     }
     setSubmitting(false)
   }

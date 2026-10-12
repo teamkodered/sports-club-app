@@ -9,6 +9,18 @@ import { useBackableTab } from '../hooks/useBackableTab.js'
 // shows what's relevant to that audience. "Create login" (claiming an
 // existing student profile) is athlete-only, so it's not here.
 export default function Login() {
+  // Email links (confirm / reset) can be "used up" by email apps' link scanners before the person
+  // clicks, so Supabase reports expired/invalid even though the email IS confirmed. Explain kindly.
+  const linkNote = (() => {
+    try {
+      const h = new URLSearchParams((window.location.hash || '').replace(/^#/, '') + '&' + (window.location.search || '').replace(/^\?/, ''))
+      const code = h.get('error_code') || '', desc = h.get('error_description') || ''
+      if (!code && !desc) return null
+      if (/expired|invalid|otp/i.test(code + desc)) return "That email link has already been used (some email apps open links to check them). Your email is most likely confirmed — just sign in below. If it says your email isn't confirmed, use Forgot password to get a fresh link."
+      if (/rate|exceeded/i.test(code + desc)) return 'Too many emails have been sent in a short time. Wait a little while, then try signing in — your account may already be ready.'
+      return 'That link didn\'t work. Try signing in below.'
+    } catch { return null }
+  })()
   const navigate = useNavigate()
   const { session, profile, profileError, isStaff } = useAuth()
   const [tab, setTab]             = useBackableTab('login')
@@ -129,7 +141,8 @@ export default function Login() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0 16px', color: 'var(--text-tertiary)', fontSize: 12 }}>
                 <div style={{ flex: 1, height: 1, background: 'var(--border)' }} /> or <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
               </div>
-              <form onSubmit={handleLogin}>
+              {linkNote && <div style={{ background: '#EF9F2722', border: '1px solid #EF9F27', color: 'inherit', borderRadius: 10, padding: '10px 12px', fontSize: 13, marginBottom: 12 }}>{linkNote}</div>}
+        <form onSubmit={handleLogin}>
                 <div className="field"><label>Email</label>
                   <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" autoFocus required />
                 </div>

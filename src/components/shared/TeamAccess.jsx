@@ -52,7 +52,10 @@ export default function TeamAccess() {
   const pickRole = role => setEditing(e => {
     const team = (role === 'captain' || role === 'leader') ? (e.team && e.team !== 'custom' ? e.team : null) : (e.team === 'custom' ? 'custom' : null)
     const g = team && team !== 'custom' ? groups.find(x => x.id === groupId(role, team)) : null
-    return { ...e, role, team, access: g ? cloneAccess(g.access) : e.access }
+    // A new role starts from that role's page defaults (old per-page settings, e.g. all 'None' from a
+    // previous role, would otherwise carry over and lock the person out). Registers / classes are kept.
+    if (g) return { ...e, role, team, access: cloneAccess(g.access) }
+    return { ...e, role, team, access: { pages: role === e.role ? e.access.pages : {}, registers: e.access.registers } }
   })
   const pickTeam = team => setEditing(e => {
     const g = team !== 'custom' ? groups.find(x => x.id === groupId(e.role, team)) : null
