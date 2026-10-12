@@ -1563,7 +1563,8 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
             <button className="btn btn-sm" style={{ marginBottom: 8 }} onClick={() => navigate(-1)}>← Back</button>
           )}
           <h1>Registers</h1>
-          <p>{displayStudents.length} students · {new Date(date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+          {/* hidden on mobile: the date picker and the 'x / N in' count below already show this */}
+          <p className="reg-desktop-only">{displayStudents.length} students · {new Date(date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
         </div>
         <div className="reg-desktop-only" style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-sm" onClick={() => setShowColPicker(v => !v)}>⚙️ Columns</button>
