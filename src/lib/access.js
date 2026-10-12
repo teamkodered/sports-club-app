@@ -36,8 +36,8 @@ export const ROLE_OPTIONS = [
 
 export function roleDefault(role, page) {
   if (role === 'admin') return 'edit'
-  if (role === 'captain' || role === 'coach') return 'edit'
-  if (role === 'leader') return page === 'registers' ? 'edit' : 'none'
+  // Coach and Leader: Registers only by default (more pages only if given in Settings -> Team)
+  if (role === 'captain' || role === 'coach' || role === 'leader') return page === 'registers' ? 'edit' : 'none'
   // Head Coach: registers + their own students (the database limits both to the classes ticked)
   if (role === 'head_coach') return page === 'registers' || page === 'forms' || page === 'crm' ? 'edit' : page === 'students' ? 'view' : 'none'   // forms / crm: only his venue (database-enforced)
   return 'none'
@@ -62,6 +62,8 @@ export function effectiveAccess(profile, groups) {
 export function pageAccessFor(profile, page, groups) {
   const role = profile?.role || 'member'
   if (role === 'admin') return 'edit'
+  // CRM (enquiries, payments, inbox, stock…) is never opened by a Coach or Leader, whatever is ticked
+  if (page === 'crm' && role !== 'head_coach') return 'none'
   const o = effectiveAccess(profile, groups)?.pages?.[page]
   return o === 'none' || o === 'view' || o === 'edit' ? o : roleDefault(role, page)
 }

@@ -40,7 +40,7 @@ exports.handler = async (event) => {
     })
     const callerRows = await callerRes.json()
     const callerRole = callerRows?.[0]?.role
-    const isStaff = callerRole === 'admin' || callerRole === 'captain' || callerRole === 'coach' || callerRole === 'leader'
+    const isStaff = callerRole === 'admin'   // club inbox / invites: admins only
     if (!isStaff) return { statusCode: 403, body: JSON.stringify({ error: 'Not authorised to send invites' }) }
 
     const res = await fetch(`${supabaseUrl}/auth/v1/invite`, {

@@ -51,7 +51,7 @@ exports.handler = async (event) => {
     const callerRole = callerRows?.[0]?.role
     // Deliberately excludes 'leader' -- CRM/Email access is
     // admin/coach only, matching the app's route-level restriction.
-    const isStaff = callerRole === 'admin' || callerRole === 'captain' || callerRole === 'coach'
+    const isStaff = callerRole === 'admin'   // club inbox / invites: admins only
     if (!isStaff) return { statusCode: 403, body: JSON.stringify({ error: 'Not authorised to send emails' }) }
 
     const transporter = nodemailer.createTransport({
