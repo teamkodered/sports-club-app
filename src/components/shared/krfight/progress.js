@@ -71,6 +71,11 @@ export const MAX_LV = 5
 export const DAILY_GEMS = 60
 export const costOf = lv => 3 + 2 * lv // next level from lv (3, 5, 7, 9, 11)
 const LS = 'krfight-progress'
+// Test mode: unlimited gems, upgrades kept on this device only (separate from real progress, never sent to
+// the database). Switched on by opening the app once with ?krtest=1 (=0 turns it off) -- see main.jsx.
+const LS_TEST = 'krfight-progress-test'
+export const isTestMode = () => { try { return localStorage.getItem('krfight-testgems') === '1' } catch (e) { return false } }
+export const UNLIMITED = 9999
 
 const blank = () => ({ mode: 'local', training: {}, house_points: 0, game_gems: {}, spent: {}, upgrades: {}, gems_today: 0, gems_day: null })
 const n = v => Math.max(0, Math.floor(Number(v) || 0))
@@ -92,6 +97,11 @@ const today = () => new Date().toISOString().slice(0, 10)
 
 // load once when the game opens
 export async function loadProgress() {
+  if (isTestMode()) {
+    let v = {}
+    try { v = JSON.parse(localStorage.getItem(LS_TEST) || '{}') } catch (e) { /* ignore */ }
+    return { ...blank(), upgrades: v.upgrades || {}, mode: 'test' }
+  }
   try {
     const { data, error } = await supabase.rpc('krfight_profile')
     if (!error && data) return { ...blank(), ...data, mode: 'db' }
@@ -101,8 +111,8 @@ export async function loadProgress() {
 
 export const levelOf = (p, pillar, area) => n(p?.upgrades?.[pillar]?.[area])
 export const fighterLevel = (p, pillar) => AREAS.reduce((a, x) => a + levelOf(p, pillar, x.key), 0)
-export function available(p, pillar) { return n(p.training?.[pillar]) + n(p.game_gems?.[pillar]) - n(p.spent?.[pillar]) }
-export function wild(p) { return n(p.house_points) - n(p.spent?.wild) }
+export function available(p, pillar) { if (p.mode === 'test') return UNLIMITED; return n(p.training?.[pillar]) + n(p.game_gems?.[pillar]) - n(p.spent?.[pillar]) }
+export function wild(p) { if (p.mode === 'test') return UNLIMITED; return n(p.house_points) - n(p.spent?.wild) }
 
 // can this upgrade be bought? returns { cost, fromColour, fromWild } or null
 export function priceFor(p, pillar, area) {
@@ -119,6 +129,11 @@ export async function buyUpgrade(p, pillar, area) {
   if (!price) throw new Error('Not enough gems')
   const upgrades = { ...p.upgrades, [pillar]: { ...(p.upgrades?.[pillar] || {}), [area]: levelOf(p, pillar, area) + 1 } }
   const spent = { ...p.spent, [pillar]: n(p.spent?.[pillar]) + price.fromColour, wild: n(p.spent?.wild) + price.fromWild }
+  if (p.mode === 'test') {
+    const next = { ...p, upgrades }
+    try { localStorage.setItem(LS_TEST, JSON.stringify({ upgrades })) } catch (e) { /* ignore */ }
+    return next
+  }
   if (p.mode === 'db') {
     const { data, error } = await supabase.rpc('krfight_spend', { p_upgrades: upgrades, p_spent: spent })
     if (error) throw new Error(error.message)
@@ -139,6 +154,7 @@ export function matchGems(teamKeys, won, level) {
 
 // add won gems (60 a day cap); returns { progress, given }
 export async function awardGems(p, gems) {
+  if (p.mode === 'test') return { progress: p, given: { ...gems } } // shown, nothing to store
   if (p.mode === 'db') {
     try {
       const before = p.game_gems || {}
@@ -201,4 +217,10 @@ export function cpuUpgrades(p, level) {
     out[a.key] = Math.round(avg * share)
   }
   return out
+}
+
+// test mode: wipe the test upgrades and start again
+export function resetTest(p) {
+  try { localStorage.removeItem(LS_TEST) } catch (e) { /* ignore */ }
+  return { ...p, upgrades: {} }
 }

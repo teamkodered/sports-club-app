@@ -4,7 +4,7 @@ import Phaser from 'phaser'
 import { W, H, FLOOR, FIGHTERS, MOVES, SUPER_NAME, LEVELS, comboLabel, hex, getLook, setLook, LOOK_LEVELS, HOUSES, HOUSE_KEYS, getHouse, setHouse, fxColour, cpuHouse, NATURAL_HOUSE, STYLES, STYLE_KEYS, styledDef, loadSquad, saveSquad, MAX_TEAM } from './data.js'
 import { Match, makeFighter } from './core.js'
 import { makePose, stepPose, drawFighter, targetPose } from './pose.js'
-import { loadProgress, PILLARS, AREAS, AREA_GROUPS, costOf, MAX_LV, DAILY_GEMS, available, wild, priceFor, buyUpgrade, fighterLevel, levelOf, matchGems, awardGems, applyUpgrades, cpuUpgrades } from './progress.js'
+import { loadProgress, PILLARS, AREAS, AREA_GROUPS, costOf, MAX_LV, DAILY_GEMS, available, wild, priceFor, buyUpgrade, fighterLevel, levelOf, matchGems, awardGems, applyUpgrades, cpuUpgrades, resetTest, UNLIMITED } from './progress.js'
 
 export const Z = 2
 const DISPLAY = "'Saira Condensed', 'Arial Narrow', sans-serif"
@@ -755,14 +755,16 @@ export class UpgradeScene extends Phaser.Scene {
       const btn = button(this, x + 160, y + 31, 42, 50, '', GOLD, () => { const a = this.cards[i].area; if (a) this.buy(a.key) }, { size: 16 })
       return { x, y, bg, pips, gem, name, what, btn, area: null }
     })
+    if (prog(this).mode === 'test') button(this, 734, 436, 92, 24, 'Reset all', RED, () => { this.game.progress = resetTest(prog(this)); sfx(this).ui?.(); this.refresh() }, { size: 14 })
     this.note = txt(this, 20, 449, '', { fontFamily: BODY, fontStyle: '600', fontSize: '11px', color: '#7d8691' }).setOrigin(0, 1)
     this.refresh()
   }
   refresh() {
     const P = prog(this), f = FIGHTERS[this.pick], col = hex(f.colour)
     const g = this.gemG; g.clear()
-    PILLARS.forEach((k, i) => { gemIcon(g, 310 + i * 66, 32, 9, hex(FIGHTERS.find(x => x.key === k).colour)); this.gemT[i].setText(String(Math.max(0, available(P, k)))) })
-    gemIcon(g, 310 + 5 * 66, 32, 9, 0xffffff); this.wildT.setText(String(Math.max(0, wild(P))))
+    const show = v => P.mode === 'test' ? '∞' : String(Math.max(0, v))
+    PILLARS.forEach((k, i) => { gemIcon(g, 310 + i * 66, 32, 9, hex(FIGHTERS.find(x => x.key === k).colour)); this.gemT[i].setText(show(available(P, k))) })
+    gemIcon(g, 310 + 5 * 66, 32, 9, 0xffffff); this.wildT.setText(show(wild(P)))
     this.tabs.forEach((t, i) => {
       const on = i === this.pick, c = hex(t.def.colour)
       t.g.clear(); t.g.fillStyle(on ? c : 0x12161b, on ? 0.22 : 0.92); t.g.fillRoundedRect(-70, -24, 140, 48, 8)
@@ -783,14 +785,14 @@ export class UpgradeScene extends Phaser.Scene {
       c.name.setText(a.name).setColor(lv > 0 ? f.colour : '#F2F2F2').setFontSize(a.name.length > 15 ? '12px' : '14px')
       c.what.setText(a.what)
       for (let k = 0; k < MAX_LV; k++) { c.pips.fillStyle(k < lv ? col : 0x2a3138, 1); c.pips.fillRoundedRect(c.x + 6 + k * 14, c.y + 50, 11, 7, 2) }
-      if (maxed) { c.btn.label.setText('MAX').setColor('#F5C542'); c.btn.setOn(true) }
+      if (maxed) { c.btn.label.setText('MAX').setColor('#F5C542').setY(0).setFontSize('14px'); c.btn.setOn(true) }
       else {
-        c.btn.label.setText(String(costOf(lv))).setColor(price ? '#F2F2F2' : '#5c6670').setY(8); c.btn.setOn(!!price)
+        c.btn.label.setText(String(costOf(lv))).setColor(price ? '#F2F2F2' : '#5c6670').setY(8).setFontSize('16px'); c.btn.setOn(!!price)
         gemIcon(c.gem, c.x + 160, c.y + 22, 7, price && price.fromWild && !price.fromColour ? 0xffffff : col)
       }
     })
-    const src = P.mode === 'db' ? 'Saved to your profile.' : 'Saved on this device.'
-    this.note.setText(`${src}  Gems: training in each pillar (its colour), house points (white, any fighter), wins (up to ${DAILY_GEMS} a day).`)
+    if (P.mode === 'test') this.note.setText('TEST MODE: unlimited gems, saved on this device only (open the app with ?krtest=0 to turn off).').setColor('#F5C542')
+    else this.note.setText(`${P.mode === 'db' ? 'Saved to your profile.' : 'Saved on this device.'}  Gems: training in each pillar (its colour), house points (white, any fighter), wins (up to ${DAILY_GEMS} a day).`).setColor('#7d8691')
   }
   async buy(area) {
     if (this.busy) return

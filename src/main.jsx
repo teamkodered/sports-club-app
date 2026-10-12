@@ -10,6 +10,8 @@ import './styles/global.css'
 
 // KR FIGHT 2 test switch: open the app once with ?krfight2=1 to try the new Phaser game on this device (=0 to go back)
 try { const v = new URLSearchParams(window.location.search).get('krfight2'); if (v === '1' || v === '0') localStorage.setItem('krfight2', v) } catch (e) { /* ignore */ }
+// KR FIGHT test gems: ?krtest=1 gives this device unlimited gems for testing upgrades (kept separate from real progress; =0 turns it off)
+try { const v = new URLSearchParams(window.location.search).get('krtest'); if (v === '1' || v === '0') localStorage.setItem('krfight-testgems', v) } catch (e) { /* ignore */ }
 
 import Login from './pages/Login.jsx'
 import AthleteLogin from './pages/AthleteLogin.jsx'
