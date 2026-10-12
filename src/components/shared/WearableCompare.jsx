@@ -60,30 +60,36 @@ export default function WearableCompare({ mode, students = [], classes = [], onO
       for (const d of dl || []) add(d.student_id).daily = d
       for (const f of f2f || []) for (const e of [].concat(f.other_session || [])) if (e?.heart_rate) add(f.student_id).hr.push(e.heart_rate)
       if (ids) for (const id of ids) add(id)
-      const list = Object.values(byS).map(r => {
-        const s = students.find(x => x.id === r.id)
-        const w = r.workouts, h = r.hr
-        const secs = w.reduce((n, x) => n + (x.duration_seconds || 0), 0) + h.reduce((n, x) => n + (x.minutes || 0) * 60, 0)
-        const avgs = [...w.map(x => x.avg_heart_rate), ...h.map(x => x.avg)].filter(Boolean)
-        const maxs = [...w.map(x => x.max_heart_rate), ...h.map(x => x.max)].filter(Boolean)
-        return {
-          ...r, student: s, name: nameOf(s) || 'Athlete',
-          devices: [...new Set([...w.map(x => providerLabel(x.provider)), ...(h.length ? ['HR strap'] : [])])].join(', '),
-          secs, avg: avgs.length ? Math.round(avgs.reduce((a, b) => a + b, 0) / avgs.length) : null, max: maxs.length ? Math.max(...maxs) : null,
-          strain: w.reduce((n, x) => n + (x.strain || 0), 0) || null, kcal: w.reduce((n, x) => n + (x.calories || 0), 0) || null,
-          sports: [...new Set(w.map(x => x.sport_name).filter(Boolean))].join(', '),
-        }
-      }).filter(r => r.student)
-      setRows(list)
+      setRows(Object.values(byS).map(r => ({ ...r, student: students.find(x => x.id === r.id) })).filter(r => r.student))
     })().catch(() => !cancelled && setRows([]))
     return () => { cancelled = true }
   }, [mode, date, classId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Sport filter (View by day): remembered on this device
+  const [sportSel, setSportSel] = useState(() => { try { return JSON.parse(localStorage.getItem('kc_wear_sports') || '[]') } catch { return [] } })
+  const toggleSport = sp => setSportSel(prev => { const next = prev.includes(sp) ? prev.filter(x => x !== sp) : [...prev, sp]; try { localStorage.setItem('kc_wear_sports', JSON.stringify(next)) } catch { /* ignore */ } return next })
+  const sportOf = w => (w.sport_name || 'Other').trim()
+  const sportsToday = useMemo(() => [...new Set([...(rows || []).flatMap(r => r.workouts.map(sportOf)), ...sportSel])].sort(), [rows, sportSel]) // eslint-disable-line react-hooks/exhaustive-deps
+  const agg = useMemo(() => (rows || []).map(r => {
+    const w = (mode === 'day' && sportSel.length) ? r.workouts.filter(x => sportSel.includes(sportOf(x))) : r.workouts
+    const h = (mode === 'day' && sportSel.length) ? [] : r.hr
+    const secs = w.reduce((n, x) => n + (x.duration_seconds || 0), 0) + h.reduce((n, x) => n + (x.minutes || 0) * 60, 0)
+    const avgs = [...w.map(x => x.avg_heart_rate), ...h.map(x => x.avg)].filter(Boolean)
+    const maxs = [...w.map(x => x.max_heart_rate), ...h.map(x => x.max)].filter(Boolean)
+    return {
+      ...r, name: nameOf(r.student) || 'Athlete', shown: w.length + h.length,
+      devices: [...new Set([...w.map(x => providerLabel(x.provider)), ...(h.length ? ['HR strap'] : [])])].join(', '),
+      secs, avg: avgs.length ? Math.round(avgs.reduce((a, b) => a + b, 0) / avgs.length) : null, max: maxs.length ? Math.max(...maxs) : null,
+      strain: w.reduce((n, x) => n + (x.strain || 0), 0) || null, kcal: w.reduce((n, x) => n + (x.calories || 0), 0) || null,
+      sports: [...new Set(w.map(sportOf))].join(', '),
+    }
+  }).filter(r => mode !== 'day' || !sportSel.length || r.shown > 0), [rows, sportSel, mode]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const sorted = useMemo(() => {
     if (!rows) return null
     const key = { avg: r => r.avg, max: r => r.max, time: r => r.secs, strain: r => r.strain ?? r.kcal, name: null }[sortBy]
-    return [...rows].sort((a, b) => key ? ((key(b) ?? -1) - (key(a) ?? -1)) : a.name.localeCompare(b.name))
-  }, [rows, sortBy])
+    return [...agg].sort((a, b) => key ? ((key(b) ?? -1) - (key(a) ?? -1)) : a.name.localeCompare(b.name))
+  }, [rows, agg, sortBy])
   const shiftDay = n => { const d = new Date(date + 'T12:00:00'); d.setDate(d.getDate() + n); setDate(iso(d)) }
   const th = (k, l) => <button type="button" onClick={() => setSortBy(k)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: sortBy === k ? 'var(--text)' : 'var(--text-tertiary)', fontWeight: 700, fontSize: 11, fontFamily: 'inherit' }}>{l}{sortBy === k ? ' ▾' : ''}</button>
 
@@ -100,6 +106,14 @@ export default function WearableCompare({ mode, students = [], classes = [], onO
           </select>
         )}
       </div>
+      {mode === 'day' && sportsToday.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+          <button type="button" className={sportSel.length === 0 ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => { setSportSel([]); try { localStorage.setItem('kc_wear_sports', '[]') } catch { /* ignore */ } }}>All</button>
+          {sportsToday.map(sp => (
+            <button key={sp} type="button" className={sportSel.includes(sp) ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => toggleSport(sp)}>{sp}</button>
+          ))}
+        </div>
+      )}
       <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '0 0 8px' }}>
         {mode === 'session' ? 'Athletes who attended this class, with their wearable workouts during the class (and any heart rate sessions recorded in the app).' : 'Every athlete with wearable data on this day.'} Tap a column to sort, a name to open the athlete.
       </p>
