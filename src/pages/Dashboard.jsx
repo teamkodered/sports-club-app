@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useSyncedPreference } from '../hooks/useSyncedPreference.js'
+import FocusAndFormat from '../components/dashboard/FocusAndFormat.jsx'
 import { supabase } from '../lib/supabase.js'
 import { studentProfileLink } from '../lib/studentLinks.js'
 
@@ -281,6 +282,9 @@ export default function Dashboard() {
           ))
         })()}
       </div>
+
+      {/* Current focus + Format (side by side; stacked on a phone) */}
+      <FocusAndFormat />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
         {/* House standings */}

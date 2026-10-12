@@ -1098,3 +1098,9 @@ tbody tr:hover td { background: var(--bg-secondary); }
 /* Admin "view as" banner */
 .kc-viewas { position: sticky; top: 0; z-index: 60; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 14px; background: #EF9F27; color: #1A1206; font-size: 13px; }
 .kc-viewas button { border: none; border-radius: 8px; padding: 6px 14px; background: #1A1206; color: #fff; font-weight: 700; cursor: pointer; }
+/* Dashboard: Current focus + Format */
+.dash-two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 640px) { .dash-two { grid-template-columns: 1fr; } }
+.ff-backdrop { position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.5); display: flex; align-items: flex-end; justify-content: center; }
+.ff-sheet { width: 100%; max-width: 640px; max-height: 85vh; overflow-y: auto; border-radius: 16px 16px 0 0 !important; padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)) !important; }
+@media (min-width: 641px) { .ff-backdrop { align-items: center; } .ff-sheet { border-radius: 16px !important; } }
