@@ -362,7 +362,7 @@ export default function CRM() {
   const HEAD_COACH_TABS = ['enquiries', 'missed_training', 'stopped_training', 'standing_orders', 'trackers', 'birthdays']
   const [enqVenue, setEnqVenue] = useState('all')   // admin's venue filter on enquiries
   const location = useLocation()
-  const DEFAULT_TAB_ORDER = ['standing_orders', 'missed_training', 'stopped_training', 'grading_requests', 'birthdays', 'enquiries', 'trackers', 'messages', 'email', 'courses', 'parent_requests', 'stock']
+  const DEFAULT_TAB_ORDER = ['standing_orders', 'missed_training', 'stopped_training', 'grading_requests', 'birthdays', 'enquiries', 'trackers', 'messages', 'email', 'courses', 'parent_requests', 'sell', 'sales', 'stock']
   const [tabOrder, setTabOrder] = useSyncedPreference('crm_tab_order', DEFAULT_TAB_ORDER)
   // Adds any newly-introduced tab that predates a saved order, and
   // drops any that no longer exist, rather than silently hiding/
@@ -3228,6 +3228,8 @@ export default function CRM() {
 
       {(() => {
         const TAB_DEFS = {
+          sell: { label: 'Sell', colour: '#1D9E75', onSelect: () => setTab('sell') },
+          sales: { label: 'Sales', colour: '#8B5CF6', onSelect: () => setTab('sales') },
           stock: { label: 'Stock', colour: '#06B6D4', onSelect: () => setTab('stock') },
           parent_requests: { label: `Parent requests${parentReqCount > 0 ? ` (${parentReqCount})` : ''}`, colour: '#E24B4A', onSelect: () => setTab('parent_requests') },
           standing_orders:  { label: 'Standing orders', colour: '#378ADD', onSelect: () => setTab('standing_orders') },
@@ -3303,7 +3305,9 @@ export default function CRM() {
       })()}
 
 
-      {tab === 'stock' && <StockPanel />}
+      {tab === 'sell' && <StockPanel key="sell" section="sell" />}
+      {tab === 'sales' && <StockPanel key="sales" section="sales" />}
+      {tab === 'stock' && <StockPanel key="stock" section="stock" />}
       {tab === 'parent_requests' && <ParentRequestsPanel onCount={setParentReqCount} />}
 
       {tab === 'enquiries' && (

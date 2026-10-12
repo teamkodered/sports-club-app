@@ -1134,3 +1134,9 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .stk-chip button { border: none; background: none; color: var(--text-tertiary); cursor: pointer; font-size: 15px; }
 .stk-backdrop { position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; padding: 16px; }
 .stk-sheet { width: 100%; max-width: 420px; max-height: 88vh; overflow-y: auto; }
+.stk-var-sell { min-width: 84px; }
+.stk-var-sell b { font-size: 15px; }
+.stk-var-sell span { font-size: 10px; }
+.stk-save { display: block; font-style: normal; font-size: 12px; color: #1D9E75; font-weight: 600; }
+.stk-staff { margin-bottom: 12px; font-size: 12px; color: var(--text-tertiary); }
+.stk-staff summary { cursor: pointer; }

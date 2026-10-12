@@ -9,9 +9,10 @@ const monthKey = d => String(d).slice(0, 7)
 const thisMonth = () => new Date().toISOString().slice(0, 7)
 const STAFF = ['admin', 'captain', 'coach', 'leader', 'head_coach']
 
-export default function StockPanel() {
+// section: 'sell' (customer-facing), 'sales' (history + commission), 'stock' (levels + items/discounts)
+export default function StockPanel({ section = 'stock' }) {
   const { isAdmin, profile } = useAuth()
-  const [view, setView] = useState('stock')       // stock | sell | sales | commission | items
+  const [view, setView] = useState(section === 'sell' ? 'sell' : section === 'sales' ? 'sales' : 'stock')
   const [items, setItems] = useState(null)        // with variants
   const [coaches, setCoaches] = useState([])
   const [discounts, setDiscounts] = useState([])
@@ -41,14 +42,16 @@ export default function StockPanel() {
   return (
     <div className="stk">
       {err && <div className="card" style={{ color: '#E24B4A', marginBottom: 12 }}>{err}</div>}
-      <div className="stk-tabs">
-        {[['stock', `📦 Stock${lowCount ? ` · ${lowCount} low` : ''}`], ['sell', '🛒 Sell'], ['sales', '🧾 Sales'], ['commission', '💷 Commission'], ['items', '⚙️ Items & discounts']].map(([k, l]) => (
-          <button key={k} type="button" className={view === k ? 'on' : ''} onClick={() => setView(k)}>{l}</button>
-        ))}
-      </div>
+      {section !== 'sell' && (
+        <div className="stk-tabs">
+          {(section === 'sales' ? [['sales', '🧾 Sales'], ['commission', '💷 Commission']] : [['stock', `📦 Stock levels${lowCount ? ` · ${lowCount} low` : ''}`], ['items', '⚙️ Items & discounts']]).map(([k, l]) => (
+            <button key={k} type="button" className={view === k ? 'on' : ''} onClick={() => setView(k)}>{l}</button>
+          ))}
+        </div>
+      )}
 
       {view === 'stock' && <StockLevels items={items} onChanged={load} />}
-      {view === 'sell' && <SellForm items={items} coaches={coaches} discounts={discounts} defaultCoach={profile?.id} onSold={() => { load(); setView('sales') }} />}
+      {view === 'sell' && <SellForm items={items} coaches={coaches} discounts={discounts} defaultCoach={profile?.id} onSold={load} />}
       {view === 'sales' && <SalesList sales={sales} month={month} setMonth={setMonth} coachName={coachName} onChanged={load} />}
       {view === 'commission' && <Commission sales={sales} month={month} setMonth={setMonth} coachName={coachName} isAdmin={isAdmin} onChanged={load} />}
       {view === 'items' && <ItemsEditor items={items} discounts={discounts} isAdmin={isAdmin} onChanged={load} />}
@@ -130,18 +133,18 @@ function SellForm({ items, coaches, discounts, defaultCoach, onSold }) {
   const variant = item?.stock_variants.find(v => v.id === variantId)
   const gross = (Number(unit) || 0) * (Number(qty) || 0)
   const net = disc.type === 'pct' ? gross * (1 - Math.min(100, Math.max(0, disc.value)) / 100) : disc.type === 'amount' ? Math.max(0, gross - disc.value) : gross
-  const commission = coach && item ? net * Number(item.commission_pct || 0) / 100 : 0
 
   async function record() {
     if (!variant) return alert('Choose a size / option.')
     if (qty < 1) return alert('Quantity must be at least 1.')
-    if (variant.qty < qty && !window.confirm(`Only ${variant.qty} in stock for ${variant.label}. Record the sale anyway?`)) return
+    if (variant.qty < qty && !window.confirm(`Not enough ${variant.label} in stock for this. Record the sale anyway?`)) return
     setBusy(true)
     const { error } = await supabase.rpc('kc_stock_sale', { p_variant: variant.id, p_qty: Number(qty), p_unit: Number(unit) || 0, p_disc_type: disc.type, p_disc_value: Number(disc.value) || 0, p_disc_name: disc.name || null,
       p_coach: coach || null, p_student: studentId, p_customer: customer, p_payment: payment })
     setBusy(false)
     if (error) return alert('Could not record the sale: ' + error.message)
-    alert(`Sold: ${qty} × ${item.name} (${variant.label}) — ${money(net)}`)
+    alert(`Thank you! ${qty} × ${item.name} (${variant.label}) — ${money(net)}`)
+    setQty(1); setDisc({ type: 'none', value: 0, name: '' }); setCustomer(''); setStudentId(null)
     onSold()
   }
 
@@ -152,7 +155,9 @@ function SellForm({ items, coaches, discounts, defaultCoach, onSold }) {
         <select value={itemId} onChange={e => setItemId(e.target.value)}>{live.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select></div>
       {item && <div className="field"><label>Size / option</label>
         <div className="stk-vars">{item.stock_variants.map(v => (
-          <button key={v.id} type="button" className={`stk-var${variantId === v.id ? ' on' : ''}${v.qty <= 0 ? ' low' : ''}`} onClick={() => setVariantId(v.id)}><span>{v.label}</span><b>{v.qty}</b></button>
+          <button key={v.id} type="button" className={`stk-var stk-var-sell${variantId === v.id ? ' on' : ''}${v.qty <= 0 ? ' low' : ''}`} onClick={() => setVariantId(v.id)}>
+            <b>{v.label}</b><span>{v.qty <= 0 ? 'Out of stock' : v.qty <= item.low_stock ? 'Last few' : 'In stock'}</span>
+          </button>
         ))}</div></div>}
       <div style={{ display: 'flex', gap: 8 }}>
         <div className="field" style={{ flex: 1 }}><label>Quantity</label><input type="number" min="1" value={qty} onChange={e => setQty(Math.max(1, parseInt(e.target.value, 10) || 1))} /></div>
@@ -168,11 +173,7 @@ function SellForm({ items, coaches, discounts, defaultCoach, onSold }) {
           {disc.type !== 'none' && <input type="number" step="0.01" value={disc.value} onChange={e => setDisc(d => ({ ...d, value: Number(e.target.value), name: '' }))} style={{ width: 100 }} />}
         </div>
       </div>
-      <div className="field"><label>Sold by (commission)</label>
-        <select value={coach} onChange={e => setCoach(e.target.value)}>
-          <option value="">No commission (club sale)</option>
-          {coaches.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
-        </select></div>
+
       <div className="field" style={{ position: 'relative' }}><label>Customer (optional)</label>
         <input value={customer} onChange={e => { setCustomer(e.target.value); setStudentId(null) }} placeholder="Student name, or anyone" />
         {found.length > 0 && <div className="stk-found">{found.map(s => (
@@ -182,9 +183,16 @@ function SellForm({ items, coaches, discounts, defaultCoach, onSold }) {
       <div className="field"><label>Paid by</label>
         <div className="stk-seg">{[['card', 'Card'], ['cash', 'Cash'], ['bank', 'Bank transfer'], ['other', 'Other']].map(([k, l]) => <button key={k} type="button" className={payment === k ? 'on' : ''} onClick={() => setPayment(k)}>{l}</button>)}</div></div>
       <div className="stk-total">
-        <div><span>Total</span><b>{money(net)}</b>{net !== gross && <s>{money(gross)}</s>}</div>
-        <div><span>Commission{item ? ` (${Number(item.commission_pct)}%)` : ''}</span><b>{money(commission)}</b></div>
+        <div><span>Total to pay</span><b>{money(net)}</b>{net !== gross && <s>{money(gross)}</s>}{net !== gross && <em className="stk-save">You save {money(gross - net)}</em>}</div>
       </div>
+      {/* staff-only detail, kept small and out of the way when a customer is looking */}
+      <details className="stk-staff">
+        <summary>Sold by: {coaches.find(c => c.id === coach) ? `${coaches.find(c => c.id === coach).first_name}` : 'club sale'}</summary>
+        <select value={coach} onChange={e => setCoach(e.target.value)} style={{ width: '100%', marginTop: 6 }}>
+          <option value="">No coach (club sale)</option>
+          {coaches.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
+        </select>
+      </details>
       <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', height: 46 }} disabled={busy} onClick={record}>{busy ? 'Saving…' : 'Record sale'}</button>
     </div>
   )
