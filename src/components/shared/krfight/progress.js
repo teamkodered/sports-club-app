@@ -5,9 +5,10 @@
 import { supabase } from '../../../lib/supabase.js'
 
 export const PILLARS = ['physical', 'technical', 'tactical', 'mentality', 'foundation']
-// Upgrade areas = the club's MTP analysis (Technical / Physical / Mental), each with its own effect in a
-// fight. Every area has 5 levels. eff(lv) returns what the area adds to the fighter's modifiers.
-export const AREA_GROUPS = ['Technical', 'Physical', 'Mental']
+// Upgrade areas: one set per pillar. Technical / Physical follow the club's MTP analysis; Tactical and
+// Mentality take the MTP mental areas plus a few of their own; Foundation is the health pillar (from the
+// app's wellbeing questions). Every area has 5 levels and its own effect in a fight.
+export const AREA_GROUPS = ['Technical', 'Physical', 'Tactical', 'Mentality', 'Foundation']
 export const AREAS = [
   // Technical
   { key: 'shapes', g: 'Technical', name: 'Shapes', what: 'Tighter guard: less damage through blocks' },
@@ -37,17 +38,33 @@ export const AREAS = [
   { key: 'stamina_anaerobic', g: 'Physical', name: 'Stamina anaerobic', what: '+6% super meter gain' },
   { key: 'suppleness_upper', g: 'Physical', name: 'Suppleness upper', what: '+3% punch reach per level' },
   { key: 'suppleness_lower', g: 'Physical', name: 'Suppleness lower', what: '+3% kick reach per level' },
-  { key: 'recovery', g: 'Physical', name: 'Recovery', what: 'Recover faster while tagged out' },
-  { key: 'health', g: 'Physical', name: 'Health', what: 'Slowly regain health when not hit' },
-  // Mental
-  { key: 'read_opponent', g: 'Mental', name: 'Read opponent', what: '-8% damage from specials' },
-  { key: 'tempo_rhythm', g: 'Mental', name: 'Tempo / rhythm', what: '-6% special cool-down per level' },
-  { key: 'tactical_intelligence', g: 'Mental', name: 'Tactical intelligence', what: '-10% tag cool-down per level' },
-  { key: 'ring_awareness', g: 'Mental', name: 'Ring awareness', what: '-8% damage when on the ropes' },
-  { key: 'know_strengths_weaknesses', g: 'Mental', name: 'Know S&W', what: '+4% damage on long-hold strikes' },
-  { key: 'heart_grit', g: 'Mental', name: 'Heart / grit', what: '+8% damage when low on health' },
-  { key: 'concentration', g: 'Mental', name: 'Concentration', what: '+5% stun on your hits' },
-  { key: 'timing', g: 'Mental', name: 'Timing', what: '+7% damage hitting them as they start' },
+  // Tactical
+  { key: 'read_opponent', g: 'Tactical', name: 'Read opponent', what: '-8% damage from specials' },
+  { key: 'tempo_rhythm', g: 'Tactical', name: 'Tempo / rhythm', what: '-6% special cool-down per level' },
+  { key: 'tactical_intelligence', g: 'Tactical', name: 'Tactical intelligence', what: '-10% tag cool-down per level' },
+  { key: 'ring_awareness', g: 'Tactical', name: 'Ring awareness', what: '-8% damage when on the ropes' },
+  { key: 'timing', g: 'Tactical', name: 'Timing', what: '+7% damage hitting them as they start' },
+  { key: 'game_plan', g: 'Tactical', name: 'Game plan', what: 'Start the fight with +10 super meter' },
+  { key: 'pressure', g: 'Tactical', name: 'Pressure', what: '+6% damage when they are on the ropes' },
+  { key: 'feints', g: 'Tactical', name: 'Feints', what: 'The opponent blocks 6% less often' },
+  // Mentality
+  { key: 'know_strengths_weaknesses', g: 'Mentality', name: 'Know S&W', what: '+4% damage on long-hold strikes' },
+  { key: 'heart_grit', g: 'Mentality', name: 'Heart / grit', what: '+8% damage when low on health' },
+  { key: 'concentration', g: 'Mentality', name: 'Concentration', what: '+5% stun on your hits' },
+  { key: 'composure', g: 'Mentality', name: 'Composure', what: '-6% damage taken when low on health' },
+  { key: 'confidence', g: 'Mentality', name: 'Confidence', what: '+3% damage while ahead on health' },
+  { key: 'resilience', g: 'Mentality', name: 'Resilience', what: 'After a team KO, come in with +10 meter' },
+  { key: 'video_analysis', g: 'Mentality', name: 'Video analysis', what: '-6% damage from their combos' },
+  { key: 'chess', g: 'Mentality', name: 'Chess', what: '+5% damage from the 3rd hit of a chain' },
+  // Foundation (health)
+  { key: 'sleep', g: 'Foundation', name: 'Sleep', what: '+6 health per level' },
+  { key: 'nutrition', g: 'Foundation', name: 'Nutrition', what: '+5 health per level' },
+  { key: 'hydration', g: 'Foundation', name: 'Hydration', what: 'Regain health faster when not hit' },
+  { key: 'outdoors', g: 'Foundation', name: 'Outdoors', what: 'Toughness: -3% damage taken' },
+  { key: 'talk', g: 'Foundation', name: 'Talk', what: 'Heal 3 health per level when tagged in' },
+  { key: 'recovery', g: 'Foundation', name: 'Recovery', what: 'Recover faster while tagged out' },
+  { key: 'health', g: 'Foundation', name: 'Health', what: 'Slowly regain health when not hit' },
+  { key: 'second_wind', g: 'Foundation', name: 'Second wind', what: 'Once a fight, heal 5/level when nearly out' },
 ]
 export const AREA_KEYS = AREAS.map(a => a.key)
 export const MAX_LV = 5
@@ -150,20 +167,24 @@ export async function awardGems(p, gems) {
 export const BASE_MODS = { punchDmg: 1, kickDmg: 1, heavyPunch: 1, heavyHold: 1, dmgTaken: 1, blockChip: 1, counters: 1, opener: 1, comboBonus: 1, comboGap: 0,
   specialDmg: 1, reach: 1, punchReach: 1, kickReach: 1, recovery: 1, kickRecovery: 1, superDmg: 1, walk: 1, backWalk: 1, startup: 1, chainEarly: 0,
   stunTaken: 1, push: 1, knockTaken: 1, jump: 1, maxHp: 100, meterGain: 1, benchRegen: 1, regen: 0, projTaken: 1, specialCd: 1, tagCd: 1,
-  cornerTaken: 1, grit: 1, stunGiven: 1, timing: 1 }
+  cornerTaken: 1, grit: 1, stunGiven: 1, timing: 1,
+  startMeter: 0, pressure: 1, feint: 1, composure: 1, confidence: 1, resilience: 0, comboTaken: 1, chess: 1, talk: 0, secondWind: 0 }
 export function modsFor(up = {}) {
   const L = k => Math.min(MAX_LV, n(up[k]))
   return {
     ...BASE_MODS,
-    blockChip: 1 - 0.12 * L('shapes'), punchDmg: 1 + 0.03 * L('punch_quality'), walk: 1 + 0.03 * L('footwork'), dmgTaken: 1 - 0.025 * L('defence'),
+    blockChip: 1 - 0.12 * L('shapes'), punchDmg: 1 + 0.03 * L('punch_quality'), walk: 1 + 0.03 * L('footwork'),
     counters: 1 + 0.06 * L('counters'), opener: 1 + 0.06 * L('attack'), comboBonus: 1 + 0.05 * L('combinations'), comboGap: 3 * L('change_of_tempo'),
     specialDmg: 1 + 0.06 * L('use_of_phases'), reach: 1 + 0.02 * L('distance'), recovery: 1 - 0.04 * L('flow'), superDmg: 1 + 0.06 * L('self_expression'),
     backWalk: 1 + 0.05 * L('foot_speed'), startup: 1 - 0.04 * L('limb_speed'), chainEarly: L('combination_speed'), stunTaken: 1 - 0.05 * L('reaction'),
     heavyPunch: 1 + 0.06 * L('punching_power'), push: 1 + 0.06 * L('strength_upper'), kickDmg: 1 + 0.03 * L('strength_lower'), knockTaken: 1 - 0.07 * L('stability_core'),
-    jump: 1 + 0.04 * L('agility'), kickRecovery: 1 - 0.05 * L('stop_n_go'), maxHp: 100 + 4 * L('stamina_aerobic'), meterGain: 1 + 0.06 * L('stamina_anaerobic'),
-    punchReach: 1 + 0.03 * L('suppleness_upper'), kickReach: 1 + 0.03 * L('suppleness_lower'), benchRegen: 1 + 0.25 * L('recovery'), regen: 0.004 * L('health'),
-    projTaken: 1 - 0.08 * L('read_opponent'), specialCd: 1 - 0.06 * L('tempo_rhythm'), tagCd: 1 - 0.1 * L('tactical_intelligence'), cornerTaken: 1 - 0.08 * L('ring_awareness'),
+    jump: 1 + 0.04 * L('agility'), kickRecovery: 1 - 0.05 * L('stop_n_go'), maxHp: 100 + 4 * L('stamina_aerobic') + 6 * L('sleep') + 5 * L('nutrition'), meterGain: 1 + 0.06 * L('stamina_anaerobic'),
+    punchReach: 1 + 0.03 * L('suppleness_upper'), kickReach: 1 + 0.03 * L('suppleness_lower'), benchRegen: 1 + 0.25 * L('recovery'), regen: 0.004 * L('health') + 0.006 * L('hydration'),
+    projTaken: 1 - 0.08 * L('read_opponent'), dmgTaken: (1 - 0.025 * L('defence')) * (1 - 0.03 * L('outdoors')), specialCd: 1 - 0.06 * L('tempo_rhythm'), tagCd: 1 - 0.1 * L('tactical_intelligence'), cornerTaken: 1 - 0.08 * L('ring_awareness'),
     heavyHold: 1 + 0.04 * L('know_strengths_weaknesses'), grit: 1 + 0.08 * L('heart_grit'), stunGiven: 1 + 0.05 * L('concentration'), timing: 1 + 0.07 * L('timing'),
+    startMeter: 10 * L('game_plan'), pressure: 1 + 0.06 * L('pressure'), feint: 1 - 0.06 * L('feints'),
+    composure: 1 - 0.06 * L('composure'), confidence: 1 + 0.03 * L('confidence'), resilience: 10 * L('resilience'), comboTaken: 1 - 0.06 * L('video_analysis'), chess: 1 + 0.05 * L('chess'),
+    talk: 3 * L('talk'), secondWind: 5 * L('second_wind'),
   }
 }
 // a fighter's def with their upgrades applied

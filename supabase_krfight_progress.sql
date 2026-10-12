@@ -15,7 +15,7 @@ create table if not exists public.krfight_profiles (
   student_id uuid primary key references public.students(id) on delete cascade,
   game_gems jsonb not null default '{}'::jsonb,   -- gems won in the game, per pillar
   spent jsonb not null default '{}'::jsonb,       -- gems spent, per pillar + 'wild'
-  upgrades jsonb not null default '{}'::jsonb,    -- { pillar: { <MTP area>: level 0-5 } } -- the 36 MTP analysis areas
+  upgrades jsonb not null default '{}'::jsonb,    -- { pillar: { <area>: level 0-5 } } -- see krfight_areas()
   gems_today int not null default 0,
   gems_day date,
   created_at timestamptz not null default now(),
@@ -38,13 +38,11 @@ returns uuid language sql stable security definer set search_path = public as $$
   limit 1
 $$;
 
--- Upgrade areas = the club's MTP analysis: 12 Technical, 16 Physical, 8 Mental. 5 levels each.
+-- Upgrade areas, one set per pillar: Technical 12, Physical 14 (MTP analysis), Tactical 8, Mentality 8,
+-- Foundation 8 (health). 5 levels each. Must match AREAS in src/components/shared/krfight/progress.js.
 create or replace function public.krfight_areas()
 returns text[] language sql immutable as $$
-  select array['shapes','punch_quality','footwork','defence','counters','attack','combinations','change_of_tempo','use_of_phases','distance','flow','self_expression',
-               'foot_speed','limb_speed','combination_speed','reaction','punching_power','strength_upper','strength_lower','stability_core','agility','stop_n_go',
-               'stamina_aerobic','stamina_anaerobic','suppleness_upper','suppleness_lower','recovery','health',
-               'read_opponent','tempo_rhythm','tactical_intelligence','ring_awareness','know_strengths_weaknesses','heart_grit','concentration','timing']
+  select array['shapes','punch_quality','footwork','defence','counters','attack','combinations','change_of_tempo','use_of_phases','distance','flow','self_expression','foot_speed','limb_speed','combination_speed','reaction','punching_power','strength_upper','strength_lower','stability_core','agility','stop_n_go','stamina_aerobic','stamina_anaerobic','suppleness_upper','suppleness_lower','read_opponent','tempo_rhythm','tactical_intelligence','ring_awareness','timing','game_plan','pressure','feints','know_strengths_weaknesses','heart_grit','concentration','composure','confidence','resilience','video_analysis','chess','sleep','nutrition','hydration','outdoors','talk','recovery','health','second_wind']
 $$;
 
 -- Total cost to reach a level: level 0 -> 1 costs 3, each next level costs 2 more (3, 5, 7, 9, 11; max level 5)
@@ -109,7 +107,7 @@ begin
   return public.krfight_profile();
 end $$;
 
--- Save upgrades + what was spent. Rejected unless: areas are MTP areas with levels 0-5, the spend matches the upgrade costs
+-- Save upgrades + what was spent. Rejected unless: areas are known areas with levels 0-5, the spend matches the upgrade costs
 -- exactly, each colour spend is covered by that colour's gems, and wild spend by house points.
 create or replace function public.krfight_spend(p_upgrades jsonb, p_spent jsonb)
 returns jsonb language plpgsql security definer set search_path = public as $$

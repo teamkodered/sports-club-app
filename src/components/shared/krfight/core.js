@@ -6,7 +6,8 @@ import { W, FLOOR, GRAV, COMBO_GAP, MOVES, LEVELS, SUPER_NAME, LEVEL_SCALE } fro
 let pjId = 1
 const NEUTRAL = { punchDmg: 1, kickDmg: 1, heavyPunch: 1, heavyHold: 1, dmgTaken: 1, blockChip: 1, counters: 1, opener: 1, comboBonus: 1, comboGap: 0,
   specialDmg: 1, reach: 1, punchReach: 1, kickReach: 1, recovery: 1, kickRecovery: 1, superDmg: 1, walk: 1, backWalk: 1, startup: 1, chainEarly: 0,
-  stunTaken: 1, push: 1, knockTaken: 1, jump: 1, meterGain: 1, benchRegen: 1, regen: 0, projTaken: 1, specialCd: 1, tagCd: 1, cornerTaken: 1, grit: 1, stunGiven: 1, timing: 1 }
+  stunTaken: 1, push: 1, knockTaken: 1, jump: 1, meterGain: 1, benchRegen: 1, regen: 0, projTaken: 1, specialCd: 1, tagCd: 1, cornerTaken: 1, grit: 1, stunGiven: 1, timing: 1,
+  startMeter: 0, pressure: 1, feint: 1, composure: 1, confidence: 1, resilience: 0, comboTaken: 1, chess: 1, talk: 0, secondWind: 0 }
 const M = f => (f && f.def && f.def.mods) || NEUTRAL // a fighter's upgrade modifiers
 
 export function makeFighter(def, x, facing) {
@@ -26,6 +27,7 @@ export class Match {
     this.t1 = team1.map(d => Object.assign(makeFighter(d, 220, 1), { side: 'p1' }))
     this.t2 = team2.map(d => Object.assign(makeFighter(d, 580, -1), { side: 'p2' }))
     this.p1 = this.t1[0]; this.p2 = this.t2[0]
+    this.p1.meter = Math.min(100, M(this.p1).startMeter); this.p2.meter = Math.min(100, M(this.p2).startMeter) // Game plan
     this.stats = { p1: newStats(), p2: newStats() }
     this.timer = 60 * Math.min(180, 45 + 35 * Math.max(team1.length, team2.length)); this.phase = 'intro'; this.phaseT = 0
     this.projectiles = []; this.frame = 0; this.freeze = 0
@@ -46,6 +48,8 @@ export class Match {
     const x = why === 'ko' ? (side === 'p1' ? 90 : W - 90) : old.x
     Object.assign(m, { x, y: FLOOR - 150, vx: 0, vy: 0, state: 'jump', move: null, stun: 0, t: 0, hitDone: false, crouch: false, blocking: false, counterT: 0, flash: 0, chain: 0, buf: [], comboNext: null, meter: old.meter || 0, facing: o.x > x ? 1 : -1 })
     if (why === 'tag') old.benchCap = Math.min(old.maxHp, old.hp + 25 * M(old).benchRegen)
+    if (why === 'ko') m.meter = Math.min(100, (m.meter || 0) + M(m).resilience)   // Resilience
+    if (why === 'tag' && M(m).talk) m.hp = Math.min(m.maxHp, m.hp + M(m).talk)    // Talk
     this[side] = m
     this.emit({ type: 'tagIn', side, f: m, from: old, why })
   }
@@ -212,13 +216,19 @@ export class Match {
     if (att.hp < att.maxHp * 0.3) dmg *= ma.grit                                      // Heart / grit
     const special = kind === 'special' || (att.move && (att.move.special || att.move.super))
     if (special) dmg *= (att.move && att.move.super ? ma.superDmg : ma.specialDmg) * mdf.projTaken // Use of phases / Self expression / Read opponent
-    if (def.x < 90 || def.x > W - 90) dmg *= mdf.cornerTaken                          // Ring awareness
+    if (def.x < 90 || def.x > W - 90) dmg *= mdf.cornerTaken * ma.pressure            // Ring awareness / Pressure
+    if (def.hp < def.maxHp * 0.3) dmg *= mdf.composure                                // Composure
+    if (att.hp > def.hp) dmg *= ma.confidence                                          // Confidence
+    if (att.move && att.move.combo) dmg *= mdf.comboTaken                              // Video analysis
+    if (!opening && (def.chain || 0) >= 1) dmg *= ma.chess                             // Chess: 3rd hit of a chain on
     att.meter = Math.min(100, (att.meter || 0) + dmg * 2.2 * ma.meterGain); def.meter = Math.min(100, (def.meter || 0) + dmg * 1.2)
     // Each hit in a row stuns for less, and the 3rd+ pushes them out of range -- no endless jab lock
     def.chain = opening ? 0 : (def.chain || 0) + 1
     def.lastHitAt = this.frame
     dmg *= mdf.dmgTaken // Defence
     def.hp = Math.max(0, def.hp - dmg)
+    // Second wind: once a fight, a big heal when nearly out
+    if (def.hp > 0 && !def.windUsed && M(def).secondWind && def.hp < def.maxHp * 0.25) { def.windUsed = true; def.hp = Math.min(def.maxHp, def.hp + M(def).secondWind); this.emit({ type: 'secondWind', f: def }) }
     def.stun = Math.max(5, Math.round(((10 + dmg * 0.8) - def.chain * 4) * mdf.stunTaken * ma.stunGiven)) // Reaction / Concentration
     def.vx = push * att.facing * (def.chain >= 2 ? 2.4 : 1) * mdf.knockTaken; def.flash = 10; def.move = null // Core stability
     const st = this.statsOf(att); st.hits++; st.dmg += dmg; st.bestCombo = Math.max(st.bestCombo, def.chain + 1)
@@ -305,7 +315,7 @@ export class Match {
     // a) block what's coming -- decided once per attack, more likely when mashed
     if ((meStartup || meProjectile) && dist < 150) {
       const key = me.move ? `m${this.frame - me.t}` : 'p'
-      if (a.blockKey !== key) { a.blockKey = key; a.blockIt = Math.random() < Math.min(0.95, lvl.block + (mashing ? 0.25 : 0)) }
+      if (a.blockKey !== key) { a.blockKey = key; a.blockIt = Math.random() < Math.min(0.95, (lvl.block + (mashing ? 0.25 : 0)) * M(me).feint) }
       if (a.blockIt && !cpu.move) { ctl[away] = true; if (me.move?.h === 'low') ctl.down = true; return ctl }
     }
     // b) punish recovery

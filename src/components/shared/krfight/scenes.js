@@ -486,6 +486,7 @@ export class FightScene extends Phaser.Scene {
           break
         }
         case 'super': this.superCutIn(e.f, e.name); break
+        case 'secondWind': this.popText(e.f.x, e.f.y - 210, 'SECOND WIND!', '#5BE04A', 28); this.ringAt(e.f.x, e.f.y - 80, 0x5be04a, 1.2); sx.special?.(); break
         case 'projectile': this.spawnProjectile(e.pj); break
         case 'projectileGone': this.killProjectile(e.pj); break
         case 'jump': this.dustE().explode(6, e.f.x, FLOOR); break
@@ -762,8 +763,7 @@ export class UpgradeScene extends Phaser.Scene {
       return c
     })
     // MTP group tabs
-    this.groupBtns = AREA_GROUPS.map((gname, i) => button(this, 92 + i * 150, 136, 140, 30, `${gname} ${AREAS.filter(a => a.g === gname).length}`, '#F2F2F2', () => { this.group = gname; this.refresh() }, { size: 17 }))
-    this.summary = txt(this, 776, 126, '', { fontFamily: BODY, fontStyle: '700', fontSize: '15px', color: '#C9CED6' }).setOrigin(1, 0)
+    this.groupBtns = AREA_GROUPS.map((gname, i) => button(this, 96 + i * 152, 134, 144, 30, `${gname} ${AREAS.filter(a => a.g === gname).length}`, FIGHTERS.find(f => f.name === gname.toUpperCase())?.colour || '#F2F2F2', () => { this.group = gname; this.refresh() }, { size: 16 }))
     // up to 16 area cards (4 x 4)
     this.cards = Array.from({ length: 16 }, (_, i) => {
       const x = 20 + (i % 4) * 191, y = 156 + Math.floor(i / 4) * 68
@@ -785,10 +785,9 @@ export class UpgradeScene extends Phaser.Scene {
       const on = i === this.pick, c = hex(t.def.colour)
       t.g.clear(); t.g.fillStyle(on ? c : 0x12161b, on ? 0.22 : 0.92); t.g.fillRoundedRect(-70, -24, 140, 48, 8)
       t.g.lineStyle(on ? 3 : 1.5, on ? c : 0x2a3138, 1); t.g.strokeRoundedRect(-70, -24, 140, 48, 8)
-      t.lv.setText(`Level ${fighterLevel(P, t.def.key)}`)
+      t.lv.setText(`Level ${fighterLevel(P, t.def.key)} / ${AREAS.length * MAX_LV}`)
     })
     this.groupBtns.forEach((b, i) => b.setOn(AREA_GROUPS[i] === this.group))
-    this.summary.setText(`${f.name}: level ${fighterLevel(P, f.key)} of ${AREAS.length * MAX_LV}`).setColor(f.colour)
     const areas = AREAS.filter(a => a.g === this.group)
     this.cards.forEach((c, i) => {
       const a = areas[i]; c.area = a || null
