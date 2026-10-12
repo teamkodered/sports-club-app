@@ -4,6 +4,8 @@ import { useAuth } from '../../hooks/useAuth.jsx'
 
 // Dashboard: "Current focus" (latest focus note; tap for every past focus) and "Format" (club format
 // notes, edited by admins). Focus notes: table focus_notes. Format: settings 'dashboard_format'.
+// The Format card shows a short summary (the header); tap for the full notes. Both are edited together.
+const DEFAULT_SUMMARY = '• First session of the week: partner work / sequences\n• Second session: equipment / circuit'
 const fmtDate = d => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 
 export default function FocusAndFormat() {
@@ -16,6 +18,8 @@ export default function FocusAndFormat() {
   const [editingFormat, setEditingFormat] = useState(false)
   const [formatDraft, setFormatDraft] = useState('')
   const [formatOpen, setFormatOpen] = useState(false)
+  const [summary, setSummary] = useState('')
+  const [summaryDraft, setSummaryDraft] = useState('')
 
   async function load() {
     const [{ data: f, error }, { data: s }] = await Promise.all([
@@ -24,6 +28,7 @@ export default function FocusAndFormat() {
     ])
     setNotes(error ? [] : (f || []))
     setFormat(typeof s?.value === 'string' ? s.value : s?.value?.text || '')
+    setSummary(typeof s?.value === 'object' && s?.value?.summary != null ? s.value.summary : DEFAULT_SUMMARY)
   }
   useEffect(() => { load() }, [])
 
@@ -38,12 +43,24 @@ export default function FocusAndFormat() {
     await supabase.from('focus_notes').delete().eq('id', id); load()
   }
   async function saveFormat() {
-    const { error } = await supabase.from('settings').upsert({ key: 'dashboard_format', value: { text: formatDraft } }, { onConflict: 'key' })
+    const { error } = await supabase.from('settings').upsert({ key: 'dashboard_format', value: { text: formatDraft, summary: summaryDraft } }, { onConflict: 'key' })
     if (error) return alert('Could not save: ' + error.message)
-    setFormat(formatDraft); setEditingFormat(false)
+    setFormat(formatDraft); setSummary(summaryDraft); setEditingFormat(false)
+  }
+  function startEditFormat() { setFormatDraft(format); setSummaryDraft(summary); setEditingFormat(true)
   }
 
   const current = notes?.[0]
+  const area = { width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 8, border: '1px solid var(--border-strong)', background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'inherit', fontSize: 14 }
+  const formatEditor = (
+    <>
+      <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 4 }}>Card summary (shown on the Dashboard)</label>
+      <textarea rows={3} value={summaryDraft} onChange={e => setSummaryDraft(e.target.value)} placeholder={DEFAULT_SUMMARY} style={area} />
+      <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', margin: '10px 0 4px' }}>Full format (shown when the card is tapped)</label>
+      <textarea rows={12} value={formatDraft} onChange={e => setFormatDraft(e.target.value)} placeholder="Paste or type the format notes" style={area} />
+      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}><button className="btn btn-sm btn-primary" onClick={saveFormat}>Save</button><button className="btn btn-sm" onClick={() => setEditingFormat(false)}>Cancel</button></div>
+    </>
+  )
   const box = { padding: 14, borderRadius: 'var(--radius-lg, 12px)' }
   const text = { fontSize: 14, whiteSpace: 'pre-wrap', lineHeight: 1.5 }
 
@@ -74,20 +91,16 @@ export default function FocusAndFormat() {
       <div className="card" style={{ ...box, borderTop: '3px solid #06B6D4' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <h2 style={{ fontSize: 14, fontWeight: 700 }}>🧭 Format</h2>
-          {isAdmin && !editingFormat && <button className="btn btn-sm" onClick={() => { setFormatDraft(format); setEditingFormat(true) }}>Edit</button>}
+          {isAdmin && !editingFormat && <button className="btn btn-sm" onClick={startEditFormat}>Edit</button>}
         </div>
-        {editingFormat ? (
-          <>
-            <textarea rows={10} value={formatDraft} onChange={e => setFormatDraft(e.target.value)} placeholder="Paste or type the format notes"
-              style={{ width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 8, border: '1px solid var(--border-strong)', background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'inherit', fontSize: 14 }} />
-            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}><button className="btn btn-sm btn-primary" onClick={saveFormat}>Save</button><button className="btn btn-sm" onClick={() => setEditingFormat(false)}>Cancel</button></div>
-          </>
-        ) : format ? (
-          <button type="button" onClick={() => setFormatOpen(true)} style={{ all: 'unset', cursor: 'pointer', display: 'block', width: '100%' }} title="Tap to read it all">
-            <div style={{ ...text, display: '-webkit-box', WebkitLineClamp: 6, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{format}</div>
-            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>Tap to read it all</div>
-          </button>
-        ) : <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No format notes yet{isAdmin ? ' — tap Edit to add them.' : '.'}</p>}
+        {editingFormat && !formatOpen ? formatEditor : (
+          (summary || format) ? (
+            <button type="button" onClick={() => setFormatOpen(true)} style={{ all: 'unset', cursor: 'pointer', display: 'block', width: '100%' }} title="Tap to see the full format">
+              <div style={text}>{summary || format}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>Tap to see the full format</div>
+            </button>
+          ) : <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No format notes yet{isAdmin ? ' — tap Edit to add them.' : '.'}</p>
+        )}
       </div>
 
       {/* ── pop-ups ── */}
@@ -113,9 +126,18 @@ export default function FocusAndFormat() {
         <div onClick={() => setFormatOpen(false)} className="ff-backdrop">
           <div className="card ff-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-label="Format">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <b style={{ fontSize: 16 }}>🧭 Format</b><button className="btn btn-sm" onClick={() => setFormatOpen(false)}>Close</button>
+              <b style={{ fontSize: 16 }}>🧭 Format</b>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {isAdmin && !editingFormat && <button className="btn btn-sm" onClick={startEditFormat}>Edit</button>}
+                <button className="btn btn-sm" onClick={() => { setFormatOpen(false); setEditingFormat(false) }}>Close</button>
+              </div>
             </div>
-            <div style={text}>{format}</div>
+            {editingFormat ? formatEditor : (
+              <>
+                {summary ? <div style={{ ...text, fontWeight: 600, paddingBottom: 10, marginBottom: 10, borderBottom: '1px solid var(--border)' }}>{summary}</div> : null}
+                <div style={text}>{format || 'No full format notes yet.'}</div>
+              </>
+            )}
           </div>
         </div>
       )}
