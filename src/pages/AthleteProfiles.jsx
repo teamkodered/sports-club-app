@@ -4,6 +4,7 @@ import { TEST_CATEGORIES } from '../lib/testResults.js'
 import { TestSessionModal, TestBatchModal } from '../components/shared/TestSession.jsx'
 import { supabase } from '../lib/supabase.js'
 import NeedsAttention from '../components/shared/NeedsAttention.jsx'
+import PdpOverview, { loadPdpHidden, isPdpHidden } from '../components/dashboard/PdpOverview.jsx'
 import WattBikePanel from '../components/shared/WattBikePanel.jsx'
 import FightGame from '../components/shared/FightGame.jsx'
 import ChessGame from '../components/shared/ChessGame.jsx'
@@ -3067,6 +3068,8 @@ export default function AthleteProfiles() {
   const [wearableAthletes, setWearableAthletes] = useState(null) // [{ student_id, providers: [...], last_sync_at }] for the Wearables list
   const [teamTemplateStudent, setTeamTemplateStudent] = useState(null)
   const [teamPdpApData, setTeamPdpApData] = useState(null)
+  const [pdpOverviewOpen, setPdpOverviewOpen] = useState(false) // PDP page: both sections start closed
+  const [pdpTemplateOpen, setPdpTemplateOpen] = useState(false)
   const [showPushPdp, setShowPushPdp] = useState(false)
   const [pushPdpSection, setPushPdpSection] = useState('')
   const [pushPdpTarget, setPushPdpTarget] = useState('all') // 'all' | 'individual'
@@ -4740,6 +4743,8 @@ export default function AthleteProfiles() {
     const targets = pushPdpTarget === 'individual'
       ? (pushPdpAthlete ? [pushPdpAthlete] : [])
       : students.filter(s => s.is_kr || s.is_pts || s.discipline === 'KRBA')
+    // athletes hidden on the PDP overview (out of comp / KRBA / hidden one by one) are skipped for whole-team pushes
+    if (pushPdpTarget !== 'individual') { const h = await loadPdpHidden(); for (let i = targets.length - 1; i >= 0; i--) if (isPdpHidden(h, targets[i])) targets.splice(i, 1) }
     if (targets.length === 0) return
     setPushingPdp(true)
     for (const s of targets) {
@@ -7943,7 +7948,26 @@ export default function AthleteProfiles() {
 
             {dashboardTab === 'pdp' && (
               <div>
-                {!teamTemplateStudent ? (
+                {/* PDP overview: every athlete x section (collapsible, closed on open) */}
+                <div className="card" style={{ marginBottom: 14, padding: pdpOverviewOpen ? undefined : '10px 14px' }}>
+                  <button type="button" onClick={() => setPdpOverviewOpen(v => !v)} style={{ all: 'unset', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                    <span><b style={{ fontSize: 14 }}>📋 PDP overview — all athletes</b><span style={{ display: 'block', fontSize: 12, color: 'var(--text-tertiary)' }}>Who has notes in each area · copy and paste shared work-ons · hide athletes</span></span>
+                    <span style={{ fontSize: 18, color: 'var(--text-secondary)' }}>{pdpOverviewOpen ? '▾' : '▸'}</span>
+                  </button>
+                  {pdpOverviewOpen && (
+                    <div style={{ marginTop: 12 }}>
+                      <PdpOverview athletes={students.filter(inDashTeam)} sections={PDP_SECTIONS} groups={PDP_CATEGORY_GROUPS} colours={PDP_COLUMN_COLOURS} onOpenAthlete={s => selectStudent(s)} />
+                    </div>
+                  )}
+                </div>
+                {/* Team PDP template (collapsible, closed on open) */}
+                <div className="card" style={{ marginBottom: pdpTemplateOpen ? 10 : 14, padding: '10px 14px' }}>
+                  <button type="button" onClick={() => setPdpTemplateOpen(v => !v)} style={{ all: 'unset', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                    <span><b style={{ fontSize: 14 }}>🎯 Team PDP template</b><span style={{ display: 'block', fontSize: 12, color: 'var(--text-tertiary)' }}>Build once, push sections to athletes or the whole team</span></span>
+                    <span style={{ fontSize: 18, color: 'var(--text-secondary)' }}>{pdpTemplateOpen ? '▾' : '▸'}</span>
+                  </button>
+                </div>
+                {pdpTemplateOpen && (!teamTemplateStudent ? (
                   <div className="empty-state"><h3>Team PDP template not set up yet</h3><p>Run the setup migration to enable this.</p></div>
                 ) : (
                   <>
@@ -8008,7 +8032,7 @@ export default function AthleteProfiles() {
                       newOpponentName="" setNewOpponentName={() => {}} expandedOpponent={null} setExpandedOpponent={() => {}}
                       editingOpponentNoteId={null} setEditingOpponentNoteId={() => {}} opponentNoteDraft="" setOpponentNoteDraft={() => {}} />
                   </>
-                )}
+                ))}
               </div>
             )}
 
