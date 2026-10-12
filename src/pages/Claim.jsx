@@ -105,9 +105,14 @@ export default function Claim() {
     setLinking(false)
   }
 
-  function confirmYes() {
-    if (session) doLink(session.access_token)
-    else setShowCreateLogin(true)
+  async function confirmYes() {
+    if (session) return doLink(session.access_token)
+    // Not signed in: if this profile already has a login, a new one can never be attached -- go and sign in
+    try {
+      const { data } = await supabasePublic.rpc('kc_student_has_login', { p_student: student.id })
+      if (data === true) { window.location.href = '/athlete-login'; return }
+    } catch { /* function not installed yet -- carry on as before */ }
+    setShowCreateLogin(true)
   }
 
   async function createLoginAndLink() {
@@ -183,15 +188,15 @@ export default function Claim() {
           ) : wrongAccount ? (
             <div style={{ textAlign: 'center', padding: '12px 0' }}>
               <div style={{ fontSize: 40, marginBottom: 8 }}>👤</div>
-              <p style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>This looks like someone else's device</p>
+              <p style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>{m?.first_name} already has a login</p>
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
-                {m?.first_name}'s profile is already linked to their own login — but this browser is currently
-                signed in as a different person (common on a shared family phone). Sign out here first,
-                then come back to this exact link to sign in as {m?.first_name}.
+                {m?.first_name}'s profile is already set up with its own login, so this link isn't needed any more.
+                Sign in with the email the club has for {m?.first_name} and its password — or use Reset password if you've forgotten it.
+                (This phone is currently signed in as someone else.)
               </p>
               <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}
-                onClick={async () => { await supabase.auth.signOut(); window.location.reload() }}>
-                Sign out and try again
+                onClick={async () => { await supabase.auth.signOut(); window.location.href = '/athlete-login' }}>
+                Sign out and go to sign in
               </button>
             </div>
           ) : linked ? (
