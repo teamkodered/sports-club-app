@@ -1,7 +1,7 @@
 // KR FIGHT 2 -- the fight simulation. A straight port of the classic game's rules (same frame data,
 // blocking, combos, chain-stun, meter, CPU brain) with no drawing in it. It runs at a fixed 60 steps
 // a second and reports what happened as events, which the Phaser scene turns into sparks, sound, etc.
-import { W, FLOOR, GRAV, COMBO_GAP, MOVES, LEVELS, SUPER_NAME, LEVEL_SCALE } from './data.js'
+import { W, FLOOR, GRAV, COMBO_GAP, MOVES, LEVELS, SUPER_NAME, LEVEL_SCALE, FLOW_NEXT, FLOW_MAX } from './data.js'
 
 let pjId = 1
 const NEUTRAL = { punchDmg: 1, kickDmg: 1, heavyPunch: 1, heavyHold: 1, dmgTaken: 1, blockChip: 1, counters: 1, opener: 1, comboBonus: 1, comboGap: 0,
@@ -46,7 +46,7 @@ export class Match {
   bringIn(side, m, why) {
     const old = this[side], o = side === 'p1' ? this.p2 : this.p1
     const x = why === 'ko' ? (side === 'p1' ? 90 : W - 90) : old.x
-    Object.assign(m, { x, y: FLOOR - 150, vx: 0, vy: 0, state: 'jump', move: null, stun: 0, t: 0, hitDone: false, crouch: false, blocking: false, counterT: 0, flash: 0, chain: 0, buf: [], comboNext: null, meter: old.meter || 0, facing: o.x > x ? 1 : -1 })
+    Object.assign(m, { flow: 0, lastLand: null, blockAt: -999, x, y: FLOOR - 150, vx: 0, vy: 0, state: 'jump', move: null, stun: 0, t: 0, hitDone: false, crouch: false, blocking: false, counterT: 0, flash: 0, chain: 0, buf: [], comboNext: null, meter: old.meter || 0, facing: o.x > x ? 1 : -1 })
     if (why === 'tag') old.benchCap = Math.min(old.maxHp, old.hp + 25 * M(old).benchRegen)
     if (why === 'ko') m.meter = Math.min(100, (m.meter || 0) + M(m).resilience)   // Resilience
     if (why === 'tag' && M(m).talk) m.hp = Math.min(m.maxHp, m.hp + M(m).talk)    // Talk
@@ -187,6 +187,7 @@ export class Match {
   blocks(def, h) { if (!def.blocking) return false; return h === 'low' ? def.crouch : true }
 
   applyHit(att, def, dmg, push, h, at, kind) {
+    const special = kind === 'special' || !!(att.move && (att.move.special || att.move.super))
     if (def.state === 'ko') return
     const hy = h === 'low' ? def.y - 18 : h === 'mid' ? def.y - 92 : def.y - (def.crouch ? 100 : 132)
     const pos = at || { x: def.x - def.facing * 18, y: hy }
@@ -202,6 +203,8 @@ export class Match {
       def.hp = Math.max(0, def.hp - dmg * 0.15 * M(def).dmgTaken * M(def).blockChip); def.vx = push * 0.6 * att.facing; def.stun = 8
       att.meter = Math.min(100, (att.meter || 0) + 2 * M(att).meterGain); def.meter = Math.min(100, (def.meter || 0) + 3)
       this.statsOf(def).blocked++
+      def.blockAt = this.frame
+      if (!special && att.move) att.lastLand = { k: att.move.k, at: this.frame } // a blocked strike still continues the sequence
       this.freeze = 2
       this.emit({ type: 'block', att, def, x: pos.x, y: pos.y })
       return
@@ -214,14 +217,26 @@ export class Match {
     if (dm && dm.dmg > 0 && def.t >= dm.s + dm.a) dmg *= ma.counters                  // Counters: punish a missed move
     else if (dm && dm.dmg > 0 && def.t < dm.s) dmg *= ma.timing                       // Timing: hit them as they start
     if (att.hp < att.maxHp * 0.3) dmg *= ma.grit                                      // Heart / grit
-    const special = kind === 'special' || (att.move && (att.move.special || att.move.super))
     if (special) dmg *= (att.move && att.move.super ? ma.superDmg : ma.specialDmg) * mdf.projTaken // Use of phases / Self expression / Read opponent
     if (def.x < 90 || def.x > W - 90) dmg *= mdf.cornerTaken * ma.pressure            // Ring awareness / Pressure
     if (def.hp < def.maxHp * 0.3) dmg *= mdf.composure                                // Composure
     if (att.hp > def.hp) dmg *= ma.confidence                                          // Confidence
     if (att.move && att.move.combo) dmg *= mdf.comboTaken                              // Video analysis
     if (!opening && (def.chain || 0) >= 1) dmg *= ma.chess                             // Chess: 3rd hit of a chain on
-    att.meter = Math.min(100, (att.meter || 0) + dmg * 2.2 * ma.meterGain); def.meter = Math.min(100, (def.meter || 0) + dmg * 1.2)
+    // FLOW: landing a strike that naturally follows your last one (in time) builds flow; a clumsy order resets it.
+    // Blocking then countering quickly also counts.
+    if (!special && att.move) {
+      const k = att.move.k, prev = att.lastLand, inTime = prev && this.frame - prev.at < 55
+      const natural = inTime && (FLOW_NEXT[prev.k] || []).includes(k)
+      const counter = this.frame - (att.blockAt || -999) < 40
+      const before = att.flow || 0
+      att.flow = natural || counter ? Math.min(FLOW_MAX, before + 1) : inTime ? 0 : (att.flow || 0)
+      if (!inTime && !counter) att.flow = 0
+      att.lastLand = { k, at: this.frame }
+      if (att.flow > before && (att.flow === 3 || att.flow === 6 || att.flow === FLOW_MAX)) this.emit({ type: 'flow', f: att, level: att.flow })
+      dmg *= 1 + 0.04 * (att.flow || 0)
+    }
+    att.meter = Math.min(100, (att.meter || 0) + dmg * 2.2 * ma.meterGain * (1 + 0.05 * (att.flow || 0))); def.meter = Math.min(100, (def.meter || 0) + dmg * 1.2)
     // Each hit in a row stuns for less, and the 3rd+ pushes them out of range -- no endless jab lock
     def.chain = opening ? 0 : (def.chain || 0) + 1
     def.lastHitAt = this.frame
@@ -242,6 +257,7 @@ export class Match {
     if (f.comboText > 0) f.comboText--
     if (f.counterT > 0) f.counterT--
     if (f.flash > 0) f.flash--
+    if (f.flow && this.frame - ((f.lastLand && f.lastLand.at) || -999) > 90) f.flow = 0 // flow fades if you stop
     if (M(f).regen && f.hp > 0 && f.state !== 'ko' && this.phase === 'fight' && this.frame - (f.lastHitAt || -999) > 120) f.hp = Math.min(f.maxHp, f.hp + M(f).regen) // Health
     if (f.state === 'ko') f.koT++
     f.facing = o.x > f.x ? 1 : -1

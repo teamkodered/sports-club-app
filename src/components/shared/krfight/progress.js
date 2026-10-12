@@ -3,6 +3,7 @@
 // or for staff, who have no athlete record -- progress is kept on the device instead, so the game works
 // either way. Gems: training entries per pillar + house points (wild) + gems won in the game.
 import { supabase } from '../../../lib/supabase.js'
+import { COMBO_LIB, COMBO_BY_ID } from './data.js'
 
 export const PILLARS = ['physical', 'technical', 'tactical', 'mentality', 'foundation']
 // Upgrade areas: one set per pillar. Technical / Physical follow the club's MTP analysis; Tactical and
@@ -223,4 +224,38 @@ export function cpuUpgrades(p, level) {
 export function resetTest(p) {
   try { localStorage.removeItem(LS_TEST) } catch (e) { /* ignore */ }
   return { ...p, upgrades: {} }
+}
+
+// ---- Collected combos (on the device for now; saved to the profile with a later SQL step) ----
+// { combos: { id: level } }. Commons are always owned. Test mode owns everything at max level.
+const LS_COLL = 'krfight-collection'
+export const COMBO_MAX_LV = 3
+export function loadCollection() {
+  if (isTestMode()) return { combos: Object.fromEntries(COMBO_LIB.map(c => [c.id, COMBO_MAX_LV])) }
+  let v = {}
+  try { v = JSON.parse(localStorage.getItem(LS_COLL) || '{}') } catch (e) { /* ignore */ }
+  const combos = { ...(v.combos || {}) }
+  for (const c of COMBO_LIB) if (c.rarity === 'common' && !combos[c.id]) combos[c.id] = 1
+  return { combos }
+}
+export const ownsCombo = (coll, id) => (coll.combos[id] || 0) > 0
+// a win may drop a combo card for one of the team's styles: new card, or a duplicate that levels it up
+export function rollComboDrop(styles, level, won) {
+  if (!won) return null
+  if (import.meta.env && import.meta.env.DEV && globalThis.__krForceDrop) return globalThis.__krForceDrop // local testing only
+  const chance = { easy: 0.15, medium: 0.25, hard: 0.4 }[level] ?? 0.25
+  if (Math.random() > chance) return null
+  const pool = COMBO_LIB.filter(c => c.rarity !== 'common' && c.styles.some(s => styles.includes(s)))
+  if (!pool.length) return null
+  // epics are rarer: weight rare 3, epic 1
+  const bag = pool.flatMap(c => Array(c.rarity === 'epic' ? 1 : 3).fill(c))
+  return bag[Math.floor(Math.random() * bag.length)].id
+}
+// add a card to the collection; returns { coll, isNew, level }
+export function addComboCard(coll, id) {
+  if (!COMBO_BY_ID[id]) return { coll, isNew: false, level: 0 }
+  const cur = coll.combos[id] || 0, level = Math.min(COMBO_MAX_LV, cur + 1)
+  const next = { combos: { ...coll.combos, [id]: level } }
+  if (!isTestMode()) { try { localStorage.setItem(LS_COLL, JSON.stringify(next)) } catch (e) { /* ignore */ } }
+  return { coll: next, isNew: cur === 0, level }
 }

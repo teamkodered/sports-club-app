@@ -70,15 +70,86 @@ export const STYLES = {
 }
 export const STYLE_KEYS = ['kickboxer', 'pro', 'am', 'tkd', 'thai']
 // a pillar fighter in a style: same colours / special / super, style's moves, combos and stat changes
-export function styledDef(base, styleKey) {
+// ---- Real combinations: the library each style draws from ----
+// seq = the buttons (lp/mp/hp = punch tap/hold/long hold, lk/mk/hk = kick; d/f/b = down/forward/back tap).
+// Boxing uses the club numbering (1 jab, 2 cross, 3 hook, 6 rear uppercut). rarity: common (owned from the
+// start), rare, epic -- rare/epic drop as combo cards from wins. bonus = damage multiplier on the finishing strike.
+export const RARITY = { common: { name: 'Common', colour: '#9AA3AE' }, rare: { name: 'Rare', colour: '#4DA3FF' }, epic: { name: 'Epic', colour: '#C93BFF' } }
+const BOX = ['pro', 'am']
+export const COMBO_LIB = [
+  // boxing
+  { id: 'b_12', styles: BOX, name: '1-2', seq: ['lp', 'mp'], bonus: 1.3, rarity: 'common' },
+  { id: 'b_112', styles: BOX, name: '1-1-2', seq: ['lp', 'lp', 'mp'], bonus: 1.5, rarity: 'common' },
+  { id: 'b_123', styles: BOX, name: '1-2-3', seq: ['lp', 'mp', 'hp'], bonus: 1.6, rarity: 'common' },
+  { id: 'b_jabupdown', styles: BOX, name: 'Jab Up & Down', seq: ['lp', 'lk'], bonus: 1.3, rarity: 'common' },
+  { id: 'b_body32', styles: BOX, name: 'Body 3 · Head 2', seq: ['mk', 'mp'], bonus: 1.5, rarity: 'rare' },
+  { id: 'b_slip23', styles: BOX, name: 'Slip · 2-3', seq: ['d', 'mp', 'hp'], bonus: 1.7, rarity: 'rare' },
+  { id: 'b_1632', styles: BOX, name: '1-6-3-2', seq: ['lp', 'hk', 'hp', 'mp'], bonus: 2.0, rarity: 'epic' },
+  { id: 'b_1263', styles: BOX, name: '1-2-6-3', seq: ['lp', 'mp', 'hk', 'hp'], bonus: 2.0, rarity: 'epic' },
+  // freestyle kickboxing
+  { id: 'f_jabteep', styles: ['kickboxer'], name: 'Jab · Teep', seq: ['lp', 'lk'], bonus: 1.3, rarity: 'common' },
+  { id: 'f_123', styles: ['kickboxer'], name: '1-2-3', seq: ['lp', 'mp', 'hp'], bonus: 1.6, rarity: 'common' },
+  { id: 'f_12rh', styles: ['kickboxer'], name: '1-2 · Roundhouse', seq: ['lp', 'mp', 'mk'], bonus: 1.7, rarity: 'common' },
+  { id: 'f_teep2hk', styles: ['kickboxer'], name: 'Teep · Cross · High Kick', seq: ['lk', 'mp', 'hk'], bonus: 1.8, rarity: 'common' },
+  { id: 'f_bodyhead', styles: ['kickboxer'], name: 'Body Kick · High Kick', seq: ['mk', 'hk'], bonus: 1.6, rarity: 'rare' },
+  { id: 'f_3hook', styles: ['kickboxer'], name: 'Hook · Body Kick', seq: ['hp', 'mk'], bonus: 1.6, rarity: 'rare' },
+  { id: 'f_123hk', styles: ['kickboxer'], name: '1-2-3 · High Kick', seq: ['lp', 'mp', 'hp', 'hk'], bonus: 2.0, rarity: 'epic' },
+  // taekwondo
+  { id: 't_rr', styles: ['tkd'], name: 'Double Round Kick', seq: ['lk', 'lk'], bonus: 1.4, rarity: 'common' },
+  { id: 't_cut', styles: ['tkd'], name: 'Cut Kick · Round Kick', seq: ['mk', 'lk'], bonus: 1.5, rarity: 'common' },
+  { id: 't_rrs', styles: ['tkd'], name: 'Round · Round · Spinning', seq: ['lk', 'lk', 'hk'], bonus: 1.8, rarity: 'common' },
+  { id: 't_jrs', styles: ['tkd'], name: 'Jab · Round · Spinning', seq: ['lp', 'lk', 'hk'], bonus: 1.7, rarity: 'common' },
+  { id: 't_srs', styles: ['tkd'], name: 'Side · Round · Side', seq: ['mk', 'lk', 'mk'], bonus: 1.7, rarity: 'rare' },
+  { id: 't_backspin', styles: ['tkd'], name: 'Step Back · Spinning Kick', seq: ['b', 'hk'], bonus: 1.6, rarity: 'rare' },
+  { id: 't_rrrs', styles: ['tkd'], name: 'Round ×3 · Spinning', seq: ['lk', 'lk', 'lk', 'hk'], bonus: 2.1, rarity: 'epic' },
+  // K1 kickboxing
+  { id: 'k_1low', styles: ['thai'], name: 'Jab · Low Kick', seq: ['lp', 'mk'], bonus: 1.4, rarity: 'common' },
+  { id: 'k_12low', styles: ['thai'], name: '1-2 · Low Kick', seq: ['lp', 'mp', 'mk'], bonus: 1.7, rarity: 'common' },
+  { id: 'k_teephk', styles: ['thai'], name: 'Teep · Hook · Knee', seq: ['lk', 'hp', 'hk'], bonus: 1.8, rarity: 'common' },
+  { id: 'k_ll3', styles: ['thai'], name: 'Low · Low · Hook', seq: ['mk', 'mk', 'hp'], bonus: 1.6, rarity: 'common' },
+  { id: 'k_lowhooklow', styles: ['thai'], name: 'Low Kick · Hook · Low Kick', seq: ['mk', 'hp', 'mk'], bonus: 1.8, rarity: 'rare' },
+  { id: 'k_kneeknee', styles: ['thai'], name: 'Knee · Knee · Hook', seq: ['hk', 'hk', 'hp'], bonus: 1.7, rarity: 'rare' },
+  { id: 'k_123knee', styles: ['thai'], name: '1-2-3 · Knee', seq: ['lp', 'mp', 'hp', 'hk'], bonus: 2.0, rarity: 'epic' },
+]
+export const COMBO_BY_ID = Object.fromEntries(COMBO_LIB.map(c => [c.id, c]))
+export const LOADOUT_SIZE = 4
+export const combosForStyle = style => COMBO_LIB.filter(c => c.styles.includes(style))
+// starting loadout for a style: its first 4 commons
+export const defaultLoadout = style => combosForStyle(style).filter(c => c.rarity === 'common').slice(0, LOADOUT_SIZE).map(c => c.id)
+
+// ---- Flow: which strike naturally follows which (landing them in these orders builds FLOW) ----
+export const FLOW_NEXT = {
+  jab: ['jab', 'cross', 'hook', 'bodyjab', 'uppercut', 'teep', 'lowkick', 'roundkick', 'bodykick', 'highkick'],
+  cross: ['hook', 'jab', 'bodyhook', 'uppercut', 'lowkick', 'bodykick', 'highkick', 'knee'],
+  hook: ['cross', 'uppercut', 'bodyhook', 'overhand', 'lowkick', 'bodykick', 'knee', 'highkick'],
+  overhand: ['hook', 'bodyhook', 'uppercut'],
+  bodyjab: ['jab', 'cross', 'overhand', 'bodyhook'],
+  bodyhook: ['cross', 'hook', 'overhand', 'uppercut'],
+  uppercut: ['hook', 'cross', 'overhand'],
+  teep: ['jab', 'cross', 'roundkick', 'sidekick', 'hook'],
+  bodykick: ['highkick', 'cross', 'jab'],
+  highkick: ['jab', 'cross'],
+  roundkick: ['roundkick', 'spinkick', 'sidekick', 'jab'],
+  sidekick: ['roundkick', 'spinkick', 'jab'],
+  spinkick: ['jab', 'roundkick'],
+  lowkick: ['hook', 'cross', 'lowkick', 'knee'],
+  knee: ['hook', 'cross', 'knee'],
+}
+export const FLOW_MAX = 10
+
+// a pillar fighter in a style: same colours / special / super, style's moves and stat changes, and the
+// combos equipped in its loadout (each combo's level from duplicate cards adds +5% bonus per level above 1)
+export function styledDef(base, styleKey, loadout, levels = {}) {
   const st = STYLES[styleKey] || STYLES.kickboxer
+  const ids = (loadout && loadout.length ? loadout : defaultLoadout(styleKey)).filter(id => COMBO_BY_ID[id] && COMBO_BY_ID[id].styles.includes(styleKey)).slice(0, LOADOUT_SIZE)
+  const combos = ids.map(id => { const c = COMBO_BY_ID[id], lv = Math.max(1, levels[id] || 1); return { ...c, bonus: c.bonus * (1 + 0.05 * (lv - 1)), level: lv } })
   return { ...base, style: styleKey, styleName: st.name, speed: base.speed * st.speed, power: base.power * st.power, reach: base.reach * st.reach,
-    moves: st.moves, combos: st.combos, startup: st.startup || 0, punchPower: st.punchPower || 1 }
+    moves: st.moves, combos, startup: st.startup || 0, punchPower: st.punchPower || 1 }
 }
 // squad set-up (style per pillar + fight order), remembered on the device for now
 export function loadSquad() {
   try { const v = JSON.parse(localStorage.getItem('krfight-squad') || 'null'); if (v && v.styles && Array.isArray(v.order)) return v } catch (e) { /* ignore */ }
-  return { styles: { physical: 'pro', technical: 'kickboxer', tactical: 'thai', mentality: 'am', foundation: 'tkd' }, order: [0, 1, 2] }
+  return { styles: { physical: 'pro', technical: 'kickboxer', tactical: 'thai', mentality: 'am', foundation: 'tkd' }, order: [0, 1, 2], loadouts: {} }
 }
 export function saveSquad(sq) { try { localStorage.setItem('krfight-squad', JSON.stringify(sq)) } catch (e) { /* ignore */ } }
 export const MAX_TEAM = 5

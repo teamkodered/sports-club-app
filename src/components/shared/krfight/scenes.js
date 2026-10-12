@@ -1,10 +1,10 @@
 // KR FIGHT 2 -- Phaser scenes: Boot (makes textures), Title, Select, Fight, Results.
 // The world is 800x450; cameras zoom x2 onto a 1600x900 canvas so everything stays crisp on phones.
 import Phaser from 'phaser'
-import { W, H, FLOOR, FIGHTERS, MOVES, SUPER_NAME, LEVELS, comboLabel, hex, getLook, setLook, LOOK_LEVELS, HOUSES, HOUSE_KEYS, getHouse, setHouse, fxColour, cpuHouse, NATURAL_HOUSE, STYLES, STYLE_KEYS, styledDef, loadSquad, saveSquad, MAX_TEAM } from './data.js'
+import { W, H, FLOOR, FIGHTERS, MOVES, SUPER_NAME, LEVELS, comboLabel, hex, getLook, setLook, LOOK_LEVELS, HOUSES, HOUSE_KEYS, getHouse, setHouse, fxColour, cpuHouse, NATURAL_HOUSE, STYLES, STYLE_KEYS, styledDef, loadSquad, saveSquad, MAX_TEAM, COMBO_BY_ID, combosForStyle, defaultLoadout, LOADOUT_SIZE, RARITY, FLOW_MAX } from './data.js'
 import { Match, makeFighter } from './core.js'
 import { makePose, stepPose, drawFighter, targetPose } from './pose.js'
-import { loadProgress, PILLARS, AREAS, AREA_GROUPS, costOf, MAX_LV, DAILY_GEMS, available, wild, priceFor, buyUpgrade, fighterLevel, levelOf, matchGems, awardGems, applyUpgrades, cpuUpgrades, resetTest, UNLIMITED } from './progress.js'
+import { loadProgress, PILLARS, AREAS, AREA_GROUPS, costOf, MAX_LV, DAILY_GEMS, available, wild, priceFor, buyUpgrade, fighterLevel, levelOf, matchGems, awardGems, applyUpgrades, cpuUpgrades, resetTest, UNLIMITED, loadCollection, ownsCombo, rollComboDrop, addComboCard, COMBO_MAX_LV } from './progress.js'
 
 export const Z = 2
 const DISPLAY = "'Saira Condensed', 'Arial Narrow', sans-serif"
@@ -127,7 +127,8 @@ function buildArenaStick(scene, opts = {}) {
 
 // a strike for menu fighters (title / select / results), thrown the way their style throws it
 function demoMove(f, k) { const id = (f.def.moves && f.def.moves[k]) || k, mv = MOVES[id]; return mv ? { k: id, ...mv, reach: mv.reach * (f.def.reach || 1) } : null }
-const squadDef = (i, sq) => styledDef(FIGHTERS[i], (sq || loadSquad()).styles[FIGHTERS[i].key])
+const coll = scene => scene.game.collection || (scene.game.collection = loadCollection())
+const squadDef = (i, sq, scene) => { const q = sq || loadSquad(), k = FIGHTERS[i].key; return styledDef(FIGHTERS[i], q.styles[k], (q.loadouts || {})[k], scene ? coll(scene).combos : {}) }
 
 // a cut gem: diamond with facets, in a pillar colour (white = wild gem from house points)
 function gemIcon(g, x, y, r, col) {
@@ -212,11 +213,12 @@ export class SelectScene extends Phaser.Scene {
     this.special = txt(this, 340, 136, '', { fontFamily: BODY, fontStyle: '700', fontSize: '16px' })
     this.statG = this.add.graphics()
     this.statLabels = ['Speed', 'Power', 'Reach'].map((s, i) => txt(this, 340, 166 + i * 21, s, { fontFamily: BODY, fontStyle: '600', fontSize: '16px', color: '#9AA3AE' }))
-    this.comboT = [0, 1, 2].map(i => [
-      txt(this, 340, 238 + i * 24, '', { fontFamily: BODY, fontStyle: '700', fontSize: '17px' }),
-      txt(this, 776, 238 + i * 24, '', { fontFamily: BODY, fontStyle: '700', fontSize: '17px', color: '#F2F2F2' }).setOrigin(1, 0),
+    this.comboT = [0, 1, 2, 3].map(i => [
+      txt(this, 340, 236 + i * 20, '', { fontFamily: BODY, fontStyle: '700', fontSize: '16px' }),
+      txt(this, 776, 236 + i * 20, '', { fontFamily: BODY, fontStyle: '700', fontSize: '16px', color: '#F2F2F2' }).setOrigin(1, 0),
     ])
-    txt(this, 776, 314, 'L = tap   M = hold   H = long hold', { fontFamily: BODY, fontStyle: '600', fontSize: '13px', color: '#9AA3AE' }).setOrigin(1, 0)
+    button(this, 712, 338, 128, 26, 'Edit combos  ▸', '#F2F2F2', () => this.scene.start('Combos', { pick: this.game.cfg.pick }), { size: 15 })
+    txt(this, 340, 322, 'L = tap   M = hold   H = long hold', { fontFamily: BODY, fontStyle: '600', fontSize: '13px', color: '#9AA3AE' })
     // fight order slots
     txt(this, 22, 356, 'Fighters  (gold number = fight order)', { fontFamily: BODY, fontStyle: '600', fontSize: '15px', color: '#9AA3AE' })
     this.boxes = FIGHTERS.map((f, i) => {
@@ -244,13 +246,14 @@ export class SelectScene extends Phaser.Scene {
   }
   makePreview() {
     const cfg = this.game.cfg
-    this.prev = makeFighter(squadDef(cfg.pick, this.sq), 170, 1); this.prev.side = 'p1'; this.prev.theme = NATURAL_HOUSE[this.prev.def.key]
+    this.prev = makeFighter(squadDef(cfg.pick, this.sq, this), 170, 1); this.prev.side = 'p1'; this.prev.theme = NATURAL_HOUSE[this.prev.def.key]
     this.prevPose = makePose(this.prev, this.frame); this.demoT = 20
   }
   choose(i) { this.game.cfg.pick = i; this.makePreview(); this.refresh() }
   cycleStyle() {
     const key = FIGHTERS[this.game.cfg.pick].key
     this.sq.styles[key] = STYLE_KEYS[(STYLE_KEYS.indexOf(this.sq.styles[key]) + 1) % STYLE_KEYS.length]
+    if (this.sq.loadouts) delete this.sq.loadouts[key]
     saveSquad(this.sq); this.makePreview(); this.refresh()
   }
   toggleTeam() {
@@ -260,7 +263,7 @@ export class SelectScene extends Phaser.Scene {
     saveSquad(this.sq); this.refresh()
   }
   refresh() {
-    const cfg = this.game.cfg, f = FIGHTERS[cfg.pick], def = squadDef(cfg.pick, this.sq), st = STYLES[def.style]
+    const cfg = this.game.cfg, f = FIGHTERS[cfg.pick], def = squadDef(cfg.pick, this.sq, this), st = STYLES[def.style]
     const order = this.sq.order
     this.boxes.forEach((t, i) => {
       const on = i === cfg.pick, col = hex(t.def.colour), place = order.indexOf(i)
@@ -283,7 +286,7 @@ export class SelectScene extends Phaser.Scene {
       const y = 173 + i * 21, w = 300 * Math.max(0.1, Math.min(1, (v - lo) / (hi - lo)))
       g.fillStyle(0x2a3138, 1); g.fillRect(420, y, 300, 8); g.fillStyle(hex(f.colour), 1); g.fillRect(420, y, w, 8)
     })
-    def.combos.forEach((c, i) => { this.comboT[i][0].setText(c.name).setColor(f.colour); this.comboT[i][1].setText(comboLabel(c.seq)) })
+    this.comboT.forEach((row, i) => { const c = def.combos[i]; row[0].setText(c ? c.name + (c.level > 1 ? '  ' + '★'.repeat(c.level - 1) : '') : '— empty slot —').setColor(c ? (c.rarity === 'common' ? f.colour : RARITY[c.rarity].colour) : '#5c6670'); row[1].setText(c ? comboLabel(c.seq) : '') })
     this.lvlBtns.forEach((b, i) => b.setOn(['easy', 'medium', 'hard'][i] === cfg.level))
     if (this.fightBtn) this.fightBtn.destroy()
     const lead = order.length ? FIGHTERS[order[0]].colour : '#5c6670'
@@ -294,7 +297,7 @@ export class SelectScene extends Phaser.Scene {
     if (!order.length) { this.cameras.main.shake(120, 0.004); return }
     // CPU team: same size, random pillars and styles
     const pool = Phaser.Utils.Array.Shuffle([0, 1, 2, 3, 4])
-    const team1 = order.map(p => ({ p, style: this.sq.styles[FIGHTERS[p].key] }))
+    const team1 = order.map(p => ({ p, style: this.sq.styles[FIGHTERS[p].key], loadout: (this.sq.loadouts || {})[FIGHTERS[p].key] }))
     const team2 = pool.slice(0, order.length).map(p => ({ p, style: Phaser.Utils.Array.GetRandom(STYLE_KEYS) }))
     sfx(this).resume?.()
     this.cameras.main.flash(160, 255, 255, 255)
@@ -334,7 +337,7 @@ export class FightScene extends Phaser.Scene {
     setupCam(this)
     const b = bridge(this); b.onScene?.('fight')
     const P = prog(this), cpuUp = cpuUpgrades(P, data.level)
-    const defs = (t, mine) => (t || []).map(x => applyUpgrades(styledDef(FIGHTERS[x.p], x.style), mine ? (P.upgrades || {})[FIGHTERS[x.p].key] : cpuUp))
+    const defs = (t, mine) => (t || []).map(x => applyUpgrades(styledDef(FIGHTERS[x.p], x.style, mine ? x.loadout : null, mine ? coll(this).combos : {}), mine ? (P.upgrades || {})[FIGHTERS[x.p].key] : cpuUp))
     this.m = new Match(defs(data.team1, true), defs(data.team2, false), data.level)
     for (const f of [...this.m.t1, ...this.m.t2]) f.theme = NATURAL_HOUSE[f.def.key]
     this.tagReq = null
@@ -468,6 +471,7 @@ export class FightScene extends Phaser.Scene {
           break
         }
         case 'super': this.superCutIn(e.f, e.name); break
+        case 'flow': this.popText(e.f.x, e.f.y - 230, e.level >= FLOW_MAX ? 'FULL FLOW!' : `FLOW ×${e.level}`, '#5BE0FF', e.level >= FLOW_MAX ? 32 : 24); if (e.level >= FLOW_MAX) { this.ringAt(e.f.x, e.f.y - 80, 0x5be0ff, 1.4); sx.special?.() } break
         case 'secondWind': this.popText(e.f.x, e.f.y - 210, 'SECOND WIND!', '#5BE04A', 28); this.ringAt(e.f.x, e.f.y - 80, 0x5be04a, 1.2); sx.special?.(); break
         case 'projectile': this.spawnProjectile(e.pj); break
         case 'projectileGone': this.killProjectile(e.pj); break
@@ -626,6 +630,9 @@ export class FightScene extends Phaser.Scene {
       g.fillStyle(full ? (m.frame % 10 < 5 ? 0xf5c542 : 0xfff6c9) : 0xf5c542, 1)
       g.fillRect(right ? mx + mw - mw * mt / 100 : mx, 74, mw * mt / 100, 8)
       g.lineStyle(1, 0xf5c542, 0.5); g.strokeRect(mx, 74, mw, 8)
+      // FLOW pips (10)
+      const fl = f.flow || 0
+      for (let i = 0; i < FLOW_MAX; i++) { const px = right ? mx - 12 - i * 9 : mx + mw + 6 + i * 9; g.fillStyle(i < fl ? (fl >= FLOW_MAX ? 0xffffff : 0x5be0ff) : 0x1c222a, 1); g.fillRect(px, 74, 6, 8) }
     }
     bar(20, m.p1, false, this.lag.p1); bar(W - 350, m.p2, true, this.lag.p2)
     // timer
@@ -694,6 +701,17 @@ export class ResultsScene extends Phaser.Scene {
         })
       })
     } else gemT.setText('')
+    // a win may drop a combo card for one of your team's styles
+    if (!data.dropDone) {
+      data.dropDone = true
+      const id = rollComboDrop((data.team1 || []).map(t => t.style), data.level, youWon)
+      if (id) {
+        const { coll: nc, isNew, level } = addComboCard(coll(this), id); this.game.collection = nc
+        const c = COMBO_BY_ID[id], col = RARITY[c.rarity].colour
+        const card = txt(this, 190, 70, `${isNew ? 'NEW COMBO CARD' : 'COMBO LEVELLED UP'}\n${c.name}${isNew ? '' : '  ' + '★'.repeat(level - 1)}\n${RARITY[c.rarity].name} · ${STYLES[c.styles[0]].name}`, { fontFamily: BODY, fontStyle: '700', fontSize: '19px', color: col, align: 'center', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5, 0)
+        card.setScale(0.3); this.tweens.add({ targets: card, scale: 1, duration: 300, ease: 'Back.out' }); sfx(this).special?.()
+      }
+    }
     sfx(this).cheer?.(youWon ? 1.5 : 0.6)
     sfx(this).say?.(youWon ? 'You win' : 'You lose', 0.5)
   }
@@ -807,5 +825,70 @@ export class UpgradeScene extends Phaser.Scene {
     } catch (e) { this.cameras.main.shake(140, 0.005) }
     this.busy = false
     this.refresh()
+  }
+}
+
+// ---------------- Combos: choose each fighter's loadout from the combos you own ----------------
+export class CombosScene extends Phaser.Scene {
+  constructor() { super('Combos') }
+  create(data) {
+    setupCam(this); bridge(this).onScene?.('combos')
+    buildArena(this, { dim: 0.86 })
+    this.pick = data?.pick ?? 0
+    this.sq = loadSquad()
+    const f = FIGHTERS[this.pick], style = this.sq.styles[f.key]
+    txt(this, 24, 10, 'COMBOS', { fontSize: '40px', color: GOLD, stroke: '#000', strokeThickness: 6 })
+    txt(this, 214, 24, `${f.name} · ${STYLES[style].name}`, { fontSize: '24px', color: f.colour })
+    button(this, 748, 32, 84, 36, 'Back', '#F2F2F2', () => this.scene.start('Select'), { size: 20 })
+    this.countT = txt(this, 24, 64, '', { fontFamily: BODY, fontStyle: '700', fontSize: '16px', color: '#C9CED6' })
+    txt(this, 776, 64, 'Tap a combo you own to equip or remove it', { fontFamily: BODY, fontStyle: '600', fontSize: '14px', color: '#9AA3AE' }).setOrigin(1, 0)
+    this.list = combosForStyle(style)
+    this.cards = this.list.map((c, i) => {
+      const x = 22 + (i % 2) * 382, y = 92 + Math.floor(i / 2) * 66
+      const bg = this.add.graphics()
+      const name = txt(this, x + 12, y + 6, '', { fontSize: '19px' })
+      const seq = txt(this, x + 12, y + 32, comboLabel(c.seq), { fontFamily: BODY, fontStyle: '700', fontSize: '15px', color: '#C9CED6' })
+      const tag = txt(this, x + 364, y + 8, '', { fontFamily: BODY, fontStyle: '700', fontSize: '13px' }).setOrigin(1, 0)
+      const eq = txt(this, x + 364, y + 32, '', { fontFamily: BODY, fontStyle: '700', fontSize: '14px', color: '#0A0A0A' }).setOrigin(1, 0)
+      const zone = this.add.zone(x, y, 372, 58).setOrigin(0).setInteractive()
+      zone.on('pointerdown', () => this.toggle(c.id))
+      return { c, x, y, bg, name, seq, tag, eq }
+    })
+    txt(this, 22, 362, 'FLOW: land strikes in a natural order (jab → cross → hook, low kick → hook…) to build the flow meter for more damage and super. A clumsy order or a pause resets it; block then counter keeps it going.', { fontFamily: BODY, fontStyle: '600', fontSize: '13px', color: '#5BE0FF', wordWrap: { width: 756 } })
+    txt(this, 22, 404, 'Commons are yours from the start. Rare and Epic combo cards drop from wins; a duplicate card levels a combo up (★ = +5% bonus).', { fontFamily: BODY, fontStyle: '600', fontSize: '13px', color: '#9AA3AE', wordWrap: { width: 756 } })
+    this.refresh()
+  }
+  loadout() {
+    const f = FIGHTERS[this.pick], style = this.sq.styles[f.key]
+    const cur = (this.sq.loadouts || {})[f.key]
+    return (cur && cur.length ? cur : defaultLoadout(style)).filter(id => COMBO_BY_ID[id] && COMBO_BY_ID[id].styles.includes(style))
+  }
+  toggle(id) {
+    const C = coll(this)
+    if (!ownsCombo(C, id)) { this.cameras.main.shake(100, 0.003); return }
+    const f = FIGHTERS[this.pick]
+    let lo = [...this.loadout()]
+    if (lo.includes(id)) lo = lo.filter(x => x !== id)
+    else if (lo.length < LOADOUT_SIZE) lo.push(id)
+    else { this.cameras.main.shake(100, 0.003); return }
+    this.sq.loadouts = { ...(this.sq.loadouts || {}), [f.key]: lo }
+    saveSquad(this.sq); sfx(this).ui?.(); this.refresh()
+  }
+  refresh() {
+    const C = coll(this), lo = this.loadout(), f = FIGHTERS[this.pick]
+    this.countT.setText(`Equipped ${lo.length} / ${LOADOUT_SIZE}   ·   Owned ${this.list.filter(c => ownsCombo(C, c.id)).length} / ${this.list.length}`)
+    for (const k of this.cards) {
+      const own = ownsCombo(C, k.c.id), lv = C.combos[k.c.id] || 0, slot = lo.indexOf(k.c.id), rc = RARITY[k.c.rarity]
+      k.bg.clear()
+      k.bg.fillStyle(slot >= 0 ? hex(f.colour) : 0x10141a, slot >= 0 ? 0.22 : 0.95); k.bg.fillRoundedRect(k.x, k.y, 372, 58, 8)
+      k.bg.lineStyle(slot >= 0 ? 3 : 1.5, own ? hex(rc.colour) : 0x262d36, own ? 1 : 0.7); k.bg.strokeRoundedRect(k.x, k.y, 372, 58, 8)
+      k.name.setText(own ? k.c.name + (lv > 1 ? '  ' + '★'.repeat(lv - 1) : '') : '???  ' + k.c.name).setColor(own ? '#F2F2F2' : '#5c6670')
+      k.seq.setAlpha(own ? 1 : 0.4)
+      k.tag.setText(rc.name.toUpperCase()).setColor(rc.colour)
+      if (slot >= 0) { k.eq.setText(`EQUIPPED ${slot + 1}`); k.bg.fillStyle(0xf5c542, 1); k.bg.fillRoundedRect(k.x + 268, k.y + 31, 100, 20, 4) }
+      else k.eq.setText(own ? '' : 'LOCKED').setColor(own ? '#0A0A0A' : '#5c6670')
+      if (slot < 0 && !own) k.eq.setColor('#5c6670')
+      else k.eq.setColor('#0A0A0A')
+    }
   }
 }
