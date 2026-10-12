@@ -11,6 +11,7 @@ const ICONS = {
   leagues:   ['#E6B800', <path d="M8 4h8v4a4 4 0 0 1-8 0zM6 6H3a3 3 0 0 0 3 3M18 6h3a3 3 0 0 1-3 3M12 12v4M8 20h8" />],
   pdp:       ['#E6B800', <><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="4" /><path d="M12 12l7-7" /></>],
   fight:     ['#FF2A2A', <path d="M6 12h2l2-5 4 10 2-5h2" />],
+  games:     ['#22B14C', <><path d="M7 9h10a4 4 0 0 1 4 4v2a3 3 0 0 1-5.2 2L14 15h-4l-1.8 2A3 3 0 0 1 3 15v-2a4 4 0 0 1 4-4z" /><path d="M8 12v3M6.5 13.5h3M15.5 13h.01M17.5 14.5h.01" /></>],
 }
 const keyFor = name => {
   const n = String(name || '').toLowerCase()
@@ -24,6 +25,7 @@ const keyFor = name => {
   if (n.startsWith('league')) return 'leagues'
   if (n.startsWith('pdp')) return 'pdp'
   if (n.startsWith('fit')) return 'fight'
+  if (n.startsWith('game')) return 'games'
   return null
 }
 export default function NeonTileIcon({ name }) {

@@ -10397,7 +10397,6 @@ export default function AthleteProfiles() {
                       {expandedHomeMentality === 'gaming' && (
                         <>
                           <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.gaming?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>session{(todaysMentalityLog.gaming?.count || 0) === 1 ? '' : 's'} today</span></div>
-                          <button type="button" className="btn btn-sm" onClick={() => setFightOpen(true)} style={{ width: '100%', justifyContent: 'center', marginBottom: 10, borderColor: '#22B14C', color: '#22B14C' }}>🥊 Play KR Fight here</button>
                           {AmountPicker({ draftKey: 'HomeMentality:gaming', presets: [1, 2, 3], unit: '', step: 1, colour: '#22B14C', onAdd: n => saveMentalityField('gaming', cur => ({ count: (cur.count || 0) + n })) })}
                         </>
                       )}
