@@ -1104,3 +1104,33 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .ff-backdrop { position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.5); display: flex; align-items: flex-end; justify-content: center; }
 .ff-sheet { width: 100%; max-width: 640px; max-height: 85vh; overflow-y: auto; border-radius: 16px 16px 0 0 !important; padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)) !important; }
 @media (min-width: 641px) { .ff-backdrop { align-items: center; } .ff-sheet { border-radius: 16px !important; } }
+/* CRM Stock */
+.stk-tabs { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 12px; }
+.stk-tabs button, .stk-seg button, .stk-chips button { flex-shrink: 0; padding: 7px 12px; border-radius: 18px; border: 1px solid var(--border-strong); background: var(--bg); color: var(--text); font-size: 13px; cursor: pointer; font-family: inherit; white-space: nowrap; }
+.stk-tabs button.on, .stk-seg button.on, .stk-chips button.on { background: #06B6D4; border-color: #06B6D4; color: #fff; font-weight: 700; }
+.stk-seg, .stk-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.stk-item { margin-bottom: 10px; }
+.stk-item-head { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 8px; font-size: 14px; }
+.stk-item-head span, .stk-muted, .stk-note { font-size: 12px; color: var(--text-secondary); }
+.stk-note { margin-bottom: 10px; }
+.stk-vars { display: flex; gap: 6px; flex-wrap: wrap; }
+.stk-var { display: flex; flex-direction: column; align-items: center; min-width: 58px; padding: 6px 8px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--bg-secondary); color: var(--text); cursor: pointer; font-family: inherit; }
+.stk-var span { font-size: 11px; color: var(--text-secondary); }
+.stk-var b { font-size: 18px; }
+.stk-var.low { border-color: #E24B4A; background: #E24B4A12; }
+.stk-var.low b { color: #E24B4A; }
+.stk-var.on { border-color: #06B6D4; background: #06B6D41C; box-shadow: 0 0 0 2px #06B6D466; }
+.stk-sell .field select, .stk-sell .field input, .stk-sheet .field input { width: 100%; box-sizing: border-box; }
+.stk-found { position: absolute; left: 0; right: 0; top: 100%; z-index: 20; background: var(--bg); border: 1px solid var(--border-strong); border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,0.15); }
+.stk-found button { display: block; width: 100%; text-align: left; padding: 9px 12px; border: none; background: none; color: var(--text); cursor: pointer; font-family: inherit; font-size: 14px; }
+.stk-total { display: flex; gap: 10px; margin: 12px 0; }
+.stk-total > div { flex: 1; padding: 10px; border-radius: 10px; background: var(--bg-secondary); }
+.stk-total span { display: block; font-size: 11px; color: var(--text-tertiary); }
+.stk-total b { font-size: 20px; margin-right: 6px; }
+.stk-total s { font-size: 12px; color: var(--text-tertiary); }
+.stk-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.stk-sale { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; margin-bottom: 8px; padding: 12px !important; }
+.stk-chip { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border-radius: 16px; background: var(--bg-secondary); border: 1px solid var(--border); font-size: 13px; }
+.stk-chip button { border: none; background: none; color: var(--text-tertiary); cursor: pointer; font-size: 15px; }
+.stk-backdrop { position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.stk-sheet { width: 100%; max-width: 420px; max-height: 88vh; overflow-y: auto; }

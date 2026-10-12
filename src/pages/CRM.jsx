@@ -1,5 +1,6 @@
 import { useState, useEffect, Fragment, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import StockPanel from '../components/crm/StockPanel.jsx'
 import ParentRequestsPanel from '../components/parent/ParentRequestsPanel.jsx'
 import EnquirySendTemplates, { DEFAULT_ENQUIRY_TEMPLATES } from '../components/crm/EnquiryTemplates.jsx'
 import { isDateOnHoliday } from '../lib/attendanceDays.js'
@@ -361,7 +362,7 @@ export default function CRM() {
   const HEAD_COACH_TABS = ['enquiries', 'missed_training', 'stopped_training', 'standing_orders', 'trackers', 'birthdays']
   const [enqVenue, setEnqVenue] = useState('all')   // admin's venue filter on enquiries
   const location = useLocation()
-  const DEFAULT_TAB_ORDER = ['standing_orders', 'missed_training', 'stopped_training', 'grading_requests', 'birthdays', 'enquiries', 'trackers', 'messages', 'email', 'courses', 'parent_requests']
+  const DEFAULT_TAB_ORDER = ['standing_orders', 'missed_training', 'stopped_training', 'grading_requests', 'birthdays', 'enquiries', 'trackers', 'messages', 'email', 'courses', 'parent_requests', 'stock']
   const [tabOrder, setTabOrder] = useSyncedPreference('crm_tab_order', DEFAULT_TAB_ORDER)
   // Adds any newly-introduced tab that predates a saved order, and
   // drops any that no longer exist, rather than silently hiding/
@@ -3227,6 +3228,7 @@ export default function CRM() {
 
       {(() => {
         const TAB_DEFS = {
+          stock: { label: 'Stock', colour: '#06B6D4', onSelect: () => setTab('stock') },
           parent_requests: { label: `Parent requests${parentReqCount > 0 ? ` (${parentReqCount})` : ''}`, colour: '#E24B4A', onSelect: () => setTab('parent_requests') },
           standing_orders:  { label: 'Standing orders', colour: '#378ADD', onSelect: () => setTab('standing_orders') },
           missed_training:  { label: `Missed training${missedActiveCount > 0 ? ` (${missedActiveCount})` : ''}`, colour: '#EF9F27', onSelect: () => { setTab('missed_training'); if (!missedTrainingLoaded) loadMissedTraining() } },
@@ -3301,6 +3303,7 @@ export default function CRM() {
       })()}
 
 
+      {tab === 'stock' && <StockPanel />}
       {tab === 'parent_requests' && <ParentRequestsPanel onCount={setParentReqCount} />}
 
       {tab === 'enquiries' && (
