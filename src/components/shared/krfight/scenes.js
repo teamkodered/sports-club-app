@@ -745,7 +745,7 @@ export class UpgradeScene extends Phaser.Scene {
       return c
     })
     // MTP group tabs
-    this.groupBtns = AREA_GROUPS.map((gname, i) => button(this, 96 + i * 152, 134, 144, 30, `${gname} ${AREAS.filter(a => a.g === gname).length}`, FIGHTERS.find(f => f.name === gname.toUpperCase())?.colour || '#F2F2F2', () => { this.group = gname; this.refresh() }, { size: 16 }))
+    this.groupBtns = AREA_GROUPS.map((gname, i) => button(this, 96 + i * 152, 134, 144, 30, `${gname} ${AREAS.filter(a => a.g === gname).length}`, FIGHTERS.find(f => f.key === gname.toLowerCase())?.colour || '#F2F2F2', () => { this.group = gname; this.refresh() }, { size: 16 }))
     // up to 16 area cards (4 x 4)
     this.cards = Array.from({ length: 16 }, (_, i) => {
       const x = 20 + (i % 4) * 191, y = 156 + Math.floor(i / 4) * 68
