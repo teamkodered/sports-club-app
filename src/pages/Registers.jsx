@@ -904,6 +904,11 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     .filter(s => !showOnlyAttended || (attendance[s.id] && attendance[s.id] !== 'none'))
     .filter(s => !groupFilter || studentGroups(s, s.members).includes(groupFilter))
     .filter(s => {
+      // Limited to certain classes (Settings -> Team): never fall back to "everyone today" -- on a day
+      // (or class) they don't have, the class register shows nobody except one-offs they added
+      if (regType === 'class' && allowedClassIds && (classFilter === 'all' || !allowedClassIds.includes(classFilter))) {
+        return oneOffStudentsRef.current.some(o => o.id === s.id)
+      }
       if (classFilter === 'all') return true
       // Added as a one-off for this session: always on the register, whichever class is selected
       if (oneOffStudentsRef.current.some(o => o.id === s.id)) return true
@@ -1638,6 +1643,9 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
       {!initialRegType && (todayClasses.length > 0 || derbyMooreClasses.length > 0 || moorwaysClasses.length > 0) && (
         <div className="reg-class-pills reg-hide-in-pm" style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {allowedClassIds && regType === 'class' && ![...todayClasses, ...derbyMooreClasses, ...moorwaysClasses].some(classAllowed) && (
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)', padding: '6px 2px' }}>None of your classes run on this day.</div>
+            )}
             {todayClasses.filter(classAllowed).map(c => (
               <div key={c.id} onClick={() => setClassFilter(c.id)} style={{
                 background: classFilter === c.id ? 'var(--text)' : 'var(--bg-secondary)',
