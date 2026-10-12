@@ -20,7 +20,7 @@ export const FIGHTERS = [
   { key: 'mentality', name: 'GREEN', pillar: 'Mentality', colour: '#22B14C', trim: '#0E5F27', speed: 4.2, power: 1.0, reach: 1.0, special: 'wave', specialName: 'Focus Wave', combos: [{ name: 'Jab · Jab · Cross', seq: ['lp', 'lp', 'mp'], bonus: 1.6 }, { name: 'Teep · Cross · Hook', seq: ['lk', 'mp', 'hp'], bonus: 1.7 }, { name: 'Jab · High Kick · Focus Wave', seq: ['lp', 'hk', 'sp'], bonus: 1.5 }] },
   { key: 'technical', name: 'BLUE', pillar: 'Technical', colour: '#2F6BFF', trim: '#13306F', speed: 4.6, power: 0.95, reach: 1.05, special: 'rush', specialName: 'Combo Rush', combos: [{ name: 'Jab · Cross · Hook', seq: ['lp', 'mp', 'hp'], bonus: 1.6 }, { name: 'Jab · Body Kick · High Kick', seq: ['lp', 'mk', 'hk'], bonus: 1.7 }, { name: 'Jab Blitz', seq: ['lp', 'lp', 'lp', 'lp'], bonus: 2.0 }] },
   { key: 'tactical', name: 'RED', pillar: 'Tactical', colour: '#FF2A2A', trim: '#6F1010', speed: 4.3, power: 1.0, reach: 1.0, special: 'counter', specialName: 'Counter', combos: [{ name: 'Step Back · Cross · Hook', seq: ['b', 'mp', 'hp'], bonus: 1.7 }, { name: 'Jab Feint · High Kick', seq: ['lp', 'f', 'hk'], bonus: 1.7 }, { name: 'Teep · Teep · Cross', seq: ['lk', 'lk', 'mp'], bonus: 1.6 }] },
-  { key: 'physical', name: 'GOLD', pillar: 'Physical', colour: '#E6B800', trim: '#6A5400', speed: 3.8, power: 1.2, reach: 0.95, special: 'upper', specialName: 'Power Uppercut', combos: [{ name: 'Cross · Hook · Hook', seq: ['mp', 'hp', 'hp'], bonus: 1.5 }, { name: 'Duck · Cross · Hook', seq: ['d', 'mp', 'hp'], bonus: 1.7 }, { name: 'Charge · Hook', seq: ['f', 'f', 'hp'], bonus: 1.8 }] },
+  { key: 'physical', name: 'YELLOW', pillar: 'Physical', colour: '#E6B800', trim: '#6A5400', speed: 3.8, power: 1.2, reach: 0.95, special: 'upper', specialName: 'Power Uppercut', combos: [{ name: 'Cross · Hook · Hook', seq: ['mp', 'hp', 'hp'], bonus: 1.5 }, { name: 'Duck · Cross · Hook', seq: ['d', 'mp', 'hp'], bonus: 1.7 }, { name: 'Charge · Hook', seq: ['f', 'f', 'hp'], bonus: 1.8 }] },
   { key: 'foundation', name: 'PURPLE', pillar: 'Foundation', colour: '#C93BFF', trim: '#55157A', speed: 3.9, power: 1.05, reach: 1.0, special: 'quake', specialName: 'Shockwave', combos: [{ name: 'Teep · Body Kick · High Kick', seq: ['lk', 'mk', 'hk'], bonus: 1.7 }, { name: 'Sweep · Hook', seq: ['d', 'lk', 'hp'], bonus: 1.7 }, { name: 'Jab · Teep · Cross · High Kick', seq: ['lp', 'lk', 'mp', 'hk'], bonus: 1.9 }] },
 ]
 
@@ -52,7 +52,7 @@ export const MOVES = LIB
 // Fighting styles. moves: what each button throws (tap / hold / long hold). Stats multiply the fighter's
 // own. Combos are written for the style so they flow like it.
 export const STYLES = {
-  kickboxer: { name: 'Kickboxer', blurb: 'All-rounder: punches and kicks flow together', speed: 1, power: 1, reach: 1,
+  kickboxer: { name: 'Freestyle Kickboxing', blurb: 'All-rounder: punches and kicks flow together', speed: 1, power: 1, reach: 1,
     moves: { lp: 'jab', mp: 'cross', hp: 'hook', lk: 'teep', mk: 'bodykick', hk: 'highkick' },
     combos: [{ name: 'Jab · Cross · Hook', seq: ['lp', 'mp', 'hp'], bonus: 1.6 }, { name: 'Jab · Cross · Body Kick', seq: ['lp', 'mp', 'mk'], bonus: 1.7 }, { name: 'Teep · Cross · High Kick', seq: ['lk', 'mp', 'hk'], bonus: 1.8 }] },
   pro: { name: 'Pro Boxer', blurb: 'Punches only: heavy body shots, uppercuts and overhands', speed: 0.92, power: 1.18, reach: 1,
@@ -64,9 +64,9 @@ export const STYLES = {
   tkd: { name: 'Taekwondo', blurb: 'Kick specialist: long, fast and spinning kicks; light hands', speed: 1.08, power: 0.95, reach: 1.1, punchPower: 0.8,
     moves: { lp: 'jab', mp: 'cross', hp: 'hook', lk: 'roundkick', mk: 'sidekick', hk: 'spinkick' },
     combos: [{ name: 'Round · Round · Spinning Kick', seq: ['lk', 'lk', 'hk'], bonus: 1.8 }, { name: 'Side · Round · Side Kick', seq: ['mk', 'lk', 'mk'], bonus: 1.7 }, { name: 'Jab · Round Kick · Spinning Kick', seq: ['lp', 'lk', 'hk'], bonus: 1.7 }] },
-  thai: { name: 'Muay Thai', blurb: 'Low kicks, knees and elbows: short range, punishing', speed: 0.96, power: 1.1, reach: 0.95,
-    moves: { lp: 'jab', mp: 'cross', hp: 'elbow', lk: 'teep', mk: 'lowkick', hk: 'knee' },
-    combos: [{ name: 'Jab · Cross · Low Kick', seq: ['lp', 'mp', 'mk'], bonus: 1.7 }, { name: 'Teep · Elbow · Knee', seq: ['lk', 'hp', 'hk'], bonus: 1.8 }, { name: 'Low Kick · Low Kick · Elbow', seq: ['mk', 'mk', 'hp'], bonus: 1.6 }] },
+  thai: { name: 'K1 Kickboxing', blurb: 'Low kicks, knees and heavy hooks: short range, punishing', speed: 0.96, power: 1.1, reach: 0.95,
+    moves: { lp: 'jab', mp: 'cross', hp: 'hook', lk: 'teep', mk: 'lowkick', hk: 'knee' },
+    combos: [{ name: 'Jab · Cross · Low Kick', seq: ['lp', 'mp', 'mk'], bonus: 1.7 }, { name: 'Teep · Hook · Knee', seq: ['lk', 'hp', 'hk'], bonus: 1.8 }, { name: 'Low Kick · Low Kick · Hook', seq: ['mk', 'mk', 'hp'], bonus: 1.6 }] },
 }
 export const STYLE_KEYS = ['kickboxer', 'pro', 'am', 'tkd', 'thai']
 // a pillar fighter in a style: same colours / special / super, style's moves, combos and stat changes
