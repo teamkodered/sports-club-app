@@ -37,10 +37,15 @@ exports.handler = async (event) => {
     if (!email) return { statusCode: 422, body: JSON.stringify({ error: 'This login has no email address to match against.' }) }
 
     const memberRes = await fetch(
-      `${supabaseUrl}/rest/v1/members?email=ilike.${encodeURIComponent(email)}&select=id,auth_id,first_name,last_name&limit=1`,
+      `${supabaseUrl}/rest/v1/members?email=ilike.${encodeURIComponent(email)}&select=id,auth_id,first_name,last_name&limit=5`,
       { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } }
     )
     const members = await memberRes.json()
+    // Parents' emails are often on several children's records: never guess which one is theirs.
+    // Only link automatically when exactly ONE record has this email.
+    if ((members || []).length > 1) {
+      return { statusCode: 409, body: JSON.stringify({ error: 'ambiguous', message: 'This email is on more than one record (e.g. several children). Ask your coach to send you an app invite link, or an admin to create your login.' }) }
+    }
     const member = members?.[0]
 
     if (!member) {
