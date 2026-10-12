@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useBackableTab } from '../../hooks/useBackableTab.js'
 import { uploadMemberDoc, openMemberDoc } from '../../lib/memberDocs.js'
 import AppInviteButton from '../parent/AppInviteButton.jsx'
+import CreateLogin from '../shared/CreateLogin.jsx'
 import { useAuth } from '../../hooks/useAuth.jsx'
 import { supabase } from '../../lib/supabase.js'
 import { assignmentActiveOn, isPastAssignment, isFutureAssignment, askAssignmentDates, insertAssignment, endAssignment, setAssignmentDates, todayISO, fmtDMY } from '../../lib/classAssignments.jsx'
@@ -10,7 +11,7 @@ import { assignmentActiveOn, isPastAssignment, isFutureAssignment, askAssignment
 const HOUSE_COLOURS = { Phoenix: '#e24b4a', Titan: '#378add', Viper: '#1d9e75', Storm: '#ef9f27' }
 
 export default function StudentProfile({ student, onClose, isAdmin, embedded = false, swipeTabs = false, omitTabs = [], onSwipeBeforeFirst, hideIdentity = false }) {
-  const { isStaff: kcStaff } = useAuth()
+  const { isStaff: kcStaff, isAdmin: kcAdmin } = useAuth()
   const navigate = useNavigate()
   const [tab, setTab] = useBackableTab('profile')
   const visibleTabs = ['profile', 'contact', 'points', 'grading'].filter(t => !omitTabs.includes(t))
@@ -326,7 +327,12 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
 
         {/* Header */}
         <div style={{ padding: embedded ? '14px 12px' : '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', minWidth: 0 }}>
-          {kcStaff && <div style={{ order: 99, marginLeft: 'auto' }}><AppInviteButton student={localStudent} /></div>}
+          {kcStaff && <div style={{ order: 99, marginLeft: 'auto', display: 'flex', gap: 6 }}>
+            <AppInviteButton student={localStudent} />
+            {kcAdmin && !localStudent?.members?.auth_id && localStudent?.member_id && (
+              <CreateLogin memberId={localStudent.member_id} defaults={{ email: localStudent.members?.email, phone: localStudent.guardian_phone || localStudent.members?.phone }} />
+            )}
+          </div>}
           {/* hideIdentity: shown inside a register card that already has the photo and name */}
           {hideIdentity ? null : localStudent.photo_url ? (
             <div style={{ position: 'relative', width: 44, height: 44, flexShrink: 0 }}>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../../hooks/useAuth.jsx'
 import { ShareModal, COACH_SIGNUP_FORM } from '../../pages/Forms.jsx'
+import CreateLogin from './CreateLogin.jsx'
 import { supabase } from '../../lib/supabase.js'
 import { PAGES, REGISTER_TYPE_OPTIONS, ROLE_OPTIONS, TEAMS, roleDefault, groupId, groupName } from '../../lib/access.js'
 
@@ -140,7 +141,10 @@ export default function TeamAccess() {
       {COACH_SIGNUP_FORM && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', padding: '8px 10px', marginBottom: 10, borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
           <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>New coach? Send them the sign-up link (they'll need the coach access code below), then set their role here.</span>
-          <button type="button" className="btn btn-sm btn-primary" onClick={() => setSharingSignup(true)}>🧑‍🏫 Share coach sign-up link</button>
+          <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <CreateLogin label="🔑 Create a login (no email)" onDone={load} />
+            <button type="button" className="btn btn-sm btn-primary" onClick={() => setSharingSignup(true)}>🧑‍🏫 Share coach sign-up link</button>
+          </span>
         </div>
       )}
       {sharingSignup && <ShareModal form={COACH_SIGNUP_FORM} onClose={() => setSharingSignup(false)} />}
