@@ -7,7 +7,7 @@ let pjId = 1
 
 export function makeFighter(def, x, facing) {
   return {
-    buf: [], prevDir: {}, comboNext: null, comboText: 0, comboName: '', def, x, y: FLOOR, vx: 0, vy: 0, facing, hp: 100,
+    buf: [], prevDir: {}, comboNext: null, comboText: 0, comboName: '', def, x, y: FLOOR, vx: 0, vy: 0, facing, hp: def.maxHp || 100, maxHp: def.maxHp || 100,
     state: 'idle', t: 0, move: null, hitDone: false, stun: 0, crouch: false, blocking: false, specialCd: 0, counterT: 0,
     flash: 0, wins: 0, meter: 0, chain: 0, lastHitAt: -999, koT: 0,
   }
@@ -41,7 +41,7 @@ export class Match {
     const old = this[side], o = side === 'p1' ? this.p2 : this.p1
     const x = why === 'ko' ? (side === 'p1' ? 90 : W - 90) : old.x
     Object.assign(m, { x, y: FLOOR - 150, vx: 0, vy: 0, state: 'jump', move: null, stun: 0, t: 0, hitDone: false, crouch: false, blocking: false, counterT: 0, flash: 0, chain: 0, buf: [], comboNext: null, meter: old.meter || 0, facing: o.x > x ? 1 : -1 })
-    if (why === 'tag') old.benchCap = Math.min(100, old.hp + 25)
+    if (why === 'tag') old.benchCap = Math.min(old.maxHp, old.hp + 25)
     this[side] = m
     this.emit({ type: 'tagIn', side, f: m, from: old, why })
   }
@@ -122,7 +122,7 @@ export class Match {
   endMatch(winner, how) {
     this.phase = 'over'; this.phaseT = 0; this.winner = winner
     const w = winner ? this[winner] : null
-    this.emit({ type: 'roundOver', winner, how, matchOver: true, perfect: !!w && w.hp >= 100 && this.alive(winner).length === this.team(winner).length })
+    this.emit({ type: 'roundOver', winner, how, matchOver: true, perfect: !!w && w.hp >= w.maxHp && this.alive(winner).length === this.team(winner).length })
   }
 
   startMove(f, k) {
@@ -144,7 +144,7 @@ export class Match {
     if (k === 'sp') {
       if (f.specialCd > 0 && !f.comboNext) return
       if (f.comboNext) { f.comboName = f.comboNext.name; f.comboText = 70 }
-      f.specialCd = 150; st.specials++
+      f.specialCd = Math.round(150 * (f.def.cdMul || 1)); f.specialCdMax = f.specialCd; st.specials++
       const sp = f.def.special
       if (sp === 'wave') { f.move = { k: 'cast', s: 8, a: 2, r: 16, dmg: 0, reach: 30, h: 'high', push: 0 }; this.projectiles.push({ id: pjId++, owner: f, x: f.x + 50 * f.facing, y: f.y - 110, vx: 7 * f.facing, dmg: 11, h: 'high', colour: f.def.colour, low: false, life: 140, delay: 8 }) }
       else if (sp === 'quake') { f.move = { k: 'stomp', s: 10, a: 2, r: 18, dmg: 0, reach: 30, h: 'low', push: 0 }; this.projectiles.push({ id: pjId++, owner: f, x: f.x + 40 * f.facing, y: FLOOR - 14, vx: 6 * f.facing, dmg: 10, h: 'low', colour: f.def.colour, low: true, life: 120, delay: 10 }) }
@@ -177,7 +177,7 @@ export class Match {
     const hy = h === 'low' ? def.y - 18 : h === 'mid' ? def.y - 92 : def.y - (def.crouch ? 100 : 132)
     const pos = at || { x: def.x - def.facing * 18, y: hy }
     if (def.counterT > 0) {
-      def.counterT = 0; att.hp = Math.max(0, att.hp - 14); att.stun = 24; att.vx = -10 * att.facing; att.flash = 12; def.move = null
+      def.counterT = 0; att.hp = Math.max(0, att.hp - 14 * (att.def.defMul || 1)); att.stun = 24; att.vx = -10 * att.facing; att.flash = 12; def.move = null
       this.statsOf(def).hits++; this.statsOf(def).dmg += 14
       this.freeze = 10
       this.emit({ type: 'counter', att: def, def: att, x: att.x - att.facing * 18, y: att.y - 110 })
@@ -185,17 +185,18 @@ export class Match {
     }
     if (h === 'high' && def.crouch && def.y >= FLOOR) return // ducked under
     if (this.blocks(def, h)) {
-      def.hp = Math.max(0, def.hp - dmg * 0.15); def.vx = push * 0.6 * att.facing; def.stun = 8
-      att.meter = Math.min(100, (att.meter || 0) + 2); def.meter = Math.min(100, (def.meter || 0) + 3)
+      def.hp = Math.max(0, def.hp - dmg * 0.15 * (def.def.defMul || 1)); def.vx = push * 0.6 * att.facing; def.stun = 8
+      att.meter = Math.min(100, (att.meter || 0) + 2 * (att.def.meterMul || 1)); def.meter = Math.min(100, (def.meter || 0) + 3)
       this.statsOf(def).blocked++
       this.freeze = 2
       this.emit({ type: 'block', att, def, x: pos.x, y: pos.y })
       return
     }
-    att.meter = Math.min(100, (att.meter || 0) + dmg * 2.2); def.meter = Math.min(100, (def.meter || 0) + dmg * 1.2)
+    att.meter = Math.min(100, (att.meter || 0) + dmg * 2.2 * (att.def.meterMul || 1)); def.meter = Math.min(100, (def.meter || 0) + dmg * 1.2)
     // Each hit in a row stuns for less, and the 3rd+ pushes them out of range -- no endless jab lock
     def.chain = (this.frame - (def.lastHitAt || -999) < 40) ? (def.chain || 0) + 1 : 0
     def.lastHitAt = this.frame
+    dmg *= def.def.defMul || 1 // Defence upgrade
     def.hp = Math.max(0, def.hp - dmg)
     def.stun = Math.max(5, Math.round((10 + dmg * 0.8) - def.chain * 4))
     def.vx = push * att.facing * (def.chain >= 2 ? 2.4 : 1); def.flash = 10; def.move = null

@@ -4,6 +4,7 @@ import Phaser from 'phaser'
 import { W, H, FLOOR, FIGHTERS, MOVES, SUPER_NAME, LEVELS, comboLabel, hex, getLook, setLook, LOOK_LEVELS, HOUSES, HOUSE_KEYS, getHouse, setHouse, fxColour, cpuHouse, NATURAL_HOUSE, STYLES, STYLE_KEYS, styledDef, loadSquad, saveSquad, MAX_TEAM } from './data.js'
 import { Match, makeFighter } from './core.js'
 import { makePose, stepPose, drawFighter, targetPose } from './pose.js'
+import { loadProgress, PILLARS, AREAS, MAX_LV, DAILY_GEMS, available, wild, priceFor, buyUpgrade, fighterLevel, levelOf, matchGems, awardGems, applyUpgrades, cpuUpgrades } from './progress.js'
 
 export const Z = 2
 const DISPLAY = "'Saira Condensed', 'Arial Narrow', sans-serif"
@@ -128,6 +129,14 @@ function buildArenaStick(scene, opts = {}) {
 function demoMove(f, k) { const id = (f.def.moves && f.def.moves[k]) || k, mv = MOVES[id]; return mv ? { k: id, ...mv, reach: mv.reach * (f.def.reach || 1) } : null }
 const squadDef = (i, sq) => styledDef(FIGHTERS[i], (sq || loadSquad()).styles[FIGHTERS[i].key])
 
+// a cut gem: diamond with facets, in a pillar colour (white = wild gem from house points)
+function gemIcon(g, x, y, r, col) {
+  g.fillStyle(col, 1); g.fillPoints([{ x, y: y - r }, { x: x + r * 0.8, y: y - r * 0.25 }, { x, y: y + r }, { x: x - r * 0.8, y: y - r * 0.25 }], true)
+  g.fillStyle(0xffffff, 0.45); g.fillPoints([{ x, y: y - r }, { x: x + r * 0.8, y: y - r * 0.25 }, { x, y: y - r * 0.05 }], true)
+  g.lineStyle(1.5, 0x000000, 0.5); g.strokePoints([{ x, y: y - r }, { x: x + r * 0.8, y: y - r * 0.25 }, { x, y: y + r }, { x: x - r * 0.8, y: y - r * 0.25 }], true)
+}
+const prog = scene => scene.game.progress || {}
+
 // ---------------- Boot ----------------
 export class BootScene extends Phaser.Scene {
   constructor() { super('Boot') }
@@ -143,7 +152,10 @@ export class BootScene extends Phaser.Scene {
     mk('shard', 28, 8, g => { g.fillStyle(0xffffff, 1); g.fillTriangle(0, 4, 28, 0, 28, 8) })
     mk('beam', 220, 460, g => { for (let i = 0; i < 12; i++) { g.fillStyle(0xffffff, 0.08); const w = 20 + i * 9; g.fillTriangle(110, 0, 110 - w, 460, 110 + w, 460) } })
     mk('orb', 64, 64, g => { for (let r = 32; r > 0; r--) { g.fillStyle(0xffffff, r < 12 ? 1 : 0.05 + (1 - r / 32) * 0.35); g.fillCircle(32, 32, r) } })
-    this.scene.start(bridge(this).skipTitle ? 'Select' : 'Title')
+    const go = () => { if (this.started) return; this.started = true; this.scene.start(bridge(this).skipTitle ? 'Select' : 'Title') }
+    if (this.game.progress) { go(); return }
+    loadProgress().then(p => { this.game.progress = p; go() }).catch(() => go())
+    this.time.delayedCall(4000, go)
   }
 }
 
@@ -200,7 +212,8 @@ export class SelectScene extends Phaser.Scene {
       const icon = this.add.graphics()
       icon.fillStyle(hex(f.colour), 1); icon.fillCircle(0, -10, 14); icon.fillStyle(0xf1c9a5, 1); icon.fillCircle(0, -12, 7)
       const num = txt(this, 54, -24, '', { fontSize: '17px', color: '#0A0A0A' }).setOrigin(0.5)
-      c.add([g, icon, t, badge, num]); c.setSize(140, 76)
+      const lvT = txt(this, -62, -36, `Lv ${fighterLevel(prog(this), f.key)}`, { fontFamily: BODY, fontStyle: '700', fontSize: '13px', color: '#C9CED6' })
+      c.add([g, icon, t, badge, num, lvT]); c.setSize(140, 76)
       c.setInteractive(new Phaser.Geom.Rectangle(0, 0, 140, 76), Phaser.Geom.Rectangle.Contains)
       c.on('pointerdown', () => { sfx(this).ui?.(); this.choose(i) })
       c.g = g; c.badge = badge; c.num = num; c.def = f
@@ -208,7 +221,7 @@ export class SelectScene extends Phaser.Scene {
     })
     this.fg = this.add.graphics()
     this.makePreview()
-    this.name = txt(this, 338, 94, '', { fontSize: '42px', stroke: '#000', strokeThickness: 6 })
+    this.name = txt(this, 338, 96, '', { fontSize: '38px', stroke: '#000', strokeThickness: 6 })
     this.styleBtn = button(this, 462, 164, 244, 32, '', '#F2F2F2', () => this.cycleStyle(), { size: 18 })
     this.teamBtn = button(this, 694, 164, 164, 32, '', GOLD, () => this.toggleTeam(), { size: 18 })
     this.blurb = txt(this, 340, 186, '', { fontFamily: BODY, fontStyle: '600', fontSize: '15px', color: '#C9CED6' })
@@ -235,7 +248,8 @@ export class SelectScene extends Phaser.Scene {
     this.fightBtn = null
     // Look levels: 1 Cartoon, 2 Stickman, 3 Houses (all open while testing; later they unlock with game level)
     const lv = LOOK_LEVELS.find(l => l.key === getLook()) || LOOK_LEVELS[1]
-    button(this, 712, 120, 124, 32, `Look ${lv.level}: ${lv.name}`, '#9AA3AE', () => { setLook(LOOK_LEVELS[(LOOK_LEVELS.indexOf(lv) + 1) % LOOK_LEVELS.length].key); this.scene.restart() }, { size: 17 })
+    button(this, 724, 120, 120, 32, `Look ${lv.level}: ${lv.name}`, '#9AA3AE', () => { setLook(LOOK_LEVELS[(LOOK_LEVELS.indexOf(lv) + 1) % LOOK_LEVELS.length].key); this.scene.restart() }, { size: 15 })
+    button(this, 606, 120, 104, 32, 'Upgrade', GOLD, () => this.scene.start('Upgrade', { pick: this.game.cfg.pick }), { size: 17 })
     this.refresh()
   }
   makePreview() {
@@ -337,8 +351,9 @@ export class FightScene extends Phaser.Scene {
     this.data0 = data
     setupCam(this)
     const b = bridge(this); b.onScene?.('fight')
-    const defs = t => (t || []).map(x => styledDef(FIGHTERS[x.p], x.style))
-    this.m = new Match(defs(data.team1), defs(data.team2), data.level)
+    const P = prog(this), cpuUp = cpuUpgrades(P, data.level)
+    const defs = (t, mine) => (t || []).map(x => applyUpgrades(styledDef(FIGHTERS[x.p], x.style), mine ? (P.upgrades || {})[FIGHTERS[x.p].key] : cpuUp))
+    this.m = new Match(defs(data.team1, true), defs(data.team2, false), data.level)
     for (const f of [...this.m.t1, ...this.m.t2]) f.theme = NATURAL_HOUSE[f.def.key]
     this.tagReq = null
     this.poses = { p1: makePose(this.m.p1, 0), p2: makePose(this.m.p2, 0) }
@@ -503,7 +518,7 @@ export class FightScene extends Phaser.Scene {
         case 'matchOver': {
           this.time.delayedCall(700, () => {
             this.cameras.main.fadeOut(350, 5, 7, 10)
-            this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Results', { ...this.data0, winner: e.winner, stats: m.stats, winDef: e.winner ? m[e.winner].def : m.p1.def, kos: [m.t2.filter(x => x.hp <= 0).length, m.t1.filter(x => x.hp <= 0).length], sizes: [m.t1.length, m.t2.length] }))
+            this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Results', { ...this.data0, winner: e.winner, stats: m.stats, winDef: e.winner ? m[e.winner].def : m.p1.def, gems: matchGems(m.t1.map(f => f.def.key), e.winner === 'p1', data0Level(this)), kos: [m.t2.filter(x => x.hp <= 0).length, m.t1.filter(x => x.hp <= 0).length], sizes: [m.t1.length, m.t2.length] }))
           })
           break
         }
@@ -603,9 +618,9 @@ export class FightScene extends Phaser.Scene {
         : [{ x: x + sk, y }, { x: x + ww + sk, y }, { x: x + ww, y: y + h }, { x, y: y + h }]
       g.fillStyle(0x000000, 0.6); g.fillPoints(shape(x0 - 3, w + 6), true)
       g.fillStyle(0x2a3138, 1); g.fillPoints(shape(x0, w), true)
-      if (lag > f.hp) { g.fillStyle(0xffffff, 0.85); g.fillPoints(shape(x0, w * lag / 100), true) }
-      const low = f.hp <= 30
-      g.fillStyle(low ? (m.frame % 20 < 10 ? 0xe24b4a : 0xff7a6e) : hex(fxColour(f)), 1); g.fillPoints(shape(x0, Math.max(0, w * f.hp / 100)), true)
+      if (lag > f.hp) { g.fillStyle(0xffffff, 0.85); g.fillPoints(shape(x0, w * lag / f.maxHp), true) }
+      const low = f.hp <= f.maxHp * 0.3
+      g.fillStyle(low ? (m.frame % 20 < 10 ? 0xe24b4a : 0xff7a6e) : hex(fxColour(f)), 1); g.fillPoints(shape(x0, Math.max(0, w * f.hp / f.maxHp)), true)
       g.fillStyle(0xffffff, 0.18); g.fillRect(right ? x0 + 4 : x0 + 12, y + 3, w - 18, 5)
       g.lineStyle(2, 0xf2f2f2, 0.9); g.strokePoints(shape(x0, w), true)
       // team: one chip per fighter in order, mini health bar; tap a waiting teammate to tag them in
@@ -614,7 +629,7 @@ export class FightScene extends Phaser.Scene {
         const cw = 50, chx = right ? x0 + w - cw - i * 56 : x0 + i * 56, chy = 104
         const col = hex(mb.def.colour), active = mb === m[side], down = mb.hp <= 0
         g.fillStyle(0x0b0e12, 0.9); g.fillRoundedRect(chx, chy, cw, 24, 5)
-        if (!down) { g.fillStyle(col, active ? 1 : 0.75); g.fillRect(chx + 3, chy + 17, (cw - 6) * Math.max(0, mb.hp) / 100, 4) }
+        if (!down) { g.fillStyle(col, active ? 1 : 0.75); g.fillRect(chx + 3, chy + 17, (cw - 6) * Math.max(0, mb.hp) / mb.maxHp, 4) }
         g.lineStyle(active ? 2.5 : 1.5, down ? 0x3a424d : active ? 0xffffff : col, 1); g.strokeRoundedRect(chx, chy, cw, 24, 5)
         if (down) { g.lineStyle(2, 0x5c6670, 1); g.lineBetween(chx + 6, chy + 4, chx + cw - 6, chy + 20); g.lineBetween(chx + cw - 6, chy + 4, chx + 6, chy + 20) }
         else { g.fillStyle(col, 1); g.fillCircle(chx + 10, chy + 9, 5) }
@@ -639,9 +654,11 @@ export class FightScene extends Phaser.Scene {
     setT(this.sp1, spTxt(m.p1), (m.p1.meter || 0) >= 100 ? GOLD : m.p1.specialCd === 0 ? fxColour(m.p1) : '#5c6670')
     setT(this.sp2, spTxt(m.p2), (m.p2.meter || 0) >= 100 ? GOLD : m.p2.specialCd === 0 ? fxColour(m.p2) : '#5c6670')
     // live readings for the React buttons' charge rings
-    if (m.frame % 6 === 0) bridge(this).onHud?.({ sp: 1 - Math.min(1, (m.p1.specialCd || 0) / 150), sup: Math.min(1, (m.p1.meter || 0) / 100), special: m.p1.def.special, colour: m.p1.def.colour })
+    if (m.frame % 6 === 0) bridge(this).onHud?.({ sp: 1 - Math.min(1, (m.p1.specialCd || 0) / (m.p1.specialCdMax || 150)), sup: Math.min(1, (m.p1.meter || 0) / 100), special: m.p1.def.special, colour: m.p1.def.colour })
   }
 }
+
+const data0Level = sc => (sc.data0 && sc.data0.level) || 'medium'
 
 // ---------------- Results ----------------
 export class ResultsScene extends Phaser.Scene {
@@ -675,12 +692,30 @@ export class ResultsScene extends Phaser.Scene {
       txt(this, 630, y, String(a), { fontFamily: BODY, fontStyle: '700', fontSize: '20px', color: a > b ? GOLD : '#F2F2F2' }).setOrigin(0.5, 0)
       txt(this, 705, y, String(b), { fontFamily: BODY, fontStyle: '700', fontSize: '20px', color: b > a ? GOLD : '#F2F2F2' }).setOrigin(0.5, 0)
     })
-    button(this, 470, 396, 180, 50, 'Rematch', FIGHTERS[data.team1[0].p].colour, () => this.rematch(), { solid: true, size: 28, r: 10 })
-    button(this, 660, 396, 180, 50, 'Change team', '#F2F2F2', () => this.scene.start('Select'), { size: 24, r: 10 })
+    button(this, 470, 410, 180, 46, 'Rematch', FIGHTERS[data.team1[0].p].colour, () => this.rematch(), { solid: true, size: 28, r: 10 })
+    button(this, 660, 410, 180, 46, 'Change team', '#F2F2F2', () => this.scene.start('Select'), { size: 24, r: 10 })
+    // gems earned this match (60 a day limit)
+    const gemG = this.add.graphics(), gemT = txt(this, 560, 350, 'Adding gems…', { fontFamily: BODY, fontStyle: '700', fontSize: '17px', color: '#C9CED6' }).setOrigin(0.5, 0)
+    if (data.gems && !data.gemsDone) {
+      data.gemsDone = true
+      awardGems(prog(this), data.gems).then(({ progress, given }) => {
+        this.game.progress = progress
+        const ks = Object.keys(given)
+        if (!ks.length) { gemT.setText(`Daily gem limit reached (${DAILY_GEMS})`); return }
+        gemT.setText('')
+        const total = ks.length, x0 = 560 - (total * 92) / 2 + 46
+        ks.forEach((k, i) => {
+          const f = FIGHTERS.find(x => x.key === k), x = x0 + i * 92
+          gemIcon(gemG, x - 22, 362, 9, hex(f.colour))
+          txt(this, x - 8, 350, `+${given[k]}`, { fontFamily: BODY, fontStyle: '700', fontSize: '19px', color: f.colour })
+        })
+      })
+    } else gemT.setText('')
     sfx(this).cheer?.(youWon ? 1.5 : 0.6)
     sfx(this).say?.(youWon ? 'You win' : 'You lose', 0.5)
   }
   rematch() { this.scene.start('Fight', { team1: this.d.team1, team2: this.d.team2, level: this.d.level }) }
+  // (gems are only added once per match: the Results data is marked when done)
   update() {
     this.frame++
     const pr = bridge(this).pressed || {}
@@ -695,5 +730,108 @@ export class ResultsScene extends Phaser.Scene {
     this.fg.lineStyle(2, hex(fxColour(f)), 0.5); this.fg.strokeEllipse(190, 368, 200, 26)
     this.fg.setScale(1.25); this.fg.setPosition(-190 * 0.25, -366 * 0.25)
     drawFighter(this.fg, f, this.pose, this.frame, 1, { noKo: true, noTrail: true, y: 360, shadowY: 360 })
+  }
+}
+
+
+// ---------------- Upgrade: spend gems on a fighter's five areas ----------------
+export class UpgradeScene extends Phaser.Scene {
+  constructor() { super('Upgrade') }
+  create(data) {
+    setupCam(this); bridge(this).onScene?.('upgrade')
+    buildArena(this, { dim: 0.8 })
+    this.pick = data?.pick ?? 0; this.frame = 0; this.busy = false
+    txt(this, 24, 10, 'UPGRADE', { fontSize: '40px', color: GOLD, stroke: '#000', strokeThickness: 6 })
+    button(this, 748, 32, 84, 36, 'Back', '#F2F2F2', () => this.scene.start('Select'), { size: 20 })
+    // gem wallet
+    this.gemG = this.add.graphics()
+    this.gemT = PILLARS.map((k, i) => txt(this, 322 + i * 66, 20, '', { fontFamily: BODY, fontStyle: '700', fontSize: '20px', color: FIGHTERS.find(f => f.key === k).colour }))
+    this.wildT = txt(this, 322 + 5 * 66, 20, '', { fontFamily: BODY, fontStyle: '700', fontSize: '20px', color: '#F2F2F2' })
+    // fighter tabs
+    this.tabs = FIGHTERS.map((f, i) => {
+      const x = 26 + i * 152 + 70, y = 88
+      const c = this.add.container(x, y), g = this.add.graphics()
+      const t = txt(this, 0, -8, f.name, { fontSize: '18px', color: f.colour }).setOrigin(0.5)
+      const lv = txt(this, 0, 12, '', { fontFamily: BODY, fontStyle: '700', fontSize: '13px', color: '#C9CED6' }).setOrigin(0.5)
+      c.add([g, t, lv]); c.setSize(140, 48)
+      c.setInteractive(new Phaser.Geom.Rectangle(0, 0, 140, 48), Phaser.Geom.Rectangle.Contains)
+      c.on('pointerdown', () => { sfx(this).ui?.(); this.pick = i; this.makePreview(); this.refresh() })
+      c.g = g; c.lv = lv; c.def = f
+      return c
+    })
+    this.fg = this.add.graphics()
+    this.makePreview()
+    // five areas
+    this.rows = AREAS.map((a, i) => {
+      const y = 150 + i * 52
+      const name = txt(this, 330, y, a.name, { fontSize: '24px' })
+      const what = txt(this, 332, y + 26, a.what, { fontFamily: BODY, fontStyle: '600', fontSize: '13px', color: '#9AA3AE' })
+      const pips = this.add.graphics()
+      const btn = button(this, 728, y + 20, 104, 38, '', GOLD, () => this.buy(a.key), { size: 19 })
+      const gem = this.add.graphics()
+      return { a, y, name, what, pips, btn, gem }
+    })
+    this.note = txt(this, 330, 418, '', { fontFamily: BODY, fontStyle: '600', fontSize: '13px', color: '#9AA3AE' })
+    this.refresh()
+  }
+  makePreview() {
+    const f0 = FIGHTERS[this.pick]
+    this.prev = makeFighter(styledDef(f0, loadSquad().styles[f0.key]), 165, 1); this.prev.side = 'p1'; this.prev.theme = NATURAL_HOUSE[f0.key]
+    this.prevPose = makePose(this.prev, this.frame); this.demoT = 30
+  }
+  refresh() {
+    const P = prog(this), f = FIGHTERS[this.pick], col = hex(f.colour)
+    // wallet
+    const g = this.gemG; g.clear()
+    PILLARS.forEach((k, i) => { gemIcon(g, 310 + i * 66, 32, 9, hex(FIGHTERS.find(x => x.key === k).colour)); this.gemT[i].setText(String(Math.max(0, available(P, k)))) })
+    gemIcon(g, 310 + 5 * 66, 32, 9, 0xffffff); this.wildT.setText(String(Math.max(0, wild(P))))
+    // tabs
+    this.tabs.forEach((t, i) => {
+      const on = i === this.pick, c = hex(t.def.colour)
+      t.g.clear(); t.g.fillStyle(on ? c : 0x12161b, on ? 0.22 : 0.92); t.g.fillRoundedRect(-70, -24, 140, 48, 8)
+      t.g.lineStyle(on ? 3 : 1.5, on ? c : 0x2a3138, 1); t.g.strokeRoundedRect(-70, -24, 140, 48, 8)
+      t.lv.setText(`Level ${fighterLevel(P, t.def.key)}`)
+    })
+    // rows
+    for (const r of this.rows) {
+      const lv = levelOf(P, f.key, r.a.key), price = priceFor(P, f.key, r.a.key)
+      r.pips.clear()
+      for (let i = 0; i < MAX_LV; i++) { r.pips.fillStyle(i < lv ? col : 0x2a3138, 1); r.pips.fillRoundedRect(490 + i * 16, r.y + 8, 12, 18, 3) }
+      r.gem.clear()
+      if (lv >= MAX_LV) { r.btn.label.setText('MAX'); r.btn.setOn(true); r.btn.label.setColor('#F5C542') }
+      else {
+        const cost = 4 + 3 * lv
+        r.btn.label.setText(`   ${cost}`).setColor(price ? '#F2F2F2' : '#5c6670'); r.btn.setOn(!!price)
+        gemIcon(r.gem, 728 - 22, r.y + 20, 8, price && price.fromWild && !price.fromColour ? 0xffffff : col)
+      }
+    }
+    const src = P.mode === 'db' ? 'Saved to your profile.' : 'Saved on this device.'
+    this.note.setText(`${src}  Gems come from your training (each pillar's colour), house points (white, any fighter) and wins (up to ${DAILY_GEMS} a day).`)
+    this.note.setWordWrapWidth(460)
+  }
+  async buy(area) {
+    if (this.busy) return
+    const P = prog(this), f = FIGHTERS[this.pick]
+    if (!priceFor(P, f.key, area)) { this.cameras.main.shake(120, 0.004); return }
+    this.busy = true
+    try {
+      this.game.progress = await buyUpgrade(P, f.key, area)
+      sfx(this).special?.()
+      const r = this.rows.find(x => x.a.key === area)
+      const ring = this.add.image(560, r.y + 16, 'ring').setTint(hex(f.colour)).setBlendMode('ADD').setScale(0.1)
+      this.tweens.add({ targets: ring, scale: 0.9, alpha: 0, duration: 320, onComplete: () => ring.destroy() })
+    } catch (e) { this.cameras.main.shake(140, 0.005) }
+    this.busy = false
+    this.refresh()
+  }
+  update() {
+    this.frame++
+    const f = this.prev
+    if (!f.move) { if (--this.demoT <= 0) { f.move = demoMove(f, ['lp', 'mp', 'hp', 'lk', 'mk', 'hk'][Math.floor(Math.random() * 6)]); f.t = 0; this.demoT = 34 } }
+    else { f.t++; if (f.t > f.move.s + f.move.a + f.move.r) f.move = null }
+    this.fg.clear()
+    this.fg.lineStyle(2, hex(fxColour(f)), 0.4); this.fg.strokeEllipse(165, 406, 170, 22)
+    stepPose(this.prevPose, f, this.frame)
+    drawFighter(this.fg, f, this.prevPose, this.frame, 1, { noKo: true, y: 400, shadowY: 400 })
   }
 }
