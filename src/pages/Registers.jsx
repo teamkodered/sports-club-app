@@ -883,6 +883,8 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     .filter(s => !groupFilter || studentGroups(s, s.members).includes(groupFilter))
     .filter(s => {
       if (classFilter === 'all') return true
+      // Added as a one-off for this session: always on the register, whichever class is selected
+      if (oneOffStudentsRef.current.some(o => o.id === s.id)) return true
       // Special registers share a time slot with normal classes (PTs Register Mon/Fri 18:00, Leader
       // Register 19:00): their students are ONLY the PT / Leader groups -- not everyone at 6pm, and
       // not someone who got assigned to them by being marked there by mistake
@@ -2601,7 +2603,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
         onAdd={(s) => {
           oneOffStudentsRef.current = [...oneOffStudentsRef.current, s]
           if (regType === 'adhoc') addAdhoc(s)
-          else setStudents(prev => prev.find(x => x.id === s.id) ? prev : [...prev, s])
+          else setStudents(prev => prev.find(x => x.id === s.id) ? [...prev] : [...prev, s])   // new list either way, so the register redraws with them showing
         }} />
 
       {/* Contact modal */}
