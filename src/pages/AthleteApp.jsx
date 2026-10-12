@@ -2,6 +2,8 @@ import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { TEST_CATEGORIES } from '../lib/testResults.js'
 import { TestSessionModal, TestBatchModal } from '../components/shared/TestSession.jsx'
+import OtherSessions from '../components/shared/OtherSessions.jsx'
+import { matchClass, workoutDate, workoutRange, fmtTime } from '../lib/sessionMatch.js'
 import { supabase } from '../lib/supabase.js'
 import LiveHeartRate from '../components/shared/LiveHeartRate.jsx'
 import * as NativeHr from '../lib/nativeHr.js'
@@ -3438,6 +3440,38 @@ export default function AthleteApp() {
     return out
   }
 
+  // ⌚ Check-in from a wearable: a club-sport workout (boxing, kickboxing, functional, box fitness,
+  // powerlifting…) overlapping one of the athlete's classes today or yesterday, with no attendance
+  // for that class yet -> suggest checking in. Nothing happens unless they tap Check in.
+  function wearableCheckInSuggestions() {
+    const today = new Date(), yest = new Date(Date.now() - 86400000)
+    const days = [today, yest].map(d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)
+    const out = []
+    ;(whoopSessions || []).forEach(w => {
+      if (!w.start_time || !days.includes(workoutDate(w))) return
+      const date = workoutDate(w)
+      const cls = matchClass(w, currentAssignedClasses.filter(a => assignmentActiveOn(a, date)).map(a => a.classes).filter(Boolean))
+      if (!cls) return
+      if ((attendanceData || []).some(a => a.session_date === date && (!a.class_id || a.class_id === cls.id))) return
+      const key = `checkin:${w.provider}:${w.provider_workout_id || w.id}`
+      if (wearableDismissed.includes(key) || out.some(o => o.classId === cls.id && o.date === date)) return
+      const { s, e } = workoutRange(w)
+      out.push({ key, date, classId: cls.id, provider: w.provider, startedAt: s.toISOString(),
+        text: `${w.sport_name || 'Workout'} ${fmtTime(s)}–${fmtTime(e)}${date === days[1] ? ' yesterday' : ''} matches ${cls.day_of_week} ${String(cls.start_time).slice(0, 5)}${cls.name ? ` ${cls.name}` : ''}` })
+    })
+    return out
+  }
+  async function checkInFromWearable(sg) {
+    const { data, error } = await supabase.from('attendance').insert({
+      student_id: student.id, present: true, late: false, attendance_type: 'attended', session_date: sg.date,
+      attended_at: sg.startedAt, self_checked_in: true, class_id: sg.classId,
+    }).select().single()
+    if (error && error.code !== '23505') return alert('Could not check in: ' + error.message)
+    if (data) setAttendanceData(prev => [data, ...(prev || [])])
+    awardHousePoints('checkin')
+    dismissWearableSuggestion(sg.key)
+  }
+
   async function dismissWearableSuggestion(key) {
     setWearableDismissed(prev => prev.includes(key) ? prev : [...prev, key])
     const id = student?.id
@@ -5702,6 +5736,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                         <span style={{ fontSize: 8, color: 'var(--text-tertiary)', textAlign: 'center', lineHeight: 1.3 }}>{todaysTest && Object.values(todaysTest).some(v => v !== '' && v != null) ? 'Logged today' : 'Log results'}</span>
                       </span>
                     </button>
+                    {student?.id && <OtherSessions studentId={student.id} />}
                     </div>
                     )}
                     {showSncCards && (
@@ -6553,6 +6588,14 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
               <button type="button" className={`neon-checkin-cta${activeCheckIn ? ' is-checked-in' : ''}`} onClick={() => setCheckInDrawerOpen(v => !v)}>
                 {activeCheckIn ? 'CHECKED IN' : 'CHECK IN'}
               </button>
+              {wearableCheckInSuggestions().map(sg => (
+                <div key={sg.key} className="wear-checkin">
+                  <span aria-hidden="true">⌚</span>
+                  <span className="wear-checkin-text"><small>FROM {providerLabel(sg.provider).toUpperCase()}</small>{sg.text}</span>
+                  <button type="button" onClick={() => checkInFromWearable(sg)}>Check in</button>
+                  <button type="button" className="x" aria-label="Not this session" onClick={() => dismissWearableSuggestion(sg.key)}>✕</button>
+                </div>
+              ))}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginTop: 14, marginBottom: 8 }}>
                 {[
                   { label: 'Media', icon: '🖼', colour: '#8B5CF6', tab: 'media' },

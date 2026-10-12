@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, Fragment } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { TEST_CATEGORIES } from '../lib/testResults.js'
 import { TestSessionModal, TestBatchModal } from '../components/shared/TestSession.jsx'
+import OtherSessions from '../components/shared/OtherSessions.jsx'
 import { supabase } from '../lib/supabase.js'
 import NeedsAttention from '../components/shared/NeedsAttention.jsx'
 import PdpOverview from '../components/dashboard/PdpOverview.jsx'
@@ -10039,6 +10040,7 @@ export default function AthleteProfiles() {
                         <span style={{ fontSize: 8, color: 'var(--text-tertiary)', textAlign: 'center', lineHeight: 1.3 }}>{todaysTest && Object.values(todaysTest).some(v => v !== '' && v != null) ? 'Logged today' : 'Log results'}</span>
                       </span>
                     </button>
+                    {selected?.id && <OtherSessions studentId={selected.id} />}
                     </div>
                     <div style={{
                       display: 'flex', alignItems: 'stretch', width: '100%',

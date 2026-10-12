@@ -73,6 +73,7 @@ function OneOffStudent({ displayStudents, onAdd, date }) {
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { createPortal } from 'react-dom'
+import { matchClass, workoutRange, fmtTime, isClubSport } from '../lib/sessionMatch.js'
 import { supabase } from '../lib/supabase.js'
 import { assignmentActiveOn, todayISO } from '../lib/classAssignments.jsx'
 import { matchesSearch } from '../lib/searchMatch.js'
@@ -266,6 +267,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   const [sortThen, setSortThen]         = useState([])      // tie-breaker sorts (previously tapped columns)
   const [selectedFirst, setSelectedFirst] = useState(false) // selected students to the top
   const selOrderSnapshot = useRef(null)   // list order when the current selection started
+  const [wearByStudent, setWearByStudent] = useState({})   // student id -> club-sport wearable workouts on this date
   const [sortDir, setSortDir]           = useState('asc')
   const [groupFilter, setGroupFilter]   = useState('') // '' = all groups; else 'KR'|'PTs'|'Leader'|'Coach'|'PKA'|'KRBA'
   const [groupFilterOpen, setGroupFilterOpen] = useState(false)
@@ -875,6 +877,26 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
       s.is_coach && 'Coach',
       s.discipline === 'KRBA' && m?.status === 'active' && 'KRBA',
     ].filter(Boolean)
+  }
+
+  // ⌚ hint: wearable workouts (club sports) on the register's date
+  useEffect(() => {
+    const start = new Date(date + 'T00:00:00'), end = new Date(date + 'T23:59:59')
+    supabase.from('wearable_workouts').select('student_id, sport_name, start_time, end_time, duration_seconds').gte('start_time', start.toISOString()).lte('start_time', end.toISOString())
+      .then(({ data, error }) => {
+        if (error) { setWearByStudent({}); return }
+        const by = {}; (data || []).filter(w => isClubSport(w.sport_name)).forEach(w => { (by[w.student_id] ||= []).push(w) })
+        setWearByStudent(by)
+      })
+  }, [date])
+  function wearHint(st) {
+    if (attendance[st.id] && attendance[st.id] !== 'none') return null
+    const list = wearByStudent[st.id]; if (!list?.length) return null
+    const cls = classFilter && classFilter !== 'all' ? [...todayClasses, ...derbyMooreClasses, ...moorwaysClasses].find(c => c.id === classFilter) : null
+    const w = cls ? list.find(x => matchClass(x, [cls])) : list[0]
+    if (!w) return null
+    const { s, e } = workoutRange(w)
+    return `${fmtTime(s)}–${fmtTime(e)} ${w.sport_name || ''}`.trim()
   }
 
   const sortedStudents = (regType === 'adhoc' ? adhocPills.map(p => students.find(s => s.id === p.id)).filter(Boolean) : students)
@@ -2032,6 +2054,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                             ? <button type="button" className="reg-m-namelink" onClick={e => { e.stopPropagation(); setMExpanded(open ? null : st.id) }}>{m?.first_name} {m?.last_name}</button>
                             : <span>{m?.first_name} {m?.last_name}</span>}
                           {(() => { const t = (pointsByStudent[st.id] || []).reduce((n, pp) => n + (pp.points_awarded || 0), 0); return t ? <span className="reg-m-today">+{t}</span> : null })()}
+                          {(() => { const h = wearHint(st); return h ? <span className="reg-m-wear" title={`Wearable shows: ${h}`}>⌚ {h.split(' ')[0]}</span> : null })()}
                           {bday && <button type="button" className="reg-m-bday" title={bday.daysUntil === 0 ? 'Birthday today!' : 'Upcoming birthday'} onClick={e => { e.stopPropagation(); setBirthdayPopup({ name: `${m?.first_name} ${m?.last_name}`, info: bday }) }}>{bday.daysUntil === 0 ? '🥳' : '🎂'}</button>}
                         </div>
                         {isMainReg ? (mPage === 0 ? (

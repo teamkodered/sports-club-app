@@ -1140,3 +1140,23 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .stk-save { display: block; font-style: normal; font-size: 12px; color: #1D9E75; font-weight: 600; }
 .stk-staff { margin-bottom: 12px; font-size: 12px; color: var(--text-tertiary); }
 .stk-staff summary { cursor: pointer; }
+/* ⌚ wearable check-in suggestion (athlete home) */
+.wear-checkin { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; padding: 8px 10px; border-radius: 8px; border: 1px dashed #22B14C; background: #22B14C14; font-size: 12px; }
+.wear-checkin-text { flex: 1; min-width: 0; line-height: 1.3; }
+.wear-checkin-text small { display: block; font-family: Orbitron, sans-serif; font-size: 8px; letter-spacing: 1.5px; color: #22B14C; }
+.wear-checkin button { border: none; border-radius: 6px; padding: 6px 10px; background: #22B14C; color: #04140A; font-weight: 800; cursor: pointer; }
+.wear-checkin button.x { background: transparent; color: var(--text-tertiary); padding: 6px; }
+/* register ⌚ hint */
+.reg-m-wear { flex-shrink: 0; font-size: 11px; font-weight: 700; color: #22B14C; padding: 1px 6px; border-radius: 10px; background: #22B14C1A; }
+/* Physical -> Other sessions */
+.oth { margin-top: 8px; border: 1px solid var(--border); border-radius: 10px; }
+.oth-head { all: unset; box-sizing: border-box; display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 10px 12px; cursor: pointer; font-weight: 700; font-size: 14px; }
+.oth-sum { font-weight: 400; font-size: 12px; color: var(--text-tertiary); }
+.oth-body { padding: 0 12px 12px; }
+.oth-hint, .oth-muted { font-size: 12px; color: var(--text-tertiary); }
+.oth-row { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.oth-stats { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 3px; font-size: 12px; color: var(--text-secondary); }
+.oth-src { color: #22B14C; }
+.oth-x { border: none; background: none; color: var(--text-tertiary); font-size: 18px; cursor: pointer; }
+.oth-add { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.oth-add input { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--bg-secondary); color: var(--text); font-size: 14px; }
