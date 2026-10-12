@@ -5,23 +5,69 @@
 import { supabase } from '../../../lib/supabase.js'
 
 export const PILLARS = ['physical', 'technical', 'tactical', 'mentality', 'foundation']
+// Upgrade areas = the club's MTP analysis (Technical / Physical / Mental), each with its own effect in a
+// fight. Every area has 5 levels. eff(lv) returns what the area adds to the fighter's modifiers.
+export const AREA_GROUPS = ['Technical', 'Physical', 'Mental']
 export const AREAS = [
-  { key: 'power', name: 'Power', what: '+4% damage per level' },
-  { key: 'speed', name: 'Speed', what: '+2.5% movement per level' },
-  { key: 'defence', name: 'Defence', what: '-3% damage taken per level' },
-  { key: 'stamina', name: 'Stamina', what: '+5 health per level' },
-  { key: 'special', name: 'Special', what: 'Faster special, +5% super meter per level' },
+  // Technical
+  { key: 'shapes', g: 'Technical', name: 'Shapes', what: 'Tighter guard: less damage through blocks' },
+  { key: 'punch_quality', g: 'Technical', name: 'Punch quality', what: '+3% punch damage per level' },
+  { key: 'footwork', g: 'Technical', name: 'Footwork', what: '+3% stepping-in speed per level' },
+  { key: 'defence', g: 'Technical', name: 'Defence', what: '-2.5% damage taken per level' },
+  { key: 'counters', g: 'Technical', name: 'Counters', what: '+6% damage when punishing a missed move' },
+  { key: 'attack', g: 'Technical', name: 'Attack', what: '+6% damage on the opening strike' },
+  { key: 'combinations', g: 'Technical', name: 'Combinations', what: '+5% combo damage per level' },
+  { key: 'change_of_tempo', g: 'Technical', name: 'Change of tempo', what: 'More time to land combo inputs' },
+  { key: 'use_of_phases', g: 'Technical', name: 'Use of phases', what: '+6% special-move damage per level' },
+  { key: 'distance', g: 'Technical', name: 'Distance', what: '+2% reach on every strike' },
+  { key: 'flow', g: 'Technical', name: 'Flow', what: '-4% recovery after strikes' },
+  { key: 'self_expression', g: 'Technical', name: 'Self expression', what: '+6% super damage per level' },
+  // Physical
+  { key: 'foot_speed', g: 'Physical', name: 'Foot speed', what: '+5% backing-off speed per level' },
+  { key: 'limb_speed', g: 'Physical', name: 'Limb speed', what: 'Strikes come out 4% faster' },
+  { key: 'combination_speed', g: 'Physical', name: 'Combination speed', what: 'Chain into the next strike sooner' },
+  { key: 'reaction', g: 'Physical', name: 'Reaction', what: '-5% time stunned when hit' },
+  { key: 'punching_power', g: 'Physical', name: 'Punching power', what: '+6% heavy-punch damage per level' },
+  { key: 'strength_upper', g: 'Physical', name: 'Strength upper', what: '+6% knock-back on hits' },
+  { key: 'strength_lower', g: 'Physical', name: 'Strength lower', what: '+3% kick damage per level' },
+  { key: 'stability_core', g: 'Physical', name: 'Core stability', what: '-7% knock-back taken' },
+  { key: 'agility', g: 'Physical', name: 'Agility', what: '+4% jump height and distance' },
+  { key: 'stop_n_go', g: 'Physical', name: 'Stop & go', what: '-5% recovery after kicks' },
+  { key: 'stamina_aerobic', g: 'Physical', name: 'Stamina aerobic', what: '+4 health per level' },
+  { key: 'stamina_anaerobic', g: 'Physical', name: 'Stamina anaerobic', what: '+6% super meter gain' },
+  { key: 'suppleness_upper', g: 'Physical', name: 'Suppleness upper', what: '+3% punch reach per level' },
+  { key: 'suppleness_lower', g: 'Physical', name: 'Suppleness lower', what: '+3% kick reach per level' },
+  { key: 'recovery', g: 'Physical', name: 'Recovery', what: 'Recover faster while tagged out' },
+  { key: 'health', g: 'Physical', name: 'Health', what: 'Slowly regain health when not hit' },
+  // Mental
+  { key: 'read_opponent', g: 'Mental', name: 'Read opponent', what: '-8% damage from specials' },
+  { key: 'tempo_rhythm', g: 'Mental', name: 'Tempo / rhythm', what: '-6% special cool-down per level' },
+  { key: 'tactical_intelligence', g: 'Mental', name: 'Tactical intelligence', what: '-10% tag cool-down per level' },
+  { key: 'ring_awareness', g: 'Mental', name: 'Ring awareness', what: '-8% damage when on the ropes' },
+  { key: 'know_strengths_weaknesses', g: 'Mental', name: 'Know S&W', what: '+4% damage on long-hold strikes' },
+  { key: 'heart_grit', g: 'Mental', name: 'Heart / grit', what: '+8% damage when low on health' },
+  { key: 'concentration', g: 'Mental', name: 'Concentration', what: '+5% stun on your hits' },
+  { key: 'timing', g: 'Mental', name: 'Timing', what: '+7% damage hitting them as they start' },
 ]
-export const MAX_LV = 10
+export const AREA_KEYS = AREAS.map(a => a.key)
+export const MAX_LV = 5
 export const DAILY_GEMS = 60
-export const costOf = lv => 4 + 3 * lv // next level from lv
+export const costOf = lv => 3 + 2 * lv // next level from lv (3, 5, 7, 9, 11)
 const LS = 'krfight-progress'
 
 const blank = () => ({ mode: 'local', training: {}, house_points: 0, game_gems: {}, spent: {}, upgrades: {}, gems_today: 0, gems_day: null })
 const n = v => Math.max(0, Math.floor(Number(v) || 0))
 
 function readLocal() {
-  try { const v = JSON.parse(localStorage.getItem(LS) || 'null'); if (v) return { ...blank(), ...v, mode: 'local' } } catch (e) { /* ignore */ }
+  try {
+    const v = JSON.parse(localStorage.getItem(LS) || 'null')
+    if (v) {
+      // the first version had 5 broad areas; those purchases are refunded
+      const old = Object.values(v.upgrades || {}).some(u => Object.keys(u || {}).some(k => !AREA_KEYS.includes(k)))
+      if (old) { v.upgrades = {}; v.spent = {} }
+      return { ...blank(), ...v, mode: 'local' }
+    }
+  } catch (e) { /* ignore */ }
   return blank()
 }
 function writeLocal(p) { try { localStorage.setItem(LS, JSON.stringify({ game_gems: p.game_gems, spent: p.spent, upgrades: p.upgrades, gems_today: p.gems_today, gems_day: p.gems_day })) } catch (e) { /* ignore */ } }
@@ -100,21 +146,32 @@ export async function awardGems(p, gems) {
   return { progress: next, given }
 }
 
-// upgrade effects folded into a fighter's def (player side); cpuScale lets the CPU keep up a little
-export function applyUpgrades(def, up = {}) {
+// all the fight modifiers, neutral values
+export const BASE_MODS = { punchDmg: 1, kickDmg: 1, heavyPunch: 1, heavyHold: 1, dmgTaken: 1, blockChip: 1, counters: 1, opener: 1, comboBonus: 1, comboGap: 0,
+  specialDmg: 1, reach: 1, punchReach: 1, kickReach: 1, recovery: 1, kickRecovery: 1, superDmg: 1, walk: 1, backWalk: 1, startup: 1, chainEarly: 0,
+  stunTaken: 1, push: 1, knockTaken: 1, jump: 1, maxHp: 100, meterGain: 1, benchRegen: 1, regen: 0, projTaken: 1, specialCd: 1, tagCd: 1,
+  cornerTaken: 1, grit: 1, stunGiven: 1, timing: 1 }
+export function modsFor(up = {}) {
   const L = k => Math.min(MAX_LV, n(up[k]))
   return {
-    ...def,
-    power: def.power * (1 + 0.04 * L('power')),
-    speed: def.speed * (1 + 0.025 * L('speed')),
-    defMul: 1 - 0.03 * L('defence'),
-    maxHp: 100 + 5 * L('stamina'),
-    cdMul: 1 - 0.05 * L('special'),
-    meterMul: 1 + 0.05 * L('special'),
-    up: { power: L('power'), speed: L('speed'), defence: L('defence'), stamina: L('stamina'), special: L('special') },
+    ...BASE_MODS,
+    blockChip: 1 - 0.12 * L('shapes'), punchDmg: 1 + 0.03 * L('punch_quality'), walk: 1 + 0.03 * L('footwork'), dmgTaken: 1 - 0.025 * L('defence'),
+    counters: 1 + 0.06 * L('counters'), opener: 1 + 0.06 * L('attack'), comboBonus: 1 + 0.05 * L('combinations'), comboGap: 3 * L('change_of_tempo'),
+    specialDmg: 1 + 0.06 * L('use_of_phases'), reach: 1 + 0.02 * L('distance'), recovery: 1 - 0.04 * L('flow'), superDmg: 1 + 0.06 * L('self_expression'),
+    backWalk: 1 + 0.05 * L('foot_speed'), startup: 1 - 0.04 * L('limb_speed'), chainEarly: L('combination_speed'), stunTaken: 1 - 0.05 * L('reaction'),
+    heavyPunch: 1 + 0.06 * L('punching_power'), push: 1 + 0.06 * L('strength_upper'), kickDmg: 1 + 0.03 * L('strength_lower'), knockTaken: 1 - 0.07 * L('stability_core'),
+    jump: 1 + 0.04 * L('agility'), kickRecovery: 1 - 0.05 * L('stop_n_go'), maxHp: 100 + 4 * L('stamina_aerobic'), meterGain: 1 + 0.06 * L('stamina_anaerobic'),
+    punchReach: 1 + 0.03 * L('suppleness_upper'), kickReach: 1 + 0.03 * L('suppleness_lower'), benchRegen: 1 + 0.25 * L('recovery'), regen: 0.004 * L('health'),
+    projTaken: 1 - 0.08 * L('read_opponent'), specialCd: 1 - 0.06 * L('tempo_rhythm'), tagCd: 1 - 0.1 * L('tactical_intelligence'), cornerTaken: 1 - 0.08 * L('ring_awareness'),
+    heavyHold: 1 + 0.04 * L('know_strengths_weaknesses'), grit: 1 + 0.08 * L('heart_grit'), stunGiven: 1 + 0.05 * L('concentration'), timing: 1 + 0.07 * L('timing'),
   }
 }
-// the CPU gets a share of the player's average upgrade level so harder levels stay a challenge
+// a fighter's def with their upgrades applied
+export function applyUpgrades(def, up = {}) {
+  const mods = modsFor(up)
+  return { ...def, mods, maxHp: mods.maxHp, up: { ...up } }
+}
+// the CPU gets a share of the player's average level in each area so harder levels stay a challenge
 export function cpuUpgrades(p, level) {
   const share = { easy: 0.3, medium: 0.6, hard: 1 }[level] ?? 0.6
   const out = {}

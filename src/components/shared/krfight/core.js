@@ -4,6 +4,10 @@
 import { W, FLOOR, GRAV, COMBO_GAP, MOVES, LEVELS, SUPER_NAME, LEVEL_SCALE } from './data.js'
 
 let pjId = 1
+const NEUTRAL = { punchDmg: 1, kickDmg: 1, heavyPunch: 1, heavyHold: 1, dmgTaken: 1, blockChip: 1, counters: 1, opener: 1, comboBonus: 1, comboGap: 0,
+  specialDmg: 1, reach: 1, punchReach: 1, kickReach: 1, recovery: 1, kickRecovery: 1, superDmg: 1, walk: 1, backWalk: 1, startup: 1, chainEarly: 0,
+  stunTaken: 1, push: 1, knockTaken: 1, jump: 1, meterGain: 1, benchRegen: 1, regen: 0, projTaken: 1, specialCd: 1, tagCd: 1, cornerTaken: 1, grit: 1, stunGiven: 1, timing: 1 }
+const M = f => (f && f.def && f.def.mods) || NEUTRAL // a fighter's upgrade modifiers
 
 export function makeFighter(def, x, facing) {
   return {
@@ -41,7 +45,7 @@ export class Match {
     const old = this[side], o = side === 'p1' ? this.p2 : this.p1
     const x = why === 'ko' ? (side === 'p1' ? 90 : W - 90) : old.x
     Object.assign(m, { x, y: FLOOR - 150, vx: 0, vy: 0, state: 'jump', move: null, stun: 0, t: 0, hitDone: false, crouch: false, blocking: false, counterT: 0, flash: 0, chain: 0, buf: [], comboNext: null, meter: old.meter || 0, facing: o.x > x ? 1 : -1 })
-    if (why === 'tag') old.benchCap = Math.min(old.maxHp, old.hp + 25)
+    if (why === 'tag') old.benchCap = Math.min(old.maxHp, old.hp + 25 * M(old).benchRegen)
     this[side] = m
     this.emit({ type: 'tagIn', side, f: m, from: old, why })
   }
@@ -53,7 +57,7 @@ export class Match {
     const waiting = this.team(side).filter(m => m !== f && m.hp > 0)
     let m = typeof target === 'number' ? this.team(side)[target] : waiting.sort((a, b) => b.hp - a.hp)[0]
     if (!m || m === f || m.hp <= 0) return false
-    this.bringIn(side, m, 'tag'); this.tagCd[side] = 300
+    this.bringIn(side, m, 'tag'); this.tagCd[side] = Math.round(300 * M(f).tagCd)
     return true
   }
 
@@ -86,7 +90,7 @@ export class Match {
     const p1 = this.p1, p2 = this.p2
     this.update(p1, p2, c1); this.update(p2, p1, c2)
     // waiting teammates get some breath back (up to 25 above where they tagged out)
-    for (const side of ['p1', 'p2']) for (const m of this.team(side)) if (m !== this[side] && m.hp > 0 && m.hp < (m.benchCap || 0)) m.hp = Math.min(m.benchCap, m.hp + 0.03)
+    for (const side of ['p1', 'p2']) for (const m of this.team(side)) if (m !== this[side] && m.hp > 0 && m.hp < (m.benchCap || 0)) m.hp = Math.min(m.benchCap, m.hp + 0.03 * M(m).benchRegen)
     // push apart (not against a fighter who is down)
     const gap = p2.x - p1.x
     if (p1.state !== 'ko' && p2.state !== 'ko' && Math.abs(gap) < 50 && p1.y >= FLOOR - 40 && p2.y >= FLOOR - 40) { const push = (50 - Math.abs(gap)) / 2 * Math.sign(gap || 1); p1.x -= push; p2.x += push }
@@ -95,7 +99,7 @@ export class Match {
       if (pj.delay > 0) { pj.delay--; if (pj.delay === 0) this.emit({ type: 'projectile', pj }); continue }
       pj.x += pj.vx; pj.life--
       const tgt = pj.owner.side === 'p1' ? p2 : p1
-      if (tgt.state !== 'ko' && Math.abs(pj.x - tgt.x) < 30 && (pj.low ? tgt.y >= FLOOR - 20 : tgt.y > pj.y - 40 && !(tgt.crouch && tgt.y >= FLOOR && !pj.low))) { this.applyHit(pj.owner, tgt, pj.dmg, 7, pj.h, { x: pj.x, y: pj.y }); pj.life = 0 }
+      if (tgt.state !== 'ko' && Math.abs(pj.x - tgt.x) < 30 && (pj.low ? tgt.y >= FLOOR - 20 : tgt.y > pj.y - 40 && !(tgt.crouch && tgt.y >= FLOOR && !pj.low))) { this.applyHit(pj.owner, tgt, pj.dmg, 7, pj.h, { x: pj.x, y: pj.y }, 'special'); pj.life = 0 }
     }
     for (const pj of this.projectiles) if (!(pj.life > 0 && pj.x > -40 && pj.x < W + 40)) this.emit({ type: 'projectileGone', pj })
     this.projectiles = this.projectiles.filter(p => p.life > 0 && p.x > -40 && p.x < W + 40)
@@ -127,7 +131,7 @@ export class Match {
 
   startMove(f, k) {
     if (f.stun > 0 || f.state === 'ko') return
-    if (f.move && !(f.hitDone && f.t >= f.move.s + f.move.a && k !== 'sp' || f.comboNext)) return // chain only after a landed hit (or a combo input)
+    if (f.move && !(f.hitDone && f.t >= f.move.s + f.move.a - M(f).chainEarly && k !== 'sp' || f.comboNext)) return // chain only after a landed hit (or a combo input)
     const st = this.statsOf(f)
     if (k === 'super') {
       if ((f.meter || 0) < 100) return
@@ -144,12 +148,12 @@ export class Match {
     if (k === 'sp') {
       if (f.specialCd > 0 && !f.comboNext) return
       if (f.comboNext) { f.comboName = f.comboNext.name; f.comboText = 70 }
-      f.specialCd = Math.round(150 * (f.def.cdMul || 1)); f.specialCdMax = f.specialCd; st.specials++
+      f.specialCd = Math.round(150 * M(f).specialCd); f.specialCdMax = f.specialCd; st.specials++
       const sp = f.def.special
       if (sp === 'wave') { f.move = { k: 'cast', s: 8, a: 2, r: 16, dmg: 0, reach: 30, h: 'high', push: 0 }; this.projectiles.push({ id: pjId++, owner: f, x: f.x + 50 * f.facing, y: f.y - 110, vx: 7 * f.facing, dmg: 11, h: 'high', colour: f.def.colour, low: false, life: 140, delay: 8 }) }
       else if (sp === 'quake') { f.move = { k: 'stomp', s: 10, a: 2, r: 18, dmg: 0, reach: 30, h: 'low', push: 0 }; this.projectiles.push({ id: pjId++, owner: f, x: f.x + 40 * f.facing, y: FLOOR - 14, vx: 6 * f.facing, dmg: 10, h: 'low', colour: f.def.colour, low: true, life: 120, delay: 10 }) }
-      else if (sp === 'rush') { f.move = { k: 'rush', s: 4, a: 14, r: 14, dmg: 13, reach: 75, h: 'high', push: 9 }; f.vx = 8.5 * f.facing }
-      else if (sp === 'upper') { f.move = { k: 'upper', s: 3, a: 8, r: 20, dmg: 15, reach: 66, h: 'high', push: 12 }; f.vy = -15 }
+      else if (sp === 'rush') { f.move = { k: 'rush', s: 4, a: 14, r: 14, dmg: 13, reach: 75, h: 'high', push: 9, special: true }; f.vx = 8.5 * f.facing }
+      else if (sp === 'upper') { f.move = { k: 'upper', s: 3, a: 8, r: 20, dmg: 15, reach: 66, h: 'high', push: 12, special: true }; f.vy = -15 }
       else if (sp === 'counter') { f.counterT = 40; f.move = { k: 'counter', s: 40, a: 0, r: 6, dmg: 0, reach: 0, h: 'high', push: 0 } }
       f.t = 0; f.hitDone = false; f.comboNext = null
       this.emit({ type: 'special', f, kind: sp })
@@ -162,9 +166,15 @@ export class Match {
     if (f.y < FLOOR) key = 'jk'
     else if (f.crouch) key = isPunch ? 'clp' : 'clk'
     const m = MOVES[key], scaled = key === 'jk' || key === 'clp' || key === 'clk'
-    const handPower = isPunch ? (f.def.punchPower || 1) : 1
-    f.move = { k: key, ...m, s: Math.max(2, m.s + (scaled ? lvl.s : 0) + (f.def.startup || 0)), reach: m.reach * f.def.reach, dmg: m.dmg * f.def.power * handPower * (scaled ? lvl.dmg : 1), level: k[0] }
-    if (f.comboNext) { f.move.combo = f.comboNext; f.move.dmg *= f.comboNext.bonus; f.move.push *= 1.4; f.comboNext = null }
+    const handPower = isPunch ? (f.def.punchPower || 1) : 1, md = M(f)
+    // upgrades: Limb speed (startup), Flow / Stop & go (recovery), Distance + Suppleness (reach), Punch quality /
+    // Strength lower / Punching power / Know S&W (damage), Strength upper (knock-back)
+    const dmgUp = (isPunch ? md.punchDmg : md.kickDmg) * (isPunch && k[0] === 'h' ? md.heavyPunch : 1) * (k[0] === 'h' ? md.heavyHold : 1)
+    f.move = { k: key, ...m, s: Math.max(2, Math.round((m.s + (scaled ? lvl.s : 0) + (f.def.startup || 0)) * md.startup)),
+      r: Math.max(2, Math.round(m.r * md.recovery * (isPunch ? 1 : md.kickRecovery))),
+      reach: m.reach * f.def.reach * md.reach * (isPunch ? md.punchReach : md.kickReach),
+      dmg: m.dmg * f.def.power * handPower * (scaled ? lvl.dmg : 1) * dmgUp, push: m.push * md.push, level: k[0] }
+    if (f.comboNext) { f.move.combo = f.comboNext; f.move.dmg *= f.comboNext.bonus * md.comboBonus; f.move.push *= 1.4; f.comboNext = null }
     f.t = 0; f.hitDone = false
     this.emit({ type: 'whoosh', heavy: k[0] === 'h' || key === 'mk' })
   }
@@ -172,12 +182,12 @@ export class Match {
   // standing block stops high + mid; low attacks must be blocked crouching (down-back)
   blocks(def, h) { if (!def.blocking) return false; return h === 'low' ? def.crouch : true }
 
-  applyHit(att, def, dmg, push, h, at) {
+  applyHit(att, def, dmg, push, h, at, kind) {
     if (def.state === 'ko') return
     const hy = h === 'low' ? def.y - 18 : h === 'mid' ? def.y - 92 : def.y - (def.crouch ? 100 : 132)
     const pos = at || { x: def.x - def.facing * 18, y: hy }
     if (def.counterT > 0) {
-      def.counterT = 0; att.hp = Math.max(0, att.hp - 14 * (att.def.defMul || 1)); att.stun = 24; att.vx = -10 * att.facing; att.flash = 12; def.move = null
+      def.counterT = 0; att.hp = Math.max(0, att.hp - 14 * M(att).dmgTaken); att.stun = 24; att.vx = -10 * att.facing; att.flash = 12; def.move = null
       this.statsOf(def).hits++; this.statsOf(def).dmg += 14
       this.freeze = 10
       this.emit({ type: 'counter', att: def, def: att, x: att.x - att.facing * 18, y: att.y - 110 })
@@ -185,21 +195,32 @@ export class Match {
     }
     if (h === 'high' && def.crouch && def.y >= FLOOR) return // ducked under
     if (this.blocks(def, h)) {
-      def.hp = Math.max(0, def.hp - dmg * 0.15 * (def.def.defMul || 1)); def.vx = push * 0.6 * att.facing; def.stun = 8
-      att.meter = Math.min(100, (att.meter || 0) + 2 * (att.def.meterMul || 1)); def.meter = Math.min(100, (def.meter || 0) + 3)
+      def.hp = Math.max(0, def.hp - dmg * 0.15 * M(def).dmgTaken * M(def).blockChip); def.vx = push * 0.6 * att.facing; def.stun = 8
+      att.meter = Math.min(100, (att.meter || 0) + 2 * M(att).meterGain); def.meter = Math.min(100, (def.meter || 0) + 3)
       this.statsOf(def).blocked++
       this.freeze = 2
       this.emit({ type: 'block', att, def, x: pos.x, y: pos.y })
       return
     }
-    att.meter = Math.min(100, (att.meter || 0) + dmg * 2.2 * (att.def.meterMul || 1)); def.meter = Math.min(100, (def.meter || 0) + dmg * 1.2)
+    const ma = M(att), mdf = M(def)
+    // situational upgrades
+    const opening = !(this.frame - (def.lastHitAt || -999) < 40)
+    const dm = def.move
+    if (opening) dmg *= ma.opener                                                    // Attack
+    if (dm && dm.dmg > 0 && def.t >= dm.s + dm.a) dmg *= ma.counters                  // Counters: punish a missed move
+    else if (dm && dm.dmg > 0 && def.t < dm.s) dmg *= ma.timing                       // Timing: hit them as they start
+    if (att.hp < att.maxHp * 0.3) dmg *= ma.grit                                      // Heart / grit
+    const special = kind === 'special' || (att.move && (att.move.special || att.move.super))
+    if (special) dmg *= (att.move && att.move.super ? ma.superDmg : ma.specialDmg) * mdf.projTaken // Use of phases / Self expression / Read opponent
+    if (def.x < 90 || def.x > W - 90) dmg *= mdf.cornerTaken                          // Ring awareness
+    att.meter = Math.min(100, (att.meter || 0) + dmg * 2.2 * ma.meterGain); def.meter = Math.min(100, (def.meter || 0) + dmg * 1.2)
     // Each hit in a row stuns for less, and the 3rd+ pushes them out of range -- no endless jab lock
-    def.chain = (this.frame - (def.lastHitAt || -999) < 40) ? (def.chain || 0) + 1 : 0
+    def.chain = opening ? 0 : (def.chain || 0) + 1
     def.lastHitAt = this.frame
-    dmg *= def.def.defMul || 1 // Defence upgrade
+    dmg *= mdf.dmgTaken // Defence
     def.hp = Math.max(0, def.hp - dmg)
-    def.stun = Math.max(5, Math.round((10 + dmg * 0.8) - def.chain * 4))
-    def.vx = push * att.facing * (def.chain >= 2 ? 2.4 : 1); def.flash = 10; def.move = null
+    def.stun = Math.max(5, Math.round(((10 + dmg * 0.8) - def.chain * 4) * mdf.stunTaken * ma.stunGiven)) // Reaction / Concentration
+    def.vx = push * att.facing * (def.chain >= 2 ? 2.4 : 1) * mdf.knockTaken; def.flash = 10; def.move = null // Core stability
     const st = this.statsOf(att); st.hits++; st.dmg += dmg; st.bestCombo = Math.max(st.bestCombo, def.chain + 1)
     const heavy = dmg >= 10
     this.freeze = dmg >= 20 ? 9 : heavy ? 6 : 3 // hit-stop
@@ -211,6 +232,7 @@ export class Match {
     if (f.comboText > 0) f.comboText--
     if (f.counterT > 0) f.counterT--
     if (f.flash > 0) f.flash--
+    if (M(f).regen && f.hp > 0 && f.state !== 'ko' && this.phase === 'fight' && this.frame - (f.lastHitAt || -999) > 120) f.hp = Math.min(f.maxHp, f.hp + M(f).regen) // Health
     if (f.state === 'ko') f.koT++
     f.facing = o.x > f.x ? 1 : -1
     const grounded = f.y >= FLOOR
@@ -224,8 +246,8 @@ export class Match {
       f.blocking = grounded && !f.move && (!!ctl.block || (!!back && (oAttacking || this.projectiles.some(p => p.owner === o))))
       if (!f.move) {
         if (grounded) {
-          f.vx = f.crouch || ctl.block ? 0 : fwd ? f.def.speed * f.facing : back ? -f.def.speed * 0.75 * f.facing : 0
-          if (ctl.upPressed && !f.crouch) { f.vy = -16; f.vx = fwd ? 4.5 * f.facing : back ? -4.5 * f.facing : 0; this.emit({ type: 'jump', f }) }
+          f.vx = f.crouch || ctl.block ? 0 : fwd ? f.def.speed * M(f).walk * f.facing : back ? -f.def.speed * 0.75 * M(f).backWalk * f.facing : 0
+          if (ctl.upPressed && !f.crouch) { const j = M(f).jump; f.vy = -16 * Math.sqrt(j); f.vx = (fwd ? 4.5 : back ? -4.5 : 0) * j * f.facing; this.emit({ type: 'jump', f }) }
         }
         f.state = !grounded ? 'jump' : f.vx !== 0 ? 'walk' : 'idle'
       }
@@ -235,10 +257,11 @@ export class Match {
       f.prevDir = dirNow
       for (const k of ['lp', 'mp', 'hp', 'lk', 'mk', 'hk', 'sp', 'super']) if (ctl[k + 'Pressed']) {
         f.buf.push({ t: k, at: this.frame })
-        f.buf = f.buf.filter(x => this.frame - x.at < COMBO_GAP * 5).slice(-8)
+        const gap = COMBO_GAP + M(f).comboGap
+        f.buf = f.buf.filter(x => this.frame - x.at < gap * 5).slice(-8)
         for (const c of (f.def.combos || [])) {
           const tail = f.buf.slice(-c.seq.length)
-          if (tail.length === c.seq.length && tail.every((x, i) => x.t === c.seq[i] && (i === 0 || x.at - tail[i - 1].at <= COMBO_GAP))) { f.comboNext = c; f.buf = []; break }
+          if (tail.length === c.seq.length && tail.every((x, i) => x.t === c.seq[i] && (i === 0 || x.at - tail[i - 1].at <= gap))) { f.comboNext = c; f.buf = []; break }
         }
         this.startMove(f, k); break
       }

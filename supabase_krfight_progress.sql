@@ -15,7 +15,7 @@ create table if not exists public.krfight_profiles (
   student_id uuid primary key references public.students(id) on delete cascade,
   game_gems jsonb not null default '{}'::jsonb,   -- gems won in the game, per pillar
   spent jsonb not null default '{}'::jsonb,       -- gems spent, per pillar + 'wild'
-  upgrades jsonb not null default '{}'::jsonb,    -- { pillar: { power, speed, defence, stamina, special } } levels 0-10
+  upgrades jsonb not null default '{}'::jsonb,    -- { pillar: { <MTP area>: level 0-5 } } -- the 36 MTP analysis areas
   gems_today int not null default 0,
   gems_day date,
   created_at timestamptz not null default now(),
@@ -38,10 +38,19 @@ returns uuid language sql stable security definer set search_path = public as $$
   limit 1
 $$;
 
--- Cost of an upgrade level: level 0 -> 1 costs 4, each next level costs 3 more (max level 10)
+-- Upgrade areas = the club's MTP analysis: 12 Technical, 16 Physical, 8 Mental. 5 levels each.
+create or replace function public.krfight_areas()
+returns text[] language sql immutable as $$
+  select array['shapes','punch_quality','footwork','defence','counters','attack','combinations','change_of_tempo','use_of_phases','distance','flow','self_expression',
+               'foot_speed','limb_speed','combination_speed','reaction','punching_power','strength_upper','strength_lower','stability_core','agility','stop_n_go',
+               'stamina_aerobic','stamina_anaerobic','suppleness_upper','suppleness_lower','recovery','health',
+               'read_opponent','tempo_rhythm','tactical_intelligence','ring_awareness','know_strengths_weaknesses','heart_grit','concentration','timing']
+$$;
+
+-- Total cost to reach a level: level 0 -> 1 costs 3, each next level costs 2 more (3, 5, 7, 9, 11; max level 5)
 create or replace function public.krfight_cost_to(lv int)
 returns int language sql immutable as $$
-  select (4 * greatest(0, least(lv, 10)) + 3 * greatest(0, least(lv, 10)) * (greatest(0, least(lv, 10)) - 1) / 2)::int
+  select (3 * greatest(0, least(lv, 5)) + greatest(0, least(lv, 5)) * (greatest(0, least(lv, 5)) - 1))::int
 $$;
 
 -- Everything the game needs in one call
@@ -100,7 +109,7 @@ begin
   return public.krfight_profile();
 end $$;
 
--- Save upgrades + what was spent. Rejected unless: levels are 0-10, the spend matches the upgrade costs
+-- Save upgrades + what was spent. Rejected unless: areas are MTP areas with levels 0-5, the spend matches the upgrade costs
 -- exactly, each colour spend is covered by that colour's gems, and wild spend by house points.
 create or replace function public.krfight_spend(p_upgrades jsonb, p_spent jsonb)
 returns jsonb language plpgsql security definer set search_path = public as $$
@@ -117,7 +126,7 @@ begin
     areas := coalesce(p_upgrades -> pillar, '{}'::jsonb);
     pillar_cost := 0;
     for a, lv in select key, (value)::int from jsonb_each_text(areas) loop
-      if a not in ('power','speed','defence','stamina','special') or lv < 0 or lv > 10 then raise exception 'bad upgrade %.%', pillar, a; end if;
+      if not (a = any (public.krfight_areas())) or lv < 0 or lv > 5 then raise exception 'bad upgrade %.%', pillar, a; end if;
       pillar_cost := pillar_cost + public.krfight_cost_to(lv);
     end loop;
     total_cost := total_cost + pillar_cost;
