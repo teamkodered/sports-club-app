@@ -70,9 +70,9 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
   }
   useEffect(() => () => cancelAnimationFrame(chargeTimer.current), [])
 
-  // keyboard: arrows/WASD move, J punch and K kick (hold for power), I/up jump, B or Shift block, L/Space special, O/Enter super
+  // keyboard: arrows/WASD move, J punch and K kick (hold for power), I/up jump, B or Shift block, T tag, L/Space special, O/Enter super
   useEffect(() => {
-    const map = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'up', KeyW: 'up', KeyI: 'up', ArrowDown: 'down', KeyS: 'down', KeyL: 'sp', Space: 'sp', KeyO: 'super', Enter: 'super', KeyB: 'block', ShiftLeft: 'block', ShiftRight: 'block' }
+    const map = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'up', KeyW: 'up', KeyI: 'up', ArrowDown: 'down', KeyS: 'down', KeyL: 'sp', Space: 'sp', KeyO: 'super', Enter: 'super', KeyB: 'block', ShiftLeft: 'block', ShiftRight: 'block', KeyT: 'tag' }
     const dn = e => {
       if (e.code === 'KeyJ' || e.code === 'KeyK') { e.preventDefault(); if (!e.repeat) startCharge(e.code === 'KeyJ' ? 'punch' : 'kick', e.timeStamp); return }
       const k = map[e.code]; if (!k) return; e.preventDefault(); if (!input.current[k]) pressed.current[k] = true; input.current[k] = true
@@ -288,7 +288,7 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
             <div {...atkPadHandlers} className="fg-atkpad" role="group" aria-label="Attack buttons"
               style={{ display: 'grid', gridTemplateColumns: `repeat(3, ${BTN}px)`, gridAutoRows: `${BTN}px`, gap: 10, touchAction: 'none', flexShrink: 0 }}>
               {[
-                { k: 'sp', icon: FIGHTERS[pick]?.special || 'bolt', label: 'Special', bg: FIGHTERS[pick]?.colour || '#F5C542', ring: hud.sp },
+                { k: 'sp', icon: hud.special || FIGHTERS[pick]?.special || 'bolt', label: 'Special', bg: hud.colour || FIGHTERS[pick]?.colour || '#F5C542', ring: hud.sp },
                 { k: 'punch', icon: 'glove', label: 'Punch: tap light, hold medium, long hold heavy', bg: '#F2F2F2', charge: chargeLv.punch },
                 { k: 'jump', icon: 'jump', label: 'Jump', bg: '#9AA3AE' },
                 { k: 'super', icon: 'bolt', label: 'Super', bg: '#F5C542', ring: hud.sup },

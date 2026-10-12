@@ -23,19 +23,65 @@ export const FIGHTERS = [
   { key: 'foundation', name: 'FOUNDATION', colour: '#C93BFF', trim: '#55157A', speed: 3.9, power: 1.05, reach: 1.0, special: 'quake', specialName: 'Shockwave', combos: [{ name: 'Teep · Body Kick · High Kick', seq: ['lk', 'mk', 'hk'], bonus: 1.7 }, { name: 'Sweep · Hook', seq: ['d', 'lk', 'hp'], bonus: 1.7 }, { name: 'Jab · Teep · Cross · High Kick', seq: ['lp', 'lk', 'mp', 'hk'], bonus: 1.9 }] },
 ]
 
-// startup / active / recovery frames, damage, reach (px), hit height: 'high' | 'mid' | 'low'
-// One Punch and one Kick button: tap = Light (fast), hold = Medium, long hold = Heavy (slow, hard).
-export const MOVES = {
-  lp: { s: 3, a: 3, r: 7, dmg: 5, reach: 62, h: 'high', push: 4, name: 'Jab' },
-  mp: { s: 5, a: 3, r: 11, dmg: 8, reach: 68, h: 'high', push: 6, name: 'Cross' },
-  hp: { s: 8, a: 4, r: 16, dmg: 12, reach: 66, h: 'high', push: 10, name: 'Hook' },
-  lk: { s: 5, a: 3, r: 10, dmg: 6, reach: 80, h: 'mid', push: 6, name: 'Teep' },
-  mk: { s: 7, a: 3, r: 14, dmg: 9, reach: 86, h: 'mid', push: 8, name: 'Body Kick' },
-  hk: { s: 10, a: 4, r: 19, dmg: 13, reach: 92, h: 'mid', push: 11, name: 'High Kick' },
+// Every strike in the game: startup / active / recovery frames, damage, reach (px), hit height.
+// Heavier strikes start slower and hit harder. Styles (below) decide which strike each button throws.
+export const LIB = {
+  jab: { s: 3, a: 3, r: 7, dmg: 5, reach: 62, h: 'high', push: 4, name: 'Jab' },
+  cross: { s: 5, a: 3, r: 11, dmg: 8, reach: 68, h: 'high', push: 6, name: 'Cross' },
+  hook: { s: 8, a: 4, r: 16, dmg: 12, reach: 64, h: 'high', push: 10, name: 'Hook' },
+  overhand: { s: 10, a: 4, r: 18, dmg: 14, reach: 66, h: 'high', push: 11, name: 'Overhand' },
+  bodyjab: { s: 4, a: 3, r: 8, dmg: 5, reach: 60, h: 'mid', push: 4, name: 'Body Jab' },
+  bodyhook: { s: 7, a: 3, r: 13, dmg: 10, reach: 58, h: 'mid', push: 8, name: 'Body Hook' },
+  uppercut: { s: 8, a: 4, r: 16, dmg: 13, reach: 54, h: 'mid', push: 10, name: 'Uppercut' },
+  elbow: { s: 6, a: 3, r: 14, dmg: 12, reach: 50, h: 'high', push: 7, name: 'Elbow' },
+  teep: { s: 5, a: 3, r: 10, dmg: 6, reach: 80, h: 'mid', push: 9, name: 'Teep' },
+  bodykick: { s: 7, a: 3, r: 14, dmg: 9, reach: 86, h: 'mid', push: 8, name: 'Body Kick' },
+  highkick: { s: 10, a: 4, r: 19, dmg: 13, reach: 92, h: 'mid', push: 11, name: 'High Kick' },
+  roundkick: { s: 4, a: 3, r: 9, dmg: 7, reach: 84, h: 'mid', push: 6, name: 'Round Kick' },
+  sidekick: { s: 7, a: 3, r: 13, dmg: 10, reach: 100, h: 'mid', push: 12, name: 'Side Kick' },
+  spinkick: { s: 11, a: 4, r: 20, dmg: 15, reach: 96, h: 'high', push: 13, name: 'Spinning Kick' },
+  lowkick: { s: 6, a: 3, r: 12, dmg: 9, reach: 78, h: 'low', push: 5, name: 'Low Kick' },
+  knee: { s: 6, a: 4, r: 13, dmg: 13, reach: 50, h: 'mid', push: 9, name: 'Knee' },
   clp: { s: 3, a: 3, r: 8, dmg: 4, reach: 60, h: 'mid', push: 3 },
   clk: { s: 5, a: 3, r: 12, dmg: 7, reach: 90, h: 'low', push: 6 },
   jk: { s: 3, a: 8, r: 4, dmg: 9, reach: 70, h: 'high', push: 6 },
 }
+export const MOVES = LIB
+
+// Fighting styles. moves: what each button throws (tap / hold / long hold). Stats multiply the fighter's
+// own. Combos are written for the style so they flow like it.
+export const STYLES = {
+  kickboxer: { name: 'Kickboxer', blurb: 'All-rounder: punches and kicks flow together', speed: 1, power: 1, reach: 1,
+    moves: { lp: 'jab', mp: 'cross', hp: 'hook', lk: 'teep', mk: 'bodykick', hk: 'highkick' },
+    combos: [{ name: 'Jab · Cross · Hook', seq: ['lp', 'mp', 'hp'], bonus: 1.6 }, { name: 'Jab · Cross · Body Kick', seq: ['lp', 'mp', 'mk'], bonus: 1.7 }, { name: 'Teep · Cross · High Kick', seq: ['lk', 'mp', 'hk'], bonus: 1.8 }] },
+  pro: { name: 'Pro Boxer', blurb: 'Punches only: heavy body shots, uppercuts and overhands', speed: 0.92, power: 1.18, reach: 1,
+    moves: { lp: 'jab', mp: 'cross', hp: 'overhand', lk: 'bodyjab', mk: 'bodyhook', hk: 'uppercut' },
+    combos: [{ name: 'Jab · Body Hook · Overhand', seq: ['lp', 'mk', 'hp'], bonus: 1.8 }, { name: 'Body Jab · Cross · Overhand', seq: ['lk', 'mp', 'hp'], bonus: 1.7 }, { name: 'Jab · Jab · Uppercut', seq: ['lp', 'lp', 'hk'], bonus: 1.6 }] },
+  am: { name: 'Amateur Boxer', blurb: 'Punches only: fast, sharp combinations', speed: 1.12, power: 0.88, reach: 1, startup: -1,
+    moves: { lp: 'jab', mp: 'cross', hp: 'hook', lk: 'bodyjab', mk: 'bodyhook', hk: 'uppercut' },
+    combos: [{ name: 'Jab · Jab · Cross · Hook', seq: ['lp', 'lp', 'mp', 'hp'], bonus: 2.0 }, { name: 'Jab · Body Jab · Cross', seq: ['lp', 'lk', 'mp'], bonus: 1.6 }, { name: 'Hook · Uppercut · Hook', seq: ['hp', 'hk', 'hp'], bonus: 1.7 }] },
+  tkd: { name: 'Taekwondo', blurb: 'Kick specialist: long, fast and spinning kicks; light hands', speed: 1.08, power: 0.95, reach: 1.1, punchPower: 0.8,
+    moves: { lp: 'jab', mp: 'cross', hp: 'hook', lk: 'roundkick', mk: 'sidekick', hk: 'spinkick' },
+    combos: [{ name: 'Round · Round · Spinning Kick', seq: ['lk', 'lk', 'hk'], bonus: 1.8 }, { name: 'Side · Round · Side Kick', seq: ['mk', 'lk', 'mk'], bonus: 1.7 }, { name: 'Jab · Round Kick · Spinning Kick', seq: ['lp', 'lk', 'hk'], bonus: 1.7 }] },
+  thai: { name: 'Muay Thai', blurb: 'Low kicks, knees and elbows: short range, punishing', speed: 0.96, power: 1.1, reach: 0.95,
+    moves: { lp: 'jab', mp: 'cross', hp: 'elbow', lk: 'teep', mk: 'lowkick', hk: 'knee' },
+    combos: [{ name: 'Jab · Cross · Low Kick', seq: ['lp', 'mp', 'mk'], bonus: 1.7 }, { name: 'Teep · Elbow · Knee', seq: ['lk', 'hp', 'hk'], bonus: 1.8 }, { name: 'Low Kick · Low Kick · Elbow', seq: ['mk', 'mk', 'hp'], bonus: 1.6 }] },
+}
+export const STYLE_KEYS = ['kickboxer', 'pro', 'am', 'tkd', 'thai']
+// a pillar fighter in a style: same colours / special / super, style's moves, combos and stat changes
+export function styledDef(base, styleKey) {
+  const st = STYLES[styleKey] || STYLES.kickboxer
+  return { ...base, style: styleKey, styleName: st.name, speed: base.speed * st.speed, power: base.power * st.power, reach: base.reach * st.reach,
+    moves: st.moves, combos: st.combos, startup: st.startup || 0, punchPower: st.punchPower || 1 }
+}
+// squad set-up (style per pillar + fight order), remembered on the device for now
+export function loadSquad() {
+  try { const v = JSON.parse(localStorage.getItem('krfight-squad') || 'null'); if (v && v.styles && Array.isArray(v.order)) return v } catch (e) { /* ignore */ }
+  return { styles: { physical: 'pro', technical: 'kickboxer', tactical: 'thai', mentality: 'am', foundation: 'tkd' }, order: [0, 1, 2] }
+}
+export function saveSquad(sq) { try { localStorage.setItem('krfight-squad', JSON.stringify(sq)) } catch (e) { /* ignore */ } }
+export const MAX_TEAM = 5
+
 // crouching / jumping versions scale with how long the button was held
 export const LEVEL_SCALE = { l: { dmg: 1, s: 0 }, m: { dmg: 1.35, s: 2 }, h: { dmg: 1.75, s: 4 } }
 // hold time (ms) for each level

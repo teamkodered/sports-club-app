@@ -1,7 +1,7 @@
 // KR FIGHT 2 -- Phaser scenes: Boot (makes textures), Title, Select, Fight, Results.
 // The world is 800x450; cameras zoom x2 onto a 1600x900 canvas so everything stays crisp on phones.
 import Phaser from 'phaser'
-import { W, H, FLOOR, FIGHTERS, MOVES, SUPER_NAME, LEVELS, comboLabel, hex, getLook, setLook, LOOK_LEVELS, HOUSES, HOUSE_KEYS, getHouse, setHouse, fxColour, cpuHouse, NATURAL_HOUSE } from './data.js'
+import { W, H, FLOOR, FIGHTERS, MOVES, SUPER_NAME, LEVELS, comboLabel, hex, getLook, setLook, LOOK_LEVELS, HOUSES, HOUSE_KEYS, getHouse, setHouse, fxColour, cpuHouse, NATURAL_HOUSE, STYLES, STYLE_KEYS, styledDef, loadSquad, saveSquad, MAX_TEAM } from './data.js'
 import { Match, makeFighter } from './core.js'
 import { makePose, stepPose, drawFighter, targetPose } from './pose.js'
 
@@ -124,6 +124,10 @@ function buildArenaStick(scene, opts = {}) {
   return objs
 }
 
+// a strike for menu fighters (title / select / results), thrown the way their style throws it
+function demoMove(f, k) { const id = (f.def.moves && f.def.moves[k]) || k, mv = MOVES[id]; return mv ? { k: id, ...mv, reach: mv.reach * (f.def.reach || 1) } : null }
+const squadDef = (i, sq) => styledDef(FIGHTERS[i], (sq || loadSquad()).styles[FIGHTERS[i].key])
+
 // ---------------- Boot ----------------
 export class BootScene extends Phaser.Scene {
   constructor() { super('Boot') }
@@ -150,7 +154,7 @@ export class TitleScene extends Phaser.Scene {
     setupCam(this); bridge(this).onScene?.('title')
     buildArena(this, { dim: 0.45 })
     // two fighters squaring off in the background
-    this.demo = [0, 3].map((i, n) => { const f = makeFighter(FIGHTERS[i], n ? 560 : 240, n ? -1 : 1); f.side = n ? 'p2' : 'p1'; f.theme = n ? cpuHouse(f.def, getHouse()) : getHouse(); return { f, pose: makePose(f, 0) } })
+    this.demo = [0, 3].map((i, n) => { const f = makeFighter(squadDef(i), n ? 560 : 240, n ? -1 : 1); f.side = n ? 'p2' : 'p1'; f.theme = NATURAL_HOUSE[f.def.key]; return { f, pose: makePose(f, 0) } })
     this.fg = this.add.graphics(); this.frame = 0
     const logo = txt(this, W / 2, 150, 'KR FIGHT', { fontSize: '120px', color: GOLD, stroke: '#000', strokeThickness: 10 }).setOrigin(0.5)
     logo.setShadow(0, 0, RED, 24, true, true)
@@ -169,125 +173,143 @@ export class TitleScene extends Phaser.Scene {
     if (b.pressed && (b.pressed.super || b.pressed.lp || b.pressed.sp)) { b.pressed.super = b.pressed.lp = b.pressed.sp = false; this.go(); return }
     this.fg.clear()
     for (const d of this.demo) {
-      if (!d.f.move && this.frame % 90 === (d.f.facing > 0 ? 30 : 75)) { const k = ['lp', 'mp', 'hp', 'lk', 'mk', 'hk'][Math.floor(Math.random() * 6)]; d.f.move = { k, ...MOVES[k] }; d.f.t = 0 }
+      if (!d.f.move && this.frame % 90 === (d.f.facing > 0 ? 30 : 75)) { d.f.move = demoMove(d.f, ['lp', 'mp', 'hp', 'lk', 'mk', 'hk'][Math.floor(Math.random() * 6)]); d.f.t = 0 }
       if (d.f.move) { d.f.t++; if (d.f.t > d.f.move.s + d.f.move.a + d.f.move.r) d.f.move = null }
       stepPose(d.pose, d.f, this.frame); drawFighter(this.fg, d.f, d.pose, this.frame)
     }
   }
 }
 
-// ---------------- Select ----------------
+// ---------------- Select: squad set-up ----------------
+// Pick a style for each pillar fighter, add 1-5 of them to the team in fight order, choose a level.
 export class SelectScene extends Phaser.Scene {
   constructor() { super('Select') }
   create() {
     setupCam(this); bridge(this).onScene?.('select')
-    const cfg = this.game.cfg || (this.game.cfg = { pick: 0, cpu: null, level: 'medium' })
+    this.sq = loadSquad()
+    const cfg = this.game.cfg || (this.game.cfg = { level: 'medium' })
+    if (cfg.pick == null) cfg.pick = this.sq.order[0] ?? 0
     buildArena(this, { dim: 0.72 })
     this.frame = 0
-    // fighter tiles
+    // fighter tiles (badge = place in the fight order)
     this.tiles = FIGHTERS.map((f, i) => {
       const x = 26 + i * 152 + 70, y = 52
       const c = this.add.container(x, y)
-      const g = this.add.graphics()
+      const g = this.add.graphics(), badge = this.add.graphics()
       const t = txt(this, 0, 22, f.name, { fontSize: '21px', color: f.colour }).setOrigin(0.5)
       const icon = this.add.graphics()
       icon.fillStyle(hex(f.colour), 1); icon.fillCircle(0, -10, 14); icon.fillStyle(0xf1c9a5, 1); icon.fillCircle(0, -12, 7)
-      c.add([g, icon, t]); c.setSize(140, 76)
+      const num = txt(this, 54, -24, '', { fontSize: '17px', color: '#0A0A0A' }).setOrigin(0.5)
+      c.add([g, icon, t, badge, num]); c.setSize(140, 76)
       c.setInteractive(new Phaser.Geom.Rectangle(0, 0, 140, 76), Phaser.Geom.Rectangle.Contains)
       c.on('pointerdown', () => { sfx(this).ui?.(); this.choose(i) })
-      c.g = g; c.def = f
+      c.g = g; c.badge = badge; c.num = num; c.def = f
       return c
     })
-    // preview fighter
-    this.prev = makeFighter(FIGHTERS[cfg.pick], 170, 1); this.prev.theme = getHouse()
-    this.prevPose = makePose(this.prev, 0)
     this.fg = this.add.graphics()
-    this.name = txt(this, 340, 108, '', { fontSize: '48px', stroke: '#000', strokeThickness: 6 })
-    this.special = txt(this, 342, 166, '', { fontFamily: BODY, fontStyle: '700', fontSize: '20px' })
+    this.makePreview()
+    this.name = txt(this, 338, 94, '', { fontSize: '42px', stroke: '#000', strokeThickness: 6 })
+    this.styleBtn = button(this, 462, 164, 244, 32, '', '#F2F2F2', () => this.cycleStyle(), { size: 18 })
+    this.teamBtn = button(this, 694, 164, 164, 32, '', GOLD, () => this.toggleTeam(), { size: 18 })
+    this.blurb = txt(this, 340, 186, '', { fontFamily: BODY, fontStyle: '600', fontSize: '15px', color: '#C9CED6' })
+    this.special = txt(this, 340, 206, '', { fontFamily: BODY, fontStyle: '700', fontSize: '16px' })
     this.statG = this.add.graphics()
-    this.statLabels = ['Speed', 'Power', 'Reach'].map((s, i) => txt(this, 342, 200 + i * 22, s, { fontFamily: BODY, fontStyle: '600', fontSize: '18px', color: '#9AA3AE' }))
+    this.statLabels = ['Speed', 'Power', 'Reach'].map((s, i) => txt(this, 340, 230 + i * 18, s, { fontFamily: BODY, fontStyle: '600', fontSize: '15px', color: '#9AA3AE' }))
     this.comboT = [0, 1, 2].map(i => [
-      txt(this, 342, 276 + i * 24, '', { fontFamily: BODY, fontStyle: '700', fontSize: '19px' }),
-      txt(this, 776, 276 + i * 24, '', { fontFamily: BODY, fontStyle: '700', fontSize: '19px', color: '#F2F2F2' }).setOrigin(1, 0),
+      txt(this, 340, 286 + i * 19, '', { fontFamily: BODY, fontStyle: '700', fontSize: '16px' }),
+      txt(this, 776, 286 + i * 19, '', { fontFamily: BODY, fontStyle: '700', fontSize: '16px', color: '#F2F2F2' }).setOrigin(1, 0),
     ])
-    txt(this, 776, 350, 'L = tap   M = hold   H = long hold', { fontFamily: BODY, fontStyle: '600', fontSize: '15px', color: '#9AA3AE' }).setOrigin(1, 0)
-    // opponent / level / fight
-    txt(this, 24, 356, 'Opponent', { fontFamily: BODY, fontStyle: '600', fontSize: '16px', color: '#9AA3AE' })
-    this.oppBtn = button(this, 130, 404, 212, 44, '', '#F2F2F2', () => this.cycleOpp(), { size: 22 })
-    txt(this, 256, 356, 'Level', { fontFamily: BODY, fontStyle: '600', fontSize: '16px', color: '#9AA3AE' })
-    this.lvlBtns = ['easy', 'medium', 'hard'].map((l, i) => button(this, 296 + i * 86, 404, 80, 44, l[0].toUpperCase() + l.slice(1), GOLD, () => { cfg.level = l; this.refresh() }, { size: 20 }))
-    this.fightBtn = button(this, 668, 404, 200, 52, 'FIGHT!', FIGHTERS[cfg.pick].colour, () => this.start(), { solid: true, size: 34, r: 10 })
-    // Look: stickman silhouettes or cartoon fighters (rebuilds this screen to show it)
+    txt(this, 776, 343, 'L = tap   M = hold   H = long hold', { fontFamily: BODY, fontStyle: '600', fontSize: '13px', color: '#9AA3AE' }).setOrigin(1, 0)
+    // fight order slots
+    txt(this, 22, 360, 'Fight order (tap to remove)', { fontFamily: BODY, fontStyle: '600', fontSize: '15px', color: '#9AA3AE' })
+    this.slots = Array.from({ length: MAX_TEAM }, (_, i) => {
+      const x = 49 + i * 56, y = 404
+      const g = this.add.graphics()
+      const t = txt(this, x, y, '', { fontSize: '15px' }).setOrigin(0.5)
+      g.setInteractive(new Phaser.Geom.Rectangle(x - 25, y - 20, 50, 40), Phaser.Geom.Rectangle.Contains)
+      g.on('pointerdown', () => { if (this.sq.order[i] != null) { sfx(this).ui?.(); this.sq.order.splice(i, 1); saveSquad(this.sq); this.refresh() } })
+      return { g, t, x, y }
+    })
+    txt(this, 330, 360, 'Level', { fontFamily: BODY, fontStyle: '600', fontSize: '15px', color: '#9AA3AE' })
+    this.lvlBtns = ['easy', 'medium', 'hard'].map((l, i) => button(this, 364 + i * 72, 404, 66, 40, l[0].toUpperCase() + l.slice(1), GOLD, () => { cfg.level = l; this.refresh() }, { size: 18 }))
+    this.fightBtn = null
     // Look levels: 1 Cartoon, 2 Stickman, 3 Houses (all open while testing; later they unlock with game level)
     const lv = LOOK_LEVELS.find(l => l.key === getLook()) || LOOK_LEVELS[1]
-    button(this, 712, 128, 124, 32, `Look ${lv.level}: ${lv.name}`, '#9AA3AE', () => { setLook(LOOK_LEVELS[(LOOK_LEVELS.indexOf(lv) + 1) % LOOK_LEVELS.length].key); this.scene.restart() }, { size: 17 })
-    // house picker (house look only): one glowing swatch per house; picking a fighter switches to their
-    // own house, the swatches let you swap
-    this.swatches = getLook() === 'house' ? HOUSE_KEYS.map((h, i) => {
-      const x = 44 + i * 30, y = 112
-      const sw = this.add.graphics()
-      sw.setInteractive(new Phaser.Geom.Circle(x, y, 15), Phaser.Geom.Circle.Contains)
-      sw.on('pointerdown', () => { sfx(this).ui?.(); setHouse(h); this.prev.theme = h; this.refresh() })
-      sw.h = h; sw.cx = x; sw.cy = y
-      return sw
-    }) : []
+    button(this, 712, 120, 124, 32, `Look ${lv.level}: ${lv.name}`, '#9AA3AE', () => { setLook(LOOK_LEVELS[(LOOK_LEVELS.indexOf(lv) + 1) % LOOK_LEVELS.length].key); this.scene.restart() }, { size: 17 })
     this.refresh()
   }
-  choose(i) {
+  makePreview() {
     const cfg = this.game.cfg
-    cfg.pick = i; if (cfg.cpu === i) cfg.cpu = null
-    if (getLook() === 'house') setHouse(NATURAL_HOUSE[FIGHTERS[i].key] || getHouse())
-    this.prev = makeFighter(FIGHTERS[i], 170, 1); this.prev.theme = getHouse(); this.prevPose = makePose(this.prev, this.frame)
-    this.demoT = 20
-    this.refresh()
+    this.prev = makeFighter(squadDef(cfg.pick, this.sq), 170, 1); this.prev.side = 'p1'; this.prev.theme = NATURAL_HOUSE[this.prev.def.key]
+    this.prevPose = makePose(this.prev, this.frame); this.demoT = 20
   }
-  cycleOpp() {
-    const cfg = this.game.cfg
-    const opts = [null, ...FIGHTERS.map((_, i) => i).filter(i => i !== cfg.pick)]
-    cfg.cpu = opts[(opts.indexOf(cfg.cpu) + 1) % opts.length]
-    this.refresh()
+  choose(i) { this.game.cfg.pick = i; this.makePreview(); this.refresh() }
+  cycleStyle() {
+    const key = FIGHTERS[this.game.cfg.pick].key
+    this.sq.styles[key] = STYLE_KEYS[(STYLE_KEYS.indexOf(this.sq.styles[key]) + 1) % STYLE_KEYS.length]
+    saveSquad(this.sq); this.makePreview(); this.refresh()
+  }
+  toggleTeam() {
+    const i = this.game.cfg.pick, at = this.sq.order.indexOf(i)
+    if (at >= 0) this.sq.order.splice(at, 1)
+    else if (this.sq.order.length < MAX_TEAM) this.sq.order.push(i)
+    saveSquad(this.sq); this.refresh()
   }
   refresh() {
-    const cfg = this.game.cfg, f = FIGHTERS[cfg.pick]
+    const cfg = this.game.cfg, f = FIGHTERS[cfg.pick], def = squadDef(cfg.pick, this.sq), st = STYLES[def.style]
+    const order = this.sq.order
     this.tiles.forEach((t, i) => {
-      const on = i === cfg.pick, col = hex(t.def.colour)
+      const on = i === cfg.pick, col = hex(t.def.colour), place = order.indexOf(i)
       t.g.clear(); t.g.fillStyle(on ? col : 0x12161b, on ? 0.22 : 0.92); t.g.fillRoundedRect(-70, -38, 140, 76, 8)
       t.g.lineStyle(on ? 3 : 1.5, on ? col : 0x2a3138, 1); t.g.strokeRoundedRect(-70, -38, 140, 76, 8)
+      t.badge.clear(); t.num.setText(place >= 0 ? String(place + 1) : '')
+      if (place >= 0) { t.badge.fillStyle(0xf5c542, 1); t.badge.fillCircle(54, -24, 12) }
       this.tweens.add({ targets: t, scale: on ? 1.06 : 1, duration: 120 })
     })
-    for (const sw of this.swatches || []) {
-      const col = hex(HOUSES[sw.h].colour), on = sw.h === getHouse()
-      sw.clear()
-      if (on) { sw.lineStyle(3, 0xffffff, 1); sw.strokeCircle(sw.cx, sw.cy, 14) }
-      sw.fillStyle(col, 0.35); sw.fillCircle(sw.cx, sw.cy, 12); sw.fillStyle(col, 1); sw.fillCircle(sw.cx, sw.cy, 8)
-    }
     this.name.setText(f.name).setColor(f.colour)
-    this.special.setText(`Special: ${f.specialName}     Super: ${SUPER_NAME[f.special]}`)
+    this.styleBtn.label.setText(`Style: ${st.name}  ▸`)
+    const place = order.indexOf(cfg.pick)
+    this.teamBtn.label.setText(place >= 0 ? `In team #${place + 1}  ✕` : order.length >= MAX_TEAM ? 'Team full' : '+ Add to team')
+    this.teamBtn.setOn(place >= 0)
+    this.blurb.setText(st.blurb)
+    this.special.setText(`Special: ${f.specialName}     Super: ${SUPER_NAME[f.special]}`).setColor(f.colour)
     const g = this.statG; g.clear()
-    ;[[f.speed, 3.6, 4.8], [f.power, 0.9, 1.25], [f.reach, 0.9, 1.1]].forEach(([v, lo, hi], i) => {
-      const y = 205 + i * 22, w = 300 * Math.max(0.12, Math.min(1, (v - lo) / (hi - lo)))
-      g.fillStyle(0x2a3138, 1); g.fillRect(420, y, 300, 10); g.fillStyle(hex(f.colour), 1); g.fillRect(420, y, w, 10)
+    ;[[def.speed, 3.4, 5.2], [def.power, 0.8, 1.45], [def.reach, 0.85, 1.2]].forEach(([v, lo, hi], i) => {
+      const y = 236 + i * 18, w = 300 * Math.max(0.1, Math.min(1, (v - lo) / (hi - lo)))
+      g.fillStyle(0x2a3138, 1); g.fillRect(420, y, 300, 8); g.fillStyle(hex(f.colour), 1); g.fillRect(420, y, w, 8)
     })
-    f.combos.forEach((c, i) => { this.comboT[i][0].setText(c.name).setColor(f.colour); this.comboT[i][1].setText(comboLabel(c.seq)) })
-    const opp = cfg.cpu == null ? 'Random' : FIGHTERS[cfg.cpu].name
-    this.oppBtn.label.setText(opp).setColor(cfg.cpu == null ? GOLD : FIGHTERS[cfg.cpu].colour)
+    def.combos.forEach((c, i) => { this.comboT[i][0].setText(c.name).setColor(f.colour); this.comboT[i][1].setText(comboLabel(c.seq)) })
+    // fight order slots
+    this.slots.forEach((sl, i) => {
+      const pi = order[i], g2 = sl.g
+      g2.clear()
+      if (pi == null) { g2.lineStyle(1.5, 0x3a424d, 1); g2.strokeRoundedRect(sl.x - 25, sl.y - 20, 50, 40, 6); sl.t.setText(String(i + 1)).setColor('#3a424d'); return }
+      const pf = FIGHTERS[pi], col = hex(pf.colour)
+      g2.fillStyle(col, 0.25); g2.fillRoundedRect(sl.x - 25, sl.y - 20, 50, 40, 6); g2.lineStyle(2, col, 1); g2.strokeRoundedRect(sl.x - 25, sl.y - 20, 50, 40, 6)
+      sl.t.setText(pf.name.slice(0, 3)).setColor(pf.colour)
+    })
     this.lvlBtns.forEach((b, i) => b.setOn(['easy', 'medium', 'hard'][i] === cfg.level))
-    this.fightBtn.destroy(); this.fightBtn = button(this, 668, 404, 200, 52, 'FIGHT!', f.colour, () => this.start(), { solid: true, size: 34, r: 10 })
+    if (this.fightBtn) this.fightBtn.destroy()
+    const lead = order.length ? FIGHTERS[order[0]].colour : '#5c6670'
+    this.fightBtn = button(this, 674, 404, 192, 52, order.length ? (order.length > 1 ? `FIGHT ${order.length}v${order.length}!` : 'FIGHT!') : 'Add a fighter', lead, () => this.start(), { solid: !!order.length, size: order.length ? 30 : 22, r: 10 })
   }
   start() {
-    const cfg = this.game.cfg
-    let ci = cfg.cpu
-    if (ci == null) { const others = FIGHTERS.map((_, i) => i).filter(i => i !== cfg.pick); ci = others[Math.floor(Math.random() * others.length)] }
+    const cfg = this.game.cfg, order = this.sq.order
+    if (!order.length) { this.cameras.main.shake(120, 0.004); return }
+    // CPU team: same size, random pillars and styles
+    const pool = Phaser.Utils.Array.Shuffle([0, 1, 2, 3, 4])
+    const team1 = order.map(p => ({ p, style: this.sq.styles[FIGHTERS[p].key] }))
+    const team2 = pool.slice(0, order.length).map(p => ({ p, style: Phaser.Utils.Array.GetRandom(STYLE_KEYS) }))
     sfx(this).resume?.()
     this.cameras.main.flash(160, 255, 255, 255)
-    this.scene.start('Fight', { p1: cfg.pick, p2: ci, level: cfg.level })
+    this.scene.start('Fight', { team1, team2, level: cfg.level })
   }
   update() {
     this.frame++
     const b = bridge(this), pr = b.pressed || {}
     if (pr.left || pr.right) { const n = FIGHTERS.length; this.choose((this.game.cfg.pick + (pr.right ? 1 : n - 1)) % n); pr.left = pr.right = false; sfx(this).ui?.() }
     if (pr.super) { pr.super = false; this.start(); return }
-    // preview fighter shows off its moves
+    // preview fighter shows off its style's strikes and its special
     const f = this.prev
     if (!f.move) {
       this.demoT = (this.demoT ?? 40) - 1
@@ -295,7 +317,7 @@ export class SelectScene extends Phaser.Scene {
         const seq = ['lp', 'mp', 'hp', 'lk', 'mk', 'hk', 'sp']
         const k = seq[(this.demoN = ((this.demoN || 0) + 1) % seq.length)]
         if (k === 'sp') { const sp = f.def.special; f.move = sp === 'wave' ? { k: 'cast', s: 8, a: 6, r: 16, reach: 30 } : sp === 'quake' ? { k: 'stomp', s: 10, a: 4, r: 18 } : sp === 'upper' ? { k: 'upper', s: 3, a: 8, r: 20, reach: 66 } : sp === 'rush' ? { k: 'rush', s: 4, a: 14, r: 14, reach: 75 } : { k: 'counter', s: 40, a: 0, r: 6 }; if (sp === 'counter') f.counterT = 40 }
-        else f.move = { k, ...MOVES[k], reach: MOVES[k].reach * f.def.reach }
+        else f.move = demoMove(f, k)
         f.t = 0; this.demoT = 26
       }
     } else { f.t++; if (f.t > f.move.s + f.move.a + f.move.r) f.move = null }
@@ -304,7 +326,6 @@ export class SelectScene extends Phaser.Scene {
     this.fg.setScale(1.3).setPosition(-170 * 0.3, -330 * 0.3)
     this.fg.lineStyle(2, hex(fxColour(f)), 0.4); this.fg.strokeEllipse(170, 336, 170, 22)
     stepPose(this.prevPose, f, this.frame)
-    // draw the preview standing on its own little floor (y = 330)
     drawFighter(this.fg, f, this.prevPose, this.frame, 1, { noKo: true, y: 330, shadowY: 330 })
   }
 }
@@ -316,8 +337,10 @@ export class FightScene extends Phaser.Scene {
     this.data0 = data
     setupCam(this)
     const b = bridge(this); b.onScene?.('fight')
-    this.m = new Match(FIGHTERS[data.p1], FIGHTERS[data.p2], data.level)
-    this.m.p1.theme = getHouse(); this.m.p2.theme = cpuHouse(this.m.p2.def, this.m.p1.theme)
+    const defs = t => (t || []).map(x => styledDef(FIGHTERS[x.p], x.style))
+    this.m = new Match(defs(data.team1), defs(data.team2), data.level)
+    for (const f of [...this.m.t1, ...this.m.t2]) f.theme = NATURAL_HOUSE[f.def.key]
+    this.tagReq = null
     this.poses = { p1: makePose(this.m.p1, 0), p2: makePose(this.m.p2, 0) }
     this.acc = 0; this.slow = 1; this.shakeT = null
     this.world = []
@@ -351,6 +374,13 @@ export class FightScene extends Phaser.Scene {
     this.banner = u(txt(this, W / 2, H / 2 - 30, '', { fontSize: '92px', color: GOLD, stroke: '#000', strokeThickness: 10 }).setOrigin(0.5).setAlpha(0))
     this.banner.setShadow(0, 0, RED, 22, true, true)
     this.sub = u(txt(this, W / 2, H / 2 + 34, '', { fontFamily: BODY, fontStyle: '700', fontSize: '26px', stroke: '#000', strokeThickness: 5 }).setOrigin(0.5).setAlpha(0))
+    // tap zones over the player's team chips (tag in that teammate); chip labels
+    this.chipT = []
+    for (const [side, team] of [['p1', m.t1], ['p2', m.t2]]) if (team.length > 1) team.forEach((mb, i) => {
+      const cx = side === 'p1' ? 20 + i * 56 : W - 20 - 50 - i * 56
+      this.chipT.push(u(txt(this, cx + 30, 104, mb.def.name.slice(0, 3), { fontFamily: BODY, fontStyle: '700', fontSize: '12px', color: mb.def.colour }).setOrigin(0.5, 0)))
+      if (side === 'p1') { const z = u(this.add.zone(cx + 25, 116, 54, 30).setInteractive()); z.on('pointerdown', () => { this.tagReq = i }) }
+    })
     this.hitsT = { p1: u(txt(this, 26, 150, '', { fontSize: '44px', color: GOLD, stroke: '#000', strokeThickness: 6 }).setAlpha(0)),
       p2: u(txt(this, W - 26, 150, '', { fontSize: '44px', color: GOLD, stroke: '#000', strokeThickness: 6 }).setOrigin(1, 0).setAlpha(0)) }
     this.dark = u(this.add.rectangle(W / 2, H / 2, W + 40, H + 40, 0x000000, 0).setDepth(-1))
@@ -407,7 +437,15 @@ export class FightScene extends Phaser.Scene {
     const m = this.m, sx = this.sx
     for (const e of events) {
       switch (e.type) {
-        case 'roundIntro': this.showBanner(e.final ? 'FINAL ROUND' : `ROUND ${e.round}`, e.round === 1 ? `${m.p1.def.name} vs ${m.p2.def.name}` : '', 650); sx.say?.(e.final ? 'Final round' : `Round ${e.round}`); this.lag = { p1: 100, p2: 100 }; this.cameras.main.zoomTo(Z, 300); break
+        case 'roundIntro': this.showBanner(e.team ? 'TEAM BATTLE' : 'ROUND 1', e.team ? `${e.sizes[0]} vs ${e.sizes[1]}` : `${m.p1.def.name} vs ${m.p2.def.name}`, 650); sx.say?.(e.team ? 'Team battle' : 'Round one'); this.lag = { p1: 100, p2: 100 }; this.cameras.main.zoomTo(Z, 300); break
+        case 'tagIn': {
+          this.poses[e.side] = makePose(e.f, m.frame); this.lag[e.side] = e.f.hp
+          const col = hex(fxColour(e.f))
+          this.ringAt(e.f.x, FLOOR - 70, col, 1.3); this.emitter(col).sparks.explode(18, e.f.x, FLOOR - 120)
+          this.popText(e.f.x, FLOOR - 240, e.why === 'tag' ? 'TAG IN!' : e.f.def.name, fxColour(e.f), 30)
+          sx.special?.(); if (e.side === 'p1') this.vibe(20)
+          break
+        }
         case 'fight': this.showBanner('FIGHT!', '', 500, '#FFFFFF'); sx.bell?.(); sx.say?.('Fight!', 0.7); this.crowdJump(true); break
         case 'whoosh': sx.whoosh?.(e.heavy); break
         case 'hit': {
@@ -416,8 +454,8 @@ export class FightScene extends Phaser.Scene {
           sx.hit?.(e.heavy, big)
           this.shake(big ? 260 : e.heavy ? 150 : 80, big ? 10 : e.heavy ? 6 : 3)
           if (e.heavy) this.crowdJump(big)
-          if (e.def === m.p1 || e.att === m.p1) this.vibe(e.heavy ? 28 : 10)
-          if (e.chain >= 2) this.hitCount(e.att === m.p1 ? 'p1' : 'p2', e.chain)
+          if (e.def.side === 'p1' || e.att.side === 'p1') this.vibe(e.heavy ? 28 : 10)
+          if (e.chain >= 2) this.hitCount(e.att.side, e.chain)
           this.hitstopDef = e.def
           break
         }
@@ -439,6 +477,12 @@ export class FightScene extends Phaser.Scene {
         case 'land': this.dustE().explode(e.hard ? 22 : 8, e.f.x, FLOOR); sx.land?.(e.hard); if (e.hard) this.shake(200, 6); break
         case 'ko': {
           sx.ko?.(); sx.say?.('K.O.', 0.4); this.vibe(80)
+          if (!e.final) {
+            this.slow = 0.5; this.cameras.main.flash(120, 255, 255, 255); this.crowdJump(true)
+            this.showBanner('K.O.', `${e.left} left`, 900, GOLD)
+            this.time.delayedCall(600, () => { this.slow = 1 })
+            break
+          }
           this.slow = 0.22; this.cameras.main.flash(220, 255, 255, 255)
           const midX = (m.p1.x + m.p2.x) / 2
           this.cameras.main.pan(midX, H / 2 + 40, 500, 'Cubic.easeOut'); this.cameras.main.zoomTo(Z * 1.25, 500, 'Cubic.easeOut')
@@ -450,7 +494,8 @@ export class FightScene extends Phaser.Scene {
           bridge(this).onRound?.()
           const you = e.winner === 'p1'
           const big = e.how === 'ko' ? 'K.O.' : e.winner ? 'TIME' : 'DRAW'
-          const small = e.winner ? (e.perfect ? 'PERFECT! ' : '') + (you ? 'You win the round' : 'CPU wins the round') : 'No winner this round'
+          const team = m.t1.length > 1
+          const small = e.winner ? (e.perfect ? 'PERFECT! ' : '') + (you ? (team ? 'Your team wins!' : 'You win!') : (team ? 'CPU team wins' : 'CPU wins')) : 'Draw'
           this.time.delayedCall(e.how === 'ko' ? 350 : 0, () => this.showBanner(big, small, e.matchOver ? 1600 : 1500, e.how === 'ko' ? GOLD : '#FFFFFF'))
           if (e.how !== 'ko') { sx.bell?.(); sx.cheer?.(1) }
           break
@@ -458,7 +503,7 @@ export class FightScene extends Phaser.Scene {
         case 'matchOver': {
           this.time.delayedCall(700, () => {
             this.cameras.main.fadeOut(350, 5, 7, 10)
-            this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Results', { ...this.data0, themes: [m.p1.theme, m.p2.theme], winner: e.winner, stats: m.stats, wins: [m.p1.wins, m.p2.wins] }))
+            this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Results', { ...this.data0, winner: e.winner, stats: m.stats, winDef: e.winner ? m[e.winner].def : m.p1.def, kos: [m.t2.filter(x => x.hp <= 0).length, m.t1.filter(x => x.hp <= 0).length], sizes: [m.t1.length, m.t2.length] }))
           })
           break
         }
@@ -481,8 +526,8 @@ export class FightScene extends Phaser.Scene {
     const stripe = this.U(this.add.graphics())
     stripe.fillStyle(col, 0.95); stripe.fillPoints([{ x: -40, y: 170 }, { x: W + 40, y: 150 }, { x: W + 40, y: 250 }, { x: -40, y: 270 }], true)
     stripe.fillStyle(0x000000, 0.35); stripe.fillPoints([{ x: -40, y: 250 }, { x: W + 40, y: 230 }, { x: W + 40, y: 250 }, { x: -40, y: 270 }], true)
-    const t = this.U(txt(this, f === this.m.p1 ? -300 : W + 300, 210, name.toUpperCase(), { fontSize: '76px', color: '#0A0A0A' }).setOrigin(0.5))
-    stripe.setX(f === this.m.p1 ? -W : W)
+    const t = this.U(txt(this, f.side === 'p1' ? -300 : W + 300, 210, name.toUpperCase(), { fontSize: '76px', color: '#0A0A0A' }).setOrigin(0.5))
+    stripe.setX(f.side === 'p1' ? -W : W)
     this.tweens.add({ targets: stripe, x: 0, duration: 140, ease: 'Cubic.out' })
     this.tweens.add({ targets: t, x: W / 2, duration: 180, ease: 'Back.out' })
     this.tweens.add({ targets: [stripe, t], alpha: 0, delay: 460, duration: 120, onComplete: () => { stripe.destroy(); t.destroy() } })
@@ -507,8 +552,9 @@ export class FightScene extends Phaser.Scene {
 
   getInput() {
     const b = bridge(this), inp = b.input || {}, pr = b.pressed || {}
-    const c = { left: inp.left, right: inp.right, down: inp.down, upPressed: pr.up || !!inp.up, superPressed: pr.super, lpPressed: pr.lp, mpPressed: pr.mp, hpPressed: pr.hp, lkPressed: pr.lk, mkPressed: pr.mk, hkPressed: pr.hk, spPressed: pr.sp, block: !!inp.block }
+    const c = { left: inp.left, right: inp.right, down: inp.down, upPressed: pr.up || !!inp.up, tag: pr.tag ? 'next' : this.tagReq, superPressed: pr.super, lpPressed: pr.lp, mpPressed: pr.mp, hpPressed: pr.hp, lkPressed: pr.lk, mkPressed: pr.mk, hkPressed: pr.hk, spPressed: pr.sp, block: !!inp.block }
     for (const k in pr) pr[k] = false
+    this.tagReq = null
     return c
   }
 
@@ -547,6 +593,7 @@ export class FightScene extends Phaser.Scene {
     const m = this.m, g = this.hudG; g.clear()
     for (const k of ['p1', 'p2']) {
       const f = m[k]
+      if (this.lag[k] == null) this.lag[k] = f.hp
       this.lag[k] = f.hp > this.lag[k] ? f.hp : (m.frame - (f.lastHitAt || 0) > 30 ? Math.max(f.hp, this.lag[k] - 0.6) : this.lag[k])
     }
     const bar = (x0, f, right, lag) => {
@@ -561,8 +608,19 @@ export class FightScene extends Phaser.Scene {
       g.fillStyle(low ? (m.frame % 20 < 10 ? 0xe24b4a : 0xff7a6e) : hex(fxColour(f)), 1); g.fillPoints(shape(x0, Math.max(0, w * f.hp / 100)), true)
       g.fillStyle(0xffffff, 0.18); g.fillRect(right ? x0 + 4 : x0 + 12, y + 3, w - 18, 5)
       g.lineStyle(2, 0xf2f2f2, 0.9); g.strokePoints(shape(x0, w), true)
-      // round wins
-      for (let i = 0; i < 2; i++) { const cx = right ? x0 + w - 18 - i * 18 : x0 + 18 + i * 18; g.fillStyle(i < f.wins ? 0xf5c542 : 0x2a3138, 1); g.fillCircle(cx, 102, 6); g.lineStyle(1.5, 0x000000, 0.8); g.strokeCircle(cx, 102, 6) }
+      // team: one chip per fighter in order, mini health bar; tap a waiting teammate to tag them in
+      const team = right ? m.t2 : m.t1, side = right ? 'p2' : 'p1'
+      if (team.length > 1) team.forEach((mb, i) => {
+        const cw = 50, chx = right ? x0 + w - cw - i * 56 : x0 + i * 56, chy = 104
+        const col = hex(mb.def.colour), active = mb === m[side], down = mb.hp <= 0
+        g.fillStyle(0x0b0e12, 0.9); g.fillRoundedRect(chx, chy, cw, 24, 5)
+        if (!down) { g.fillStyle(col, active ? 1 : 0.75); g.fillRect(chx + 3, chy + 17, (cw - 6) * Math.max(0, mb.hp) / 100, 4) }
+        g.lineStyle(active ? 2.5 : 1.5, down ? 0x3a424d : active ? 0xffffff : col, 1); g.strokeRoundedRect(chx, chy, cw, 24, 5)
+        if (down) { g.lineStyle(2, 0x5c6670, 1); g.lineBetween(chx + 6, chy + 4, chx + cw - 6, chy + 20); g.lineBetween(chx + cw - 6, chy + 4, chx + 6, chy + 20) }
+        else { g.fillStyle(col, 1); g.fillCircle(chx + 10, chy + 9, 5) }
+        // player's tag cool-down shades the waiting chips
+        if (side === 'p1' && !active && !down && m.tagCd.p1 > 0) { g.fillStyle(0x000000, 0.55); g.fillRect(chx, chy, cw * m.tagCd.p1 / 300, 24) }
+      })
       // super meter
       const mt = f.meter || 0, full = mt >= 100, mw = 220
       const mx = right ? x0 + w - mw : x0
@@ -575,12 +633,13 @@ export class FightScene extends Phaser.Scene {
     // timer
     g.fillStyle(0x0b0e12, 0.85); g.fillRoundedRect(W / 2 - 34, 10, 68, 46, 8); g.lineStyle(2, 0xf5c542, 0.7); g.strokeRoundedRect(W / 2 - 34, 10, 68, 46, 8)
     const secs = Math.max(0, Math.ceil(m.timer / 60))
+    setT(this.n1, `${m.p1.def.name} · ${m.p1.def.styleName}`); setT(this.n2, `${m.p2.def.name} · ${m.p2.def.styleName} (CPU)`)
     setT(this.timerT, String(secs), secs <= 10 && m.phase === 'fight' ? RED : '#FFFFFF')
     const spTxt = (f) => (f.meter || 0) >= 100 ? `SUPER READY: ${SUPER_NAME[f.def.special]}` : f.specialCd === 0 ? `${f.def.specialName} ready` : f.def.specialName
     setT(this.sp1, spTxt(m.p1), (m.p1.meter || 0) >= 100 ? GOLD : m.p1.specialCd === 0 ? fxColour(m.p1) : '#5c6670')
     setT(this.sp2, spTxt(m.p2), (m.p2.meter || 0) >= 100 ? GOLD : m.p2.specialCd === 0 ? fxColour(m.p2) : '#5c6670')
     // live readings for the React buttons' charge rings
-    if (m.frame % 6 === 0) bridge(this).onHud?.({ sp: 1 - Math.min(1, (m.p1.specialCd || 0) / 150), sup: Math.min(1, (m.p1.meter || 0) / 100) })
+    if (m.frame % 6 === 0) bridge(this).onHud?.({ sp: 1 - Math.min(1, (m.p1.specialCd || 0) / 150), sup: Math.min(1, (m.p1.meter || 0) / 100), special: m.p1.def.special, colour: m.p1.def.colour })
   }
 }
 
@@ -593,34 +652,35 @@ export class ResultsScene extends Phaser.Scene {
     this.cameras.main.fadeIn(300, 5, 7, 10)
     buildArena(this, { dim: 0.7 })
     const youWon = data.winner === 'p1'
-    const wDef = FIGHTERS[youWon ? data.p1 : data.p2], lDef = FIGHTERS[youWon ? data.p2 : data.p1]
-    this.win = makeFighter(wDef, 190, 1); this.win.side = youWon ? 'p1' : 'p2'; this.win.theme = (data.themes || [])[youWon ? 0 : 1] || getHouse()
+    const wDef = data.winDef || FIGHTERS[0]
+    this.win = makeFighter(wDef, 190, 1); this.win.side = youWon ? 'p1' : 'p2'; this.win.theme = NATURAL_HOUSE[wDef.key]
+    const team = (data.sizes || [1])[0] > 1, kos = data.kos || [0, 0]
     this.pose = makePose(this.win, 0); this.frame = 0
     this.fg = this.add.graphics()
     this.conf = this.add.particles(0, 0, 'shard', { x: { min: 40, max: 340 }, y: -10, speedY: { min: 80, max: 180 }, speedX: { min: -40, max: 40 }, rotate: { min: 0, max: 360 }, scale: { start: 0.6, end: 0.6 }, lifespan: 3200, frequency: 60, tint: [hex(wDef.colour), 0xf5c542, 0xffffff] })
     const head = txt(this, 560, 70, youWon ? 'YOU WIN!' : 'CPU WINS', { fontSize: '76px', color: youWon ? '#22B14C' : RED, stroke: '#000', strokeThickness: 8 }).setOrigin(0.5)
     head.setShadow(0, 0, youWon ? '#22B14C' : RED, 18, true, true)
     head.setScale(2).setAlpha(0); this.tweens.add({ targets: head, scale: 1, alpha: 1, duration: 380, ease: 'Back.out' })
-    txt(this, 560, 122, `${wDef.name} beats ${lDef.name}  ${Math.max(...data.wins)}–${Math.min(...data.wins)}`, { fontFamily: BODY, fontStyle: '700', fontSize: '22px', color: '#C9CED6' }).setOrigin(0.5)
+    txt(this, 560, 122, team ? `Knock-outs  ${kos[0]}–${kos[1]}` : `${wDef.name} · ${wDef.styleName || ''} wins`, { fontFamily: BODY, fontStyle: '700', fontSize: '22px', color: '#C9CED6' }).setOrigin(0.5)
     // stats table
     const s1 = data.stats.p1, s2 = data.stats.p2
     const rows = [['Hits landed', s1.hits, s2.hits], ['Best combo', s1.bestCombo, s2.bestCombo], ['Damage dealt', Math.round(s1.dmg), Math.round(s2.dmg)], ['Attacks blocked', s1.blocked, s2.blocked], ['Specials', s1.specials, s2.specials], ['Supers', s1.supers, s2.supers]]
     const g = this.add.graphics()
     g.fillStyle(0x0b0e12, 0.85); g.fillRoundedRect(380, 150, 360, 196, 10); g.lineStyle(1.5, 0x2a3138, 1); g.strokeRoundedRect(380, 150, 360, 196, 10)
-    txt(this, 630, 158, 'You', { fontFamily: BODY, fontStyle: '700', fontSize: '17px', color: FIGHTERS[data.p1].colour }).setOrigin(0.5, 0)
-    txt(this, 705, 158, 'CPU', { fontFamily: BODY, fontStyle: '700', fontSize: '17px', color: FIGHTERS[data.p2].colour }).setOrigin(0.5, 0)
+    txt(this, 630, 158, 'You', { fontFamily: BODY, fontStyle: '700', fontSize: '17px', color: FIGHTERS[data.team1[0].p].colour }).setOrigin(0.5, 0)
+    txt(this, 705, 158, 'CPU', { fontFamily: BODY, fontStyle: '700', fontSize: '17px', color: FIGHTERS[data.team2[0].p].colour }).setOrigin(0.5, 0)
     rows.forEach(([l, a, b], i) => {
       const y = 184 + i * 26
       txt(this, 396, y, l, { fontFamily: BODY, fontStyle: '600', fontSize: '19px', color: '#C9CED6' })
       txt(this, 630, y, String(a), { fontFamily: BODY, fontStyle: '700', fontSize: '20px', color: a > b ? GOLD : '#F2F2F2' }).setOrigin(0.5, 0)
       txt(this, 705, y, String(b), { fontFamily: BODY, fontStyle: '700', fontSize: '20px', color: b > a ? GOLD : '#F2F2F2' }).setOrigin(0.5, 0)
     })
-    button(this, 470, 396, 180, 50, 'Rematch', FIGHTERS[data.p1].colour, () => this.rematch(), { solid: true, size: 28, r: 10 })
-    button(this, 660, 396, 180, 50, 'Change fighter', '#F2F2F2', () => this.scene.start('Select'), { size: 24, r: 10 })
+    button(this, 470, 396, 180, 50, 'Rematch', FIGHTERS[data.team1[0].p].colour, () => this.rematch(), { solid: true, size: 28, r: 10 })
+    button(this, 660, 396, 180, 50, 'Change team', '#F2F2F2', () => this.scene.start('Select'), { size: 24, r: 10 })
     sfx(this).cheer?.(youWon ? 1.5 : 0.6)
     sfx(this).say?.(youWon ? 'You win' : 'You lose', 0.5)
   }
-  rematch() { this.scene.start('Fight', { p1: this.d.p1, p2: this.d.p2, level: this.d.level }) }
+  rematch() { this.scene.start('Fight', { team1: this.d.team1, team2: this.d.team2, level: this.d.level }) }
   update() {
     this.frame++
     const pr = bridge(this).pressed || {}

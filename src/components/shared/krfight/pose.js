@@ -49,30 +49,33 @@ export function targetPose(f, frame) {
     const ext = t < m.s ? 0 : t < m.s + m.a ? 1 : Math.max(0, 1 - (t - m.s - m.a) / Math.max(1, m.r))
     const reach = m.reach || 70
     switch (m.k) {
-      case 'lp': case 'clp': {
-        const y = m.k === 'clp' ? shY + 14 : shY + 4
+      case 'jab': case 'clp': case 'bodyjab': {
+        const y = m.k === 'clp' ? shY + 14 : m.k === 'bodyjab' ? shY + 32 : shY + 4
+        if (m.k === 'bodyjab') { const d = Math.max(wind, ext); P.hipY += 6 * d; P.shY += 10 * d; P.headY += 12 * d; P.shX += 4 * d }
         P.lhX = lerp(lerp(32, 22, wind), reach, ext); P.lhY = lerp(P.lhY, y, Math.max(wind, ext))
         P.shX += 6 * ext; P.headX += 3 * ext
         break
       }
-      case 'mp': {
+      case 'cross': {
         // Cross: rear hand straight down the middle, hips and shoulders turn in
         P.rhX = lerp(lerp(19, -12, wind), reach, ext); P.rhY = lerp(lerp(P.rhY, shY + 10, wind), shY + 2, ext)
         P.lhX = 24; P.lhY = shY - 4
         P.shX += lerp(-6 * wind, 12, ext); P.headX += lerp(-4 * wind, 8, ext); P.rfX -= 4 * ext; P.lean = lerp(-6 * wind, 8, ext)
         break
       }
-      case 'hp': {
+      case 'hook': case 'bodyhook': {
         // Hook: rear hand loads low and wide, then sweeps round in a high arc (shorter, bent arm)
         const act = t < m.s ? 0 : Math.min(1, (t - m.s) / Math.max(1, m.a))
-        const arcX = lerp(4, reach * 0.82, act), arcY = shY - 4 - Math.sin(act * Math.PI) * 14
+        const low = m.k === 'bodyhook' ? 32 : 0
+        if (low) { const d = Math.max(wind, ext); P.hipY += 6 * d; P.shY += 10 * d; P.headY += 12 * d }
+        const arcX = lerp(4, reach * 0.82, act), arcY = shY - 4 + low - Math.sin(act * Math.PI) * 14
         P.rhX = lerp(lerp(19, -6, wind), arcX, ext); P.rhY = lerp(lerp(P.rhY, shY + 20, wind), arcY, ext)
         P.lhX = 22; P.lhY = shY - 6
         P.shX += lerp(-10 * wind, 14, ext); P.headX += lerp(-8 * wind, 10, ext); P.headY += 4 * ext
         P.rfX -= 6 * ext; P.lean = lerp(-10 * wind, 12, ext)
         break
       }
-      case 'lk': case 'clk': case 'jk': {
+      case 'teep': case 'clk': case 'jk': {
         // Teep (push kick): knee up, then the lead foot drives straight out at hip height
         const kickY = m.k === 'clk' ? -6 : m.k === 'jk' ? hipY + 18 : hipY + 2
         const chamberX = m.k === 'clk' ? 30 : 18, chamberY = m.k === 'clk' ? -10 : hipY + 6
@@ -82,18 +85,69 @@ export function targetPose(f, frame) {
         if (m.k === 'jk') { P.rfX = -12; P.rfY = -20 }
         break
       }
-      case 'mk': {
+      case 'bodykick': case 'roundkick': {
         // Body kick: lead-leg roundhouse -- knee turns over and the shin snaps round to the ribs
-        P.lfX = lerp(lerp(P.lfX, 10, wind), reach, ext); P.lfY = lerp(lerp(0, hipY + 4, wind), hipY - 18, ext)
+        P.lfX = lerp(lerp(P.lfX, 10, wind), reach, ext); P.lfY = lerp(lerp(0, hipY + 4, wind), hipY - (m.k === 'roundkick' ? 26 : 18), ext)
         P.hipX += 4 * Math.max(wind, ext); P.shX -= 12 * ext; P.headX -= 14 * ext; P.headY += 4 * ext; P.lean = -12 * ext
         P.lhX = 14; P.lhY = shY; P.rhX = -6; P.rhY = shY + 18; P.rfX -= 4
         break
       }
-      case 'hk': {
+      case 'highkick': {
         // rear-leg roundhouse: chamber the rear knee, swing it through high
         P.rfX = lerp(lerp(P.rfX, 6, wind), reach, ext); P.rfY = lerp(lerp(0, hipY + 6, wind), hipY - 32, ext)
         P.hipX += 8 * Math.max(wind, ext); P.shX -= 16 * ext; P.headX -= 18 * ext; P.headY += 6 * ext; P.lean = -16 * ext
         P.lhX = 12; P.lhY = shY + 2; P.rhX = -10; P.rhY = shY + 22
+        break
+      }
+      case 'overhand': {
+        // Overhand: rear hand loops up over the top and comes down onto the target
+        const act = t < m.s ? 0 : Math.min(1, (t - m.s) / Math.max(1, m.a))
+        P.rhX = lerp(lerp(19, -8, wind), lerp(10, reach * 0.88, act), ext); P.rhY = lerp(lerp(P.rhY, shY - 30, wind), lerp(shY - 34, shY + 2, act), ext)
+        P.lhX = 20; P.lhY = shY - 4
+        P.shX += lerp(-8 * wind, 16, ext); P.headX += lerp(-6 * wind, 12, ext); P.headY += 6 * ext; P.lean = lerp(-8 * wind, 16, ext); P.rfX -= 6 * ext
+        break
+      }
+      case 'uppercut': {
+        // Uppercut: dip, then the rear hand drives straight up through the middle
+        const d = Math.max(wind * 0.8, 0)
+        P.hipY += 8 * d * (1 - ext); P.shY += 10 * d * (1 - ext); P.headY += 10 * d * (1 - ext)
+        P.rhX = lerp(lerp(19, 8, wind), reach * 0.5, ext); P.rhY = lerp(lerp(P.rhY, shY + 40, wind), shY - 40, ext)
+        P.lhX = 22; P.lhY = shY - 6; P.shX += 8 * ext; P.headX += 6 * ext; P.headY -= 4 * ext; P.lean = 6 * ext
+        break
+      }
+      case 'elbow': {
+        // Elbow: short, bent rear arm whipping across with the shoulders turning in
+        P.rhX = lerp(lerp(19, 2, wind), 36, ext); P.rhY = lerp(lerp(P.rhY, shY - 18, wind), shY - 8, ext)
+        P.lhX = 26; P.lhY = shY - 2
+        P.shX += lerp(-8 * wind, 16, ext); P.headX += lerp(-4 * wind, 12, ext); P.lean = lerp(-8 * wind, 14, ext); P.rfX -= 6 * ext
+        break
+      }
+      case 'sidekick': {
+        // Side kick: chamber, then the lead leg spears straight out while the body tips back
+        P.lfX = lerp(lerp(P.lfX, 14, wind), reach, ext); P.lfY = lerp(lerp(0, hipY + 4, wind), hipY - 8, ext)
+        P.hipX -= 4 * ext; P.shX -= 20 * ext; P.headX -= 22 * ext; P.headY += 10 * ext; P.lean = -18 * ext
+        P.lhX = 6; P.lhY = shY + 6; P.rhX = -10; P.rhY = shY + 14
+        break
+      }
+      case 'spinkick': {
+        // Spinning back kick: turn away (head drops, shoulders swing back), then the rear leg fires straight
+        P.rfX = lerp(lerp(P.rfX, -4, wind), reach, ext); P.rfY = lerp(lerp(0, hipY + 10, wind), hipY - 22, ext)
+        P.hipX += 8 * Math.max(wind, ext); P.shX -= lerp(14 * wind, 24, ext); P.headX -= lerp(20 * wind, 26, ext); P.headY += lerp(8 * wind, 12, ext)
+        P.lean = -lerp(10 * wind, 20, ext); P.lhX = -6; P.lhY = shY + 10; P.rhX = -14; P.rhY = shY + 18
+        break
+      }
+      case 'lowkick': {
+        // Low kick: rear shin swings round into the thigh
+        P.rfX = lerp(lerp(P.rfX, -2, wind), reach, ext); P.rfY = lerp(lerp(0, -10, wind), -30, ext)
+        P.hipX += 8 * Math.max(wind, ext); P.shX -= 8 * ext; P.headX -= 6 * ext; P.lean = -8 * ext
+        P.lhX = 24; P.lhY = shY - 6; P.rhX = 8; P.rhY = shY + 18
+        break
+      }
+      case 'knee': {
+        // Knee: hands pull down into a clinch while the rear knee drives up and forward
+        P.rfX = lerp(lerp(P.rfX, 4, wind), reach * 0.55, ext); P.rfY = lerp(lerp(0, -16, wind), hipY + 22, ext)
+        P.hipX += 10 * Math.max(wind, ext); P.lean = 10 * ext; P.shX += 8 * ext; P.headX += 8 * ext
+        P.lhX = lerp(32, 40, ext); P.lhY = shY + 2; P.rhX = lerp(19, 36, ext); P.rhY = shY + 6
         break
       }
       case 'rush': {
@@ -151,8 +205,8 @@ export function stepPose(pose, f, frame) {
     pose.swHeavy = HEAVY.has(m.k) || m.level === 'h' || !!m.super
   } else if (sw.length) { sw.shift(); if (sw.length) sw.shift() }
 }
-const TIP = { lp: 'lh', clp: 'lh', cast: 'lh', mp: 'rh', hp: 'rh', rush: 'rh', upper: 'rh', lk: 'lf', mk: 'lf', clk: 'lf', jk: 'lf', stomp: 'lf', hk: 'rf' }
-const HEAVY = new Set(['hp', 'hk', 'mk', 'rush', 'upper'])
+const TIP = { jab: 'lh', bodyjab: 'lh', clp: 'lh', cast: 'lh', cross: 'rh', hook: 'rh', bodyhook: 'rh', overhand: 'rh', uppercut: 'rh', elbow: 'rh', rush: 'rh', upper: 'rh', teep: 'lf', bodykick: 'lf', roundkick: 'lf', sidekick: 'lf', clk: 'lf', jk: 'lf', stomp: 'lf', highkick: 'rf', spinkick: 'rf', lowkick: 'rf', knee: 'rf' }
+const HEAVY = new Set(['hook', 'overhand', 'uppercut', 'highkick', 'spinkick', 'sidekick', 'rush', 'upper'])
 
 // glowing ribbon along the swoosh points, thin at the tail and wide at the newest point
 function drawSwoosh(g, pose, colour) {

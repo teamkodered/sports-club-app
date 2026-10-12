@@ -15,26 +15,51 @@ export function makeFighter(def, x, facing) {
 const newStats = () => ({ hits: 0, blocked: 0, bestCombo: 0, supers: 0, specials: 0, dmg: 0 })
 
 export class Match {
-  constructor(p1def, p2def, level) {
+  // team1 / team2: arrays of styled fighter defs, in fight order (1-5 each). The front fighter fights;
+  // a KO brings in the next one; a team loses when everyone is down. Players can tag a teammate in.
+  constructor(team1, team2, level) {
     this.lvl = LEVELS[level] || LEVELS.medium
-    this.p1 = makeFighter(p1def, 220, 1)
-    this.p2 = makeFighter(p2def, 580, -1)
-    this.p1.side = 'p1'; this.p2.side = 'p2'
+    this.t1 = team1.map(d => Object.assign(makeFighter(d, 220, 1), { side: 'p1' }))
+    this.t2 = team2.map(d => Object.assign(makeFighter(d, 580, -1), { side: 'p2' }))
+    this.p1 = this.t1[0]; this.p2 = this.t2[0]
     this.stats = { p1: newStats(), p2: newStats() }
-    this.round = 1; this.timer = 60 * 60; this.phase = 'intro'; this.phaseT = 0
+    this.timer = 60 * Math.min(180, 45 + 35 * Math.max(team1.length, team2.length)); this.phase = 'intro'; this.phaseT = 0
     this.projectiles = []; this.frame = 0; this.freeze = 0
+    this.tagCd = { p1: 0, p2: 0 }; this.swapT = { p1: 0, p2: 0 }
     this.ai = { think: 0, plan: 'idle' }
     this.events = []
-    this.emit({ type: 'roundIntro', round: 1 })
+    this.emit({ type: 'roundIntro', round: 1, team: team1.length > 1 || team2.length > 1, sizes: [team1.length, team2.length] })
   }
   emit(e) { this.events.push(e) }
   drain() { const e = this.events; this.events = []; return e }
-  statsOf(f) { return f === this.p1 ? this.stats.p1 : this.stats.p2 }
+  statsOf(f) { return f.side === 'p1' ? this.stats.p1 : this.stats.p2 }
+  team(side) { return side === 'p1' ? this.t1 : this.t2 }
+  alive(side) { return this.team(side).filter(m => m.hp > 0) }
+
+  // bring a teammate in: they drop in where the old fighter was; meter carries over
+  bringIn(side, m, why) {
+    const old = this[side], o = side === 'p1' ? this.p2 : this.p1
+    const x = why === 'ko' ? (side === 'p1' ? 90 : W - 90) : old.x
+    Object.assign(m, { x, y: FLOOR - 150, vx: 0, vy: 0, state: 'jump', move: null, stun: 0, t: 0, hitDone: false, crouch: false, blocking: false, counterT: 0, flash: 0, chain: 0, buf: [], comboNext: null, meter: old.meter || 0, facing: o.x > x ? 1 : -1 })
+    if (why === 'tag') old.benchCap = Math.min(100, old.hp + 25)
+    this[side] = m
+    this.emit({ type: 'tagIn', side, f: m, from: old, why })
+  }
+  // tag a teammate in (target: index in the team, or 'next' = healthiest waiting teammate)
+  tryTag(side, target) {
+    const f = this[side]
+    if (this.phase !== 'fight' || this.tagCd[side] > 0 || this.swapT[side] > 0) return false
+    if (f.move || f.stun > 0 || f.y < FLOOR || f.state === 'ko') return false
+    const waiting = this.team(side).filter(m => m !== f && m.hp > 0)
+    let m = typeof target === 'number' ? this.team(side)[target] : waiting.sort((a, b) => b.hp - a.hp)[0]
+    if (!m || m === f || m.hp <= 0) return false
+    this.bringIn(side, m, 'tag'); this.tagCd[side] = 300
+    return true
+  }
 
   // one 1/60 s step. getInput() is only called when the player's input is actually consumed, so
   // presses made during hit-stop / super freeze aren't lost.
   step(getInput) {
-    const p1 = this.p1, p2 = this.p2
     if (this.freeze > 0) { this.freeze--; return }
     this.frame++
     if (this.phase === 'intro') {
@@ -42,52 +67,62 @@ export class Match {
       if (this.phaseT === 45) this.emit({ type: 'fight' })
       if (this.phaseT > 75) this.phase = 'fight'
       getInput()
-      // fighters still breathe during the intro
-      this.update(p1, p2, {}); this.update(p2, p1, {})
+      this.update(this.p1, this.p2, {}); this.update(this.p2, this.p1, {})
       return
     }
     if (this.phase === 'over') {
       this.phaseT++
-      this.update(p1, p2, {}); this.update(p2, p1, {})
+      this.update(this.p1, this.p2, {}); this.update(this.p2, this.p1, {})
       getInput()
-      if (this.phaseT > 150) {
-        if (p1.wins >= 2 || p2.wins >= 2) { this.phase = 'done'; this.emit({ type: 'matchOver', winner: p1.wins >= 2 ? 'p1' : 'p2' }); return }
-        this.round++
-        Object.assign(p1, makeFighter(p1.def, 220, 1), { wins: p1.wins }); Object.assign(p2, makeFighter(p2.def, 580, -1), { wins: p2.wins })
-        this.projectiles = []; this.timer = 60 * 60; this.phase = 'intro'; this.phaseT = 0
-        this.emit({ type: 'roundIntro', round: this.round, final: this.round === 3 })
-      }
+      if (this.phaseT > 150) { this.phase = 'done'; this.emit({ type: 'matchOver', winner: this.winner }) }
       return
     }
     if (this.phase !== 'fight') return
     const c1 = getInput()
-    this.update(p1, p2, c1); this.update(p2, p1, this.aiControl(p2, p1))
-    // push apart
+    for (const side of ['p1', 'p2']) if (this.tagCd[side] > 0) this.tagCd[side]--
+    if (c1.tag != null) this.tryTag('p1', c1.tag)
+    const c2 = this.aiControl(this.p2, this.p1)
+    if (c2.tag) this.tryTag('p2', 'next')
+    const p1 = this.p1, p2 = this.p2
+    this.update(p1, p2, c1); this.update(p2, p1, c2)
+    // waiting teammates get some breath back (up to 25 above where they tagged out)
+    for (const side of ['p1', 'p2']) for (const m of this.team(side)) if (m !== this[side] && m.hp > 0 && m.hp < (m.benchCap || 0)) m.hp = Math.min(m.benchCap, m.hp + 0.03)
+    // push apart (not against a fighter who is down)
     const gap = p2.x - p1.x
-    if (Math.abs(gap) < 50 && p1.y >= FLOOR - 40 && p2.y >= FLOOR - 40) { const push = (50 - Math.abs(gap)) / 2 * Math.sign(gap || 1); p1.x -= push; p2.x += push }
+    if (p1.state !== 'ko' && p2.state !== 'ko' && Math.abs(gap) < 50 && p1.y >= FLOOR - 40 && p2.y >= FLOOR - 40) { const push = (50 - Math.abs(gap)) / 2 * Math.sign(gap || 1); p1.x -= push; p2.x += push }
     // projectiles
     for (const pj of this.projectiles) {
       if (pj.delay > 0) { pj.delay--; if (pj.delay === 0) this.emit({ type: 'projectile', pj }); continue }
       pj.x += pj.vx; pj.life--
-      const tgt = pj.owner === p1 ? p2 : p1
-      if (Math.abs(pj.x - tgt.x) < 30 && (pj.low ? tgt.y >= FLOOR - 20 : tgt.y > pj.y - 40 && !(tgt.crouch && tgt.y >= FLOOR && !pj.low))) { this.applyHit(pj.owner, tgt, pj.dmg, 7, pj.h, { x: pj.x, y: pj.y }); pj.life = 0 }
+      const tgt = pj.owner.side === 'p1' ? p2 : p1
+      if (tgt.state !== 'ko' && Math.abs(pj.x - tgt.x) < 30 && (pj.low ? tgt.y >= FLOOR - 20 : tgt.y > pj.y - 40 && !(tgt.crouch && tgt.y >= FLOOR && !pj.low))) { this.applyHit(pj.owner, tgt, pj.dmg, 7, pj.h, { x: pj.x, y: pj.y }); pj.life = 0 }
     }
     for (const pj of this.projectiles) if (!(pj.life > 0 && pj.x > -40 && pj.x < W + 40)) this.emit({ type: 'projectileGone', pj })
     this.projectiles = this.projectiles.filter(p => p.life > 0 && p.x > -40 && p.x < W + 40)
     this.timer--
-    if (p1.hp <= 0 || p2.hp <= 0) {
-      const loser = p1.hp <= 0 ? p1 : p2
-      loser.state = 'ko'; loser.koT = 0; loser.vy = -8; loser.vx = -6 * loser.facing; loser.move = null
-      this.emit({ type: 'ko', loser, winner: loser === p1 ? p2 : p1 })
-      this.endRound(p1.hp <= 0 && p2.hp <= 0 ? null : (p1.hp <= 0 ? p2 : p1), 'ko')
-    } else if (this.timer <= 0) this.endRound(p1.hp === p2.hp ? null : p1.hp > p2.hp ? p1 : p2, 'time')
+    // knock-outs: the next teammate comes in, or the team is beaten
+    for (const side of ['p1', 'p2']) {
+      const f = this[side]
+      if (f.hp <= 0 && f.state !== 'ko') {
+        f.state = 'ko'; f.koT = 0; f.vy = -8; f.vx = -6 * f.facing; f.move = null
+        const left = this.alive(side).length
+        this.emit({ type: 'ko', loser: f, winner: side === 'p1' ? this.p2 : this.p1, final: left === 0, left })
+        if (left === 0) { this.endMatch(side === 'p1' ? 'p2' : 'p1', 'ko'); return }
+        this.swapT[side] = 100
+      }
+      if (this.swapT[side] > 0 && --this.swapT[side] === 0) { const next = this.alive(side)[0]; if (next) this.bringIn(side, next, 'ko') }
+    }
+    if (this.timer <= 0) {
+      const tot = side => this.team(side).reduce((a, m) => a + Math.max(0, m.hp), 0)
+      const a = tot('p1'), b = tot('p2')
+      this.endMatch(a === b ? null : a > b ? 'p1' : 'p2', 'time')
+    }
   }
 
-  endRound(winner, how) {
-    this.phase = 'over'; this.phaseT = 0
-    if (winner) winner.wins++
-    const matchOver = this.p1.wins >= 2 || this.p2.wins >= 2
-    this.emit({ type: 'roundOver', winner: winner === this.p1 ? 'p1' : winner ? 'p2' : null, how, matchOver, perfect: winner && winner.hp >= 100 })
+  endMatch(winner, how) {
+    this.phase = 'over'; this.phaseT = 0; this.winner = winner
+    const w = winner ? this[winner] : null
+    this.emit({ type: 'roundOver', winner, how, matchOver: true, perfect: !!w && w.hp >= 100 && this.alive(winner).length === this.team(winner).length })
   }
 
   startMove(f, k) {
@@ -120,13 +155,15 @@ export class Match {
       this.emit({ type: 'special', f, kind: sp })
       return
     }
-    let key = k
+    // the fighter's style decides which strike this button throws
     const lvl = LEVEL_SCALE[k[0]] || LEVEL_SCALE.l, isPunch = k[1] === 'p'
-    if (!MOVES[k]) return
+    let key = (f.def.moves && f.def.moves[k]) || k
+    if (!MOVES[key]) return
     if (f.y < FLOOR) key = 'jk'
     else if (f.crouch) key = isPunch ? 'clp' : 'clk'
-    const m = MOVES[key], scaled = key !== k
-    f.move = { k: key, ...m, s: m.s + (scaled ? lvl.s : 0), reach: m.reach * f.def.reach, dmg: m.dmg * f.def.power * (scaled ? lvl.dmg : 1), level: k[0] }
+    const m = MOVES[key], scaled = key === 'jk' || key === 'clp' || key === 'clk'
+    const handPower = isPunch ? (f.def.punchPower || 1) : 1
+    f.move = { k: key, ...m, s: Math.max(2, m.s + (scaled ? lvl.s : 0) + (f.def.startup || 0)), reach: m.reach * f.def.reach, dmg: m.dmg * f.def.power * handPower * (scaled ? lvl.dmg : 1), level: k[0] }
     if (f.comboNext) { f.move.combo = f.comboNext; f.move.dmg *= f.comboNext.bonus; f.move.push *= 1.4; f.comboNext = null }
     f.t = 0; f.hitDone = false
     this.emit({ type: 'whoosh', heavy: k[0] === 'h' || key === 'mk' })
@@ -231,6 +268,8 @@ export class Match {
     const a = this.ai, lvl = this.lvl, ctl = { left: false, right: false, down: false }
     const dist = Math.abs(me.x - cpu.x), toward = me.x > cpu.x ? 'right' : 'left', away = toward === 'right' ? 'left' : 'right'
     a.think--
+    // tag out when hurt and a healthier teammate is waiting
+    if (cpu.hp < 35 && this.tagCd.p2 === 0 && !cpu.move && cpu.stun === 0 && this.alive('p2').some(m => m !== cpu && m.hp > cpu.hp + 25) && Math.random() < 0.02 + 0.03 * lvl.smart) { ctl.tag = true; return ctl }
     if (me.move && me.t === 1) (a.presses ||= []).push(this.frame)
     a.presses = (a.presses || []).filter(t => this.frame - t < 90)
     const mashing = a.presses.length >= 3
