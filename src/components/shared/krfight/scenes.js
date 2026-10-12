@@ -203,53 +203,43 @@ export class SelectScene extends Phaser.Scene {
     if (cfg.pick == null) cfg.pick = this.sq.order[0] ?? 0
     buildArena(this, { dim: 0.72 })
     this.frame = 0
-    // fighter tiles (badge = place in the fight order)
-    this.tiles = FIGHTERS.map((f, i) => {
-      const x = 26 + i * 152 + 70, y = 52
-      const c = this.add.container(x, y)
-      const g = this.add.graphics(), badge = this.add.graphics()
-      const t = txt(this, 0, 22, f.name, { fontSize: '21px', color: f.colour }).setOrigin(0.5)
-      const icon = this.add.graphics()
-      icon.fillStyle(hex(f.colour), 1); icon.fillCircle(0, -10, 14); icon.fillStyle(0xf1c9a5, 1); icon.fillCircle(0, -12, 7)
-      const num = txt(this, 54, -24, '', { fontSize: '17px', color: '#0A0A0A' }).setOrigin(0.5)
-      const lvT = txt(this, -62, -36, `Lv ${fighterLevel(prog(this), f.key)}`, { fontFamily: BODY, fontStyle: '700', fontSize: '13px', color: '#C9CED6' })
-      c.add([g, icon, t, badge, num, lvT]); c.setSize(140, 76)
-      c.setInteractive(new Phaser.Geom.Rectangle(0, 0, 140, 76), Phaser.Geom.Rectangle.Contains)
-      c.on('pointerdown', () => { sfx(this).ui?.(); this.choose(i) })
-      c.g = g; c.badge = badge; c.num = num; c.def = f
-      return c
-    })
     this.fg = this.add.graphics()
     this.makePreview()
-    this.name = txt(this, 338, 96, '', { fontSize: '38px', stroke: '#000', strokeThickness: 6 })
-    this.styleBtn = button(this, 462, 164, 244, 32, '', '#F2F2F2', () => this.cycleStyle(), { size: 18 })
-    this.teamBtn = button(this, 694, 164, 164, 32, '', GOLD, () => this.toggleTeam(), { size: 18 })
-    this.blurb = txt(this, 340, 186, '', { fontFamily: BODY, fontStyle: '600', fontSize: '15px', color: '#C9CED6' })
-    this.special = txt(this, 340, 206, '', { fontFamily: BODY, fontStyle: '700', fontSize: '16px' })
+    this.name = txt(this, 338, 18, '', { fontSize: '34px', stroke: '#000', strokeThickness: 6 })
+    this.styleBtn = button(this, 462, 86, 244, 34, '', '#F2F2F2', () => this.cycleStyle(), { size: 18 })
+    this.teamBtn = button(this, 694, 86, 164, 34, '', GOLD, () => this.toggleTeam(), { size: 18 })
+    this.blurb = txt(this, 340, 112, '', { fontFamily: BODY, fontStyle: '600', fontSize: '15px', color: '#C9CED6' })
+    this.special = txt(this, 340, 136, '', { fontFamily: BODY, fontStyle: '700', fontSize: '16px' })
     this.statG = this.add.graphics()
-    this.statLabels = ['Speed', 'Power', 'Reach'].map((s, i) => txt(this, 340, 230 + i * 18, s, { fontFamily: BODY, fontStyle: '600', fontSize: '15px', color: '#9AA3AE' }))
+    this.statLabels = ['Speed', 'Power', 'Reach'].map((s, i) => txt(this, 340, 166 + i * 21, s, { fontFamily: BODY, fontStyle: '600', fontSize: '16px', color: '#9AA3AE' }))
     this.comboT = [0, 1, 2].map(i => [
-      txt(this, 340, 286 + i * 19, '', { fontFamily: BODY, fontStyle: '700', fontSize: '16px' }),
-      txt(this, 776, 286 + i * 19, '', { fontFamily: BODY, fontStyle: '700', fontSize: '16px', color: '#F2F2F2' }).setOrigin(1, 0),
+      txt(this, 340, 238 + i * 24, '', { fontFamily: BODY, fontStyle: '700', fontSize: '17px' }),
+      txt(this, 776, 238 + i * 24, '', { fontFamily: BODY, fontStyle: '700', fontSize: '17px', color: '#F2F2F2' }).setOrigin(1, 0),
     ])
-    txt(this, 776, 343, 'L = tap   M = hold   H = long hold', { fontFamily: BODY, fontStyle: '600', fontSize: '13px', color: '#9AA3AE' }).setOrigin(1, 0)
+    txt(this, 776, 314, 'L = tap   M = hold   H = long hold', { fontFamily: BODY, fontStyle: '600', fontSize: '13px', color: '#9AA3AE' }).setOrigin(1, 0)
     // fight order slots
-    txt(this, 22, 360, 'Fight order (tap to remove)', { fontFamily: BODY, fontStyle: '600', fontSize: '15px', color: '#9AA3AE' })
-    this.slots = Array.from({ length: MAX_TEAM }, (_, i) => {
-      const x = 49 + i * 56, y = 404
-      const g = this.add.graphics()
-      const t = txt(this, x, y, '', { fontSize: '15px' }).setOrigin(0.5)
-      g.setInteractive(new Phaser.Geom.Rectangle(x - 25, y - 20, 50, 40), Phaser.Geom.Rectangle.Contains)
-      g.on('pointerdown', () => { if (this.sq.order[i] != null) { sfx(this).ui?.(); this.sq.order.splice(i, 1); saveSquad(this.sq); this.refresh() } })
-      return { g, t, x, y }
+    txt(this, 22, 356, 'Fighters  (gold number = fight order)', { fontFamily: BODY, fontStyle: '600', fontSize: '15px', color: '#9AA3AE' })
+    this.boxes = FIGHTERS.map((f, i) => {
+      const x = 50 + i * 58, y = 406
+      const c = this.add.container(x, y)
+      const g = this.add.graphics(), badge = this.add.graphics()
+      const icon = this.add.graphics()
+      icon.fillStyle(hex(f.colour), 1); icon.fillCircle(0, -6, 11); icon.fillStyle(0xf1c9a5, 1); icon.fillCircle(0, -8, 5.5)
+      const lvT = txt(this, 0, 14, '', { fontFamily: BODY, fontStyle: '700', fontSize: '12px', color: '#C9CED6' }).setOrigin(0.5)
+      const num = txt(this, 22, -21, '', { fontSize: '14px', color: '#0A0A0A' }).setOrigin(0.5)
+      c.add([g, icon, lvT, badge, num]); c.setSize(54, 52)
+      c.setInteractive(new Phaser.Geom.Rectangle(0, 0, 54, 52), Phaser.Geom.Rectangle.Contains)
+      c.on('pointerdown', () => { sfx(this).ui?.(); this.choose(i) })
+      c.g = g; c.badge = badge; c.num = num; c.lvT = lvT; c.def = f
+      return c
     })
     txt(this, 330, 360, 'Level', { fontFamily: BODY, fontStyle: '600', fontSize: '15px', color: '#9AA3AE' })
     this.lvlBtns = ['easy', 'medium', 'hard'].map((l, i) => button(this, 364 + i * 72, 404, 66, 40, l[0].toUpperCase() + l.slice(1), GOLD, () => { cfg.level = l; this.refresh() }, { size: 18 }))
     this.fightBtn = null
     // Look levels: 1 Cartoon, 2 Stickman, 3 Houses (all open while testing; later they unlock with game level)
     const lv = LOOK_LEVELS.find(l => l.key === getLook()) || LOOK_LEVELS[1]
-    button(this, 724, 120, 120, 32, `Look ${lv.level}: ${lv.name}`, '#9AA3AE', () => { setLook(LOOK_LEVELS[(LOOK_LEVELS.indexOf(lv) + 1) % LOOK_LEVELS.length].key); this.scene.restart() }, { size: 15 })
-    button(this, 606, 120, 104, 32, 'Upgrade', GOLD, () => this.scene.start('Upgrade', { pick: this.game.cfg.pick }), { size: 17 })
+    button(this, 724, 34, 120, 32, `Look ${lv.level}: ${lv.name}`, '#9AA3AE', () => { setLook(LOOK_LEVELS[(LOOK_LEVELS.indexOf(lv) + 1) % LOOK_LEVELS.length].key); this.scene.restart() }, { size: 15 })
+    button(this, 606, 34, 104, 32, 'Upgrade', GOLD, () => this.scene.start('Upgrade', { pick: this.game.cfg.pick }), { size: 17 })
     this.refresh()
   }
   makePreview() {
@@ -272,13 +262,14 @@ export class SelectScene extends Phaser.Scene {
   refresh() {
     const cfg = this.game.cfg, f = FIGHTERS[cfg.pick], def = squadDef(cfg.pick, this.sq), st = STYLES[def.style]
     const order = this.sq.order
-    this.tiles.forEach((t, i) => {
+    this.boxes.forEach((t, i) => {
       const on = i === cfg.pick, col = hex(t.def.colour), place = order.indexOf(i)
-      t.g.clear(); t.g.fillStyle(on ? col : 0x12161b, on ? 0.22 : 0.92); t.g.fillRoundedRect(-70, -38, 140, 76, 8)
-      t.g.lineStyle(on ? 3 : 1.5, on ? col : 0x2a3138, 1); t.g.strokeRoundedRect(-70, -38, 140, 76, 8)
+      t.g.clear(); t.g.fillStyle(on ? col : 0x12161b, on ? 0.25 : 0.92); t.g.fillRoundedRect(-27, -26, 54, 52, 7)
+      t.g.lineStyle(on ? 3 : 1.5, on ? col : place >= 0 ? col : 0x2a3138, place >= 0 || on ? 1 : 0.8); t.g.strokeRoundedRect(-27, -26, 54, 52, 7)
+      t.lvT.setText(`Lv ${fighterLevel(prog(this), t.def.key)}`)
       t.badge.clear(); t.num.setText(place >= 0 ? String(place + 1) : '')
-      if (place >= 0) { t.badge.fillStyle(0xf5c542, 1); t.badge.fillCircle(54, -24, 12) }
-      this.tweens.add({ targets: t, scale: on ? 1.06 : 1, duration: 120 })
+      if (place >= 0) { t.badge.fillStyle(0xf5c542, 1); t.badge.fillCircle(22, -21, 9) }
+      this.tweens.add({ targets: t, scale: on ? 1.08 : 1, duration: 120 })
     })
     this.name.setText(f.name).setColor(f.colour)
     this.styleBtn.label.setText(`Style: ${st.name}  ▸`)
@@ -289,19 +280,10 @@ export class SelectScene extends Phaser.Scene {
     this.special.setText(`Special: ${f.specialName}     Super: ${SUPER_NAME[f.special]}`).setColor(f.colour)
     const g = this.statG; g.clear()
     ;[[def.speed, 3.4, 5.2], [def.power, 0.8, 1.45], [def.reach, 0.85, 1.2]].forEach(([v, lo, hi], i) => {
-      const y = 236 + i * 18, w = 300 * Math.max(0.1, Math.min(1, (v - lo) / (hi - lo)))
+      const y = 173 + i * 21, w = 300 * Math.max(0.1, Math.min(1, (v - lo) / (hi - lo)))
       g.fillStyle(0x2a3138, 1); g.fillRect(420, y, 300, 8); g.fillStyle(hex(f.colour), 1); g.fillRect(420, y, w, 8)
     })
     def.combos.forEach((c, i) => { this.comboT[i][0].setText(c.name).setColor(f.colour); this.comboT[i][1].setText(comboLabel(c.seq)) })
-    // fight order slots
-    this.slots.forEach((sl, i) => {
-      const pi = order[i], g2 = sl.g
-      g2.clear()
-      if (pi == null) { g2.lineStyle(1.5, 0x3a424d, 1); g2.strokeRoundedRect(sl.x - 25, sl.y - 20, 50, 40, 6); sl.t.setText(String(i + 1)).setColor('#3a424d'); return }
-      const pf = FIGHTERS[pi], col = hex(pf.colour)
-      g2.fillStyle(col, 0.25); g2.fillRoundedRect(sl.x - 25, sl.y - 20, 50, 40, 6); g2.lineStyle(2, col, 1); g2.strokeRoundedRect(sl.x - 25, sl.y - 20, 50, 40, 6)
-      sl.t.setText(pf.name.slice(0, 3)).setColor(pf.colour)
-    })
     this.lvlBtns.forEach((b, i) => b.setOn(['easy', 'medium', 'hard'][i] === cfg.level))
     if (this.fightBtn) this.fightBtn.destroy()
     const lead = order.length ? FIGHTERS[order[0]].colour : '#5c6670'
@@ -337,7 +319,7 @@ export class SelectScene extends Phaser.Scene {
     } else { f.t++; if (f.t > f.move.s + f.move.a + f.move.r) f.move = null }
     if (f.counterT > 0) f.counterT--
     this.fg.clear()
-    this.fg.setScale(1.3).setPosition(-170 * 0.3, -330 * 0.3)
+    this.fg.setScale(1.6).setPosition(-170 * 0.6, -330 * 0.6)
     this.fg.lineStyle(2, hex(fxColour(f)), 0.4); this.fg.strokeEllipse(170, 336, 170, 22)
     stepPose(this.prevPose, f, this.frame)
     drawFighter(this.fg, f, this.prevPose, this.frame, 1, { noKo: true, y: 330, shadowY: 330 })
