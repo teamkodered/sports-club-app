@@ -4262,7 +4262,9 @@ export default function AthleteApp() {
     // trying to add a second attendance for it (which the register doesn't allow)
     const todayStr = new Date().toISOString().split('T')[0]
     const reopen = async row => {
-      const { data: upd, error: updErr } = await supabase.from('attendance').update({ checked_out_at: null, present: true }).eq('id', row.id).select().single()
+      const { data: updRows, error: updErr } = await updateMyAttendance(row.id, { checked_out_at: null, present: true })
+      const upd = updRows?.[0]
+      if (!updErr && !upd) { alert("Couldn't re-open that session — ask a coach to mark you in."); return }
       if (updErr) { alert('Error checking in: ' + updErr.message); return }
       setAttendanceData(prev => prev.map(a => a.id === upd.id ? upd : a))
       setActiveCheckIn(upd)
@@ -4385,7 +4387,7 @@ export default function AthleteApp() {
 
   async function checkOutForSessionModal() {
     if (!sessionNoteModal?.attendanceId) return
-    const { error } = await supabase.from('attendance').update({ checked_out_at: new Date().toISOString() }).eq('id', sessionNoteModal.attendanceId)
+    const { error } = await updateMyAttendance(sessionNoteModal.attendanceId, { checked_out_at: new Date().toISOString() })
     if (error) { alert('Error checking out: ' + error.message); return }
     setAttendanceData(prev => prev.map(a => a.id === sessionNoteModal.attendanceId ? { ...a, checked_out_at: new Date().toISOString() } : a))
     setSessionNoteModal(m => ({ ...m, checkedOutAt: new Date().toISOString() }))
@@ -4559,6 +4561,19 @@ export default function AthleteApp() {
     setFullKitChecked(false)
   }
 
+  // Own check-in changes go through kc_my_attendance_update (own entries, today/yesterday, a few
+  // fields only) -- direct updates are blocked for entries a coach marked. Falls back to the old
+  // direct update if that function isn't installed yet. Returns { data: [rows], error }.
+  async function updateMyAttendance(id, changes) {
+    const r = await supabase.rpc('kc_my_attendance_update', { p_id: id, p_changes: changes })
+    if (!r.error) return { data: r.data || [], error: null }
+    if (r.error.code === 'PGRST202' || /could not find the function/i.test(r.error.message || '')) {
+      const d = await supabase.from('attendance').update(changes).eq('id', id).select()
+      return { data: d.data || [], error: d.error }
+    }
+    return { data: [], error: r.error }
+  }
+
   async function submitWeightCheck(skip = false) {
     if (!activeCheckIn) { setShowWeightCheckPrompt(null); return }
     setCheckingIn(true)
@@ -4574,7 +4589,7 @@ export default function AthleteApp() {
     // a genuine success -- both look identical otherwise, since
     // neither raises an error, and the checkout would otherwise just
     // quietly revert once the UI re-syncs with the real, unchanged row.
-    const { data, error } = await supabase.from('attendance').update(updates).eq('id', activeCheckIn.id).select()
+    const { data, error } = await updateMyAttendance(activeCheckIn.id, updates)
     // Android app: check-out ends the class heart rate recording and saves it to today
     if (!error && showWeightCheckPrompt === 'out' && NativeHr.isNativeHr()) {
       NativeHr.status().then(async st => {
