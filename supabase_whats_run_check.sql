@@ -15,7 +15,6 @@ begin
   for fn in select unnest(array[
     'supabase_krfight_progress.sql|krfight_change_style',
     'supabase_stock.sql|kc_stock_sale',
-    'supabase_crm_admin_only.sql|kc_stock_can',
     'supabase_head_coach_forms_venue_only.sql|kc_my_venue_member_ids',
     'supabase_coach_leader_restriction.sql|kc_is_class_staff',
     'supabase_my_attendance_update.sql|kc_my_attendance_update',
@@ -53,6 +52,8 @@ begin
     exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'student_class_assignments' and column_name = 'start_date'));
 
   -- policies
+  insert into kc_sql_check values ('supabase_crm_admin_only.sql', 'policy enquiries_admin (CRM tables admin only)',
+    exists (select 1 from pg_policies where schemaname = 'public' and policyname = 'enquiries_admin'));
   insert into kc_sql_check values ('supabase_fix_f2f_session_updates.sql', 'policy f2f_update',
     exists (select 1 from pg_policies where schemaname = 'public' and policyname = 'f2f_update'));
   insert into kc_sql_check values ('supabase_fix_members_update_recursion.sql', 'policy members_update_own',
