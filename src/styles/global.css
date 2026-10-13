@@ -1162,3 +1162,5 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .oth-add input { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--bg-secondary); color: var(--text); font-size: 14px; }
 .team-role-note { font-size: 12px; color: var(--text-secondary); padding: 6px 2px 2px; }
 .team-role-note.full { color: #B45309; font-weight: 600; }
+/* Registers title clear of the floating menu button on phones */
+@media (max-width: 767px) { .reg-title { padding-left: 64px; } }
