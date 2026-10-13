@@ -157,7 +157,7 @@ export default function TeamAccess() {
               <b style={{ fontSize: 14 }}>{m.first_name} {m.last_name}</b>
               <span style={{ fontSize: 11, color: 'var(--text-tertiary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.email}</span>
             </span>
-            <span className={`team-role team-role-${normRole(m.role)}`}>{label(m)}{(normRole(m.role) === 'captain' || normRole(m.role) === 'admin') ? ' · full access' : normRole(m.role) === 'head_coach' ? ` · ${(m.access?.registers?.classes || []).length} classes` : ''}</span>
+            <span className={`team-role team-role-${normRole(m.role)}`}>{label(m)}{normRole(m.role) === 'admin' ? ' · full access' : ['head_coach', 'captain', 'leader'].includes(normRole(m.role)) && !m.access?.group ? ` · ${(m.access?.registers?.classes || []).length} classes` : ''}</span>
           </button>
         ))}
         {shown.length === 0 && <p style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: '8px 0' }}>{q ? 'No one matches' : 'No team members yet'}</p>}
@@ -180,15 +180,15 @@ export default function TeamAccess() {
             <div className="team-seg">
               {ROLE_OPTIONS.map(r => <button key={r.key} type="button" className={editing.role === r.key ? 'on' : ''} onClick={() => {
                 // Full-access roles are easy to pick by mistake (Coach sits next to Head Coach): confirm them
-                if ((r.key === 'captain' || r.key === 'admin') && editing.role !== r.key &&
+                if (r.key === 'admin' && editing.role !== r.key &&
                     !window.confirm(`${r.label} = FULL ACCESS: every student, class and register at every venue${r.key === 'admin' ? ', plus all settings' : ''}.\n\nTo limit someone to their own classes, choose Head Coach instead.\n\nGive ${editing.member.first_name} ${r.label} access?`)) return
                 pickRole(r.key)
               }}>{r.label}</button>)}
             </div>
-            <div className={`team-role-note${editing.role === 'captain' || editing.role === 'admin' ? ' full' : ''}`}>
+            <div className={`team-role-note${editing.role === 'admin' ? ' full' : ''}`}>
               {{ member: 'Member: no staff access (athlete / parent apps only).',
-                 leader: 'Leader: the pages and registers ticked below.',
-                 captain: '⚠️ Coach: FULL ACCESS to every student, class and register at every venue. To limit to their own classes, use Head Coach.',
+                 leader: 'Leader: ONLY the classes ticked under Registers — attendance, points and those students (with contact details).',
+                 captain: 'Coach: ONLY the classes ticked under Registers — attendance, points and those students (with contact details). No membership forms or CRM.',
                  head_coach: 'Head Coach: ONLY the classes ticked under Registers, and those students. Enforced by the database.',
                  admin: '⚠️ Admin: FULL ACCESS including all settings.' }[editing.role] || ''}
             </div>

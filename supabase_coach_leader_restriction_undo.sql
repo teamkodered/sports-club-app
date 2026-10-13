@@ -1,0 +1,41 @@
+-- UNDO: Coach / Leader back to full staff (as before the restriction)
+create or replace function public.kc_is_staff() returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from members where auth_id = auth.uid() and role in ('admin','captain','coach','leader')) $$;
+create or replace function public.kc_is_any_staff() returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from members where auth_id = auth.uid() and role in ('admin','captain','coach','leader')) $$;
+drop policy if exists attendance_write on public.attendance;
+create policy attendance_write on public.attendance for all using (public.kc_has_role(array['admin','captain','leader']));
+drop policy if exists attendance_insert on public.attendance;
+create policy attendance_insert on public.attendance for insert with check (student_id in (select public.kc_my_student_ids()) or public.kc_has_role(array['admin','captain','leader']));
+drop policy if exists points_write on public.points_log;
+create policy points_write on public.points_log for all using (public.kc_has_role(array['admin','captain','leader']));
+drop policy if exists holidays_staff_write on public.holidays;
+create policy holidays_staff_write on public.holidays for all using (public.kc_has_role(array['admin','captain']));
+drop policy if exists students_write on public.students;
+create policy students_write on public.students for all using (public.kc_has_role(array['admin','captain','leader']));
+drop policy if exists members_update_own on public.members;
+create policy members_update_own on public.members for update using (auth_id = auth.uid() or public.kc_has_role(array['admin','captain','coach']));
+drop policy if exists classes_write on public.classes;
+create policy classes_write on public.classes for all using (public.kc_has_role(array['admin','captain','leader']));
+drop policy if exists houses_admin_write on public.houses;
+create policy houses_admin_write on public.houses for all using (public.kc_has_role(array['admin','captain']));
+drop policy if exists "Staff can manage assignments" on public.student_class_assignments;
+create policy "Staff can manage assignments" on public.student_class_assignments for all using (public.kc_has_role(array['admin','captain','leader']));
+drop policy if exists "Staff can view all assignments" on public.student_class_assignments;
+create policy "Staff can view all assignments" on public.student_class_assignments for select using (public.kc_has_role(array['admin','captain','leader']) or student_id in (select public.kc_my_student_ids()));
+drop policy if exists "Staff can delete fit2fight sessions" on public.fit2fight_sessions;
+create policy "Staff can delete fit2fight sessions" on public.fit2fight_sessions for delete using (public.kc_has_role(array['admin','captain']));
+drop policy if exists f2f_insert on public.fit2fight_sessions;
+create policy f2f_insert on public.fit2fight_sessions for insert with check (student_id in (select public.kc_my_student_ids()) or public.kc_has_role(array['admin','captain','coach','leader']));
+drop policy if exists f2f_read on public.fit2fight_sessions;
+create policy f2f_read on public.fit2fight_sessions for select using (student_id in (select public.kc_my_student_ids()) or public.kc_has_role(array['admin','captain','coach','leader']));
+drop policy if exists profiles_write on public.athlete_profiles;
+create policy profiles_write on public.athlete_profiles for all using (student_id in (select public.kc_my_student_ids()) or public.kc_has_role(array['admin','captain']));
+drop policy if exists "Staff can manage notes" on public.athlete_notes_log;
+create policy "Staff can manage notes" on public.athlete_notes_log for all using (public.kc_has_role(array['admin','captain']));
+drop policy if exists "Staff can view all notes" on public.athlete_notes_log;
+create policy "Staff can view all notes" on public.athlete_notes_log for select using (public.kc_has_role(array['admin','captain']));
+drop policy if exists forms_read on public.membership_forms;
+create policy forms_read on public.membership_forms for select using (member_id in (select public.kc_my_member_ids()) or public.kc_has_role(array['admin','captain','coach','leader']));
+drop policy if exists forms_update on public.membership_forms;
+create policy forms_update on public.membership_forms for update using (public.kc_has_role(array['admin','leader']));

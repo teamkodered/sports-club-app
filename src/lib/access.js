@@ -29,7 +29,7 @@ export const REGISTER_TYPE_OPTIONS = [
 export const ROLE_OPTIONS = [
   { key: 'member',  label: 'Member',  hint: 'Student access only' },
   { key: 'leader',  label: 'Leader',  hint: 'Registers only' },
-  { key: 'captain', label: 'Coach',   hint: 'Everything except admin settings' },
+  { key: 'captain', label: 'Coach',   hint: 'Only the classes ticked below, and their students' },
   { key: 'head_coach', label: 'Head Coach', hint: 'Only the classes ticked below, and their students' },
   { key: 'admin',   label: 'Admin',   hint: 'Full access' },
 ]
