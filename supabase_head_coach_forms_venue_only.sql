@@ -25,10 +25,4 @@ returns boolean language sql stable security definer set search_path = public as
     or p_member in (select id from members where auth_id = auth.uid())
 $$;
 
--- Check as Mark: forms he can see now (only his Moorways students')
-begin;
-  set local role authenticated;
-  select set_config('request.jwt.claims', json_build_object('sub', '1f63c7c4-b780-4c0c-891e-d4196953aa16', 'role', 'authenticated')::text, true);
-  select (select count(*) from membership_forms) as forms_mark_can_see,
-         (select count(*) from kc_my_venue_member_ids()) as his_venue_students;
-rollback;
+-- (Check as Mark: run separately -- see the leak test pattern; never in the same run as the changes above)
