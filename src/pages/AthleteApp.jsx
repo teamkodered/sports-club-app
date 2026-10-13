@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { TEST_CATEGORIES } from '../lib/testResults.js'
+import { setViewOnlyPage } from '../lib/access.js'
 import { TestSessionModal, TestBatchModal } from '../components/shared/TestSession.jsx'
 import OtherSessions from '../components/shared/OtherSessions.jsx'
 import { matchClass, workoutDate, workoutRange, fmtTime } from '../lib/sessionMatch.js'
@@ -1302,7 +1303,14 @@ function HoldToDelete({ onDelete, children }) {
 
 export default function AthleteApp() {
   const [testSessionOpen, setTestSessionOpen] = useState(false)
-  const { profile, isStaff, realIsAdmin } = useAuth()
+  const { profile, isStaff, realIsAdmin, viewAs } = useAuth()
+  // Admin "View as": show THAT person's athlete app (read-only preview -- nothing is saved)
+  const appMemberId = viewAs?.id || profile?.id
+  useEffect(() => {
+    if (!viewAs) return
+    setViewOnlyPage('__preview__')
+    return () => setViewOnlyPage(null)
+  }, [viewAs?.id])
   const navigate = useNavigate()
 
   // Same fix as the staff-side Layout -- this page isn't nested under
@@ -1860,7 +1868,7 @@ export default function AthleteApp() {
       const { data: sRows } = await supabase
         .from('students')
         .select('*, members(first_name, last_name, date_of_birth, email, phone, houses(name))')
-        .eq('member_id', profile.id)
+        .eq('member_id', appMemberId)
         .limit(1)
       const s = sRows?.[0] || null
       setStudent(s)

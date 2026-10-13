@@ -87,6 +87,7 @@ const STUDENT_FIELDS_WRITABLE = new Set(['class_champion_count'])
 
 export function isWriteAllowed(table, payload) {
   if (!viewOnlyPage) return true
+  if (viewOnlyPage === '__preview__') return false   // admin 'View as' preview of someone's athlete app: nothing is saved
   if (ALWAYS_WRITABLE.has(table)) return true
   if (table === 'students' && payload && typeof payload === 'object' && !Array.isArray(payload)) {
     return Object.keys(payload).every(k => STUDENT_FIELDS_WRITABLE.has(k))
