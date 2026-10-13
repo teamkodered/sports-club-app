@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { useAuth } from '../../hooks/useAuth.jsx'
+import { viewAsVenueScope } from '../../lib/viewAsScope.js'
 import { supabase } from '../../lib/supabase.js'
 import { generateStudentId } from '../../lib/studentId.js'
 
@@ -15,6 +17,9 @@ const EDITABLE = [
 const VENUE_LABEL = { 'kr-centre': 'KR Centre', 'derby-moore': 'Derby Moore', 'moorways': 'Moorways' }
 
 export default function JoinApplicationsPanel() {
+  const { viewAs } = useAuth()
+  const [previewVenues, setPreviewVenues] = useState(null)   // admin 'View as': only that person's venues
+  useEffect(() => { viewAsVenueScope(viewAs).then(sc => setPreviewVenues(sc ? sc.venues : null)) }, [viewAs?.id])
   const [apps, setApps] = useState(null) // null = not loaded / table not installed
   const [showCompleted, setShowCompleted] = useState(false)
   const [openId, setOpenId] = useState(null)
@@ -90,7 +95,7 @@ export default function JoinApplicationsPanel() {
           })}
         </div>
       )}
-      {apps.filter(a => venueFilter === 'all' || (a.venue || 'unknown') === venueFilter).map(app => {
+      {apps.filter(a => !previewVenues || previewVenues.has(a.venue)).filter(a => venueFilter === 'all' || (a.venue || 'unknown') === venueFilter).map(app => {
         const open = openId === app.id
         const m = app.payload?.member || {}
         const e = edits[app.id] || {}

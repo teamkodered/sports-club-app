@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth.jsx'
+import { viewAsVenueScope } from '../lib/viewAsScope.js'
 import JoinApplicationsPanel from '../components/shared/JoinApplicationsPanel.jsx'
 import { supabase } from '../lib/supabase.js'
 
@@ -236,7 +237,7 @@ export function ShareModal({ form, onClose }) {
 
 
 export default function Forms() {
-  const { isAdmin, isStaff } = useAuth()
+  const { isAdmin, isStaff, viewAs } = useAuth()
   const navigate = useNavigate()
   const [shareForm, setShareForm] = useState(null)
   const [selectedForm, setSelectedForm] = useState(null)
@@ -336,7 +337,9 @@ export default function Forms() {
       const { members, ...rest } = r
       return { ...rest, member_id: memberId, status: memberStatus || 'pending', media_permission: mediaRestriction === 'Yes' ? 'Yes' : mediaRestriction === 'No' ? 'No' : null }
     })
-    setResponses(flattened)
+    // Admin "View as": show only what that person can really see (Head Coach: his venue's students)
+    const scope = await viewAsVenueScope(viewAs)
+    setResponses(scope ? flattened.filter(r => r.member_id && scope.venueMemberIds.has(r.member_id)) : flattened)
     setResponsesLoading(false)
   }
 
