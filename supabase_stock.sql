@@ -1,6 +1,6 @@
 -- ════════════════════════════════════════════════════════════════════════
 -- CRM STOCK: items + variants (sizes), stock movements, sales with discounts
--- and coach commission. Staff only. Sales / stock changes go through functions
+-- and coach commission. ADMIN ONLY (like the rest of the CRM). Sales / stock changes go through functions
 -- so the stock count, the sale and the log always stay in step.
 -- ════════════════════════════════════════════════════════════════════════
 create table if not exists public.stock_items (
@@ -40,7 +40,7 @@ create or replace function public.kc_stock_sale(p_variant uuid, p_qty int, p_uni
 returns uuid language plpgsql security definer set search_path = public as $$
 declare v stock_variants; it stock_items; gross numeric; net numeric; sid uuid; me uuid;
 begin
-  if not public.kc_has_role(array['admin','captain','coach','leader']) then raise exception 'Staff only'; end if;
+  if not public.kc_has_role(array['admin']) then raise exception 'Admins only'; end if;
   if p_qty is null or p_qty < 1 then raise exception 'Quantity must be at least 1'; end if;
   select * into v from stock_variants where id = p_variant for update;
   if v.id is null then raise exception 'Item not found'; end if;
@@ -66,7 +66,7 @@ create or replace function public.kc_stock_refund(p_sale uuid)
 returns void language plpgsql security definer set search_path = public as $$
 declare s stock_sales; me uuid;
 begin
-  if not public.kc_has_role(array['admin','captain','coach','leader']) then raise exception 'Staff only'; end if;
+  if not public.kc_has_role(array['admin']) then raise exception 'Admins only'; end if;
   select * into s from stock_sales where id = p_sale for update;
   if s.id is null or s.refunded_at is not null then return; end if;
   select id into me from members where auth_id = auth.uid() limit 1;
@@ -80,7 +80,7 @@ create or replace function public.kc_stock_adjust(p_variant uuid, p_change int, 
 returns void language plpgsql security definer set search_path = public as $$
 declare v stock_variants; me uuid;
 begin
-  if not public.kc_has_role(array['admin','captain','coach','leader']) then raise exception 'Staff only'; end if;
+  if not public.kc_has_role(array['admin']) then raise exception 'Admins only'; end if;
   select * into v from stock_variants where id = p_variant for update;
   if v.id is null then raise exception 'Item not found'; end if;
   select id into me from members where auth_id = auth.uid() limit 1;
@@ -95,15 +95,15 @@ alter table public.stock_variants enable row level security;
 alter table public.stock_sales enable row level security;
 alter table public.stock_moves enable row level security;
 drop policy if exists stock_items_staff on public.stock_items;
-create policy stock_items_staff on public.stock_items for all using (public.kc_has_role(array['admin','captain','coach','leader'])) with check (public.kc_has_role(array['admin','captain','coach','leader']));
+create policy stock_items_staff on public.stock_items for all using (public.kc_has_role(array['admin'])) with check (public.kc_has_role(array['admin']));
 drop policy if exists stock_variants_staff on public.stock_variants;
-create policy stock_variants_staff on public.stock_variants for all using (public.kc_has_role(array['admin','captain','coach','leader'])) with check (public.kc_has_role(array['admin','captain','coach','leader']));
+create policy stock_variants_staff on public.stock_variants for all using (public.kc_has_role(array['admin'])) with check (public.kc_has_role(array['admin']));
 drop policy if exists stock_sales_staff_read on public.stock_sales;
-create policy stock_sales_staff_read on public.stock_sales for select using (public.kc_has_role(array['admin','captain','coach','leader']));
+create policy stock_sales_staff_read on public.stock_sales for select using (public.kc_has_role(array['admin']));
 drop policy if exists stock_sales_admin_update on public.stock_sales;
 create policy stock_sales_admin_update on public.stock_sales for update using (public.kc_has_role(array['admin']));   -- mark commission paid
 drop policy if exists stock_moves_staff_read on public.stock_moves;
-create policy stock_moves_staff_read on public.stock_moves for select using (public.kc_has_role(array['admin','captain','coach','leader']));
+create policy stock_moves_staff_read on public.stock_moves for select using (public.kc_has_role(array['admin']));
 
 -- ── test items (placeholder prices -- change them in CRM -> Stock -> Items) ──
 do $$
