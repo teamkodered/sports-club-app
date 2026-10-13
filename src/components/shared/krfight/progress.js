@@ -3,7 +3,7 @@
 // or for staff, who have no athlete record -- progress is kept on the device instead, so the game works
 // either way. Gems: training entries per pillar + house points (wild) + gems won in the game.
 import { supabase } from '../../../lib/supabase.js'
-import { COMBO_LIB, COMBO_BY_ID } from './data.js'
+import { COMBO_LIB, COMBO_BY_ID, TIER_XP, TIER_GEMS, BRANCHES, seasonOf } from './data.js'
 
 export const PILLARS = ['physical', 'technical', 'tactical', 'mentality', 'foundation']
 // Upgrade areas: one set per pillar. Technical / Physical follow the club's MTP analysis; Tactical and
@@ -78,7 +78,7 @@ const LS_TEST = 'krfight-progress-test'
 export const isTestMode = () => { try { return localStorage.getItem('krfight-testgems') === '1' } catch (e) { return false } }
 export const UNLIMITED = 9999
 
-const blank = () => ({ mode: 'local', training: {}, house_points: 0, game_gems: {}, spent: {}, upgrades: {}, gems_today: 0, gems_day: null })
+const blank = () => ({ mode: 'local', training: {}, house_points: 0, game_gems: {}, spent: {}, upgrades: {}, gems_today: 0, gems_day: null, branches: {}, style_xp: {}, squad_styles: null, locked_at: null, last_change_season: null })
 const n = v => Math.max(0, Math.floor(Number(v) || 0))
 
 function readLocal() {
@@ -93,7 +93,7 @@ function readLocal() {
   } catch (e) { /* ignore */ }
   return blank()
 }
-function writeLocal(p) { try { localStorage.setItem(LS, JSON.stringify({ game_gems: p.game_gems, spent: p.spent, upgrades: p.upgrades, gems_today: p.gems_today, gems_day: p.gems_day })) } catch (e) { /* ignore */ } }
+function writeLocal(p) { try { localStorage.setItem(LS, JSON.stringify({ game_gems: p.game_gems, spent: p.spent, upgrades: p.upgrades, gems_today: p.gems_today, gems_day: p.gems_day, branches: p.branches, style_xp: p.style_xp })) } catch (e) { /* ignore */ } }
 const today = () => new Date().toISOString().slice(0, 10)
 
 // load once when the game opens
@@ -101,7 +101,7 @@ export async function loadProgress() {
   if (isTestMode()) {
     let v = {}
     try { v = JSON.parse(localStorage.getItem(LS_TEST) || '{}') } catch (e) { /* ignore */ }
-    return { ...blank(), upgrades: v.upgrades || {}, mode: 'test' }
+    return { ...blank(), upgrades: v.upgrades || {}, branches: v.branches || {}, style_xp: v.style_xp || {}, mode: 'test' }
   }
   try {
     const { data, error } = await supabase.rpc('krfight_profile')
@@ -132,11 +132,11 @@ export async function buyUpgrade(p, pillar, area) {
   const spent = { ...p.spent, [pillar]: n(p.spent?.[pillar]) + price.fromColour, wild: n(p.spent?.wild) + price.fromWild }
   if (p.mode === 'test') {
     const next = { ...p, upgrades }
-    try { localStorage.setItem(LS_TEST, JSON.stringify({ upgrades })) } catch (e) { /* ignore */ }
+    try { localStorage.setItem(LS_TEST, JSON.stringify({ upgrades, branches: p.branches, style_xp: p.style_xp })) } catch (e) { /* ignore */ }
     return next
   }
   if (p.mode === 'db') {
-    const { data, error } = await supabase.rpc('krfight_spend', { p_upgrades: upgrades, p_spent: spent })
+    const { data, error } = await supabase.rpc('krfight_spend', { p_upgrades: upgrades, p_spent: spent, p_branches: p.branches || {} })
     if (error) throw new Error(error.message)
     return { ...blank(), ...data, mode: 'db' }
   }
@@ -223,7 +223,7 @@ export function cpuUpgrades(p, level) {
 // test mode: wipe the test upgrades and start again
 export function resetTest(p) {
   try { localStorage.removeItem(LS_TEST) } catch (e) { /* ignore */ }
-  return { ...p, upgrades: {} }
+  return { ...p, upgrades: {}, branches: {}, style_xp: {} }
 }
 
 // ---- Collected combos (on the device for now; saved to the profile with a later SQL step) ----
@@ -258,4 +258,84 @@ export function addComboCard(coll, id) {
   const next = { combos: { ...coll.combos, [id]: level } }
   if (!isTestMode()) { try { localStorage.setItem(LS_COLL, JSON.stringify(next)) } catch (e) { /* ignore */ } }
   return { coll: next, isNew: cur === 0, level }
+}
+
+// ---- Style branches, style XP, lock-in and Change Tokens ----
+// branches: { pillar: { branch, tier, paid: [tier numbers bought with gems] } }; style_xp: { pillar: xp }
+export const branchOf = (p, pillar) => (p.branches && p.branches[pillar]) || { branch: null, tier: 0, paid: [] }
+export const xpOf = (p, pillar) => n(p.style_xp && p.style_xp[pillar])
+// can the next tier be unlocked, and how? -> { tier, byXp, gemPrice } or null when maxed
+export function nextTier(p, pillar) {
+  const b = branchOf(p, pillar), tier = (b.tier || 0) + 1
+  if (tier > 3) return null
+  const byXp = p.mode === 'test' || xpOf(p, pillar) >= TIER_XP[tier - 1]
+  const cost = TIER_GEMS[tier - 1], fromColour = Math.min(cost, Math.max(0, available(p, pillar))), fromWild = cost - fromColour
+  const gemPrice = fromWild <= Math.max(0, wild(p)) ? { cost, fromColour, fromWild } : null
+  return { tier, byXp, gemPrice, cost }
+}
+// unlock the next tier (choosing the branch at tier 1). useGems: pay instead of XP.
+export async function unlockTier(p, pillar, branchKey, useGems) {
+  const b = branchOf(p, pillar), nt = nextTier(p, pillar)
+  if (!nt) throw new Error('Already at the top tier')
+  if (b.branch && branchKey && branchKey !== b.branch) throw new Error('Branch already chosen')
+  if (!useGems && !nt.byXp) throw new Error('Not enough style XP yet')
+  if (useGems && !nt.gemPrice) throw new Error('Not enough gems')
+  const nb = { ...b, branch: b.branch || branchKey, tier: nt.tier, paid: useGems ? [...(b.paid || []), nt.tier] : [...(b.paid || [])] }
+  const branches = { ...(p.branches || {}), [pillar]: nb }
+  const spent = useGems && p.mode !== 'test' ? { ...p.spent, [pillar]: n(p.spent?.[pillar]) + nt.gemPrice.fromColour, wild: n(p.spent?.wild) + nt.gemPrice.fromWild } : p.spent
+  if (p.mode === 'db') {
+    const { data, error } = await supabase.rpc('krfight_spend', { p_upgrades: p.upgrades || {}, p_spent: spent, p_branches: branches })
+    if (error) throw new Error(error.message)
+    return { ...blank(), ...data, mode: 'db' }
+  }
+  const next = { ...p, branches, spent }
+  if (p.mode === 'test') { try { localStorage.setItem(LS_TEST, JSON.stringify({ upgrades: p.upgrades, branches, style_xp: p.style_xp })) } catch (e) { /* ignore */ } }
+  else writeLocal(next)
+  return next
+}
+// style XP from a match: each fighter in the team (40 a win, 20 a loss); the server caps it per day
+export async function awardXp(p, teamKeys, won) {
+  const per = won ? 40 : 20, xp = {}
+  for (const k of teamKeys) xp[k] = (xp[k] || 0) + per
+  if (p.mode === 'db') {
+    try { const { data, error } = await supabase.rpc('krfight_award_xp', { p_xp: xp }); if (!error && data) return { ...blank(), ...data, mode: 'db' } } catch (e) { /* ignore */ }
+    return p
+  }
+  const style_xp = { ...(p.style_xp || {}) }
+  for (const [k, v] of Object.entries(xp)) style_xp[k] = n(style_xp[k]) + v
+  const next = { ...p, style_xp }
+  if (p.mode === 'test') { try { localStorage.setItem(LS_TEST, JSON.stringify({ upgrades: p.upgrades, branches: p.branches, style_xp })) } catch (e) { /* ignore */ } }
+  else writeLocal(next)
+  return next
+}
+// lock-in only applies to real athletes once the SQL is in (db mode); test / device modes never lock
+export const isLocked = p => p.mode === 'db' && !!p.locked_at
+export const tokenAvailable = p => isLocked(p) && p.last_change_season !== seasonOf()
+export async function lockSquad(p, styles) {
+  if (p.mode !== 'db') return p
+  const { data, error } = await supabase.rpc('krfight_lock', { p_styles: styles })
+  if (error) throw new Error(error.message)
+  return { ...blank(), ...data, mode: 'db' }
+}
+// use this season's Change Token: new style for one fighter (resets its branch and style XP)
+export async function changeStyle(p, pillar, style) {
+  if (p.mode !== 'db') {
+    const branches = { ...(p.branches || {}) }
+    const ob = branches[pillar] || {}, sunk = (ob.sunk || 0) + (ob.paid || []).reduce((a, t) => a + TIER_GEMS[t - 1], 0)
+    branches[pillar] = { branch: null, tier: 0, paid: [], sunk }
+    const style_xp = { ...(p.style_xp || {}) }; delete style_xp[pillar]
+    const next = { ...p, branches, style_xp }
+    if (p.mode === 'test') { try { localStorage.setItem(LS_TEST, JSON.stringify({ upgrades: p.upgrades, branches, style_xp })) } catch (e) { /* ignore */ } } else writeLocal(next)
+    return next
+  }
+  const { data, error } = await supabase.rpc('krfight_change_style', { p_pillar: pillar, p_style: style })
+  if (error) throw new Error(error.message)
+  return { ...blank(), ...data, mode: 'db' }
+}
+// the CPU's branches: random branch, tier by level
+export function cpuBranch(style, level) {
+  const list = BRANCHES[style] || []
+  if (!list.length) return null
+  const tier = { easy: 0, medium: 1, hard: 2 }[level] ?? 1
+  return tier ? { branch: list[Math.floor(Math.random() * list.length)].key, tier } : null
 }

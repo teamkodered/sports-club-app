@@ -1,10 +1,10 @@
 // KR FIGHT 2 -- Phaser scenes: Boot (makes textures), Title, Select, Fight, Results.
 // The world is 800x450; cameras zoom x2 onto a 1600x900 canvas so everything stays crisp on phones.
 import Phaser from 'phaser'
-import { W, H, FLOOR, FIGHTERS, MOVES, SUPER_NAME, LEVELS, comboLabel, hex, getLook, setLook, LOOK_LEVELS, HOUSES, HOUSE_KEYS, getHouse, setHouse, fxColour, cpuHouse, NATURAL_HOUSE, STYLES, STYLE_KEYS, styledDef, loadSquad, saveSquad, MAX_TEAM, COMBO_BY_ID, combosForStyle, defaultLoadout, LOADOUT_SIZE, RARITY, FLOW_MAX } from './data.js'
+import { W, H, FLOOR, FIGHTERS, MOVES, SUPER_NAME, LEVELS, comboLabel, hex, getLook, setLook, LOOK_LEVELS, HOUSES, HOUSE_KEYS, getHouse, setHouse, fxColour, cpuHouse, NATURAL_HOUSE, STYLES, STYLE_KEYS, styledDef, loadSquad, saveSquad, MAX_TEAM, COMBO_BY_ID, combosForStyle, defaultLoadout, LOADOUT_SIZE, RARITY, FLOW_MAX, BRANCHES, TIER_XP, TIER_GEMS, applyBranch, seasonOf } from './data.js'
 import { Match, makeFighter } from './core.js'
 import { makePose, stepPose, drawFighter, targetPose } from './pose.js'
-import { loadProgress, PILLARS, AREAS, AREA_GROUPS, costOf, MAX_LV, DAILY_GEMS, available, wild, priceFor, buyUpgrade, fighterLevel, levelOf, matchGems, awardGems, applyUpgrades, cpuUpgrades, resetTest, UNLIMITED, loadCollection, ownsCombo, rollComboDrop, addComboCard, COMBO_MAX_LV } from './progress.js'
+import { loadProgress, PILLARS, AREAS, AREA_GROUPS, costOf, MAX_LV, DAILY_GEMS, available, wild, priceFor, buyUpgrade, fighterLevel, levelOf, matchGems, awardGems, applyUpgrades, cpuUpgrades, resetTest, UNLIMITED, loadCollection, ownsCombo, rollComboDrop, addComboCard, COMBO_MAX_LV, branchOf, xpOf, nextTier, unlockTier, awardXp, isLocked, tokenAvailable, lockSquad, changeStyle, cpuBranch } from './progress.js'
 
 export const Z = 2
 const DISPLAY = "'Saira Condensed', 'Arial Narrow', sans-serif"
@@ -128,7 +128,7 @@ function buildArenaStick(scene, opts = {}) {
 // a strike for menu fighters (title / select / results), thrown the way their style throws it
 function demoMove(f, k) { const id = (f.def.moves && f.def.moves[k]) || k, mv = MOVES[id]; return mv ? { k: id, ...mv, reach: mv.reach * (f.def.reach || 1) } : null }
 const coll = scene => scene.game.collection || (scene.game.collection = loadCollection())
-const squadDef = (i, sq, scene) => { const q = sq || loadSquad(), k = FIGHTERS[i].key; return styledDef(FIGHTERS[i], q.styles[k], (q.loadouts || {})[k], scene ? coll(scene).combos : {}) }
+const squadDef = (i, sq, scene) => { const q = sq || loadSquad(), k = FIGHTERS[i].key; const d = styledDef(FIGHTERS[i], q.styles[k], (q.loadouts || {})[k], scene ? coll(scene).combos : {}); return scene ? applyBranch({ ...d, mods: d.mods || {} }, branchOf(prog(scene), k)) : d }
 
 // a cut gem: diamond with facets, in a pillar colour (white = wild gem from house points)
 function gemIcon(g, x, y, r, col) {
@@ -200,6 +200,9 @@ export class SelectScene extends Phaser.Scene {
   create() {
     setupCam(this); bridge(this).onScene?.('select')
     this.sq = loadSquad()
+    const P0 = prog(this)
+    if (P0.squad_styles && isLocked(P0)) { this.sq.styles = { ...this.sq.styles, ...P0.squad_styles }; saveSquad(this.sq) }
+    this.changing = null // pillar whose style is being changed with a Change Token
     const cfg = this.game.cfg || (this.game.cfg = { level: 'medium' })
     if (cfg.pick == null) cfg.pick = this.sq.order[0] ?? 0
     buildArena(this, { dim: 0.72 })
@@ -207,18 +210,19 @@ export class SelectScene extends Phaser.Scene {
     this.fg = this.add.graphics()
     this.makePreview()
     this.name = txt(this, 338, 18, '', { fontSize: '34px', stroke: '#000', strokeThickness: 6 })
-    this.styleBtn = button(this, 462, 86, 244, 34, '', '#F2F2F2', () => this.cycleStyle(), { size: 18 })
-    this.teamBtn = button(this, 694, 86, 164, 34, '', GOLD, () => this.toggleTeam(), { size: 18 })
+    this.styleBtn = button(this, 462, 86, 244, 34, '', '#F2F2F2', () => this.styleTap(), { size: 18 })
+    this.branchBtn = button(this, 724, 194, 104, 50, '', GOLD, () => this.scene.start('Branch', { pick: this.game.cfg.pick }), { size: 15 })
+    this.teamBtn = button(this, 694, 86, 164, 34, '', GOLD, () => this.changing ? this.confirmChange() : this.toggleTeam(), { size: 18 })
     this.blurb = txt(this, 340, 112, '', { fontFamily: BODY, fontStyle: '600', fontSize: '15px', color: '#C9CED6' })
     this.special = txt(this, 340, 136, '', { fontFamily: BODY, fontStyle: '700', fontSize: '16px' })
     this.statG = this.add.graphics()
     this.statLabels = ['Speed', 'Power', 'Reach'].map((s, i) => txt(this, 340, 166 + i * 21, s, { fontFamily: BODY, fontStyle: '600', fontSize: '16px', color: '#9AA3AE' }))
-    this.comboT = [0, 1, 2, 3].map(i => [
+    this.comboT = [0, 1, 2, 3, 4].map(i => [
       txt(this, 340, 236 + i * 20, '', { fontFamily: BODY, fontStyle: '700', fontSize: '16px' }),
       txt(this, 776, 236 + i * 20, '', { fontFamily: BODY, fontStyle: '700', fontSize: '16px', color: '#F2F2F2' }).setOrigin(1, 0),
     ])
     button(this, 712, 338, 128, 26, 'Edit combos  ▸', '#F2F2F2', () => this.scene.start('Combos', { pick: this.game.cfg.pick }), { size: 15 })
-    txt(this, 340, 322, 'L = tap   M = hold   H = long hold', { fontFamily: BODY, fontStyle: '600', fontSize: '13px', color: '#9AA3AE' })
+    txt(this, 340, 340, 'L = tap   M = hold   H = long hold', { fontFamily: BODY, fontStyle: '600', fontSize: '13px', color: '#9AA3AE' })
     // fight order slots
     txt(this, 22, 356, 'Fighters  (gold number = fight order)', { fontFamily: BODY, fontStyle: '600', fontSize: '15px', color: '#9AA3AE' })
     this.boxes = FIGHTERS.map((f, i) => {
@@ -249,7 +253,25 @@ export class SelectScene extends Phaser.Scene {
     this.prev = makeFighter(squadDef(cfg.pick, this.sq, this), 170, 1); this.prev.side = 'p1'; this.prev.theme = NATURAL_HOUSE[this.prev.def.key]
     this.prevPose = makePose(this.prev, this.frame); this.demoT = 20
   }
-  choose(i) { this.game.cfg.pick = i; this.makePreview(); this.refresh() }
+  choose(i) { if (this.changing) { this.sq.styles[this.changing] = this.origStyle; saveSquad(this.sq); this.changing = null } this.game.cfg.pick = i; this.makePreview(); this.refresh() }
+  // style button: free to change until the squad is locked; then only with this season's Change Token
+  styleTap() {
+    const P = prog(this), key = FIGHTERS[this.game.cfg.pick].key
+    if (!isLocked(P) || this.changing === key) { this.cycleStyle(); return }
+    if (!tokenAvailable(P)) { this.cameras.main.shake(120, 0.004); this.toast('Style locked. Your next Change Token comes next season.'); return }
+    if (!window.confirm(`Use this season's Change Token on ${FIGHTERS[this.game.cfg.pick].name}? Pick a new style, then tap "Use token". This resets ${FIGHTERS[this.game.cfg.pick].name}'s branch and style XP.`)) return
+    this.changing = key; this.origStyle = this.sq.styles[key]; this.cycleStyle()
+  }
+  async confirmChange() {
+    const key = this.changing, P = prog(this)
+    if (this.sq.styles[key] === this.origStyle) { this.changing = null; this.refresh(); return }
+    try { this.game.progress = await changeStyle(P, key, this.sq.styles[key]); this.changing = null; this.toast('Style changed. Change Token used for this season.'); this.makePreview(); this.refresh() }
+    catch (e) { this.toast('Could not change style: ' + e.message) }
+  }
+  toast(msg) {
+    const t = txt(this, W / 2, 140, msg, { fontFamily: BODY, fontStyle: '700', fontSize: '17px', color: '#F2F2F2', backgroundColor: '#000000cc', padding: { x: 12, y: 8 }, wordWrap: { width: 600 }, align: 'center' }).setOrigin(0.5)
+    this.tweens.add({ targets: t, alpha: 0, delay: 2600, duration: 400, onComplete: () => t.destroy() })
+  }
   cycleStyle() {
     const key = FIGHTERS[this.game.cfg.pick].key
     this.sq.styles[key] = STYLE_KEYS[(STYLE_KEYS.indexOf(this.sq.styles[key]) + 1) % STYLE_KEYS.length]
@@ -275,26 +297,37 @@ export class SelectScene extends Phaser.Scene {
       this.tweens.add({ targets: t, scale: on ? 1.08 : 1, duration: 120 })
     })
     this.name.setText(f.name).setColor(f.colour)
-    this.styleBtn.label.setText(`Style: ${st.name}  ▸`)
+    const P = prog(this), locked = isLocked(P), changingThis = this.changing === f.key
+    this.styleBtn.label.setText(changingThis ? `New style: ${st.name}  ▸` : `${locked ? '🔒 ' : ''}Style: ${st.name}  ▸`)
     const place = order.indexOf(cfg.pick)
-    this.teamBtn.label.setText(place >= 0 ? `In team #${place + 1}  ✕` : order.length >= MAX_TEAM ? 'Team full' : '+ Add to team')
-    this.teamBtn.setOn(place >= 0)
+    this.teamBtn.label.setText(changingThis ? 'Use token ✓' : place >= 0 ? `In team #${place + 1}  ✕` : order.length >= MAX_TEAM ? 'Team full' : '+ Add to team')
+    this.teamBtn.setOn(changingThis || place >= 0)
+    const b = branchOf(P, f.key), brDef = (BRANCHES[def.style] || []).find(x => x.key === b.branch)
+    this.branchBtn.label.setText(brDef ? `${brDef.name}\nTier ${b.tier}` : `Branch\nXP ${xpOf(P, f.key)}`).setFontSize(brDef && brDef.name.length > 11 ? '12px' : '15px')
     this.blurb.setText(st.blurb)
     this.special.setText(`Special: ${f.specialName}     Super: ${SUPER_NAME[f.special]}`).setColor(f.colour)
     const g = this.statG; g.clear()
     ;[[def.speed, 3.4, 5.2], [def.power, 0.8, 1.45], [def.reach, 0.85, 1.2]].forEach(([v, lo, hi], i) => {
-      const y = 173 + i * 21, w = 300 * Math.max(0.1, Math.min(1, (v - lo) / (hi - lo)))
-      g.fillStyle(0x2a3138, 1); g.fillRect(420, y, 300, 8); g.fillStyle(hex(f.colour), 1); g.fillRect(420, y, w, 8)
+      const y = 173 + i * 21, w = 240 * Math.max(0.1, Math.min(1, (v - lo) / (hi - lo)))
+      g.fillStyle(0x2a3138, 1); g.fillRect(420, y, 240, 8); g.fillStyle(hex(f.colour), 1); g.fillRect(420, y, w, 8)
     })
-    this.comboT.forEach((row, i) => { const c = def.combos[i]; row[0].setText(c ? c.name + (c.level > 1 ? '  ' + '★'.repeat(c.level - 1) : '') : '— empty slot —').setColor(c ? (c.rarity === 'common' ? f.colour : RARITY[c.rarity].colour) : '#5c6670'); row[1].setText(c ? comboLabel(c.seq) : '') })
+    this.comboT.forEach((row, i) => { const c = def.combos[i]; if (i === 4 && !c) { row[0].setText(''); row[1].setText(''); return } row[0].setText(c ? (c.rarity === 'signature' ? '★ ' : '') + c.name + (c.level > 1 ? '  ' + '★'.repeat(c.level - 1) : '') : '— empty slot —').setColor(c ? (c.rarity === 'common' ? f.colour : RARITY[c.rarity].colour) : '#5c6670'); row[1].setText(c ? comboLabel(c.seq) : '') })
     this.lvlBtns.forEach((b, i) => b.setOn(['easy', 'medium', 'hard'][i] === cfg.level))
     if (this.fightBtn) this.fightBtn.destroy()
     const lead = order.length ? FIGHTERS[order[0]].colour : '#5c6670'
     this.fightBtn = button(this, 674, 404, 192, 52, order.length ? (order.length > 1 ? `FIGHT ${order.length}v${order.length}!` : 'FIGHT!') : 'Add a fighter', lead, () => this.start(), { solid: !!order.length, size: order.length ? 30 : 22, r: 10 })
   }
-  start() {
+  async start() {
     const cfg = this.game.cfg, order = this.sq.order
     if (!order.length) { this.cameras.main.shake(120, 0.004); return }
+    if (this.changing) { this.toast('Finish changing the style first (Use token ✓).'); return }
+    // first real fight: lock the squad's styles for good
+    const P = prog(this)
+    if (P.mode === 'db' && !P.locked_at) {
+      const list = FIGHTERS.map(f => `${f.name}: ${STYLES[this.sq.styles[f.key]].name}`).join('\n')
+      if (!window.confirm(`First real fight! Your fighters' styles will be locked in for good:\n\n${list}\n\nYou get one Change Token each season to change one style. Lock them in?`)) return
+      try { this.game.progress = await lockSquad(P, { ...this.sq.styles }) } catch (e) { this.toast('Could not lock the squad: ' + e.message); return }
+    }
     // CPU team: same size, random pillars and styles
     const pool = Phaser.Utils.Array.Shuffle([0, 1, 2, 3, 4])
     const team1 = order.map(p => ({ p, style: this.sq.styles[FIGHTERS[p].key], loadout: (this.sq.loadouts || {})[FIGHTERS[p].key] }))
@@ -337,7 +370,7 @@ export class FightScene extends Phaser.Scene {
     setupCam(this)
     const b = bridge(this); b.onScene?.('fight')
     const P = prog(this), cpuUp = cpuUpgrades(P, data.level)
-    const defs = (t, mine) => (t || []).map(x => applyUpgrades(styledDef(FIGHTERS[x.p], x.style, mine ? x.loadout : null, mine ? coll(this).combos : {}), mine ? (P.upgrades || {})[FIGHTERS[x.p].key] : cpuUp))
+    const defs = (t, mine) => (t || []).map(x => applyBranch(applyUpgrades(styledDef(FIGHTERS[x.p], x.style, mine ? x.loadout : null, mine ? coll(this).combos : {}), mine ? (P.upgrades || {})[FIGHTERS[x.p].key] : cpuUp), mine ? branchOf(P, FIGHTERS[x.p].key) : cpuBranch(x.style, data.level)))
     this.m = new Match(defs(data.team1, true), defs(data.team2, false), data.level)
     for (const f of [...this.m.t1, ...this.m.t2]) f.theme = NATURAL_HOUSE[f.def.key]
     this.tagReq = null
@@ -701,6 +734,12 @@ export class ResultsScene extends Phaser.Scene {
         })
       })
     } else gemT.setText('')
+    // style XP for each fighter in the team (unlocks branch tiers)
+    if (!data.xpDone) {
+      data.xpDone = true
+      awardXp(prog(this), (data.team1 || []).map(t => FIGHTERS[t.p].key), youWon).then(p => { this.game.progress = p })
+      txt(this, 560, 132, `+${youWon ? 40 : 20} style XP for each fighter`, { fontFamily: BODY, fontStyle: '700', fontSize: '13px', color: '#5BE0FF' }).setOrigin(0.5, 0)
+    }
     // a win may drop a combo card for one of your team's styles
     if (!data.dropDone) {
       data.dropDone = true
@@ -890,5 +929,82 @@ export class CombosScene extends Phaser.Scene {
       if (slot < 0 && !own) k.eq.setColor('#5c6670')
       else k.eq.setColor('#0A0A0A')
     }
+  }
+}
+
+// ---------------- Branch: develop a fighter's style down one of three branches ----------------
+export class BranchScene extends Phaser.Scene {
+  constructor() { super('Branch') }
+  create(data) {
+    setupCam(this); bridge(this).onScene?.('branch')
+    buildArena(this, { dim: 0.86 })
+    this.pick = data?.pick ?? 0; this.busy = false
+    const f = FIGHTERS[this.pick], sq = loadSquad(), style = sq.styles[f.key]
+    this.f = f; this.style = style
+    txt(this, 24, 10, 'BRANCH', { fontSize: '40px', color: GOLD, stroke: '#000', strokeThickness: 6 })
+    txt(this, 222, 22, `${f.name} · ${STYLES[style].name}`, { fontSize: '24px', color: f.colour })
+    button(this, 748, 32, 84, 36, 'Back', '#F2F2F2', () => this.scene.start('Select'), { size: 20 })
+    this.xpG = this.add.graphics()
+    this.xpT = txt(this, 24, 60, '', { fontFamily: BODY, fontStyle: '700', fontSize: '15px', color: '#5BE0FF' })
+    this.gemT = txt(this, 776, 60, '', { fontFamily: BODY, fontStyle: '700', fontSize: '15px', color: f.colour }).setOrigin(1, 0)
+    this.cols = (BRANCHES[style] || []).map((br, ci) => {
+      const x = 20 + ci * 256
+      const head = txt(this, x + 8, 98, br.name, { fontSize: '20px' })
+      const blurb = txt(this, x + 8, 122, br.blurb, { fontFamily: BODY, fontStyle: '600', fontSize: '11.5px', color: '#9AA3AE', fixedWidth: 236 })
+      const cards = br.tiers.map((t, ti) => {
+        const y = 146 + ti * 78
+        const bg = this.add.graphics()
+        const name = txt(this, x + 8, y + 5, `${ti + 1}. ${t.name}`, { fontSize: '15px' })
+        const what = txt(this, x + 8, y + 26, t.what, { fontFamily: BODY, fontStyle: '600', fontSize: '11.5px', color: '#C9CED6', wordWrap: { width: 232 } })
+        const xpBtn = button(this, x + 64, y + 58, 112, 22, '', '#5BE0FF', () => this.unlock(br.key, false), { size: 13 })
+        const gemBtn = button(this, x + 188, y + 58, 100, 22, '', f.colour, () => this.unlock(br.key, true), { size: 13 })
+        return { t, ti, y, bg, name, what, xpBtn, gemBtn }
+      })
+      return { br, x, head, blurb, cards }
+    })
+    txt(this, 20, 384, `Unlock tiers with style XP from fighting (${TIER_XP.join(' / ')} XP: +40 a win, +20 a loss) or buy them with ${f.name.toLowerCase()} gems (${TIER_GEMS.join(' / ')}; wild gems top up). Your branch is chosen at tier 1 and stays until this fighter's style changes (Change Token, one per season). Tier 3 adds a signature combo as a 5th combo.`,
+      { fontFamily: BODY, fontStyle: '600', fontSize: '12px', color: '#9AA3AE', wordWrap: { width: 760 } })
+    this.refresh()
+  }
+  refresh() {
+    const P = prog(this), f = this.f, b = branchOf(P, f.key), xp = xpOf(P, f.key), nt = nextTier(P, f.key), col = hex(f.colour)
+    // XP bar with the three tier marks
+    const g = this.xpG; g.clear()
+    const bx = 24, bw = 470, by = 82, max = TIER_XP[2]
+    g.fillStyle(0x1c222a, 1); g.fillRect(bx, by, bw, 6); g.fillStyle(0x5be0ff, 1); g.fillRect(bx, by, bw * Math.min(1, xp / max), 6)
+    TIER_XP.forEach(v => { g.fillStyle(0xffffff, 0.8); g.fillRect(bx + bw * v / max - 1, by - 3, 2, 12) })
+    this.xpT.setText(P.mode === 'test' ? 'Style XP: test mode (all tiers open)' : `Style XP ${xp}${nt ? `  ·  tier ${nt.tier} at ${TIER_XP[nt.tier - 1]}` : '  ·  all tiers unlocked'}`)
+    this.gemT.setText(P.mode === 'test' ? 'Gems: ∞' : `${f.name.toLowerCase()} gems ${Math.max(0, available(P, f.key))} · wild ${Math.max(0, wild(P))}`)
+    for (const c of this.cols) {
+      const chosen = b.branch === c.br.key, other = !!b.branch && !chosen
+      c.head.setColor(chosen ? f.colour : other ? '#5c6670' : '#F2F2F2')
+      for (const k of c.cards) {
+        const tierNo = k.ti + 1, owned = chosen && b.tier >= tierNo, isNext = nt && nt.tier === tierNo && (chosen || (!b.branch && tierNo === 1))
+        k.bg.clear()
+        k.bg.fillStyle(owned ? col : 0x10141a, owned ? 0.22 : 0.95); k.bg.fillRoundedRect(c.x, k.y, 244, 72, 8)
+        k.bg.lineStyle(owned ? 2.5 : 1.5, owned ? col : isNext ? 0xf5c542 : 0x262d36, other ? 0.4 : 1); k.bg.strokeRoundedRect(c.x, k.y, 244, 72, 8)
+        k.name.setColor(owned ? f.colour : other ? '#5c6670' : '#F2F2F2'); k.what.setAlpha(other ? 0.45 : 1)
+        const showBtns = isNext && !other
+        k.xpBtn.setVisible(showBtns); k.gemBtn.setVisible(showBtns)
+        if (showBtns) {
+          k.xpBtn.label.setText(nt.byXp ? 'Unlock (XP)' : `Need ${TIER_XP[tierNo - 1]} XP`).setColor(nt.byXp ? '#5BE0FF' : '#5c6670'); k.xpBtn.setOn(nt.byXp)
+          k.gemBtn.label.setText(P.mode === 'test' ? 'Buy ◆ free' : `Buy ◆ ${TIER_GEMS[tierNo - 1]}`).setColor(nt.gemPrice ? '#F2F2F2' : '#5c6670'); k.gemBtn.setOn(!!nt.gemPrice)
+        }
+        if (owned) k.name.setText(`${tierNo}. ${k.t.name}  ✓`)
+        else k.name.setText(`${tierNo}. ${k.t.name}`)
+      }
+    }
+  }
+  async unlock(branchKey, useGems) {
+    if (this.busy) return
+    const P = prog(this), b = branchOf(P, this.f.key)
+    if (!b.branch && !window.confirm(`Choose the ${(BRANCHES[this.style] || []).find(x => x.key === branchKey).name} branch for ${this.f.name}? It stays until this fighter's style changes.`)) return
+    this.busy = true
+    try {
+      this.game.progress = await unlockTier(P, this.f.key, branchKey, useGems)
+      sfx(this).special?.()
+    } catch (e) { this.cameras.main.shake(120, 0.004) }
+    this.busy = false
+    this.refresh()
   }
 }

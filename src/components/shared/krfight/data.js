@@ -203,3 +203,101 @@ export function cpuHouse(def, playerHouse) {
   if (h === playerHouse) h = HOUSE_KEYS[(HOUSE_KEYS.indexOf(h) + 1) % HOUSE_KEYS.length]
   return h
 }
+
+// ---- Style branches: each style splits three ways so the same style grows differently per fighter ----
+// Each branch has 3 tiers. An effect can multiply (mul) or add to (add) the fighter's upgrade modifiers,
+// change what a button throws (moves), or unlock a signature combo (combo, an extra 5th combo).
+// Tiers unlock from style XP (fighting) or can be bought with gems.
+export const TIER_XP = [100, 300, 700]      // style XP needed for tiers 1, 2, 3
+export const TIER_GEMS = [20, 40, 70]       // or buy the tier with gems of the fighter's colour (wild gems top up)
+const sig = (style, id, name, seq, bonus) => ({ id: `sig_${id}`, styles: [style], name, seq, bonus, rarity: 'signature' })
+export const BRANCHES = {
+  pro: [
+    { key: 'pressure', name: 'Pressure fighter', blurb: 'Walks through shots, works the body', tiers: [
+      { name: 'Come forward', what: '+8% stepping in, +10% knock-back', mul: { walk: 1.08, push: 1.1 } },
+      { name: 'Body attack', what: 'Kick tap throws a body hook; -5% damage taken', moves: { lk: 'bodyhook' }, mul: { dmgTaken: 0.95 } },
+      { name: 'Signature: 3 · 3 · 2', what: 'Body hook, hook, cross', combo: sig('pro', 'pressure', 'Pressure 3 · 3 · 2', ['mk', 'hp', 'mp'], 2.1) } ] },
+    { key: 'outboxer', name: 'Out-boxer', blurb: 'Jab, range and movement', tiers: [
+      { name: 'Range', what: '+6% reach, +10% backing-off speed', mul: { reach: 1.06, backWalk: 1.1 } },
+      { name: 'Sharp jab', what: 'Strikes 8% faster, +6% punch reach', mul: { startup: 0.92, punchReach: 1.06 } },
+      { name: 'Signature: 1 · 1 · 2 · 6', what: 'Double jab, cross, uppercut', combo: sig('pro', 'outboxer', 'Out-box 1 · 1 · 2 · 6', ['lp', 'lp', 'mp', 'hk'], 2.2) } ] },
+    { key: 'counter', name: 'Counter-puncher', blurb: 'Slips and big counters', tiers: [
+      { name: 'Make them miss', what: '+12% counter damage', mul: { counters: 1.12 } },
+      { name: 'Sit down on it', what: '+12% timing damage, -10% stun taken', mul: { timing: 1.12, stunTaken: 0.9 } },
+      { name: 'Signature: slip · 6 · 3', what: 'Step back, uppercut, overhand', combo: sig('pro', 'counter', 'Slip · 6 · 3', ['b', 'hk', 'hp'], 2.1) } ] },
+  ],
+  am: [
+    { key: 'volume', name: 'Volume puncher', blurb: 'Long, fast combinations', tiers: [
+      { name: 'Keep busy', what: '-10% recovery after strikes', mul: { recovery: 0.9 } },
+      { name: 'Non-stop', what: 'Longer combo window, +10% super gain', add: { comboGap: 6 }, mul: { meterGain: 1.1 } },
+      { name: 'Signature: 1 · 2 · 1 · 2 · 3', what: 'Five-punch flurry', combo: sig('am', 'volume', '1 · 2 · 1 · 2 · 3', ['lp', 'mp', 'lp', 'mp', 'hp'], 2.3) } ] },
+    { key: 'points', name: 'Point scorer', blurb: 'Clean single shots, quick exits', tiers: [
+      { name: 'First to score', what: '+12% damage on the opening strike', mul: { opener: 1.12 } },
+      { name: 'In and out', what: 'Strikes 8% faster, +8% backing-off speed', mul: { startup: 0.92, backWalk: 1.08 } },
+      { name: 'Signature: 1 · 2 · body 3', what: 'Jab, cross, body hook', combo: sig('am', 'points', '1 · 2 · Body 3', ['lp', 'mp', 'mk'], 2.0) } ] },
+    { key: 'switch', name: 'Switch-hitter', blurb: 'Changes angles mid-combo', tiers: [
+      { name: 'Both sides', what: '+6% punch damage', mul: { punchDmg: 1.06 } },
+      { name: 'Seamless', what: 'Chain into the next strike sooner', add: { chainEarly: 2 } },
+      { name: 'Signature: 3 · 6 · 3', what: 'Hook, uppercut, hook', combo: sig('am', 'switch', 'Switch 3 · 6 · 3', ['hp', 'hk', 'hp'], 2.1) } ] },
+  ],
+  kickboxer: [
+    { key: 'striker', name: 'Striker', blurb: 'Punches and kicks flow together', tiers: [
+      { name: 'Mix it up', what: '+10% combo damage', mul: { comboBonus: 1.1 } },
+      { name: 'Flow state', what: 'Chain into the next strike sooner', add: { chainEarly: 2 } },
+      { name: 'Signature: 1 · 2 · 3 · roundhouse', what: 'Three punches into a body kick', combo: sig('kickboxer', 'striker', '1 · 2 · 3 · Roundhouse', ['lp', 'mp', 'hp', 'mk'], 2.2) } ] },
+    { key: 'kicker', name: 'Kicker', blurb: 'Long-range kicks', tiers: [
+      { name: 'Long legs', what: '+8% kick reach', mul: { kickReach: 1.08 } },
+      { name: 'Side kick', what: 'Kick hold throws a side kick; +8% kick damage', moves: { mk: 'sidekick' }, mul: { kickDmg: 1.08 } },
+      { name: 'Signature: teep · side · high', what: 'Teep, side kick, high kick', combo: sig('kickboxer', 'kicker', 'Teep · Side · High', ['lk', 'mk', 'hk'], 2.1) } ] },
+    { key: 'showman', name: 'Showman', blurb: 'Jumping and spinning finishes', tiers: [
+      { name: 'Air time', what: '+12% jump, +10% super damage', mul: { jump: 1.12, superDmg: 1.1 } },
+      { name: 'Spin to win', what: 'Long-hold kick throws a spinning kick; +15% super gain', moves: { hk: 'spinkick' }, mul: { meterGain: 1.15 } },
+      { name: 'Signature: jab · spin', what: 'Jab straight into a spinning kick', combo: sig('kickboxer', 'showman', 'Jab · Spin Kick', ['lp', 'hk'], 2.0) } ] },
+  ],
+  tkd: [
+    { key: 'sparring', name: 'Sparring', blurb: 'Fast round kicks, points', tiers: [
+      { name: 'Quick feet', what: 'Strikes 8% faster', mul: { startup: 0.92 } },
+      { name: 'Reset fast', what: '-10% recovery after strikes', mul: { recovery: 0.9 } },
+      { name: 'Signature: round ×4', what: 'Four round kicks', combo: sig('tkd', 'sparring', 'Round ×4', ['lk', 'lk', 'lk', 'lk'], 2.3) } ] },
+    { key: 'power', name: 'Power breaking', blurb: 'Heavy spinning kicks', tiers: [
+      { name: 'Board breaker', what: '+10% kick damage', mul: { kickDmg: 1.1 } },
+      { name: 'Full rotation', what: '+10% long-hold damage, +10% knock-back', mul: { heavyHold: 1.1, push: 1.1 } },
+      { name: 'Signature: side · spinning', what: 'Side kick into spinning kick', combo: sig('tkd', 'power', 'Side · Spinning', ['mk', 'hk'], 2.2) } ] },
+    { key: 'footwork', name: 'Footwork', blurb: 'Hop-ins and cut kicks', tiers: [
+      { name: 'Light on the feet', what: '+8% stepping in and backing off', mul: { walk: 1.08, backWalk: 1.08 } },
+      { name: 'Hop-in', what: '+10% jump, longer combo window', mul: { jump: 1.1 }, add: { comboGap: 4 } },
+      { name: 'Signature: cut · round · round', what: 'Cut kick, two round kicks', combo: sig('tkd', 'footwork', 'Cut · Round · Round', ['mk', 'lk', 'lk'], 2.1) } ] },
+  ],
+  thai: [
+    { key: 'lowkick', name: 'Low-kick specialist', blurb: 'Chops the legs', tiers: [
+      { name: 'Shin of steel', what: '+8% kick damage', mul: { kickDmg: 1.08 } },
+      { name: 'Chop', what: 'Kick tap throws a low kick', moves: { lk: 'lowkick' } },
+      { name: 'Signature: 1 · low · low', what: 'Jab, two low kicks', combo: sig('thai', 'lowkick', '1 · Low · Low', ['lp', 'lk', 'mk'], 2.1) } ] },
+    { key: 'knee', name: 'Knee fighter', blurb: 'Clinch knees', tiers: [
+      { name: 'Clinch', what: '+8% long-hold damage', mul: { heavyHold: 1.08 } },
+      { name: 'Knee on hold', what: 'Kick hold throws a knee; -8% knock-back taken', moves: { mk: 'knee' }, mul: { knockTaken: 0.92 } },
+      { name: 'Signature: knee ×3', what: 'Three knees', combo: sig('thai', 'knee', 'Knee · Knee · Knee', ['hk', 'hk', 'hk'], 2.2) } ] },
+    { key: 'hands', name: 'Hands-first', blurb: 'Heavy hooks into kicks', tiers: [
+      { name: 'Heavy hands', what: '+8% punch damage', mul: { punchDmg: 1.08 } },
+      { name: 'Bombs', what: '+10% heavy-punch damage, strikes 4% faster', mul: { heavyPunch: 1.1, startup: 0.96 } },
+      { name: 'Signature: 1 · 2 · 3 · 2 · low', what: 'Four punches into a low kick', combo: sig('thai', 'hands', '1 · 2 · 3 · 2 · Low', ['lp', 'mp', 'hp', 'mp', 'mk'], 2.4) } ] },
+  ],
+}
+RARITY.signature = { name: 'Signature', colour: '#F5C542' }
+
+// apply a fighter's branch (state: { branch, tier }) to its def: modifiers, button changes, signature combo
+export function applyBranch(def, state) {
+  const br = state && state.branch && (BRANCHES[def.style] || []).find(b => b.key === state.branch)
+  if (!br || !state.tier) return def
+  const mods = { ...(def.mods || {}) }, moves = { ...(def.moves || {}) }, combos = [...(def.combos || [])]
+  for (const t of br.tiers.slice(0, Math.min(3, state.tier))) {
+    for (const [k, v] of Object.entries(t.mul || {})) mods[k] = (mods[k] ?? 1) * v
+    for (const [k, v] of Object.entries(t.add || {})) mods[k] = (mods[k] ?? 0) + v
+    Object.assign(moves, t.moves || {})
+    if (t.combo) combos.push({ ...t.combo, level: 1 })
+  }
+  return { ...def, mods, moves, combos, branch: br.key, branchName: br.name, branchTier: state.tier }
+}
+
+// seasons for Change Tokens: one token per quarter (Jan, Apr, Jul, Oct)
+export const seasonOf = (d = new Date()) => `${d.getFullYear()}-Q${Math.floor(d.getMonth() / 3) + 1}`
