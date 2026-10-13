@@ -777,7 +777,7 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .team-role-admin { background: #E24B4A22; border-color: #E24B4A; }
 .team-role-captain, .team-role-coach { background: #378ADD22; border-color: #378ADD; }
 .team-role-leader { background: #1D9E7522; border-color: #1D9E75; }
-.team-sheet-backdrop { position: fixed; inset: 0; z-index: 70; background: rgba(0,0,0,0.5); display: flex; align-items: flex-end; justify-content: center; }
+.team-sheet-backdrop { position: fixed; inset: 0; z-index: 70; background: rgba(0,0,0,0.5); display: flex; align-items: flex-start; justify-content: center; padding-top: calc(12px + env(safe-area-inset-top, 0px)); }
 .team-sheet { width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto; box-sizing: border-box; padding: 16px 16px calc(20px + env(safe-area-inset-bottom, 0px)); border-radius: 18px 18px 0 0; background: var(--bg); border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; }
 .team-label { font-size: 11px; font-weight: 700; letter-spacing: 1px; color: var(--text-tertiary); margin-top: 6px; }
 .team-seg { display: flex; gap: 6px; }
@@ -1164,3 +1164,6 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .team-role-note.full { color: #B45309; font-weight: 600; }
 /* Registers title clear of the floating menu button on phones */
 @media (max-width: 767px) { .reg-title { padding-left: 64px; } }
+
+/* Team access sheet opens at the top of the screen */
+.team-sheet { border-radius: 18px !important; }

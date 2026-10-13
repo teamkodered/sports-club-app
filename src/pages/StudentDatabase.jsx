@@ -366,7 +366,7 @@ export default function StudentDatabase() {
             {tab === 'Stopped' ? `${filtered.length} stopped`
               : tab === 'Not Started' ? `${filtered.length} not started`
               : tab === 'Stopped Squad' ? `${filtered.length} stopped a squad`
-              : `${filtered.length} of ${activeStudentsCount} students`}
+              : isAdmin ? `${filtered.length} of ${activeStudentsCount} students` : `${filtered.length} students`}   {/* club-wide total: admins only */}
           </p>
         </div>
         <button className="btn btn-sm" onClick={() => setShowColPicker(v => !v)}>⚙️ Columns</button>
