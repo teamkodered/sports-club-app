@@ -69,6 +69,10 @@ export default function TeamAccess() {
   const gid = inGroup ? groupId(editing.role, editing.team) : null
 
   async function save() {
+    // Old "all" shortcut (no list saved) for a class-limited role: save every class explicitly
+    if (['head_coach', 'captain', 'leader'].includes(editing.role) && !editing.access.registers?.classes) {
+      editing.access.registers = { types: editing.access.registers?.types || ['class', 'kr', 'krba', 'pts', 'leaders', 'adhoc'], classes: classes.map(c => c.id) }
+    }
     setSaving(true)
     const pages = Object.fromEntries(Object.entries(editing.access.pages).filter(([k, v]) => v !== roleDefault(editing.role, k)))
     const settingsAccess = { pages, registers: editing.access.registers }
@@ -99,9 +103,10 @@ export default function TeamAccess() {
     const typeOn = k => !regs.types || regs.types.includes(k)
     const everything = !regs.types && !regs.classes
     const apply = (classIds, typeKeys) => {
-      const allC = classIds.length === classes.length, allT = otherTypes.every(t => typeKeys.includes(t.key))
-      const types = (allC && allT) ? null : [...(classIds.length ? ['class'] : []), ...typeKeys]
-      setEditing(e => ({ ...e, access: { ...e.access, registers: { types, classes: allC ? null : classIds } } }))
+      // Always save the real list of ticked classes (never an "all" shortcut): the database limits
+      // Head Coaches / Coaches / Leaders to exactly these, so "all ticked" must mean every class listed
+      const types = [...(classIds.length ? ['class'] : []), ...typeKeys]
+      setEditing(e => ({ ...e, access: { ...e.access, registers: { types, classes: classIds } } }))
     }
     const curClassIds = classes.filter(c => classOn(c.id)).map(c => c.id)
     const curTypes = otherTypes.filter(t => typeOn(t.key)).map(t => t.key)
