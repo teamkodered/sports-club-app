@@ -101,14 +101,19 @@ begin
   end loop;
 end $$;
 -- wearable workouts + other sessions + invites: same widening
+-- (wearable workouts)
 drop policy if exists wearable_workouts_coach_read on public.wearable_workouts;
 create policy wearable_workouts_coach_read on public.wearable_workouts for select using (public.kc_is_class_staff() and student_id in (select public.kc_my_coached_student_ids()));
 drop policy if exists wearable_workouts_staff_read on public.wearable_workouts;
 create policy wearable_workouts_staff_read on public.wearable_workouts for select using (public.kc_has_role(array['admin']));
-drop policy if exists extra_coach_read on public.extra_sessions;
-create policy extra_coach_read on public.extra_sessions for select using (public.kc_is_class_staff() and student_id in (select public.kc_my_coached_student_ids()));
-drop policy if exists extra_staff on public.extra_sessions;
-create policy extra_staff on public.extra_sessions for all using (public.kc_has_role(array['admin']));
+do $$ begin
+  if to_regclass('public.extra_sessions') is not null then   -- only once "Other sessions" SQL has been run
+    execute 'drop policy if exists extra_coach_read on public.extra_sessions';
+    execute 'create policy extra_coach_read on public.extra_sessions for select using (public.kc_is_class_staff() and student_id in (select public.kc_my_coached_student_ids()))';
+    execute 'drop policy if exists extra_staff on public.extra_sessions';
+    execute 'create policy extra_staff on public.extra_sessions for all using (public.kc_has_role(array[''admin'']))';
+  end if;
+end $$;
 drop policy if exists invites_staff on public.app_invites;
 create policy invites_staff on public.app_invites for all
   using (public.kc_has_role(array['admin']) or (public.kc_is_class_staff() and student_id in (select public.kc_my_coached_student_ids())))
