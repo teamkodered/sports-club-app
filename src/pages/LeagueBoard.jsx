@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabasePublic as supabase } from '../lib/supabasePublic.js'
 import { CATEGORIES, buildLeaderboard, maskName } from './ResultsPublic.jsx'
+import LiveHrTable from '../components/shared/LiveHrTable.jsx'
 
 // Combined League board (Oct 2026) -- public display (/results-public) and the
 // athlete app's league tile. Rotates through: house standings, house points
@@ -62,6 +63,7 @@ async function loadPeriod(from, to) {
   const { data: tasks, error: tErr } = await supabase.rpc('public_f2f_tasks', { p_from: from, p_to: to })
   const krIds = new Set((tErr ? [] : tasks || []).map(t => t.student_id))
   const { data: notesP, error: nErr } = await supabase.rpc('public_notes_period', { p_from: from, p_to: to })
+  const { data: hrP, error: hErr } = await supabase.rpc('public_hr_sessions', { p_from: from, p_to: to })
   return {
     houses: Object.keys(HOUSE_COLOUR).map(n => ({ name: n, points: houses[n] || 0 })).concat(Object.keys(houses).filter(n => !HOUSE_COLOUR[n]).map(n => ({ name: n, points: houses[n] })))
       .sort((a, b) => b.points - a.points),
@@ -69,6 +71,7 @@ async function loadPeriod(from, to) {
     individuals: Object.values(indiv).filter(x => x.total > 0 && (krIds.size === 0 || krIds.has(x.id))).sort((a, b) => b.total - a.total),
     tasks: tErr ? [] : (tasks || []),
     notes: nErr ? null : (notesP || []), // null = function not set up yet -> all-time notes
+    hr: hErr ? [] : (hrP || []), // best heart rate per checked-in session
   }
 }
 
@@ -93,6 +96,7 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
   const [exRows, setExRows] = useState([])
   const [notesRows, setNotesRows] = useState([])
   const [loading, setLoading] = useState(true)
+  const [liveCount, setLiveCount] = useState(0)
   const [periodMode, setPeriodMode] = useState(embedded ? 'league' : 'auto') // auto | league | month
   const [cycle, setCycle] = useState(0)
   const [idx, setIdx] = useState(0)
@@ -136,13 +140,15 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
   const slides = useMemo(() => {
     if (!pd) return []
     const out = []
+    if (liveCount > 0) out.push({ kind: 'live' })
     if (pd.houses.some(h => h.points > 0)) out.push({ kind: 'houses' })
     if (pd.individuals.length) out.push({ kind: 'individuals' })
     for (const a of AREAS) if (pd.tasks.some(r => taskValue(r, a.key) > 0)) out.push({ kind: 'tasks', area: a })
+    if ((pd.hr || []).length) { out.push({ kind: 'hr', metric: 'avg' }); out.push({ kind: 'hr', metric: 'max' }) }
     for (const cat of CATEGORIES) if (!cat.aggregate && buildLeaderboard(cat, exRows, cfg.topBoard).length) out.push({ kind: 'exercise', cat })
     if ((pd.notes ? pd.notes.length : notesRows.length)) out.push({ kind: 'notes' })
     return out
-  }, [pd, exRows, notesRows, cfg.topBoard])
+  }, [pd, exRows, notesRows, cfg.topBoard, liveCount])
 
   // rotation; a full cycle flips the period when on auto
   useEffect(() => {
@@ -150,7 +156,7 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
     const t = setInterval(() => setIdx(i => { const n = i + 1; if (n >= slides.length) { setCycle(c => c + 1); return 0 } return n }), cfg.seconds * 1000)
     return () => clearInterval(t)
   }, [paused, slides.length, cfg.seconds])
-  const slideKey = sl => !sl ? '' : sl.kind === 'tasks' ? `tasks:${sl.area.key}` : sl.kind === 'exercise' ? `ex:${sl.cat.key}` : sl.kind
+  const slideKey = sl => !sl ? '' : sl.kind === 'tasks' ? `tasks:${sl.area.key}` : sl.kind === 'exercise' ? `ex:${sl.cat.key}` : sl.kind === 'hr' ? `hr:${sl.metric}` : sl.kind
   const lastKeyRef = useRef('')
   useEffect(() => {
     // when the slide list changes (e.g. League period <-> This month) stay on the same board if it exists
@@ -251,6 +257,20 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
         </Slide>
       )
     }
+    if (s.kind === 'live') {
+      return <Slide title="Live heart rate" colour="#E24B4A" emoji="❤️" sub="recording now" fixedPeriod><LiveHrTable dark /></Slide>
+    }
+    if (s.kind === 'hr') {
+      const key = s.metric === 'avg' ? 'best_avg' : 'best_max'
+      const list = ranked([...pd.hr].filter(r => r[key]).sort((a, b) => b[key] - a[key]), r => r[key])
+      const top = list.slice(0, cfg.topBoard), me = list.find(r => r.student_id === meId)
+      return (
+        <Slide title={s.metric === 'avg' ? 'Heart rate · highest average' : 'Heart rate · highest max'} colour="#E24B4A" emoji="❤️" sub="per checked-in session">
+          {top.map(r => <Row key={r.student_id} rank={r.rank} name={r.display_name} sub={`${r.house_name || ''} · ${(s.metric === 'avg' ? r.best_avg_pct : r.best_max_pct) || '—'}% of max`} subColour={HOUSE_COLOUR[r.house_name]} value={r[key]} unit="BPM" colour="#E24B4A" me={r.student_id === meId} />)}
+          {me && !top.includes(me) && <><div style={{ textAlign: 'center', color: '#666' }}>···</div><Row rank={me.rank} name={me.display_name} value={me[key]} unit="BPM" colour="#E24B4A" me /></>}
+        </Slide>
+      )
+    }
     if (s.kind === 'exercise') {
       const cat = s.cat, list = buildLeaderboard(cat, exRows, cfg.topBoard)
       return (
@@ -309,6 +329,7 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
           </div>
         )}
         {loading ? <p style={{ color: '#9A9A9A' }}>Loading league…</p> : <Board />}
+        <div style={{ display: 'none' }}><LiveHrTable dark onRows={r => setLiveCount(r.length)} /></div>
       </div>
     </div>
   )

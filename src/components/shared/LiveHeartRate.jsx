@@ -84,107 +84,21 @@ function NativeHeartRate({ age, onSave }) {
   )
 }
 
-function WebHeartRate({ age, onSave }) {
-  const supported = typeof navigator !== 'undefined' && !!navigator.bluetooth
-  const maxHr = Math.max(150, 220 - (Number(age) || 30))
-  const [device, setDevice] = useState(null)
-  const [status, setStatus] = useState('')
-  const [bpm, setBpm] = useState(null)
-  const [recording, setRecording] = useState(false)
-  const [elapsed, setElapsed] = useState(0)
-  const samples = useRef([]) // { t, bpm } while recording
-  const startAt = useRef(null)
-  const charRef = useRef(null)
-
-  useEffect(() => {
-    if (!recording) return
-    const t = setInterval(() => setElapsed(Math.round((Date.now() - startAt.current) / 1000)), 1000)
-    return () => clearInterval(t)
-  }, [recording])
-  useEffect(() => () => { try { device?.gatt?.disconnect() } catch { /* */ } }, [device])
-
-  function onValue(e) {
-    const v = e.target.value
-    const flags = v.getUint8(0)
-    const hr = (flags & 0x01) ? v.getUint16(1, true) : v.getUint8(1)
-    if (!hr) return
-    setBpm(hr)
-    if (startAt.current && recordingRef.current) samples.current.push({ t: Date.now(), bpm: hr })
-  }
-  const recordingRef = useRef(false)
-  useEffect(() => { recordingRef.current = recording }, [recording])
-
-  // Attach to a strap (already chosen once) and start the live readings
-  async function attach(dev, quiet = false) {
-    try {
-      setStatus(quiet ? `Reconnecting to ${dev.name || 'your strap'}…` : 'Connecting…')
-      dev.addEventListener('gattserverdisconnected', () => { setStatus('Disconnected -- tap Connect to reconnect'); setBpm(null) })
-      const server = await dev.gatt.connect()
-      const svc = await server.getPrimaryService('heart_rate')
-      const ch = await svc.getCharacteristic('heart_rate_measurement')
-      await ch.startNotifications()
-      ch.addEventListener('characteristicvaluechanged', onValue)
-      charRef.current = ch
-      setDevice(dev); setStatus(`Connected to ${dev.name || 'heart rate strap'}`)
-      try { localStorage.setItem('kc_hr_strap', dev.id) } catch { /* ignore */ }
-      return true
-    } catch (e) {
-      setStatus(quiet ? `Tap Connect to use ${dev.name || 'your strap'} (make sure it's on${/whoop/i.test(dev.name || '') ? ' and broadcasting' : ''})` : 'Could not connect: ' + (e?.message || e))
-      return false
-    }
-  }
-  async function connect() {
-    // a strap this phone already knows -> connect straight away, no list
-    const known = await rememberedStrap()
-    if (known && await attach(known)) return
-    try {
-      setStatus('Choose your strap…')
-      const dev = await navigator.bluetooth.requestDevice({ filters: [{ services: ['heart_rate'] }] })
-      await attach(dev)
-    } catch (e) {
-      setStatus(e?.name === 'NotFoundError' ? '' : 'Could not connect: ' + (e?.message || e))
-    }
-  }
-  async function rememberedStrap() {
-    try {
-      if (!navigator.bluetooth?.getDevices) return null
-      const list = await navigator.bluetooth.getDevices()
-      const id = localStorage.getItem('kc_hr_strap')
-      return list.find(d => d.id === id) || list[0] || null
-    } catch { return null }
-  }
-  // On opening Wearables: quietly reconnect to the strap used last time (no picking from a list)
-  useEffect(() => {
-    if (!supported) return
-    let stop = false
-    ;(async () => {
-      const known = await rememberedStrap()
-      if (!known || stop) return
-      // wait until the strap is in range / broadcasting, then connect
-      if (known.watchAdvertisements) {
-        const onAd = async () => { known.removeEventListener('advertisementreceived', onAd); if (!stop) await attach(known, true) }
-        known.addEventListener('advertisementreceived', onAd)
-        try { await known.watchAdvertisements() } catch { await attach(known, true) }
-        setStatus(`Looking for ${known.name || 'your strap'}…`)
-      } else await attach(known, true)
-    })()
-    return () => { stop = true }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-  function start() { samples.current = []; startAt.current = Date.now(); setElapsed(0); setRecording(true) }
-  async function stop() {
-    setRecording(false)
-    const list = samples.current
-    if (list.length < 5) { alert('Not enough heart rate data recorded to save.'); return }
-    const minutes = Math.max(1, Math.round((list[list.length - 1].t - list[0].t) / 60000))
-    const avg = Math.round(list.reduce((n, s) => n + s.bpm, 0) / list.length)
-    const max = Math.max(...list.map(s => s.bpm))
-    const zones = {}
-    for (let i = 1; i < list.length; i++) { const z = zoneOf(list[i - 1].bpm, maxHr); if (z) zones[`z${z.n}`] = (zones[`z${z.n}`] || 0) + (list[i].t - list[i - 1].t) / 1000 }
-    const zoneMins = Object.fromEntries(Object.entries(zones).map(([k, sec]) => [k, Math.round(sec / 60)]))
-    if (confirm(`Save this heart rate session?\n${minutes} min · average ${avg} bpm · max ${max} bpm`)) await onSave?.({ minutes, avg, max, zones: zoneMins, maxHr, device: device?.name || 'Heart rate strap' })
-  }
-
+// Web app: uses the shared connection from the athlete app (live = useLiveHeartRate),
+// so check-in can start it and it keeps going when you switch tabs.
+function WebHeartRate({ live, onSave }) {
+  const [, tick] = useState(0)
+  const recording = !!live?.recording
+  useEffect(() => { if (!recording) return; const t = setInterval(() => tick(x => x + 1), 1000); return () => clearInterval(t) }, [recording])
+  if (!live) return null
+  const { supported, connected, bpm, status, startedAt, maxHr } = live
   const z = bpm ? zoneOf(bpm, maxHr) : null
+  const elapsed = recording && startedAt ? Math.round((Date.now() - startedAt) / 1000) : 0
+  async function stopSave() {
+    const s = await live.stop()
+    if (!s) { alert('Not enough heart rate data recorded to save.'); return }
+    if (confirm(`Save this heart rate session?\n${s.minutes} min · average ${s.avg} bpm · max ${s.max} bpm`)) await onSave?.(s)
+  }
   return (
     <div className="card" style={{ marginBottom: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -192,12 +106,12 @@ function WebHeartRate({ age, onSave }) {
         <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Polar H10 · Whoop · any Bluetooth HR strap</span>
       </div>
       {!supported ? (
-        <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>Live heart rate needs <b>Chrome on Android</b> (or a computer). iPhone browsers don't allow Bluetooth -- use the Polar account sync instead.</p>
-      ) : !device ? (
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>Live heart rate needs <b>Chrome on Android</b> (or a computer). iPhone browsers don't allow Bluetooth -- use the Polar / Whoop account sync instead.</p>
+      ) : !connected ? (
         <>
           <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 6px' }}><b>Polar H10:</b> put the strap on (wet the sensors), then connect.</p>
-          <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 8px' }}><b>Whoop:</b> first turn on <b>Heart Rate Broadcast</b> in the Whoop app (Device settings), then connect -- it shows up as your Whoop.</p>
-          <button type="button" className="btn btn-primary" onClick={connect}>Connect strap</button>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 8px' }}><b>Whoop:</b> first turn on <b>Heart Rate Broadcast</b> in the Whoop app (Device settings), then connect.</p>
+          <button type="button" className="btn btn-primary" onClick={() => live.connect()}>Connect strap</button>
         </>
       ) : (
         <>
@@ -214,10 +128,11 @@ function WebHeartRate({ age, onSave }) {
             {ZONES.map(zz => <div key={zz.n} style={{ flex: 1, borderRadius: 4, background: zz.colour, opacity: z?.n === zz.n ? 1 : 0.25 }} />)}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            {!recording ? <button type="button" className="btn btn-primary" onClick={start}>⏺ Start session</button>
-              : <button type="button" className="btn" style={{ borderColor: '#E24B4A', color: '#E24B4A' }} onClick={stop}>■ Stop & save</button>}
-            <button type="button" className="btn" onClick={() => { try { device.gatt.disconnect() } catch { /* */ } setDevice(null); setBpm(null); setRecording(false); setStatus('') }}>Disconnect</button>
+            {!recording ? <button type="button" className="btn btn-primary" onClick={() => live.start()}>⏺ Start session</button>
+              : <button type="button" className="btn" style={{ borderColor: '#E24B4A', color: '#E24B4A' }} onClick={stopSave}>■ Stop & save</button>}
+            <button type="button" className="btn" onClick={() => live.disconnect()}>Disconnect</button>
           </div>
+          {recording && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '8px 0 0' }}>Shown live to coaches and on the League board while recording. Checking out stops and saves it.</p>}
         </>
       )}
       {status && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '8px 0 0' }}>{status}</p>}

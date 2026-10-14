@@ -8,6 +8,8 @@ import { matchClass, workoutDate, workoutRange, fmtTime } from '../lib/sessionMa
 import { supabase } from '../lib/supabase.js'
 import LiveHeartRate from '../components/shared/LiveHeartRate.jsx'
 import * as NativeHr from '../lib/nativeHr.js'
+import { useLiveHeartRate } from '../lib/liveHr.js'
+import LiveHrTable from '../components/shared/LiveHrTable.jsx'
 import WattBikePanel from '../components/shared/WattBikePanel.jsx'
 import MediaViewer from '../components/shared/MediaViewer.jsx'
 import FightGame from '../components/shared/FightGame.jsx'
@@ -1655,6 +1657,10 @@ export default function AthleteApp() {
   const [guidedFor, setGuidedFor] = useState(null) // { field, type } -- guided meditation / visualisation session
   const [bwVideoTick, setBwVideoTick] = useState(0) // re-mounts bodyweight set inputs after a video count / time is added
   const [circuitPicking, setCircuitPicking] = useState(false) // Fixed load circuit: Record -> pick colour
+  // One live heart rate connection for the whole app (check-in can start it; keeps going across tabs)
+  const liveMaxHr = (() => { const d = student?.members?.date_of_birth; if (!d) return 190; const b = new Date(d), n = new Date(); const age = n.getFullYear() - b.getFullYear() - ((n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) ? 1 : 0); return Math.max(150, 220 - age) })()
+  const live = useLiveHeartRate({ studentId: student?.id, maxHr: liveMaxHr })
+  const [liveHrPrompt, setLiveHrPrompt] = useState(null) // check-in reminder: { classId, attendanceId, already }
   const [videoTool, setVideoTool] = useState(null) // { mode: 'jump'|'sprint', distance, onSave, label }
   const [runEffortSel, setRunEffortSel] = useState({}) // running: which effort is being edited, per type ('__new__' = a new one)
   const [showPhysicalSection, setShowPhysicalSection] = useState(false)
@@ -4305,6 +4311,11 @@ export default function AthleteApp() {
       awardHousePoints('checkin')
       // Android app: start background heart rate recording for the class
       if (NativeHr.isNativeHr() && NativeHr.autoRecord() && NativeHr.savedStrap()) NativeHr.start(120).catch(() => {})
+      // Web app: if they use a wearable, remind / connect live heart rate for the class
+      else if (!NativeHr.isNativeHr() && live.supported && ((wearableConnections || []).length || localStorage.getItem('kc_hr_strap'))) {
+        if (live.connected) { live.start({ classId: data?.class_id || null, attendanceId: data?.id || null }); setLiveHrPrompt({ already: true }); setTimeout(() => setLiveHrPrompt(p => p?.already ? null : p), 2500) }
+        else setLiveHrPrompt({ classId: data?.class_id || null, attendanceId: data?.id || null, whoop: (wearableConnections || []).some(c => c.provider === 'whoop') })
+      }
     }
     setCheckingIn(false)
   }
@@ -4599,11 +4610,18 @@ export default function AthleteApp() {
     // quietly revert once the UI re-syncs with the real, unchanged row.
     const { data, error } = await updateMyAttendance(activeCheckIn.id, updates)
     // Android app: check-out ends the class heart rate recording and saves it to today
+    if (!error && showWeightCheckPrompt === 'out' && live.recording) {
+      live.stop().then(sum => { if (sum) saveHrSession(sum) }).catch(() => {})
+    }
     if (!error && showWeightCheckPrompt === 'out' && NativeHr.isNativeHr()) {
       NativeHr.status().then(async st => {
         if (!st.recording) return
         const hr = await NativeHr.stop(athleteMaxHr())
-        if ((hr.samples || 0) >= 5) await saveHrSession({ minutes: hr.minutes, avg: hr.avg, max: hr.max, zones: hr.zones, maxHr: athleteMaxHr(), device: NativeHr.savedStrap()?.name })
+        if ((hr.samples || 0) >= 5) {
+          await saveHrSession({ minutes: hr.minutes, avg: hr.avg, max: hr.max, zones: hr.zones, maxHr: athleteMaxHr(), device: NativeHr.savedStrap()?.name })
+          supabase.from('hr_sessions').insert({ student_id: student.id, session_date: new Date().toISOString().split('T')[0], class_id: activeCheckIn?.class_id || null, attendance_id: activeCheckIn?.id || null,
+            minutes: hr.minutes, avg_hr: hr.avg, max_hr: hr.max, avg_pct: Math.round(hr.avg * 100 / athleteMaxHr()), max_pct: Math.round(hr.max * 100 / athleteMaxHr()), zones: hr.zones, device: NativeHr.savedStrap()?.name || null }).then(() => {}, () => {})
+        }
       }).catch(() => {})
     }
     if (error) {
@@ -5052,6 +5070,27 @@ export default function AthleteApp() {
       {tab === 'home' && (
         <div className="neon-home">
           {HistoryViewModal()}
+          {liveHrPrompt && (
+            <div role="dialog" aria-modal="true" onClick={() => setLiveHrPrompt(null)} style={{ position: 'fixed', inset: 0, zIndex: 560, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '80px 16px 0' }}>
+              <div className="card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 380, padding: 18, border: '1px solid #E24B4A' }}>
+                {liveHrPrompt.already ? (
+                  <div style={{ textAlign: 'center' }}><div style={{ fontSize: 30 }}>❤️</div><b>{live.device?.name || 'Heart rate'} live broadcast on</b><p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '6px 0 0' }}>Recording this class -- checking out saves it.</p></div>
+                ) : (
+                  <>
+                    <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>❤️ Record your heart rate this class?</h3>
+                    <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px' }}>{liveHrPrompt.whoop ? <>Turn on <b>Heart Rate Broadcast</b> in the Whoop app first, then connect.</> : <>Put your strap on, then connect.</>}</p>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button type="button" className="btn btn-primary" style={{ flex: 2, justifyContent: 'center' }} onClick={async () => { const p = liveHrPrompt; if (await live.connect()) { live.start({ classId: p.classId, attendanceId: p.attendanceId }); setLiveHrPrompt({ already: true }); setTimeout(() => setLiveHrPrompt(x => x?.already ? null : x), 2500) } }}>
+                        {liveHrPrompt.whoop ? 'Connect to Whoop' : 'Connect strap'}
+                      </button>
+                      <button type="button" className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setLiveHrPrompt(null)}>Not today</button>
+                    </div>
+                    {live.status && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '8px 0 0' }}>{live.status}</p>}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
           <input ref={mediaFileRef} type="file" accept="image/*,video/*" multiple style={{ display: 'none' }}
             onChange={e => { const files = [...(e.target.files || [])]; const t = mediaTargetRef.current; e.target.value = ''; if (t) files.forEach(f => uploadQuestionMedia(t.sectionKey, t.questionLabel, f)) }} />
           <input ref={mediaCameraRef} type="file" accept="image/*,video/*" capture="environment" style={{ display: 'none' }}
@@ -7920,8 +7959,9 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
           <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
 
           {/* Live heart rate from a Bluetooth strap (Polar H10) -- saved as an Other session on today's log */}
-          <LiveHeartRate age={(() => { const d = student?.members?.date_of_birth; if (!d) return null; const b = new Date(d), n = new Date(); return n.getFullYear() - b.getFullYear() - ((n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) ? 1 : 0) })()}
+          <LiveHeartRate live={live} age={(() => { const d = student?.members?.date_of_birth; if (!d) return null; const b = new Date(d), n = new Date(); return n.getFullYear() - b.getFullYear() - ((n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) ? 1 : 0) })()}
             onSave={async hr => { await saveHrSession(hr); alert('Saved to today as an Other session.') }} />
+          <LiveHrTable title="❤️ Live in the gym" />
 
           {/* Connected devices + connect buttons, one card per provider */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>

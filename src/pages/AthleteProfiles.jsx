@@ -5,6 +5,7 @@ import { TestSessionModal, TestBatchModal } from '../components/shared/TestSessi
 import OtherSessions from '../components/shared/OtherSessions.jsx'
 import { supabase } from '../lib/supabase.js'
 import WearableCompare from '../components/shared/WearableCompare.jsx'
+import LiveHrTable from '../components/shared/LiveHrTable.jsx'
 import NeedsAttention from '../components/shared/NeedsAttention.jsx'
 import PdpOverview from '../components/dashboard/PdpOverview.jsx'
 import WattBikePanel from '../components/shared/WattBikePanel.jsx'
@@ -8849,11 +8850,13 @@ export default function AthleteProfiles() {
                 <button onClick={() => setDashboardTab('overview')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
                 {/* View: athletes list / compare a day / compare a class session */}
                 <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-                  {[['athletes', 'Athletes'], ['day', 'View by day'], ['session', 'View by session']].map(([k, l]) => (
+                  {[['athletes', 'Athletes'], ['live', '❤️ Live'], ['day', 'View by day'], ['session', 'View by session']].map(([k, l]) => (
                     <button key={k} type="button" className={wearView === k ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setWearView(k)}>{l}</button>
                   ))}
                 </div>
-                {wearView !== 'athletes' ? (
+                {wearView === 'live' ? (
+                  <LiveHrTable title="❤️ Live heart rate -- recording now" />
+                ) : wearView !== 'athletes' ? (
                   <WearableCompare mode={wearView} students={students} classes={allClasses} providerLabel={providerLabel} onOpen={s => { selectStudent(s); setTab('whoop') }} />
                 ) : (
                 <div className="card" style={{ padding: 0 }}>
