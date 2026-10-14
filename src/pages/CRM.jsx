@@ -1,6 +1,7 @@
 import { useState, useEffect, Fragment, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import StockPanel from '../components/crm/StockPanel.jsx'
+import { viewAsVenueScope } from '../lib/viewAsScope.js'
 import ParentRequestsPanel from '../components/parent/ParentRequestsPanel.jsx'
 import EnquirySendTemplates, { DEFAULT_ENQUIRY_TEMPLATES } from '../components/crm/EnquiryTemplates.jsx'
 import { isDateOnHoliday } from '../lib/attendanceDays.js'
@@ -356,7 +357,12 @@ export default function CRM() {
     }
     return allRows
   }
-  const { isAdmin, isHeadCoach } = useAuth()
+  const { isAdmin, isHeadCoach, viewAs, viewAsStudentIds } = useAuth()
+  // Admin "View as": your admin access is unchanged underneath, so narrow the CRM's lists to what
+  // the viewed person can really see (their students / their venue) -- matches the database for them
+  const previewVenues = useRef(null)
+  useEffect(() => { viewAsVenueScope(viewAs).then(sc => { previewVenues.current = sc ? sc.venues : null }) }, [viewAs?.id])
+  const inPreview = sid => !viewAsStudentIds || viewAsStudentIds.has(sid)
   // Head Coach: his venue's CRM -- enquiries (venue-limited in the database) and the tabs whose data
   // is already limited to his students. Club inbox, payments, gradings, notices etc. stay hidden.
   const HEAD_COACH_TABS = ['enquiries', 'missed_training', 'stopped_training', 'standing_orders', 'trackers', 'birthdays']
@@ -1104,7 +1110,9 @@ export default function CRM() {
     if (!isHeadCoach) q = soVenue === 'kr-centre' ? q.or('venue.is.null,venue.eq.kr-centre') : q.eq('venue', soVenue)
     let { data, error } = await q
     if (error && soVenue === 'kr-centre') ({ data } = await supabase.from('standing_order_uploads').select('id, uploaded_at, filename').order('uploaded_at', { ascending: false }).limit(30))
-    setPastUploads(data || [])
+    let up = data || []
+    if (viewAs) { const sc = await viewAsVenueScope(viewAs); up = up.filter(u => sc?.venues?.has(u.venue)) }
+    setPastUploads(up)
   }
 
   async function openPastUpload(id) {
@@ -1818,7 +1826,7 @@ export default function CRM() {
       .eq('members.status', 'stopped')
       .order('members(last_name)')
     if (error) { alert('Error loading stopped students: ' + error.message); setStoppedLoading(false); return }
-    setStoppedStudents(data || [])
+    setStoppedStudents((data || []).filter(st => inPreview(st.id)))
     setStoppedLoaded(true)
     setStoppedLoading(false)
   }
@@ -1950,7 +1958,7 @@ export default function CRM() {
         return (b.weeksMissed ?? 999) - (a.weeksMissed ?? 999)
       })
 
-    setMissedTraining(results)
+    setMissedTraining(results.filter(r => inPreview(r.student.id)))
     setMissedTrainingLoaded(true)
     setMissedTrainingLoading(false)
   }
@@ -2412,7 +2420,11 @@ export default function CRM() {
 
   function loadEnquiries() {
     supabase.from('enquiries').select('*, members(id, first_name, last_name)').order('enquiry_date', { ascending: false })
-      .then(({ data }) => { setEnquiries(data || []); setEnquiriesLoaded(true) })
+      .then(async ({ data }) => {
+        let rows = data || []
+        if (viewAs) { const sc = await viewAsVenueScope(viewAs); rows = rows.filter(e => sc?.venues?.has(e.venue || 'kr-centre')) }
+        setEnquiries(rows); setEnquiriesLoaded(true)
+      })
   }
 
   async function saveNewEnquiry() {
@@ -2805,7 +2817,7 @@ export default function CRM() {
       })
       .filter(Boolean)
       .sort((a, b) => a.daysUntil - b.daysUntil)
-    setBirthdays(results)
+    setBirthdays(results.filter(r => inPreview(r.student.id)))
     setBirthdaysLoaded(true)
   }
 
