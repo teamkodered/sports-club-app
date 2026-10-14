@@ -211,18 +211,12 @@ export class SelectScene extends Phaser.Scene {
     this.makePreview()
     this.name = txt(this, 338, 18, '', { fontSize: '34px', stroke: '#000', strokeThickness: 6 })
     this.styleBtn = button(this, 462, 86, 244, 34, '', '#F2F2F2', () => this.styleTap(), { size: 18 })
-    this.branchBtn = button(this, 724, 194, 104, 50, '', GOLD, () => this.scene.start('Branch', { pick: this.game.cfg.pick }), { size: 15 })
     this.teamBtn = button(this, 694, 86, 164, 34, '', GOLD, () => this.changing ? this.confirmChange() : this.toggleTeam(), { size: 18 })
     this.blurb = txt(this, 340, 112, '', { fontFamily: BODY, fontStyle: '600', fontSize: '15px', color: '#C9CED6' })
     this.special = txt(this, 340, 136, '', { fontFamily: BODY, fontStyle: '700', fontSize: '16px' })
-    this.statG = this.add.graphics()
-    this.statLabels = ['Speed', 'Power', 'Reach'].map((s, i) => txt(this, 340, 166 + i * 21, s, { fontFamily: BODY, fontStyle: '600', fontSize: '16px', color: '#9AA3AE' }))
-    this.comboT = [0, 1, 2, 3, 4].map(i => [
-      txt(this, 340, 236 + i * 20, '', { fontFamily: BODY, fontStyle: '700', fontSize: '16px' }),
-      txt(this, 776, 236 + i * 20, '', { fontFamily: BODY, fontStyle: '700', fontSize: '16px', color: '#F2F2F2' }).setOrigin(1, 0),
-    ])
-    button(this, 712, 338, 128, 26, 'Edit combos  ▸', '#F2F2F2', () => this.scene.start('Combos', { pick: this.game.cfg.pick }), { size: 15 })
-    txt(this, 340, 340, 'L = tap   M = hold   H = long hold', { fontFamily: BODY, fontStyle: '600', fontSize: '13px', color: '#9AA3AE' })
+    // everything about the fighter (stats, upgrades, branch + XP, combos) lives on its View screen
+    this.summary = txt(this, 340, 168, '', { fontFamily: BODY, fontStyle: '700', fontSize: '15px', color: '#C9CED6', wordWrap: { width: 440 } })
+    this.viewBtn = button(this, 560, 236, 440, 50, 'View fighter  ▸', '#F2F2F2', () => this.scene.start('Fighter', { pick: this.game.cfg.pick }), { size: 24, r: 10 })
     // fight order slots
     txt(this, 22, 356, 'Fighters  (gold number = fight order)', { fontFamily: BODY, fontStyle: '600', fontSize: '15px', color: '#9AA3AE' })
     this.boxes = FIGHTERS.map((f, i) => {
@@ -245,7 +239,6 @@ export class SelectScene extends Phaser.Scene {
     // Look levels: 1 Cartoon, 2 Stickman, 3 Houses (all open while testing; later they unlock with game level)
     const lv = LOOK_LEVELS.find(l => l.key === getLook()) || LOOK_LEVELS[1]
     button(this, 724, 34, 120, 32, `Look ${lv.level}: ${lv.name}`, '#9AA3AE', () => { setLook(LOOK_LEVELS[(LOOK_LEVELS.indexOf(lv) + 1) % LOOK_LEVELS.length].key); this.scene.restart() }, { size: 15 })
-    button(this, 606, 34, 104, 32, 'Upgrade', GOLD, () => this.scene.start('Upgrade', { pick: this.game.cfg.pick }), { size: 17 })
     this.refresh()
   }
   makePreview() {
@@ -303,15 +296,10 @@ export class SelectScene extends Phaser.Scene {
     this.teamBtn.label.setText(changingThis ? 'Use token ✓' : place >= 0 ? `In team #${place + 1}  ✕` : order.length >= MAX_TEAM ? 'Team full' : '+ Add to team')
     this.teamBtn.setOn(changingThis || place >= 0)
     const b = branchOf(P, f.key), brDef = (BRANCHES[def.style] || []).find(x => x.key === b.branch)
-    this.branchBtn.label.setText(brDef ? `${brDef.name}\nTier ${b.tier}` : `Branch\nXP ${xpOf(P, f.key)}`).setFontSize(brDef && brDef.name.length > 11 ? '12px' : '15px')
     this.blurb.setText(st.blurb)
     this.special.setText(`Special: ${f.specialName}     Super: ${SUPER_NAME[f.special]}`).setColor(f.colour)
-    const g = this.statG; g.clear()
-    ;[[def.speed, 3.4, 5.2], [def.power, 0.8, 1.45], [def.reach, 0.85, 1.2]].forEach(([v, lo, hi], i) => {
-      const y = 173 + i * 21, w = 240 * Math.max(0.1, Math.min(1, (v - lo) / (hi - lo)))
-      g.fillStyle(0x2a3138, 1); g.fillRect(420, y, 240, 8); g.fillStyle(hex(f.colour), 1); g.fillRect(420, y, w, 8)
-    })
-    this.comboT.forEach((row, i) => { const c = def.combos[i]; if (i === 4 && !c) { row[0].setText(''); row[1].setText(''); return } row[0].setText(c ? (c.rarity === 'signature' ? '★ ' : '') + c.name + (c.level > 1 ? '  ' + '★'.repeat(c.level - 1) : '') : '— empty slot —').setColor(c ? (c.rarity === 'common' ? f.colour : RARITY[c.rarity].colour) : '#5c6670'); row[1].setText(c ? comboLabel(c.seq) : '') })
+    this.summary.setText(`Level ${fighterLevel(P, f.key)}  ·  ${brDef ? `${brDef.name} tier ${b.tier}` : `No branch yet (${xpOf(P, f.key)} style XP)`}  ·  ${def.combos.length} combos equipped`)
+    this.viewBtn.label.setColor(f.colour)
     this.lvlBtns.forEach((b, i) => b.setOn(['easy', 'medium', 'hard'][i] === cfg.level))
     if (this.fightBtn) this.fightBtn.destroy()
     const lead = order.length ? FIGHTERS[order[0]].colour : '#5c6670'
@@ -784,7 +772,7 @@ export class UpgradeScene extends Phaser.Scene {
     buildArena(this, { dim: 0.86 })
     this.pick = data?.pick ?? 0; this.group = data?.group || 'Technical'; this.busy = false
     txt(this, 24, 10, 'UPGRADE', { fontSize: '40px', color: GOLD, stroke: '#000', strokeThickness: 6 })
-    button(this, 748, 32, 84, 36, 'Back', '#F2F2F2', () => this.scene.start('Select'), { size: 20 })
+    button(this, 748, 32, 84, 36, 'Back', '#F2F2F2', () => this.scene.start('Fighter', { pick: this.pick }), { size: 20 })
     // gem wallet
     this.gemG = this.add.graphics()
     this.gemT = PILLARS.map((k, i) => txt(this, 322 + i * 66, 20, '', { fontFamily: BODY, fontStyle: '700', fontSize: '20px', color: FIGHTERS.find(f => f.key === k).colour }))
@@ -878,7 +866,7 @@ export class CombosScene extends Phaser.Scene {
     const f = FIGHTERS[this.pick], style = this.sq.styles[f.key]
     txt(this, 24, 10, 'COMBOS', { fontSize: '40px', color: GOLD, stroke: '#000', strokeThickness: 6 })
     txt(this, 214, 24, `${f.name} · ${STYLES[style].name}`, { fontSize: '24px', color: f.colour })
-    button(this, 748, 32, 84, 36, 'Back', '#F2F2F2', () => this.scene.start('Select'), { size: 20 })
+    button(this, 748, 32, 84, 36, 'Back', '#F2F2F2', () => this.scene.start('Fighter', { pick: this.pick }), { size: 20 })
     this.countT = txt(this, 24, 64, '', { fontFamily: BODY, fontStyle: '700', fontSize: '16px', color: '#C9CED6' })
     txt(this, 776, 64, 'Tap a combo you own to equip or remove it', { fontFamily: BODY, fontStyle: '600', fontSize: '14px', color: '#9AA3AE' }).setOrigin(1, 0)
     this.list = combosForStyle(style)
@@ -943,7 +931,7 @@ export class BranchScene extends Phaser.Scene {
     this.f = f; this.style = style
     txt(this, 24, 10, 'BRANCH', { fontSize: '40px', color: GOLD, stroke: '#000', strokeThickness: 6 })
     txt(this, 222, 22, `${f.name} · ${STYLES[style].name}`, { fontSize: '24px', color: f.colour })
-    button(this, 748, 32, 84, 36, 'Back', '#F2F2F2', () => this.scene.start('Select'), { size: 20 })
+    button(this, 748, 32, 84, 36, 'Back', '#F2F2F2', () => this.scene.start('Fighter', { pick: this.pick }), { size: 20 })
     this.xpG = this.add.graphics()
     this.xpT = txt(this, 24, 60, '', { fontFamily: BODY, fontStyle: '700', fontSize: '15px', color: '#5BE0FF' })
     this.gemT = txt(this, 776, 60, '', { fontFamily: BODY, fontStyle: '700', fontSize: '15px', color: f.colour }).setOrigin(1, 0)
@@ -1006,5 +994,87 @@ export class BranchScene extends Phaser.Scene {
     } catch (e) { this.cameras.main.shake(120, 0.004) }
     this.busy = false
     this.refresh()
+  }
+}
+
+
+// ---------------- Fighter: everything about one fighter -- stats, upgrades, branch + XP, combos ----------------
+export class FighterScene extends Phaser.Scene {
+  constructor() { super('Fighter') }
+  create(data) {
+    setupCam(this); bridge(this).onScene?.('fighter')
+    buildArena(this, { dim: 0.86 })
+    this.pick = data?.pick ?? this.game.cfg?.pick ?? 0; this.frame = 0
+    if (this.game.cfg) this.game.cfg.pick = this.pick
+    const P = prog(this), sq = loadSquad(), f = FIGHTERS[this.pick], key = f.key
+    const def = squadDef(this.pick, sq, this), withUp = applyUpgrades({ ...def }, (P.upgrades || {})[key])
+    const st = STYLES[def.style], col = hex(f.colour)
+    const H = (x, y, t) => txt(this, x, y, t, { fontFamily: BODY, fontStyle: '700', fontSize: '13px', color: '#9AA3AE' })
+
+    // header: name, style, prev / next, back
+    txt(this, 24, 10, f.name, { fontSize: '36px', color: f.colour, stroke: '#000', strokeThickness: 6 })
+    txt(this, 26, 54, `${st.name}  ·  Special: ${f.specialName}  ·  Super: ${SUPER_NAME[f.special]}`, { fontFamily: BODY, fontStyle: '700', fontSize: '14px', color: '#C9CED6' })
+    const n = FIGHTERS.length
+    button(this, 600, 32, 44, 36, '◀', '#F2F2F2', () => this.scene.restart({ pick: (this.pick + n - 1) % n }), { size: 18 })
+    button(this, 652, 32, 44, 36, '▶', '#F2F2F2', () => this.scene.restart({ pick: (this.pick + 1) % n }), { size: 18 })
+    button(this, 738, 32, 84, 36, 'Back', '#F2F2F2', () => this.scene.start('Select'), { size: 20 })
+
+    // fighter preview (left)
+    this.f = makeFighter(def, 150, 1); this.f.side = 'p1'; this.f.theme = NATURAL_HOUSE[key]
+    this.pose = makePose(this.f, 0); this.fg = this.add.graphics(); this.demoT = 20
+
+    const g = this.add.graphics(), X = 300
+    // STATS
+    H(X, 80, 'STATS')
+    ;[['Speed', def.speed, 3.4, 5.2], ['Power', def.power, 0.8, 1.45], ['Reach', def.reach, 0.85, 1.2]].forEach(([lab, v, lo, hi], i) => {
+      const y = 106 + i * 14
+      txt(this, X, y - 7, lab, { fontFamily: BODY, fontStyle: '600', fontSize: '13px', color: '#C9CED6' })
+      g.fillStyle(0x2a3138, 1); g.fillRect(X + 56, y, 170, 6); g.fillStyle(col, 1); g.fillRect(X + 56, y, 170 * Math.max(0.1, Math.min(1, (v - lo) / (hi - lo))), 6)
+    })
+    txt(this, X + 240, 96, `Health ${withUp.maxHp || 100}`, { fontFamily: BODY, fontStyle: '700', fontSize: '15px', color: '#F2F2F2' })
+    txt(this, X + 240, 116, st.blurb, { fontFamily: BODY, fontStyle: '600', fontSize: '11.5px', color: '#9AA3AE', wordWrap: { width: 240 } })
+
+    // UPGRADES
+    H(X, 150, `UPGRADES  ·  level ${fighterLevel(P, key)} / ${AREAS.length * MAX_LV}`)
+    AREA_GROUPS.forEach((gname, i) => {
+      const areas = AREAS.filter(a => a.g === gname), have = areas.reduce((t, a) => t + levelOf(P, key, a.key), 0), max = areas.length * MAX_LV
+      const x = X + i * 76, y = 172, gc = hex(FIGHTERS.find(ff => ff.key === gname.toLowerCase())?.colour || '#9AA3AE')
+      txt(this, x, y, gname, { fontFamily: BODY, fontStyle: '700', fontSize: '11px', color: '#C9CED6' })
+      g.fillStyle(0x2a3138, 1); g.fillRect(x, y + 16, 68, 5); g.fillStyle(gc, 1); g.fillRect(x, y + 16, 68 * have / max, 5)
+      txt(this, x, y + 23, `${have}/${max}`, { fontFamily: BODY, fontStyle: '600', fontSize: '10.5px', color: '#7d8691' })
+    })
+    button(this, 728, 186, 96, 30, 'Upgrade  ▸', GOLD, () => this.scene.start('Upgrade', { pick: this.pick }), { size: 15 })
+
+    // BRANCH + STYLE XP
+    const b = branchOf(P, key), brDef = (BRANCHES[def.style] || []).find(x => x.key === b.branch), xp = xpOf(P, key)
+    H(X, 222, 'BRANCH  ·  STYLE XP')
+    txt(this, X, 238, brDef ? `${brDef.name}  ·  tier ${b.tier} of 3` : 'No branch chosen yet', { fontFamily: BODY, fontStyle: '700', fontSize: '15px', color: brDef ? f.colour : '#C9CED6' })
+    const bx = X, bw = 300, max = TIER_XP[2]
+    g.fillStyle(0x1c222a, 1); g.fillRect(bx, 262, bw, 6); g.fillStyle(0x5be0ff, 1); g.fillRect(bx, 262, bw * Math.min(1, xp / max), 6)
+    TIER_XP.forEach(v => { g.fillStyle(0xffffff, 0.8); g.fillRect(bx + bw * v / max - 1, 259, 2, 12) })
+    txt(this, bx + bw + 8, 256, P.mode === 'test' ? 'test mode' : `${xp} XP`, { fontFamily: BODY, fontStyle: '700', fontSize: '13px', color: '#5BE0FF' })
+    button(this, 728, 252, 96, 30, 'Branch  ▸', GOLD, () => this.scene.start('Branch', { pick: this.pick }), { size: 15 })
+
+    // COMBOS
+    H(X, 284, 'COMBOS')
+    def.combos.slice(0, 5).forEach((c, i) => {
+      const y = 300 + i * 20
+      txt(this, X, y, (c.rarity === 'signature' ? '★ ' : '') + c.name + (c.level > 1 ? '  ' + '★'.repeat(c.level - 1) : ''), { fontFamily: BODY, fontStyle: '700', fontSize: '15px', color: c.rarity === 'common' ? f.colour : RARITY[c.rarity].colour })
+      txt(this, 660, y, comboLabel(c.seq), { fontFamily: BODY, fontStyle: '700', fontSize: '15px', color: '#F2F2F2' }).setOrigin(1, 0)
+    })
+    if (!def.combos.length) txt(this, X, 300, 'No combos equipped', { fontFamily: BODY, fontStyle: '600', fontSize: '14px', color: '#5c6670' })
+    txt(this, X, 404, 'L = tap   M = hold   H = long hold', { fontFamily: BODY, fontStyle: '600', fontSize: '12px', color: '#9AA3AE' })
+    button(this, 728, 318, 96, 30, 'Combos  ▸', '#F2F2F2', () => this.scene.start('Combos', { pick: this.pick }), { size: 15 })
+  }
+  update() {
+    this.frame++
+    const f = this.f
+    if (!f.move) { if (--this.demoT <= 0) { f.move = demoMove(f, ['lp', 'mp', 'hp', 'lk', 'mk', 'hk'][Math.floor(Math.random() * 6)]); f.t = 0; this.demoT = 34 } }
+    else { f.t++; if (f.t > f.move.s + f.move.a + f.move.r) f.move = null }
+    this.fg.clear()
+    this.fg.setScale(1.25).setPosition(-150 * 0.25, -400 * 0.25)
+    this.fg.lineStyle(2, hex(fxColour(f)), 0.4); this.fg.strokeEllipse(150, 406, 170, 22)
+    stepPose(this.pose, f, this.frame)
+    drawFighter(this.fg, f, this.pose, this.frame, 1, { noKo: true, y: 400, shadowY: 400 })
   }
 }
