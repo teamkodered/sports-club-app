@@ -8,7 +8,8 @@ import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js
 // fighter colours, side-on like the game, on a floating platform in space. Buttons play each animation;
 // "Auto fight" runs a short exchange so the feel can be judged on a phone. Test only: nothing here
 // touches the game's rules or progress.
-const MODEL_URL = '/krfight/ual1.glb'
+const MODEL_URL = '/krfight/ual1.glb'          // compressed (1.9 MB, needs WebAssembly)
+const MODEL_URL_FULL = '/krfight/ual1_full.glb' // fallback: uncompressed (7.6 MB), works anywhere
 const FIGHTERS = {
   yellow: { name: 'YELLOW', colour: '#E6B800' }, purple: { name: 'PURPLE', colour: '#C93BFF' },
   green: { name: 'GREEN', colour: '#22B14C' }, blue: { name: 'BLUE', colour: '#2F6BFF' }, red: { name: 'RED', colour: '#FF2A2A' },
@@ -72,7 +73,7 @@ export default function KR3DTest({ onClose }) {
     const clock = new THREE.Clock()
     const fighters = {}
     const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder)
-    loader.load(MODEL_URL, gltf => {
+    const onLoaded = gltf => {
       if (dead) return
       const clips = Object.fromEntries(gltf.animations.map(c => [c.name, c]))
       const make = (side, colourKey) => {
@@ -118,7 +119,13 @@ export default function KR3DTest({ onClose }) {
       scene.environment = pm.fromScene(envScene, 0.04).texture
       api.current = { fighters, clips }
       setStatus('')
-    }, undefined, () => setStatus('Could not load the 3D model.'))
+    }
+    // try the small compressed model first; if this phone can't decompress it, load the full-size copy
+    loader.load(MODEL_URL, onLoaded, undefined, () => {
+      if (dead) return
+      setStatus('Loading the full-size 3D model…')
+      new GLTFLoader().load(MODEL_URL_FULL, onLoaded, undefined, () => setStatus('Could not load the 3D model.'))
+    })
 
     const tick = () => {
       const dt = Math.min(0.05, clock.getDelta())
