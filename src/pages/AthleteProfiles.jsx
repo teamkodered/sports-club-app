@@ -5486,10 +5486,33 @@ export default function AthleteProfiles() {
     setLoading(false)
   }
 
-  async function copyInviteLink(s) {
+  // Invite links: an athlete who already has a login gets a sign-in link; anyone else gets a
+  // one-time app invite (/invite/<token>) that links their new login automatically.
+  // (Replaces the old /claim?ref= links, which looped for people who already had a login.)
+  const [inviteInfo, setInviteInfo] = useState(null)   // { url, msg, hasLogin } for the open Invite menu
+  async function prepareInvite(s) {
+    setInviteInfo(null)
     const name = s.members?.first_name || 'there'
-    const url = `https://klasschamp.netlify.app/claim?ref=${encodeURIComponent(s.student_ref)}`
-    const msg = `Hi ${name}, you've been invited to the KR Centre athlete app. Tap this link to confirm it's you and set up your login: ${url}`
+    const origin = window.location.origin
+    let hasLogin = false
+    try { const r = await supabase.rpc('kc_student_has_login', { p_student: s.id }); hasLogin = r.data === true } catch { /* ignore */ }
+    if (hasLogin) {
+      const url = `${origin}/athlete-login`
+      setInviteInfo({ hasLogin, url, msg: `Hi ${name}, your KR Centre athlete app is ready. Sign in here with your email: ${url} — if you don't know your password, tap "Forgot password" on that page.` })
+      return
+    }
+    const a = new Uint8Array(18); crypto.getRandomValues(a)
+    const token = Array.from(a, b => b.toString(36).padStart(2, '0')).join('').slice(0, 24)
+    const { error } = await supabase.from('app_invites').insert({ token, student_id: s.id, kind: 'athlete', created_by: profile?.id || null })
+    if (error) { setInviteInfo({ error: error.message }); return }
+    const url = `${origin}/invite/${token}`
+    setInviteInfo({ hasLogin, url, msg: `Hi ${name}, you've been invited to the KR Centre athlete app. Tap this link to set up your login (it works once and lasts 14 days): ${url}` })
+  }
+  useEffect(() => { if (showInviteMenu && selected) prepareInvite(selected) }, [showInviteMenu, selected?.id])
+
+  async function copyInviteLink(s) {
+    const msg = inviteInfo?.msg
+    if (!msg) return alert(inviteInfo?.error ? 'Could not create the invite: ' + inviteInfo.error : 'One moment — the invite is still being prepared.')
     try {
       await navigator.clipboard.writeText(msg)
       alert('✓ Invite message copied — paste it anywhere (WhatsApp, in person, etc.)')
@@ -5499,9 +5522,10 @@ export default function AthleteProfiles() {
   }
 
   function whatsappInvite(s) {
-    const url = `https://klasschamp.netlify.app/claim?ref=${encodeURIComponent(s.student_ref)}`
-    const msg = encodeURIComponent(`Hi ${s.members?.first_name || 'there'}, you've been invited to the KR Centre athlete app. Tap this link to confirm it's you and set up your login: ${url}`)
-    const phone = s.members?.phone ? s.members.phone.replace(/\D/g, '') : ''
+    if (!inviteInfo?.msg) return alert('One moment — the invite is still being prepared.')
+    const msg = encodeURIComponent(inviteInfo.msg)
+    const raw = s.members?.phone ? s.members.phone.replace(/\D/g, '') : ''
+    const phone = raw.startsWith('0') ? '44' + raw.slice(1) : raw
     window.open(`https://wa.me/${phone}?text=${msg}`, '_blank')
   }
 
@@ -5512,8 +5536,8 @@ export default function AthleteProfiles() {
 
     if (method === 'sms') {
       if (!phone) return alert('No phone number on file for this athlete.')
-      const url = `https://klasschamp.netlify.app/claim?ref=${encodeURIComponent(s.student_ref)}`
-      const msg = encodeURIComponent(`Hi ${s.members.first_name}, you've been invited to the KR Centre athlete app. Tap this link to confirm it's you and set up your login: ${url}`)
+      if (!inviteInfo?.msg) return alert('One moment — the invite is still being prepared.')
+      const msg = encodeURIComponent(inviteInfo.msg)
       window.open(`sms:${phone.replace(/\s/g,'')}?body=${msg}`, '_blank')
       return
     }
@@ -9108,7 +9132,7 @@ export default function AthleteProfiles() {
                   onClick={() => setShowInviteMenu(false)}>
                   <div className="card" style={{ maxWidth: 320, width: '100%' }} onClick={e => e.stopPropagation()}>
                     <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Invite {m?.first_name}</h3>
-                    <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>Choose how to share their invite</p>
+                    <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>{!inviteInfo ? 'Preparing their link…' : inviteInfo.error ? `Couldn't create the invite: ${inviteInfo.error}` : inviteInfo.hasLogin ? `${m?.first_name} already has a login — this sends them the sign-in page.` : 'Choose how to share their one-time invite link'}</p>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       <button className="btn btn-sm" style={{ justifyContent: 'flex-start' }} disabled={!hasRealEmail || invitingId === selected.id}
                         onClick={() => { setShowInviteMenu(false); inviteStudent(selected, 'email') }}
@@ -9131,6 +9155,7 @@ export default function AthleteProfiles() {
                         📋 Copy link
                       </button>
                       <button className="btn btn-sm" style={{ justifyContent: 'flex-start' }}
+                        disabled={!inviteInfo?.url}
                         onClick={() => { setShowInviteMenu(false); setShowQr(true) }}
                         title="Show a QR code for this athlete's invite link">
                         ▦ QR code
@@ -9147,9 +9172,9 @@ export default function AthleteProfiles() {
                 onClick={() => setShowQr(false)}>
                 <div className="card" style={{ maxWidth: 320, textAlign: 'center' }} onClick={e => e.stopPropagation()}>
                   <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{m?.first_name} {m?.last_name}</h3>
-                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>Scan to confirm and set up their login</p>
+                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>{inviteInfo?.hasLogin ? 'Already has a login — scan to open the sign-in page' : 'Scan to set up their login (one-time link)'}</p>
                   <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(`https://klasschamp.netlify.app/claim?ref=${selected.student_ref}`)}`}
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(inviteInfo?.url || `${window.location.origin}/athlete-login`)}`}
                     alt="QR code" width={240} height={240} style={{ borderRadius: 'var(--radius)', marginBottom: 14 }} />
                   <button className="btn" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setShowQr(false)}>Close</button>
                 </div>
