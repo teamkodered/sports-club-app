@@ -356,17 +356,12 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
               </div>
               {!uploadingPhoto && (
                 <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', display: 'flex' }}>
+                  {/* one picker without 'capture': the phone offers Photo Library / Take Photo / Files */}
                   <input type="file" accept="image/*" style={{ display: 'none' }} id="student-photo-upload"
                     onChange={e => uploadStudentPhoto(e.target.files?.[0])} />
-                  <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} id="student-photo-camera"
-                    onChange={e => uploadStudentPhoto(e.target.files?.[0])} />
-                  <label htmlFor="student-photo-upload" title="Upload a photo" style={{
-                    flex: 1, cursor: 'pointer', background: 'rgba(0,0,0,0.35)', color: '#fff', fontSize: 12,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50% 0 0 50%',
-                  }}>📁</label>
-                  <label htmlFor="student-photo-camera" title="Take a photo" style={{
-                    flex: 1, cursor: 'pointer', background: 'rgba(0,0,0,0.35)', color: '#fff', fontSize: 12,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '0 50% 50% 0',
+                  <label htmlFor="student-photo-upload" title="Add a photo (take one or choose from your photos)" style={{
+                    flex: 1, cursor: 'pointer', background: 'rgba(0,0,0,0.35)', color: '#fff', fontSize: 16,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%',
                   }}>📷</label>
                 </div>
               )}

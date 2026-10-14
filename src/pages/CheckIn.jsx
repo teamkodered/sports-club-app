@@ -121,7 +121,7 @@ export default function CheckIn() {
     }
 
     // Award attendance points
-    const pts = attendMode === 'full_kit' ? 2 : 1
+    const pts = attendMode === 'full_kit' ? 5 : 2 // Attended 2, Full Kit 5
     const { data: s } = await supabase.from('students').select('house_name, members(houses(name))').eq('id', checking.id).single()
     if (s) {
       await supabase.rpc('adjust_student_points', { p_student_id: checking.id, p_house_delta: pts, p_individual_delta: pts })

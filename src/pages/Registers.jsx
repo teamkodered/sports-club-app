@@ -1028,7 +1028,8 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
 
     const pointLabel = type === 'full_kit' ? 'Full Kit' : 'Attendance'
     const pt = pointTypes.find(p => p.label === pointLabel)
-    const pts = pt ? pt.points : (type === 'full_kit' ? 2 : 1)
+    // Attended = 2, Full Kit = 5 (used when they're not in the reasons list, which is now the normal case)
+    const pts = pt ? pt.points : (type === 'full_kit' ? 5 : 2)
     const netChange = pts - reversedPts
 
     const { data: newLogEntry, error: logInsertErr } = await supabase.from('points_log').insert({
