@@ -17,6 +17,8 @@
   status = 200
 
 # Security headers applied to every response. Content-Security-Policy
+# ('wasm-unsafe-eval' lets WebAssembly run -- needed to decompress the KR FIGHT 3D model;
+#  it does NOT allow eval() of JavaScript, so script injection protection is unchanged.)
 # is scoped to the exact external services this app actually talks to
 # (Supabase, Google Fonts, Whoop) rather than left wide open -- if a
 # future integration needs a new domain and something breaks/gets
@@ -30,4 +32,4 @@
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "geolocation=(), microphone=(), payment=()"
     Strict-Transport-Security = "max-age=31536000; includeSubDomains"
-    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' blob: https://zhlefvardwawjstulifb.supabase.co https://5e4dc24e01eaf0a5aa68ea42b52968b7.r2.cloudflarestorage.com; connect-src 'self' https://zhlefvardwawjstulifb.supabase.co wss://zhlefvardwawjstulifb.supabase.co https://api.prod.whoop.com https://5e4dc24e01eaf0a5aa68ea42b52968b7.r2.cloudflarestorage.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' blob: https://zhlefvardwawjstulifb.supabase.co https://5e4dc24e01eaf0a5aa68ea42b52968b7.r2.cloudflarestorage.com; connect-src 'self' https://zhlefvardwawjstulifb.supabase.co wss://zhlefvardwawjstulifb.supabase.co https://api.prod.whoop.com https://5e4dc24e01eaf0a5aa68ea42b52968b7.r2.cloudflarestorage.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
