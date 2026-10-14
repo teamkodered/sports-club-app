@@ -137,6 +137,16 @@ function gemIcon(g, x, y, r, col) {
   g.lineStyle(1.5, 0x000000, 0.5); g.strokePoints([{ x, y: y - r }, { x: x + r * 0.8, y: y - r * 0.25 }, { x, y: y + r }, { x: x - r * 0.8, y: y - r * 0.25 }], true)
 }
 const prog = scene => scene.game.progress || {}
+// Look 4 (3D): show the 3D fighter in a menu's preview spot instead of the stick figure
+function attach3DPreview(scene, rect, colour) {
+  if (getLook() !== '3d') return
+  if (scene.p3d) { scene.p3d.setColour(colour); return }
+  import('./render3d.js').then(mod => {
+    if (!scene.sys || !scene.sys.isActive() || scene.p3d) return
+    scene.p3d = new mod.Preview3D(scene.game, rect, colour)
+    scene.events.once('shutdown', () => { scene.p3d && scene.p3d.destroy(); scene.p3d = null })
+  }).catch(() => {})
+}
 
 // ---------------- Boot ----------------
 export class BootScene extends Phaser.Scene {
@@ -245,6 +255,7 @@ export class SelectScene extends Phaser.Scene {
     const cfg = this.game.cfg
     this.prev = makeFighter(squadDef(cfg.pick, this.sq, this), 170, 1); this.prev.side = 'p1'; this.prev.theme = NATURAL_HOUSE[this.prev.def.key]
     this.prevPose = makePose(this.prev, this.frame); this.demoT = 20
+    attach3DPreview(this, { x: 10, y: 40, w: 320, h: 320 }, FIGHTERS[cfg.pick].colour)
   }
   choose(i) { if (this.changing) { this.sq.styles[this.changing] = this.origStyle; saveSquad(this.sq); this.changing = null } this.game.cfg.pick = i; this.makePreview(); this.refresh() }
   // style button: free to change until the squad is locked; then only with this season's Change Token
@@ -343,6 +354,7 @@ export class SelectScene extends Phaser.Scene {
     } else { f.t++; if (f.t > f.move.s + f.move.a + f.move.r) f.move = null }
     if (f.counterT > 0) f.counterT--
     this.fg.clear()
+    if (getLook() === '3d') return // the 3D preview draws the fighter
     this.fg.setScale(1.6).setPosition(-170 * 0.6, -330 * 0.6)
     this.fg.lineStyle(2, hex(fxColour(f)), 0.4); this.fg.strokeEllipse(170, 336, 170, 22)
     stepPose(this.prevPose, f, this.frame)
@@ -784,78 +796,84 @@ export class ResultsScene extends Phaser.Scene {
 }
 
 
-// ---------------- Upgrade: spend gems on a fighter's MTP areas ----------------
-// The club's MTP analysis areas (Technical 12 / Physical 16 / Mental 8), 5 levels each, every one with its
-// own effect in a fight.
+// ---------------- Upgrade: one fighter at a time -- five groups on the left, that group's areas on the right ----------------
 export class UpgradeScene extends Phaser.Scene {
   constructor() { super('Upgrade') }
   create(data) {
     setupCam(this); bridge(this).onScene?.('upgrade')
-    buildArena(this, { dim: 0.86 })
+    buildArena(this, { dim: 0.88 })
     this.pick = data?.pick ?? 0; this.group = data?.group || 'Technical'; this.busy = false
-    txt(this, 24, 10, 'UPGRADE', { fontSize: '40px', color: GOLD, stroke: '#000', strokeThickness: 6 })
-    button(this, 748, 32, 84, 36, 'Back', '#F2F2F2', () => this.scene.start('Fighter', { pick: this.pick }), { size: 20 })
+    const n = FIGHTERS.length
+    // header: fighter + level, prev / next, back
+    this.title = txt(this, 20, 6, '', { fontSize: '34px', stroke: '#000', strokeThickness: 6 })
+    this.sub = txt(this, 22, 46, '', { fontFamily: BODY, fontStyle: '700', fontSize: '14px', color: '#C9CED6' })
+    button(this, 600, 30, 44, 36, '◀', '#F2F2F2', () => { this.pick = (this.pick + n - 1) % n; this.refresh() }, { size: 18 })
+    button(this, 652, 30, 44, 36, '▶', '#F2F2F2', () => { this.pick = (this.pick + 1) % n; this.refresh() }, { size: 18 })
+    button(this, 738, 30, 84, 36, 'Back', '#F2F2F2', () => this.scene.start('Fighter', { pick: this.pick }), { size: 20 })
     // gem wallet
     this.gemG = this.add.graphics()
-    this.gemT = PILLARS.map((k, i) => txt(this, 322 + i * 66, 20, '', { fontFamily: BODY, fontStyle: '700', fontSize: '20px', color: FIGHTERS.find(f => f.key === k).colour }))
-    this.wildT = txt(this, 322 + 5 * 66, 20, '', { fontFamily: BODY, fontStyle: '700', fontSize: '20px', color: '#F2F2F2' })
-    // fighter tabs
-    this.tabs = FIGHTERS.map((f, i) => {
-      const x = 26 + i * 152 + 70, y = 88
-      const c = this.add.container(x, y), g = this.add.graphics()
-      const t = txt(this, 0, -8, f.name, { fontSize: '18px', color: f.colour }).setOrigin(0.5)
-      const lv = txt(this, 0, 12, '', { fontFamily: BODY, fontStyle: '700', fontSize: '13px', color: '#C9CED6' }).setOrigin(0.5)
-      c.add([g, t, lv]); c.setSize(140, 48)
-      c.setInteractive(new Phaser.Geom.Rectangle(0, 0, 140, 48), Phaser.Geom.Rectangle.Contains)
-      c.on('pointerdown', () => { sfx(this).ui?.(); this.pick = i; this.refresh() })
-      c.g = g; c.lv = lv; c.def = f
-      return c
+    this.gemT = PILLARS.map((k, i) => txt(this, 322 + i * 52, 52, '', { fontFamily: BODY, fontStyle: '700', fontSize: '16px', color: FIGHTERS.find(f => f.key === k).colour }))
+    this.wildT = txt(this, 322 + 5 * 52, 52, '', { fontFamily: BODY, fontStyle: '700', fontSize: '16px', color: '#F2F2F2' })
+    // left: the five groups
+    this.groups = AREA_GROUPS.map((gname, i) => {
+      const y = 82 + i * 68
+      const bg = this.add.graphics(), bar = this.add.graphics()
+      const t = txt(this, 28, y + 6, gname, { fontSize: '19px' })
+      const v = txt(this, 186, y + 9, '', { fontFamily: BODY, fontStyle: '700', fontSize: '13px', color: '#C9CED6' }).setOrigin(1, 0)
+      const z = this.add.zone(16, y, 180, 60).setOrigin(0).setInteractive()
+      z.on('pointerdown', () => { sfx(this).ui?.(); this.group = gname; this.refresh() })
+      return { gname, y, bg, bar, t, v }
     })
-    // MTP group tabs
-    this.groupBtns = AREA_GROUPS.map((gname, i) => button(this, 96 + i * 152, 134, 144, 30, `${gname} ${AREAS.filter(a => a.g === gname).length}`, FIGHTERS.find(f => f.key === gname.toLowerCase())?.colour || '#F2F2F2', () => { this.group = gname; this.refresh() }, { size: 16 }))
-    // up to 16 area cards (4 x 4)
-    this.cards = Array.from({ length: 16 }, (_, i) => {
-      const x = 20 + (i % 4) * 191, y = 156 + Math.floor(i / 4) * 68
+    // right: area cards, 3 columns
+    this.cards = Array.from({ length: 15 }, (_, i) => {
+      const x = 208 + (i % 3) * 194, y = 82 + Math.floor(i / 3) * 66
       const bg = this.add.graphics(), pips = this.add.graphics(), gem = this.add.graphics()
-      const name = txt(this, x + 6, y + 3, '', { fontSize: '14px' })
-      const what = txt(this, x + 6, y + 22, '', { fontFamily: BODY, fontStyle: '600', fontSize: '10.5px', color: '#9AA3AE', wordWrap: { width: 118 } })
-      const btn = button(this, x + 160, y + 31, 42, 50, '', GOLD, () => { const a = this.cards[i].area; if (a) this.buy(a.key) }, { size: 16 })
+      const name = txt(this, x + 7, y + 3, '', { fontSize: '14px' })
+      const what = txt(this, x + 7, y + 22, '', { fontFamily: BODY, fontStyle: '600', fontSize: '10.5px', color: '#9AA3AE', wordWrap: { width: 128 } })
+      const btn = button(this, x + 164, y + 30, 42, 52, '', GOLD, () => { const a = this.cards[i].area; if (a) this.buy(a.key) }, { size: 16 })
       return { x, y, bg, pips, gem, name, what, btn, area: null }
     })
     if (prog(this).mode === 'test') button(this, 734, 436, 92, 24, 'Reset all', RED, () => { this.game.progress = resetTest(prog(this)); sfx(this).ui?.(); this.refresh() }, { size: 14 })
-    this.note = txt(this, 20, 449, '', { fontFamily: BODY, fontStyle: '600', fontSize: '11px', color: '#7d8691' }).setOrigin(0, 1)
+    this.note = txt(this, 16, 449, '', { fontFamily: BODY, fontStyle: '600', fontSize: '11px', color: '#7d8691' }).setOrigin(0, 1)
     this.refresh()
   }
   refresh() {
     const P = prog(this), f = FIGHTERS[this.pick], col = hex(f.colour)
+    if (this.game.cfg) this.game.cfg.pick = this.pick
+    const maxHp = applyUpgrades({}, (P.upgrades || {})[f.key]).maxHp
+    this.title.setText(`${f.name}  ·  UPGRADE`).setColor(f.colour)
+    this.sub.setText(`Level ${fighterLevel(P, f.key)} / ${AREAS.length * MAX_LV}   ·   Health ${maxHp}`)
+    // wallet
     const g = this.gemG; g.clear()
     const show = v => P.mode === 'test' ? '∞' : String(Math.max(0, v))
-    PILLARS.forEach((k, i) => { gemIcon(g, 310 + i * 66, 32, 9, hex(FIGHTERS.find(x => x.key === k).colour)); this.gemT[i].setText(show(available(P, k))) })
-    gemIcon(g, 310 + 5 * 66, 32, 9, 0xffffff); this.wildT.setText(show(wild(P)))
-    this.tabs.forEach((t, i) => {
-      const on = i === this.pick, c = hex(t.def.colour)
-      t.g.clear(); t.g.fillStyle(on ? c : 0x12161b, on ? 0.22 : 0.92); t.g.fillRoundedRect(-70, -24, 140, 48, 8)
-      t.g.lineStyle(on ? 3 : 1.5, on ? c : 0x2a3138, 1); t.g.strokeRoundedRect(-70, -24, 140, 48, 8)
-      t.lv.setText(`Level ${fighterLevel(P, t.def.key)} / ${AREAS.length * MAX_LV}`)
-    })
-    this.groupBtns.forEach((b, i) => b.setOn(AREA_GROUPS[i] === this.group))
+    PILLARS.forEach((k, i) => { gemIcon(g, 312 + i * 52, 62, 8, hex(FIGHTERS.find(x => x.key === k).colour)); this.gemT[i].setText(show(available(P, k))) })
+    gemIcon(g, 312 + 5 * 52, 62, 8, 0xffffff); this.wildT.setText(show(wild(P)))
+    // groups
+    for (const gr of this.groups) {
+      const areas = AREAS.filter(a => a.g === gr.gname), have = areas.reduce((t, a) => t + levelOf(P, f.key, a.key), 0), max = areas.length * MAX_LV
+      const on = gr.gname === this.group, gc = hex(FIGHTERS.find(x => x.key === gr.gname.toLowerCase())?.colour || '#9AA3AE')
+      gr.bg.clear(); gr.bg.fillStyle(on ? gc : 0x10141a, on ? 0.22 : 0.95); gr.bg.fillRoundedRect(16, gr.y, 180, 60, 8)
+      gr.bg.lineStyle(on ? 3 : 1.5, on ? gc : 0x262d36, 1); gr.bg.strokeRoundedRect(16, gr.y, 180, 60, 8)
+      gr.t.setColor(on ? '#F2F2F2' : '#C9CED6'); gr.v.setText(`${have} / ${max}`)
+      gr.bar.clear(); gr.bar.fillStyle(0x2a3138, 1); gr.bar.fillRect(28, gr.y + 40, 156, 7); gr.bar.fillStyle(gc, 1); gr.bar.fillRect(28, gr.y + 40, 156 * have / max, 7)
+    }
+    // cards
     const areas = AREAS.filter(a => a.g === this.group)
     this.cards.forEach((c, i) => {
       const a = areas[i]; c.area = a || null
       c.bg.clear(); c.pips.clear(); c.gem.clear()
-      const show = !!a
-      for (const o of [c.name, c.what, c.btn]) o.setVisible(show)
+      for (const o of [c.name, c.what, c.btn]) o.setVisible(!!a)
       if (!a) return
       const lv = levelOf(P, f.key, a.key), price = priceFor(P, f.key, a.key), maxed = lv >= MAX_LV
-      c.bg.fillStyle(0x10141a, 0.95); c.bg.fillRoundedRect(c.x, c.y, 184, 62, 8)
-      c.bg.lineStyle(1.5, maxed ? 0xf5c542 : lv > 0 ? col : 0x262d36, 1); c.bg.strokeRoundedRect(c.x, c.y, 184, 62, 8)
+      c.bg.fillStyle(0x10141a, 0.95); c.bg.fillRoundedRect(c.x, c.y, 188, 60, 8)
+      c.bg.lineStyle(1.5, maxed ? 0xf5c542 : lv > 0 ? col : 0x262d36, 1); c.bg.strokeRoundedRect(c.x, c.y, 188, 60, 8)
       c.name.setText(a.name).setColor(lv > 0 ? f.colour : '#F2F2F2').setFontSize(a.name.length > 15 ? '12px' : '14px')
       c.what.setText(a.what)
-      for (let k = 0; k < MAX_LV; k++) { c.pips.fillStyle(k < lv ? col : 0x2a3138, 1); c.pips.fillRoundedRect(c.x + 6 + k * 14, c.y + 50, 11, 7, 2) }
-      if (maxed) { c.btn.label.setText('MAX').setColor('#F5C542').setY(0).setFontSize('14px'); c.btn.setOn(true) }
+      for (let k = 0; k < MAX_LV; k++) { c.pips.fillStyle(k < lv ? col : 0x2a3138, 1); c.pips.fillRoundedRect(c.x + 7 + k * 14, c.y + 48, 11, 6, 2) }
+      if (maxed) { c.btn.label.setText('MAX').setColor('#F5C542').setY(0).setFontSize('13px'); c.btn.setOn(true) }
       else {
         c.btn.label.setText(String(costOf(lv))).setColor(price ? '#F2F2F2' : '#5c6670').setY(8).setFontSize('16px'); c.btn.setOn(!!price)
-        gemIcon(c.gem, c.x + 160, c.y + 22, 7, price && price.fromWild && !price.fromColour ? 0xffffff : col)
+        gemIcon(c.gem, c.x + 164, c.y + 20, 7, price && price.fromWild && !price.fromColour ? 0xffffff : col)
       }
     })
     if (P.mode === 'test') this.note.setText('TEST MODE: unlimited gems, saved on this device only (open the app with ?krtest=0 to turn off).').setColor('#F5C542')
@@ -870,7 +888,7 @@ export class UpgradeScene extends Phaser.Scene {
       this.game.progress = await buyUpgrade(P, f.key, area)
       sfx(this).special?.()
       const c = this.cards.find(x => x.area && x.area.key === area)
-      if (c) { const ring = this.add.image(c.x + 92, c.y + 32, 'ring').setTint(hex(f.colour)).setBlendMode('ADD').setScale(0.1); this.tweens.add({ targets: ring, scale: 1.1, alpha: 0, duration: 320, onComplete: () => ring.destroy() }) }
+      if (c) { const ring = this.add.image(c.x + 94, c.y + 30, 'ring').setTint(hex(f.colour)).setBlendMode('ADD').setScale(0.1); this.tweens.add({ targets: ring, scale: 1.1, alpha: 0, duration: 320, onComplete: () => ring.destroy() }) }
     } catch (e) { this.cameras.main.shake(140, 0.005) }
     this.busy = false
     this.refresh()
@@ -1044,6 +1062,7 @@ export class FighterScene extends Phaser.Scene {
     // fighter preview (left)
     this.f = makeFighter(def, 150, 1); this.f.side = 'p1'; this.f.theme = NATURAL_HOUSE[key]
     this.pose = makePose(this.f, 0); this.fg = this.add.graphics(); this.demoT = 20
+    attach3DPreview(this, { x: 0, y: 96, w: 290, h: 330 }, f.colour)
 
     const g = this.add.graphics(), X = 300
     // STATS
@@ -1094,6 +1113,7 @@ export class FighterScene extends Phaser.Scene {
     if (!f.move) { if (--this.demoT <= 0) { f.move = demoMove(f, ['lp', 'mp', 'hp', 'lk', 'mk', 'hk'][Math.floor(Math.random() * 6)]); f.t = 0; this.demoT = 34 } }
     else { f.t++; if (f.t > f.move.s + f.move.a + f.move.r) f.move = null }
     this.fg.clear()
+    if (getLook() === '3d') return // the 3D preview draws the fighter
     this.fg.setScale(1.25).setPosition(-150 * 0.25, -400 * 0.25)
     this.fg.lineStyle(2, hex(fxColour(f)), 0.4); this.fg.strokeEllipse(150, 406, 170, 22)
     stepPose(this.pose, f, this.frame)

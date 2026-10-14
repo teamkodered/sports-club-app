@@ -45,6 +45,7 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
   const input = useRef({ left: false, right: false, up: false, down: false, lp: false, hp: false, lk: false, hk: false, sp: false, super: false })
   const pressed = useRef({})
   const onRoundRef = useRef(onRound); onRoundRef.current = onRound
+  const onCloseRef = useRef(onClose); onCloseRef.current = onClose
   const sfxRef = useRef(null)
 
   // ---- charging Punch / Kick: tap = Light, hold = Medium, long hold = Heavy; fires on release ----
@@ -89,6 +90,28 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
     }
     window.addEventListener('keydown', dn); window.addEventListener('keyup', up)
     return () => { window.removeEventListener('keydown', dn); window.removeEventListener('keyup', up) }
+  }, [])
+
+  // phone / browser Back: step back through the game's screens instead of leaving the game
+  const BACK_TO = { Upgrade: 'Fighter', Branch: 'Fighter', Combos: 'Fighter', Fighter: 'Select', Fight: 'Select', Results: 'Select', Select: 'Title' }
+  useEffect(() => {
+    try { window.history.pushState({ krfight: 1 }, '') } catch (e) { /* ignore */ }
+    const onPop = () => {
+      if (paused.current) { try { window.history.pushState({ krfight: 1 }, '') } catch (e) { /* ignore */ } setShow3d(false); return } // Back closes the 3D test
+      const g = gameRef.current
+      const cur = g && g.scene.getScenes(true)[0], key = cur && cur.scene.key
+      const to = key && BACK_TO[key]
+      if (to && cur) {
+        try { window.history.pushState({ krfight: 1 }, '') } catch (e) { /* ignore */ }
+        cur.scene.start(to, { pick: g.cfg ? g.cfg.pick : 0 })
+      } else onCloseRef.current?.()   // on the title screen, Back leaves the game
+    }
+    window.addEventListener('popstate', onPop)
+    return () => {
+      window.removeEventListener('popstate', onPop)
+      // closed with the Close button: take our extra history step back off so the next Back works normally
+      try { if (window.history.state && window.history.state.krfight) window.history.back() } catch (e) { /* ignore */ }
+    }
   }, [])
 
   // boot Phaser -- and rebuild it if it ever freezes (lost graphics after rotating / leaving the app)
@@ -264,8 +287,8 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
         ? { flex: 1, minHeight: 0, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }
         : { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: fight ? 'space-between' : 'center', paddingBottom: 'calc(10px + env(safe-area-inset-bottom, 0px))' }}>
         <div ref={hostRef} style={landscape
-          ? { position: 'relative', height: '100%', maxWidth: '100%', aspectRatio: '16 / 9' }
-          : { position: 'relative', width: '100%', maxWidth: 900, aspectRatio: '16 / 9' }}>
+          ? { position: 'relative', height: '100%', maxWidth: '100%', aspectRatio: '16 / 9', isolation: 'isolate', zIndex: 0 }
+          : { position: 'relative', width: '100%', maxWidth: 900, aspectRatio: '16 / 9', isolation: 'isolate', zIndex: 0 }}>
           {scene === 'boot' && !failed && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9AA3AE', fontSize: 14 }}>Loading…</div>}
           {failed && (
             <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 16, fontSize: 14 }}>
@@ -280,9 +303,9 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
         )}
         {fight && (
           <div style={landscape
-            ? { position: 'absolute', left: 0, right: 0, bottom: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', pointerEvents: 'none', boxSizing: 'border-box',
+            ? { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 5, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', pointerEvents: 'none', boxSizing: 'border-box',
                 padding: '0 calc(14px + env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) calc(14px + env(safe-area-inset-left, 0px))' }
-            : { width: '100%', maxWidth: 900, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', padding: '10px 14px', boxSizing: 'border-box' }}
+            : { position: 'relative', zIndex: 5, width: '100%', maxWidth: 900, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', padding: '10px 14px', boxSizing: 'border-box' }}
             className={landscape ? 'fg-ls-controls' : undefined}>
             <div className="fg-stick" {...stickHandlers} role="group" aria-label="Joystick: drag to move, push up to jump, down to crouch"
               style={{ width: STICK_R * 2, height: STICK_R * 2, borderRadius: '50%', position: 'relative', touchAction: 'none', flexShrink: 0,

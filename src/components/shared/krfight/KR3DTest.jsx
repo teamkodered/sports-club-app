@@ -144,7 +144,7 @@ export default function KR3DTest({ onClose }) {
       raf = requestAnimationFrame(tick)
     }
     tick()
-    return () => { dead = true; cancelAnimationFrame(raf); ro.disconnect(); for (const f of Object.values(fighters)) clearTimeout(f.t); renderer.dispose(); host.removeChild(renderer.domElement) }
+    return () => { dead = true; cancelAnimationFrame(raf); ro.disconnect(); for (const f of Object.values(fighters)) clearTimeout(f.t); renderer.dispose(); try { renderer.forceContextLoss() } catch (e) { /* ignore */ } host.removeChild(renderer.domElement) }
   }, [])
 
   // apply colours / finish

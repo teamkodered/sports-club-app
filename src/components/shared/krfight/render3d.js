@@ -140,11 +140,22 @@ class Rig {
   }
 }
 
+// One WebGL renderer for the whole session, reused by every 3D fight and preview. Phones only allow a few
+// graphics contexts at once, so creating a new one per fight froze the game on the second go.
+const shared = {}
+function sharedRenderer(key, opts) {
+  if (!shared[key]) {
+    const r = new THREE.WebGLRenderer(opts)
+    r.setPixelRatio(Math.min(2, window.devicePixelRatio || 1)); r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.ACESFilmicToneMapping
+    shared[key] = r
+  }
+  return shared[key]
+}
+
 export class Renderer3D {
   constructor(game) {
     this.game = game; this.ready = false; this.rigs = new Map()
-    const r = this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false })
-    r.setPixelRatio(Math.min(2, window.devicePixelRatio || 1)); r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.ACESFilmicToneMapping
+    const r = this.renderer = sharedRenderer('fight', { antialias: true, alpha: false })
     const cv = r.domElement
     Object.assign(cv.style, { position: 'absolute', left: '0px', top: '0px', pointerEvents: 'none', zIndex: '0' })
     const gc = game.canvas, parent = gc.parentNode
@@ -155,6 +166,7 @@ export class Renderer3D {
     this.spin = buildArena(this.scene)
     this.clock = new THREE.Clock()
     this.size = ''
+    cv.style.width = ''; cv.style.height = ''
     loadFighterModel().then(gltf => {
       if (this.dead) return
       this.gltf = gltf; this.clips = Object.fromEntries(gltf.animations.map(c => [c.name, c]))
@@ -163,7 +175,7 @@ export class Renderer3D {
       env.add(new THREE.Mesh(new THREE.SphereGeometry(10, 32, 16), new THREE.MeshBasicMaterial({ color: '#223', side: THREE.BackSide })))
       const lamp = (c, x, y, z) => { const m = new THREE.Mesh(new THREE.SphereGeometry(1.5, 16, 8), new THREE.MeshBasicMaterial({ color: c })); m.position.set(x, y, z); env.add(m) }
       lamp('#ffffff', -5, 6, 4); lamp('#ffd9a0', 6, 3, -6); lamp('#6f8cff', 0, -4, 6)
-      this.scene.environment = pm.fromScene(env, 0.04).texture
+      this.scene.environment = pm.fromScene(env, 0.04).texture; pm.dispose()
       this.ready = true
     }).catch(() => { this.failed = true })
   }
@@ -274,7 +286,82 @@ export class Renderer3D {
   }
   destroy() {
     this.dead = true
-    try { this.renderer.domElement.remove(); this.renderer.dispose() } catch (e) { /* ignore */ }
+    // keep the shared renderer for next time; just take its canvas off the page and free this fight's scene
+    try { this.renderer.domElement.remove() } catch (e) { /* ignore */ }
+    try { this.scene.traverse(o => { if (o.geometry) o.geometry.dispose(); const m = o.material; if (m) (Array.isArray(m) ? m : [m]).forEach(x => x.dispose && x.dispose()) }) } catch (e) { /* ignore */ }
+    for (const rig of this.rigs.values()) { try { rig.mixer.stopAllAction() } catch (e) { /* ignore */ } }
+    this.rigs.clear()
     const gc = this.game.canvas; if (gc) { gc.style.zIndex = '' }
+  }
+}
+
+
+// ---------------- 3D preview (menus: squad screen + fighter View) ----------------
+// A small transparent 3D view laid over the fighter preview spot. Shows the fighter as they'll look in the
+// 3D fight, idling and now and then throwing a jab, cross or cast.
+export class Preview3D {
+  // rect = area in game-world pixels (800 x 450) to cover
+  constructor(game, rect, colour) {
+    this.game = game; this.rect = rect; this.dead = false
+    const r = this.renderer = sharedRenderer('preview', { antialias: true, alpha: true })
+    r.setClearColor(0x000000, 0)
+    const cv = r.domElement
+    Object.assign(cv.style, { position: 'absolute', pointerEvents: 'none', zIndex: '2' })
+    game.canvas.parentNode.appendChild(cv)
+    this.scene = new THREE.Scene()
+    this.scene.add(new THREE.HemisphereLight('#8fa8ff', '#1a1020', 0.8))
+    const key = new THREE.DirectionalLight('#ffffff', 2.4); key.position.set(-2, 4, 4); this.scene.add(key)
+    const rim = new THREE.DirectionalLight('#ffcf7a', 2.2); rim.position.set(3, 2, -4); this.scene.add(rim)
+    const glow = new THREE.Mesh(new THREE.CircleGeometry(0.75, 48), new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 0.18 }))
+    glow.rotation.x = -Math.PI / 2; glow.position.y = 0.005; this.scene.add(glow); this.glow = glow
+    this.camera = new THREE.PerspectiveCamera(28, rect.w / rect.h, 0.1, 50)
+    this.camera.position.set(0, 0.78, 3.6); this.camera.lookAt(0, 0.68, 0)
+    this.clock = new THREE.Clock(); this.next = 1.5; this.colour = colour
+    loadFighterModel().then(gltf => {
+      if (this.dead) return
+      this.gltf = gltf; this.clips = Object.fromEntries(gltf.animations.map(c => [c.name, c]))
+      const pm = new THREE.PMREMGenerator(r), env = new THREE.Scene()
+      env.add(new THREE.Mesh(new THREE.SphereGeometry(10, 32, 16), new THREE.MeshBasicMaterial({ color: '#223', side: THREE.BackSide })))
+      const lamp = (c, x, y, z) => { const m = new THREE.Mesh(new THREE.SphereGeometry(1.5, 16, 8), new THREE.MeshBasicMaterial({ color: c })); m.position.set(x, y, z); env.add(m) }
+      lamp('#ffffff', -5, 6, 4); lamp('#ffd9a0', 6, 3, -6); lamp('#6f8cff', 0, -4, 6)
+      this.scene.environment = pm.fromScene(env, 0.04).texture; pm.dispose()
+      this.makeRig()
+    }).catch(() => { this.failed = true })
+    const loop = () => { if (this.dead) return; this.frame(); this.raf = requestAnimationFrame(loop) }
+    this.raf = requestAnimationFrame(loop)
+  }
+  makeRig() {
+    if (this.rig) this.scene.remove(this.rig.obj)
+    this.rig = new Rig(this.gltf, this.clips, {}, this.colour, false)
+    this.rig.obj.rotation.y = Math.PI / 2 - 0.55 // three-quarter view, facing right like the 2D preview
+    this.scene.add(this.rig.obj)
+  }
+  setColour(colour) { this.colour = colour; this.glow.material.color.set(colour); if (this.gltf) this.makeRig() }
+  frame() {
+    const gc = this.game.canvas
+    if (!gc || !gc.parentNode) return
+    // follow the game canvas (it moves / resizes with rotation)
+    const k = gc.offsetWidth / 800, x = gc.offsetLeft + this.rect.x * k, y = gc.offsetTop + this.rect.y * k, w = this.rect.w * k, h = this.rect.h * k
+    const key = `${x},${y},${w},${h}`
+    if (key !== this.size) {
+      this.size = key
+      Object.assign(this.renderer.domElement.style, { left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px' })
+      this.renderer.setSize(Math.max(1, w), Math.max(1, h), false); this.camera.aspect = w / h; this.camera.updateProjectionMatrix()
+    }
+    const dt = Math.min(0.05, this.clock.getDelta())
+    const rig = this.rig
+    if (rig) {
+      this.next -= dt
+      if (this.next <= 0 && !rig.shot) { const pick = ['Punch_Jab', 'Punch_Cross', 'Punch_Jab', 'Spell_Simple_Shoot'][Math.floor(Math.random() * 4)]; rig.playShot(pick, pick === 'Spell_Simple_Shoot' ? 1.1 : 0.55); this.next = 2.2 + Math.random() * 1.5 }
+      if (rig.shot && performance.now() > rig.shotEnds) rig.endShot()
+      for (const [bone, q, p] of rig.rest) { bone.quaternion.copy(q); bone.position.copy(p) }
+      rig.mixer.update(dt)
+    }
+    this.renderer.render(this.scene, this.camera)
+  }
+  destroy() {
+    this.dead = true; cancelAnimationFrame(this.raf)
+    try { this.renderer.domElement.remove() } catch (e) { /* ignore */ }
+    try { this.scene.traverse(o => { if (o.geometry) o.geometry.dispose() }) } catch (e) { /* ignore */ }
   }
 }
