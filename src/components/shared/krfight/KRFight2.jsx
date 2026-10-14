@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import Phaser from 'phaser'
 import { FgIcon } from '../FightGame.jsx'
 import { FIGHTERS, CHARGE_MS } from './data.js'
@@ -8,6 +8,8 @@ import { BootScene, TitleScene, SelectScene, FightScene, ResultsScene, UpgradeSc
 // KR FIGHT 2 (Phaser). Same rules and controls as the classic game, new engine: jointed fighters,
 // hit sparks, hit-stop, super cut-ins, KO slow-mo, title / select / fight / results scenes.
 // React keeps the top bar and the touch controls; Phaser draws everything inside the arena.
+// 3D look test (three.js + Quaternius mannequin) -- loaded only when opened
+const KR3DTest = lazy(() => import('./KR3DTest.jsx'))
 const LS_MUTE = 'krfight-muted'
 const BTN = 64 // every attack button the same size
 
@@ -29,6 +31,10 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
   const [hud, setHud] = useState({ sp: 1, sup: 0 })
   const [muted, setMuted] = useState(() => { try { return localStorage.getItem(LS_MUTE) === '1' } catch (e) { return false } })
   const [failed, setFailed] = useState(null)
+  const [show3d, setShow3d] = useState(false)
+  const paused = useRef(false); paused.current = show3d
+  // pause the game underneath while the 3D test is open
+  useEffect(() => { const g = gameRef.current; if (!g) return; try { show3d ? g.loop.sleep() : g.loop.wake() } catch (e) { /* ignore */ } }, [show3d])
   const [landscape, setLandscape] = useState(() => typeof window !== 'undefined' && window.matchMedia('(orientation: landscape) and (max-height: 600px)').matches)
   useEffect(() => {
     const mq = window.matchMedia('(orientation: landscape) and (max-height: 600px)')
@@ -131,7 +137,7 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
     // watchdog: page visible but the game hasn't drawn a frame for 2.5 s -> rebuild it
     const watch = setInterval(() => {
       const g = gameRef.current
-      if (!g || document.hidden || !g.isBooted) { stuckSince = 0; return }
+      if (!g || document.hidden || !g.isBooted || paused.current) { stuckSince = 0; return } // paused for the 3D test is not a freeze
       if (g.renderer?.contextLost) { rebuild(); return }
       const f = g.loop.frame
       if (f !== lastFrame) { lastFrame = f; stuckSince = 0; return }
@@ -240,11 +246,17 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
   return (
     <div role="dialog" aria-modal="true" aria-label="KR Fight" style={{ position: 'fixed', inset: 0, zIndex: 495, background: '#05070A', color: '#F2F2F2', display: 'flex', flexDirection: 'column', userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'none' }}
       onContextMenu={e => e.preventDefault()}>
+      {show3d && (
+        <Suspense fallback={<div style={{ position: 'fixed', inset: 0, zIndex: 520, background: '#05060b', color: '#9AA3AE', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading 3D…</div>}>
+          <KR3DTest onClose={() => setShow3d(false)} />
+        </Suspense>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: landscape ? '4px calc(10px + env(safe-area-inset-right, 0px)) 4px calc(10px + env(safe-area-inset-left, 0px))' : 'calc(8px + env(safe-area-inset-top, 0px)) 12px 8px' }}>
         <button type="button" onClick={onClose} style={pad}>Close</button>
         <div style={{ fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 22, letterSpacing: 1, flex: 1 }}>KR FIGHT</div>
         <button type="button" onClick={toggleMute} style={pad} aria-label={muted ? 'Sound on' : 'Sound off'}>{muted ? 'Sound off' : 'Sound on'}</button>
         {fight && <button type="button" onClick={toSelect} style={pad}>Fighters</button>}
+        {!fight && <button type="button" onClick={() => setShow3d(true)} style={{ ...pad, color: '#5BE0FF' }}>3D test</button>}
         {!fight && onClassic && <button type="button" onClick={onClassic} style={{ ...pad, color: '#9AA3AE' }}>Classic</button>}
       </div>
 
