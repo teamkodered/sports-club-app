@@ -19,6 +19,7 @@ import ResetPassword from './pages/ResetPassword.jsx'
 import CoachSignup from './pages/CoachSignup.jsx'
 import InviteRedeem from './pages/InviteRedeem.jsx'
 import ParentView from './pages/ParentView.jsx'
+import CoachingTools from './pages/CoachingTools.jsx'
 import Claim from './pages/Claim.jsx'
 import JoinPKAChild from './pages/forms/JoinPKAChild.jsx'
 import JoinPKAAdult from './pages/forms/JoinPKAAdult.jsx'
@@ -152,6 +153,7 @@ function App() {
             <Route path="students"        element={<ProtectedRoute page="students"><StudentDatabase /></ProtectedRoute>} />
             <Route path="members"         element={<ProtectedRoute staffOnly><Members /></ProtectedRoute>} />
             <Route path="fixtures"        element={<ProtectedRoute page="fixtures"><Fixtures /></ProtectedRoute>} />
+            <Route path="coaching-tools"  element={<ProtectedRoute staffOnly><CoachingTools /></ProtectedRoute>} />
             <Route path="calendar"        element={<ProtectedRoute page="calendar"><CalendarPage /></ProtectedRoute>} />
             <Route path="crm"             element={<ProtectedRoute page="crm"><CRM /></ProtectedRoute>} />
             <Route path="classes"         element={<ProtectedRoute page="classes"><Classes /></ProtectedRoute>} />

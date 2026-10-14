@@ -18,6 +18,8 @@ export default function FocusAndFormat() {
   const [editingFormat, setEditingFormat] = useState(false)
   const [formatDraft, setFormatDraft] = useState('')
   const [formatOpen, setFormatOpen] = useState(false)
+  const [focusShown, setFocusShown] = useState(false)    // both cards start collapsed -- tap the title to open
+  const [formatShown, setFormatShown] = useState(false)
   const [summary, setSummary] = useState('')
   const [summaryDraft, setSummaryDraft] = useState('')
 
@@ -68,11 +70,11 @@ export default function FocusAndFormat() {
     <div className="dash-two" style={{ marginBottom: 14 }}>
       {/* ── Current focus ── */}
       <div className="card" style={{ ...box, borderTop: '3px solid #8B5CF6' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <h2 style={{ fontSize: 14, fontWeight: 700 }}>🎯 Current focus</h2>
-          {isStaff && !adding && <button className="btn btn-sm" onClick={() => { setAdding(true); setDraft('') }}>+ New focus</button>}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: focusShown ? 8 : 0 }}>
+          <button type="button" className="ff-toggle" onClick={() => setFocusShown(v => !v)} aria-expanded={focusShown}><span>{focusShown ? '▾' : '▸'}</span> 🎯 Current focus</button>
+          {focusShown && isStaff && !adding && <button className="btn btn-sm" onClick={() => { setAdding(true); setDraft('') }}>+ New focus</button>}
         </div>
-        {adding ? (
+        {!focusShown ? null : adding ? (
           <>
             <textarea rows={5} value={draft} onChange={e => setDraft(e.target.value)} placeholder="What's the focus for this block? (Becomes the current focus; the old one moves to history)" autoFocus
               style={{ width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 8, border: '1px solid var(--border-strong)', background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'inherit', fontSize: 14 }} />
@@ -89,11 +91,11 @@ export default function FocusAndFormat() {
 
       {/* ── Format ── */}
       <div className="card" style={{ ...box, borderTop: '3px solid #06B6D4' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <h2 style={{ fontSize: 14, fontWeight: 700 }}>🧭 Format</h2>
-          {isAdmin && !editingFormat && <button className="btn btn-sm" onClick={startEditFormat}>Edit</button>}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: formatShown ? 8 : 0 }}>
+          <button type="button" className="ff-toggle" onClick={() => setFormatShown(v => !v)} aria-expanded={formatShown}><span>{formatShown ? '▾' : '▸'}</span> 🧭 Format</button>
+          {formatShown && isAdmin && !editingFormat && <button className="btn btn-sm" onClick={startEditFormat}>Edit</button>}
         </div>
-        {editingFormat && !formatOpen ? formatEditor : (
+        {!formatShown ? null : editingFormat && !formatOpen ? formatEditor : (
           (summary || format) ? (
             <button type="button" onClick={() => setFormatOpen(true)} style={{ all: 'unset', cursor: 'pointer', display: 'block', width: '100%' }} title="Tap to see the full format">
               <div style={text}>{summary || format}</div>

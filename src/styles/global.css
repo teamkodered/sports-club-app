@@ -1167,3 +1167,28 @@ tbody tr:hover td { background: var(--bg-secondary); }
 
 /* Team access sheet opens at the top of the screen */
 .team-sheet { border-radius: 18px !important; }
+.ff-toggle { all: unset; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; flex: 1; }
+.ff-toggle span { color: var(--text-tertiary); width: 12px; }
+/* Coaching tools */
+.ct { max-width: 900px; }
+.ct-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 12px; }
+.ct-head h1 { font-size: 22px; margin: 0; } .ct-head p { font-size: 13px; color: var(--text-secondary); margin: 2px 0 0; }
+.ct-filters { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.ct-filters input { padding: 9px 12px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--bg-secondary); color: var(--text); font-size: 14px; }
+.ct-cats, .ct-seg { display: flex; gap: 6px; flex-wrap: wrap; }
+.ct-cats button, .ct-seg button { padding: 6px 12px; border-radius: 16px; border: 1px solid var(--border-strong); background: var(--bg); color: var(--text); font-size: 13px; cursor: pointer; font-family: inherit; }
+.ct-cats button.on, .ct-seg button.on { background: #64748B; border-color: #64748B; color: #fff; font-weight: 700; }
+.ct-seg { margin: 10px 0; }
+.ct-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.ct-item { position: relative; padding: 0 !important; }
+.ct-open { all: unset; box-sizing: border-box; display: flex; gap: 12px; width: 100%; padding: 14px; cursor: pointer; }
+.ct-icon { font-size: 26px; line-height: 1; }
+.ct-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ct-text b { font-size: 14px; }
+.ct-desc { font-size: 12px; color: var(--text-secondary); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ct-meta { font-size: 11px; color: var(--text-tertiary); }
+.ct-x { position: absolute; top: 6px; right: 8px; border: none; background: none; font-size: 18px; color: var(--text-tertiary); cursor: pointer; }
+.ct-backdrop { position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.5); display: flex; align-items: flex-start; justify-content: center; padding: calc(16px + env(safe-area-inset-top, 0px)) 16px 16px; }
+.ct-sheet { width: 100%; max-width: 460px; max-height: 88vh; overflow-y: auto; }
+.ct-sheet .field input, .ct-sheet .field textarea { width: 100%; box-sizing: border-box; }
+.ct-video { max-width: 760px; }
