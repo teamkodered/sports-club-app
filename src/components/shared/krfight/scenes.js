@@ -46,7 +46,7 @@ function button(scene, x, y, w, h, label, colour, onClick, opts = {}) {
 
 // ---------------- arena (KR Centre neon ring) ----------------
 function buildArena(scene, opts = {}) {
-  if (getLook() !== 'cartoon') return buildArenaStick(scene, { ...opts, dark: getLook() === 'house' })
+  if (getLook() !== 'cartoon') return buildArenaStick(scene, { ...opts, dark: getLook() === 'house' || getLook() === '3d' })
   const objs = []
   const g = scene.add.graphics(); objs.push(g)
   g.fillGradientStyle(0x120a1e, 0x120a1e, 0x1a1f24, 0x1a1f24, 1); g.fillRect(-60, -60, W + 120, FLOOR + 66)
@@ -365,7 +365,17 @@ export class FightScene extends Phaser.Scene {
     this.poses = { p1: makePose(this.m.p1, 0), p2: makePose(this.m.p2, 0) }
     this.acc = 0; this.slow = 1; this.shakeT = null
     this.world = []
-    this.world.push(...buildArena(this))
+    this.arenaObjs = buildArena(this)
+    this.world.push(...this.arenaObjs)
+    // Look 4: the fight is drawn in 3D behind this canvas (HUD, sparks and trails stay here on top)
+    this.r3d = null
+    if (getLook() === '3d') {
+      import('./render3d.js').then(mod => {
+        if (!this.sys || !this.sys.isActive()) return
+        this.r3d = new mod.Renderer3D(this.game)
+        this.events.once('shutdown', () => { this.r3d && this.r3d.destroy(); this.r3d = null })
+      }).catch(() => { this.r3d = null })
+    }
     this.fg = this.add.graphics(); this.world.push(this.fg)
     this.pjSprites = new Map()
     this.emitters = {}
@@ -457,6 +467,7 @@ export class FightScene extends Phaser.Scene {
   handle(events) {
     const m = this.m, sx = this.sx
     for (const e of events) {
+      if (this.r3d) this.r3d.event(e)
       switch (e.type) {
         case 'roundIntro': this.showBanner(e.team ? 'TEAM BATTLE' : 'ROUND 1', e.team ? `${e.sizes[0]} vs ${e.sizes[1]}` : `${m.p1.def.name} vs ${m.p2.def.name}`, 650); sx.say?.(e.team ? 'Team battle' : 'Round one'); this.lag = { p1: 100, p2: 100 }; this.cameras.main.zoomTo(Z, 300); break
         case 'tagIn': {
@@ -604,6 +615,17 @@ export class FightScene extends Phaser.Scene {
     // fighters: the one attacking is drawn in front
     const g = this.fg; g.clear()
     const order = m.p2.move && !m.p1.move ? ['p1', 'p2'] : ['p2', 'p1']
+    const three = this.r3d && this.r3d.ready
+    for (const o of this.arenaObjs) o.setVisible(!three)
+    if (three) {
+      // 2D: only the swoosh trails; 3D draws arena + fighters, following this camera's KO zoom and shake
+      for (const k of order) drawFighter(g, m[k], this.poses[k], m.frame, alpha, { swooshOnly: true })
+      const cam = this.cameras.main, sh = cam.shakeEffect && cam.shakeEffect.isRunning ? cam.shakeEffect : null
+      this.r3d.setView(cam.midPoint.x, cam.midPoint.y, cam.zoom / Z, sh ? (sh._offsetX || 0) / cam.zoom : 0, sh ? (sh._offsetY || 0) / cam.zoom : 0)
+      this.r3d.update(m, this.poses)
+      this.drawHud()
+      return
+    }
     for (const k of order) {
       const f = m[k]
       const jitter = m.freeze > 0 && this.hitstopDef === f ? (m.frame % 2 ? 2 : -2) * (m.freeze % 2 ? 1 : -1) : 0

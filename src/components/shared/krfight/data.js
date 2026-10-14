@@ -175,6 +175,7 @@ export const LOOK_LEVELS = [
   { key: 'cartoon', level: 1, name: 'Cartoon' },
   { key: 'stick', level: 2, name: 'Stickman' },
   { key: 'house', level: 3, name: 'Houses' },
+  { key: '3d', level: 4, name: '3D' },          // fight drawn in 3D (menus use the Stickman look)
 ]
 export const isLookUnlocked = () => true
 let LOOK = (() => { try { return localStorage.getItem('krfight-look') || 'stick' } catch (e) { return 'stick' } })()

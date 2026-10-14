@@ -250,6 +250,7 @@ function capsule(g, x1, y1, x2, y2, w, col, alpha = 1) {
 
 // Draw a fighter. alpha interpolates between the last two steps for smooth high-refresh screens.
 export function drawFighter(g, f, pose, frame, alpha = 1, opts = {}) {
+  if (opts.swooshOnly) { drawSwoosh(g, pose, hex(fxColour(f))); return }
   const P = {}
   for (const key of KEYS) P[key] = lerp(pose.prev[key], pose.cur[key], alpha)
   // afterimages first
@@ -262,7 +263,7 @@ const shade = (c, k) => (Math.min(255, ((c >> 16) & 255) * k) << 16) | (Math.min
 const OUTLINE = 0x07090c
 
 function drawBody(g, f, P, fx, fy, dir, frame, opts) {
-  if (getLook() === 'stick') return drawStick(g, f, P, fx, fy, dir, frame, opts)
+  if (getLook() === 'stick' || getLook() === '3d') return drawStick(g, f, P, fx, fy, dir, frame, opts)
   if (getLook() === 'house') return drawHouse(g, f, P, fx, fy, dir, frame, opts)
   const L = LOOKS[f.def.key] || LOOKS.mentality
   const ghost = opts.ghost

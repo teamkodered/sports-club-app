@@ -104,7 +104,7 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
       if (dead || !hostRef.current) return
       try {
         const game = new Phaser.Game({
-          type: Phaser.AUTO, parent: hostRef.current, width: 800 * Z, height: 450 * Z, backgroundColor: '#05070A',
+          type: Phaser.AUTO, parent: hostRef.current, width: 800 * Z, height: 450 * Z, transparent: true, // see-through so the 3D fight can show behind
           // min size: while the phone is mid-rotation the arena can measure 0 x 0, which breaks the renderer
           scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, min: { width: 160, height: 90 } },
           scene: [BootScene, TitleScene, SelectScene, FightScene, ResultsScene, UpgradeScene, CombosScene, BranchScene, FighterScene],
