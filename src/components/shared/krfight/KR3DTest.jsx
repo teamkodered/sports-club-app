@@ -67,7 +67,16 @@ export default function KR3DTest({ onClose }) {
     const glow = new THREE.Mesh(new THREE.RingGeometry(3.1, 4.4, 64), new THREE.MeshBasicMaterial({ color: '#8fb6ff', transparent: true, opacity: 0.12, side: THREE.DoubleSide }))
     glow.rotation.x = -Math.PI / 2; glow.position.y = -0.69; scene.add(glow)
 
-    const fitSize = () => { const w = host.clientWidth || 1, h = host.clientHeight || 1; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix() }
+    // keep both fighters in shot on any screen: pull the camera back on narrow (portrait) screens
+    const fitSize = () => {
+      const w = host.clientWidth || 1, h = host.clientHeight || 1
+      renderer.setSize(w, h, false); renderer.domElement.style.width = '100%'; renderer.domElement.style.height = '100%'
+      camera.aspect = w / h
+      const halfWidthNeeded = 2.0 // fighters stand at x = ±1.1, plus room for a punch / roll
+      const dist = Math.max(5.6, halfWidthNeeded / (Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect))
+      camera.position.set(0, 1.3 + (dist - 5.6) * 0.12, dist); camera.lookAt(0, 0.95, 0)
+      camera.updateProjectionMatrix()
+    }
     fitSize(); const ro = new ResizeObserver(fitSize); ro.observe(host)
 
     const clock = new THREE.Clock()
