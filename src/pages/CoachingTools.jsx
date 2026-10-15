@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
+import HandbookReader, { wordToPageHtml } from '../components/shared/HandbookReader.jsx'
 
 // Coaching tools: documents, videos and links for coaches. Admin adds / removes; Head Coaches,
 // Coaches and Leaders open them. Files live in the private 'coaching-tools' store (short-lived links).
@@ -26,7 +27,7 @@ function inAppVideo(url) {
   return null
 }
 
-const KIND = { doc: { icon: '📄', label: 'Document' }, video: { icon: '🎬', label: 'Video' }, link: { icon: '🔗', label: 'Link' } }
+const KIND = { doc: { icon: '📄', label: 'Document' }, video: { icon: '🎬', label: 'Video' }, link: { icon: '🔗', label: 'Link' }, page: { icon: '📖', label: 'Handbook / page' } }
 
 export default function CoachingTools() {
   const { isAdmin, profile } = useAuth()
@@ -36,6 +37,7 @@ export default function CoachingTools() {
   const [cat, setCat] = useState('all')
   const [adding, setAdding] = useState(null)   // { title, description, category, kind, url, file }
   const [busy, setBusy] = useState(false)
+  const [reading, setReading] = useState(null)  // a 'page' item open in the reader
   const [playing, setPlaying] = useState(null) // { title, src } for videos
 
   async function load() {
@@ -50,6 +52,7 @@ export default function CoachingTools() {
     (!q.trim() || `${i.title} ${i.description || ''} ${i.category || ''}`.toLowerCase().includes(q.trim().toLowerCase())))
 
   async function open(i) {
+    if (i.kind === 'page') { setReading(i); return }
     if (i.url && !i.file_path) {
       const v = inAppVideo(i.url)
       if (v) { setPlaying({ title: i.title, src: v.src, type: v.type, external: i.url }); return }
@@ -67,6 +70,16 @@ export default function CoachingTools() {
     if (!a.title.trim()) return alert('Give it a title.')
     if (a.kind === 'link' && !/^https?:\/\//i.test(a.url || '')) return alert('Paste the full link, starting with https://')
     if (a.kind !== 'link' && !a.file) return alert('Choose the file to upload.')
+    if (a.kind === 'page') {
+      if (!/\.docx$/i.test(a.file?.name || '')) return alert('Choose a Word file (.docx).')
+      setBusy(true)
+      let body
+      try { body = await wordToPageHtml(a.file) } catch (e) { setBusy(false); return alert("Couldn't read that Word file: " + e.message) }
+      const { error } = await supabase.from('coaching_tools').insert({ title: a.title.trim(), description: a.description?.trim() || null, category: a.category?.trim() || null, kind: 'page', body, created_by: profile?.id || null })
+      setBusy(false)
+      if (error) return alert('Could not save: ' + error.message + (/kind|body/.test(error.message) ? '\n\n(Has supabase_coaching_tools_handbook.sql been run?)' : ''))
+      setAdding(null); load(); return
+    }
     setBusy(true)
     let file_path = null
     if (a.kind !== 'link') {
@@ -139,8 +152,8 @@ export default function CoachingTools() {
             {adding.kind === 'link'
               ? <div className="field"><label>Link</label><input value={adding.url} onChange={e => setAdding(a => ({ ...a, url: e.target.value }))} placeholder="https://…" />
                   <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>Dropbox video files and YouTube links play inside the app. Folders and documents open in a new tab.</div></div>
-              : <div className="field"><label>{adding.kind === 'video' ? 'Video file' : 'Document (PDF, Word, Excel, image…)'}</label>
-                  <input type="file" accept={adding.kind === 'video' ? 'video/*' : undefined} onChange={e => setAdding(a => ({ ...a, file: e.target.files?.[0] || null }))} /></div>}
+              : <div className="field"><label>{adding.kind === 'video' ? 'Video file' : adding.kind === 'page' ? 'Word file (.docx) — shown as a readable, searchable page' : 'Document (PDF, Word, Excel, image…)'}</label>
+                  <input type="file" accept={adding.kind === 'video' ? 'video/*' : adding.kind === 'page' ? '.docx' : undefined} onChange={e => setAdding(a => ({ ...a, file: e.target.files?.[0] || null }))} /></div>}
             <div style={{ display: 'flex', gap: 8 }}>
               <button className="btn btn-primary" disabled={busy} onClick={save}>{busy ? 'Uploading…' : 'Save'}</button>
               <button className="btn" disabled={busy} onClick={() => setAdding(null)}>Cancel</button>
@@ -148,6 +161,8 @@ export default function CoachingTools() {
           </div>
         </div>
       )}
+
+      {reading && <HandbookReader item={reading} onClose={() => setReading(null)} />}
 
       {playing && (
         <div className="ct-backdrop" onClick={() => setPlaying(null)}>
