@@ -1241,3 +1241,23 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .stk-split-g span { display: block; font-size: 11px; color: var(--text-tertiary); }
 .stk-split-g b { font-size: 16px; }
 @media (max-width: 520px) { .stk-split-g { grid-template-columns: repeat(2, 1fr); } }
+
+/* Count questions (Reading, Chess, Gaming …): today's count sits at the top middle of the open question */
+.neon-qpanel { position: relative; }
+.neon-qpanel .neon-q-count { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); margin: 0 !important; white-space: nowrap; text-align: center; pointer-events: none; z-index: 1; }
+.neon-qpanel .neon-q-count span { pointer-events: none; }
+
+/* Question upload buttons: neon line icons in the panel's colour */
+.neon-media-btn { display: inline-flex !important; align-items: center; gap: 6px; }
+.neon-home .neon-qpanel .neon-media-btn svg { color: var(--q-accent, #22B14C); filter: drop-shadow(0 0 3px currentColor); }
+
+/* Alter Ego workbook: one part per page, neon theme */
+.ae-book { background: #0B0F12 !important; color: #F2F2F2; --bg: #0B0F12; --bg-secondary: #1A1F24; --text: #F2F2F2; --text-secondary: #B5BAC0; --text-tertiary: #7C828A; --border: #2A3138; --border-strong: #3A4149; }
+.ae-book .ae-title { font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800 !important; font-size: 22px !important; text-transform: uppercase; letter-spacing: 1px; color: #22B14C; text-shadow: 0 0 10px rgba(34,177,76,0.45); }
+.ae-book .card { background: #1A1F24 !important; border: 1px solid #2A3138 !important; border-top: 3px solid #22B14C !important; border-radius: 10px !important; }
+.ae-book .card h3 { font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800 !important; font-size: 20px !important; text-transform: uppercase; letter-spacing: 0.5px; color: #22B14C; }
+.ae-book input, .ae-book textarea { background: #0F1316 !important; color: #F2F2F2 !important; border: 1px solid #3A4149 !important; }
+.ae-nav { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 16px 0 8px; }
+.ae-dots { display: flex; gap: 6px; }
+.ae-dots i { width: 8px; height: 8px; border-radius: 50%; background: #3A4149; cursor: pointer; }
+.ae-dots i.on { background: #22B14C; box-shadow: 0 0 6px #22B14C; width: 18px; border-radius: 4px; }

@@ -629,7 +629,7 @@ const MENTALITY_QUESTIONS = [
   { key: 'reading',         label: 'Reading',          icon: '📖' },
   { key: 'gaming',          label: 'Gaming (combat)',  icon: '🎮' },
   { key: 'eyeTracking',     label: 'Eye tracking drills', icon: '👁' },
-  { key: 'coldWater',       label: 'Cold water / Ice bath', icon: '🧊' },
+  { key: 'coldWater',       label: 'Cold water training', icon: '🧊' },
   { key: 'activeRecovery',  label: 'Active recovery day', icon: '🚶' },
   { key: 'gratitude',       label: 'Self gratitude',   icon: '🙏' },
   { key: 'alterEgo',        label: 'Alter Ego',        icon: '🎭' },
@@ -1303,6 +1303,21 @@ function HoldToDelete({ onDelete, children }) {
   )
 }
 
+// ── Option order (Oct 2026): every question's options A–Z within their group,
+// with a "General" group / option first. Order only -- nothing is renamed or
+// removed, so saved entries (stored by name) are untouched.
+;(() => {
+  const nm = x => (typeof x === 'string' ? x : (x?.label || x?.name || '')).toString()
+  const gen = x => /^general\b/i.test(nm(x))
+  const cmp = (a, b) => (gen(b) - gen(a)) || nm(a).localeCompare(nm(b), undefined, { sensitivity: 'base' })
+  const sortArr = a => { if (Array.isArray(a)) a.sort(cmp); return a }
+  const sortObjKeys = o => { const e = Object.entries(o).sort(([a], [b]) => cmp(a, b)); for (const k of Object.keys(o)) delete o[k]; for (const [k, v] of e) o[k] = sortArr(v); return o }
+  for (const cats of [MEDITATION_CATEGORIES, VISUALISATION_CATEGORIES]) { cats.forEach(c => sortArr(c.types)); cats.sort(cmp) }
+  sortArr(ACTIVE_RECOVERY_OPTIONS); sortArr(VIDEO_ANALYSIS_OPTIONS)
+  sortObjKeys(TACTICAL_CATEGORIES)
+  TECHNIQUE_STYLES.forEach(st => sortObjKeys(st.categories))
+})()
+
 export default function AthleteApp() {
   const [testSessionOpen, setTestSessionOpen] = useState(false)
   const { profile, isStaff, realIsAdmin, viewAs } = useAuth()
@@ -1329,6 +1344,9 @@ export default function AthleteApp() {
     return () => document.removeEventListener('contextmenu', suppressCardLinkContextMenu)
   }, [])
   const [tab, setTab]           = useBackableTab('home')
+  // On-screen ← Back: step back to the page you came from (same as the phone's back),
+  // falling back to Home when there's nothing earlier in the app
+  const goBackTab = () => { if (window.history.state?.tab && window.history.state.tab !== 'home' && window.history.length > 1) window.history.back(); else setTab('home') }
   const [termsChecked, setTermsChecked] = useState(false) // the checkbox inside the modal
   const [acceptingTerms, setAcceptingTerms] = useState(false)
   const [termsDismissedLocally, setTermsDismissedLocally] = useState(false) // avoids waiting on a full profile refetch after accepting
@@ -1661,6 +1679,8 @@ export default function AthleteApp() {
   const liveMaxHr = (() => { const d = student?.members?.date_of_birth; if (!d) return 190; const b = new Date(d), n = new Date(); const age = n.getFullYear() - b.getFullYear() - ((n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) ? 1 : 0); return Math.max(150, 220 - age) })()
   const live = useLiveHeartRate({ studentId: student?.id, maxHr: liveMaxHr })
   const [liveHrPrompt, setLiveHrPrompt] = useState(null) // check-in reminder: { classId, attendanceId, already }
+  const [aePage, setAePage] = useState(0) // Alter Ego workbook: one part per page
+  const aeSwipe = useRef(null)
   const [videoTool, setVideoTool] = useState(null) // { mode: 'jump'|'sprint', distance, onSave, label }
   const [runEffortSel, setRunEffortSel] = useState({}) // running: which effort is being edited, per type ('__new__' = a new one)
   const [showPhysicalSection, setShowPhysicalSection] = useState(false)
@@ -4086,10 +4106,10 @@ export default function AthleteApp() {
         {presets.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
             {presets.map(v => {
-              const on = String(v) === String(raw)
+              const on = false // the + buttons add to the amount box
               return (
-                <button key={v} type="button" className="btn btn-sm neon-opt" aria-pressed={on}
-                  onClick={() => setPickDraft(p => ({ ...p, [draftKey]: on ? '' : String(v) }))}
+                <button key={v} type="button" className="btn btn-sm neon-opt" aria-pressed={false}
+                  onClick={() => setPickDraft(p => { const cur = parseFloat(p[draftKey]) || 0; const next = Math.round((cur + v) * 100) / 100; return { ...p, [draftKey]: String(next) } })}
                   style={{ background: on ? colour + '20' : undefined, borderColor: on ? colour : undefined }}>
                   +{v}{unit ? ` ${unit}` : ''}
                 </button>
@@ -4531,8 +4551,14 @@ export default function AthleteApp() {
       <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
         <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Attach photo/video</label>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button type="button" className="btn btn-sm" disabled={busy} onClick={() => openMediaPicker(sectionKey, questionLabel, false)}>📁 Upload file</button>
-          <button type="button" className="btn btn-sm" disabled={busy} onClick={() => openMediaPicker(sectionKey, questionLabel, true)}>📷 Take photo/video</button>
+          <button type="button" className="btn btn-sm neon-media-btn" disabled={busy} onClick={() => openMediaPicker(sectionKey, questionLabel, false)}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+            Upload
+          </button>
+          <button type="button" className="btn btn-sm neon-media-btn" disabled={busy} onClick={() => openMediaPicker(sectionKey, questionLabel, true)}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
+            Take photo / video
+          </button>
 
         </div>
         {attached.length > 0 && (
@@ -6084,27 +6110,27 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                         )}
                         {expandedHomeMentality === 'chess' && (
                           <>
-                            <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.chess?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>game{(todaysMentalityLog.chess?.count || 0) === 1 ? '' : 's'} today</span></div>
+                            <div className="neon-q-count" style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.chess?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>game{(todaysMentalityLog.chess?.count || 0) === 1 ? '' : 's'} today</span></div>
                             <button type="button" className="btn btn-sm" onClick={() => setChessOpen(true)} style={{ width: '100%', justifyContent: 'center', marginBottom: 10, borderColor: '#22B14C', color: '#22B14C' }}>♟ Play a game here</button>
-                            {AmountPicker({ draftKey: 'HomeMentality:chess', presets: [1, 2, 3], unit: '', step: 1, colour: '#22B14C', onAdd: n => saveMentalityField('chess', cur => ({ count: (cur.count || 0) + n })) })}
+                            {AmountPicker({ draftKey: 'HomeMentality:chess', presets: [1, 2, 3, 4, 5], unit: '', step: 1, colour: '#22B14C', onAdd: n => saveMentalityField('chess', cur => ({ count: (cur.count || 0) + n })) })}
                           </>
                         )}
                         {expandedHomeMentality === 'reading' && (
                           <>
-                            <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.reading?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>chapter{(todaysMentalityLog.reading?.count || 0) === 1 ? '' : 's'} today</span></div>
-                            {AmountPicker({ draftKey: 'HomeMentality:reading', presets: [1, 2, 3], unit: '', suffix: 'chapters', step: 1, colour: '#22B14C', onAdd: n => saveMentalityField('reading', cur => ({ count: (cur.count || 0) + n })) })}
+                            <div className="neon-q-count" style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.reading?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>chapter{(todaysMentalityLog.reading?.count || 0) === 1 ? '' : 's'} today</span></div>
+                            {AmountPicker({ draftKey: 'HomeMentality:reading', presets: [1, 2, 3, 4, 5], unit: '', suffix: 'chapters', step: 1, colour: '#22B14C', onAdd: n => saveMentalityField('reading', cur => ({ count: (cur.count || 0) + n })) })}
                           </>
                         )}
                         {expandedHomeMentality === 'gaming' && (
                           <>
-                            <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.gaming?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>session{(todaysMentalityLog.gaming?.count || 0) === 1 ? '' : 's'} today</span></div>
-                            {AmountPicker({ draftKey: 'HomeMentality:gaming', presets: [1, 2, 3], unit: '', step: 1, colour: '#22B14C', onAdd: n => saveMentalityField('gaming', cur => ({ count: (cur.count || 0) + n })) })}
+                            <div className="neon-q-count" style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.gaming?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>session{(todaysMentalityLog.gaming?.count || 0) === 1 ? '' : 's'} today</span></div>
+                            {AmountPicker({ draftKey: 'HomeMentality:gaming', presets: [1, 2, 3, 4, 5], unit: '', step: 1, colour: '#22B14C', onAdd: n => saveMentalityField('gaming', cur => ({ count: (cur.count || 0) + n })) })}
                           </>
                         )}
                         {expandedHomeMentality === 'eyeTracking' && (
                           <>
-                            <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.eyeTracking?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>drill{(todaysMentalityLog.eyeTracking?.count || 0) === 1 ? '' : 's'} today</span></div>
-                            {AmountPicker({ draftKey: 'HomeMentality:eyeTracking', presets: [1, 2, 3], unit: '', step: 1, colour: '#22B14C', onAdd: n => saveMentalityField('eyeTracking', cur => ({ count: (cur.count || 0) + n })) })}
+                            <div className="neon-q-count" style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.eyeTracking?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>drill{(todaysMentalityLog.eyeTracking?.count || 0) === 1 ? '' : 's'} today</span></div>
+                            {AmountPicker({ draftKey: 'HomeMentality:eyeTracking', presets: [1, 2, 3, 4, 5], unit: '', step: 1, colour: '#22B14C', onAdd: n => saveMentalityField('eyeTracking', cur => ({ count: (cur.count || 0) + n })) })}
                             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
                               <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>Drill videos</p>
                               <a href="https://youtu.be/bbk_ufmkYdE?si=yGVw8UoERqRE547i" target="_blank" rel="noreferrer"
@@ -6119,8 +6145,8 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                         )}
                         {expandedHomeMentality === 'coldWater' && (
                           <>
-                            <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.coldWater?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>today</span></div>
-                            {AmountPicker({ draftKey: 'HomeMentality:coldWater', presets: [1, 2, 3], unit: '', step: 1, colour: '#22B14C', onAdd: n => saveMentalityField('coldWater', cur => ({ ...cur, count: (cur.count || 0) + n })) })}
+                            <div className="neon-q-count" style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.coldWater?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>today</span></div>
+                            {AmountPicker({ draftKey: 'HomeMentality:coldWater', presets: [1, 2, 3, 4, 5], unit: '', step: 1, colour: '#22B14C', onAdd: n => saveMentalityField('coldWater', cur => ({ ...cur, count: (cur.count || 0) + n })) })}
                           </>
                         )}
                         {expandedHomeMentality === 'activeRecovery' && (
@@ -6176,15 +6202,19 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                         saveAlterEgoWorkbook({ [field]: cur.includes(val) ? cur.filter(v => v !== val) : [...cur, val] })
                       }
                       return (
-                        <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 200, display: 'flex', flexDirection: 'column' }}>
+                        <div className="ae-book" style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 200, display: 'flex', flexDirection: 'column' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 16, borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-                            <button onClick={() => setShowAlterEgoModal(false)} className="btn btn-sm">← Back</button>
-                            <h2 style={{ fontSize: 16, fontWeight: 600 }}>🎭 The Alter Ego Workbook</h2>
+                            <button onClick={() => setShowAlterEgoModal(false)} className="btn btn-sm">← Close</button>
+                            <h2 className="ae-title" style={{ fontSize: 16, fontWeight: 600 }}>🎭 The Alter Ego Workbook</h2>
                           </div>
-                          <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
-                            {PdpNotes({ links: pdpInfo('mentality', 'alterEgo').links })}
-                            <div style={{ marginBottom: 14 }}><QuestionMediaUpload sectionKey="mentality" questionLabel="Alter Ego" /></div>
+                          <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}
+                            onTouchStart={e => { aeSwipe.current = { x: e.touches[0].clientX, y: e.touches[0].clientY } }}
+                            onTouchEnd={e => { const c = aeSwipe.current; aeSwipe.current = null; if (!c) return; const dx = e.changedTouches[0].clientX - c.x, dy = e.changedTouches[0].clientY - c.y; if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.5 && !['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) setAePage(p => Math.max(0, Math.min(7, p + (dx < 0 ? 1 : -1)))) }}>
+                            {aePage === 0 && PdpNotes({ links: pdpInfo('mentality', 'alterEgo').links })}
+                            {aePage === 0 && <div style={{ marginBottom: 14 }}><QuestionMediaUpload sectionKey="mentality" questionLabel="Alter Ego" /></div>}
 
+                            {/* One part per page (Part 4 split into its 4 steps) -- Next / Back below, swipe too */}
+                            {aePage === 0 && (
                             <div className="card" style={{ marginBottom: 14 }}>
                               <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Part 1: Understanding the Alter Ego</h3>
                               <p style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--text-secondary)' }}>
@@ -6192,7 +6222,8 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                                 It helps you channel confidence, aggression, and focus while protecting your everyday self.
                               </p>
                             </div>
-
+                            )}
+                            {aePage === 1 && (
                             <div className="card" style={{ marginBottom: 14 }}>
                               <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>Part 2: Why Use an Alter Ego?</h3>
                               <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Mental Benefits:</p>
@@ -6208,7 +6239,8 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                                 <li>Fuels resilience</li>
                               </ul>
                             </div>
-
+                            )}
+                            {aePage === 2 && (
                             <div className="card" style={{ marginBottom: 14 }}>
                               <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>Part 3: Famous Examples of Alter Egos</h3>
                               <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Boxing Alter Egos:</p>
@@ -6228,7 +6260,8 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                                 <li><b>Serena Williams</b> – "Arena" (Tennis): Warrior mindset for mental and physical dominance.</li>
                               </ul>
                             </div>
-
+                            )}
+                            {aePage === 3 && (
                             <div className="card" style={{ marginBottom: 14 }}>
                               <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>Part 4: Creating Your Own Alter Ego</h3>
 
@@ -6257,8 +6290,11 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                                   onSave={val => { const arr = [...(wb.topTraits || [])]; arr[i] = val; saveAlterEgoWorkbook({ topTraits: arr }) }}
                                   style={{ marginBottom: 6 }} />
                               ))}
-
-                              <hr style={{ margin: '14px 0', border: 'none', borderTop: '1px solid var(--border)' }} />
+                            </div>
+                            )}
+                            {aePage === 4 && (
+                            <div className="card" style={{ marginBottom: 14 }}>
+                              <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>Part 4: Creating Your Own Alter Ego</h3>
 
                               <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Step 2: Build the Identity</p>
                               <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Possible Alter Ego Names:</p>
@@ -6273,8 +6309,11 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                               <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Voice & Behavior:</p>
                               <SavableField defaultValue={wb.voiceStyle} placeholder="How does my alter ego talk?" onSave={val => saveAlterEgoWorkbook({ voiceStyle: val })} style={{ marginBottom: 6 }} />
                               <SavableField defaultValue={wb.bodyLanguage} placeholder="How does my alter ego stare/walk/stand?" onSave={val => saveAlterEgoWorkbook({ bodyLanguage: val })} style={{ marginBottom: 12 }} />
-
-                              <hr style={{ margin: '14px 0', border: 'none', borderTop: '1px solid var(--border)' }} />
+                            </div>
+                            )}
+                            {aePage === 5 && (
+                            <div className="card" style={{ marginBottom: 14 }}>
+                              <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>Part 4: Creating Your Own Alter Ego</h3>
 
                               <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Step 3: Practice the Switch</p>
                               <p style={{ fontSize: 12, marginBottom: 6 }}>Choose Your Activation Ritual (check one or more):</p>
@@ -6288,15 +6327,19 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                               </div>
                               <SavableField defaultValue={wb.ritualOther} placeholder="Other…" onSave={val => saveAlterEgoWorkbook({ ritualOther: val })} style={{ marginBottom: 8 }} />
                               <SavableField defaultValue={wb.myRitual} placeholder="My Ritual Will Be…" onSave={val => saveAlterEgoWorkbook({ myRitual: val })} style={{ marginBottom: 12 }} />
-
-                              <hr style={{ margin: '14px 0', border: 'none', borderTop: '1px solid var(--border)' }} />
+                            </div>
+                            )}
+                            {aePage === 6 && (
+                            <div className="card" style={{ marginBottom: 14 }}>
+                              <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>Part 4: Creating Your Own Alter Ego</h3>
 
                               <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Step 4: Balance the Persona</p>
                               <p style={{ fontSize: 12, marginBottom: 6 }}>"In the ring I am ____, outside I am ____."</p>
                               <SavableField defaultValue={wb.ringSelf} placeholder="In the ring I am…" onSave={val => saveAlterEgoWorkbook({ ringSelf: val })} style={{ marginBottom: 6 }} />
                               <SavableField defaultValue={wb.outsideSelf} placeholder="Outside I am…" onSave={val => saveAlterEgoWorkbook({ outsideSelf: val })} />
                             </div>
-
+                            )}
+                            {aePage === 7 && (
                             <div className="card">
                               <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Part 5: Reflection & Growth</h3>
                               <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>After each fight/sparring, fill this in:</p>
@@ -6333,6 +6376,13 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                                   ))}
                                 </div>
                               )}
+                            </div>
+                            )}
+                            <div className="ae-nav">
+                              <button type="button" className="btn" disabled={aePage === 0} onClick={() => setAePage(p => Math.max(0, p - 1))}>← Back</button>
+                              <span className="ae-dots">{Array.from({ length: 8 }, (_, i) => <i key={i} className={i === aePage ? 'on' : ''} onClick={() => setAePage(i)} />)}</span>
+                              {aePage < 7 ? <button type="button" className="btn btn-primary" onClick={() => setAePage(p => p + 1)}>Next →</button>
+                                : <button type="button" className="btn btn-primary" onClick={() => { setShowAlterEgoModal(false); setAePage(0) }}>Done</button>}
                             </div>
 
                           </div>
@@ -6453,7 +6503,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                             <hr style={{ margin: '16px 0', border: 'none', borderTop: '1px solid var(--border)' }} />
 
                             <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>☕ Coffee</p>
-                            <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysWellbeing.nutrition?.coffee || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>cup{(todaysWellbeing.nutrition?.coffee || 0) === 1 ? '' : 's'} today</span></div>
+                            <div className="neon-q-count" style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysWellbeing.nutrition?.coffee || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>cup{(todaysWellbeing.nutrition?.coffee || 0) === 1 ? '' : 's'} today</span></div>
                             <div className="field" style={{ marginBottom: 0 }}>
                               <label>Add throughout the day</label>
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -6468,7 +6518,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                         )}
                         {expandedHomeWb === 'hydration' && (
                           <>
-                            <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{(todaysWellbeing.hydration?.total || 0).toFixed(2)}L <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>today</span></div>
+                            <div className="neon-q-count" style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{(todaysWellbeing.hydration?.total || 0).toFixed(2)}L <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>today</span></div>
                             {AmountPicker({ draftKey: 'HomeWb:hydration', presets: HYDRATION_ADD_OPTIONS, unit: 'L', step: 0.05, colour: '#C93BFF', onAdd: n => saveWellbeingField('hydration', cur => ({ total: +((cur.total || 0) + n).toFixed(2) })) })}
                             {todaysWellbeing.hydration?.total > 0 && (
                               <button type="button" className="btn btn-sm" onClick={() => saveWellbeingField('hydration', () => ({ total: 0 }))}>Reset today's total</button>
@@ -6477,7 +6527,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                         )}
                         {expandedHomeWb === 'outdoors' && (
                           <>
-                            <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysWellbeing.outdoors?.totalMinutes || 0} mins <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>today (target 20+)</span></div>
+                            <div className="neon-q-count" style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysWellbeing.outdoors?.totalMinutes || 0} mins <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>today (target 20+)</span></div>
                             {/* Step count from a connected wearable, when it provides one (Whoop doesn't; Fitbit / Garmin / phone health apps do) */}
                             {(() => {
                               const todaysDate = new Date().toISOString().split('T')[0]
@@ -6504,7 +6554,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                         )}
                         {expandedHomeWb === 'talk' && (
                           <>
-                            <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysWellbeing.talk?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>conversation{(todaysWellbeing.talk?.count || 0) === 1 ? '' : 's'} today</span></div>
+                            <div className="neon-q-count" style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysWellbeing.talk?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>conversation{(todaysWellbeing.talk?.count || 0) === 1 ? '' : 's'} today</span></div>
                             {AmountPicker({ draftKey: 'HomeWb:talk', presets: TALK_ADD_OPTIONS, unit: '', step: 1, colour: '#C93BFF', onAdd: n => saveWellbeingField('talk', cur => ({ count: (cur.count || 0) + n })) })}
                             {todaysWellbeing.talk?.count > 0 && (
                               <button type="button" className="btn btn-sm" onClick={() => saveWellbeingField('talk', () => ({ count: 0 }))}>Reset today's count</button>
@@ -6558,16 +6608,16 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                         )}
                         {expandedHomeWb === 'creative' && (
                           <>
-                            <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysWellbeing.creative?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>task{(todaysWellbeing.creative?.count || 0) === 1 ? '' : 's'} today</span></div>
-                            {AmountPicker({ draftKey: 'HomeWb:creative', presets: [1, 2, 3], unit: '', step: 1, colour: '#C93BFF', onAdd: n => saveWellbeingField('creative', cur => ({ ...cur, count: (cur.count || 0) + n })) })}
+                            <div className="neon-q-count" style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysWellbeing.creative?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>task{(todaysWellbeing.creative?.count || 0) === 1 ? '' : 's'} today</span></div>
+                            {AmountPicker({ draftKey: 'HomeWb:creative', presets: [1, 2, 3, 4, 5], unit: '', step: 1, colour: '#C93BFF', onAdd: n => saveWellbeingField('creative', cur => ({ ...cur, count: (cur.count || 0) + n })) })}
                             <SavableField key={todaysWellbeing.creative ? 'loaded' : 'empty'} defaultValue={todaysWellbeing.creative?.notes ?? lastWellbeing.creative?.notes} placeholder="Optional — what did you do?"
                               onSave={val => saveWellbeingField('creative', cur => ({ ...cur, notes: val }))} />
                           </>
                         )}
                         {expandedHomeWb === 'productivity' && (
                           <>
-                            <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysWellbeing.productivity?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>task{(todaysWellbeing.productivity?.count || 0) === 1 ? '' : 's'} today</span></div>
-                            {AmountPicker({ draftKey: 'HomeWb:productivity', presets: [1, 2, 3], unit: '', step: 1, colour: '#C93BFF', onAdd: n => saveWellbeingField('productivity', cur => ({ ...cur, count: (cur.count || 0) + n })) })}
+                            <div className="neon-q-count" style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysWellbeing.productivity?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>task{(todaysWellbeing.productivity?.count || 0) === 1 ? '' : 's'} today</span></div>
+                            {AmountPicker({ draftKey: 'HomeWb:productivity', presets: [1, 2, 3, 4, 5], unit: '', step: 1, colour: '#C93BFF', onAdd: n => saveWellbeingField('productivity', cur => ({ ...cur, count: (cur.count || 0) + n })) })}
                             <SavableField key={todaysWellbeing.productivity ? 'loaded' : 'empty'} defaultValue={todaysWellbeing.productivity?.notes ?? lastWellbeing.productivity?.notes} placeholder="Optional — what did you do?"
                               onSave={val => saveWellbeingField('productivity', cur => ({ ...cur, notes: val }))} />
                           </>
@@ -6777,7 +6827,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
 
       {/* ── Sessions ── */}
       {tab === 'sessions' && student && (() => {
-        const backButton = <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
+        const backButton = <button onClick={goBackTab} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
         const { year, month } = sessionsCalMonth
         const firstDay = new Date(year, month, 1)
         const daysInMonth = new Date(year, month + 1, 0).getDate()
@@ -7418,7 +7468,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
       {/* ── PDP ── */}
       {tab === 'pdp' && (
         <div>
-          <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
+          <button onClick={goBackTab} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
           {!student ? <p style={{ color: 'var(--text-secondary)' }}>No student record linked.</p> : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {(() => {
@@ -7619,7 +7669,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
       {/* ── Sweep the Sheds -- athlete's own assigned tasks ── */}
       {tab === 'sweep' && (
         <div>
-          <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
+          <button onClick={goBackTab} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
           <div className="card" style={{ borderLeft: '3px solid #1D9E75', borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0' }}>
             <h3 style={{ fontSize: 15, fontWeight: 600, color: '#1D9E75', marginBottom: 12 }}>🧹 Sweep the Sheds</h3>
             {shedTasks.length === 0 ? (
@@ -7659,7 +7709,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
 
       {tab === 'leagues' && (
         <div>
-          <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
+          <button onClick={goBackTab} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <a href="/league-public?limit=10" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 24, color: '#8B5CF6' }}>
               <div style={{ fontSize: 36, marginBottom: 8 }}>🏠</div>
@@ -7678,7 +7728,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
       {/* ── Opponents (moved out from being an inline card on Home) ── */}
       {tab === 'opponents' && (
         <div>
-          <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
+          <button onClick={goBackTab} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
           <div className="card" style={{ borderLeft: '3px solid #E24B4A', borderRadius: '0 var(--border-radius-lg) var(--border-radius-lg) 0' }}>
             <h3 style={{ fontSize: 13, fontWeight: 600, color: '#E24B4A', marginBottom: 10 }}>🥊 Opponents</h3>
             {(() => {
@@ -7730,7 +7780,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
 
       {tab === 'media' && (
         <div>
-          <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
+          <button onClick={goBackTab} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
           <div className="card" style={{ marginBottom: 12 }}>
             <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Media files</h2>
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>Upload your own photos, videos, and documents here.</p>
@@ -7801,7 +7851,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
               </button>
             </div>
           )}
-          <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
+          <button onClick={goBackTab} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
           <div className="card" style={{ marginBottom: 12 }}>
             <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>Log a note</h2>
             <textarea value={newNoteText} onChange={e => setNewNoteText(e.target.value)}
@@ -7929,7 +7979,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
       {/* ── MTP (read-only summary — dedicated form will be integrated better later) ── */}
       {tab === 'tpt' && (
         <div>
-          <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
+          <button onClick={goBackTab} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
           {tptData.kickboxing.length === 0 && tptData.boxing.length === 0 ? (
             <div className="empty-state"><h3>No MTP assessments yet</h3><p>Your coach will log these after each assessment</p></div>
           ) : (
@@ -7956,7 +8006,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
       {/* ── Whoop ── */}
       {tab === 'whoop' && (
         <div>
-          <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
+          <button onClick={goBackTab} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
 
           {/* Live heart rate from a Bluetooth strap (Polar H10) -- saved as an Other session on today's log */}
           <LiveHeartRate live={live} age={(() => { const d = student?.members?.date_of_birth; if (!d) return null; const b = new Date(d), n = new Date(); return n.getFullYear() - b.getFullYear() - ((n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) ? 1 : 0) })()}
@@ -8158,7 +8208,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
       {/* ── Reports ── */}
       {tab === 'reports' && (
         <div>
-          <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
+          <button onClick={goBackTab} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
           {/* Results (was 'Reports'): all F2F results graphs + entries, then coach reports below */}
           <button type="button" className="btn btn-sm" onClick={() => setTab('fit2fight')} style={{ marginBottom: 12, marginLeft: 8 }}>🕸️ Performance overview</button>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>{sessions.length} sessions</p>
@@ -8712,7 +8762,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
       {/* ── Fit II Fight ── */}
       {tab === 'fit2fight' && (
         <div>
-          <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
+          <button onClick={goBackTab} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
           <div style={{ marginBottom: 14 }}>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{sessions.length} sessions</p>
           </div>
@@ -8997,7 +9047,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
       {/* ── Points ── */}
       {tab === 'points' && (
         <div>
-          <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
+          <button onClick={goBackTab} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
           <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
             <button onClick={() => setShowOverallPos(v => !v)} className="card" style={{ flex: 1, textAlign: 'center', cursor: 'pointer', border: 'none', fontFamily: 'var(--font-sans)', background: 'var(--bg-secondary)' }}
               title={showOverallPos ? 'Showing overall position — tap for position in house' : 'Showing position in house — tap for overall position'}>
@@ -9036,7 +9086,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
       {/* ── Find athlete ── */}
       {tab === 'search' && (
         <div>
-          <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
+          <button onClick={goBackTab} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>Search for any athlete by name</p>
           <AthleteSearch />
         </div>

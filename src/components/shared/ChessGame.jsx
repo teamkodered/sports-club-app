@@ -71,6 +71,9 @@ export default function ChessGame({ onFinished, onClose, colour = '#22B14C' }) {
   const [last, setLast] = useState(null)
   const [thinking, setThinking] = useState(false)
   const [result, setResult] = useState(null)
+  // move guide (dots on the squares a piece can go to): off unless switched on, remembered
+  const [showMoves, setShowMoves] = useState(() => { try { return localStorage.getItem('kc_chess_moves') === '1' } catch { return false } })
+  const toggleMoves = () => setShowMoves(v => { try { localStorage.setItem('kc_chess_moves', v ? '0' : '1') } catch { /* */ } return !v })
   const counted = useRef(false)
   const game = gameRef.current
 
@@ -151,7 +154,7 @@ export default function ChessGame({ onFinished, onClose, colour = '#22B14C' }) {
                 const r = flipped ? 7 - Math.floor(i / 8) : Math.floor(i / 8), c = flipped ? 7 - (i % 8) : i % 8
                 const sq = FILES[c] + (8 - r), p = board[r][c]
                 const dark = (r + c) % 2 === 1
-                const isSel = sel === sq, target = legalTargets.includes(sq), isLast = last && (last.from === sq || last.to === sq)
+                const isSel = sel === sq, target = showMoves && legalTargets.includes(sq), isLast = last && (last.from === sq || last.to === sq)
                 return (
                   <button key={sq} type="button" onClick={() => tap(sq)} aria-label={sq + (p ? ` ${p.color === 'w' ? 'white' : 'black'} ${p.type}` : '')}
                     style={{ position: 'relative', border: 'none', padding: 0, cursor: 'pointer', aspectRatio: '1 / 1',
@@ -166,6 +169,7 @@ export default function ChessGame({ onFinished, onClose, colour = '#22B14C' }) {
               })}
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <button type="button" style={{ ...btn, flex: 1, borderColor: showMoves ? colour : '#2A3138' }} onClick={toggleMoves} aria-pressed={showMoves}>{showMoves ? '💡 Moves on' : '💡 Moves off'}</button>
               <button type="button" style={{ ...btn, flex: 1 }} onClick={undo} disabled={!!result || thinking || game.history().length === 0}>↶ Undo</button>
               <button type="button" style={{ ...btn, flex: 1, borderColor: '#E24B4A', color: '#E24B4A' }} onClick={resign} disabled={!!result}>Resign</button>
             </div>

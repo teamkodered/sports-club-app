@@ -618,7 +618,7 @@ const MENTALITY_QUESTIONS = [
   { key: 'reading',         label: 'Reading',          icon: '📖' },
   { key: 'gaming',          label: 'Gaming (combat)',  icon: '🎮' },
   { key: 'eyeTracking',     label: 'Eye tracking drills', icon: '👁' },
-  { key: 'coldWater',       label: 'Cold water / Ice bath', icon: '🧊' },
+  { key: 'coldWater',       label: 'Cold water training', icon: '🧊' },
   { key: 'activeRecovery',  label: 'Active recovery day', icon: '🚶' },
   { key: 'gratitude',       label: 'Self gratitude',   icon: '🙏' },
   { key: 'alterEgo',        label: 'Alter Ego',        icon: '🎭' },
@@ -2959,6 +2959,21 @@ function OpponentQuickNoteForm({ onSave, showShareToggle, disabled }) {
   )
 }
 
+// ── Option order (Oct 2026): every question's options A–Z within their group,
+// with a "General" group / option first. Order only -- nothing is renamed or
+// removed, so saved entries (stored by name) are untouched.
+;(() => {
+  const nm = x => (typeof x === 'string' ? x : (x?.label || x?.name || '')).toString()
+  const gen = x => /^general\b/i.test(nm(x))
+  const cmp = (a, b) => (gen(b) - gen(a)) || nm(a).localeCompare(nm(b), undefined, { sensitivity: 'base' })
+  const sortArr = a => { if (Array.isArray(a)) a.sort(cmp); return a }
+  const sortObjKeys = o => { const e = Object.entries(o).sort(([a], [b]) => cmp(a, b)); for (const k of Object.keys(o)) delete o[k]; for (const [k, v] of e) o[k] = sortArr(v); return o }
+  for (const cats of [MEDITATION_CATEGORIES, VISUALISATION_CATEGORIES]) { cats.forEach(c => sortArr(c.types)); cats.sort(cmp) }
+  sortArr(ACTIVE_RECOVERY_OPTIONS); sortArr(VIDEO_ANALYSIS_OPTIONS)
+  sortObjKeys(TACTICAL_CATEGORIES)
+  TECHNIQUE_STYLES.forEach(st => sortObjKeys(st.categories))
+})()
+
 export default function AthleteProfiles() {
   const [testSessionOpen, setTestSessionOpen] = useState(false)
   const [testBatchOpen, setTestBatchOpen] = useState(false)
@@ -4469,10 +4484,10 @@ export default function AthleteProfiles() {
         {presets.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
             {presets.map(v => {
-              const on = String(v) === String(raw)
+              const on = false // the + buttons add to the amount box
               return (
-                <button key={v} type="button" className="btn btn-sm neon-opt" aria-pressed={on}
-                  onClick={() => setPickDraft(p => ({ ...p, [draftKey]: on ? '' : String(v) }))}
+                <button key={v} type="button" className="btn btn-sm neon-opt" aria-pressed={false}
+                  onClick={() => setPickDraft(p => { const cur = parseFloat(p[draftKey]) || 0; const next = Math.round((cur + v) * 100) / 100; return { ...p, [draftKey]: String(next) } })}
                   style={{ background: on ? colour + '20' : undefined, borderColor: on ? colour : undefined }}>
                   +{v}{unit ? ` ${unit}` : ''}
                 </button>
@@ -10424,27 +10439,27 @@ export default function AthleteProfiles() {
                       )}
                       {expandedHomeMentality === 'chess' && (
                         <>
-                          <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.chess?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>game{(todaysMentalityLog.chess?.count || 0) === 1 ? '' : 's'} today</span></div>
+                          <div className="neon-q-count" style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.chess?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>game{(todaysMentalityLog.chess?.count || 0) === 1 ? '' : 's'} today</span></div>
                           <button type="button" className="btn btn-sm" onClick={() => setChessOpen(true)} style={{ width: '100%', justifyContent: 'center', marginBottom: 10, borderColor: '#22B14C', color: '#22B14C' }}>♟ Play a game here</button>
-                          {AmountPicker({ draftKey: 'HomeMentality:chess', presets: [1, 2, 3], unit: '', step: 1, colour: '#22B14C', onAdd: n => saveMentalityField('chess', cur => ({ count: (cur.count || 0) + n })) })}
+                          {AmountPicker({ draftKey: 'HomeMentality:chess', presets: [1, 2, 3, 4, 5], unit: '', step: 1, colour: '#22B14C', onAdd: n => saveMentalityField('chess', cur => ({ count: (cur.count || 0) + n })) })}
                         </>
                       )}
                       {expandedHomeMentality === 'reading' && (
                         <>
-                          <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.reading?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>chapter{(todaysMentalityLog.reading?.count || 0) === 1 ? '' : 's'} today</span></div>
-                          {AmountPicker({ draftKey: 'HomeMentality:reading', presets: [1, 2, 3], unit: '', suffix: 'chapters', step: 1, colour: '#22B14C', onAdd: n => saveMentalityField('reading', cur => ({ count: (cur.count || 0) + n })) })}
+                          <div className="neon-q-count" style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.reading?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>chapter{(todaysMentalityLog.reading?.count || 0) === 1 ? '' : 's'} today</span></div>
+                          {AmountPicker({ draftKey: 'HomeMentality:reading', presets: [1, 2, 3, 4, 5], unit: '', suffix: 'chapters', step: 1, colour: '#22B14C', onAdd: n => saveMentalityField('reading', cur => ({ count: (cur.count || 0) + n })) })}
                         </>
                       )}
                       {expandedHomeMentality === 'gaming' && (
                         <>
-                          <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.gaming?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>session{(todaysMentalityLog.gaming?.count || 0) === 1 ? '' : 's'} today</span></div>
-                          {AmountPicker({ draftKey: 'HomeMentality:gaming', presets: [1, 2, 3], unit: '', step: 1, colour: '#22B14C', onAdd: n => saveMentalityField('gaming', cur => ({ count: (cur.count || 0) + n })) })}
+                          <div className="neon-q-count" style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.gaming?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>session{(todaysMentalityLog.gaming?.count || 0) === 1 ? '' : 's'} today</span></div>
+                          {AmountPicker({ draftKey: 'HomeMentality:gaming', presets: [1, 2, 3, 4, 5], unit: '', step: 1, colour: '#22B14C', onAdd: n => saveMentalityField('gaming', cur => ({ count: (cur.count || 0) + n })) })}
                         </>
                       )}
                       {expandedHomeMentality === 'eyeTracking' && (
                         <>
-                          <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.eyeTracking?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>drill{(todaysMentalityLog.eyeTracking?.count || 0) === 1 ? '' : 's'} today</span></div>
-                          {AmountPicker({ draftKey: 'HomeMentality:eyeTracking', presets: [1, 2, 3], unit: '', step: 1, colour: '#22B14C', onAdd: n => saveMentalityField('eyeTracking', cur => ({ count: (cur.count || 0) + n })) })}
+                          <div className="neon-q-count" style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.eyeTracking?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>drill{(todaysMentalityLog.eyeTracking?.count || 0) === 1 ? '' : 's'} today</span></div>
+                          {AmountPicker({ draftKey: 'HomeMentality:eyeTracking', presets: [1, 2, 3, 4, 5], unit: '', step: 1, colour: '#22B14C', onAdd: n => saveMentalityField('eyeTracking', cur => ({ count: (cur.count || 0) + n })) })}
                           <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
                             <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>Drill videos</p>
                             <a href="https://youtu.be/bbk_ufmkYdE?si=yGVw8UoERqRE547i" target="_blank" rel="noreferrer"
@@ -10459,8 +10474,8 @@ export default function AthleteProfiles() {
                       )}
                       {expandedHomeMentality === 'coldWater' && (
                         <>
-                          <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.coldWater?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>today</span></div>
-                          {AmountPicker({ draftKey: 'HomeMentality:coldWater', presets: [1, 2, 3], unit: '', step: 1, colour: '#22B14C', onAdd: n => saveMentalityField('coldWater', cur => ({ ...cur, count: (cur.count || 0) + n })) })}
+                          <div className="neon-q-count" style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysMentalityLog.coldWater?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>today</span></div>
+                          {AmountPicker({ draftKey: 'HomeMentality:coldWater', presets: [1, 2, 3, 4, 5], unit: '', step: 1, colour: '#22B14C', onAdd: n => saveMentalityField('coldWater', cur => ({ ...cur, count: (cur.count || 0) + n })) })}
                         </>
                       )}
                       {expandedHomeMentality === 'activeRecovery' && (
@@ -10779,7 +10794,7 @@ export default function AthleteProfiles() {
                           <hr style={{ margin: '16px 0', border: 'none', borderTop: '1px solid var(--border)' }} />
 
                           <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>☕ Coffee</p>
-                          <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysWellbeing.nutrition?.coffee || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>cup{(todaysWellbeing.nutrition?.coffee || 0) === 1 ? '' : 's'} today</span></div>
+                          <div className="neon-q-count" style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysWellbeing.nutrition?.coffee || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>cup{(todaysWellbeing.nutrition?.coffee || 0) === 1 ? '' : 's'} today</span></div>
                           <div className="field" style={{ marginBottom: 0 }}>
                             <label>Add throughout the day</label>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -10794,7 +10809,7 @@ export default function AthleteProfiles() {
                       )}
                       {expandedHomeWb === 'hydration' && (
                         <>
-                          <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{(todaysWellbeing.hydration?.total || 0).toFixed(2)}L <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>today</span></div>
+                          <div className="neon-q-count" style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{(todaysWellbeing.hydration?.total || 0).toFixed(2)}L <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>today</span></div>
                           {AmountPicker({ draftKey: 'HomeWb:hydration', presets: HYDRATION_ADD_OPTIONS, unit: 'L', step: 0.05, colour: '#C93BFF', onAdd: n => saveWellbeingField('hydration', cur => ({ total: +((cur.total || 0) + n).toFixed(2) })) })}
                           {todaysWellbeing.hydration?.total > 0 && (
                             <button type="button" className="btn btn-sm" onClick={() => saveWellbeingField('hydration', () => ({ total: 0 }))}>Reset today's total</button>
@@ -10803,7 +10818,7 @@ export default function AthleteProfiles() {
                       )}
                       {expandedHomeWb === 'outdoors' && (
                         <>
-                          <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysWellbeing.outdoors?.totalMinutes || 0} mins <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>today (target 20+)</span></div>
+                          <div className="neon-q-count" style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysWellbeing.outdoors?.totalMinutes || 0} mins <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>today (target 20+)</span></div>
                           {AmountPicker({ draftKey: 'HomeWb:outdoors', presets: OUTDOORS_ADD_OPTIONS, unit: 'mins', step: 1, colour: '#C93BFF', onAdd: n => saveWellbeingField('outdoors', cur => ({ totalMinutes: (cur.totalMinutes || 0) + n })) })}
                           {todaysWellbeing.outdoors?.totalMinutes > 0 && (
                             <button type="button" className="btn btn-sm" onClick={() => saveWellbeingField('outdoors', () => ({ totalMinutes: 0 }))}>Reset today's total</button>
@@ -10812,7 +10827,7 @@ export default function AthleteProfiles() {
                       )}
                       {expandedHomeWb === 'talk' && (
                         <>
-                          <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysWellbeing.talk?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>conversation{(todaysWellbeing.talk?.count || 0) === 1 ? '' : 's'} today</span></div>
+                          <div className="neon-q-count" style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysWellbeing.talk?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>conversation{(todaysWellbeing.talk?.count || 0) === 1 ? '' : 's'} today</span></div>
                           {AmountPicker({ draftKey: 'HomeWb:talk', presets: TALK_ADD_OPTIONS, unit: '', step: 1, colour: '#C93BFF', onAdd: n => saveWellbeingField('talk', cur => ({ count: (cur.count || 0) + n })) })}
                           {todaysWellbeing.talk?.count > 0 && (
                             <button type="button" className="btn btn-sm" onClick={() => saveWellbeingField('talk', () => ({ count: 0 }))}>Reset today's count</button>
@@ -10853,16 +10868,16 @@ export default function AthleteProfiles() {
                       )}
                       {expandedHomeWb === 'creative' && (
                         <>
-                          <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysWellbeing.creative?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>task{(todaysWellbeing.creative?.count || 0) === 1 ? '' : 's'} today</span></div>
-                          {AmountPicker({ draftKey: 'HomeWb:creative', presets: [1, 2, 3], unit: '', step: 1, colour: '#C93BFF', onAdd: n => saveWellbeingField('creative', cur => ({ ...cur, count: (cur.count || 0) + n })) })}
+                          <div className="neon-q-count" style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysWellbeing.creative?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>task{(todaysWellbeing.creative?.count || 0) === 1 ? '' : 's'} today</span></div>
+                          {AmountPicker({ draftKey: 'HomeWb:creative', presets: [1, 2, 3, 4, 5], unit: '', step: 1, colour: '#C93BFF', onAdd: n => saveWellbeingField('creative', cur => ({ ...cur, count: (cur.count || 0) + n })) })}
                           <SavableField defaultValue={todaysWellbeing.creative?.notes} placeholder="Optional — what did you do?"
                             onSave={val => saveWellbeingField('creative', cur => ({ ...cur, notes: val }))} />
                         </>
                       )}
                       {expandedHomeWb === 'productivity' && (
                         <>
-                          <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysWellbeing.productivity?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>task{(todaysWellbeing.productivity?.count || 0) === 1 ? '' : 's'} today</span></div>
-                          {AmountPicker({ draftKey: 'HomeWb:productivity', presets: [1, 2, 3], unit: '', step: 1, colour: '#C93BFF', onAdd: n => saveWellbeingField('productivity', cur => ({ ...cur, count: (cur.count || 0) + n })) })}
+                          <div className="neon-q-count" style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{todaysWellbeing.productivity?.count || 0} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>task{(todaysWellbeing.productivity?.count || 0) === 1 ? '' : 's'} today</span></div>
+                          {AmountPicker({ draftKey: 'HomeWb:productivity', presets: [1, 2, 3, 4, 5], unit: '', step: 1, colour: '#C93BFF', onAdd: n => saveWellbeingField('productivity', cur => ({ ...cur, count: (cur.count || 0) + n })) })}
                           <SavableField defaultValue={todaysWellbeing.productivity?.notes} placeholder="Optional — what did you do?"
                             onSave={val => saveWellbeingField('productivity', cur => ({ ...cur, notes: val }))} />
                         </>
