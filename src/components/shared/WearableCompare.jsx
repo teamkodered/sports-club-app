@@ -12,6 +12,11 @@ const hm = s => s ? `${Math.floor(s / 3600) ? Math.floor(s / 3600) + 'h ' : ''}$
 const t5 = t => (t || '').slice(0, 5)
 const nameOf = s => `${s?.members?.first_name || ''} ${s?.members?.last_name || ''}`.trim()
 
+// % of max heart rate: the athlete's own max from their wearable if known, else 220 − age
+const ageOf = dob => { if (!dob) return null; const b = new Date(dob), n = new Date(); let a = n.getFullYear() - b.getFullYear(); if (n < new Date(n.getFullYear(), b.getMonth(), b.getDate())) a--; return a }
+const maxHrFor = (student, daily) => daily?.max_heart_rate || student?.max_heart_rate || (ageOf(student?.members?.date_of_birth) != null ? 220 - ageOf(student.members.date_of_birth) : null)
+const pctOf = (bpm, max) => bpm && max ? Math.round(bpm / max * 100) : null
+
 export default function WearableCompare({ mode, students = [], classes = [], onOpen, providerLabel = p => p }) {
   const [date, setDate] = useState(iso(new Date()))
   const [classId, setClassId] = useState('')
@@ -87,7 +92,7 @@ export default function WearableCompare({ mode, students = [], classes = [], onO
 
   const sorted = useMemo(() => {
     if (!rows) return null
-    const key = { avg: r => r.avg, max: r => r.max, time: r => r.secs, strain: r => r.strain ?? r.kcal, name: null }[sortBy]
+    const key = { avg: r => pctOf(r.avg, maxHrFor(r.student, r.daily)) ?? r.avg, max: r => pctOf(r.max, maxHrFor(r.student, r.daily)) ?? r.max, time: r => r.secs, strain: r => r.strain ?? r.kcal, name: null }[sortBy]
     return [...agg].sort((a, b) => key ? ((key(b) ?? -1) - (key(a) ?? -1)) : a.name.localeCompare(b.name))
   }, [rows, agg, sortBy])
   const shiftDay = n => { const d = new Date(date + 'T12:00:00'); d.setDate(d.getDate() + n); setDate(iso(d)) }
@@ -125,8 +130,8 @@ export default function WearableCompare({ mode, students = [], classes = [], onO
             <thead><tr style={{ textAlign: 'left' }}>
               <th style={{ padding: '4px 6px' }}>{th('name', 'Athlete')}</th>
               <th style={{ padding: '4px 6px' }}>{th('time', 'Time')}</th>
-              <th style={{ padding: '4px 6px' }}>{th('avg', 'Avg HR')}</th>
-              <th style={{ padding: '4px 6px' }}>{th('max', 'Max HR')}</th>
+              <th style={{ padding: '4px 6px' }}>{th('avg', 'Avg HR %')}</th>
+              <th style={{ padding: '4px 6px' }}>{th('max', 'Max HR %')}</th>
               <th style={{ padding: '4px 6px' }}>{th('strain', 'Strain / kcal')}</th>
               {mode === 'day' && <th style={{ padding: '4px 6px', fontSize: 11, color: 'var(--text-tertiary)' }}>Sleep · Recovery</th>}
             </tr></thead>
@@ -138,8 +143,10 @@ export default function WearableCompare({ mode, students = [], classes = [], onO
                     <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{r.devices || 'no wearable data'}{r.sports ? ` · ${r.sports}` : ''}</div>
                   </td>
                   <td style={{ padding: '6px', fontFamily: 'Orbitron, sans-serif', fontSize: 11 }}>{r.secs ? hm(r.secs) : '—'}</td>
-                  <td style={{ padding: '6px', fontFamily: 'Orbitron, sans-serif', fontSize: 11, color: '#EF9F27' }}>{r.avg ?? '—'}</td>
-                  <td style={{ padding: '6px', fontFamily: 'Orbitron, sans-serif', fontSize: 11, color: '#E24B4A' }}>{r.max ?? '—'}</td>
+                  {(() => { const mx = maxHrFor(r.student, r.daily); const pa = pctOf(r.avg, mx), pm = pctOf(r.max, mx); return <>
+                    <td style={{ padding: '6px', fontFamily: 'Orbitron, sans-serif', fontSize: 11, color: '#EF9F27' }}>{pa != null ? <><b>{pa}%</b><div style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>{r.avg} bpm</div></> : (r.avg ?? '—')}</td>
+                    <td style={{ padding: '6px', fontFamily: 'Orbitron, sans-serif', fontSize: 11, color: '#E24B4A' }}>{pm != null ? <><b>{pm}%</b><div style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>{r.max} bpm</div></> : (r.max ?? '—')}</td>
+                  </> })()}
                   <td style={{ padding: '6px', fontFamily: 'Orbitron, sans-serif', fontSize: 11 }}>{r.strain != null ? Number(r.strain).toFixed(1) : r.kcal ? `${Math.round(r.kcal)} kcal` : '—'}</td>
                   {mode === 'day' && <td style={{ padding: '6px', fontSize: 11 }}>{r.daily?.sleep_seconds ? hm(r.daily.sleep_seconds) : '—'} · {r.daily?.recovery_score != null ? `${Math.round(r.daily.recovery_score)}%` : '—'}</td>}
                 </tr>

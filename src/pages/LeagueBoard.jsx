@@ -261,13 +261,15 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
       return <Slide title="Live heart rate" colour="#E24B4A" emoji="❤️" sub="recording now" fixedPeriod><LiveHrTable dark /></Slide>
     }
     if (s.kind === 'hr') {
-      const key = s.metric === 'avg' ? 'best_avg' : 'best_max'
-      const list = ranked([...pd.hr].filter(r => r[key]).sort((a, b) => b[key] - a[key]), r => r[key])
+      // Ranked by % of each athlete's own max heart rate (fair across ages); BPM shown underneath
+      const pctKey = s.metric === 'avg' ? 'best_avg_pct' : 'best_max_pct'
+      const bpmKey = s.metric === 'avg' ? 'best_avg' : 'best_max'
+      const list = ranked([...pd.hr].filter(r => r[pctKey]).sort((a, b) => b[pctKey] - a[pctKey]), r => r[pctKey])
       const top = list.slice(0, cfg.topBoard), me = list.find(r => r.student_id === meId)
       return (
-        <Slide title={s.metric === 'avg' ? 'Heart rate · highest average' : 'Heart rate · highest max'} colour="#E24B4A" emoji="❤️" sub="per checked-in session">
-          {top.map(r => <Row key={r.student_id} rank={r.rank} name={r.display_name} sub={`${r.house_name || ''} · ${(s.metric === 'avg' ? r.best_avg_pct : r.best_max_pct) || '—'}% of max`} subColour={HOUSE_COLOUR[r.house_name]} value={r[key]} unit="BPM" colour="#E24B4A" me={r.student_id === meId} />)}
-          {me && !top.includes(me) && <><div style={{ textAlign: 'center', color: '#666' }}>···</div><Row rank={me.rank} name={me.display_name} value={me[key]} unit="BPM" colour="#E24B4A" me /></>}
+        <Slide title={s.metric === 'avg' ? 'Heart rate · highest average' : 'Heart rate · highest max'} colour="#E24B4A" emoji="❤️" sub="% of max heart rate · per checked-in session">
+          {top.map(r => <Row key={r.student_id} rank={r.rank} name={r.display_name} sub={`${r.house_name || ''} · ${r[bpmKey] || '—'} BPM`} subColour={HOUSE_COLOUR[r.house_name]} value={Math.round(r[pctKey])} unit="%" colour="#E24B4A" me={r.student_id === meId} />)}
+          {me && !top.includes(me) && <><div style={{ textAlign: 'center', color: '#666' }}>···</div><Row rank={me.rank} name={me.display_name} sub={`${me[bpmKey] || '—'} BPM`} value={Math.round(me[pctKey])} unit="%" colour="#E24B4A" me /></>}
         </Slide>
       )
     }
