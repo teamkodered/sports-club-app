@@ -1210,3 +1210,7 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .lu-ctl { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .lu-status { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; border: 1px solid; }
 .lu-paid { display: flex; gap: 4px; align-items: center; font-size: 12px; }
+/* Standing order check: lists side by side, coach lists scroll in from the right */
+.so-columns { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(300px, 1fr); gap: 20px; overflow-x: auto; padding-bottom: 8px; scroll-snap-type: x proximity; }
+.so-columns > .card { scroll-snap-align: start; min-width: 0; }
+@media (max-width: 640px) { .so-columns { grid-auto-columns: 86vw; } }

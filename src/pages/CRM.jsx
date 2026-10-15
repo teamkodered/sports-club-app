@@ -1140,6 +1140,39 @@ export default function CRM() {
     setQuickNoteDraft('')
   }
 
+  // Standing order check extras:
+  //  • "Pays other coach" (students.pays_coach) -- they pay a coach directly; own list per coach, kept month to month
+  //  • "Paid cash" -- this month only (settings 'standing_order_cash_paid' = { 'YYYY-MM': [student ids] })
+  const [payCoachOptions, setPayCoachOptions] = useState(['Sara', 'Adele', 'Mark', 'George'])
+  const [cashPaid, setCashPaid] = useState({})
+  useEffect(() => {
+    supabase.from('settings').select('key, value').in('key', ['pays_coach_options', 'standing_order_cash_paid']).then(({ data }) => {
+      for (const r of data || []) {
+        if (r.key === 'pays_coach_options' && Array.isArray(r.value) && r.value.length) setPayCoachOptions(r.value)
+        if (r.key === 'standing_order_cash_paid' && r.value && typeof r.value === 'object') setCashPaid(r.value)
+      }
+    })
+  }, [])
+  const cashMonth = new Date().toISOString().slice(0, 7)
+  async function setPaysCoach(studentId, coach) {
+    const prior = students.find(x => x.id === studentId)?.pays_coach ?? null
+    const { error } = await supabase.from('students').update({ pays_coach: coach }).eq('id', studentId)
+    if (error) { alert('Could not save: ' + error.message + (/pays_coach/.test(error.message) ? '\n\n(Has supabase_standing_order_extras.sql been run?)' : '')); return }
+    setStudents(prev => prev.map(x => x.id === studentId ? { ...x, pays_coach: coach } : x))
+    setLastAction({ label: coach ? `Moved to "Pays ${coach}"` : 'Back to the main lists', undo: async () => {
+      await supabase.from('students').update({ pays_coach: prior }).eq('id', studentId)
+      setStudents(prev => prev.map(x => x.id === studentId ? { ...x, pays_coach: prior } : x))
+    } })
+  }
+  async function setCash(studentId, paid) {
+    const list = new Set(cashPaid[cashMonth] || [])
+    paid ? list.add(studentId) : list.delete(studentId)
+    const next = { ...cashPaid, [cashMonth]: [...list] }
+    setCashPaid(next)
+    const { error } = await supabase.from('settings').upsert({ key: 'standing_order_cash_paid', value: next }, { onConflict: 'key' })
+    if (error) alert('Could not save: ' + error.message)
+  }
+
   async function markSponsored(studentId, sponsored) {
     const priorValue = students.find(s => s.id === studentId)?.sponsored ?? false
     const { error } = await supabase.from('students').update({ sponsored }).eq('id', studentId)
@@ -1767,7 +1800,7 @@ export default function CRM() {
   async function loadData() {
     setLoading(true)
     const [{ data: s }, { data: pl }, { data: notes }] = await Promise.all([
-      supabase.from('students').select('id, student_ref, discipline, class_schedule, sponsored, guardian_name, pka_belt, krba_level, house_name, media_restriction, is_kr, is_pts, is_leader, is_coach, member_id, members(first_name, last_name, status, email, phone, date_of_birth, do_not_contact, joined_date, houses(name))'),
+      supabase.from('students').select('id, student_ref, discipline, class_schedule, sponsored, pays_coach, guardian_name, pka_belt, krba_level, house_name, media_restriction, is_kr, is_pts, is_leader, is_coach, member_id, members(first_name, last_name, status, email, phone, date_of_birth, do_not_contact, joined_date, houses(name))'),
       supabase.from('payer_links').select('*'),
       supabase.from('athlete_notes_log').select('id, student_id, note_text, created_at').order('created_at', { ascending: false }),
     ])
@@ -3110,8 +3143,13 @@ export default function CRM() {
   // Sponsored students always count as "paid" -- their fees are covered
   // another way, so they shouldn't need to appear in every upload to
   // avoid being chased for payment.
-  const unpaidStudents = venueFilteredStudents.filter(s => !matchedStudentIds.has(s.id) && !s.sponsored).sort(sortByName)
-  const paidStudents = venueFilteredStudents.filter(s => matchedStudentIds.has(s.id) || s.sponsored).sort(sortByName)
+  const cashIds = new Set(cashPaid[cashMonth] || [])
+  // Pays another coach directly: shown in that coach's own list, not in paid / unpaid
+  const coachLists = payCoachOptions.map(c => ({ coach: c, students: venueFilteredStudents.filter(s => s.pays_coach === c).sort(sortByName) }))
+  const paysCoach = s => !!s.pays_coach
+  const unpaidStudents = venueFilteredStudents.filter(s => !paysCoach(s) && !matchedStudentIds.has(s.id) && !s.sponsored && !cashIds.has(s.id)).sort(sortByName)
+  const paidStudents = venueFilteredStudents.filter(s => !paysCoach(s) && (matchedStudentIds.has(s.id) || s.sponsored)).sort(sortByName)
+  const cashStudents = venueFilteredStudents.filter(s => !paysCoach(s) && cashIds.has(s.id) && !matchedStudentIds.has(s.id) && !s.sponsored).sort(sortByName)
 
   async function linkPayment(payment, studentId) {
     // Capture whatever existed for this exact pairing before this
@@ -4011,7 +4049,7 @@ export default function CRM() {
                 <button className="btn btn-sm" onClick={() => { lastAction.undo(); setLastAction(null) }}>Undo</button>
               </div>
             )}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20 }}>
+            <div className="so-columns">
               <div className="card">
                 <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>💳 Unmatched payments ({unmatchedPayments.length})</h3>
                 <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 10 }}>
@@ -4096,6 +4134,14 @@ export default function CRM() {
                           onClick={e => { e.stopPropagation(); setAddingNoteForStudent(s); setQuickNoteDraft('') }}>📝{hasNotes ? ` ${athleteNotesByStudent[s.id].length}` : ''}</button>
                         <button className="btn btn-sm" style={{ fontSize: 11 }} title="Mark as sponsored -- moves to paid list, won't be chased for payment"
                           onClick={e => { e.stopPropagation(); markSponsored(s.id, true) }}>🎗️ Sponsored</button>
+                        <button className="btn btn-sm" style={{ fontSize: 11 }} title="Paid in cash this month -- moves to 'Paid cash this month'"
+                          onClick={e => { e.stopPropagation(); setCash(s.id, true) }}>💵 Cash</button>
+                        <select value="" aria-label="Pays another coach" title="Pays another coach directly -- moves to that coach's list"
+                          onClick={e => e.stopPropagation()} onChange={e => { const c = e.target.value; if (c) setPaysCoach(s.id, c) }}
+                          style={{ fontSize: 11, height: 26, padding: '0 4px', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'var(--bg)', color: 'var(--text)', cursor: 'pointer' }}>
+                          <option value="">↪ Pays…</option>
+                          {payCoachOptions.map(c => <option key={c} value={c}>Pays – {c}</option>)}
+                        </select>
                       </span>
                     </div>
                     )
@@ -4162,7 +4208,35 @@ export default function CRM() {
                     )
                   })}
                 </div>
+                {cashStudents.length > 0 && (
+                  <div style={{ marginTop: 14, paddingTop: 10, borderTop: '2px dashed #1D9E7550' }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>💵 Paid cash this month ({cashStudents.length})</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {cashStudents.map(s => (
+                        <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', borderRadius: 'var(--radius)', background: '#1D9E7512' }}>
+                          <span style={{ fontSize: 13, fontWeight: 600 }}>{studentFullName(s)} <span style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 400 }}>{s.student_ref}</span></span>
+                          <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }} onClick={() => setCash(s.id, false)}>Undo</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
+
+              {coachLists.map(({ coach, students: list }) => (
+                <div key={coach} className="card">
+                  <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>↪ Pays – {coach} ({list.length})</h3>
+                  <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 10 }}>Pays {coach} directly — kept here each month until you undo it</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {!list.length ? <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Nobody yet</p> : list.map(s => (
+                      <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', borderRadius: 'var(--radius)', background: 'var(--bg-secondary)' }}>
+                        <span style={{ fontSize: 13, fontWeight: 600 }}>{studentFullName(s)} <span style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 400 }}>{s.student_ref}</span></span>
+                        <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px' }} onClick={() => setPaysCoach(s.id, null)}>Undo</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
             </>
           )}
