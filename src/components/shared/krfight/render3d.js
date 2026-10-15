@@ -113,30 +113,48 @@ class Rig {
     this.playLoop('Idle_Loop')
   }
   action(name) { const clip = this.clips[name]; return clip ? this.mixer.clipAction(clip) : null }
+  // ---- animation blending, done by hand so the weights ALWAYS add up to 1 ----
+  // (three.js fills any missing weight with the model's rest pose -- the "arms out" glitch -- so we never
+  //  leave a gap: loops cross-fade into each other, and a one-off move fades in over the loop and back out)
   playLoop(name, speed = 1) {
-    if (this.loop && this.loop.getClip().name === name) { this.loop.timeScale = speed; return }
+    if (this.loop && this.loopName === name) { this.loop.timeScale = speed; return }
     const act = this.action(name); if (!act) return
-    act.reset(); act.setLoop(THREE.LoopRepeat, Infinity); act.timeScale = speed; act.enabled = true
-    if (this.loop) act.crossFadeFrom(this.loop, 0.18, false)
-    act.play(); this.loop = act
+    act.reset(); act.setLoop(THREE.LoopRepeat, Infinity); act.timeScale = speed; act.enabled = true; act.play()
+    if (this.loop) { if (this.prevLoop && this.prevLoop !== act) this.prevLoop.stop(); this.prevLoop = this.loop; this.loopMix = 0 } else this.loopMix = 1
+    this.loop = act; this.loopName = name
   }
-  // a one-shot clip on top (strike, hit, KO, victory); seconds = how long it should take
-  playShot(name, seconds, { clamp = false, startAt = 0 } = {}) {
+  // a one-off move on top (strike, hit, KO, victory); seconds = how long it should take; hold = keep the last frame
+  playShot(name, seconds, { clamp = false, startAt = 0, repeat = false } = {}) {
     const act = this.action(name); if (!act) return false
     const d = act.getClip().duration
-    act.reset(); act.setLoop(THREE.LoopOnce, 1); act.clampWhenFinished = clamp
+    if (this.shot && this.shot !== act) this.shot.stop()
+    act.reset(); act.setLoop(repeat ? THREE.LoopRepeat : THREE.LoopOnce, repeat ? Infinity : 1); act.clampWhenFinished = true // hold the last frame, never drop to rest
     act.timeScale = seconds ? Math.max(0.5, Math.min(4, (d * (1 - startAt)) / seconds)) : 1
-    act.time = d * startAt; act.enabled = true; act.setEffectiveWeight(1)
-    if (this.shot && this.shot !== act) act.crossFadeFrom(this.shot, 0.08, false)
-    else if (this.loop) act.crossFadeFrom(this.loop, 0.08, false)
-    act.play(); this.shot = act; this.shotName = name
-    this.shotEnds = clamp ? Infinity : performance.now() + (d * (1 - startAt) / act.timeScale) * 1000
+    act.time = d * startAt; act.enabled = true; act.play()
+    this.shot = act; this.shotName = name; this.hold = clamp || repeat
+    this.shotLeft = repeat ? Infinity : (d * (1 - startAt)) / act.timeScale
+    if (this.shotW == null) this.shotW = 0
     return true
   }
-  endShot() {
-    if (!this.shot) return
-    if (this.loop) { this.loop.reset(); this.loop.play(); this.loop.crossFadeFrom(this.shot, 0.15, false) }
-    this.shot = null; this.shotName = null
+  endShot() { if (this.shot) this.shotLeft = 0; this.hold = false }
+  // advance blends + animation by dt seconds
+  tick(dt) {
+    // loops: new loop fades in over 0.18 s while the previous fades out
+    if (this.loopMix < 1) { this.loopMix = Math.min(1, this.loopMix + dt / 0.18); if (this.loopMix >= 1 && this.prevLoop) { this.prevLoop.stop(); this.prevLoop = null } }
+    // one-off move: fades in over 0.08 s, out over 0.12 s when finished
+    if (this.shot) {
+      this.shotLeft -= dt
+      const on = this.hold || this.shotLeft > 0
+      this.shotW = on ? Math.min(1, (this.shotW || 0) + dt / 0.08) : Math.max(0, (this.shotW || 0) - dt / 0.12)
+      if (!on && this.shotW <= 0) { this.shot.stop(); this.shot = null; this.shotName = null; this.shotW = 0 }
+    } else this.shotW = 0
+    const sw = this.shot ? this.shotW : 0, rest = 1 - sw
+    if (this.shot) this.shot.setEffectiveWeight(sw)
+    if (this.loop) this.loop.setEffectiveWeight(rest * (this.prevLoop ? this.loopMix : 1))
+    if (this.prevLoop) this.prevLoop.setEffectiveWeight(rest * (1 - this.loopMix))
+    // safety net: if somehow nothing is playing, fall back to idle rather than the rest pose
+    if (!this.loop && !this.shot) this.playLoop('Idle_Loop')
+    this.mixer.update(dt)
   }
 }
 
@@ -227,7 +245,7 @@ export class Renderer3D {
     rig.obj.rotation.y = dir > 0 ? Math.PI / 2 - 0.3 : -(Math.PI / 2 - 0.3) // side-on, turned a little to camera
     const now = performance.now()
     // victory
-    if (this.winner === side && now > this.winAt && f.state !== 'ko' && rig.shotName !== 'Dance_Loop') { rig.playShot('Dance_Loop', 0, { clamp: true }); rig.shot.setLoop(THREE.LoopRepeat, Infinity) }
+    if (this.winner === side && now > this.winAt && f.state !== 'ko' && rig.shotName !== 'Dance_Loop') rig.playShot('Dance_Loop', 0, { repeat: true })
     // new strike?
     const mv = f.move
     if (mv && mv !== rig.lastMove) {
@@ -237,7 +255,6 @@ export class Renderer3D {
       else if (rig.shot && rig.shotName !== 'Death01' && rig.shotName !== 'Dance_Loop') rig.endShot()
     }
     if (!mv) rig.lastMove = null
-    if (rig.shot && now > rig.shotEnds) rig.endShot()
     // base loop
     const air = f.y < FLOOR - 2, moving = Math.abs(f.vx) > 0.3
     if (f.state === 'ko') { /* Death01 holds */ }
@@ -246,7 +263,7 @@ export class Renderer3D {
     else if (moving && !mv) rig.playLoop('Walk_Loop', Math.sign(f.vx) === dir ? 1.3 : -1.1)
     else rig.playLoop('Idle_Loop')
     for (const [bone, q, p] of rig.rest) { bone.quaternion.copy(q); bone.position.copy(p) }
-    rig.mixer.update(this.dt || 1 / 60)
+    rig.tick(this.dt || 1 / 60)
     rig.obj.updateMatrixWorld(true)
     // IK layer from the pose system: arms whenever no clip owns them; legs for kicks / knees
     if (f.state === 'ko' || !pose) return
@@ -353,9 +370,8 @@ export class Preview3D {
     if (rig) {
       this.next -= dt
       if (this.next <= 0 && !rig.shot) { const pick = ['Punch_Jab', 'Punch_Cross', 'Punch_Jab', 'Spell_Simple_Shoot'][Math.floor(Math.random() * 4)]; rig.playShot(pick, pick === 'Spell_Simple_Shoot' ? 1.1 : 0.55); this.next = 2.2 + Math.random() * 1.5 }
-      if (rig.shot && performance.now() > rig.shotEnds) rig.endShot()
       for (const [bone, q, p] of rig.rest) { bone.quaternion.copy(q); bone.position.copy(p) }
-      rig.mixer.update(dt)
+      rig.tick(dt)
     }
     this.renderer.render(this.scene, this.camera)
   }
