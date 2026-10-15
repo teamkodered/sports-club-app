@@ -1800,11 +1800,13 @@ export default function CRM() {
   async function loadData() {
     setLoading(true)
     const [{ data: s }, { data: pl }, { data: notes }] = await Promise.all([
-      supabase.from('students').select('id, student_ref, discipline, class_schedule, sponsored, pays_coach, guardian_name, pka_belt, krba_level, house_name, media_restriction, is_kr, is_pts, is_leader, is_coach, member_id, members(first_name, last_name, status, email, phone, date_of_birth, do_not_contact, joined_date, houses(name))'),
+      // all students, in batches (one request stops at 1,000 rows -- some students were missing)
+      fetchAllRows(() => supabase.from('students').select('id, student_ref, discipline, class_schedule, sponsored, pays_coach, guardian_name, pka_belt, krba_level, house_name, media_restriction, is_kr, is_pts, is_leader, is_coach, member_id, members(first_name, last_name, status, email, phone, date_of_birth, do_not_contact, joined_date, houses(name))').order('id')).then(data => ({ data })),
       supabase.from('payer_links').select('*'),
       supabase.from('athlete_notes_log').select('id, student_id, note_text, created_at').order('created_at', { ascending: false }),
     ])
-    setStudents((s || []).filter(x => x.members?.status === 'active'))
+    // active members, plus pending ones (newer members can already be paying)
+    setStudents((s || []).filter(x => ['active', 'pending'].includes(x.members?.status)))
     setPayerLinks(pl || [])
     const grouped = {}
     ;(notes || []).forEach(n => { (grouped[n.student_id] ||= []).push(n) })
@@ -4120,6 +4122,7 @@ export default function CRM() {
                       }}>
                       <span style={{ minWidth: 0 }}>
                         <span style={{ fontSize: 13, fontWeight: 600 }}>{studentFullName(s)}</span>
+                        {s.members?.status === 'pending' && <span style={{ fontSize: 10, fontWeight: 700, color: '#B45309', background: '#EF9F2722', borderRadius: 8, padding: '1px 6px', marginLeft: 6 }}>pending</span>}
                         <span style={{ fontSize: 11, color: 'var(--text-tertiary)', marginLeft: 8 }}>{s.student_ref}</span>
                       </span>
                       <span style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
