@@ -1,6 +1,7 @@
 import { useState, useEffect, Fragment, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import StockPanel from '../components/crm/StockPanel.jsx'
+import LevelUpPanel from '../components/crm/LevelUpPanel.jsx'
 import { viewAsVenueScope } from '../lib/viewAsScope.js'
 import ParentRequestsPanel from '../components/parent/ParentRequestsPanel.jsx'
 import EnquirySendTemplates, { DEFAULT_ENQUIRY_TEMPLATES } from '../components/crm/EnquiryTemplates.jsx'
@@ -368,7 +369,7 @@ export default function CRM() {
   const HEAD_COACH_TABS = ['enquiries', 'missed_training', 'stopped_training', 'standing_orders', 'trackers', 'birthdays']
   const [enqVenue, setEnqVenue] = useState('all')   // admin's venue filter on enquiries
   const location = useLocation()
-  const DEFAULT_TAB_ORDER = ['standing_orders', 'missed_training', 'stopped_training', 'grading_requests', 'birthdays', 'enquiries', 'trackers', 'messages', 'email', 'courses', 'parent_requests', 'sell', 'sales', 'stock']
+  const DEFAULT_TAB_ORDER = ['standing_orders', 'missed_training', 'stopped_training', 'grading_requests', 'birthdays', 'enquiries', 'trackers', 'messages', 'email', 'courses', 'parent_requests', 'sell', 'sales', 'stock', 'level_up']
   const [tabOrder, setTabOrder] = useSyncedPreference('crm_tab_order', DEFAULT_TAB_ORDER)
   // Adds any newly-introduced tab that predates a saved order, and
   // drops any that no longer exist, rather than silently hiding/
@@ -3240,6 +3241,7 @@ export default function CRM() {
 
       {(() => {
         const TAB_DEFS = {
+          level_up: { label: 'Level Up', colour: '#E24B4A', onSelect: () => setTab('level_up') },
           sell: { label: 'Sell', colour: '#1D9E75', onSelect: () => setTab('sell') },
           sales: { label: 'Sales', colour: '#8B5CF6', onSelect: () => setTab('sales') },
           stock: { label: 'Stock', colour: '#06B6D4', onSelect: () => setTab('stock') },
@@ -3317,6 +3319,7 @@ export default function CRM() {
       })()}
 
 
+      {tab === 'level_up' && <LevelUpPanel />}
       {tab === 'sell' && <StockPanel key="sell" section="sell" />}
       {tab === 'sales' && <StockPanel key="sales" section="sales" />}
       {tab === 'stock' && <StockPanel key="stock" section="stock" />}
