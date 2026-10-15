@@ -5,6 +5,27 @@ import { useAuth } from '../hooks/useAuth.jsx'
 // Coaching tools: documents, videos and links for coaches. Admin adds / removes; Head Coaches,
 // Coaches and Leaders open them. Files live in the private 'coaching-tools' store (short-lived links).
 const BUCKET = 'coaching-tools'
+// Links that can play inside the app instead of opening another site
+const VIDEO_EXT = /\.(mp4|m4v|mov|webm|ogv)(\?|#|$)/i
+function inAppVideo(url) {
+  if (!url) return null
+  try {
+    const u = new URL(url)
+    // Dropbox file link -> direct stream (raw=1)
+    if (/(^|\.)dropbox\.com$/i.test(u.hostname) && VIDEO_EXT.test(u.pathname)) {
+      u.searchParams.delete('dl'); u.searchParams.set('raw', '1')
+      return { type: 'file', src: u.toString() }
+    }
+    if (/dropboxusercontent\.com$/i.test(u.hostname) && VIDEO_EXT.test(u.pathname)) return { type: 'file', src: url }
+    // YouTube -> embedded player
+    const yt = u.hostname.replace(/^www\./, '')
+    const id = yt === 'youtu.be' ? u.pathname.slice(1) : (/youtube\.com$/.test(yt) ? (u.searchParams.get('v') || (u.pathname.match(/\/(shorts|embed)\/([^/?]+)/) || [])[2]) : null)
+    if (id) return { type: 'youtube', src: `https://www.youtube.com/embed/${id}?rel=0&modestbranding=1&playsinline=1` }
+    if (VIDEO_EXT.test(u.pathname)) return { type: 'file', src: url }
+  } catch { /* not a URL */ }
+  return null
+}
+
 const KIND = { doc: { icon: '📄', label: 'Document' }, video: { icon: '🎬', label: 'Video' }, link: { icon: '🔗', label: 'Link' } }
 
 export default function CoachingTools() {
@@ -29,7 +50,11 @@ export default function CoachingTools() {
     (!q.trim() || `${i.title} ${i.description || ''} ${i.category || ''}`.toLowerCase().includes(q.trim().toLowerCase())))
 
   async function open(i) {
-    if (i.url && !i.file_path) { window.open(i.url, '_blank', 'noopener'); return }
+    if (i.url && !i.file_path) {
+      const v = inAppVideo(i.url)
+      if (v) { setPlaying({ title: i.title, src: v.src, type: v.type, external: i.url }); return }
+      window.open(i.url, '_blank', 'noopener'); return
+    }
     const w = i.kind === 'video' ? null : window.open('', '_blank')
     const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(i.file_path, 60 * 60)
     if (error) { if (w) w.close(); return alert("Couldn't open it: " + error.message) }
@@ -87,11 +112,11 @@ export default function CoachingTools() {
           {shown.map(i => (
             <div key={i.id} className="card ct-item">
               <button type="button" className="ct-open" onClick={() => open(i)}>
-                <span className="ct-icon">{KIND[i.kind]?.icon || '📄'}</span>
+                <span className="ct-icon">{i.kind === 'link' && inAppVideo(i.url) ? '🎬' : (KIND[i.kind]?.icon || '📄')}</span>
                 <span className="ct-text">
                   <b>{i.title}</b>
                   {i.description && <span className="ct-desc">{i.description}</span>}
-                  <span className="ct-meta">{KIND[i.kind]?.label}{i.category ? ` · ${i.category}` : ''}</span>
+                  <span className="ct-meta">{i.kind === 'link' && inAppVideo(i.url) ? 'Video' : KIND[i.kind]?.label}{i.category ? ` · ${i.category}` : ''}</span>
                 </span>
               </button>
               {isAdmin && <button type="button" className="ct-x" onClick={() => remove(i)} aria-label={`Remove ${i.title}`}>×</button>}
@@ -112,7 +137,8 @@ export default function CoachingTools() {
               <datalist id="ct-cats">{cats.map(c => <option key={c} value={c} />)}</datalist></div>
             <div className="field"><label>Description (optional)</label><textarea rows={3} value={adding.description} onChange={e => setAdding(a => ({ ...a, description: e.target.value }))} /></div>
             {adding.kind === 'link'
-              ? <div className="field"><label>Link</label><input value={adding.url} onChange={e => setAdding(a => ({ ...a, url: e.target.value }))} placeholder="https://…" /></div>
+              ? <div className="field"><label>Link</label><input value={adding.url} onChange={e => setAdding(a => ({ ...a, url: e.target.value }))} placeholder="https://…" />
+                  <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>Dropbox video files and YouTube links play inside the app. Folders and documents open in a new tab.</div></div>
               : <div className="field"><label>{adding.kind === 'video' ? 'Video file' : 'Document (PDF, Word, Excel, image…)'}</label>
                   <input type="file" accept={adding.kind === 'video' ? 'video/*' : undefined} onChange={e => setAdding(a => ({ ...a, file: e.target.files?.[0] || null }))} /></div>}
             <div style={{ display: 'flex', gap: 8 }}>
@@ -127,7 +153,14 @@ export default function CoachingTools() {
         <div className="ct-backdrop" onClick={() => setPlaying(null)}>
           <div className="card ct-sheet ct-video" onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}><b>{playing.title}</b><button className="btn btn-sm" onClick={() => setPlaying(null)}>Close</button></div>
-            <video src={playing.src} controls playsInline autoPlay style={{ width: '100%', borderRadius: 8, background: '#000' }} />
+            {playing.type === 'youtube'
+              ? <div style={{ position: 'relative', paddingTop: '56.25%', borderRadius: 8, overflow: 'hidden', background: '#000' }}>
+                  <iframe src={playing.src} title={playing.title} allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen
+                    style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 0 }} />
+                </div>
+              : <video src={playing.src} controls playsInline autoPlay preload="auto" style={{ width: '100%', maxHeight: '75vh', borderRadius: 8, background: '#000' }}
+                  onError={() => playing.external && setPlaying(p => p && { ...p, failed: true })} />}
+            {playing.failed && <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8 }}>This video won't play here (its format may not suit this device). <a href={playing.external} target="_blank" rel="noreferrer">Open it in Dropbox instead</a>.</p>}
           </div>
         </div>
       )}
