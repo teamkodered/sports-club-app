@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom'
 import { TEST_CATEGORIES } from '../lib/testResults.js'
 import { TestSessionModal, TestBatchModal } from '../components/shared/TestSession.jsx'
 import OtherSessions from '../components/shared/OtherSessions.jsx'
+import SessionFootage from '../components/shared/SessionFootage.jsx'
 import { supabase } from '../lib/supabase.js'
 import WearableCompare from '../components/shared/WearableCompare.jsx'
 import LiveHrTable from '../components/shared/LiveHrTable.jsx'
@@ -13121,6 +13122,7 @@ export default function AthleteProfiles() {
 
             {tab === 'media' && (
               <div>
+                {selected?.id && <SessionFootage studentId={selected.id} />}
                 <div className="card" style={{ marginBottom: 12 }}>
                   <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Media files</h2>
                   <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>
