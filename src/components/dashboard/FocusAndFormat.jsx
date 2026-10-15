@@ -8,7 +8,9 @@ import { useAuth } from '../../hooks/useAuth.jsx'
 const DEFAULT_SUMMARY = '• First session of the week: partner work / sequences\n• Second session: equipment / circuit'
 const fmtDate = d => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 
-export default function FocusAndFormat() {
+// team: 'pka' (PKA + KR coaches -- the original set) or 'krba' (its own focus notes + format)
+export default function FocusAndFormat({ team = 'pka', label = '' }) {
+  const fmtKey = team === 'krba' ? 'dashboard_format_krba' : 'dashboard_format'
   const { isAdmin, isStaff, profile } = useAuth()
   const [notes, setNotes] = useState(null)          // newest first
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -25,18 +27,18 @@ export default function FocusAndFormat() {
 
   async function load() {
     const [{ data: f, error }, { data: s }] = await Promise.all([
-      supabase.from('focus_notes').select('id, body, created_at, members(first_name, last_name)').order('created_at', { ascending: false }).limit(100),
-      supabase.from('settings').select('value').eq('key', 'dashboard_format').maybeSingle(),
+      supabase.from('focus_notes').select('id, body, created_at, members(first_name, last_name)').eq('team', team).order('created_at', { ascending: false }).limit(100),
+      supabase.from('settings').select('value').eq('key', fmtKey).maybeSingle(),
     ])
     setNotes(error ? [] : (f || []))
     setFormat(typeof s?.value === 'string' ? s.value : s?.value?.text || '')
-    setSummary(typeof s?.value === 'object' && s?.value?.summary != null ? s.value.summary : DEFAULT_SUMMARY)
+    setSummary(typeof s?.value === 'object' && s?.value?.summary != null ? s.value.summary : (team === 'krba' ? '' : DEFAULT_SUMMARY))
   }
   useEffect(() => { load() }, [])
 
   async function addFocus() {
     if (!draft.trim()) return
-    const { error } = await supabase.from('focus_notes').insert({ body: draft.trim(), created_by: profile?.id || null })
+    const { error } = await supabase.from('focus_notes').insert({ body: draft.trim(), created_by: profile?.id || null, team })
     if (error) return alert('Could not save: ' + error.message + (/focus_notes/.test(error.message) ? '\n\n(Has supabase_focus_notes.sql been run?)' : ''))
     setDraft(''); setAdding(false); load()
   }
@@ -45,7 +47,7 @@ export default function FocusAndFormat() {
     await supabase.from('focus_notes').delete().eq('id', id); load()
   }
   async function saveFormat() {
-    const { error } = await supabase.from('settings').upsert({ key: 'dashboard_format', value: { text: formatDraft, summary: summaryDraft } }, { onConflict: 'key' })
+    const { error } = await supabase.from('settings').upsert({ key: fmtKey, value: { text: formatDraft, summary: summaryDraft } }, { onConflict: 'key' })
     if (error) return alert('Could not save: ' + error.message)
     setFormat(formatDraft); setSummary(summaryDraft); setEditingFormat(false)
   }
@@ -71,7 +73,7 @@ export default function FocusAndFormat() {
       {/* ── Current focus ── */}
       <div className="card" style={{ ...box, borderTop: '3px solid #8B5CF6' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: focusShown ? 8 : 0 }}>
-          <button type="button" className="ff-toggle" onClick={() => setFocusShown(v => !v)} aria-expanded={focusShown}><span>{focusShown ? '▾' : '▸'}</span> 🎯 Current focus</button>
+          <button type="button" className="ff-toggle" onClick={() => setFocusShown(v => !v)} aria-expanded={focusShown}><span>{focusShown ? '▾' : '▸'}</span> 🎯 Current focus{label ? ` · ${label}` : ''}</button>
           {focusShown && isStaff && !adding && <button className="btn btn-sm" onClick={() => { setAdding(true); setDraft('') }}>+ New focus</button>}
         </div>
         {!focusShown ? null : adding ? (
@@ -92,7 +94,7 @@ export default function FocusAndFormat() {
       {/* ── Format ── */}
       <div className="card" style={{ ...box, borderTop: '3px solid #06B6D4' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: formatShown ? 8 : 0 }}>
-          <button type="button" className="ff-toggle" onClick={() => setFormatShown(v => !v)} aria-expanded={formatShown}><span>{formatShown ? '▾' : '▸'}</span> 🧭 Format</button>
+          <button type="button" className="ff-toggle" onClick={() => setFormatShown(v => !v)} aria-expanded={formatShown}><span>{formatShown ? '▾' : '▸'}</span> 🧭 Format{label ? ` · ${label}` : ''}</button>
           {formatShown && isAdmin && !editingFormat && <button className="btn btn-sm" onClick={startEditFormat}>Edit</button>}
         </div>
         {!formatShown ? null : editingFormat && !formatOpen ? formatEditor : (

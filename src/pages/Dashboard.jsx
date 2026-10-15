@@ -284,7 +284,13 @@ export default function Dashboard() {
       </div>
 
       {/* Current focus + Format (side by side; stacked on a phone) */}
-      <FocusAndFormat />
+      {/* PKA + KR coaches: the original focus / format. KRBA coaches: KRBA's own. Admins: both. */}
+      {(() => {
+        const grp = String(profile?.access?.group || '')
+        const krbaCoach = /krba/i.test(grp)
+        if (isAdmin) return <><FocusAndFormat team="pka" label="PKA / KR" /><FocusAndFormat team="krba" label="KRBA" /></>
+        return krbaCoach ? <FocusAndFormat team="krba" /> : <FocusAndFormat team="pka" />
+      })()}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
         {/* House standings */}
