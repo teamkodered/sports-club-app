@@ -121,8 +121,11 @@ function SellForm({ items, coaches, discounts, defaultCoach, onSold }) {
   const [studentId, setStudentId] = useState(null)
   const [found, setFound] = useState([])
   const [payment, setPayment] = useState('card')
+  const [tier, setTier] = useState('member')   // member | instructor | non_member
   const [busy, setBusy] = useState(false)
-  useEffect(() => { setVariantId(item?.stock_variants?.[0]?.id || ''); setUnit(item ? String(item.sell_price) : '') }, [itemId])
+  const tierPrice = (it, t) => !it ? '' : t === 'instructor' && it.instructor_price ? it.instructor_price : t === 'non_member' && it.non_member_price ? it.non_member_price : it.sell_price
+  useEffect(() => { setVariantId(item?.stock_variants?.[0]?.id || ''); setUnit(item ? String(tierPrice(item, tier)) : '') }, [itemId])
+  useEffect(() => { if (item) setUnit(String(tierPrice(item, tier))) }, [tier])
   useEffect(() => {
     if (studentId || customer.trim().length < 2) { setFound([]); return }
     const t = setTimeout(() => supabase.from('students').select('id, members!inner(first_name, last_name)').or(`first_name.ilike.%${customer.trim()}%,last_name.ilike.%${customer.trim()}%`, { referencedTable: 'members' }).limit(6)
@@ -140,7 +143,7 @@ function SellForm({ items, coaches, discounts, defaultCoach, onSold }) {
     if (variant.qty < qty && !window.confirm(`Not enough ${variant.label} in stock for this. Record the sale anyway?`)) return
     setBusy(true)
     const { error } = await supabase.rpc('kc_stock_sale', { p_variant: variant.id, p_qty: Number(qty), p_unit: Number(unit) || 0, p_disc_type: disc.type, p_disc_value: Number(disc.value) || 0, p_disc_name: disc.name || null,
-      p_coach: coach || null, p_student: studentId, p_customer: customer, p_payment: payment })
+      p_coach: coach || null, p_student: studentId, p_customer: customer, p_payment: payment, p_tier: tier })
     setBusy(false)
     if (error) return alert('Could not record the sale: ' + error.message)
     alert(`Thank you! ${qty} × ${item.name} (${variant.label}) — ${money(net)}`)
@@ -159,6 +162,14 @@ function SellForm({ items, coaches, discounts, defaultCoach, onSold }) {
             <b>{v.label}</b><span>{v.qty <= 0 ? 'Out of stock' : v.qty <= item.low_stock ? 'Last few' : 'In stock'}</span>
           </button>
         ))}</div></div>}
+      {item && (item.instructor_price || item.non_member_price) && (
+        <div className="field"><label>Price</label>
+          <div className="stk-seg">
+            <button type="button" className={tier === 'member' ? 'on' : ''} onClick={() => setTier('member')}>PKA member {money(item.sell_price)}</button>
+            {item.instructor_price && <button type="button" className={tier === 'instructor' ? 'on' : ''} onClick={() => setTier('instructor')}>Instructor {money(item.instructor_price)}</button>}
+            {item.non_member_price && <button type="button" className={tier === 'non_member' ? 'on' : ''} onClick={() => setTier('non_member')}>Non-member {money(item.non_member_price)}</button>}
+          </div></div>
+      )}
       <div style={{ display: 'flex', gap: 8 }}>
         <div className="field" style={{ flex: 1 }}><label>Quantity</label><input type="number" min="1" value={qty} onChange={e => setQty(Math.max(1, parseInt(e.target.value, 10) || 1))} /></div>
         <div className="field" style={{ flex: 1 }}><label>Price each (£)</label><input type="number" step="0.01" value={unit} onChange={e => setUnit(e.target.value)} /></div>
@@ -219,7 +230,7 @@ function SalesList({ sales, month, setMonth, coachName, onChanged }) {
       {list.map(s => (
         <div key={s.id} className="card stk-sale" style={{ opacity: s.refunded_at ? 0.5 : 1 }}>
           <div><b>{s.qty} × {s.item_name}</b> <span className="stk-muted">({s.variant_label})</span>
-            <div className="stk-muted">{new Date(s.sold_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · {s.students?.members ? `${s.students.members.first_name} ${s.students.members.last_name}` : s.customer_name || 'Customer'} · {s.payment_method}{s.discount_type !== 'none' ? ` · ${s.discount_name || (s.discount_type === 'pct' ? `${s.discount_value}% off` : `£${s.discount_value} off`)}` : ''}{s.coach_member_id ? ` · sold by ${coachName(s.coach)}` : ''}</div></div>
+            <div className="stk-muted">{new Date(s.sold_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · {s.students?.members ? `${s.students.members.first_name} ${s.students.members.last_name}` : s.customer_name || 'Customer'} · {s.payment_method}{s.discount_type !== 'none' ? ` · ${s.discount_name || (s.discount_type === 'pct' ? `${s.discount_value}% off` : `£${s.discount_value} off`)}` : ''}{s.coach_member_id ? ` · sold by ${coachName(s.coach)}` : ''}{s.profit != null ? ` · profit ${money(s.profit)}` : ''}{s.price_tier && s.price_tier !== 'member' ? ` · ${s.price_tier === 'instructor' ? 'instructor price' : 'non-member price'}` : ''}</div></div>
           <div style={{ textAlign: 'right' }}><b>{money(s.total)}</b>{s.refunded_at ? <div className="stk-muted">Refunded</div> : <button className="btn btn-sm" style={{ marginTop: 4 }} onClick={() => refund(s)}>Refund</button>}</div>
         </div>
       ))}
@@ -245,9 +256,27 @@ function Commission({ sales, month, setMonth, coachName, isAdmin, onChanged }) {
     if (error) return alert(error.message)
     onChanged()
   }
+  // Monthly profit split (as on the trade price list): partner (SJW) 25% of profit, coaches' commission, DR the rest
+  const [split, setSplit] = useState({ partner: 'SJW', partner_pct: 25 })
+  useEffect(() => { supabase.from('settings').select('value').eq('key', 'stock_profit_split').maybeSingle().then(({ data }) => data?.value && setSplit(data.value)) }, [])
+  const live = sales.filter(s => monthKey(s.sold_at) === month && !s.refunded_at)
+  const tot = live.reduce((a, s) => ({ sales: a.sales + Number(s.total), cost: a.cost + Number(s.cost_price || 0) * s.qty, profit: a.profit + Number(s.profit ?? (s.total - (s.cost_price || 0) * s.qty)), comm: a.comm + Number(s.commission_amount || 0) }), { sales: 0, cost: 0, profit: 0, comm: 0 })
+  const partnerShare = tot.profit * Number(split.partner_pct || 0) / 100
   return (
     <>
       <div className="stk-row"><MonthPicker month={month} setMonth={setMonth} /><span className="stk-note">Owed this month: <b>{money(rows.reduce((n, r) => n + r.owed, 0))}</b></span></div>
+      <div className="card stk-split">
+        <div className="stk-split-h">Profit split · {live.length} sale{live.length === 1 ? '' : 's'}</div>
+        <div className="stk-split-g">
+          <div><span>Sales</span><b>{money(tot.sales)}</b></div>
+          <div><span>Trade cost</span><b>{money(tot.cost)}</b></div>
+          <div><span>Profit</span><b>{money(tot.profit)}</b></div>
+          <div><span>{split.partner} ({split.partner_pct}%)</span><b>{money(partnerShare)}</b></div>
+          <div><span>Coach commission</span><b>{money(tot.comm)}</b></div>
+          <div><span>DR (rest)</span><b>{money(tot.profit - partnerShare - tot.comm)}</b></div>
+        </div>
+        <div className="stk-muted">Commission is a % of each sale's profit (sell − trade), 37.5% by default.</div>
+      </div>
       {!rows.length && <p className="stk-muted">No coach sales this month.</p>}
       {rows.map(r => (
         <div key={r.id} className="card stk-sale">
@@ -267,7 +296,7 @@ function ItemsEditor({ items, discounts, isAdmin, onChanged }) {
   async function saveItem() {
     const e = edit
     if (!e.name.trim()) return alert('Give the item a name.')
-    const row = { name: e.name.trim(), category: e.category || null, cost_price: Number(e.cost_price) || 0, sell_price: Number(e.sell_price) || 0, commission_pct: Number(e.commission_pct) || 0, low_stock: parseInt(e.low_stock, 10) || 0, active: e.active !== false }
+    const row = { name: e.name.trim(), category: e.category || null, supplier: e.supplier || null, instructor_price: e.instructor_price === '' || e.instructor_price == null ? null : Number(e.instructor_price), non_member_price: e.non_member_price === '' || e.non_member_price == null ? null : Number(e.non_member_price), cost_price: Number(e.cost_price) || 0, sell_price: Number(e.sell_price) || 0, commission_pct: Number(e.commission_pct) || 0, low_stock: parseInt(e.low_stock, 10) || 0, active: e.active !== false }
     let id = e.id
     if (id) { const { error } = await supabase.from('stock_items').update(row).eq('id', id); if (error) return alert(error.message) }
     else { const { data, error } = await supabase.from('stock_items').insert(row).select('id').single(); if (error) return alert(error.message); id = data.id }
@@ -285,10 +314,10 @@ function ItemsEditor({ items, discounts, isAdmin, onChanged }) {
   }
   return (
     <>
-      <div className="stk-row"><b>Items</b><button className="btn btn-sm btn-primary" onClick={() => setEdit({ name: '', category: '', cost_price: '', sell_price: '', commission_pct: 10, low_stock: 3, sizes: 'One size', active: true })}>+ New item</button></div>
+      <div className="stk-row"><b>Items</b><button className="btn btn-sm btn-primary" onClick={() => setEdit({ name: '', category: '', supplier: '', instructor_price: '', non_member_price: '', cost_price: '', sell_price: '', commission_pct: 37.5, low_stock: 3, sizes: 'One size', active: true })}>+ New item</button></div>
       {items.map(i => (
         <div key={i.id} className="card stk-sale" style={{ opacity: i.active ? 1 : 0.5 }}>
-          <div><b>{i.name}</b><div className="stk-muted">cost {money(i.cost_price)} · sells {money(i.sell_price)} · margin {money(i.sell_price - i.cost_price)} · commission {Number(i.commission_pct)}% · low at {i.low_stock}</div>
+          <div><b>{i.name}</b><div className="stk-muted">cost {money(i.cost_price)} · sells {money(i.sell_price)} · margin {money(i.sell_price - i.cost_price)} · commission {Number(i.commission_pct)}% of profit{i.instructor_price ? ` · instructor ${money(i.instructor_price)}` : ''}{i.non_member_price ? ` · non-member ${money(i.non_member_price)}` : ''}{i.supplier ? ` · ${i.supplier}` : ''}</div>
             <div className="stk-muted">{i.stock_variants.map(v => v.label).join(', ')}</div></div>
           <button className="btn btn-sm" onClick={() => setEdit({ ...i, sizes: i.stock_variants.map(v => v.label).join(', ') })}>Edit</button>
         </div>
@@ -315,10 +344,15 @@ function ItemsEditor({ items, discounts, isAdmin, onChanged }) {
             <div className="field"><label>Category</label><input value={edit.category || ''} onChange={e => setEdit(x => ({ ...x, category: e.target.value }))} placeholder="e.g. Clothing, Equipment" /></div>
             <div style={{ display: 'flex', gap: 8 }}>
               <div className="field" style={{ flex: 1 }}><label>Cost £</label><input type="number" step="0.01" value={edit.cost_price} onChange={e => setEdit(x => ({ ...x, cost_price: e.target.value }))} /></div>
-              <div className="field" style={{ flex: 1 }}><label>Sell £</label><input type="number" step="0.01" value={edit.sell_price} onChange={e => setEdit(x => ({ ...x, sell_price: e.target.value }))} /></div>
+              <div className="field" style={{ flex: 1 }}><label>PKA member £</label><input type="number" step="0.01" value={edit.sell_price} onChange={e => setEdit(x => ({ ...x, sell_price: e.target.value }))} /></div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <div className="field" style={{ flex: 1 }}><label>Coach commission %</label><input type="number" step="0.5" value={edit.commission_pct} onChange={e => setEdit(x => ({ ...x, commission_pct: e.target.value }))} /></div>
+              <div className="field" style={{ flex: 1 }}><label>Instructor £</label><input type="number" step="0.01" value={edit.instructor_price ?? ''} onChange={e => setEdit(x => ({ ...x, instructor_price: e.target.value }))} /></div>
+              <div className="field" style={{ flex: 1 }}><label>Non-member £</label><input type="number" step="0.01" value={edit.non_member_price ?? ''} onChange={e => setEdit(x => ({ ...x, non_member_price: e.target.value }))} /></div>
+            </div>
+            <div className="field"><label>Supplier</label><input value={edit.supplier || ''} onChange={e => setEdit(x => ({ ...x, supplier: e.target.value }))} placeholder="e.g. Cimac / Adidas" /></div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <div className="field" style={{ flex: 1 }}><label>Coach commission (% of profit)</label><input type="number" step="0.5" value={edit.commission_pct} onChange={e => setEdit(x => ({ ...x, commission_pct: e.target.value }))} /></div>
               <div className="field" style={{ flex: 1 }}><label>Low stock at</label><input type="number" value={edit.low_stock} onChange={e => setEdit(x => ({ ...x, low_stock: e.target.value }))} /></div>
             </div>
             <div className="field"><label>Sizes / options (comma separated — new ones are added)</label><input value={edit.sizes} onChange={e => setEdit(x => ({ ...x, sizes: e.target.value }))} placeholder="e.g. S, M, L or Red, Blue" /></div>
