@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth.jsx'
 import { useSyncedPreference } from '../hooks/useSyncedPreference.js'
 import FocusAndFormat from '../components/dashboard/FocusAndFormat.jsx'
 import { supabase } from '../lib/supabase.js'
+import { fetchAll } from '../lib/fetchAll.js'
 import { studentProfileLink } from '../lib/studentLinks.js'
 
 const HOUSE_COLOURS = {
@@ -111,7 +112,7 @@ export default function Dashboard() {
         supabase.from('attendance').select('id', { count: 'exact', head: true }).gte('attended_at', monthAgo),
         supabase.from('attendance').select('id', { count: 'exact', head: true }).eq('session_date', today),
         supabase.from('students').select('id', { count: 'exact', head: true }).eq('in_comp', true).or('is_kr.eq.true,discipline.eq.KRBA'),
-        supabase.from('students').select('discipline, class_schedule, is_kr, in_comp, members(status)'),
+        fetchAll(() => supabase.from('students').select('discipline, class_schedule, is_kr, in_comp, members(status)').order('id')),
       ])
 
       const rows = (breakdownRows || []).filter(r => r.members?.status === 'active')

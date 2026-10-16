@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
+import { fetchAll } from '../lib/fetchAll.js'
 import { isPastAssignment, askAssignmentDates, insertAssignment, endAssignment } from '../lib/classAssignments.jsx'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useBackableTab } from '../hooks/useBackableTab.js'
@@ -160,10 +161,10 @@ export default function StudentDatabase() {
   }, [searchParams, students])
 
   async function load() {
-    const { data } = await supabase
+    const { data } = await fetchAll(() => supabase
       .from('students')
       .select('*, members(id, first_name, last_name, email, phone, date_of_birth, house_id, status, role, joined_date, stopped_at, houses(name))')
-      .order('created_at')
+      .order('created_at').order('id'))
     setStudents(data || [])
     setLoading(false)
   }

@@ -5,6 +5,7 @@ import { TestSessionModal, TestBatchModal } from '../components/shared/TestSessi
 import OtherSessions from '../components/shared/OtherSessions.jsx'
 import SessionFootage from '../components/shared/SessionFootage.jsx'
 import { supabase } from '../lib/supabase.js'
+import { fetchAll } from '../lib/fetchAll.js'
 import WearableCompare from '../components/shared/WearableCompare.jsx'
 import LiveHrTable from '../components/shared/LiveHrTable.jsx'
 import NeedsAttention from '../components/shared/NeedsAttention.jsx'
@@ -5478,10 +5479,10 @@ export default function AthleteProfiles() {
 
   async function loadStudents() {
     const [{ data }, { data: houseData }, { data: ptsLog }] = await Promise.all([
-      supabase
+      fetchAll(() => supabase
         .from('students')
         .select('*, members(id, first_name, last_name, email, phone, date_of_birth, status, house_id, role, joined_date, houses(name, colour))')
-        .order('created_at'),
+        .order('created_at').order('id')),
       supabase.from('houses').select('id, name, points').order('points', { ascending: false }),
       supabase.from('points_log').select('student_id, points_awarded'),
     ])

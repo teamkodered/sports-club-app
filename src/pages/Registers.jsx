@@ -75,6 +75,7 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { matchClass, workoutRange, fmtTime, isClubSport } from '../lib/sessionMatch.js'
 import { supabase } from '../lib/supabase.js'
+import { fetchAll } from '../lib/fetchAll.js'
 import { assignmentActiveOn, todayISO } from '../lib/classAssignments.jsx'
 import { matchesSearch } from '../lib/searchMatch.js'
 import { useAuth } from '../hooks/useAuth.jsx'
@@ -607,7 +608,8 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     setAttendance({})
     setSelectedStudents([])
 
-    const { data, error } = await query
+    query = query.order('id')
+    const { data, error } = await fetchAll(() => query)   // all of them, in batches of 1,000
     const filteredStudents = (data || []).filter(s => s.members?.status !== 'stopped' && s.members?.status !== 'not_started')
     // Re-merges any one-off students added this session back in, since
     // they're not part of the official query above (they're not
