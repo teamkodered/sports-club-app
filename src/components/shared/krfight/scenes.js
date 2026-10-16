@@ -424,6 +424,11 @@ export class FightScene extends Phaser.Scene {
       this.chipT.push(u(txt(this, cx + 30, 104, mb.def.name.slice(0, 3), { fontFamily: BODY, fontStyle: '700', fontSize: '12px', color: mb.def.colour }).setOrigin(0.5, 0)))
       if (side === 'p1') { const z = u(this.add.zone(cx + 25, 116, 54, 30).setInteractive()); z.on('pointerdown', () => { this.tagReq = i }) }
     })
+    // combo guide: appears over your fighter once you start one of their combos
+    this.guideG = u(this.add.graphics())
+    this.guideTitle = u(txt(this, 0, 0, '', { fontFamily: BODY, fontStyle: '700', fontSize: '13px', color: '#F5C542', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5, 1))
+    this.guideToks = Array.from({ length: 6 }, () => u(txt(this, 0, 0, '', { fontFamily: BODY, fontStyle: '700', fontSize: '14px', stroke: '#000', strokeThickness: 3 }).setOrigin(0, 0.5)))
+    this.guideA = 0
     this.hitsT = { p1: u(txt(this, 26, 150, '', { fontSize: '44px', color: GOLD, stroke: '#000', strokeThickness: 6 }).setAlpha(0)),
       p2: u(txt(this, W - 26, 150, '', { fontSize: '44px', color: GOLD, stroke: '#000', strokeThickness: 6 }).setOrigin(1, 0).setAlpha(0)) }
     this.dark = u(this.add.rectangle(W / 2, H / 2, W + 40, H + 40, 0x000000, 0).setDepth(-1))
@@ -646,7 +651,41 @@ export class FightScene extends Phaser.Scene {
     this.drawHud()
   }
 
+  // which strike a combo step means for this fighter, and how to throw it
+  stepLabel(def, t) {
+    const DIR = { f: 'FORWARD', b: 'STEP BACK', d: 'DUCK', sp: 'SPECIAL', super: 'SUPER' }
+    if (DIR[t]) return { name: DIR[t], how: '' }
+    const id = (def.moves && def.moves[t]) || t, mv = MOVES[id]
+    return { name: (mv && mv.name ? mv.name : id).toUpperCase(), how: t[0] === 'l' ? 'tap' : t[0] === 'm' ? 'hold' : 'long hold' }
+  }
+  drawGuide() {
+    const m = this.m, f = m.p1, prog = m.phase === 'fight' && f.state !== 'ko' ? f.comboProg : null
+    this.guideA += ((prog ? 1 : 0) - this.guideA) * 0.25
+    const a = this.guideA, g = this.guideG
+    g.clear()
+    if (a < 0.03 || !(prog || this.lastGuide)) { this.guideTitle.setAlpha(0); this.guideToks.forEach(t => t.setAlpha(0)); return }
+    const p = prog || this.lastGuide; this.lastGuide = prog || this.lastGuide
+    const seq = p.combo.seq, pulse = 0.65 + 0.35 * Math.sin(this.time.now / 120)
+    // lay the steps out left to right
+    let x = 0; const parts = []
+    seq.forEach((t, i) => {
+      const L = this.stepLabel(f.def, t), done = i < p.done, next = i === p.done
+      const label = (done ? '✓ ' : '') + L.name + (next && L.how ? ` (${L.how})` : '') + (i < seq.length - 1 ? '  →' : '')
+      const tt = this.guideToks[i]
+      setT(tt, label, done ? '#5BE07A' : next ? '#F5C542' : '#9AA3AE') // only re-renders text when it changes
+      parts.push({ tt, w: tt.width + 6 }); x += tt.width + 6
+    })
+    for (let i = seq.length; i < this.guideToks.length; i++) this.guideToks[i].setAlpha(0)
+    const total = x, cx = Phaser.Math.Clamp(f.x, total / 2 + 12, W - total / 2 - 12), y = Math.max(150, f.y - 205)
+    g.fillStyle(0x05070a, 0.72 * a); g.fillRoundedRect(cx - total / 2 - 10, y - 30, total + 20, 44, 8)
+    g.lineStyle(1.5, 0xf5c542, 0.6 * a); g.strokeRoundedRect(cx - total / 2 - 10, y - 30, total + 20, 44, 8)
+    setT(this.guideTitle, p.combo.name); this.guideTitle.setPosition(cx, y - 12).setAlpha(a)
+    let px = cx - total / 2
+    parts.forEach(({ tt, w }, i) => { tt.setPosition(px, y + 2).setAlpha(a * (i === p.done ? pulse : 1)); px += w })
+  }
+
   drawHud() {
+    this.drawGuide()
     const m = this.m, g = this.hudG; g.clear()
     for (const k of ['p1', 'p2']) {
       const f = m[k]

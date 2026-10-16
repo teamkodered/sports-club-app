@@ -135,7 +135,15 @@ export class Match {
 
   startMove(f, k) {
     if (f.stun > 0 || f.state === 'ko') return
-    if (f.move && !(f.hitDone && f.t >= f.move.s + f.move.a - M(f).chainEarly && k !== 'sp' || f.comboNext)) return // chain only after a landed hit (or a combo input)
+    const pastActive = f.move && f.t >= f.move.s + f.move.a - M(f).chainEarly
+    // pressing the next step of a combo in progress (or a buffered press that already counted as that step)
+    const cp = f.comboProg
+    const continuesCombo = !!(cp && (cp.next === k || (cp.done >= 1 && cp.combo.seq[cp.done - 1] === k)))
+    if (f.move && !((f.hitDone || continuesCombo) && pastActive && k !== 'sp' || f.comboNext)) {
+      // too early: remember the press for a moment and fire it as soon as the fighter can (input buffer)
+      if (k !== 'super') f.queued = { k, at: this.frame }
+      return false
+    }
     const st = this.statsOf(f)
     if (k === 'super') {
       if ((f.meter || 0) < 100) return
@@ -161,7 +169,7 @@ export class Match {
       else if (sp === 'counter') { f.counterT = 40; f.move = { k: 'counter', s: 40, a: 0, r: 6, dmg: 0, reach: 0, h: 'high', push: 0 } }
       f.t = 0; f.hitDone = false; f.comboNext = null
       this.emit({ type: 'special', f, kind: sp })
-      return
+      return true
     }
     // the fighter's style decides which strike this button throws
     const lvl = LEVEL_SCALE[k[0]] || LEVEL_SCALE.l, isPunch = k[1] === 'p'
@@ -181,6 +189,26 @@ export class Match {
     if (f.comboNext) { f.move.combo = f.comboNext; f.move.dmg *= f.comboNext.bonus * md.comboBonus; f.move.push *= 1.4; f.comboNext = null }
     f.t = 0; f.hitDone = false
     this.emit({ type: 'whoosh', heavy: k[0] === 'h' || key === 'mk' })
+    return true
+  }
+
+  // which combo is the fighter part-way through? (for the on-screen combo guide and combo chaining)
+  trackCombo(f) {
+    const gap = COMBO_GAP + M(f).comboGap
+    const buf = (f.buf || []).filter(x => this.frame - x.at < gap * 5)
+    let best = null
+    if (buf.length && this.frame - buf[buf.length - 1].at <= gap) {
+      for (const c of (f.def.combos || [])) {
+        for (let k = Math.min(c.seq.length - 1, buf.length); k >= 1; k--) {
+          const tail = buf.slice(-k)
+          if (tail.every((x, i) => x.t === c.seq[i] && (i === 0 || x.at - tail[i - 1].at <= gap))) {
+            if (!best || k > best.done || (k === best.done && c.seq.length < best.combo.seq.length)) best = { combo: c, done: k, next: c.seq[k] }
+            break
+          }
+        }
+      }
+    }
+    f.comboProg = best
   }
 
   // standing block stops high + mid; low attacks must be blocked crouching (down-back)
@@ -281,16 +309,32 @@ export class Match {
       const dirNow = { f: !!fwd, b: !!back, d: !!ctl.down }
       for (const t of ['f', 'b', 'd']) if (dirNow[t] && !f.prevDir[t]) f.buf.push({ t, at: this.frame })
       f.prevDir = dirNow
+      let pressedNow = false
       for (const k of ['lp', 'mp', 'hp', 'lk', 'mk', 'hk', 'sp', 'super']) if (ctl[k + 'Pressed']) {
+        pressedNow = true
         f.buf.push({ t: k, at: this.frame })
         const gap = COMBO_GAP + M(f).comboGap
         f.buf = f.buf.filter(x => this.frame - x.at < gap * 5).slice(-8)
-        for (const c of (f.def.combos || [])) {
+        for (const c of [...(f.def.combos || [])].sort((a, b) => b.seq.length - a.seq.length)) {
           const tail = f.buf.slice(-c.seq.length)
-          if (tail.length === c.seq.length && tail.every((x, i) => x.t === c.seq[i] && (i === 0 || x.at - tail[i - 1].at <= gap))) { f.comboNext = c; f.buf = []; break }
+          if (tail.length === c.seq.length && tail.every((x, i) => x.t === c.seq[i] && (i === 0 || x.at - tail[i - 1].at <= gap))) {
+            f.comboNext = c
+            // if this combo is also the start of a longer equipped one (1-2 inside 1-2-3), keep the inputs so the
+            // longer combo can still be finished; otherwise start fresh
+            const longer = (f.def.combos || []).some(o => o.seq.length > c.seq.length && c.seq.every((t, i) => o.seq[i] === t))
+            if (!longer) f.buf = []
+            break
+          }
         }
+        f.queued = null
         this.startMove(f, k); break
       }
+      // input buffer: a press that came a little early fires as soon as the fighter is free (within 12 frames)
+      if (!pressedNow && f.queued) {
+        if (this.frame - f.queued.at > 12) f.queued = null
+        else if (this.startMove(f, f.queued.k) !== false) f.queued = null
+      }
+      this.trackCombo(f)
     }
     // move timeline
     if (f.move) {

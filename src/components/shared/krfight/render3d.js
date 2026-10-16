@@ -124,6 +124,13 @@ class Rig {
     this.playLoop('Idle_Loop')
   }
   action(name) { const clip = this.clips[name]; return clip ? this.mixer.clipAction(clip) : null }
+  // a second copy of a move, so throwing the same move twice in a row blends instead of restarting
+  altAction(name) {
+    const clip = this.clips[name]; if (!clip) return null
+    this.alts = this.alts || {}
+    if (!this.alts[name]) { const c2 = clip.clone(); c2.name = name; this.alts[name] = this.mixer.clipAction(c2) }
+    return this.alts[name]
+  }
   // ---- animation blending, done by hand so the weights ALWAYS add up to 1 ----
   // (three.js fills any missing weight with the model's rest pose -- the "arms out" glitch -- so we never
   //  leave a gap: loops cross-fade into each other, and a one-off move fades in over the loop and back out)
@@ -136,11 +143,15 @@ class Rig {
   }
   // a one-off move on top (strike, hit, KO, victory); seconds = how long it should take; hold = keep the last frame
   playShot(name, seconds, { clamp = false, startAt = 0, repeat = false } = {}) {
-    const act = this.action(name); if (!act) return false
+    let act = this.action(name); if (!act) return false
+    if (this.shot && (this.shot === act || this.shot === (this.alts || {})[name])) act = this.shot === act ? this.altAction(name) : act // same move again: use the other copy
     const d = act.getClip().duration
-    if (this.shot && this.shot !== act) this.shot.stop()
+    // chaining: the previous move fades out under the new one instead of being cut off
+    if (this.shot && this.shot !== act) { if (this.prevShot && this.prevShot !== act) this.prevShot.stop(); this.prevShot = this.shot; this.prevW = this.shotW || 0; this.shotW = 0 }
+    else if (this.prevShot === act) { this.prevShot = null; this.prevW = 0 }
     act.reset(); act.setLoop(repeat ? THREE.LoopRepeat : THREE.LoopOnce, repeat ? Infinity : 1); act.clampWhenFinished = true // hold the last frame, never drop to rest
-    act.timeScale = seconds ? Math.max(0.5, Math.min(4, (d * (1 - startAt)) / seconds)) : 1
+    // never more than 2.2x real speed (squeezing a 1 s punch into 0.25 s made the hands whip / jump)
+    act.timeScale = seconds ? Math.max(0.5, Math.min(2.2, (d * (1 - startAt)) / seconds)) : 1
     act.time = d * startAt; act.enabled = true; act.play()
     this.shot = act; this.shotName = name; this.hold = clamp || repeat
     this.shotLeft = repeat ? Infinity : (d * (1 - startAt)) / act.timeScale
@@ -159,12 +170,17 @@ class Rig {
       this.shotW = on ? Math.min(1, (this.shotW || 0) + dt / 0.08) : Math.max(0, (this.shotW || 0) - dt / 0.12)
       if (!on && this.shotW <= 0) { this.shot.stop(); this.shot = null; this.shotName = null; this.shotW = 0 }
     } else this.shotW = 0
-    const sw = this.shot ? this.shotW : 0, rest = 1 - sw
+    // previous move (when chaining) fades out over 0.1 s
+    if (this.prevShot) { this.prevW = Math.max(0, (this.prevW || 0) - dt / 0.1); if (this.prevW <= 0) { this.prevShot.stop(); this.prevShot = null } }
+    let sw = this.shot ? this.shotW : 0, pw = this.prevShot ? this.prevW : 0
+    if (sw + pw > 1) { const k = 1 / (sw + pw); sw *= k; pw *= k }
+    const rest = Math.max(0, 1 - sw - pw)
     if (this.shot) this.shot.setEffectiveWeight(sw)
+    if (this.prevShot) this.prevShot.setEffectiveWeight(pw)
     if (this.loop) this.loop.setEffectiveWeight(rest * (this.prevLoop ? this.loopMix : 1))
     if (this.prevLoop) this.prevLoop.setEffectiveWeight(rest * (1 - this.loopMix))
     // safety net: if somehow nothing is playing, fall back to idle rather than the rest pose
-    if (!this.loop && !this.shot) this.playLoop('Idle_Loop')
+    if (!this.loop && !this.shot && !this.prevShot) this.playLoop('Idle_Loop')
     this.mixer.update(dt)
   }
 }
@@ -262,7 +278,7 @@ export class Renderer3D {
     if (mv && mv !== rig.lastMove) {
       rig.lastMove = mv
       const clip = STRIKE_CLIP[mv.k]
-      if (clip) rig.playShot(clip, (mv.s + mv.a + mv.r) / 60) // from the first frame (skipping in made it jump)
+      if (clip) rig.playShot(clip, (mv.s + mv.a + mv.r) / 60, { startAt: clip === 'Spell_Simple_Shoot' ? 0 : 0.22 }) // skip the slow wind-up; the fade-in hides the cut
       else if (rig.shot && rig.shotName !== 'Death01' && rig.shotName !== 'Dance_Loop') rig.endShot()
     }
     if (!mv) rig.lastMove = null
