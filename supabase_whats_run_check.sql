@@ -14,6 +14,7 @@ begin
   -- functions: file, function name
   for fn in select unnest(array[
     'supabase_krfight_progress.sql|krfight_change_style',
+    'supabase_krfight_collection.sql|krfight_match_end',
     'supabase_stock.sql|kc_stock_sale',
     'supabase_head_coach_forms_venue_only.sql|kc_my_venue_member_ids',
     'supabase_coach_leader_restriction.sql|kc_is_class_staff',
