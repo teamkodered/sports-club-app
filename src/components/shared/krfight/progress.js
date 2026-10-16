@@ -3,7 +3,7 @@
 // or for staff, who have no athlete record -- progress is kept on the device instead, so the game works
 // either way. Gems: training entries per pillar + house points (wild) + gems won in the game.
 import { supabase } from '../../../lib/supabase.js'
-import { COMBO_LIB, COMBO_BY_ID, TIER_XP, TIER_GEMS, BRANCHES, seasonOf } from './data.js'
+import { COMBO_LIB, COMBO_BY_ID, TIER_XP, TIER_GEMS, BRANCHES, seasonOf, CARDS, CARD_BY_ID, CARD_RARITY, CARD_MAX_LV, SKIN_BY_KEY } from './data.js'
 
 export const PILLARS = ['physical', 'technical', 'tactical', 'mentality', 'foundation']
 // Upgrade areas: one set per pillar. Technical / Physical follow the club's MTP analysis; Tactical and
@@ -226,20 +226,23 @@ export function resetTest(p) {
   return { ...p, upgrades: {}, branches: {}, style_xp: {} }
 }
 
-// ---- Collected combos (on the device for now; saved to the profile with a later SQL step) ----
-// { combos: { id: level } }. Commons are always owned. Test mode owns everything at max level.
+// ---- Collection: combo cards, graphic cards, win streak ----
+// { combos: { id: level }, cards: { id: level }, streak }. Saved to the athlete's profile once
+// supabase_krfight_collection.sql is run (krfight_match_end), on the device before that. Commons are always
+// owned. Test mode owns everything at max level.
 const LS_COLL = 'krfight-collection'
 export const COMBO_MAX_LV = 3
-export function loadCollection() {
-  if (isTestMode()) return { combos: Object.fromEntries(COMBO_LIB.map(c => [c.id, COMBO_MAX_LV])) }
+const withCommons = combos => { const c = { ...(combos || {}) }; for (const x of COMBO_LIB) if (x.rarity === 'common' && !c[x.id]) c[x.id] = 1; return c }
+export function loadCollection(p) {
+  if (isTestMode() || (p && p.mode === 'test')) return { combos: Object.fromEntries(COMBO_LIB.map(c => [c.id, COMBO_MAX_LV])), cards: Object.fromEntries(CARDS.map(c => [c.id, CARD_MAX_LV])), streak: 0, test: true }
+  if (p && p.mode === 'db' && p.collection) return { combos: withCommons(p.collection.combos), cards: { ...(p.collection.cards || {}) }, streak: n(p.win_streak) }
   let v = {}
   try { v = JSON.parse(localStorage.getItem(LS_COLL) || '{}') } catch (e) { /* ignore */ }
-  const combos = { ...(v.combos || {}) }
-  for (const c of COMBO_LIB) if (c.rarity === 'common' && !combos[c.id]) combos[c.id] = 1
-  return { combos }
+  return { combos: withCommons(v.combos), cards: { ...(v.cards || {}) }, streak: n(v.streak) }
 }
 export const ownsCombo = (coll, id) => (coll.combos[id] || 0) > 0
-// a win may drop a combo card for one of the team's styles: new card, or a duplicate that levels it up
+export const ownsCard = (coll, id) => ((coll.cards || {})[id] || 0) > 0
+// a win may drop a combo card for one of the team's styles (rare / epic)
 export function rollComboDrop(styles, level, won) {
   if (!won) return null
   if (import.meta.env && import.meta.env.DEV && globalThis.__krForceDrop) return globalThis.__krForceDrop // local testing only
@@ -247,17 +250,56 @@ export function rollComboDrop(styles, level, won) {
   if (Math.random() > chance) return null
   const pool = COMBO_LIB.filter(c => c.rarity !== 'common' && c.styles.some(s => styles.includes(s)))
   if (!pool.length) return null
-  // epics are rarer: weight rare 3, epic 1
   const bag = pool.flatMap(c => Array(c.rarity === 'epic' ? 1 : 3).fill(c))
   return bag[Math.floor(Math.random() * bag.length)].id
 }
-// add a card to the collection; returns { coll, isNew, level }
+// a win may drop a graphic card (rarer cards less often); every 3rd win in a row guarantees Rare or better
+export function rollCardDrop(won, level, streakAfter) {
+  if (!won) return null
+  if (import.meta.env && import.meta.env.DEV && globalThis.__krForceCard) return globalThis.__krForceCard
+  const guaranteed = streakAfter > 0 && streakAfter % 3 === 0
+  const chance = { easy: 0.15, medium: 0.25, hard: 0.4 }[level] ?? 0.25
+  if (!guaranteed && Math.random() > chance) return null
+  const pool = CARDS.filter(c => !guaranteed || c.rarity !== 'common')
+  const total = pool.reduce((t, c) => t + CARD_RARITY[c.rarity].weight, 0)
+  let r = Math.random() * total
+  for (const c of pool) { r -= CARD_RARITY[c.rarity].weight; if (r <= 0) return c.id }
+  return pool[pool.length - 1].id
+}
+// end of a match: update the win streak and add any drops; returns { progress, coll, results }
+export async function recordMatch(p, coll, won, drops) {
+  const results = drops.map(d => {
+    const store = d.kind === 'card' ? coll.cards : coll.combos, cur = (store || {})[d.id] || 0
+    return { ...d, isNew: cur === 0, level: Math.min(d.kind === 'card' ? CARD_MAX_LV : COMBO_MAX_LV, cur + 1) }
+  })
+  if (coll.test) return { progress: p, coll, results }
+  if (p.mode === 'db') {
+    try {
+      const { data, error } = await supabase.rpc('krfight_match_end', { p_won: !!won, p_drops: drops })
+      if (!error && data) { const np = { ...blank(), ...data, mode: 'db' }; return { progress: np, coll: loadCollection(np), results } }
+    } catch (e) { /* fall through */ }
+    return { progress: p, coll, results: [] }
+  }
+  const next = { combos: { ...coll.combos }, cards: { ...(coll.cards || {}) }, streak: won ? n(coll.streak) + 1 : 0 }
+  for (const r of results) (r.kind === 'card' ? next.cards : next.combos)[r.id] = r.level
+  try { localStorage.setItem(LS_COLL, JSON.stringify(next)) } catch (e) { /* ignore */ }
+  return { progress: p, coll: next, results }
+}
+// kept for older callers: add one combo card
 export function addComboCard(coll, id) {
   if (!COMBO_BY_ID[id]) return { coll, isNew: false, level: 0 }
   const cur = coll.combos[id] || 0, level = Math.min(COMBO_MAX_LV, cur + 1)
-  const next = { combos: { ...coll.combos, [id]: level } }
-  if (!isTestMode()) { try { localStorage.setItem(LS_COLL, JSON.stringify(next)) } catch (e) { /* ignore */ } }
+  const next = { ...coll, combos: { ...coll.combos, [id]: level } }
+  if (!coll.test) { try { localStorage.setItem(LS_COLL, JSON.stringify(next)) } catch (e) { /* ignore */ } }
   return { coll: next, isNew: cur === 0, level }
+}
+// skins unlock by collecting that fighter's cards
+export function cardsOwnedFor(coll, fighterKey) { return CARDS.filter(c => c.fighter === fighterKey && ownsCard(coll, c.id)).length }
+export function skinUnlocked(coll, fighterKey, skinKey) {
+  const sk = SKIN_BY_KEY[skinKey]; if (!sk) return false
+  if (coll.test || sk.need === 0) return true
+  if (sk.need === 'legendary') return ownsCard(coll, `card_${fighterKey}_legendary`)
+  return cardsOwnedFor(coll, fighterKey) >= sk.need
 }
 
 // ---- Style branches, style XP, lock-in and Change Tokens ----

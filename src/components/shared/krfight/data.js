@@ -149,7 +149,7 @@ export function styledDef(base, styleKey, loadout, levels = {}) {
 // squad set-up (style per pillar + fight order), remembered on the device for now
 export function loadSquad() {
   try { const v = JSON.parse(localStorage.getItem('krfight-squad') || 'null'); if (v && v.styles && Array.isArray(v.order)) return v } catch (e) { /* ignore */ }
-  return { styles: { physical: 'pro', technical: 'kickboxer', tactical: 'thai', mentality: 'am', foundation: 'tkd' }, order: [0, 1, 2], loadouts: {} }
+  return { styles: { physical: 'pro', technical: 'kickboxer', tactical: 'thai', mentality: 'am', foundation: 'tkd' }, order: [0, 1, 2], loadouts: {}, skins: {} }
 }
 export function saveSquad(sq) { try { localStorage.setItem('krfight-squad', JSON.stringify(sq)) } catch (e) { /* ignore */ } }
 export const MAX_TEAM = 5
@@ -302,3 +302,32 @@ export function applyBranch(def, state) {
 
 // seasons for Change Tokens: one token per quarter (Jan, Apr, Jul, Oct)
 export const seasonOf = (d = new Date()) => `${d.getFullYear()}-Q${Math.floor(d.getMonth() / 3) + 1}`
+
+// ---- Collecting: graphic cards and skins ----
+// 20 graphic cards: one of each rarity per fighter. pose = how the fighter is drawn on the card.
+export const CARD_RARITY = {
+  common: { name: 'Common', colour: '#9AA3AE', weight: 10 },
+  rare: { name: 'Rare', colour: '#4DA3FF', weight: 5 },
+  epic: { name: 'Epic', colour: '#C93BFF', weight: 2 },
+  legendary: { name: 'Legendary', colour: '#F5C542', weight: 0.6 }, // gold = legendary
+}
+export const CARD_RARITIES = ['common', 'rare', 'epic', 'legendary']
+export const CARDS = FIGHTERS.flatMap(f => [
+  { id: `card_${f.key}_common`, fighter: f.key, rarity: 'common', name: 'Stance', pose: 'stance' },
+  { id: `card_${f.key}_rare`, fighter: f.key, rarity: 'rare', name: f.specialName, pose: 'special' },
+  { id: `card_${f.key}_epic`, fighter: f.key, rarity: 'epic', name: SUPER_NAME[f.special], pose: 'kick' },
+  { id: `card_${f.key}_legendary`, fighter: f.key, rarity: 'legendary', name: 'Champion', pose: 'victory' },
+])
+export const CARD_BY_ID = Object.fromEntries(CARDS.map(c => [c.id, c]))
+export const CARD_MAX_LV = 3
+
+// Skins: finishes for each fighter, unlocked by collecting that fighter's cards. Shown in the 3D fight /
+// previews and in the Stickman look.
+export const SKINS = [
+  { key: 'standard', name: 'Standard', need: 0, what: 'Chrome in the fighter\'s colour' },
+  { key: 'matte', name: 'Matte', need: 0, what: 'Soft, non-reflective finish' },
+  { key: 'neon', name: 'Neon', need: 2, what: 'Glows in the fighter\'s colour' },
+  { key: 'obsidian', name: 'Obsidian', need: 3, what: 'Black glass with a coloured edge' },
+  { key: 'gold', name: 'Gold', need: 'legendary', what: 'Solid gold' },
+]
+export const SKIN_BY_KEY = Object.fromEntries(SKINS.map(s => [s.key, s]))

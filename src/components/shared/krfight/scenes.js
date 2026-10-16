@@ -1,10 +1,10 @@
 // KR FIGHT 2 -- Phaser scenes: Boot (makes textures), Title, Select, Fight, Results.
 // The world is 800x450; cameras zoom x2 onto a 1600x900 canvas so everything stays crisp on phones.
 import Phaser from 'phaser'
-import { W, H, FLOOR, FIGHTERS, MOVES, SUPER_NAME, LEVELS, comboLabel, hex, getLook, setLook, LOOK_LEVELS, HOUSES, HOUSE_KEYS, getHouse, setHouse, fxColour, cpuHouse, NATURAL_HOUSE, STYLES, STYLE_KEYS, styledDef, loadSquad, saveSquad, MAX_TEAM, COMBO_BY_ID, combosForStyle, defaultLoadout, LOADOUT_SIZE, RARITY, FLOW_MAX, BRANCHES, TIER_XP, TIER_GEMS, applyBranch, seasonOf } from './data.js'
+import { W, H, FLOOR, FIGHTERS, MOVES, SUPER_NAME, LEVELS, comboLabel, hex, getLook, setLook, LOOK_LEVELS, HOUSES, HOUSE_KEYS, getHouse, setHouse, fxColour, cpuHouse, NATURAL_HOUSE, STYLES, STYLE_KEYS, styledDef, loadSquad, saveSquad, MAX_TEAM, COMBO_BY_ID, combosForStyle, defaultLoadout, LOADOUT_SIZE, RARITY, FLOW_MAX, BRANCHES, TIER_XP, TIER_GEMS, applyBranch, seasonOf, CARDS, CARD_BY_ID, CARD_RARITY, CARD_RARITIES, SKINS, SKIN_BY_KEY, COMBO_LIB } from './data.js'
 import { Match, makeFighter } from './core.js'
 import { makePose, stepPose, drawFighter, targetPose } from './pose.js'
-import { loadProgress, PILLARS, AREAS, AREA_GROUPS, costOf, MAX_LV, DAILY_GEMS, available, wild, priceFor, buyUpgrade, fighterLevel, levelOf, matchGems, awardGems, applyUpgrades, cpuUpgrades, resetTest, UNLIMITED, loadCollection, ownsCombo, rollComboDrop, addComboCard, COMBO_MAX_LV, branchOf, xpOf, nextTier, unlockTier, awardXp, isLocked, tokenAvailable, lockSquad, changeStyle, cpuBranch } from './progress.js'
+import { loadProgress, PILLARS, AREAS, AREA_GROUPS, costOf, MAX_LV, DAILY_GEMS, available, wild, priceFor, buyUpgrade, fighterLevel, levelOf, matchGems, awardGems, applyUpgrades, cpuUpgrades, resetTest, UNLIMITED, loadCollection, ownsCombo, rollComboDrop, addComboCard, COMBO_MAX_LV, rollCardDrop, recordMatch, ownsCard, cardsOwnedFor, skinUnlocked, branchOf, xpOf, nextTier, unlockTier, awardXp, isLocked, tokenAvailable, lockSquad, changeStyle, cpuBranch } from './progress.js'
 
 export const Z = 2
 const DISPLAY = "'Saira Condensed', 'Arial Narrow', sans-serif"
@@ -127,7 +127,7 @@ function buildArenaStick(scene, opts = {}) {
 
 // a strike for menu fighters (title / select / results), thrown the way their style throws it
 function demoMove(f, k) { const id = (f.def.moves && f.def.moves[k]) || k, mv = MOVES[id]; return mv ? { k: id, ...mv, reach: mv.reach * (f.def.reach || 1) } : null }
-const coll = scene => scene.game.collection || (scene.game.collection = loadCollection())
+const coll = scene => scene.game.collection || (scene.game.collection = loadCollection(scene.game.progress))
 const squadDef = (i, sq, scene) => { const q = sq || loadSquad(), k = FIGHTERS[i].key; const d = styledDef(FIGHTERS[i], q.styles[k], (q.loadouts || {})[k], scene ? coll(scene).combos : {}); return scene ? applyBranch({ ...d, mods: d.mods || {} }, branchOf(prog(scene), k)) : d }
 
 // a cut gem: diamond with facets, in a pillar colour (white = wild gem from house points)
@@ -137,13 +137,18 @@ function gemIcon(g, x, y, r, col) {
   g.lineStyle(1.5, 0x000000, 0.5); g.strokePoints([{ x, y: y - r }, { x: x + r * 0.8, y: y - r * 0.25 }, { x, y: y + r }, { x: x - r * 0.8, y: y - r * 0.25 }], true)
 }
 const prog = scene => scene.game.progress || {}
+// a fighter's equipped skin (Standard if none, or if it isn't unlocked any more)
+function skinFor(scene, key, sq) {
+  const k = ((sq || loadSquad()).skins || {})[key] || 'standard'
+  return skinUnlocked(coll(scene), key, k) ? k : 'standard'
+}
 // Look 4 (3D): show the 3D fighter in a menu's preview spot instead of the stick figure
-function attach3DPreview(scene, rect, colour) {
+function attach3DPreview(scene, rect, colour, skin) {
   if (getLook() !== '3d') return
-  if (scene.p3d) { scene.p3d.setColour(colour); return }
+  if (scene.p3d) { scene.p3d.setColour(colour, skin); return }
   import('./render3d.js').then(mod => {
     if (!scene.sys || !scene.sys.isActive() || scene.p3d) return
-    scene.p3d = new mod.Preview3D(scene.game, rect, colour)
+    scene.p3d = new mod.Preview3D(scene.game, rect, colour, skin)
     scene.events.once('shutdown', () => { scene.p3d && scene.p3d.destroy(); scene.p3d = null })
   }).catch(() => {})
 }
@@ -248,14 +253,15 @@ export class SelectScene extends Phaser.Scene {
     this.fightBtn = null
     // Look levels: 1 Cartoon, 2 Stickman, 3 Houses (all open while testing; later they unlock with game level)
     const lv = LOOK_LEVELS.find(l => l.key === getLook()) || LOOK_LEVELS[1]
+    button(this, 596, 34, 120, 32, 'Collection', GOLD, () => this.scene.start('Collection', { pick: this.game.cfg.pick }), { size: 16 })
     button(this, 724, 34, 120, 32, `Look ${lv.level}: ${lv.name}`, '#9AA3AE', () => { setLook(LOOK_LEVELS[(LOOK_LEVELS.indexOf(lv) + 1) % LOOK_LEVELS.length].key); this.scene.restart() }, { size: 15 })
     this.refresh()
   }
   makePreview() {
     const cfg = this.game.cfg
-    this.prev = makeFighter(squadDef(cfg.pick, this.sq, this), 170, 1); this.prev.side = 'p1'; this.prev.theme = NATURAL_HOUSE[this.prev.def.key]
+    this.prev = makeFighter(squadDef(cfg.pick, this.sq, this), 170, 1); this.prev.side = 'p1'; this.prev.theme = NATURAL_HOUSE[this.prev.def.key]; this.prev.skin = skinFor(this, FIGHTERS[cfg.pick].key, this.sq)
     this.prevPose = makePose(this.prev, this.frame); this.demoT = 20
-    attach3DPreview(this, { x: 10, y: 40, w: 320, h: 320 }, FIGHTERS[cfg.pick].colour)
+    attach3DPreview(this, { x: 10, y: 40, w: 320, h: 320 }, FIGHTERS[cfg.pick].colour, this.prev.skin)
   }
   choose(i) { if (this.changing) { this.sq.styles[this.changing] = this.origStyle; saveSquad(this.sq); this.changing = null } this.game.cfg.pick = i; this.makePreview(); this.refresh() }
   // style button: free to change until the squad is locked; then only with this season's Change Token
@@ -329,7 +335,7 @@ export class SelectScene extends Phaser.Scene {
     }
     // CPU team: same size, random pillars and styles
     const pool = Phaser.Utils.Array.Shuffle([0, 1, 2, 3, 4])
-    const team1 = order.map(p => ({ p, style: this.sq.styles[FIGHTERS[p].key], loadout: (this.sq.loadouts || {})[FIGHTERS[p].key] }))
+    const team1 = order.map(p => ({ p, style: this.sq.styles[FIGHTERS[p].key], loadout: (this.sq.loadouts || {})[FIGHTERS[p].key], skin: skinFor(this, FIGHTERS[p].key, this.sq) }))
     const team2 = pool.slice(0, order.length).map(p => ({ p, style: Phaser.Utils.Array.GetRandom(STYLE_KEYS) }))
     sfx(this).resume?.()
     this.cameras.main.flash(160, 255, 255, 255)
@@ -373,6 +379,7 @@ export class FightScene extends Phaser.Scene {
     const defs = (t, mine) => (t || []).map(x => applyBranch(applyUpgrades(styledDef(FIGHTERS[x.p], x.style, mine ? x.loadout : null, mine ? coll(this).combos : {}), mine ? (P.upgrades || {})[FIGHTERS[x.p].key] : cpuUp), mine ? branchOf(P, FIGHTERS[x.p].key) : cpuBranch(x.style, data.level)))
     this.m = new Match(defs(data.team1, true), defs(data.team2, false), data.level)
     for (const f of [...this.m.t1, ...this.m.t2]) f.theme = NATURAL_HOUSE[f.def.key]
+    this.m.t1.forEach((f, i) => { f.skin = (data.team1 || [])[i]?.skin || 'standard' }) // your fighters' skins
     this.tagReq = null
     this.poses = { p1: makePose(this.m.p1, 0), p2: makePose(this.m.p2, 0) }
     this.acc = 0; this.slow = 1; this.shakeT = null
@@ -801,16 +808,28 @@ export class ResultsScene extends Phaser.Scene {
       awardXp(prog(this), (data.team1 || []).map(t => FIGHTERS[t.p].key), youWon).then(p => { this.game.progress = p })
       txt(this, 560, 132, `+${youWon ? 40 : 20} style XP for each fighter`, { fontFamily: BODY, fontStyle: '700', fontSize: '13px', color: '#5BE0FF' }).setOrigin(0.5, 0)
     }
-    // a win may drop a combo card for one of your team's styles
+    // end of match: win streak + drops (a combo card for one of your team's styles, and/or a graphic card)
     if (!data.dropDone) {
       data.dropDone = true
-      const id = rollComboDrop((data.team1 || []).map(t => t.style), data.level, youWon)
-      if (id) {
-        const { coll: nc, isNew, level } = addComboCard(coll(this), id); this.game.collection = nc
-        const c = COMBO_BY_ID[id], col = RARITY[c.rarity].colour
-        const card = txt(this, 190, 70, `${isNew ? 'NEW COMBO CARD' : 'COMBO LEVELLED UP'}\n${c.name}${isNew ? '' : '  ' + '★'.repeat(level - 1)}\n${RARITY[c.rarity].name} · ${STYLES[c.styles[0]].name}`, { fontFamily: BODY, fontStyle: '700', fontSize: '19px', color: col, align: 'center', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5, 0)
-        card.setScale(0.3); this.tweens.add({ targets: card, scale: 1, duration: 300, ease: 'Back.out' }); sfx(this).special?.()
-      }
+      const C = coll(this), streakAfter = youWon ? (C.streak || 0) + 1 : 0
+      const drops = []
+      const comboId = rollComboDrop((data.team1 || []).map(t => t.style), data.level, youWon); if (comboId) drops.push({ kind: 'combo', id: comboId })
+      const cardId = rollCardDrop(youWon, data.level, streakAfter); if (cardId) drops.push({ kind: 'card', id: cardId })
+      recordMatch(prog(this), C, youWon, drops).then(({ progress, coll: nc, results }) => {
+        if (!this.sys || !this.sys.isActive()) return
+        this.game.progress = progress; this.game.collection = nc
+        if (youWon && streakAfter >= 2) txt(this, 190, 48, `${streakAfter} wins in a row${streakAfter % 3 === 2 ? ' · next win: guaranteed card' : ''}`, { fontFamily: BODY, fontStyle: '700', fontSize: '14px', color: '#5BE0FF', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5, 0)
+        results.forEach((r, i) => {
+          const isCard = r.kind === 'card', item = isCard ? CARD_BY_ID[r.id] : COMBO_BY_ID[r.id]
+          if (!item) return
+          const col = isCard ? CARD_RARITY[item.rarity].colour : RARITY[item.rarity].colour
+          const who = isCard ? FIGHTERS.find(f => f.key === item.fighter).name + ' · ' : ''
+          const label = `${r.isNew ? (isCard ? 'NEW CARD' : 'NEW COMBO CARD') : (isCard ? 'CARD LEVELLED UP' : 'COMBO LEVELLED UP')}\n${who}${item.name}${r.isNew ? '' : '  ' + '★'.repeat(r.level - 1)}\n${isCard ? CARD_RARITY[item.rarity].name : RARITY[item.rarity].name + ' · ' + STYLES[item.styles[0]].name}`
+          const t = txt(this, 190, 70 + i * 78, label, { fontFamily: BODY, fontStyle: '700', fontSize: '17px', color: col, align: 'center', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5, 0)
+          t.setScale(0.3); this.tweens.add({ targets: t, scale: 1, duration: 300, delay: i * 250, ease: 'Back.out' })
+        })
+        if (results.length) sfx(this).special?.()
+      })
     }
     sfx(this).cheer?.(youWon ? 1.5 : 0.6)
     sfx(this).say?.(youWon ? 'You win' : 'You lose', 0.5)
@@ -1099,9 +1118,9 @@ export class FighterScene extends Phaser.Scene {
     button(this, 738, 32, 84, 36, 'Back', '#F2F2F2', () => this.scene.start('Select'), { size: 20 })
 
     // fighter preview (left)
-    this.f = makeFighter(def, 150, 1); this.f.side = 'p1'; this.f.theme = NATURAL_HOUSE[key]
+    this.f = makeFighter(def, 150, 1); this.f.side = 'p1'; this.f.theme = NATURAL_HOUSE[key]; this.f.skin = skinFor(this, key, sq)
     this.pose = makePose(this.f, 0); this.fg = this.add.graphics(); this.demoT = 20
-    attach3DPreview(this, { x: 0, y: 96, w: 290, h: 330 }, f.colour)
+    attach3DPreview(this, { x: 0, y: 96, w: 290, h: 330 }, f.colour, this.f.skin)
 
     const g = this.add.graphics(), X = 300
     // STATS
@@ -1159,3 +1178,125 @@ export class FighterScene extends Phaser.Scene {
     drawFighter(this.fg, f, this.pose, this.frame, 1, { noKo: true, y: 400, shadowY: 400 })
   }
 }
+
+// ---------------- Collection: graphic cards, combo cards, skins ----------------
+const SKIN_SWATCH = { standard: null, matte: null, neon: null, obsidian: 0x0b0b10, gold: 0xe8b54a }
+export class CollectionScene extends Phaser.Scene {
+  constructor() { super('Collection') }
+  create(data) {
+    setupCam(this); bridge(this).onScene?.('collection')
+    buildArena(this, { dim: 0.88 })
+    this.tab = data?.tab || 'Cards'; this.pick = data?.pick ?? 0; this.frame = 0
+    txt(this, 20, 6, 'COLLECTION', { fontSize: '36px', color: GOLD, stroke: '#000', strokeThickness: 6 })
+    this.countT = txt(this, 22, 48, '', { fontFamily: BODY, fontStyle: '700', fontSize: '14px', color: '#C9CED6' })
+    button(this, 738, 30, 84, 36, 'Back', '#F2F2F2', () => this.scene.start('Select'), { size: 20 })
+    this.tabBtns = ['Cards', 'Combos', 'Skins'].map((t, i) => button(this, 380 + i * 112, 30, 104, 34, t, '#F2F2F2', () => { this.tab = t; this.build() }, { size: 17 }))
+    this.layer = []
+    this.build()
+  }
+  clear() { for (const o of this.layer) o.destroy(); this.layer = [] }
+  L(o) { this.layer.push(o); return o }
+  build() {
+    this.clear()
+    const C = coll(this)
+    this.tabBtns.forEach((b, i) => b.setOn(['Cards', 'Combos', 'Skins'][i] === this.tab))
+    const ownedCards = CARDS.filter(c => ownsCard(C, c.id)).length, ownedCombos = COMBO_LIB.filter(c => ownsCombo(C, c.id)).length
+    this.countT.setText(`Cards ${ownedCards} / ${CARDS.length}   ·   Combos ${ownedCombos} / ${COMBO_LIB.length}   ·   Win streak ${C.streak || 0}`)
+    if (this.tab === 'Cards') this.buildCards(C)
+    else if (this.tab === 'Combos') this.buildCombos(C)
+    else this.buildSkins(C)
+    const note = this.tab === 'Cards' ? 'Cards drop from wins (more on harder levels); every 3rd win in a row guarantees Rare or better. A duplicate levels a card up (★).'
+      : this.tab === 'Combos' ? 'Commons are yours from the start; Rare and Epic combo cards drop from wins. Equip them from each fighter\'s Combos screen.'
+      : 'Collect a fighter\'s cards to unlock their skins. Tap an unlocked skin to equip it (shows in 3D and the Stickman look).'
+    this.L(txt(this, 20, 449, note, { fontFamily: BODY, fontStyle: '600', fontSize: '11px', color: '#7d8691' }).setOrigin(0, 1))
+  }
+  // a fighter drawn in a card's pose
+  cardArt(g, card, cx, floorY, sc) {
+    const base = FIGHTERS.find(f => f.key === card.fighter)
+    const f = makeFighter(styledDef(base, loadSquad().styles[base.key]), cx / sc, 1); f.side = 'p1'; f.theme = NATURAL_HOUSE[base.key]
+    if (card.pose === 'special') { const sp = base.special; f.move = sp === 'wave' ? { k: 'cast', s: 8, a: 6, r: 16, reach: 30 } : sp === 'quake' ? { k: 'stomp', s: 10, a: 4, r: 18 } : sp === 'upper' ? { k: 'upper', s: 3, a: 8, r: 20, reach: 66 } : sp === 'rush' ? { k: 'rush', s: 4, a: 14, r: 14, reach: 75 } : { k: 'counter', s: 40, a: 0, r: 6 }; f.t = f.move.s + 1; if (sp === 'counter') f.counterT = 30 }
+    if (card.pose === 'kick') { f.move = demoMove(f, 'hk'); f.t = f.move.s + 1 }
+    const P = targetPose(f, 10)
+    if (card.pose === 'victory') { P.lhX = 18; P.lhY = P.shY - 48; P.rhX = -2; P.rhY = P.shY - 44 }
+    g.setScale(sc)
+    drawFighter(g, f, { cur: P, prev: P, trail: [], sw: [] }, 10, 1, { noKo: true, noTrail: true, x: cx / sc, y: floorY / sc, shadowY: floorY / sc })
+  }
+  buildCards(C) {
+    FIGHTERS.forEach((fi, col) => {
+      this.L(txt(this, 20 + col * 154 + 74, 74, fi.name, { fontSize: '17px', color: fi.colour }).setOrigin(0.5, 0))
+      CARD_RARITIES.forEach((r, row) => {
+        const card = CARDS.find(c => c.fighter === fi.key && c.rarity === r), own = ownsCard(C, card.id), lv = (C.cards || {})[card.id] || 0
+        const x = 20 + col * 154, y = 98 + row * 84, w = 148, h = 78, rc = hex(CARD_RARITY[r].colour)
+        const g = this.L(this.add.graphics())
+        g.fillStyle(own ? 0x141922 : 0x0c0f14, 0.96); g.fillRoundedRect(x, y, w, h, 8)
+        g.lineStyle(own ? (r === 'legendary' ? 3 : 2) : 1.5, own ? rc : 0x262d36, 1); g.strokeRoundedRect(x, y, w, h, 8)
+        if (own && r === 'legendary') { g.lineStyle(1, 0xfff2c4, 0.6); g.strokeRoundedRect(x + 3, y + 3, w - 6, h - 6, 6) }
+        if (own) { const art = this.L(this.add.graphics()); this.cardArt(art, card, x + 34, y + h - 8, 0.36) }
+        else this.L(txt(this, x + 34, y + h / 2, '?', { fontSize: '30px', color: '#3a424d' }).setOrigin(0.5))
+        this.L(txt(this, x + 66, y + 10, own ? card.name : '???', { fontFamily: BODY, fontStyle: '700', fontSize: '12.5px', color: own ? '#F2F2F2' : '#5c6670', wordWrap: { width: 78 } }))
+        this.L(txt(this, x + 66, y + h - 22, CARD_RARITY[r].name + (lv > 1 ? '  ' + '★'.repeat(lv - 1) : ''), { fontFamily: BODY, fontStyle: '700', fontSize: '11px', color: own ? CARD_RARITY[r].colour : '#3a424d' }))
+        if (own) { const z = this.L(this.add.zone(x, y, w, h).setOrigin(0).setInteractive()); z.on('pointerdown', () => this.showCard(card, lv)) }
+      })
+    })
+  }
+  showCard(card, lv) {
+    sfx(this).ui?.()
+    const fi = FIGHTERS.find(f => f.key === card.fighter), rc = CARD_RARITY[card.rarity]
+    const objs = []
+    const dim = this.add.rectangle(W / 2, H / 2, W + 40, H + 40, 0x000000, 0.75).setInteractive(); objs.push(dim)
+    const g = this.add.graphics(); objs.push(g)
+    const x = W / 2 - 130, y = 40, w = 260, h = 370
+    g.fillStyle(0x10141a, 1); g.fillRoundedRect(x, y, w, h, 14)
+    g.lineStyle(card.rarity === 'legendary' ? 5 : 3, hex(rc.colour), 1); g.strokeRoundedRect(x, y, w, h, 14)
+    g.fillStyle(hex(fi.colour), 0.12); g.fillRoundedRect(x + 10, y + 46, w - 20, 230, 10)
+    const art = this.add.graphics(); objs.push(art); this.cardArt(art, card, W / 2, y + 262, 1.15)
+    objs.push(txt(this, W / 2, y + 12, `${fi.name}`, { fontSize: '22px', color: fi.colour }).setOrigin(0.5, 0))
+    objs.push(txt(this, W / 2, y + 286, card.name, { fontSize: '26px', color: '#F2F2F2' }).setOrigin(0.5, 0))
+    objs.push(txt(this, W / 2, y + 322, `${rc.name}${lv > 1 ? '  ' + '★'.repeat(lv - 1) : ''}   ·   tap to close`, { fontFamily: BODY, fontStyle: '700', fontSize: '14px', color: rc.colour }).setOrigin(0.5, 0))
+    dim.on('pointerdown', () => objs.forEach(o => o.destroy()))
+  }
+  buildCombos(C) {
+    const groups = [['Boxing', ['pro', 'am']], ['Freestyle', ['kickboxer']], ['Taekwondo', ['tkd']], ['K1', ['thai']]]
+    groups.forEach(([label, styles], col) => {
+      const x = 20 + col * 192
+      this.L(txt(this, x, 74, label, { fontSize: '18px', color: '#F2F2F2' }))
+      COMBO_LIB.filter(c => c.styles.some(s => styles.includes(s)) && (styles.length > 1 ? c.styles.length > 1 || c.styles[0] === styles[0] : true)).forEach((c, row) => {
+        const own = ownsCombo(C, c.id), lv = C.combos[c.id] || 0, y = 100 + row * 40, rcol = RARITY[c.rarity].colour
+        const g = this.L(this.add.graphics())
+        g.fillStyle(0x10141a, own ? 0.96 : 0.7); g.fillRoundedRect(x, y, 184, 36, 6)
+        g.lineStyle(1.5, own ? hex(rcol) : 0x262d36, 1); g.strokeRoundedRect(x, y, 184, 36, 6)
+        this.L(txt(this, x + 7, y + 3, c.name + (lv > 1 ? '  ' + '★'.repeat(lv - 1) : ''), { fontFamily: BODY, fontStyle: '700', fontSize: '12.5px', color: own ? '#F2F2F2' : '#5c6670' }))
+        this.L(txt(this, x + 7, y + 19, `${RARITY[c.rarity].name}  ·  ${comboLabel(c.seq)}`, { fontFamily: BODY, fontStyle: '600', fontSize: '10.5px', color: own ? rcol : '#3a424d' }))
+      })
+    })
+  }
+  buildSkins(C) {
+    const sq = loadSquad()
+    SKINS.forEach((sk, col) => this.L(txt(this, 132 + col * 132 + 62, 74, sk.name, { fontSize: '16px', color: sk.key === 'gold' ? GOLD : '#F2F2F2' }).setOrigin(0.5, 0)))
+    FIGHTERS.forEach((fi, row) => {
+      const y = 98 + row * 68
+      this.L(txt(this, 20, y + 12, fi.name, { fontSize: '17px', color: fi.colour }))
+      this.L(txt(this, 20, y + 34, `${cardsOwnedFor(C, fi.key)} / 4 cards`, { fontFamily: BODY, fontStyle: '600', fontSize: '11px', color: '#9AA3AE' }))
+      const equipped = skinFor(this, fi.key, sq)
+      SKINS.forEach((sk, col) => {
+        const x = 132 + col * 132, unlocked = skinUnlocked(C, fi.key, sk.key), on = equipped === sk.key
+        const g = this.L(this.add.graphics())
+        g.fillStyle(on ? hex(fi.colour) : 0x10141a, on ? 0.2 : 0.95); g.fillRoundedRect(x, y, 124, 60, 8)
+        g.lineStyle(on ? 2.5 : 1.5, on ? hex(fi.colour) : unlocked ? 0x3a424d : 0x1e242c, 1); g.strokeRoundedRect(x, y, 124, 60, 8)
+        // swatch
+        const c = hex(fi.colour), sw = SKIN_SWATCH[sk.key] ?? c
+        if (sk.key === 'neon') { g.fillStyle(c, 0.3); g.fillCircle(x + 22, y + 30, 15) }
+        g.fillStyle(sk.key === 'matte' ? shadeHex(c, 0.75) : sw, unlocked ? 1 : 0.35); g.fillCircle(x + 22, y + 30, 11)
+        if (sk.key === 'obsidian') { g.lineStyle(2, c, unlocked ? 1 : 0.35); g.strokeCircle(x + 22, y + 30, 11) }
+        if (sk.key === 'standard' || sk.key === 'gold') { g.fillStyle(0xffffff, unlocked ? 0.55 : 0.2); g.fillCircle(x + 18, y + 26, 3.5) }
+        const need = sk.need === 'legendary' ? 'Need Legendary card' : `Need ${sk.need} cards`
+        this.L(txt(this, x + 40, y + 12, on ? 'Equipped' : unlocked ? 'Tap to equip' : need, { fontFamily: BODY, fontStyle: '700', fontSize: '11.5px', color: on ? fi.colour : unlocked ? '#C9CED6' : '#5c6670', wordWrap: { width: 80 } }))
+        if (unlocked && !on) {
+          const z = this.L(this.add.zone(x, y, 124, 60).setOrigin(0).setInteractive())
+          z.on('pointerdown', () => { const q = loadSquad(); q.skins = { ...(q.skins || {}), [fi.key]: sk.key }; saveSquad(q); sfx(this).ui?.(); this.build() })
+        }
+      })
+    })
+  }
+}
+const shadeHex = (c, k) => ((Math.min(255, ((c >> 16) & 255) * k) << 16) | (Math.min(255, ((c >> 8) & 255) * k) << 8) | Math.min(255, (c & 255) * k))

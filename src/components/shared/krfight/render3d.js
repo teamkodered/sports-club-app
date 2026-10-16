@@ -98,7 +98,7 @@ function chase(rig, key, target, maxStep) {
 
 // ---- one fighter's 3D body ----
 class Rig {
-  constructor(gltf, clips, f, colour, cpu) {
+  constructor(gltf, clips, f, colour, cpu, skin) {
     this.obj = cloneSkinned(gltf.scene); this.obj.scale.setScalar(MODEL_SCALE)
     this.clips = clips; this.mixer = new THREE.AnimationMixer(this.obj)
     // the CPU is dark smoked chrome tinted with its colour (like the black CPU in the 2D looks), so even a
@@ -110,7 +110,14 @@ class Rig {
       o.material = (Array.isArray(o.material) ? o.material : [o.material]).map(m0 => {
         const m = m0.clone(), joints = /Joint/i.test(m.name || '')
         m.color = joints ? c.clone().multiplyScalar(0.35) : c.clone(); m.metalness = joints ? 0.6 : 0.92; m.roughness = joints ? 0.4 : 0.2
-        m.emissive = cpu ? new THREE.Color(colour) : c.clone(); m.emissiveIntensity = cpu ? 0.06 : 0.08; return m
+        m.emissive = cpu ? new THREE.Color(colour) : c.clone(); m.emissiveIntensity = cpu ? 0.06 : 0.08
+        // skins (player only): finishes unlocked by collecting the fighter's cards
+        const sk = cpu ? 'standard' : (skin || 'standard'), base = new THREE.Color(colour)
+        if (sk === 'matte') { m.metalness = 0.05; m.roughness = 0.65; m.emissiveIntensity = 0.03 }
+        else if (sk === 'neon') { m.color = joints ? base.clone().multiplyScalar(0.25) : base.clone().multiplyScalar(0.7); m.emissive = base.clone(); m.emissiveIntensity = joints ? 0.9 : 0.45; m.metalness = 0.4; m.roughness = 0.3 }
+        else if (sk === 'obsidian') { m.color = new THREE.Color(joints ? colour : '#0b0b10'); m.metalness = 0.95; m.roughness = 0.12; m.emissive = base.clone(); m.emissiveIntensity = joints ? 0.7 : 0.05 }
+        else if (sk === 'gold') { m.color = new THREE.Color(joints ? '#7a5a12' : '#E8B54A'); m.metalness = 1; m.roughness = 0.16; m.emissive = new THREE.Color('#F5C542'); m.emissiveIntensity = 0.05 }
+        return m
       })
       if (o.material.length === 1) o.material = o.material[0]
     })
@@ -237,7 +244,7 @@ export class Renderer3D {
   }
   rigFor(f) {
     let rig = this.rigs.get(f)
-    if (!rig && this.ready) { rig = new Rig(this.gltf, this.clips, f, f.def.colour, f.side === 'p2'); this.scene.add(rig.obj); this.rigs.set(f, rig) }
+    if (!rig && this.ready) { rig = new Rig(this.gltf, this.clips, f, f.def.colour, f.side === 'p2', f.skin); this.scene.add(rig.obj); this.rigs.set(f, rig) }
     return rig
   }
   // game events -> one-shot clips
@@ -356,8 +363,8 @@ export class Renderer3D {
 // 3D fight, idling and now and then throwing a jab, cross or cast.
 export class Preview3D {
   // rect = area in game-world pixels (800 x 450) to cover
-  constructor(game, rect, colour) {
-    this.game = game; this.rect = rect; this.dead = false
+  constructor(game, rect, colour, skin) {
+    this.game = game; this.rect = rect; this.dead = false; this.skin = skin
     const r = this.renderer = sharedRenderer('preview', { antialias: true, alpha: true })
     r.setClearColor(0x000000, 0)
     const cv = r.domElement
@@ -387,11 +394,11 @@ export class Preview3D {
   }
   makeRig() {
     if (this.rig) this.scene.remove(this.rig.obj)
-    this.rig = new Rig(this.gltf, this.clips, {}, this.colour, false)
+    this.rig = new Rig(this.gltf, this.clips, {}, this.colour, false, this.skin)
     this.rig.obj.rotation.y = Math.PI / 2 - 0.55 // three-quarter view, facing right like the 2D preview
     this.scene.add(this.rig.obj)
   }
-  setColour(colour) { this.colour = colour; this.glow.material.color.set(colour); if (this.gltf) this.makeRig() }
+  setColour(colour, skin) { this.colour = colour; this.skin = skin; this.glow.material.color.set(colour); if (this.gltf) this.makeRig() }
   frame() {
     const gc = this.game.canvas
     if (!gc || !gc.parentNode) return

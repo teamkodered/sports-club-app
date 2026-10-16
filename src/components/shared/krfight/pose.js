@@ -453,6 +453,14 @@ function drawStick(g, f, P, fx, fy, dir, frame, opts) {
   const flash = !ghost && f.flash > 0 && f.flash % 4 < 2
   const A = ghost || 1
   let front = light ? 0xf4f4f2 : 0x0c0d0f, back = light ? 0xbfc4c8 : 0x34383e
+  // skins (player only)
+  if (light && f.skin && f.skin !== 'standard') {
+    const sc = hex(f.def.colour)
+    if (f.skin === 'matte') { front = 0xd9dcdf; back = 0xa6abb1 }
+    else if (f.skin === 'neon') { front = sc; back = shade(sc, 0.7) }
+    else if (f.skin === 'obsidian') { front = 0x15161c; back = 0x2a2c34 }
+    else if (f.skin === 'gold') { front = 0xe8b54a; back = 0xa57d22 }
+  }
   if (flash) { front = light ? kit : 0xffffff; back = front }
   if (ghost) { front = kit; back = kit }
 
