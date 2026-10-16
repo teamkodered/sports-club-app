@@ -85,6 +85,17 @@ function twoBone(upper, lower, end, target, pole) {
   aimBone(lower, _c.clone(), target.clone().sub(_b))
 }
 
+// move rig.goals[key] (fighter-relative) towards target by at most maxStep metres this frame -- a realistic
+// strike speed, so a kick sweeps through instead of teleporting
+function chase(rig, key, target, maxStep) {
+  const base = rig.obj.position, rel = target.clone().sub(base)
+  const g = rig.goals[key] || (rig.goals[key] = rel.clone())
+  const d = rel.clone().sub(g), len = d.length()
+  if (len > maxStep) d.multiplyScalar(maxStep / len)
+  g.add(d)
+  return g.clone().add(base)
+}
+
 // ---- one fighter's 3D body ----
 class Rig {
   constructor(gltf, clips, f, colour, cpu) {
@@ -109,7 +120,7 @@ class Rig {
     // rest pose of every bone: restored each frame before the animation runs, so bones a clip doesn't move
     // (and the IK / lean layered on top) never build up frame after frame
     this.rest = []; this.obj.traverse(o => { if (o.isBone) this.rest.push([o, o.quaternion.clone(), o.position.clone()]) })
-    this.loop = null; this.shot = null; this.shotEnds = 0; this.lastMove = null; this.f = f
+    this.loop = null; this.shot = null; this.shotEnds = 0; this.lastMove = null; this.f = f; this.goals = {}
     this.playLoop('Idle_Loop')
   }
   action(name) { const clip = this.clips[name]; return clip ? this.mixer.clipAction(clip) : null }
@@ -251,7 +262,7 @@ export class Renderer3D {
     if (mv && mv !== rig.lastMove) {
       rig.lastMove = mv
       const clip = STRIKE_CLIP[mv.k]
-      if (clip) rig.playShot(clip, (mv.s + mv.a + mv.r) / 60, { startAt: 0.12 })
+      if (clip) rig.playShot(clip, (mv.s + mv.a + mv.r) / 60) // from the first frame (skipping in made it jump)
       else if (rig.shot && rig.shotName !== 'Death01' && rig.shotName !== 'Dance_Loop') rig.endShot()
     }
     if (!mv) rig.lastMove = null
@@ -260,7 +271,7 @@ export class Renderer3D {
     if (f.state === 'ko') { /* Death01 holds */ }
     else if (air) rig.playLoop('Jump_Loop')
     else if (f.crouch) rig.playLoop('Crouch_Idle_Loop')
-    else if (moving && !mv) rig.playLoop('Walk_Loop', Math.sign(f.vx) === dir ? 1.3 : -1.1)
+    else if (moving && !mv) { const want = Math.sign(f.vx) === dir ? 1.3 : -1.1; rig.walkSpeed = rig.walkSpeed == null ? want : rig.walkSpeed + (want - rig.walkSpeed) * Math.min(1, (this.dt || 1 / 60) * 10); rig.playLoop('Walk_Loop', rig.walkSpeed) }
     else rig.playLoop('Idle_Loop')
     for (const [bone, q, p] of rig.rest) { bone.quaternion.copy(q); bone.position.copy(p) }
     rig.tick(this.dt || 1 / 60)
@@ -272,30 +283,41 @@ export class Renderer3D {
     const legStrike = mv && LEG_STRIKES.has(mv.k) && !STRIKE_CLIP[mv.k]
     const armStrike = mv && !STRIKE_CLIP[mv.k] && !legStrike
     const b = rig.b
+    // Each layer fades in / out (~70 ms) instead of switching on and off, so limbs never snap between the
+    // motion-capture pose and the pose-system pose.
+    const dt = this.dt || 1 / 60, ease = Math.min(1, dt * 14)
+    const W = rig.ikW || (rig.ikW = { arms: 0, legs: 0, spine: 0 })
+    W.arms += ((!clipOwnsArms || armStrike ? 1 : 0) - W.arms) * ease
+    W.legs += ((legStrike ? 1 : 0) - W.legs) * ease
+    W.spine += ((armStrike || legStrike || f.blocking || f.stun > 0 ? 1 : 0) - W.spine) * ease
     // lean the spine with the pose (punch weight forward, kicks lean back)
-    if (b.spine && (armStrike || legStrike || f.blocking || f.stun > 0)) {
-      const ang = THREE.MathUtils.degToRad(-(P.lean || 0) * 1.4)
+    if (b.spine && W.spine > 0.01) {
+      const ang = THREE.MathUtils.degToRad(-(P.lean || 0) * 1.4) * W.spine
       const axis = new THREE.Vector3(0, 0, 1).applyQuaternion(b.spine.getWorldQuaternion(new THREE.Quaternion()).invert())
       b.spine.rotateOnAxis(axis, ang * dir); b.spine.updateMatrixWorld(true)
     }
     const fwd = new THREE.Vector3(dir, 0, 0)
-    if (!clipOwnsArms || armStrike) {
+    if (W.arms <= 0.01) for (const hd of [b.hl, b.hr]) if (hd) rig.goals[hd.name] = hd.getWorldPosition(new THREE.Vector3()).sub(rig.obj.position)
+    if (W.arms > 0.01) {
       // hands: relative to each shoulder, scaled from the 2D skeleton (arm ~0.54 -> ~0.47 units)
       for (const [ua, la, hd, hx, hy] of [[b.ual, b.lal, b.hl, P.lhX, P.lhY], [b.uar, b.lar, b.hr, P.rhX, P.rhY]]) {
         if (!ua) continue
         const sh = ua.getWorldPosition(new THREE.Vector3())
-        const t = new THREE.Vector3(sh.x + dir * (hx - P.shX) * U * 0.9, sh.y + (P.shY - hy) * U * 0.9 - 0.05, sh.z)
+        const goal = new THREE.Vector3(sh.x + dir * (hx - P.shX) * U * 0.9, sh.y + (P.shY - hy) * U * 0.9 - 0.05, sh.z)
+        const t = hd.getWorldPosition(new THREE.Vector3()).lerp(chase(rig, hd.name, goal, 0.2 * dt * 60), W.arms) // capped speed, blended from where the hand is now
         const pole = sh.clone().add(new THREE.Vector3(-dir * 0.3, -1, 0))
         twoBone(ua, la, hd, t, pole)
       }
     }
-    if (legStrike) {
+    if (W.legs <= 0.01) for (const ft of [b.fl, b.fr]) if (ft) rig.goals[ft.name] = ft.getWorldPosition(new THREE.Vector3()).sub(rig.obj.position)
+    if (W.legs > 0.01) {
       // feet: kick height scaled by hip height so a high kick reaches head height on the mannequin
       for (const [th, ca, ft, fx, fy] of [[b.tl, b.cl, b.fl, P.lfX, P.lfY], [b.tr, b.cr, b.fr, P.rfX, P.rfY]]) {
         if (!th) continue
         const hip = th.getWorldPosition(new THREE.Vector3())
         const footY = Math.max(0.06, (-fy) * U * 1.65 + 0.06)
-        const t = new THREE.Vector3(rig.obj.position.x + dir * fx * U * 1.3, rig.obj.position.y + footY, hip.z)
+        const goal = new THREE.Vector3(rig.obj.position.x + dir * fx * U * 1.3, rig.obj.position.y + footY, hip.z)
+        const t = ft.getWorldPosition(new THREE.Vector3()).lerp(chase(rig, ft.name, goal, 0.22 * dt * 60), W.legs) // capped speed, blended from where the foot is now
         const pole = hip.clone().add(fwd.clone().multiplyScalar(1)).add(new THREE.Vector3(0, -0.3, 0))
         twoBone(th, ca, ft, t, pole)
       }
