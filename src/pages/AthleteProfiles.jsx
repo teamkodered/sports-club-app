@@ -10318,7 +10318,7 @@ export default function AthleteProfiles() {
                     {PillarTabs({ pillar: 'tactical', label: 'Tactical', colour: '#FF2A2A' })}
                     {PillarPdpList({ pillar: 'tactical', pillarLabel: 'Tactical' })}
                   <div style={{ display: 'grid', gridTemplateColumns: expandedTacticalCategory ? '1fr' : 'repeat(2, 1fr)', gap: 8, marginBottom: 8 }}>
-                    {(expandedTacticalCategory ? [] : ['__videoAnalysis__']).concat(Object.keys(TACTICAL_CATEGORIES)).filter(cat => !expandedTacticalCategory || expandedTacticalCategory === cat).map(cat => {
+                    {['__videoAnalysis__'].concat(Object.keys(TACTICAL_CATEGORIES)).filter(cat => !expandedTacticalCategory || expandedTacticalCategory === cat).map(cat => {
                       if (cat === '__videoAnalysis__') {
                         const active = expandedTacticalCategory === cat
                         const complete = !!todaysMentalityLog.videoAnalysis?.type
