@@ -22,7 +22,10 @@ const newStats = () => ({ hits: 0, blocked: 0, bestCombo: 0, supers: 0, specials
 export class Match {
   // team1 / team2: arrays of styled fighter defs, in fight order (1-5 each). The front fighter fights;
   // a KO brings in the next one; a team loses when everyone is down. Players can tag a teammate in.
-  constructor(team1, team2, level) {
+  // cpuMode: 'normal' | 'still' (dummy) | 'block' (blocks everything) | 'jab' (occasional jab). Anything but
+  // normal is practice: the CPU's health refills instead of a KO and the timer is off.
+  constructor(team1, team2, level, cpuMode = 'normal') {
+    this.cpuMode = cpuMode || 'normal'; this.practice = this.cpuMode !== 'normal'
     this.lvl = LEVELS[level] || LEVELS.medium
     this.t1 = team1.map(d => Object.assign(makeFighter(d, 220, 1), { side: 'p1' }))
     this.t2 = team2.map(d => Object.assign(makeFighter(d, 580, -1), { side: 'p2' }))
@@ -107,7 +110,10 @@ export class Match {
     }
     for (const pj of this.projectiles) if (!(pj.life > 0 && pj.x > -40 && pj.x < W + 40)) this.emit({ type: 'projectileGone', pj })
     this.projectiles = this.projectiles.filter(p => p.life > 0 && p.x > -40 && p.x < W + 40)
-    this.timer--
+    if (!this.practice) this.timer--
+    // practice dummy: health refills instead of a knock-out (your own fighter still can be KO'd)
+    if (this.practice && this.p2.hp <= 0) { this.p2.hp = this.p2.maxHp; this.p2.flash = 12; this.emit({ type: 'refill', f: this.p2 }) }
+    if (this.practice && this.p1.hp <= 0) { this.p1.hp = this.p1.maxHp; this.p1.flash = 12; this.emit({ type: 'refill', f: this.p1 }) }
     // knock-outs: the next teammate comes in, or the team is beaten
     for (const side of ['p1', 'p2']) {
       const f = this[side]
@@ -228,7 +234,11 @@ export class Match {
     }
     if (h === 'high' && def.crouch && def.y >= FLOOR) return // ducked under
     if (this.blocks(def, h)) {
-      def.hp = Math.max(0, def.hp - dmg * 0.15 * M(def).dmgTaken * M(def).blockChip); def.vx = push * 0.6 * att.facing; def.stun = 8
+      def.hp = Math.max(0, def.hp - dmg * 0.15 * M(def).dmgTaken * M(def).blockChip); def.vx = push * 0.6 * att.facing; def.stun = 8; def.blockStun = true
+      // guard break: 5 blocked strikes in quick succession and the guard gives way
+      def.guardHits = this.frame - (def.lastBlockAt || -999) < 50 ? (def.guardHits || 0) + 1 : 1
+      def.lastBlockAt = this.frame
+      if (def.guardHits >= 5) { def.guardHits = 0; def.blockStun = false; def.blocking = false; def.stun = 32; def.vx = push * 1.2 * att.facing; this.emit({ type: 'guardBreak', f: def, att }) }
       att.meter = Math.min(100, (att.meter || 0) + 2 * M(att).meterGain); def.meter = Math.min(100, (def.meter || 0) + 3)
       this.statsOf(def).blocked++
       def.blockAt = this.frame
@@ -272,6 +282,7 @@ export class Match {
     def.hp = Math.max(0, def.hp - dmg)
     // Second wind: once a fight, a big heal when nearly out
     if (def.hp > 0 && !def.windUsed && M(def).secondWind && def.hp < def.maxHp * 0.25) { def.windUsed = true; def.hp = Math.min(def.maxHp, def.hp + M(def).secondWind); this.emit({ type: 'secondWind', f: def }) }
+    def.blockStun = false
     def.stun = Math.max(5, Math.round(((10 + dmg * 0.8) - def.chain * 4) * mdf.stunTaken * ma.stunGiven)) // Reaction / Concentration
     def.vx = push * att.facing * (def.chain >= 2 ? 2.4 : 1) * mdf.knockTaken; def.flash = 10; def.move = null // Core stability
     const st = this.statsOf(att); st.hits++; st.dmg += dmg; st.bestCombo = Math.max(st.bestCombo, def.chain + 1)
@@ -291,7 +302,7 @@ export class Match {
     f.facing = o.x > f.x ? 1 : -1
     const grounded = f.y >= FLOOR
     if (f.state === 'ko') { f.vx *= 0.9 }
-    else if (f.stun > 0) { f.stun--; f.vx *= 0.85; f.blocking = false }
+    else if (f.stun > 0) { f.stun--; f.vx *= 0.85; f.blocking = !!f.blockStun; if (f.stun === 0) f.blockStun = false } // the guard stays up through block stun
     else {
       const back = f.facing === 1 ? ctl.left : ctl.right, fwd = f.facing === 1 ? ctl.right : ctl.left
       f.crouch = grounded && !!ctl.down
@@ -359,6 +370,14 @@ export class Match {
   }
 
   aiControl(cpu, me) {
+    // practice settings
+    if (this.cpuMode === 'still') return { left: false, right: false, down: false }
+    if (this.cpuMode === 'block') return { left: false, right: false, down: !!(me.move && me.move.h === 'low'), block: true }
+    if (this.cpuMode === 'jab') {
+      const dist = Math.abs(me.x - cpu.x), c = { left: false, right: false, down: false }
+      if (!cpu.move && dist < 80 && this.frame % 70 === 0) c.lpPressed = true
+      return c
+    }
     const a = this.ai, lvl = this.lvl, ctl = { left: false, right: false, down: false }
     const dist = Math.abs(me.x - cpu.x), toward = me.x > cpu.x ? 'right' : 'left', away = toward === 'right' ? 'left' : 'right'
     a.think--

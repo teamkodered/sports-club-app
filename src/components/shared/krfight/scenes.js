@@ -249,6 +249,11 @@ export class SelectScene extends Phaser.Scene {
       return c
     })
     txt(this, 330, 360, 'Level', { fontFamily: BODY, fontStyle: '600', fontSize: '15px', color: '#9AA3AE' })
+    // CPU setting: Normal, or practice -- Still (dummy), Block (blocks everything), Jab only
+    if (!cfg.cpuMode) cfg.cpuMode = 'normal'
+    const CPU_MODES = [['normal', 'CPU: Normal'], ['still', 'CPU: Still (practice)'], ['block', 'CPU: Block (practice)'], ['jab', 'CPU: Jab only (practice)']]
+    this.cpuBtn = button(this, 436, 336, 216, 26, '', '#5BE0FF', () => { const i = CPU_MODES.findIndex(m => m[0] === cfg.cpuMode); cfg.cpuMode = CPU_MODES[(i + 1) % CPU_MODES.length][0]; this.refresh() }, { size: 14 })
+    this.cpuModes = CPU_MODES
     this.lvlBtns = ['easy', 'medium', 'hard'].map((l, i) => button(this, 364 + i * 72, 404, 66, 40, l[0].toUpperCase() + l.slice(1), GOLD, () => { cfg.level = l; this.refresh() }, { size: 18 }))
     this.fightBtn = null
     button(this, 674, 348, 192, 30, 'Challenge players  ▸', '#5BE0FF', () => this.scene.start('Arena'), { size: 16 })
@@ -319,6 +324,7 @@ export class SelectScene extends Phaser.Scene {
     this.summary.setText(`Level ${fighterLevel(P, f.key)}  ·  ${brDef ? `${brDef.name} tier ${b.tier}` : `No branch yet (${xpOf(P, f.key)} style XP)`}  ·  ${def.combos.length} combos equipped`)
     this.viewBtn.label.setColor(f.colour)
     this.lvlBtns.forEach((b, i) => b.setOn(['easy', 'medium', 'hard'][i] === cfg.level))
+    if (this.cpuBtn) { this.cpuBtn.label.setText(this.cpuModes.find(m => m[0] === cfg.cpuMode)[1]); this.cpuBtn.setOn(cfg.cpuMode !== 'normal') }
     if (this.fightBtn) this.fightBtn.destroy()
     const lead = order.length ? FIGHTERS[order[0]].colour : '#5c6670'
     this.fightBtn = button(this, 674, 404, 192, 52, order.length ? (order.length > 1 ? `FIGHT ${order.length}v${order.length}!` : 'FIGHT!') : 'Add a fighter', lead, () => this.start(), { solid: !!order.length, size: order.length ? 30 : 22, r: 10 })
@@ -341,7 +347,7 @@ export class SelectScene extends Phaser.Scene {
     const team2 = pool.slice(0, order.length).map(p => ({ p, style: Phaser.Utils.Array.GetRandom(STYLE_KEYS) }))
     sfx(this).resume?.()
     this.cameras.main.flash(160, 255, 255, 255)
-    this.scene.start('Fight', { team1, team2, level: cfg.level })
+    this.scene.start('Fight', { team1, team2, level: cfg.level, cpuMode: cfg.cpuMode || 'normal' })
   }
   update() {
     this.frame++
@@ -386,7 +392,7 @@ export class FightScene extends Phaser.Scene {
       }
       return applyBranch(applyUpgrades(styledDef(FIGHTERS[x.p], x.style, mine ? x.loadout : null, mine ? coll(this).combos : {}), mine ? (P.upgrades || {})[key] : cpuUp), mine ? branchOf(P, key) : cpuBranch(x.style, data.level))
     })
-    this.m = new Match(defs(data.team1, true), defs(data.team2, false), data.level)
+    this.m = new Match(defs(data.team1, true), defs(data.team2, false), data.level, data.opp ? 'normal' : (data.cpuMode || 'normal'))
     for (const f of [...this.m.t1, ...this.m.t2]) f.theme = NATURAL_HOUSE[f.def.key]
     this.m.t1.forEach((f, i) => { f.skin = (data.team1 || [])[i]?.skin || 'standard' }) // your fighters' skins
     this.tagReq = null
@@ -536,6 +542,8 @@ export class FightScene extends Phaser.Scene {
           break
         }
         case 'super': this.superCutIn(e.f, e.name); break
+        case 'refill': this.popText(e.f.x, e.f.y - 210, 'HEALTH REFILLED', '#5BE0FF', 20); break
+        case 'guardBreak': this.popText(e.f.x, e.f.y - 210, 'GUARD BREAK!', '#FF8A1F', 28); this.ringAt(e.f.x, e.f.y - 90, 0xff8a1f, 1.3); this.shake(160, 6); sx.hit?.(true, false); break
         case 'flow': this.popText(e.f.x, e.f.y - 230, e.level >= FLOW_MAX ? 'FULL FLOW!' : `FLOW ×${e.level}`, '#5BE0FF', e.level >= FLOW_MAX ? 32 : 24); if (e.level >= FLOW_MAX) { this.ringAt(e.f.x, e.f.y - 80, 0x5be0ff, 1.4); sx.special?.() } break
         case 'secondWind': this.popText(e.f.x, e.f.y - 210, 'SECOND WIND!', '#5BE04A', 28); this.ringAt(e.f.x, e.f.y - 80, 0x5be04a, 1.2); sx.special?.(); break
         case 'projectile': this.spawnProjectile(e.pj); break
@@ -749,6 +757,7 @@ export class FightScene extends Phaser.Scene {
     g.fillStyle(0x0b0e12, 0.85); g.fillRoundedRect(W / 2 - 34, 10, 68, 46, 8); g.lineStyle(2, 0xf5c542, 0.7); g.strokeRoundedRect(W / 2 - 34, 10, 68, 46, 8)
     const secs = Math.max(0, Math.ceil(m.timer / 60))
     setT(this.n1, `${m.p1.def.name} · ${m.p1.def.styleName}`); setT(this.n2, `${m.p2.def.name} · ${m.p2.def.styleName} (${this.data0 && this.data0.opp ? String(this.data0.opp.name || '').replace(/^Practice · /, '') : 'CPU'})`)
+    if (m.practice) { setT(this.timerT, '∞', '#5BE0FF'); if (!this.practiceT) this.practiceT = this.U(txt(this, W / 2, 58, `PRACTICE · CPU ${({ still: 'still', block: 'blocks everything', jab: 'jab only' })[m.cpuMode]}`, { fontFamily: BODY, fontStyle: '700', fontSize: '12px', color: '#5BE0FF', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5, 0)) } else
     setT(this.timerT, String(secs), secs <= 10 && m.phase === 'fight' ? RED : '#FFFFFF')
     const spTxt = (f) => (f.meter || 0) >= 100 ? `SUPER READY: ${SUPER_NAME[f.def.special]}` : f.specialCd === 0 ? `${f.def.specialName} ready` : f.def.specialName
     setT(this.sp1, spTxt(m.p1), (m.p1.meter || 0) >= 100 ? GOLD : m.p1.specialCd === 0 ? fxColour(m.p1) : '#5c6670')
