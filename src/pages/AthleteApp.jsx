@@ -6,6 +6,7 @@ import { TestSessionModal, TestBatchModal } from '../components/shared/TestSessi
 import OtherSessions from '../components/shared/OtherSessions.jsx'
 import { matchClass, workoutDate, workoutRange, fmtTime } from '../lib/sessionMatch.js'
 import { supabase } from '../lib/supabase.js'
+import { DailyCharts, WorkoutCard } from '../components/shared/WearableCharts.jsx'
 import LiveHeartRate from '../components/shared/LiveHeartRate.jsx'
 import * as NativeHr from '../lib/nativeHr.js'
 import { useLiveHeartRate } from '../lib/liveHr.js'
@@ -8139,9 +8140,8 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
             <>
               {/* Daily: sleep / recovery / resting HR / steps */}
               {wearableDaily.length > 0 && (
-                <div className="card" style={{ marginBottom: 12 }}>
-                  <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Last 7 days</h3>
-                  <div style={{ overflowX: 'auto' }}>
+                <DailyCharts daily={wearableDaily}>
+<div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
                       <thead>
                         <tr style={{ color: 'var(--text-tertiary)', fontSize: 10, textAlign: 'right' }}>
@@ -8165,39 +8165,14 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                       </tbody>
                     </table>
                   </div>
-                </div>
+</DailyCharts>
               )}
 
               {whoopSessions.length === 0 ? (
                 <div className="empty-state"><h3>No workouts yet</h3><p>Summaries appear here shortly after each completed workout</p></div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {whoopSessions.map(s => (
-                    <div key={s.id} className="card">
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                        <h3 style={{ fontSize: 13, fontWeight: 600 }}>{s.sport_name || 'Workout'} <span style={{ fontSize: 10, fontWeight: 400, color: PROVIDERS[s.provider]?.colour || 'var(--text-tertiary)' }}>{providerLabel(s.provider)}</span></h3>
-                        <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{s.start_time ? new Date(s.start_time).toLocaleDateString('en-GB') : '—'}</span>
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, textAlign: 'center' }}>
-                        <div>
-                          <div style={{ fontSize: 16, fontWeight: 700, color: '#1D9E75' }}>{s.strain != null ? Number(s.strain).toFixed(1) : '—'}</div>
-                          <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Strain</div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: 16, fontWeight: 700 }}>{s.avg_heart_rate ?? '—'}</div>
-                          <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Avg HR</div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: 16, fontWeight: 700 }}>{s.max_heart_rate ?? '—'}</div>
-                          <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Max HR</div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: 16, fontWeight: 700 }}>{s.calories != null ? Math.round(s.calories) : '—'}</div>
-                          <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Calories</div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                  {whoopSessions.map(s => <WorkoutCard key={s.id} s={s} maxHr={liveMaxHr} providerName={PROVIDERS?.[s.provider]?.label} providerColour={PROVIDERS?.[s.provider]?.colour} />)}
                 </div>
               )}
             </>

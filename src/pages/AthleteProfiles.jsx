@@ -5,6 +5,7 @@ import { TestSessionModal, TestBatchModal } from '../components/shared/TestSessi
 import OtherSessions from '../components/shared/OtherSessions.jsx'
 import SessionFootage from '../components/shared/SessionFootage.jsx'
 import { supabase } from '../lib/supabase.js'
+import { DailyCharts, WorkoutCard } from '../components/shared/WearableCharts.jsx'
 import { fetchAll } from '../lib/fetchAll.js'
 import WearableCompare from '../components/shared/WearableCompare.jsx'
 import LiveHrTable from '../components/shared/LiveHrTable.jsx'
@@ -13041,9 +13042,8 @@ export default function AthleteProfiles() {
                       <span style={{ fontSize: 13, fontWeight: 600, color: '#1D9E75' }}>✓ Connected: {(Array.isArray(whoopConnection) ? whoopConnection : []).map(c => providerLabel(c.provider)).join(', ')}</span>
                     </div>
                     {wearableDaily.length > 0 && (
-                      <div className="card" style={{ marginBottom: 12 }}>
-                        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Last 14 days</h3>
-                        <div style={{ overflowX: 'auto' }}>
+                      <DailyCharts daily={wearableDaily}>
+<div style={{ overflowX: 'auto' }}>
                           <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
                             <thead>
                               <tr style={{ color: 'var(--text-tertiary)', fontSize: 10, textAlign: 'right' }}>
@@ -13067,38 +13067,13 @@ export default function AthleteProfiles() {
                             </tbody>
                           </table>
                         </div>
-                      </div>
+</DailyCharts>
                     )}
                     {whoopSessions.length === 0 ? (
                       <div className="empty-state"><h3>No workouts yet</h3><p>Summaries appear here shortly after each completed workout</p></div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        {whoopSessions.map(s => (
-                          <div key={s.id} className="card">
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                              <h3 style={{ fontSize: 13, fontWeight: 600 }}>{s.sport_name || 'Workout'}</h3>
-                              <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{s.start_time ? new Date(s.start_time).toLocaleDateString('en-GB') : '—'}</span>
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, textAlign: 'center' }}>
-                              <div>
-                                <div style={{ fontSize: 16, fontWeight: 700, color: '#1D9E75' }}>{s.strain != null ? s.strain.toFixed(1) : '—'}</div>
-                                <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Strain</div>
-                              </div>
-                              <div>
-                                <div style={{ fontSize: 16, fontWeight: 700 }}>{s.avg_heart_rate ?? '—'}</div>
-                                <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Avg HR</div>
-                              </div>
-                              <div>
-                                <div style={{ fontSize: 16, fontWeight: 700 }}>{s.max_heart_rate ?? '—'}</div>
-                                <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Max HR</div>
-                              </div>
-                              <div>
-                                <div style={{ fontSize: 16, fontWeight: 700 }}>{s.calories != null ? Math.round(s.calories) : '—'}</div>
-                                <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Calories</div>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
+                        {whoopSessions.map(s => <WorkoutCard key={s.id} s={s} maxHr={(() => { const d = selected?.members?.date_of_birth; if (!d) return 190; const b = new Date(d), n = new Date(); return Math.max(150, 220 - (n.getFullYear() - b.getFullYear() - ((n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) ? 1 : 0))) })()} />)}
                       </div>
                     )}
                   </>
