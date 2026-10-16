@@ -91,6 +91,15 @@ export class Match {
     }
     if (this.phase !== 'fight') return
     const c1 = getInput()
+    // Boxer play style: auto footwork keeps your fighter at their style's range (unless blocking or attacking)
+    if (this.playStyle === 'boxer' && this.phase === 'fight') {
+      const f = this.p1, o = this.p2
+      if (!c1.left && !c1.right && !c1.block && !f.move && f.stun === 0 && f.y >= FLOOR && o.state !== 'ko') {
+        const dist = Math.abs(o.x - f.x), ideal = 64 * (f.def.reach || 1), toward = o.x > f.x ? 'right' : 'left', away = toward === 'right' ? 'left' : 'right'
+        if (dist > ideal + 22) c1[toward] = true
+        else if (dist < ideal - 22) c1[away] = true
+      }
+    }
     for (const side of ['p1', 'p2']) if (this.tagCd[side] > 0) this.tagCd[side]--
     if (c1.tag != null) this.tryTag('p1', c1.tag)
     const c2 = this.aiControl(this.p2, this.p1)

@@ -625,9 +625,52 @@ export class FightScene extends Phaser.Scene {
     this.pjSprites.delete(pj.id)
   }
 
+  // Boxer play style: which of this fighter's buttons a gesture means (so it follows their fighting style)
+  gestureToken(g) {
+    const mv = (this.m.p1.def.moves) || {}, find = ids => Object.keys(mv).find(k => ids.includes(mv[k]))
+    if (g.low) return g.kind === 'up' || g.kind === 'across' ? 'hk' : g.side === 'L' ? 'lk' : 'mk' // lower part of the screen: kicks
+    if (g.kind === 'tap') return g.side === 'L' ? 'lp' : 'mp'
+    if (g.kind === 'across') return find(['hook', 'overhand', 'elbow']) || 'hp'
+    if (g.kind === 'up') return find(['uppercut']) || 'hp'
+    if (g.kind === 'down') return (g.side === 'L' ? find(['bodyjab']) : find(['bodyhook'])) || (g.side === 'L' ? 'lk' : 'mk')
+    return null
+  }
   getInput() {
     const b = bridge(this), inp = b.input || {}, pr = b.pressed || {}
     const c = { left: inp.left, right: inp.right, down: inp.down, upPressed: pr.up || !!inp.up, tag: pr.tag ? 'next' : this.tagReq, superPressed: pr.super, lpPressed: pr.lp, mpPressed: pr.mp, hpPressed: pr.hp, lkPressed: pr.lk, mkPressed: pr.mk, hkPressed: pr.hk, spPressed: pr.sp, block: !!inp.block }
+    const m = this.m, f = m.p1
+    // COMBO button: the next technique starts an equipped combo that leads with it
+    if (pr.comboArm) this.comboArmUntil = m.frame + 100
+    // gestures (Boxer play style)
+    const gq = b.gestures || []
+    while (gq.length) {
+      const tok = this.gestureToken(gq.shift())
+      if (!tok) continue
+      c[tok + 'Pressed'] = true
+      if (this.comboArmUntil && m.frame <= this.comboArmUntil) {
+        const combo = [...(f.def.combos || [])].filter(cb => cb.seq[0] === tok).sort((a, z) => z.seq.length - a.seq.length)[0]
+        if (combo) { this.autoSeq = combo.seq.slice(1); this.autoAt = m.frame; this.popText(f.x, f.y - 236, combo.name.toUpperCase(), '#F5C542', 20) }
+        this.comboArmUntil = 0
+      }
+      break // one gesture per step
+    }
+    // ...also works with the KR / SF buttons: arm COMBO, then press a technique
+    if (this.comboArmUntil && m.frame <= this.comboArmUntil && !this.autoSeq) {
+      const tok = ['lp', 'mp', 'hp', 'lk', 'mk', 'hk'].find(k => c[k + 'Pressed'])
+      if (tok) { const combo = [...(f.def.combos || [])].filter(cb => cb.seq[0] === tok).sort((a, z) => z.seq.length - a.seq.length)[0]; if (combo) { this.autoSeq = combo.seq.slice(1); this.autoAt = m.frame; this.popText(f.x, f.y - 236, combo.name.toUpperCase(), '#F5C542', 20) } this.comboArmUntil = 0 }
+    }
+    // run the rest of an auto combo: next step as soon as the fighter can chain (or after a short beat)
+    if (this.autoSeq && this.autoSeq.length && m.phase === 'fight') {
+      const ready = (!f.move || f.t >= f.move.s + f.move.a) && m.frame - this.autoAt >= 6
+      if (ready && f.state !== 'ko' && f.stun === 0) {
+        const t = this.autoSeq.shift(); this.autoAt = m.frame
+        if (t === 'd') c.down = true
+        else if (t === 'f' || t === 'b') { const fwd = f.facing > 0 ? 'right' : 'left', back = fwd === 'right' ? 'left' : 'right'; c[t === 'f' ? fwd : back] = true }
+        else c[t + 'Pressed'] = true
+      }
+      if (!this.autoSeq.length) this.autoSeq = null
+    }
+    if (f.state === 'ko' || f.stun > 0) this.autoSeq = null
     for (const k in pr) pr[k] = false
     this.tagReq = null
     return c

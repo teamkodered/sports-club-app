@@ -336,7 +336,10 @@ export const SKIN_BY_KEY = Object.fromEntries(SKINS.map(s => [s.key, s]))
 //  kr: one Punch + one Kick (tap / hold / long hold), Special, Super, Jump and Block buttons
 //  sf: classic six buttons (LP MP HP / LK MK HK), specials by motion (↓↘→ + punch), super (↓↘→↓↘→ + punch),
 //      jump = up on the stick, block = hold back
-export const PLAY_STYLES = [{ key: 'kr', name: 'KR' }, { key: 'sf', name: 'SF' }]
+//  boxer: Real Boxing-style gestures on the fight area (left half = lead hand, right = rear hand; tap = straight,
+//      swipe across = hook, up = uppercut, down = body; lower part = kicks; two fingers = block), auto footwork,
+//      COMBO buttons (next technique starts an equipped combo that leads with it), SPECIAL and SUPER buttons
+export const PLAY_STYLES = [{ key: 'kr', name: 'KR' }, { key: 'sf', name: 'SF' }, { key: 'boxer', name: 'Boxer' }]
 export const getPlayStyle = () => { try { return localStorage.getItem('krfight-playstyle') || 'kr' } catch (e) { return 'kr' } }
 export const setPlayStyle = v => { try { localStorage.setItem('krfight-playstyle', v) } catch (e) { /* ignore */ } }
 export const SF_BUTTON = { lp: 'LP', mp: 'MP', hp: 'HP', lk: 'LK', mk: 'MK', hk: 'HK' }

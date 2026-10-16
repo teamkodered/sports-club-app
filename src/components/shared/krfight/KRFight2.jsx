@@ -42,6 +42,7 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
   }, [])
   const input = useRef({ left: false, right: false, up: false, down: false, lp: false, hp: false, lk: false, hk: false, sp: false, super: false })
   const pressed = useRef({})
+  const gestures = useRef([]) // Boxer play style: queued touch gestures
   const onRoundRef = useRef(onRound); onRoundRef.current = onRound
   const onCloseRef = useRef(onClose); onCloseRef.current = onClose
   const sfxRef = useRef(null)
@@ -134,7 +135,7 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
           input: { activePointers: 3, keyboard: false }, audio: { noAudio: true }, banner: false,
           render: { antialias: true, powerPreference: 'high-performance' },
         })
-        game.bridge = { input: input.current, pressed: pressed.current, sfx, skipTitle: !!keep, onScene: s => !dead && setScene(s), onHud: h => !dead && setHud(h), onRound: () => onRoundRef.current?.(), playStyle: () => playStyleRef.current }
+        game.bridge = { input: input.current, pressed: pressed.current, gestures: gestures.current, sfx, skipTitle: !!keep, onScene: s => !dead && setScene(s), onHud: h => !dead && setHud(h), onRound: () => onRoundRef.current?.(), playStyle: () => playStyleRef.current }
         if (keep?.cfg) game.cfg = keep.cfg
         game.canvas?.addEventListener('webglcontextlost', e => { e.preventDefault(); setTimeout(rebuild, 300) })
         gameRef.current = game
@@ -262,6 +263,37 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
     onPointerCancel: e => atkSet(e.pointerId, null, e.timeStamp),
   }
 
+  // ---- Boxer play style: gestures on the fight area ----
+  // left half = lead hand, right half = rear hand; tap = straight, swipe across = hook, up = uppercut,
+  // down = body shot; lower part = kicks; two fingers held = block
+  const touches = useRef({})
+  const [gestureHint, setGestureHint] = useState(true)
+  const gestureHandlers = {
+    onPointerDown: e => {
+      e.preventDefault(); sfxRef.current?.resume(); e.currentTarget.setPointerCapture?.(e.pointerId)
+      const r = e.currentTarget.getBoundingClientRect()
+      touches.current[e.pointerId] = { x: e.clientX, y: e.clientY, t: e.timeStamp, side: e.clientX < r.left + r.width / 2 ? 'L' : 'R', low: e.clientY > r.top + r.height * 0.68 }
+      if (Object.keys(touches.current).length >= 2) { input.current.block = true; for (const k in touches.current) touches.current[k].multi = true }
+    },
+    onPointerUp: e => {
+      const t = touches.current[e.pointerId]; delete touches.current[e.pointerId]
+      if (!Object.keys(touches.current).length) input.current.block = false
+      if (!t || t.multi) return
+      const dx = e.clientX - t.x, dy = e.clientY - t.y, d = Math.hypot(dx, dy)
+      const kind = d < 22 ? 'tap' : Math.abs(dx) > Math.abs(dy) ? 'across' : dy < 0 ? 'up' : 'down'
+      gestures.current.push({ kind, side: t.side, low: t.low })
+      if (navigator.vibrate) navigator.vibrate(8)
+      if (gestureHint) setGestureHint(false)
+    },
+    onPointerCancel: e => { delete touches.current[e.pointerId]; if (!Object.keys(touches.current).length) input.current.block = false },
+  }
+  const edgeBtn = (key, label, colour, onPress, ring) => (
+    <div key={key} style={{ width: 70, height: 54, borderRadius: 14, padding: 3, boxSizing: 'border-box', background: ring != null ? `conic-gradient(${colour} ${Math.round(ring * 360)}deg, rgba(42,49,56,0.9) 0)` : 'rgba(42,49,56,0.6)', boxShadow: ring != null && ring >= 1 ? `0 0 14px ${colour}` : 'none', pointerEvents: 'auto' }}>
+      <button type="button" onPointerDown={e => { e.preventDefault(); e.stopPropagation(); sfxRef.current?.resume(); onPress(); if (navigator.vibrate) navigator.vibrate(10) }}
+        style={{ width: '100%', height: '100%', borderRadius: 11, border: `2px solid ${colour}`, background: 'radial-gradient(circle at 35% 30%, #2A3138, #0B0E12 80%)', color: colour, fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 15, touchAction: 'none', cursor: 'pointer', opacity: ring != null && ring < 1 ? 0.6 : 1 }}>{label}</button>
+    </div>
+  )
+
   const pick = gameRef.current?.cfg?.pick ?? 0
   const pad = { height: 36, padding: '0 12px', borderRadius: 12, border: '1px solid #2A3138', background: 'rgba(26,31,36,0.85)', color: '#F2F2F2', fontSize: 14, fontWeight: 800, touchAction: 'none', userSelect: 'none', cursor: 'pointer' }
   const fight = scene === 'fight'
@@ -285,6 +317,28 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
         <div ref={hostRef} style={landscape
           ? { position: 'relative', height: '100%', maxWidth: '100%', aspectRatio: '16 / 9', isolation: 'isolate', zIndex: 0 }
           : { position: 'relative', width: '100%', maxWidth: 900, aspectRatio: '16 / 9', isolation: 'isolate', zIndex: 0 }}>
+        {fight && playStyle === 'boxer' && (
+            <div style={{ position: 'absolute', inset: 0, zIndex: 5, pointerEvents: 'none' }}>
+              {/* gesture pad over the fight */}
+              <div {...gestureHandlers} role="group" aria-label="Punch by tapping or swiping: left half lead hand, right half rear hand; lower part kicks; two fingers to block"
+                style={{ position: 'absolute', left: 80, right: 80, top: 0, bottom: 0, touchAction: 'none', pointerEvents: 'auto' }}>
+                {gestureHint && (
+                  <div style={{ position: 'absolute', left: '50%', top: '24%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.6)', color: '#C9CED6', fontSize: 12, fontWeight: 600, padding: '8px 12px', borderRadius: 10, textAlign: 'center', pointerEvents: 'none', maxWidth: 340 }}>
+                    Left half = lead hand · right half = rear hand<br />Tap = straight · swipe across = hook · up = uppercut · down = body<br />Lower part = kicks · two fingers = block · COMBO then a technique = combo
+                  </div>
+                )}
+              </div>
+              {/* edge buttons: COMBO + SPECIAL on the left, SUPER + COMBO on the right */}
+              <div style={{ position: 'absolute', left: 'calc(6px + env(safe-area-inset-left, 0px))', bottom: 'calc(10px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {edgeBtn('comboL', 'COMBO', '#F5C542', () => { pressed.current.comboArm = true })}
+                {edgeBtn('sp', 'SPECIAL', hud.colour || '#5BE0FF', () => { pressed.current.sp = true }, hud.sp)}
+              </div>
+              <div style={{ position: 'absolute', right: 'calc(6px + env(safe-area-inset-right, 0px))', bottom: 'calc(10px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {edgeBtn('comboR', 'COMBO', '#F5C542', () => { pressed.current.comboArm = true })}
+                {edgeBtn('super', 'SUPER', '#F5C542', () => { pressed.current.super = true }, hud.sup)}
+              </div>
+            </div>
+          )}
           {scene === 'boot' && !failed && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9AA3AE', fontSize: 14 }}>Loading…</div>}
           {failed && (
             <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 16, fontSize: 14 }}>
@@ -297,7 +351,7 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
         {!landscape && !fight && scene !== 'boot' && typeof window !== 'undefined' && window.innerHeight > window.innerWidth && (
           <div style={{ marginTop: 14, fontSize: 13, color: '#9AA3AE', textAlign: 'center', padding: '0 20px' }}>Turn your phone sideways for a bigger arena.</div>
         )}
-        {fight && (
+        {fight && playStyle !== 'boxer' && (
           <div style={landscape
             ? { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 5, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', pointerEvents: 'none', boxSizing: 'border-box',
                 padding: '0 calc(14px + env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) calc(14px + env(safe-area-inset-left, 0px))' }
