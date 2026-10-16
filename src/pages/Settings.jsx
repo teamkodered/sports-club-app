@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import TeamAccess from '../components/shared/TeamAccess.jsx'
 import { moveAllOldMemberDocs } from '../lib/memberDocs.js'
 import { supabase } from '../lib/supabase.js'
@@ -444,6 +445,12 @@ export default function Settings() {
       <div className="page-header">
         <h1>Settings</h1>
         <p>Configure club details, belt levels, age categories, point types and Fit II Fight options</p>
+      </div>
+
+      {/* Import data (moved here from the side menu) */}
+      <div className="card" style={{ marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 13 }}><b>⬆️ Import data</b><div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Bring in members, students and other records from a spreadsheet.</div></div>
+        <Link to="/import" className="btn btn-sm btn-primary">Open Import data</Link>
       </div>
 
       {SECTION('Team — roles & access')}

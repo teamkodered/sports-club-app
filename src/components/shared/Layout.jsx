@@ -117,7 +117,6 @@ export default function Layout() {
     ...(isAdmin ? [
       { section: 'Admin' },
       { to: '/settings', icon: '⚙️', label: 'Settings' },
-      { to: '/import',   icon: '⬆️', label: 'Import data' },
     ] : []),
   ]
 

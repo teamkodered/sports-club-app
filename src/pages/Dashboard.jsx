@@ -431,6 +431,26 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* More shortcuts (same as the side menu): under the recent points */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, margin: '14px 0' }}>
+        {[
+          { label: 'Calendar', icon: '📆', to: '/calendar', colour: '#378ADD', page: 'calendar' },
+          { label: 'CRM',      icon: '💳', to: '/crm',      colour: '#1D9E75', page: 'crm' },
+          { label: 'Media',    icon: '🎬', to: '/media',    colour: '#E24B4A', page: 'media' },
+          ...(isAdmin ? [{ label: 'Settings', icon: '⚙️', to: '/settings', colour: '#64748B' }] : []),
+        ].filter(l => !l.page || pageAccess(l.page) !== 'none').map(l => (
+          <Link key={l.label} to={l.to} style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+            padding: '14px 8px', background: l.colour + '12',
+            border: `1px solid ${l.colour}30`, borderRadius: 'var(--border-radius-lg)',
+            textDecoration: 'none',
+          }}>
+            <span style={{ fontSize: 24 }}>{l.icon}</span>
+            <span style={{ fontSize: 12, fontWeight: 500, color: l.colour }}>{l.label}</span>
+          </Link>
+        ))}
+      </div>
+
       {/* Add Points quick scorer */}
       {showAddPoints && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 50, padding: 16, overflowY: 'auto' }}
