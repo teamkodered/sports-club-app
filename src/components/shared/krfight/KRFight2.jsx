@@ -3,7 +3,7 @@ import Phaser from 'phaser'
 import { FgIcon } from '../FightGame.jsx'
 import { FIGHTERS, CHARGE_MS } from './data.js'
 import { makeSfx } from './sfx.js'
-import { BootScene, TitleScene, SelectScene, FightScene, ResultsScene, UpgradeScene, CombosScene, BranchScene, FighterScene, CollectionScene, Z } from './scenes.js'
+import { BootScene, TitleScene, SelectScene, FightScene, ResultsScene, UpgradeScene, CombosScene, BranchScene, FighterScene, CollectionScene, ArenaScene, Z } from './scenes.js'
 
 // KR FIGHT 2 (Phaser). Same rules and controls as the classic game, new engine: jointed fighters,
 // hit sparks, hit-stop, super cut-ins, KO slow-mo, title / select / fight / results scenes.
@@ -93,7 +93,7 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
   }, [])
 
   // phone / browser Back: step back through the game's screens instead of leaving the game
-  const BACK_TO = { Collection: 'Select', Upgrade: 'Fighter', Branch: 'Fighter', Combos: 'Fighter', Fighter: 'Select', Fight: 'Select', Results: 'Select', Select: 'Title' }
+  const BACK_TO = { Arena: 'Select', Collection: 'Select', Upgrade: 'Fighter', Branch: 'Fighter', Combos: 'Fighter', Fighter: 'Select', Fight: 'Select', Results: 'Select', Select: 'Title' }
   useEffect(() => {
     try { window.history.pushState({ krfight: 1 }, '') } catch (e) { /* ignore */ }
     const onPop = () => {
@@ -130,7 +130,7 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
           type: Phaser.AUTO, parent: hostRef.current, width: 800 * Z, height: 450 * Z, transparent: true, // see-through so the 3D fight can show behind
           // min size: while the phone is mid-rotation the arena can measure 0 x 0, which breaks the renderer
           scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, min: { width: 160, height: 90 } },
-          scene: [BootScene, TitleScene, SelectScene, FightScene, ResultsScene, UpgradeScene, CombosScene, BranchScene, FighterScene, CollectionScene],
+          scene: [BootScene, TitleScene, SelectScene, FightScene, ResultsScene, UpgradeScene, CombosScene, BranchScene, FighterScene, CollectionScene, ArenaScene],
           input: { activePointers: 3, keyboard: false }, audio: { noAudio: true }, banner: false,
           render: { antialias: true, powerPreference: 'high-performance' },
         })

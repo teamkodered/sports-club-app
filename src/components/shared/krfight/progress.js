@@ -381,3 +381,79 @@ export function cpuBranch(style, level) {
   const tier = { easy: 0, medium: 1, hard: 2 }[level] ?? 1
   return tier ? { branch: list[Math.floor(Math.random() * list.length)].key, tier } : null
 }
+
+// ---- Player vs player ----
+// Your defence team = the squad you fight with (saved whenever you fight). Opponents are other athletes'
+// defence teams, played by the CPU. Before supabase_krfight_pvp.sql is run (and in test mode) the Arena uses
+// practice opponents made up on the device, so everything can be tried.
+const LS_PVP = 'krfight-pvp-local'
+export async function saveDefence(p, squad) {
+  if (p.mode !== 'db') return
+  const order = (squad.order || []).map(i => PILLARS_BY_INDEX[i]).filter(Boolean)
+  if (!order.length) return
+  try { await supabase.rpc('krfight_set_defence', { p_defence: { order, styles: squad.styles, loadouts: squad.loadouts || {}, skins: squad.skins || {} } }) } catch (e) { /* ignore */ }
+}
+const PILLARS_BY_INDEX = ['mentality', 'technical', 'tactical', 'physical', 'foundation'] // same order as FIGHTERS
+export { PILLARS_BY_INDEX }
+const STYLE_POOL = ['kickboxer', 'pro', 'am', 'tkd', 'thai']
+const PRACTICE_NAMES = ['Practice · Alex P', 'Practice · Jordan K', 'Practice · Sam T', 'Practice · Riley M', 'Practice · Casey B', 'Practice · Morgan D']
+const PRACTICE_HOUSES = ['Dragon', 'Super', 'Jet', 'Ice', 'Storm', 'Dragon']
+// deterministic made-up squads at a spread of levels
+function practiceOpponents() {
+  let seed = 7
+  const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280 }
+  return PRACTICE_NAMES.map((name, i) => {
+    const size = 1 + (i % 3), order = [...PILLARS_BY_INDEX].sort(() => rnd() - 0.5).slice(0, size + 1)
+    const styles = Object.fromEntries(PILLARS_BY_INDEX.map(k => [k, STYLE_POOL[Math.floor(rnd() * 5)]]))
+    const lvl = i // 0..5: tougher down the list
+    const upgrades = Object.fromEntries(order.map(k => [k, Object.fromEntries(AREAS.filter(() => rnd() < 0.35).map(a => [a.key, Math.min(MAX_LV, Math.round(rnd() * lvl))]))]))
+    const branches = Object.fromEntries(order.map(k => { const list = BRANCHES[styles[k]] || []; return [k, lvl >= 2 && list.length ? { branch: list[Math.floor(rnd() * list.length)].key, tier: Math.min(3, Math.floor(lvl / 2)) } : { branch: null, tier: 0 }] }))
+    const cards = Object.fromEntries(CARDS.filter(() => rnd() < 0.25 + lvl * 0.05).map(c => [c.id, 1]))
+    const combos = Object.fromEntries(COMBO_LIB.filter(c => c.rarity !== 'common' && rnd() < 0.2 + lvl * 0.05).map(c => [c.id, 1]))
+    return { student_id: `practice-${i}`, practice: true, name, house: PRACTICE_HOUSES[i], age_category: i % 2 ? 'Senior' : 'Junior',
+      defence: { order, styles, loadouts: {}, skins: {} }, styles, upgrades, branches, collection: { cards, combos }, pvp_wins: 0, pvp_losses: 0 }
+  })
+}
+function localPvp() { try { return JSON.parse(localStorage.getItem(LS_PVP) || '{}') } catch (e) { return {} } }
+export async function loadOpponents(p) {
+  if (p.mode === 'db') {
+    try { const { data, error } = await supabase.rpc('krfight_opponents'); if (!error && Array.isArray(data)) return { list: data, practice: false } } catch (e) { /* fall through */ }
+  }
+  const lp = localPvp(), today = new Date().toISOString().slice(0, 10)
+  return { list: practiceOpponents().map(o => ({ ...o, rewarded_today: (lp.rewarded || {})[o.student_id] === today })), practice: true }
+}
+export const opponentLevel = o => Object.values(o.upgrades || {}).reduce((t, up) => t + Object.values(up || {}).reduce((a, b) => a + (Number(b) || 0), 0), 0)
+// what you could copy from a beaten opponent: things you don't have first, then things you can level up
+export function rewardChoices(opp, coll) {
+  const out = []
+  for (const [id, lv] of Object.entries((opp.collection || {}).cards || {})) if (lv > 0 && CARD_BY_ID[id]) out.push({ kind: 'card', id, have: (coll.cards || {})[id] || 0 })
+  for (const [id, lv] of Object.entries((opp.collection || {}).combos || {})) if (lv > 0 && COMBO_BY_ID[id] && COMBO_BY_ID[id].rarity !== 'common') out.push({ kind: 'combo', id, have: (coll.combos || {})[id] || 0 })
+  return out.filter(x => x.have < (x.kind === 'card' ? CARD_MAX_LV : COMBO_MAX_LV)).sort((a, b) => (a.have > 0) - (b.have > 0)).slice(0, 6)
+}
+// record a challenge; pick = { kind, id } to copy (when won). Returns { progress, coll, reward }
+export async function pvpResult(p, coll, opp, won, pick) {
+  if (p.mode === 'db' && !opp.practice) {
+    try {
+      const { data, error } = await supabase.rpc('krfight_pvp_result', { p_opponent: opp.student_id, p_won: !!won, p_pick: pick || null })
+      if (!error && data) { const np = { ...blank(), ...data, mode: 'db' }; return { progress: np, coll: loadCollection(np), reward: data.pvp_reward || null } }
+    } catch (e) { /* ignore */ }
+    return { progress: p, coll, reward: null }
+  }
+  // practice / device: keep a small local record + apply the copy to the device collection
+  const lp = localPvp(), today = new Date().toISOString().slice(0, 10)
+  lp.wins = (lp.wins || 0) + (won ? 1 : 0); lp.losses = (lp.losses || 0) + (won ? 0 : 1)
+  let reward = null, nc = coll
+  if (won && pick && (lp.rewarded || {})[opp.student_id] !== today) {
+    lp.rewarded = { ...(lp.rewarded || {}), [opp.student_id]: today }
+    const res = await recordMatch(p, coll, true, [pick]); nc = res.coll; reward = pick
+  }
+  try { localStorage.setItem(LS_PVP, JSON.stringify(lp)) } catch (e) { /* ignore */ }
+  return { progress: p, coll: nc, reward }
+}
+export async function loadLeaderboard(p, age) {
+  if (p.mode === 'db') {
+    try { const { data, error } = await supabase.rpc('krfight_leaderboard', { p_age: age || null }); if (!error && data) return { ...data, practice: false } } catch (e) { /* fall through */ }
+  }
+  const lp = localPvp()
+  return { practice: true, season: seasonOf(), houses: [], athletes: [{ name: 'You (practice)', house: '', age: '', wins: lp.wins || 0, losses: lp.losses || 0, me: true }], ages: [], me: { wins: lp.wins || 0, losses: lp.losses || 0, rank: 1 } }
+}

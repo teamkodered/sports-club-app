@@ -4,7 +4,7 @@ import Phaser from 'phaser'
 import { W, H, FLOOR, FIGHTERS, MOVES, SUPER_NAME, LEVELS, comboLabel, hex, getLook, setLook, LOOK_LEVELS, HOUSES, HOUSE_KEYS, getHouse, setHouse, fxColour, cpuHouse, NATURAL_HOUSE, STYLES, STYLE_KEYS, styledDef, loadSquad, saveSquad, MAX_TEAM, COMBO_BY_ID, combosForStyle, defaultLoadout, LOADOUT_SIZE, RARITY, FLOW_MAX, BRANCHES, TIER_XP, TIER_GEMS, applyBranch, seasonOf, CARDS, CARD_BY_ID, CARD_RARITY, CARD_RARITIES, SKINS, SKIN_BY_KEY, COMBO_LIB } from './data.js'
 import { Match, makeFighter } from './core.js'
 import { makePose, stepPose, drawFighter, targetPose } from './pose.js'
-import { loadProgress, PILLARS, AREAS, AREA_GROUPS, costOf, MAX_LV, DAILY_GEMS, available, wild, priceFor, buyUpgrade, fighterLevel, levelOf, matchGems, awardGems, applyUpgrades, cpuUpgrades, resetTest, UNLIMITED, loadCollection, ownsCombo, rollComboDrop, addComboCard, COMBO_MAX_LV, rollCardDrop, recordMatch, ownsCard, cardsOwnedFor, skinUnlocked, branchOf, xpOf, nextTier, unlockTier, awardXp, isLocked, tokenAvailable, lockSquad, changeStyle, cpuBranch } from './progress.js'
+import { loadProgress, PILLARS, AREAS, AREA_GROUPS, costOf, MAX_LV, DAILY_GEMS, available, wild, priceFor, buyUpgrade, fighterLevel, levelOf, matchGems, awardGems, applyUpgrades, cpuUpgrades, resetTest, UNLIMITED, loadCollection, ownsCombo, rollComboDrop, addComboCard, COMBO_MAX_LV, rollCardDrop, recordMatch, saveDefence, loadOpponents, opponentLevel, rewardChoices, pvpResult, loadLeaderboard, PILLARS_BY_INDEX, ownsCard, cardsOwnedFor, skinUnlocked, branchOf, xpOf, nextTier, unlockTier, awardXp, isLocked, tokenAvailable, lockSquad, changeStyle, cpuBranch } from './progress.js'
 
 export const Z = 2
 const DISPLAY = "'Saira Condensed', 'Arial Narrow', sans-serif"
@@ -251,6 +251,7 @@ export class SelectScene extends Phaser.Scene {
     txt(this, 330, 360, 'Level', { fontFamily: BODY, fontStyle: '600', fontSize: '15px', color: '#9AA3AE' })
     this.lvlBtns = ['easy', 'medium', 'hard'].map((l, i) => button(this, 364 + i * 72, 404, 66, 40, l[0].toUpperCase() + l.slice(1), GOLD, () => { cfg.level = l; this.refresh() }, { size: 18 }))
     this.fightBtn = null
+    button(this, 674, 348, 192, 30, 'Challenge players  ▸', '#5BE0FF', () => this.scene.start('Arena'), { size: 16 })
     // Look levels: 1 Cartoon, 2 Stickman, 3 Houses (all open while testing; later they unlock with game level)
     const lv = LOOK_LEVELS.find(l => l.key === getLook()) || LOOK_LEVELS[1]
     button(this, 596, 34, 120, 32, 'Collection', GOLD, () => this.scene.start('Collection', { pick: this.game.cfg.pick }), { size: 16 })
@@ -336,6 +337,7 @@ export class SelectScene extends Phaser.Scene {
     // CPU team: same size, random pillars and styles
     const pool = Phaser.Utils.Array.Shuffle([0, 1, 2, 3, 4])
     const team1 = order.map(p => ({ p, style: this.sq.styles[FIGHTERS[p].key], loadout: (this.sq.loadouts || {})[FIGHTERS[p].key], skin: skinFor(this, FIGHTERS[p].key, this.sq) }))
+    saveDefence(prog(this), this.sq) // your defence team for player-vs-player = the squad you fight with
     const team2 = pool.slice(0, order.length).map(p => ({ p, style: Phaser.Utils.Array.GetRandom(STYLE_KEYS) }))
     sfx(this).resume?.()
     this.cameras.main.flash(160, 255, 255, 255)
@@ -376,7 +378,14 @@ export class FightScene extends Phaser.Scene {
     setupCam(this)
     const b = bridge(this); b.onScene?.('fight')
     const P = prog(this), cpuUp = cpuUpgrades(P, data.level)
-    const defs = (t, mine) => (t || []).map(x => applyBranch(applyUpgrades(styledDef(FIGHTERS[x.p], x.style, mine ? x.loadout : null, mine ? coll(this).combos : {}), mine ? (P.upgrades || {})[FIGHTERS[x.p].key] : cpuUp), mine ? branchOf(P, FIGHTERS[x.p].key) : cpuBranch(x.style, data.level)))
+    const opp = data.opp
+    const defs = (t, mine) => (t || []).map(x => {
+      const key = FIGHTERS[x.p].key
+      if (!mine && opp) { // another athlete's real squad: their combos, upgrades and branches
+        return applyBranch(applyUpgrades(styledDef(FIGHTERS[x.p], x.style, x.loadout, (opp.collection || {}).combos || {}), (opp.upgrades || {})[key] || {}), (opp.branches || {})[key])
+      }
+      return applyBranch(applyUpgrades(styledDef(FIGHTERS[x.p], x.style, mine ? x.loadout : null, mine ? coll(this).combos : {}), mine ? (P.upgrades || {})[key] : cpuUp), mine ? branchOf(P, key) : cpuBranch(x.style, data.level))
+    })
     this.m = new Match(defs(data.team1, true), defs(data.team2, false), data.level)
     for (const f of [...this.m.t1, ...this.m.t2]) f.theme = NATURAL_HOUSE[f.def.key]
     this.m.t1.forEach((f, i) => { f.skin = (data.team1 || [])[i]?.skin || 'standard' }) // your fighters' skins
@@ -739,7 +748,7 @@ export class FightScene extends Phaser.Scene {
     // timer
     g.fillStyle(0x0b0e12, 0.85); g.fillRoundedRect(W / 2 - 34, 10, 68, 46, 8); g.lineStyle(2, 0xf5c542, 0.7); g.strokeRoundedRect(W / 2 - 34, 10, 68, 46, 8)
     const secs = Math.max(0, Math.ceil(m.timer / 60))
-    setT(this.n1, `${m.p1.def.name} · ${m.p1.def.styleName}`); setT(this.n2, `${m.p2.def.name} · ${m.p2.def.styleName} (CPU)`)
+    setT(this.n1, `${m.p1.def.name} · ${m.p1.def.styleName}`); setT(this.n2, `${m.p2.def.name} · ${m.p2.def.styleName} (${this.data0 && this.data0.opp ? String(this.data0.opp.name || '').replace(/^Practice · /, '') : 'CPU'})`)
     setT(this.timerT, String(secs), secs <= 10 && m.phase === 'fight' ? RED : '#FFFFFF')
     const spTxt = (f) => (f.meter || 0) >= 100 ? `SUPER READY: ${SUPER_NAME[f.def.special]}` : f.specialCd === 0 ? `${f.def.specialName} ready` : f.def.specialName
     setT(this.sp1, spTxt(m.p1), (m.p1.meter || 0) >= 100 ? GOLD : m.p1.specialCd === 0 ? fxColour(m.p1) : '#5c6670')
@@ -766,7 +775,8 @@ export class ResultsScene extends Phaser.Scene {
     this.pose = makePose(this.win, 0); this.frame = 0
     this.fg = this.add.graphics()
     this.conf = this.add.particles(0, 0, 'shard', { x: { min: 40, max: 340 }, y: -10, speedY: { min: 80, max: 180 }, speedX: { min: -40, max: 40 }, rotate: { min: 0, max: 360 }, scale: { start: 0.6, end: 0.6 }, lifespan: 3200, frequency: 60, tint: [hex(wDef.colour), 0xf5c542, 0xffffff] })
-    const head = txt(this, 560, 70, youWon ? 'YOU WIN!' : 'CPU WINS', { fontSize: '76px', color: youWon ? '#22B14C' : RED, stroke: '#000', strokeThickness: 8 }).setOrigin(0.5)
+    const oppName = data.opp ? String(data.opp.name || 'Opponent').replace(/^Practice · /, '') : 'CPU'
+    const head = txt(this, 560, 70, youWon ? 'YOU WIN!' : `${oppName.toUpperCase()} WINS`, { fontSize: oppName.length > 8 ? '58px' : '76px', color: youWon ? '#22B14C' : RED, stroke: '#000', strokeThickness: 8 }).setOrigin(0.5)
     head.setShadow(0, 0, youWon ? '#22B14C' : RED, 18, true, true)
     head.setScale(2).setAlpha(0); this.tweens.add({ targets: head, scale: 1, alpha: 1, duration: 380, ease: 'Back.out' })
     txt(this, 560, 122, team ? `Knock-outs  ${kos[0]}–${kos[1]}` : `${wDef.name} · ${wDef.styleName || ''} wins`, { fontFamily: BODY, fontStyle: '700', fontSize: '22px', color: '#C9CED6' }).setOrigin(0.5)
@@ -776,7 +786,7 @@ export class ResultsScene extends Phaser.Scene {
     const g = this.add.graphics()
     g.fillStyle(0x0b0e12, 0.85); g.fillRoundedRect(380, 150, 360, 196, 10); g.lineStyle(1.5, 0x2a3138, 1); g.strokeRoundedRect(380, 150, 360, 196, 10)
     txt(this, 630, 158, 'You', { fontFamily: BODY, fontStyle: '700', fontSize: '17px', color: FIGHTERS[data.team1[0].p].colour }).setOrigin(0.5, 0)
-    txt(this, 705, 158, 'CPU', { fontFamily: BODY, fontStyle: '700', fontSize: '17px', color: FIGHTERS[data.team2[0].p].colour }).setOrigin(0.5, 0)
+    txt(this, 705, 158, oppName.split(' ')[0].slice(0, 8), { fontFamily: BODY, fontStyle: '700', fontSize: '17px', color: FIGHTERS[data.team2[0].p].colour }).setOrigin(0.5, 0)
     rows.forEach(([l, a, b], i) => {
       const y = 184 + i * 26
       txt(this, 396, y, l, { fontFamily: BODY, fontStyle: '600', fontSize: '19px', color: '#C9CED6' })
@@ -808,6 +818,7 @@ export class ResultsScene extends Phaser.Scene {
       awardXp(prog(this), (data.team1 || []).map(t => FIGHTERS[t.p].key), youWon).then(p => { this.game.progress = p })
       txt(this, 560, 132, `+${youWon ? 40 : 20} style XP for each fighter`, { fontFamily: BODY, fontStyle: '700', fontSize: '13px', color: '#5BE0FF' }).setOrigin(0.5, 0)
     }
+    if (data.opp && !data.dropDone) { data.dropDone = true; this.pvpReward(data, youWon) }
     // end of match: win streak + drops (a combo card for one of your team's styles, and/or a graphic card)
     if (!data.dropDone) {
       data.dropDone = true
@@ -834,7 +845,34 @@ export class ResultsScene extends Phaser.Scene {
     sfx(this).cheer?.(youWon ? 1.5 : 0.6)
     sfx(this).say?.(youWon ? 'You win' : 'You lose', 0.5)
   }
-  rematch() { this.scene.start('Fight', { team1: this.d.team1, team2: this.d.team2, level: this.d.level }) }
+  rematch() { this.scene.start('Fight', { team1: this.d.team1, team2: this.d.team2, level: this.d.level, opp: this.d.opp }) }
+  // player vs player: after a win, copy ONE of their cards / combo cards (they keep theirs)
+  pvpReward(data, won) {
+    const opp = data.opp, C = coll(this)
+    const done = (msg, col = '#C9CED6') => { if (this.sys && this.sys.isActive()) this.pvpT = txt(this, 190, 62, msg, { fontFamily: BODY, fontStyle: '700', fontSize: '15px', color: col, align: 'center', stroke: '#000', strokeThickness: 3, wordWrap: { width: 330 } }).setOrigin(0.5, 0) }
+    const record = pick => pvpResult(prog(this), coll(this), opp, won, pick).then(({ progress, coll: nc, reward }) => { this.game.progress = progress; this.game.collection = nc; return reward })
+    if (!won) { record(null); done(`${opp.name} wins this one. Challenge again from the Arena.`); return }
+    const choices = opp.rewarded_today ? [] : rewardChoices(opp, C)
+    if (!choices.length) { record(null); done(opp.rewarded_today ? `You beat ${opp.name}! (Reward already taken from them today.)` : `You beat ${opp.name}! Nothing new to copy from them.`, '#5BE07A'); return }
+    let recorded = false
+    const ui = []
+    ui.push(txt(this, 190, 56, `You beat ${opp.name}! Copy one of theirs (they keep it):`, { fontFamily: BODY, fontStyle: '700', fontSize: '14px', color: '#5BE07A', align: 'center', stroke: '#000', strokeThickness: 3, wordWrap: { width: 340 } }).setOrigin(0.5, 0))
+    choices.forEach((c, i) => {
+      const isCard = c.kind === 'card', item = isCard ? CARD_BY_ID[c.id] : COMBO_BY_ID[c.id]
+      const label = isCard ? `${FIGHTERS.find(f => f.key === item.fighter).name} · ${item.name}` : item.name
+      const col = isCard ? CARD_RARITY[item.rarity].colour : RARITY[item.rarity].colour
+      const b = button(this, 190, 104 + i * 40, 330, 34, `${label}  ·  ${isCard ? 'card' : 'combo'}${c.have ? '  (★ up)' : '  (new)'}`, col, async () => {
+        if (recorded) return; recorded = true
+        ui.forEach(o => o.destroy())
+        const reward = await record({ kind: c.kind, id: c.id })
+        done(reward ? `Copied ${label}! ${opp.name} keeps theirs.` : 'Could not copy that one (daily limit?).', reward ? col : '#E24B4A')
+        sfx(this).special?.()
+      }, { size: 13 })
+      ui.push(b)
+    })
+    // leaving without choosing still records the win
+    this.events.once('shutdown', () => { if (!recorded) { recorded = true; record(null) } })
+  }
   // (gems are only added once per match: the Results data is marked when done)
   update() {
     this.frame++
@@ -1300,3 +1338,99 @@ export class CollectionScene extends Phaser.Scene {
   }
 }
 const shadeHex = (c, k) => ((Math.min(255, ((c >> 16) & 255) * k) << 16) | (Math.min(255, ((c >> 8) & 255) * k) << 8) | Math.min(255, (c & 255) * k))
+
+// ---------------- Arena: challenge other athletes' squads + season leaderboards ----------------
+export class ArenaScene extends Phaser.Scene {
+  constructor() { super('Arena') }
+  create(data) {
+    setupCam(this); bridge(this).onScene?.('arena')
+    buildArena(this, { dim: 0.88 })
+    this.tab = data?.tab || 'Opponents'; this.page = 0; this.age = null
+    txt(this, 20, 6, 'ARENA', { fontSize: '36px', color: '#5BE0FF', stroke: '#000', strokeThickness: 6 })
+    this.subT = txt(this, 22, 48, 'Loading…', { fontFamily: BODY, fontStyle: '700', fontSize: '13px', color: '#C9CED6' })
+    button(this, 738, 30, 84, 36, 'Back', '#F2F2F2', () => this.scene.start('Select'), { size: 20 })
+    this.tabBtns = ['Opponents', 'Leaderboard'].map((t, i) => button(this, 420 + i * 132, 30, 124, 34, t, '#F2F2F2', () => { this.tab = t; this.build() }, { size: 16 }))
+    this.layer = []
+    const P = prog(this)
+    Promise.all([loadOpponents(P), loadLeaderboard(P, null)]).then(([opps, board]) => {
+      if (!this.sys || !this.sys.isActive()) return
+      this.opps = opps; this.board = board; this.build()
+    })
+  }
+  clear() { for (const o of this.layer) o.destroy(); this.layer = [] }
+  L(o) { this.layer.push(o); return o }
+  build() {
+    this.clear()
+    this.tabBtns.forEach((b, i) => b.setOn(['Opponents', 'Leaderboard'][i] === this.tab))
+    if (!this.opps) return
+    const practice = this.opps.practice
+    this.subT.setText(practice ? 'Practice opponents (made-up squads) -- real athletes appear here once the player-vs-player SQL is run.' : `Season ${this.board.season}  ·  win to copy one of their cards or combos (they keep theirs)`)
+    if (this.tab === 'Opponents') this.buildOpponents(); else this.buildBoard()
+  }
+  buildOpponents() {
+    const list = this.opps.list || [], per = 6, pages = Math.max(1, Math.ceil(list.length / per))
+    this.page = Math.min(this.page, pages - 1)
+    if (!list.length) { this.L(txt(this, W / 2, 200, 'No other athletes have a squad yet.\nOnce others play, their teams appear here.', { fontFamily: BODY, fontStyle: '700', fontSize: '16px', color: '#9AA3AE', align: 'center' }).setOrigin(0.5)); return }
+    list.slice(this.page * per, this.page * per + per).forEach((o, i) => {
+      const y = 76 + i * 58
+      const g = this.L(this.add.graphics())
+      g.fillStyle(0x10141a, 0.95); g.fillRoundedRect(20, y, 760, 52, 8); g.lineStyle(1.5, 0x262d36, 1); g.strokeRoundedRect(20, y, 760, 52, 8)
+      this.L(txt(this, 34, y + 6, o.name || 'Athlete', { fontSize: '18px', color: '#F2F2F2' }))
+      this.L(txt(this, 34, y + 30, `${o.house || 'No house'}${o.age_category ? '  ·  ' + o.age_category : ''}  ·  Level ${opponentLevel(o)}  ·  ${o.pvp_wins || 0}W ${o.pvp_losses || 0}L`, { fontFamily: BODY, fontStyle: '600', fontSize: '12px', color: '#9AA3AE' }))
+      // their team
+      const order = (o.defence && o.defence.order) || []
+      order.forEach((k, j) => {
+        const fi = FIGHTERS.find(f => f.key === k); if (!fi) return
+        const x = 330 + j * 70
+        g.fillStyle(hex(fi.colour), 1); g.fillCircle(x, y + 18, 8)
+        this.L(txt(this, x, y + 30, (STYLES[(o.styles || {})[k]] || STYLES.kickboxer).name.split(' ')[0], { fontFamily: BODY, fontStyle: '700', fontSize: '10.5px', color: fi.colour }).setOrigin(0.5, 0))
+      })
+      const btn = this.L(button(this, 712, y + 26, 120, 36, o.rewarded_today ? 'Fight (no reward)' : 'Fight  ▸', o.rewarded_today ? '#9AA3AE' : '#5BE0FF', () => this.challenge(o), { size: o.rewarded_today ? 12 : 17 }))
+      btn.setOn(!o.rewarded_today)
+    })
+    if (pages > 1) {
+      this.L(button(this, 330, 432, 70, 26, '◀', '#F2F2F2', () => { this.page = (this.page + pages - 1) % pages; this.build() }, { size: 15 }))
+      this.L(txt(this, 400, 432, `${this.page + 1} / ${pages}`, { fontFamily: BODY, fontStyle: '700', fontSize: '13px', color: '#C9CED6' }).setOrigin(0.5))
+      this.L(button(this, 470, 432, 70, 26, '▶', '#F2F2F2', () => { this.page = (this.page + 1) % pages; this.build() }, { size: 15 }))
+    }
+  }
+  challenge(o) {
+    const sq = loadSquad(), order = sq.order || []
+    if (!order.length) { this.cameras.main.shake(120, 0.004); return }
+    const team1 = order.map(p => ({ p, style: sq.styles[FIGHTERS[p].key], loadout: (sq.loadouts || {})[FIGHTERS[p].key], skin: skinFor(this, FIGHTERS[p].key, sq) }))
+    const team2 = ((o.defence && o.defence.order) || []).map(k => ({ p: PILLARS_BY_INDEX.indexOf(k), style: (o.styles || {})[k] || 'kickboxer', loadout: ((o.defence || {}).loadouts || {})[k] })).filter(t => t.p >= 0)
+    if (!team2.length) return
+    saveDefence(prog(this), sq)
+    sfx(this).resume?.(); this.cameras.main.flash(160, 255, 255, 255)
+    this.scene.start('Fight', { team1, team2, level: 'medium', opp: o })
+  }
+  buildBoard() {
+    const b = this.board || {}
+    // houses
+    this.L(txt(this, 24, 74, 'Houses', { fontSize: '19px', color: '#F2F2F2' }))
+    const houses = b.houses || [], maxW = Math.max(1, ...houses.map(h => Number(h.wins) || 0))
+    if (!houses.length) this.L(txt(this, 24, 104, b.practice ? 'House rankings appear once the player-vs-player SQL is run.' : 'No wins yet this season.', { fontFamily: BODY, fontStyle: '600', fontSize: '13px', color: '#9AA3AE', wordWrap: { width: 300 } }))
+    const g = this.L(this.add.graphics())
+    houses.slice(0, 6).forEach((h, i) => {
+      const y = 104 + i * 44, hc = { dragon: 0xff3b30, super: 0xff8a1f, jet: 0x5be04a, ice: 0x5ab8ff, storm: 0xb05cff }[String(h.house || '').toLowerCase()] || 0x9aa3ae
+      this.L(txt(this, 24, y, `${i + 1}. ${h.house}`, { fontFamily: BODY, fontStyle: '700', fontSize: '15px', color: '#F2F2F2' }))
+      g.fillStyle(0x2a3138, 1); g.fillRect(24, y + 22, 280, 8); g.fillStyle(hc, 1); g.fillRect(24, y + 22, 280 * (Number(h.wins) || 0) / maxW, 8)
+      this.L(txt(this, 310, y, `${h.wins} wins`, { fontFamily: BODY, fontStyle: '700', fontSize: '13px', color: '#C9CED6' }).setOrigin(1, 0))
+    })
+    // athletes
+    this.L(txt(this, 360, 74, 'Top athletes', { fontSize: '19px', color: '#F2F2F2' }))
+    const ages = b.ages || []
+    if (ages.length) this.L(button(this, 712, 86, 136, 26, `Age: ${this.age || 'All'}  ▸`, '#F2F2F2', () => {
+      const opts = [null, ...ages]; this.age = opts[(opts.indexOf(this.age) + 1) % opts.length]
+      loadLeaderboard(prog(this), this.age).then(nb => { this.board = nb; this.build() })
+    }, { size: 13 }))
+    ;(b.athletes || []).slice(0, 8).forEach((a, i) => {
+      const y = 106 + i * 36
+      const gg = this.L(this.add.graphics()); gg.fillStyle(a.me ? 0x5be0ff : 0x10141a, a.me ? 0.15 : 0.9); gg.fillRoundedRect(360, y, 420, 32, 6)
+      this.L(txt(this, 372, y + 7, `${i + 1}. ${a.name}`, { fontFamily: BODY, fontStyle: '700', fontSize: '14px', color: a.me ? '#5BE0FF' : '#F2F2F2' }))
+      this.L(txt(this, 560, y + 8, `${a.house || ''}${a.age ? ' · ' + a.age : ''}`, { fontFamily: BODY, fontStyle: '600', fontSize: '12px', color: '#9AA3AE' }))
+      this.L(txt(this, 770, y + 7, `${a.wins}W ${a.losses}L`, { fontFamily: BODY, fontStyle: '700', fontSize: '14px', color: '#F2F2F2' }).setOrigin(1, 0))
+    })
+    if (b.me) this.L(txt(this, 360, 412, `You: ${b.me.wins}W ${b.me.losses}L  ·  rank ${b.me.rank}`, { fontFamily: BODY, fontStyle: '700', fontSize: '14px', color: '#5BE0FF' }))
+  }
+}
