@@ -331,3 +331,12 @@ export const SKINS = [
   { key: 'gold', name: 'Gold', need: 'legendary', what: 'Solid gold' },
 ]
 export const SKIN_BY_KEY = Object.fromEntries(SKINS.map(s => [s.key, s]))
+
+// ---- Play styles (control schemes). Add more here; each needs a pad layout in KRFight2.jsx. ----
+//  kr: one Punch + one Kick (tap / hold / long hold), Special, Super, Jump and Block buttons
+//  sf: classic six buttons (LP MP HP / LK MK HK), specials by motion (↓↘→ + punch), super (↓↘→↓↘→ + punch),
+//      jump = up on the stick, block = hold back
+export const PLAY_STYLES = [{ key: 'kr', name: 'KR' }, { key: 'sf', name: 'SF' }]
+export const getPlayStyle = () => { try { return localStorage.getItem('krfight-playstyle') || 'kr' } catch (e) { return 'kr' } }
+export const setPlayStyle = v => { try { localStorage.setItem('krfight-playstyle', v) } catch (e) { /* ignore */ } }
+export const SF_BUTTON = { lp: 'LP', mp: 'MP', hp: 'HP', lk: 'LK', mk: 'MK', hk: 'HK' }

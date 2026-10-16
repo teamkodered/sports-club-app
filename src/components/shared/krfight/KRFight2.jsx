@@ -1,15 +1,13 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Phaser from 'phaser'
 import { FgIcon } from '../FightGame.jsx'
-import { FIGHTERS, CHARGE_MS } from './data.js'
+import { FIGHTERS, CHARGE_MS, PLAY_STYLES, getPlayStyle, setPlayStyle } from './data.js'
 import { makeSfx } from './sfx.js'
 import { BootScene, TitleScene, SelectScene, FightScene, ResultsScene, UpgradeScene, CombosScene, BranchScene, FighterScene, CollectionScene, ArenaScene, Z } from './scenes.js'
 
 // KR FIGHT 2 (Phaser). Same rules and controls as the classic game, new engine: jointed fighters,
 // hit sparks, hit-stop, super cut-ins, KO slow-mo, title / select / fight / results scenes.
 // React keeps the top bar and the touch controls; Phaser draws everything inside the arena.
-// 3D look test (three.js + Quaternius mannequin) -- loaded only when opened
-const KR3DTest = lazy(() => import('./KR3DTest.jsx'))
 const LS_MUTE = 'krfight-muted'
 const BTN = 64 // every attack button the same size
 
@@ -31,10 +29,10 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
   const [hud, setHud] = useState({ sp: 1, sup: 0 })
   const [muted, setMuted] = useState(() => { try { return localStorage.getItem(LS_MUTE) === '1' } catch (e) { return false } })
   const [failed, setFailed] = useState(null)
-  const [show3d, setShow3d] = useState(false)
-  const paused = useRef(false); paused.current = show3d
-  // pause the game underneath while the 3D test is open
-  useEffect(() => { const g = gameRef.current; if (!g) return; try { show3d ? g.loop.sleep() : g.loop.wake() } catch (e) { /* ignore */ } }, [show3d])
+  // play style (control scheme): KR (punch / kick with hold for power) or SF (six buttons, motion specials)
+  const [playStyle, setPlayStyleState] = useState(getPlayStyle)
+  const playStyleRef = useRef(playStyle); playStyleRef.current = playStyle
+  const paused = useRef(false)
   const [landscape, setLandscape] = useState(() => typeof window !== 'undefined' && window.matchMedia('(orientation: landscape) and (max-height: 600px)').matches)
   useEffect(() => {
     const mq = window.matchMedia('(orientation: landscape) and (max-height: 600px)')
@@ -80,11 +78,14 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
   // keyboard: arrows/WASD move, J punch and K kick (hold for power), I/up jump, B or Shift block, T tag, L/Space special, O/Enter super
   useEffect(() => {
     const map = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'up', KeyW: 'up', KeyI: 'up', ArrowDown: 'down', KeyS: 'down', KeyL: 'sp', Space: 'sp', KeyO: 'super', Enter: 'super', KeyB: 'block', ShiftLeft: 'block', ShiftRight: 'block', KeyT: 'tag' }
+    const SF_KEYS = { KeyU: 'lp', KeyI: 'mp', KeyO: 'hp', KeyJ: 'lk', KeyK: 'mk', KeyL: 'hk' }
     const dn = e => {
+      if (playStyleRef.current === 'sf' && SF_KEYS[e.code]) { e.preventDefault(); if (!e.repeat) pressed.current[SF_KEYS[e.code]] = true; return }
       if (e.code === 'KeyJ' || e.code === 'KeyK') { e.preventDefault(); if (!e.repeat) startCharge(e.code === 'KeyJ' ? 'punch' : 'kick', e.timeStamp); return }
       const k = map[e.code]; if (!k) return; e.preventDefault(); if (!input.current[k]) pressed.current[k] = true; input.current[k] = true
     }
     const up = e => {
+      if (playStyleRef.current === 'sf' && SF_KEYS[e.code]) return
       if (e.code === 'KeyJ' || e.code === 'KeyK') { releaseCharge(e.code === 'KeyJ' ? 'punch' : 'kick', e.timeStamp); return }
       const k = map[e.code]; if (!k) return; input.current[k] = false
     }
@@ -97,7 +98,6 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
   useEffect(() => {
     try { window.history.pushState({ krfight: 1 }, '') } catch (e) { /* ignore */ }
     const onPop = () => {
-      if (paused.current) { try { window.history.pushState({ krfight: 1 }, '') } catch (e) { /* ignore */ } setShow3d(false); return } // Back closes the 3D test
       const g = gameRef.current
       const cur = g && g.scene.getScenes(true)[0], key = cur && cur.scene.key
       const to = key && BACK_TO[key]
@@ -134,7 +134,7 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
           input: { activePointers: 3, keyboard: false }, audio: { noAudio: true }, banner: false,
           render: { antialias: true, powerPreference: 'high-performance' },
         })
-        game.bridge = { input: input.current, pressed: pressed.current, sfx, skipTitle: !!keep, onScene: s => !dead && setScene(s), onHud: h => !dead && setHud(h), onRound: () => onRoundRef.current?.() }
+        game.bridge = { input: input.current, pressed: pressed.current, sfx, skipTitle: !!keep, onScene: s => !dead && setScene(s), onHud: h => !dead && setHud(h), onRound: () => onRoundRef.current?.(), playStyle: () => playStyleRef.current }
         if (keep?.cfg) game.cfg = keep.cfg
         game.canvas?.addEventListener('webglcontextlost', e => { e.preventDefault(); setTimeout(rebuild, 300) })
         gameRef.current = game
@@ -160,7 +160,7 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
     // watchdog: page visible but the game hasn't drawn a frame for 2.5 s -> rebuild it
     const watch = setInterval(() => {
       const g = gameRef.current
-      if (!g || document.hidden || !g.isBooted || paused.current) { stuckSince = 0; return } // paused for the 3D test is not a freeze
+      if (!g || document.hidden || !g.isBooted) { stuckSince = 0; return }
       if (g.renderer?.contextLost) { rebuild(); return }
       const f = g.loop.frame
       if (f !== lastFrame) { lastFrame = f; stuckSince = 0; return }
@@ -269,17 +269,13 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
   return (
     <div role="dialog" aria-modal="true" aria-label="KR Fight" style={{ position: 'fixed', inset: 0, zIndex: 495, background: '#05070A', color: '#F2F2F2', display: 'flex', flexDirection: 'column', userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'none' }}
       onContextMenu={e => e.preventDefault()}>
-      {show3d && (
-        <Suspense fallback={<div style={{ position: 'fixed', inset: 0, zIndex: 520, background: '#05060b', color: '#9AA3AE', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading 3D…</div>}>
-          <KR3DTest onClose={() => setShow3d(false)} />
-        </Suspense>
-      )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: landscape ? '4px calc(10px + env(safe-area-inset-right, 0px)) 4px calc(10px + env(safe-area-inset-left, 0px))' : 'calc(8px + env(safe-area-inset-top, 0px)) 12px 8px' }}>
         <button type="button" onClick={onClose} style={pad}>Close</button>
         <div style={{ fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 22, letterSpacing: 1, flex: 1 }}>KR FIGHT</div>
         <button type="button" onClick={toggleMute} style={pad} aria-label={muted ? 'Sound on' : 'Sound off'}>{muted ? 'Sound off' : 'Sound on'}</button>
         {fight && <button type="button" onClick={toSelect} style={pad}>Fighters</button>}
-        {!fight && <button type="button" onClick={() => setShow3d(true)} style={{ ...pad, color: '#5BE0FF' }}>3D test</button>}
+        {!fight && <button type="button" onClick={() => { const i = PLAY_STYLES.findIndex(p => p.key === playStyle); const next = PLAY_STYLES[(i + 1) % PLAY_STYLES.length].key; setPlayStyle(next); setPlayStyleState(next) }}
+          style={{ ...pad, color: '#5BE0FF' }} aria-label="Play style (controls)">Play: {PLAY_STYLES.find(p => p.key === playStyle)?.name || 'KR'}</button>}
         {!fight && onClassic && <button type="button" onClick={onClassic} style={{ ...pad, color: '#9AA3AE' }}>Classic</button>}
       </div>
 
@@ -322,14 +318,21 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
             </div>
             <div {...atkPadHandlers} className="fg-atkpad" role="group" aria-label="Attack buttons"
               style={{ display: 'grid', gridTemplateColumns: `repeat(3, ${BTN}px)`, gridAutoRows: `${BTN}px`, gap: 10, touchAction: 'none', flexShrink: 0 }}>
-              {[
+              {(playStyle === 'sf' ? [
+                { k: 'lp', text: 'LP', label: 'Light punch', bg: '#F2F2F2' },
+                { k: 'mp', text: 'MP', label: 'Medium punch', bg: '#F5C542' },
+                { k: 'hp', text: 'HP', label: 'Heavy punch (motion + punch = special)', bg: '#E24B4A' },
+                { k: 'lk', text: 'LK', label: 'Light kick', bg: '#8FD3FF' },
+                { k: 'mk', text: 'MK', label: 'Medium kick', bg: '#378ADD' },
+                { k: 'hk', text: 'HK', label: 'Heavy kick', bg: '#C93BFF' },
+              ] : [
                 { k: 'sp', icon: hud.special || FIGHTERS[pick]?.special || 'bolt', label: 'Special', bg: hud.colour || FIGHTERS[pick]?.colour || '#F5C542', ring: hud.sp },
                 { k: 'punch', icon: 'glove', label: 'Punch: tap light, hold medium, long hold heavy', bg: '#F2F2F2', charge: chargeLv.punch },
                 { k: 'jump', icon: 'jump', label: 'Jump', bg: '#9AA3AE' },
                 { k: 'super', icon: 'bolt', label: 'Super', bg: '#F5C542', ring: hud.sup },
                 { k: 'kick', icon: 'kick', label: 'Kick: tap light, hold medium, long hold heavy', bg: '#378ADD', charge: chargeLv.kick },
                 { k: 'block', icon: 'shield', label: 'Block (hold)', bg: '#8FD3FF' },
-              ].map(b => {
+              ]).map(b => {
                 const ready = b.ring == null || b.ring >= 1
                 // charge ring: white (light) -> gold (medium) -> red (heavy)
                 const cl = b.charge || 0, lvCol = cl >= 1 ? '#FF4D3D' : cl >= CHARGE_MS.m / CHARGE_MS.h ? '#F5C542' : '#F2F2F2'
@@ -344,7 +347,8 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
                         background: 'radial-gradient(circle at 35% 30%, #2A3138, #0B0E12 80%)', boxShadow: `inset 0 0 10px ${b.bg}44`,
                         opacity: ready ? 1 : 0.5, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
                         transform: cl > 0 ? `scale(${1 - cl * 0.06})` : 'none' }}>
-                      {b.icon === 'jump' || b.icon === 'shield' ? <PadIcon name={b.icon} colour={b.bg} size={Math.round(BTN * 0.46)} /> : <FgIcon name={b.icon} colour={b.bg} size={Math.round(BTN * 0.5)} />}
+                      {b.text ? <span style={{ color: b.bg, fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 22, textShadow: `0 0 6px ${b.bg}` }}>{b.text}</span>
+                        : b.icon === 'jump' || b.icon === 'shield' ? <PadIcon name={b.icon} colour={b.bg} size={Math.round(BTN * 0.46)} /> : <FgIcon name={b.icon} colour={b.bg} size={Math.round(BTN * 0.5)} />}
                     </button>
                   </div>
                 )

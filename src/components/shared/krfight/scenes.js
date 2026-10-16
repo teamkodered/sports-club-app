@@ -1,7 +1,7 @@
 // KR FIGHT 2 -- Phaser scenes: Boot (makes textures), Title, Select, Fight, Results.
 // The world is 800x450; cameras zoom x2 onto a 1600x900 canvas so everything stays crisp on phones.
 import Phaser from 'phaser'
-import { W, H, FLOOR, FIGHTERS, MOVES, SUPER_NAME, LEVELS, comboLabel, hex, getLook, setLook, LOOK_LEVELS, HOUSES, HOUSE_KEYS, getHouse, setHouse, fxColour, cpuHouse, NATURAL_HOUSE, STYLES, STYLE_KEYS, styledDef, loadSquad, saveSquad, MAX_TEAM, COMBO_BY_ID, combosForStyle, defaultLoadout, LOADOUT_SIZE, RARITY, FLOW_MAX, BRANCHES, TIER_XP, TIER_GEMS, applyBranch, seasonOf, CARDS, CARD_BY_ID, CARD_RARITY, CARD_RARITIES, SKINS, SKIN_BY_KEY, COMBO_LIB } from './data.js'
+import { W, H, FLOOR, FIGHTERS, MOVES, SUPER_NAME, LEVELS, comboLabel, hex, getLook, setLook, LOOK_LEVELS, HOUSES, HOUSE_KEYS, getHouse, setHouse, fxColour, cpuHouse, NATURAL_HOUSE, STYLES, STYLE_KEYS, styledDef, loadSquad, saveSquad, MAX_TEAM, COMBO_BY_ID, combosForStyle, defaultLoadout, LOADOUT_SIZE, RARITY, FLOW_MAX, BRANCHES, TIER_XP, TIER_GEMS, applyBranch, seasonOf, CARDS, CARD_BY_ID, CARD_RARITY, CARD_RARITIES, SKINS, SKIN_BY_KEY, COMBO_LIB, getPlayStyle, SF_BUTTON } from './data.js'
 import { Match, makeFighter } from './core.js'
 import { makePose, stepPose, drawFighter, targetPose } from './pose.js'
 import { loadProgress, PILLARS, AREAS, AREA_GROUPS, costOf, MAX_LV, DAILY_GEMS, available, wild, priceFor, buyUpgrade, fighterLevel, levelOf, matchGems, awardGems, applyUpgrades, cpuUpgrades, resetTest, UNLIMITED, loadCollection, ownsCombo, rollComboDrop, addComboCard, COMBO_MAX_LV, rollCardDrop, recordMatch, saveDefence, loadOpponents, opponentLevel, rewardChoices, pvpResult, loadLeaderboard, PILLARS_BY_INDEX, ownsCard, cardsOwnedFor, skinUnlocked, branchOf, xpOf, nextTier, unlockTier, awardXp, isLocked, tokenAvailable, lockSquad, changeStyle, cpuBranch } from './progress.js'
@@ -392,7 +392,7 @@ export class FightScene extends Phaser.Scene {
       }
       return applyBranch(applyUpgrades(styledDef(FIGHTERS[x.p], x.style, mine ? x.loadout : null, mine ? coll(this).combos : {}), mine ? (P.upgrades || {})[key] : cpuUp), mine ? branchOf(P, key) : cpuBranch(x.style, data.level))
     })
-    this.m = new Match(defs(data.team1, true), defs(data.team2, false), data.level, data.opp ? 'normal' : (data.cpuMode || 'normal'))
+    this.m = new Match(defs(data.team1, true), defs(data.team2, false), data.level, data.opp ? 'normal' : (data.cpuMode || 'normal'), (bridge(this).playStyle && bridge(this).playStyle()) || getPlayStyle())
     for (const f of [...this.m.t1, ...this.m.t2]) f.theme = NATURAL_HOUSE[f.def.key]
     this.m.t1.forEach((f, i) => { f.skin = (data.team1 || [])[i]?.skin || 'standard' }) // your fighters' skins
     this.tagReq = null
@@ -680,6 +680,7 @@ export class FightScene extends Phaser.Scene {
     const DIR = { f: 'FORWARD', b: 'STEP BACK', d: 'DUCK', sp: 'SPECIAL', super: 'SUPER' }
     if (DIR[t]) return { name: DIR[t], how: '' }
     const id = (def.moves && def.moves[t]) || t, mv = MOVES[id]
+    if (this.m && this.m.playStyle === 'sf') return { name: (mv && mv.name ? mv.name : id).toUpperCase(), how: SF_BUTTON[t] || '' } // SF: the button to press
     return { name: (mv && mv.name ? mv.name : id).toUpperCase(), how: t[0] === 'l' ? 'tap' : t[0] === 'm' ? 'hold' : 'long hold' }
   }
   drawGuide() {
@@ -1209,7 +1210,7 @@ export class FighterScene extends Phaser.Scene {
       txt(this, 660, y, comboLabel(c.seq), { fontFamily: BODY, fontStyle: '700', fontSize: '15px', color: '#F2F2F2' }).setOrigin(1, 0)
     })
     if (!def.combos.length) txt(this, X, 300, 'No combos equipped', { fontFamily: BODY, fontStyle: '600', fontSize: '14px', color: '#5c6670' })
-    txt(this, X, 404, 'L = tap   M = hold   H = long hold', { fontFamily: BODY, fontStyle: '600', fontSize: '12px', color: '#9AA3AE' })
+    txt(this, X, 404, getPlayStyle() === 'sf' ? 'SF controls: LP MP HP / LK MK HK  ·  special ↓↘→ + punch  ·  super ↓↘→↓↘→ + punch' : 'L = tap   M = hold   H = long hold', { fontFamily: BODY, fontStyle: '600', fontSize: '12px', color: '#9AA3AE' })
     button(this, 728, 318, 96, 30, 'Combos  ▸', '#F2F2F2', () => this.scene.start('Combos', { pick: this.pick }), { size: 15 })
   }
   update() {

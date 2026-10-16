@@ -24,7 +24,8 @@ export class Match {
   // a KO brings in the next one; a team loses when everyone is down. Players can tag a teammate in.
   // cpuMode: 'normal' | 'still' (dummy) | 'block' (blocks everything) | 'jab' (occasional jab). Anything but
   // normal is practice: the CPU's health refills instead of a KO and the timer is off.
-  constructor(team1, team2, level, cpuMode = 'normal') {
+  constructor(team1, team2, level, cpuMode = 'normal', playStyle = 'kr') {
+    this.playStyle = playStyle || 'kr'
     this.cpuMode = cpuMode || 'normal'; this.practice = this.cpuMode !== 'normal'
     this.lvl = LEVELS[level] || LEVELS.medium
     this.t1 = team1.map(d => Object.assign(makeFighter(d, 220, 1), { side: 'p1' }))
@@ -321,7 +322,9 @@ export class Match {
       for (const t of ['f', 'b', 'd']) if (dirNow[t] && !f.prevDir[t]) f.buf.push({ t, at: this.frame })
       f.prevDir = dirNow
       let pressedNow = false
-      for (const k of ['lp', 'mp', 'hp', 'lk', 'mk', 'hk', 'sp', 'super']) if (ctl[k + 'Pressed']) {
+      for (const k0 of ['lp', 'mp', 'hp', 'lk', 'mk', 'hk', 'sp', 'super']) if (ctl[k0 + 'Pressed']) {
+        let k = k0
+        if (this.playStyle === 'sf' && f.side === 'p1' && (k0 === 'lp' || k0 === 'mp' || k0 === 'hp')) { const mo = this.motion(f); if (mo) k = mo }
         pressedNow = true
         f.buf.push({ t: k, at: this.frame })
         const gap = COMBO_GAP + M(f).comboGap
@@ -367,6 +370,19 @@ export class Match {
     f.vy += GRAV; f.y += f.vy; f.x += f.vx
     if (f.y >= FLOOR) { f.y = FLOOR; if (wasAir && f.vy > 4) this.emit({ type: 'land', f, hard: f.state === 'ko' }); f.vy = 0; if (!f.move && f.state === 'jump') f.state = 'idle' }
     f.x = Math.max(40, Math.min(W - 40, f.x))
+  }
+
+  // SF style: ↓↘→ + punch = special, ↓↘→↓↘→ + punch = super (directions are relative to facing)
+  motion(f) {
+    const dirs = (f.buf || []).filter(x => (x.t === 'd' || x.t === 'f') && this.frame - x.at <= 45)
+    const qcfEnding = endIdx => { // a 'd' then an 'f' within 15 frames, ending at dirs[endIdx]
+      const fwd = dirs[endIdx], down = dirs[endIdx - 1]
+      return fwd && down && fwd.t === 'f' && down.t === 'd' && fwd.at - down.at <= 15
+    }
+    const last = dirs.length - 1
+    if (last < 1 || this.frame - dirs[last].at > 12 || !qcfEnding(last)) return null
+    if (last >= 3 && qcfEnding(last - 2) && (f.meter || 0) >= 100) return 'super'
+    return 'sp'
   }
 
   aiControl(cpu, me) {
