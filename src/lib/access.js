@@ -54,7 +54,12 @@ export function effectiveAccess(profile, groups) {
   const gid = profile?.access?.group
   if (gid) {
     const g = (groups || []).find(x => x.id === gid)
-    if (g) return g.access || {}
+    if (g) {
+      // the group gives pages + register tabs; CLASSES are each person's own (falls back to the group's)
+      const own = profile?.access?.registers?.classes
+      const ga = g.access || {}
+      return own ? { ...ga, registers: { ...(ga.registers || {}), classes: own } } : ga
+    }
   }
   return profile?.access || {}
 }

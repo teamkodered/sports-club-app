@@ -145,7 +145,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     if (!(realIsAdmin && viewAs)) { setViewAsStudentIds(null); return }
     const a = viewAs.access?.group ? (accessGroups.find(g => g.id === viewAs.access.group)?.access || {}) : (viewAs.access || {})
-    const classIds = a?.registers?.classes
+    const classIds = viewAs.access?.registers?.classes || a?.registers?.classes
     if (!classIds?.length) { setViewAsStudentIds(null); return }
     supabase.from('student_class_assignments').select('student_id').in('class_id', classIds)
       .then(({ data }) => setViewAsStudentIds(new Set((data || []).map(r => r.student_id))))

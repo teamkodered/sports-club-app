@@ -48,7 +48,10 @@ export default function TeamAccess() {
   function open(m) {
     const role = normRole(m.role)
     const g = groupOf(m)
-    setEditing({ member: m, role, team: g ? g.team : (m.access && Object.keys(m.access).length ? 'custom' : null), access: cloneAccess(g ? g.access : m.access) })
+    // in a group: the group's pages/tabs, with THIS person's own classes (if they have their own yet)
+    const base = cloneAccess(g ? g.access : m.access)
+    if (g && m.access?.registers?.classes) base.registers = { ...(base.registers || {}), classes: [...m.access.registers.classes] }
+    setEditing({ member: m, role, team: g ? g.team : (m.access && Object.keys(m.access).length ? 'custom' : null), access: base })
   }
   const pickRole = role => setEditing(e => {
     const team = (role === 'captain' || role === 'leader') ? (e.team && e.team !== 'custom' ? e.team : null) : (e.team === 'custom' ? 'custom' : null)
@@ -60,7 +63,11 @@ export default function TeamAccess() {
   })
   const pickTeam = team => setEditing(e => {
     const g = team !== 'custom' ? groups.find(x => x.id === groupId(e.role, team)) : null
-    return { ...e, team, access: g ? cloneAccess(g.access) : e.access }
+    if (!g) return { ...e, team, access: e.access }
+    // join the group's pages/tabs but keep the classes ticked for this person
+    const a = cloneAccess(g.access)
+    a.registers = { ...(a.registers || {}), classes: e.access?.registers?.classes ?? a.registers?.classes ?? null }
+    return { ...e, team, access: a }
   })
 
   const setPage = (key, v) => setEditing(e => ({ ...e, access: { ...e.access, pages: { ...e.access.pages, [key]: v } } }))
@@ -79,11 +86,14 @@ export default function TeamAccess() {
     let memberAccess
     if (inGroup) {
       // save the GROUP's settings (applies to everyone in it), then put this person in it
-      const nextGroups = [...groups.filter(g => g.id !== gid), { id: gid, role: editing.role, team: editing.team, access: settingsAccess }]
+      // the group keeps the shared pages + register tabs; the ticked CLASSES are saved for this person only
+      const prevGroup = groups.find(g => g.id === gid)
+      const groupAccess = { pages, registers: { types: settingsAccess.registers?.types ?? null, classes: prevGroup?.access?.registers?.classes ?? null } }
+      const nextGroups = [...groups.filter(g => g.id !== gid), { id: gid, role: editing.role, team: editing.team, access: groupAccess }]
       const { error: gErr } = await supabase.from('settings').upsert({ key: 'access_groups', value: nextGroups }, { onConflict: 'key' })
       if (gErr) { setSaving(false); return alert('Could not save the group: ' + gErr.message) }
       setGroups(nextGroups)
-      memberAccess = { group: gid }
+      memberAccess = { group: gid, registers: { classes: settingsAccess.registers?.classes || [] } }
     } else if (editing.role === 'admin' || editing.role === 'member') {
       memberAccess = editing.team === 'custom' && editing.role === 'member' && (Object.keys(pages).length || settingsAccess.registers.types || settingsAccess.registers.classes) ? settingsAccess : null
     } else {
@@ -134,7 +144,7 @@ export default function TeamAccess() {
   return (
     <div className="card team-access" style={{ marginBottom: 10 }}>
       <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10 }}>
-        Tap someone to set their role. Coaches and Leaders go in a team group (KR / KRBA / PKA) — change a group once and everyone in it updates.
+        Tap someone to set their role. Coaches and Leaders go in a team group (KR / KRBA / PKA): the group's pages and register tabs are shared — classes are set for each person.
       </p>
       {groups.length > 0 && (
         <div className="team-groups">
@@ -162,7 +172,7 @@ export default function TeamAccess() {
               <b style={{ fontSize: 14 }}>{m.first_name} {m.last_name}</b>
               <span style={{ fontSize: 11, color: 'var(--text-tertiary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.email}</span>
             </span>
-            <span className={`team-role team-role-${normRole(m.role)}`}>{label(m)}{normRole(m.role) === 'admin' ? ' · full access' : ['head_coach', 'captain', 'leader'].includes(normRole(m.role)) && !m.access?.group ? ` · ${(m.access?.registers?.classes || []).length} classes` : ''}</span>
+            <span className={`team-role team-role-${normRole(m.role)}`}>{label(m)}{normRole(m.role) === 'admin' ? ' · full access' : ['head_coach', 'captain', 'leader'].includes(normRole(m.role)) ? ` · ${(m.access?.registers?.classes || groupOf(m)?.access?.registers?.classes || []).length} classes` : ''}</span>
           </button>
         ))}
         {shown.length === 0 && <p style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: '8px 0' }}>{q ? 'No one matches' : 'No team members yet'}</p>}
