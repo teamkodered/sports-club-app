@@ -639,6 +639,14 @@ export class FightScene extends Phaser.Scene {
     const b = bridge(this), inp = b.input || {}, pr = b.pressed || {}
     const c = { left: inp.left, right: inp.right, down: inp.down, upPressed: pr.up || !!inp.up, tag: pr.tag ? 'next' : this.tagReq, superPressed: pr.super, lpPressed: pr.lp, mpPressed: pr.mp, hpPressed: pr.hp, lkPressed: pr.lk, mkPressed: pr.mk, hkPressed: pr.hk, spPressed: pr.sp, block: !!inp.block }
     const m = this.m, f = m.p1
+    // Boxer defence stick: held = guard; down = low guard; pull back = sway back out of range; push forward = lean in
+    if (inp.defHeld) {
+      const fwd = f.facing > 0 ? 'right' : 'left', back = fwd === 'right' ? 'left' : 'right'
+      const sx = (inp.defX || 0) * (f.facing > 0 ? 1 : -1), dy = inp.defY || 0
+      if (sx < -0.5) { c[back] = true; c.block = false }
+      else if (sx > 0.5) { c[fwd] = true; c.block = false }
+      else { c.block = true; if (dy > 0.5) c.down = true }
+    }
     // COMBO button: the next technique starts an equipped combo that leads with it
     if (pr.comboArm) this.comboArmUntil = m.frame + 100
     // gestures (Boxer play style)

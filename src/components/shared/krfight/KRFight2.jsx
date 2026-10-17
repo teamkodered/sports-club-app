@@ -23,6 +23,33 @@ function PadIcon({ name, colour, size }) {
   )
 }
 
+// small joystick (Boxer play style), the same size as the round buttons. onChange(dx, dy, held): dx / dy in
+// -1..1 (screen directions), held = a finger is on it.
+function MiniStick({ size = 64, colour = '#E6E6E6', label, onChange }) {
+  const [knob, setKnob] = useState({ x: 0, y: 0 })
+  const id = useRef(null)
+  const R = size / 2, max = R - 12
+  const move = e => {
+    const r = e.currentTarget.getBoundingClientRect()
+    let dx = e.clientX - (r.left + R), dy = e.clientY - (r.top + R)
+    const len = Math.hypot(dx, dy); if (len > max) { dx = dx / len * max; dy = dy / len * max }
+    setKnob({ x: dx, y: dy }); onChange(dx / max, dy / max, true)
+  }
+  const end = () => { id.current = null; setKnob({ x: 0, y: 0 }); onChange(0, 0, false) }
+  return (
+    <div role="group" aria-label={label}
+      onPointerDown={e => { e.preventDefault(); e.stopPropagation(); e.currentTarget.setPointerCapture?.(e.pointerId); id.current = e.pointerId; move(e) }}
+      onPointerMove={e => { if (id.current === e.pointerId) move(e) }}
+      onPointerUp={e => { if (id.current === e.pointerId) end() }} onPointerCancel={end}
+      style={{ width: size, height: size, borderRadius: '50%', position: 'relative', touchAction: 'none', pointerEvents: 'auto', boxSizing: 'border-box',
+        border: `2px solid ${colour}88`, background: 'rgba(10,12,16,0.35)', boxShadow: 'inset 0 0 0 5px rgba(255,255,255,0.04)' }}>
+      <div style={{ position: 'absolute', left: '50%', top: '50%', width: 28, height: 28, borderRadius: '50%', pointerEvents: 'none', boxSizing: 'border-box',
+        transform: `translate(calc(-50% + ${knob.x}px), calc(-50% + ${knob.y}px))`, transition: id.current == null ? 'transform 0.12s' : 'none',
+        border: `4px solid ${colour}`, background: 'rgba(255,255,255,0.08)', boxShadow: '0 2px 6px rgba(0,0,0,0.6)' }} />
+    </div>
+  )
+}
+
 export default function KRFight2({ onRound, onClose, onClassic }) {
   const hostRef = useRef(null)
   const gameRef = useRef(null)
@@ -376,9 +403,17 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
             style={{ position: 'absolute', inset: 0, touchAction: 'none', pointerEvents: 'auto' }}>
             {gestureHint ? (
               <div style={{ position: 'absolute', left: '50%', top: '22%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.6)', color: '#C9CED6', fontSize: 12, fontWeight: 600, padding: '8px 12px', borderRadius: 10, textAlign: 'center', pointerEvents: 'none', maxWidth: 360 }}>
-                Left half = lead hand · right half = rear hand<br />Tap = straight · swipe across = hook · up = uppercut · down = body<br />Lower part = kicks · two fingers = block · » then a technique = combo
+                Left half = lead hand · right half = rear hand<br />Tap = straight · swipe across = hook · up = uppercut · down = body<br />Lower part = kicks · two fingers = block · » then a technique = combo<br />Left stick = footwork · right stick = guard (back = sway, down = low guard)
               </div>
             ) : null}
+          </div>
+          {/* joysticks above each pair: left = footwork (overrides auto footwork while held), right = defence */}
+          <div style={{ position: 'absolute', left: 'calc(45px + env(safe-area-inset-left, 0px))', bottom: 'calc(86px + env(safe-area-inset-bottom, 0px))' }}>
+            <MiniStick label="Footwork: push to step in or out, up to jump, down to duck" onChange={(dx, dy) => setStickDirs(dx * 60, dy * 60)} />
+          </div>
+          <div style={{ position: 'absolute', right: 'calc(45px + env(safe-area-inset-right, 0px))', bottom: 'calc(86px + env(safe-area-inset-bottom, 0px))' }}>
+            <MiniStick colour="#8FD3FF" label="Defence: hold to guard, down = low guard, back = sway back, forward = lean in"
+              onChange={(dx, dy, held) => { input.current.defHeld = held; input.current.defX = dx; input.current.defY = dy }} />
           </div>
           {/* bottom-left: COMBO then SUPER to its right; bottom-right: SPECIAL then COMBO to its right */}
           <div style={{ position: 'absolute', left: 'calc(8px + env(safe-area-inset-left, 0px))', bottom: 'calc(10px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'row', gap: 10 }}>
