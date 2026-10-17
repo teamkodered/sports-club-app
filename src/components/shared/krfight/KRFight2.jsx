@@ -48,6 +48,19 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
   const onCloseRef = useRef(onClose); onCloseRef.current = onClose
   const sfxRef = useRef(null)
 
+  // ---- landscape only ----
+  const [portrait, setPortrait] = useState(() => typeof window !== 'undefined' && window.innerHeight > window.innerWidth)
+  useEffect(() => {
+    const on = () => setPortrait(window.innerHeight > window.innerWidth)
+    window.addEventListener('resize', on); window.addEventListener('orientationchange', on)
+    // where the phone allows it (installed app / full screen), lock the game to landscape
+    try { window.screen?.orientation?.lock?.('landscape').catch(() => {}) } catch (e) { /* not supported */ }
+    return () => { window.removeEventListener('resize', on); window.removeEventListener('orientationchange', on); try { window.screen?.orientation?.unlock?.() } catch (e) { /* ignore */ } }
+  }, [])
+  // pause the game while it's upright
+  useEffect(() => { const g = gameRef.current; if (!g) return; try { portrait ? g.loop.sleep() : g.loop.wake() } catch (e) { /* ignore */ } }, [portrait])
+  const portraitRef = useRef(portrait); portraitRef.current = portrait
+
   // ---- charging Punch / Kick: tap = Light, hold = Medium, long hold = Heavy; fires on release ----
   const charge = useRef({ punch: null, kick: null })
   const [chargeLv, setChargeLv] = useState({ punch: 0, kick: 0 })
@@ -167,7 +180,7 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
     // watchdog: page visible but the game hasn't drawn a frame for 2.5 s -> rebuild it
     const watch = setInterval(() => {
       const g = gameRef.current
-      if (!g || document.hidden || !g.isBooted) { stuckSince = 0; return }
+      if (!g || document.hidden || !g.isBooted || portraitRef.current) { stuckSince = 0; return }
       if (g.renderer?.contextLost) { rebuild(); return }
       const f = g.loop.frame
       if (f !== lastFrame) { lastFrame = f; stuckSince = 0; return }
@@ -335,6 +348,17 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
   return (
     <div role="dialog" aria-modal="true" aria-label="KR Fight" style={{ position: 'fixed', inset: 0, zIndex: 495, background: '#05070A', color: '#F2F2F2', display: 'flex', flexDirection: 'column', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'none' }}
       onContextMenu={e => e.preventDefault()}>
+      {portrait && (
+        <div role="alert" style={{ position: 'absolute', inset: 0, zIndex: 50, background: '#05070A', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, textAlign: 'center', padding: 24 }}>
+          <svg width="84" height="84" viewBox="0 0 24 24" fill="none" stroke="#5BE0FF" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ filter: 'drop-shadow(0 0 6px #5BE0FF)' }}>
+            <rect x="7" y="2.5" width="10" height="19" rx="2" transform="rotate(-90 12 12)" />
+            <path d="M4 7a8 8 0 0 1 6-4" /><path d="M10 3l-1.5-1.5M10 3l-1.6 1.4" />
+          </svg>
+          <div style={{ fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 26, color: '#F2F2F2' }}>Turn your phone sideways</div>
+          <div style={{ fontSize: 14, color: '#9AA3AE', maxWidth: 280 }}>KR FIGHT plays in landscape.</div>
+          <button type="button" onClick={onClose} style={{ marginTop: 8, height: 38, padding: '0 16px', borderRadius: 12, border: '1px solid #2A3138', background: 'rgba(26,31,36,0.85)', color: '#F2F2F2', fontSize: 14, fontWeight: 800 }}>Close</button>
+        </div>
+      )}
       <div ref={topBarRef} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: landscape ? '4px calc(10px + env(safe-area-inset-right, 0px)) 4px calc(10px + env(safe-area-inset-left, 0px))' : 'calc(8px + env(safe-area-inset-top, 0px)) 12px 8px' }}>
         <button type="button" onClick={onClose} style={pad}>Close</button>
         <div style={{ fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 22, letterSpacing: 1, flex: 1 }}>KR FIGHT</div>
@@ -356,12 +380,12 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
               </div>
             ) : null}
           </div>
-          {/* left: SUPER with COMBO below; right: SPECIAL with COMBO below */}
-          <div style={{ position: 'absolute', left: 'calc(8px + env(safe-area-inset-left, 0px))', bottom: 'calc(10px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {edgeBtn('super', 'bolt', 'Super', '#F5C542', () => { pressed.current.super = true }, hud.sup)}
+          {/* bottom-left: COMBO then SUPER to its right; bottom-right: SPECIAL then COMBO to its right */}
+          <div style={{ position: 'absolute', left: 'calc(8px + env(safe-area-inset-left, 0px))', bottom: 'calc(10px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'row', gap: 10 }}>
             {edgeBtn('comboL', 'combo', 'Combo: then a technique', '#5BE0FF', () => { pressed.current.comboArm = true })}
+            {edgeBtn('super', 'bolt', 'Super', '#F5C542', () => { pressed.current.super = true }, hud.sup)}
           </div>
-          <div style={{ position: 'absolute', right: 'calc(8px + env(safe-area-inset-right, 0px))', bottom: 'calc(10px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ position: 'absolute', right: 'calc(8px + env(safe-area-inset-right, 0px))', bottom: 'calc(10px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'row', gap: 10 }}>
             {edgeBtn('sp', hud.special || FIGHTERS[pick]?.special || 'bolt', 'Special', hud.colour || '#5BE0FF', () => { pressed.current.sp = true }, hud.sp)}
             {edgeBtn('comboR', 'combo', 'Combo: then a technique', '#5BE0FF', () => { pressed.current.comboArm = true })}
           </div>
