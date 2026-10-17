@@ -6,6 +6,7 @@ import { TestSessionModal, TestBatchModal } from '../components/shared/TestSessi
 import OtherSessions from '../components/shared/OtherSessions.jsx'
 import { matchClass, workoutDate, workoutRange, fmtTime } from '../lib/sessionMatch.js'
 import { supabase } from '../lib/supabase.js'
+import { NoteText, DoneTick, doneCardStyle, isCompletedPdp } from '../components/shared/NoteBits.jsx'
 import { DailyCharts, WorkoutCard } from '../components/shared/WearableCharts.jsx'
 import LiveHeartRate from '../components/shared/LiveHeartRate.jsx'
 import * as NativeHr from '../lib/nativeHr.js'
@@ -1443,6 +1444,7 @@ export default function AthleteApp() {
   }, [student?.id])
   const [recentPointsExpanded, setRecentPointsExpanded] = useState(false)
   const [myNotesLog, setMyNotesLog] = useState([])
+  const [showDonePdpNotes, setShowDonePdpNotes] = useState(false) // Notes: completed PDP tasks folded away
   const [pendingNoteDelete, setPendingNoteDelete] = useState(null)
   const pendingNoteDeleteRef = useRef(null)
   const [tptData, setTptData] = useState({ kickboxing: [], boxing: [] })
@@ -7873,16 +7875,20 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
             <div className="empty-state"><h3>No notes yet</h3></div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {myNotesLog.map(note => {
+              {[...myNotesLog.filter(n => !isCompletedPdp(n)), ...(showDonePdpNotes ? myNotesLog.filter(isCompletedPdp) : [])].map((note, ni, arr) => {
                 const match = detectNoteCategory(note.note_text)
+                const firstPdp = isCompletedPdp(note) && (ni === 0 || !isCompletedPdp(arr[ni - 1]))
                 return (
-                <div key={note.id} className="card" onClick={() => { setOpenNoteId(note.id); setOpenNoteDraft(note.note_text); openNoteMedia(note.media_storage_path) }} style={{ cursor: 'pointer' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
+                <div key={note.id} style={{ display: 'contents' }}>
+                {firstPdp && <div style={{ fontSize: 12, fontWeight: 700, color: '#1D9E75', margin: '6px 0 -2px' }}>✅ Completed PDP tasks</div>}
+                <div className="card" onClick={() => { setOpenNoteId(note.id); setOpenNoteDraft(note.note_text); openNoteMedia(note.media_storage_path) }} style={{ cursor: 'pointer', ...doneCardStyle(note) }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                    <DoneTick note={note} onChange={u => setMyNotesLog(prev => prev.map(x => x.id === u.id ? u : x))} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>
                         {new Date(note.logged_at).toLocaleDateString('en-GB')} · {new Date(note.logged_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                       </div>
-                      <p style={{ fontSize: 13, lineHeight: 1.5, margin: 0, whiteSpace: 'pre-line' }}>{note.note_text}</p>
+                      <NoteText text={note.note_text} />
                       {note.media_storage_path && (
                         <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{note.media_type === 'video' ? '🎬 Video attached' : '📷 Photo attached'}</span>
                       )}
@@ -7902,8 +7908,14 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                     </div>
                   )}
                 </div>
+                </div>
                 )
               })}
+              {myNotesLog.some(isCompletedPdp) && (
+                <button type="button" className="btn btn-sm" style={{ alignSelf: 'flex-start' }} onClick={() => setShowDonePdpNotes(v => !v)}>
+                  {showDonePdpNotes ? 'Hide completed PDP tasks ▲' : `✅ Completed PDP tasks (${myNotesLog.filter(isCompletedPdp).length}) ▼`}
+                </button>
+              )}
             </div>
           )}
         </div>

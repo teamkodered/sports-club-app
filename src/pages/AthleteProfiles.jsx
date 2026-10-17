@@ -5,6 +5,7 @@ import { TestSessionModal, TestBatchModal } from '../components/shared/TestSessi
 import OtherSessions from '../components/shared/OtherSessions.jsx'
 import SessionFootage from '../components/shared/SessionFootage.jsx'
 import { supabase } from '../lib/supabase.js'
+import { NoteText, DoneTick, doneCardStyle, isCompletedPdp } from '../components/shared/NoteBits.jsx'
 import { DailyCharts, WorkoutCard } from '../components/shared/WearableCharts.jsx'
 import { fetchAll } from '../lib/fetchAll.js'
 import WearableCompare from '../components/shared/WearableCompare.jsx'
@@ -3214,6 +3215,7 @@ export default function AthleteProfiles() {
   const [newEventSendAll, setNewEventSendAll] = useState(true)
   const [savingEvent, setSavingEvent] = useState(false)
   const [notesLog, setNotesLog] = useState([])
+  const [showDonePdpNotes, setShowDonePdpNotes] = useState(false) // Notes: completed PDP tasks folded away
   const [pendingNoteDelete, setPendingNoteDelete] = useState(null) // note object while its undo window is open, or null
   const pendingNoteDeleteRef = useRef(null)
   const [newNoteText, setNewNoteText] = useState('')
@@ -13229,14 +13231,15 @@ export default function AthleteProfiles() {
                   <div className="empty-state"><h3>No notes yet</h3><p>Notes logged here can be sent to any PDP category</p></div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {notesLog.map(note => (
-                      <div key={note.id} className="card" onClick={() => { setEditingNoteId(note.id); setEditingNoteText(note.note_text) }} style={{ cursor: 'pointer' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                          <div style={{ flex: 1 }}>
+                    {[...notesLog.filter(n => !isCompletedPdp(n)), ...(showDonePdpNotes ? notesLog.filter(isCompletedPdp) : [])].map(note => (
+                      <div key={note.id} className="card" onClick={() => { setEditingNoteId(note.id); setEditingNoteText(note.note_text) }} style={{ cursor: 'pointer', ...doneCardStyle(note) }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8, gap: 10 }}>
+                          <DoneTick note={note} onChange={u => setNotesLog(prev => prev.map(x => x.id === u.id ? u : x))} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>
                               {new Date(note.logged_at).toLocaleDateString('en-GB')} · {new Date(note.logged_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                             </div>
-                            <p style={{ fontSize: 13, lineHeight: 1.5, margin: 0, whiteSpace: 'pre-line' }}>{note.note_text}</p>
+                            <NoteText text={note.note_text} />
                           </div>
                           <button onClick={e => { e.stopPropagation(); deleteNote(note.id) }} title="Delete note"
                             style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 16, flexShrink: 0 }}>×</button>
@@ -13263,6 +13266,11 @@ export default function AthleteProfiles() {
                         </div>
                       </div>
                     ))}
+                    {notesLog.some(isCompletedPdp) && (
+                      <button type="button" className="btn btn-sm" style={{ alignSelf: 'flex-start' }} onClick={() => setShowDonePdpNotes(v => !v)}>
+                        {showDonePdpNotes ? 'Hide completed PDP tasks ▲' : `✅ Completed PDP tasks (${notesLog.filter(isCompletedPdp).length}) ▼`}
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
