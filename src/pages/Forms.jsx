@@ -298,13 +298,23 @@ export default function Forms() {
 
     const override = RESPONSE_TABLE_BY_FORM_KEY[form.key]
     if (override) {
-      const { data, error } = await supabase.from(override.table).select('*')
+      const { data, error } = await supabase.from(override.table).select(form.key === 'grading' ? '*, students(members(first_name, last_name))' : '*')
       if (error) { alert(`Error loading responses: ${error.message}`); setResponsesLoading(false); return }
       // Normalised to submitted_at so the existing generic date
       // display/sort/print logic below works unchanged regardless of
       // what this particular table actually calls its own date column.
       const normalized = (data || [])
-        .map(r => ({ ...r, submitted_at: r[override.dateField] || null }))
+        .map(r => {
+          const row = { ...r, submitted_at: r[override.dateField] || null }
+          if (form.key === 'grading') {
+            // the linked student's name, or the name typed on the form (flagged) if it wasn't matched
+            const m = r.students?.members
+            let typed = null; try { typed = (typeof r.notes === 'string' ? JSON.parse(r.notes) : r.notes)?.name } catch { /* ignore */ }
+            if (m) { row.first_name = m.first_name; row.last_name = m.last_name }
+            else { row.first_name = typed || 'Unknown student'; row.last_name = typed ? '(not linked — link it in CRM → Grading requests)' : '' }
+          }
+          return row
+        })
         .sort((a, b) => (b.submitted_at || '').localeCompare(a.submitted_at || ''))
       setResponses(normalized)
       setResponsesLoading(false)

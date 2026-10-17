@@ -847,6 +847,22 @@ export default function CRM() {
   const [showBeltStock, setShowBeltStock] = useState(false)
   const [showOrderForm, setShowOrderForm] = useState(false)
 
+  // Grading form: the name / age typed (saved in notes) -- shown when the request isn't linked to a student
+  function gradingTypedName(r) { try { const n = typeof r.notes === 'string' ? JSON.parse(r.notes) : r.notes; return n?.name ? `${n.name}${n.age ? ` (age ${n.age})` : ''}` : null } catch { return null } }
+  const [gradingLinking, setGradingLinking] = useState(null)   // { id, q, results }
+  async function searchGradingLink(q) {
+    setGradingLinking(g => ({ ...g, q }))
+    if (q.trim().length < 2) return setGradingLinking(g => ({ ...g, results: [] }))
+    const { data } = await supabase.from('students').select('id, discipline, pka_belt, members!inner(first_name, last_name, date_of_birth)')
+      .or(`first_name.ilike.%${q.trim()}%,last_name.ilike.%${q.trim()}%`, { referencedTable: 'members' }).limit(8)
+    setGradingLinking(g => g && g.q === q ? { ...g, results: data || [] } : g)
+  }
+  async function linkGradingStudent(reqId, studentId) {
+    const { error } = await supabase.from('grading_expressions').update({ student_id: studentId }).eq('id', reqId)
+    if (error) return alert('Could not link: ' + error.message)
+    setGradingLinking(null); loadGradingRequests()
+  }
+
   async function loadGradingRequests() {
     setGradingLoading(true)
     const cutoff = new Date()
@@ -911,7 +927,7 @@ export default function CRM() {
         const orderIdx = beltOrderIndex(r.discipline, band, r.grading_for, krbaLevelsForGrading)
         return {
           ...r,
-          name: m ? `${m.first_name} ${m.last_name}` : 'Unknown student',
+          name: m ? `${m.first_name} ${m.last_name}` : (gradingTypedName(r) || 'Unknown student'),
           age: ageFromDOB(dob),
           band,
           orderIdx,
@@ -4792,7 +4808,23 @@ export default function CRM() {
                   <div key={r.id} className="card" style={{ padding: 14, background: isDoubleGrade ? '#EF9F2718' : r.coach_approved ? '#1D9E7512' : undefined, border: isDoubleGrade ? '1px solid #EF9F27' : undefined }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
                       <div>
-                        <p style={{ fontSize: 14, fontWeight: 700 }}>{m ? `${m.first_name} ${m.last_name}` : 'Unknown student'}</p>
+                        <p style={{ fontSize: 14, fontWeight: 700 }}>{m ? `${m.first_name} ${m.last_name}` : (gradingTypedName(r) || 'Unknown student')}
+                          {!m && <span style={{ fontSize: 10, fontWeight: 700, color: '#B45309', background: '#EF9F2722', borderRadius: 8, padding: '1px 6px', marginLeft: 6 }}>not linked</span>}</p>
+                        {!m && (gradingLinking?.id === r.id ? (
+                          <div style={{ position: 'relative', margin: '4px 0 6px', maxWidth: 280 }}>
+                            <input autoFocus value={gradingLinking.q || ''} onChange={e => searchGradingLink(e.target.value)} placeholder="Search the student's name…"
+                              style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'var(--bg)', color: 'var(--text)', fontSize: 13 }} />
+                            {(gradingLinking.results || []).map(st => (
+                              <button key={st.id} type="button" onClick={() => linkGradingStudent(r.id, st.id)}
+                                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', border: 'none', borderBottom: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text)', cursor: 'pointer', fontSize: 13 }}>
+                                {st.members.first_name} {st.members.last_name} <span style={{ color: 'var(--text-tertiary)' }}>· {st.discipline}{st.pka_belt ? ` · ${st.pka_belt}` : ''}{st.members.date_of_birth ? ` · ${ageFromDOB(st.members.date_of_birth)}` : ''}</span>
+                              </button>
+                            ))}
+                            <button type="button" className="btn btn-sm" style={{ marginTop: 4 }} onClick={() => setGradingLinking(null)}>Cancel</button>
+                          </div>
+                        ) : (
+                          <button type="button" className="btn btn-sm" style={{ margin: '4px 0 6px', fontSize: 11 }} onClick={() => { const n = gradingTypedName(r)?.replace(/ \(age.*$/, '') || ''; setGradingLinking({ id: r.id, q: '', results: [] }); if (n) searchGradingLink(n.split(' ')[0]) }}>🔗 Link to student</button>
+                        ))}
                         <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
                           {r.discipline} · {r.current_belt || '—'} → <strong>{r.grading_for}</strong>
                         </p>
