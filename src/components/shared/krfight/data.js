@@ -339,7 +339,9 @@ export const SKIN_BY_KEY = Object.fromEntries(SKINS.map(s => [s.key, s]))
 //  boxer: Real Boxing-style gestures on the fight area (left half = lead hand, right = rear hand; tap = straight,
 //      swipe across = hook, up = uppercut, down = body; lower part = kicks; two fingers = block), auto footwork,
 //      COMBO buttons (next technique starts an equipped combo that leads with it), SPECIAL and SUPER buttons
-export const PLAY_STYLES = [{ key: 'kr', name: 'KR' }, { key: 'sf', name: 'SF' }, { key: 'boxer', name: 'Boxer' }]
+//  boxer2: the Boxer controls, shown in 3D from a three-quarter TV angle in a boxing ring
+export const PLAY_STYLES = [{ key: 'kr', name: 'KR' }, { key: 'sf', name: 'SF' }, { key: 'boxer', name: 'Boxer' }, { key: 'boxer2', name: 'Boxer 2' }]
+export const isBoxerStyle = ps => ps === 'boxer' || ps === 'boxer2'
 export const getPlayStyle = () => { try { return localStorage.getItem('krfight-playstyle') || 'kr' } catch (e) { return 'kr' } }
 export const setPlayStyle = v => { try { localStorage.setItem('krfight-playstyle', v) } catch (e) { /* ignore */ } }
 export const SF_BUTTON = { lp: 'LP', mp: 'MP', hp: 'HP', lk: 'LK', mk: 'MK', hk: 'HK' }

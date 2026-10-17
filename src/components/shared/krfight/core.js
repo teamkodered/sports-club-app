@@ -92,7 +92,7 @@ export class Match {
     if (this.phase !== 'fight') return
     const c1 = getInput()
     // Boxer play style: auto footwork keeps your fighter at their style's range (unless blocking or attacking)
-    if (this.playStyle === 'boxer' && this.phase === 'fight') {
+    if ((this.playStyle === 'boxer' || this.playStyle === 'boxer2') && this.phase === 'fight') {
       const f = this.p1, o = this.p2
       if (!c1.left && !c1.right && !c1.block && !f.move && f.stun === 0 && f.y >= FLOOR && o.state !== 'ko') {
         const dist = Math.abs(o.x - f.x), ideal = 64 * (f.def.reach || 1), toward = o.x > f.x ? 'right' : 'left', away = toward === 'right' ? 'left' : 'right'
@@ -289,7 +289,7 @@ export class Match {
     def.chain = opening ? 0 : (def.chain || 0) + 1
     def.lastHitAt = this.frame
     dmg *= mdf.dmgTaken // Defence
-    if (this.playStyle === 'boxer') dmg *= 0.6 // Boxer play style: fights last longer
+    if (this.playStyle === 'boxer' || this.playStyle === 'boxer2') dmg *= 0.6 // Boxer play style: fights last longer
     def.hp = Math.max(0, def.hp - dmg)
     // Second wind: once a fight, a big heal when nearly out
     if (def.hp > 0 && !def.windUsed && M(def).secondWind && def.hp < def.maxHp * 0.25) { def.windUsed = true; def.hp = Math.min(def.maxHp, def.hp + M(def).secondWind); this.emit({ type: 'secondWind', f: def }) }

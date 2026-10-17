@@ -59,6 +59,75 @@ function buildArena(scene) {
   return dt => { ring.rotation.z += dt * 0.2 }
 }
 
+// ---- Boxer 2 view: a boxing ring in a dark arena (canvas, posts, ropes, crowd, spotlights) ----
+function buildRing(scene) {
+  scene.background = new THREE.Color('#04060c')
+  scene.fog = new THREE.Fog('#04060c', 12, 34)
+  scene.add(new THREE.HemisphereLight('#9fb4ff', '#141018', 0.7))
+  const key = new THREE.DirectionalLight('#ffffff', 2.6); key.position.set(1.5, 9, 4); scene.add(key)
+  const rim = new THREE.DirectionalLight('#ffd6a0', 1.6); rim.position.set(-4, 4, -6); scene.add(rim)
+  const fill = new THREE.PointLight('#7fa2ff', 8, 14); fill.position.set(2, 3, 5); scene.add(fill)
+  const S = 4.4 // half the ring size (fighters move within about +-3.6 m)
+  // platform + canvas
+  const apron = new THREE.Mesh(new THREE.BoxGeometry(S * 2 + 0.8, 1.1, S * 2 + 0.8), new THREE.MeshStandardMaterial({ color: '#0d1a33', roughness: 0.8 }))
+  apron.position.y = -0.56; scene.add(apron)
+  const canvasMat = new THREE.MeshStandardMaterial({ color: '#1f5fbf', roughness: 0.75 })
+  const mat = new THREE.Mesh(new THREE.BoxGeometry(S * 2 + 0.6, 0.06, S * 2 + 0.6), canvasMat); mat.position.y = -0.03; scene.add(mat)
+  const centre = new THREE.Mesh(new THREE.CircleGeometry(1.5, 48), new THREE.MeshStandardMaterial({ color: '#2f78db', roughness: 0.7 }))
+  centre.rotation.x = -Math.PI / 2; centre.position.y = 0.004; scene.add(centre)
+  const centreRing = new THREE.Mesh(new THREE.RingGeometry(1.42, 1.5, 48), new THREE.MeshBasicMaterial({ color: '#cfe0ff' }))
+  centreRing.rotation.x = -Math.PI / 2; centreRing.position.y = 0.006; scene.add(centreRing)
+  // corner posts + pads
+  const posts = [[-S, -S, '#c8102e'], [S, -S, '#1f4fbf'], [-S, S, '#e8e8e8'], [S, S, '#e8e8e8']]
+  for (const [x, z, c] of posts) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.6, 12), new THREE.MeshStandardMaterial({ color: '#b9c0c9', metalness: 0.7, roughness: 0.3 }))
+    post.position.set(x, 0.8, z); scene.add(post)
+    const pad = new THREE.Mesh(new THREE.BoxGeometry(0.22, 1.05, 0.22), new THREE.MeshStandardMaterial({ color: c, roughness: 0.6 }))
+    pad.position.set(x, 0.86, z); scene.add(pad)
+  }
+  // ropes: red / white / blue, three heights, four sides
+  const ropeCols = ['#1f4fbf', '#f2f2f2', '#c8102e'], heights = [0.42, 0.82, 1.22]
+  heights.forEach((h, i) => {
+    const m = new THREE.MeshStandardMaterial({ color: ropeCols[i], roughness: 0.45 })
+    for (const [x, z, rot] of [[0, -S, 0], [0, S, 0], [-S, 0, 1], [S, 0, 1]]) {
+      const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, S * 2, 8), m)
+      rope.rotation.z = Math.PI / 2; if (rot) rope.rotation.y = Math.PI / 2
+      rope.position.set(x, h, z); scene.add(rope)
+    }
+  })
+  // arena floor + crowd tiers with faces / phone lights
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(30, 48), new THREE.MeshStandardMaterial({ color: '#070a12', roughness: 1 }))
+  floor.rotation.x = -Math.PI / 2; floor.position.y = -1.1; scene.add(floor)
+  const tiers = new THREE.Group()
+  for (let t = 0; t < 4; t++) {
+    const r = 9 + t * 2.2, h = 0.2 + t * 1.3
+    const step = new THREE.Mesh(new THREE.CylinderGeometry(r + 1.2, r + 1.2, 1.2, 48, 1, true), new THREE.MeshStandardMaterial({ color: '#0b1020', side: THREE.BackSide, roughness: 1 }))
+    step.position.y = h - 0.4; tiers.add(step)
+  }
+  scene.add(tiers)
+  const crowdGeo = new THREE.BufferGeometry(), pts = [], cols = []
+  for (let i = 0; i < 2600; i++) {
+    const t = Math.floor(Math.random() * 4), r = 9.6 + t * 2.2 + Math.random() * 0.8, a = Math.random() * Math.PI * 2
+    pts.push(Math.cos(a) * r, 0.1 + t * 1.3 + Math.random() * 0.9, Math.sin(a) * r)
+    const warm = Math.random(); cols.push(0.35 + warm * 0.4, 0.3 + warm * 0.3, 0.32 + warm * 0.25)
+  }
+  crowdGeo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)); crowdGeo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3))
+  scene.add(new THREE.Points(crowdGeo, new THREE.PointsMaterial({ size: 0.16, vertexColors: true })))
+  // camera flashes that flicker in the crowd
+  const flashGeo = new THREE.BufferGeometry(), fp = []
+  for (let i = 0; i < 60; i++) { const t = Math.floor(Math.random() * 4), r = 9.5 + t * 2.2, a = Math.random() * Math.PI * 2; fp.push(Math.cos(a) * r, 0.5 + t * 1.3, Math.sin(a) * r) }
+  flashGeo.setAttribute('position', new THREE.Float32BufferAttribute(fp, 3))
+  const flashMat = new THREE.PointsMaterial({ size: 0.35, color: '#ffffff', transparent: true, opacity: 0 })
+  scene.add(new THREE.Points(flashGeo, flashMat))
+  // spotlight cones from the roof
+  for (const [x, z] of [[-3, -2], [3, -2], [0, 3]]) {
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(2.6, 9, 32, 1, true), new THREE.MeshBasicMaterial({ color: '#aac4ff', transparent: true, opacity: 0.05, side: THREE.DoubleSide, depthWrite: false }))
+    cone.position.set(x, 5.5, z); scene.add(cone)
+  }
+  let tt = 0
+  return dt => { tt += dt; flashMat.opacity = Math.max(0, Math.sin(tt * 7.3) * Math.sin(tt * 2.1)) * 0.9 }
+}
+
 // ---- IK helpers (world space) ----
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _t = new THREE.Vector3()
 const _q = new THREE.Quaternion(), _qw = new THREE.Quaternion(), _qp = new THREE.Quaternion()
@@ -232,8 +301,9 @@ function sharedRenderer(key, opts) {
 }
 
 export class Renderer3D {
-  constructor(game) {
-    this.game = game; this.ready = false; this.rigs = new Map()
+  // view: 'side' (side-on, matches the 2D game exactly) or 'broadcast' (Boxer 2: three-quarter TV angle in a ring)
+  constructor(game, opts = {}) {
+    this.game = game; this.ready = false; this.rigs = new Map(); this.view = opts.view || 'side'
     const r = this.renderer = sharedRenderer('fight', { antialias: true, alpha: false })
     const cv = r.domElement
     Object.assign(cv.style, { position: 'absolute', left: '0px', top: '0px', pointerEvents: 'none', zIndex: '0' })
@@ -242,7 +312,8 @@ export class Renderer3D {
     gc.style.position = 'relative'; gc.style.zIndex = '1'
     this.scene = new THREE.Scene()
     this.camera = new THREE.PerspectiveCamera(FOV, 16 / 9, 0.1, 300)
-    this.spin = buildArena(this.scene)
+    this.spin = this.view === 'broadcast' ? buildRing(this.scene) : buildArena(this.scene)
+    if (this.view === 'broadcast') { this.camera.fov = 42; this.camera.updateProjectionMatrix() }
     this.clock = new THREE.Clock()
     this.size = ''
     cv.style.width = ''; cv.style.height = ''
@@ -288,6 +359,19 @@ export class Renderer3D {
     const hv = (H * U) / Math.max(0.5, zoomRel), dist = (hv / 2) / Math.tan(THREE.MathUtils.degToRad(FOV / 2))
     this.camera.position.set(X3(cx) + sx * U, Y3(cy) - sy * U, dist); this.camera.lookAt(X3(cx) + sx * U, Y3(cy) - sy * U, 0)
   }
+  // Boxer 2: three-quarter TV camera just outside the ropes, following the fighters and pulling back as they part
+  broadcastCam(m, shakeX = 0, shakeY = 0) {
+    const a = X3(m.p1.x), b = X3(m.p2.x), mid = (a + b) / 2, sep = Math.abs(a - b)
+    const dist = 2.5 + sep * 0.8 // close, like a TV camera just outside the ropes
+    const want = new THREE.Vector3(mid + dist * 0.5, 1.3 + sep * 0.06, dist * 0.88)
+    if (!this.camPos) this.camPos = want.clone(); else this.camPos.lerp(want, 0.08)
+    if (!this.camLook) this.camLook = new THREE.Vector3(mid, 1.05, 0); else this.camLook.lerp(new THREE.Vector3(mid, 1.05, 0), 0.12)
+    this.camera.position.set(this.camPos.x + shakeX * U, this.camPos.y - shakeY * U, this.camPos.z)
+    this.camera.lookAt(this.camLook)
+    this.camera.updateMatrixWorld()
+  }
+  // where a game-world point (x, y on the fighters' line) lands on screen, as -1..1 (x right, y up)
+  ndc(x, y) { const v = new THREE.Vector3(X3(x), Y3(y), 0).project(this.camera); return { x: v.x, y: v.y } }
   update(m, poses) {
     this.sync()
     const dt = this.dt = Math.min(0.05, this.clock.getDelta()); this.spin(dt)

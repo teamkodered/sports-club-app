@@ -1,7 +1,7 @@
 // KR FIGHT 2 -- Phaser scenes: Boot (makes textures), Title, Select, Fight, Results.
 // The world is 800x450; cameras zoom x2 onto a 1600x900 canvas so everything stays crisp on phones.
 import Phaser from 'phaser'
-import { W, H, FLOOR, FIGHTERS, MOVES, SUPER_NAME, LEVELS, comboLabel, hex, getLook, setLook, LOOK_LEVELS, HOUSES, HOUSE_KEYS, getHouse, setHouse, fxColour, cpuHouse, NATURAL_HOUSE, STYLES, STYLE_KEYS, styledDef, loadSquad, saveSquad, MAX_TEAM, COMBO_BY_ID, combosForStyle, defaultLoadout, LOADOUT_SIZE, RARITY, FLOW_MAX, BRANCHES, TIER_XP, TIER_GEMS, applyBranch, seasonOf, CARDS, CARD_BY_ID, CARD_RARITY, CARD_RARITIES, SKINS, SKIN_BY_KEY, COMBO_LIB, getPlayStyle, SF_BUTTON } from './data.js'
+import { W, H, FLOOR, FIGHTERS, MOVES, SUPER_NAME, LEVELS, comboLabel, hex, getLook, setLook, LOOK_LEVELS, HOUSES, HOUSE_KEYS, getHouse, setHouse, fxColour, cpuHouse, NATURAL_HOUSE, STYLES, STYLE_KEYS, styledDef, loadSquad, saveSquad, MAX_TEAM, COMBO_BY_ID, combosForStyle, defaultLoadout, LOADOUT_SIZE, RARITY, FLOW_MAX, BRANCHES, TIER_XP, TIER_GEMS, applyBranch, seasonOf, CARDS, CARD_BY_ID, CARD_RARITY, CARD_RARITIES, SKINS, SKIN_BY_KEY, COMBO_LIB, getPlayStyle, SF_BUTTON, isBoxerStyle } from './data.js'
 import { Match, makeFighter } from './core.js'
 import { makePose, stepPose, drawFighter, targetPose } from './pose.js'
 import { loadProgress, PILLARS, AREAS, AREA_GROUPS, costOf, MAX_LV, DAILY_GEMS, available, wild, priceFor, buyUpgrade, fighterLevel, levelOf, matchGems, awardGems, applyUpgrades, cpuUpgrades, resetTest, UNLIMITED, loadCollection, ownsCombo, rollComboDrop, addComboCard, COMBO_MAX_LV, rollCardDrop, recordMatch, saveDefence, loadOpponents, opponentLevel, rewardChoices, pvpResult, loadLeaderboard, PILLARS_BY_INDEX, ownsCard, cardsOwnedFor, skinUnlocked, branchOf, xpOf, nextTier, unlockTier, awardXp, isLocked, tokenAvailable, lockSquad, changeStyle, cpuBranch } from './progress.js'
@@ -403,10 +403,13 @@ export class FightScene extends Phaser.Scene {
     this.world.push(...this.arenaObjs)
     // Look 4: the fight is drawn in 3D behind this canvas (HUD, sparks and trails stay here on top)
     this.r3d = null
-    if (getLook() === '3d') {
+    // Boxer 2 always fights in 3D, from the three-quarter TV angle in a ring
+    const ps0 = (bridge(this).playStyle && bridge(this).playStyle()) || getPlayStyle()
+    this.broadcast = ps0 === 'boxer2'
+    if (getLook() === '3d' || this.broadcast) {
       import('./render3d.js').then(mod => {
         if (!this.sys || !this.sys.isActive()) return
-        this.r3d = new mod.Renderer3D(this.game)
+        this.r3d = new mod.Renderer3D(this.game, { view: this.broadcast ? 'broadcast' : 'side' })
         this.events.once('shutdown', () => { this.r3d && this.r3d.destroy(); this.r3d = null })
       }).catch(() => { this.r3d = null })
     }
@@ -470,7 +473,21 @@ export class FightScene extends Phaser.Scene {
     if (!this.dust) this.dust = this.W(this.add.particles(0, 0, 'dot', { speed: { min: 30, max: 120 }, angle: { min: 190, max: 350 }, scale: { start: 0.6, end: 1.4 }, alpha: { start: 0.35, end: 0 }, lifespan: 420, tint: 0x9aa3ae, emitting: false, gravityY: -40 }))
     return this.dust
   }
+  // Boxer 2 (TV angle): where a point on the fighters' line appears on screen -- for the world layer (P) and
+  // the HUD layer (PU). Side-on views use the point as it is.
+  P(x, y) {
+    if (!this.broadcast || !this.r3d || !this.r3d.ready) return { x, y }
+    const n = this.r3d.ndc(x, y), wv = this.cameras.main.worldView
+    return { x: wv.x + (n.x + 1) / 2 * wv.width, y: wv.y + (1 - n.y) / 2 * wv.height }
+  }
+  PU(x, y) {
+    if (!this.broadcast || !this.r3d || !this.r3d.ready) return { x, y }
+    const n = this.r3d.ndc(x, y)
+    return { x: (n.x + 1) / 2 * W, y: (1 - n.y) / 2 * H }
+  }
+  dustAt(n, x, y) { const p = this.P(x, y); this.dustE().explode(n, p.x, p.y) }
   sparkAt(x, y, colour, size = 1, block = false) {
+    ;({ x, y } = this.P(x, y))
     const e = this.emitter(block ? 0x8fd3ff : colour)
     e.sparks.explode(Math.round((block ? 6 : 12) * size), x, y)
     if (!block) e.shards.explode(Math.round(6 * size), x, y)
@@ -480,13 +497,15 @@ export class FightScene extends Phaser.Scene {
       const b2 = this.W(this.add.image(x, y, 'burst').setTint(colour).setBlendMode('ADD').setScale(0.1 * size).setAngle(Math.random() * 360))
       this.tweens.add({ targets: b2, scale: 1.0 * size, alpha: 0, duration: 230, onComplete: () => b2.destroy() })
     }
-    if (size >= 1.4) this.ringAt(x, y, colour, size)
+    if (size >= 1.4) this.ringAt(x, y, colour, size, true)
   }
-  ringAt(x, y, colour, size = 1) {
+  ringAt(x, y, colour, size = 1, mapped = false) {
+    if (!mapped) ({ x, y } = this.P(x, y))
     const r = this.W(this.add.image(x, y, 'ring').setTint(colour).setBlendMode('ADD').setScale(0.1).setAlpha(0.9))
     this.tweens.add({ targets: r, scale: 1.2 * size, alpha: 0, duration: 320, ease: 'Cubic.out', onComplete: () => r.destroy() })
   }
   popText(x, y, s, colour = GOLD, size = 30) {
+    ;({ x, y } = this.PU(x, y))
     const t = this.U(txt(this, x, y, s, { fontSize: size + 'px', color: colour, stroke: '#000', strokeThickness: 6 }).setOrigin(0.5).setScale(0.4))
     this.tweens.add({ targets: t, scale: 1, duration: 140, ease: 'Back.out' })
     this.tweens.add({ targets: t, y: y - 34, alpha: 0, delay: 650, duration: 400, onComplete: () => t.destroy() })
@@ -538,7 +557,7 @@ export class FightScene extends Phaser.Scene {
           const col = hex(fxColour(e.f))
           this.ringAt(e.f.x, e.f.y - 80, col, 0.9)
           this.popText(e.f.x, e.f.y - 205, e.f.def.specialName.toUpperCase(), fxColour(e.f), 24)
-          if (e.kind === 'quake') { this.shake(200, 5); this.dustE().explode(16, e.f.x + 20 * e.f.facing, FLOOR) }
+          if (e.kind === 'quake') { this.shake(200, 5); this.dustAt(16, e.f.x + 20 * e.f.facing, FLOOR) }
           break
         }
         case 'super': this.superCutIn(e.f, e.name); break
@@ -548,8 +567,8 @@ export class FightScene extends Phaser.Scene {
         case 'secondWind': this.popText(e.f.x, e.f.y - 210, 'SECOND WIND!', '#5BE04A', 28); this.ringAt(e.f.x, e.f.y - 80, 0x5be04a, 1.2); sx.special?.(); break
         case 'projectile': this.spawnProjectile(e.pj); break
         case 'projectileGone': this.killProjectile(e.pj); break
-        case 'jump': this.dustE().explode(6, e.f.x, FLOOR); break
-        case 'land': this.dustE().explode(e.hard ? 22 : 8, e.f.x, FLOOR); sx.land?.(e.hard); if (e.hard) this.shake(200, 6); break
+        case 'jump': this.dustAt(6, e.f.x, FLOOR); break
+        case 'land': this.dustAt(e.hard ? 22 : 8, e.f.x, FLOOR); sx.land?.(e.hard); if (e.hard) this.shake(200, 6); break
         case 'ko': {
           sx.ko?.(); sx.say?.('K.O.', 0.4); this.vibe(80)
           if (!e.final) {
@@ -620,7 +639,7 @@ export class FightScene extends Phaser.Scene {
   }
   killProjectile(pj) {
     const o = this.pjSprites.get(pj.id); if (!o) return
-    this.sparkAt(o.s.x, o.s.y, hex(fxColour(pj.owner)), pj.big ? 1.4 : 0.8)
+    this.sparkAt(pj.x, pj.y, hex(fxColour(pj.owner)), pj.big ? 1.4 : 0.8) // game position (sparkAt maps it for the TV angle)
     o.s.destroy(); o.core.destroy(); o.trail.stop(); this.time.delayedCall(400, () => o.trail.destroy())
     this.pjSprites.delete(pj.id)
   }
@@ -687,7 +706,7 @@ export class FightScene extends Phaser.Scene {
   update(time, delta) {
     const m = this.m
     // game speed: play runs a little slower than real time (more so in the Boxer play style)
-    const speed = this.m.playStyle === 'boxer' ? 0.75 : 0.85
+    const speed = isBoxerStyle(this.m.playStyle) ? 0.75 : 0.85
     this.acc += Math.min(100, delta) * this.slow * speed
     let n = 0
     while (this.acc >= STEP && n < 6) {
@@ -703,7 +722,7 @@ export class FightScene extends Phaser.Scene {
     for (const o of this.pjSprites.values()) {
       if (o.pj.life <= 0) continue
       const wob = Math.sin(m.frame / 3) * (o.pj.low ? 0 : 3)
-      o.s.setPosition(o.pj.x, o.pj.y + wob); o.core.setPosition(o.pj.x, o.pj.y + wob)
+      const pp = this.P(o.pj.x, o.pj.y + wob); o.s.setPosition(pp.x, pp.y); o.core.setPosition(pp.x, pp.y)
       o.s.rotation += 0.2
     }
     // fighters: the one attacking is drawn in front
@@ -713,9 +732,12 @@ export class FightScene extends Phaser.Scene {
     for (const o of this.arenaObjs) o.setVisible(!three)
     if (three) {
       // 2D: only the swoosh trails; 3D draws arena + fighters, following this camera's KO zoom and shake
-      for (const k of order) drawFighter(g, m[k], this.poses[k], m.frame, alpha, { swooshOnly: true })
       const cam = this.cameras.main, sh = cam.shakeEffect && cam.shakeEffect.isRunning ? cam.shakeEffect : null
-      this.r3d.setView(cam.midPoint.x, cam.midPoint.y, cam.zoom / Z, sh ? (sh._offsetX || 0) / cam.zoom : 0, sh ? (sh._offsetY || 0) / cam.zoom : 0)
+      if (this.broadcast) this.r3d.broadcastCam(m, sh ? (sh._offsetX || 0) / cam.zoom : 0, sh ? (sh._offsetY || 0) / cam.zoom : 0) // Boxer 2: TV angle (no side-on trails)
+      else {
+        for (const k of order) drawFighter(g, m[k], this.poses[k], m.frame, alpha, { swooshOnly: true })
+        this.r3d.setView(cam.midPoint.x, cam.midPoint.y, cam.zoom / Z, sh ? (sh._offsetX || 0) / cam.zoom : 0, sh ? (sh._offsetY || 0) / cam.zoom : 0)
+      }
       this.r3d.update(m, this.poses)
       this.drawHud()
       return
@@ -754,7 +776,8 @@ export class FightScene extends Phaser.Scene {
       parts.push({ tt, w: tt.width + 6 }); x += tt.width + 6
     })
     for (let i = seq.length; i < this.guideToks.length; i++) this.guideToks[i].setAlpha(0)
-    const total = x, cx = Phaser.Math.Clamp(f.x, total / 2 + 12, W - total / 2 - 12), y = Math.max(150, f.y - 205)
+    const gp = this.PU(f.x, f.y - 205) // above the fighter (follows the TV angle in Boxer 2)
+    const total = x, cx = Phaser.Math.Clamp(gp.x, total / 2 + 12, W - total / 2 - 12), y = Math.max(150, gp.y)
     g.fillStyle(0x05070a, 0.72 * a); g.fillRoundedRect(cx - total / 2 - 10, y - 30, total + 20, 44, 8)
     g.lineStyle(1.5, 0xf5c542, 0.6 * a); g.strokeRoundedRect(cx - total / 2 - 10, y - 30, total + 20, 44, 8)
     setT(this.guideTitle, p.combo.name); this.guideTitle.setPosition(cx, y - 12).setAlpha(a)

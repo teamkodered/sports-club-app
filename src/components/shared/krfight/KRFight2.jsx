@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Phaser from 'phaser'
 import { FgIcon } from '../FightGame.jsx'
-import { FIGHTERS, CHARGE_MS, PLAY_STYLES, getPlayStyle, setPlayStyle } from './data.js'
+import { FIGHTERS, CHARGE_MS, PLAY_STYLES, getPlayStyle, setPlayStyle, isBoxerStyle } from './data.js'
 import { makeSfx } from './sfx.js'
 import { BootScene, TitleScene, SelectScene, FightScene, ResultsScene, UpgradeScene, CombosScene, BranchScene, FighterScene, CollectionScene, ArenaScene, Z } from './scenes.js'
 
@@ -396,7 +396,7 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
         {!fight && onClassic && <button type="button" onClick={onClassic} style={{ ...pad, color: '#9AA3AE' }}>Classic</button>}
       </div>
 
-      {fight && playStyle === 'boxer' && (
+      {fight && isBoxerStyle(playStyle) && (
         <div ref={noTouchDefaults} style={{ position: 'absolute', left: 0, right: 0, bottom: 0, top: topH, zIndex: 6, pointerEvents: 'none' }}>
           {/* gesture pad: the whole screen below the top bar, edge to edge */}
           <div {...gestureHandlers} role="group" aria-label="Punch by tapping or swiping: left half lead hand, right half rear hand; lower part kicks; two fingers to block"
@@ -444,7 +444,7 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
         {!landscape && !fight && scene !== 'boot' && typeof window !== 'undefined' && window.innerHeight > window.innerWidth && (
           <div style={{ marginTop: 14, fontSize: 13, color: '#9AA3AE', textAlign: 'center', padding: '0 20px' }}>Turn your phone sideways for a bigger arena.</div>
         )}
-        {fight && playStyle !== 'boxer' && (
+        {fight && !isBoxerStyle(playStyle) && (
           <div style={landscape
             ? { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 5, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', pointerEvents: 'none', boxSizing: 'border-box',
                 padding: '0 calc(14px + env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) calc(14px + env(safe-area-inset-left, 0px))' }
