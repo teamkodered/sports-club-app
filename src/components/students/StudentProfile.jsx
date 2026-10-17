@@ -12,6 +12,8 @@ const HOUSE_COLOURS = { Phoenix: '#e24b4a', Titan: '#378add', Viper: '#1d9e75', 
 
 export default function StudentProfile({ student, onClose, isAdmin, embedded = false, swipeTabs = false, omitTabs = [], onSwipeBeforeFirst, hideIdentity = false }) {
   const { isStaff: kcStaff, isAdmin: kcAdmin } = useAuth()
+  // Does this person already have a login? (decides "Create login" vs "Reset password")
+  const [hasLogin, setHasLogin] = useState(null)
   const navigate = useNavigate()
   const [tab, setTab] = useBackableTab('profile')
   const visibleTabs = ['profile', 'contact', 'points', 'grading'].filter(t => !omitTabs.includes(t))
@@ -316,6 +318,12 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
         placeholder={gradingPassDate || ''} style={{ fontSize: 13, padding: '2px 4px' }} />
     : (fmtGradeDate(localStudent.last_grading_date) || (gradingPassDate ? `${fmtGradeDate(gradingPassDate)} (Grading Pass)` : '—'))
 
+  useEffect(() => {
+    if (!kcAdmin || !localStudent?.member_id) return
+    supabase.from('members').select('auth_id').eq('id', localStudent.member_id).maybeSingle()
+      .then(({ data }) => setHasLogin(!!data?.auth_id))
+  }, [kcAdmin, localStudent?.member_id])
+
   return (
     <>
     <div style={embedded ? {} : { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
@@ -330,8 +338,8 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
           {kcStaff && <div style={{ order: 99, marginLeft: 'auto', display: 'flex', gap: 6 }}>
             <AppInviteButton student={localStudent} />
             {kcAdmin && localStudent?.member_id && (
-              <CreateLogin memberId={localStudent.member_id} hasLogin={!!localStudent?.members?.auth_id}
-                label={localStudent?.members?.auth_id ? '🔑 Reset password' : '🔑 Create login'}
+              <CreateLogin memberId={localStudent.member_id} hasLogin={!!hasLogin} onDone={() => setHasLogin(true)}
+                label={hasLogin ? '🔑 Reset password' : '🔑 Create login'}
                 defaults={{ email: localStudent.members?.email, phone: localStudent.guardian_phone || localStudent.members?.phone }} />
             )}
           </div>}
