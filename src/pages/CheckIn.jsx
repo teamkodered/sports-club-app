@@ -101,14 +101,35 @@ export default function CheckIn() {
       return
     }
 
-    // Log attendance
+    // Log attendance -- ONE entry per person per day: a weigh-in or a second tap updates today's
+    // entry instead of adding another (weigh-ins used to create a separate 'weight' entry, so
+    // people looked like they'd attended twice and got the attendance points twice)
+    const todayStr = new Date().toISOString().split('T')[0]
+    const { data: existing } = await supabase.from('attendance').select('id, attendance_type')
+      .eq('student_id', checking.id).eq('session_date', todayStr).neq('attendance_type', 'excused').limit(1)
+    const already = existing?.[0]
+    const type = attendMode === 'weight' ? 'attended' : attendMode
+    if (already) {
+      const upd = { present: true }
+      if (attendMode === 'weight' && weight) upd.weight_before = parseFloat(weight)
+      if (attendMode === 'full_kit' && already.attendance_type !== 'full_kit') upd.attendance_type = 'full_kit'
+      await supabase.from('attendance').update(upd).eq('id', already.id)
+      if (attendMode === 'weight' && weight) {
+        await supabase.from('fit2fight_sessions').insert({ student_id: checking.id, session_date: date, weight_before: parseFloat(weight) })
+      }
+      setConfirmed({ student: checking, mode: attendMode, weight: weight || null })
+      setChecking(null); setSaving(false)
+      setTimeout(() => { setConfirmed(null); inputRef.current?.focus() }, 2500)
+      return
+    }
     await supabase.from('attendance').insert({
       student_id: checking.id,
       present: true,
       late: false,
-      attendance_type: attendMode,
-      session_date: new Date().toISOString().split('T')[0],
+      attendance_type: type,
+      session_date: todayStr,
       attended_at: now,
+      ...(attendMode === 'weight' && weight ? { weight_before: parseFloat(weight) } : {}),
     })
 
     // If weight mode, save weight
