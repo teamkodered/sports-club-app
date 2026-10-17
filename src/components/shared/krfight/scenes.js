@@ -678,7 +678,9 @@ export class FightScene extends Phaser.Scene {
 
   update(time, delta) {
     const m = this.m
-    this.acc += Math.min(100, delta) * this.slow
+    // game speed: play runs a little slower than real time (more so in the Boxer play style)
+    const speed = this.m.playStyle === 'boxer' ? 0.75 : 0.85
+    this.acc += Math.min(100, delta) * this.slow * speed
     let n = 0
     while (this.acc >= STEP && n < 6) {
       const f0 = m.frame

@@ -18,6 +18,7 @@ function PadIcon({ name, colour, size }) {
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" style={{ filter: `drop-shadow(0 0 4px ${colour})` }}>
       {name === 'jump' && <g {...p}><path d="M6 13l6-6 6 6" /><path d="M6 19l6-6 6 6" /></g>}
       {name === 'shield' && <g {...p}><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z" /><path d="M12 7v10" /></g>}
+      {name === 'combo' && <g {...p}><path d="M4 7l4 5-4 5" /><path d="M10 7l4 5-4 5" /><path d="M16 7l4 5-4 5" /></g>}
     </svg>
   )
 }
@@ -50,12 +51,17 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
   // ---- charging Punch / Kick: tap = Light, hold = Medium, long hold = Heavy; fires on release ----
   const charge = useRef({ punch: null, kick: null })
   const [chargeLv, setChargeLv] = useState({ punch: 0, kick: 0 })
+  const chargeShown = useRef({ punch: 0, kick: 0 })
   const chargeTimer = useRef(null)
   const levelOf = ms => ms >= CHARGE_MS.h ? 'h' : ms >= CHARGE_MS.m ? 'm' : 'l'
   function tickCharge() {
     const now = performance.now(), c = charge.current
     const lv = k => c[k] == null ? 0 : Math.min(1, (now - c[k]) / CHARGE_MS.h)
-    setChargeLv({ punch: lv('punch'), kick: lv('kick') })
+    // only re-render when the ring visibly changes (holding a button used to re-render every frame)
+    const np = lv('punch'), nk = lv('kick'), last = chargeShown.current
+    if (Math.abs(np - last.punch) > 0.05 || Math.abs(nk - last.kick) > 0.05 || (np === 0) !== (last.punch === 0) || (nk === 0) !== (last.kick === 0) || (np >= 1) !== (last.punch >= 1) || (nk >= 1) !== (last.kick >= 1)) {
+      chargeShown.current = { punch: np, kick: nk }; setChargeLv({ punch: np, kick: nk })
+    }
     if (c.punch != null || c.kick != null) chargeTimer.current = requestAnimationFrame(tickCharge)
     else chargeTimer.current = null
   }
@@ -267,30 +273,58 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
   // left half = lead hand, right half = rear hand; tap = straight, swipe across = hook, up = uppercut,
   // down = body shot; lower part = kicks; two fingers held = block
   const touches = useRef({})
+  const topBarRef = useRef(null)
+  const [topH, setTopH] = useState(52)
+  useEffect(() => { const el = topBarRef.current; if (!el) return; const ro = new ResizeObserver(() => setTopH(el.offsetHeight)); ro.observe(el); setTopH(el.offsetHeight); return () => ro.disconnect() }, [])
+  // stop the phone's own long-press / multi-finger gestures (menus, text select, etc.) during play
+  const noTouchDefaults = el => {
+    if (!el || el.__kr) return
+    el.__kr = true
+    el.addEventListener('touchstart', ev => { if (ev.cancelable) ev.preventDefault() }, { passive: false })
+    el.addEventListener('touchmove', ev => { if (ev.cancelable) ev.preventDefault() }, { passive: false })
+  }
   const [gestureHint, setGestureHint] = useState(true)
+  // responsive: a swipe fires as soon as the finger has travelled far enough (not on release); a tap fires on
+  // release or after a tenth of a second held; two fingers = block (no strike)
+  const fireGesture = (t, kind) => {
+    if (t.fired || t.multi) return
+    t.fired = true; clearTimeout(t.timer)
+    gestures.current.push({ kind, side: t.side, low: t.low })
+    if (navigator.vibrate) navigator.vibrate(8)
+    if (gestureHint) setGestureHint(false)
+  }
   const gestureHandlers = {
     onPointerDown: e => {
       e.preventDefault(); sfxRef.current?.resume(); e.currentTarget.setPointerCapture?.(e.pointerId)
       const r = e.currentTarget.getBoundingClientRect()
-      touches.current[e.pointerId] = { x: e.clientX, y: e.clientY, t: e.timeStamp, side: e.clientX < r.left + r.width / 2 ? 'L' : 'R', low: e.clientY > r.top + r.height * 0.68 }
-      if (Object.keys(touches.current).length >= 2) { input.current.block = true; for (const k in touches.current) touches.current[k].multi = true }
+      const t = touches.current[e.pointerId] = { x: e.clientX, y: e.clientY, side: e.clientX < r.left + r.width / 2 ? 'L' : 'R', low: e.clientY > r.top + r.height * 0.68 }
+      if (Object.keys(touches.current).length >= 2) { input.current.block = true; for (const k in touches.current) { touches.current[k].multi = true; clearTimeout(touches.current[k].timer) } return }
+      t.timer = setTimeout(() => { if (touches.current[e.pointerId] === t) fireGesture(t, 'tap') }, 100)
+    },
+    onPointerMove: e => {
+      const t = touches.current[e.pointerId]; if (!t || t.fired || t.multi) return
+      const dx = e.clientX - t.x, dy = e.clientY - t.y
+      if (Math.hypot(dx, dy) >= 24) fireGesture(t, Math.abs(dx) > Math.abs(dy) ? 'across' : dy < 0 ? 'up' : 'down')
     },
     onPointerUp: e => {
       const t = touches.current[e.pointerId]; delete touches.current[e.pointerId]
       if (!Object.keys(touches.current).length) input.current.block = false
-      if (!t || t.multi) return
-      const dx = e.clientX - t.x, dy = e.clientY - t.y, d = Math.hypot(dx, dy)
-      const kind = d < 22 ? 'tap' : Math.abs(dx) > Math.abs(dy) ? 'across' : dy < 0 ? 'up' : 'down'
-      gestures.current.push({ kind, side: t.side, low: t.low })
-      if (navigator.vibrate) navigator.vibrate(8)
-      if (gestureHint) setGestureHint(false)
+      if (!t) return
+      clearTimeout(t.timer)
+      if (!t.multi && !t.fired) {
+        const dx = e.clientX - t.x, dy = e.clientY - t.y
+        fireGesture(t, Math.hypot(dx, dy) < 24 ? 'tap' : Math.abs(dx) > Math.abs(dy) ? 'across' : dy < 0 ? 'up' : 'down')
+      }
     },
-    onPointerCancel: e => { delete touches.current[e.pointerId]; if (!Object.keys(touches.current).length) input.current.block = false },
+    onPointerCancel: e => { const t = touches.current[e.pointerId]; if (t) clearTimeout(t.timer); delete touches.current[e.pointerId]; if (!Object.keys(touches.current).length) input.current.block = false },
   }
-  const edgeBtn = (key, label, colour, onPress, ring) => (
-    <div key={key} style={{ width: 70, height: 54, borderRadius: 14, padding: 3, boxSizing: 'border-box', background: ring != null ? `conic-gradient(${colour} ${Math.round(ring * 360)}deg, rgba(42,49,56,0.9) 0)` : 'rgba(42,49,56,0.6)', boxShadow: ring != null && ring >= 1 ? `0 0 14px ${colour}` : 'none', pointerEvents: 'auto' }}>
-      <button type="button" onPointerDown={e => { e.preventDefault(); e.stopPropagation(); sfxRef.current?.resume(); onPress(); if (navigator.vibrate) navigator.vibrate(10) }}
-        style={{ width: '100%', height: '100%', borderRadius: 11, border: `2px solid ${colour}`, background: 'radial-gradient(circle at 35% 30%, #2A3138, #0B0E12 80%)', color: colour, fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 15, touchAction: 'none', cursor: 'pointer', opacity: ring != null && ring < 1 ? 0.6 : 1 }}>{label}</button>
+  const edgeBtn = (key, icon, label, colour, onPress, ring) => (
+    <div key={key} style={{ width: 64, height: 64, borderRadius: '50%', padding: 4, boxSizing: 'border-box', background: ring != null ? `conic-gradient(${colour} ${Math.round(ring * 360)}deg, rgba(42,49,56,0.9) 0)` : 'rgba(42,49,56,0.6)', boxShadow: ring != null && ring >= 1 ? `0 0 14px ${colour}` : 'none', pointerEvents: 'auto' }}
+      className={ring != null && ring >= 1 ? 'fg-ready' : undefined}>
+      <button type="button" aria-label={label} onPointerDown={e => { e.preventDefault(); e.stopPropagation(); sfxRef.current?.resume(); onPress(); if (navigator.vibrate) navigator.vibrate(10) }}
+        style={{ width: '100%', height: '100%', borderRadius: '50%', border: `2px solid ${colour}`, background: 'radial-gradient(circle at 35% 30%, #2A3138, #0B0E12 80%)', boxShadow: `inset 0 0 10px ${colour}44`, touchAction: 'none', cursor: 'pointer', opacity: ring != null && ring < 1 ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
+        {icon === 'combo' ? <PadIcon name="combo" colour={colour} size={30} /> : <FgIcon name={icon} colour={colour} size={30} />}
+      </button>
     </div>
   )
 
@@ -299,9 +333,9 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
   const fight = scene === 'fight'
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="KR Fight" style={{ position: 'fixed', inset: 0, zIndex: 495, background: '#05070A', color: '#F2F2F2', display: 'flex', flexDirection: 'column', userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'none' }}
+    <div role="dialog" aria-modal="true" aria-label="KR Fight" style={{ position: 'fixed', inset: 0, zIndex: 495, background: '#05070A', color: '#F2F2F2', display: 'flex', flexDirection: 'column', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'none' }}
       onContextMenu={e => e.preventDefault()}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: landscape ? '4px calc(10px + env(safe-area-inset-right, 0px)) 4px calc(10px + env(safe-area-inset-left, 0px))' : 'calc(8px + env(safe-area-inset-top, 0px)) 12px 8px' }}>
+      <div ref={topBarRef} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: landscape ? '4px calc(10px + env(safe-area-inset-right, 0px)) 4px calc(10px + env(safe-area-inset-left, 0px))' : 'calc(8px + env(safe-area-inset-top, 0px)) 12px 8px' }}>
         <button type="button" onClick={onClose} style={pad}>Close</button>
         <div style={{ fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 22, letterSpacing: 1, flex: 1 }}>KR FIGHT</div>
         <button type="button" onClick={toggleMute} style={pad} aria-label={muted ? 'Sound on' : 'Sound off'}>{muted ? 'Sound off' : 'Sound on'}</button>
@@ -311,34 +345,34 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
         {!fight && onClassic && <button type="button" onClick={onClassic} style={{ ...pad, color: '#9AA3AE' }}>Classic</button>}
       </div>
 
+      {fight && playStyle === 'boxer' && (
+        <div ref={noTouchDefaults} style={{ position: 'absolute', left: 0, right: 0, bottom: 0, top: topH, zIndex: 6, pointerEvents: 'none' }}>
+          {/* gesture pad: the whole screen below the top bar, edge to edge */}
+          <div {...gestureHandlers} role="group" aria-label="Punch by tapping or swiping: left half lead hand, right half rear hand; lower part kicks; two fingers to block"
+            style={{ position: 'absolute', inset: 0, touchAction: 'none', pointerEvents: 'auto' }}>
+            {gestureHint ? (
+              <div style={{ position: 'absolute', left: '50%', top: '22%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.6)', color: '#C9CED6', fontSize: 12, fontWeight: 600, padding: '8px 12px', borderRadius: 10, textAlign: 'center', pointerEvents: 'none', maxWidth: 360 }}>
+                Left half = lead hand · right half = rear hand<br />Tap = straight · swipe across = hook · up = uppercut · down = body<br />Lower part = kicks · two fingers = block · » then a technique = combo
+              </div>
+            ) : null}
+          </div>
+          {/* left: SUPER with COMBO below; right: SPECIAL with COMBO below */}
+          <div style={{ position: 'absolute', left: 'calc(8px + env(safe-area-inset-left, 0px))', bottom: 'calc(10px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {edgeBtn('super', 'bolt', 'Super', '#F5C542', () => { pressed.current.super = true }, hud.sup)}
+            {edgeBtn('comboL', 'combo', 'Combo: then a technique', '#5BE0FF', () => { pressed.current.comboArm = true })}
+          </div>
+          <div style={{ position: 'absolute', right: 'calc(8px + env(safe-area-inset-right, 0px))', bottom: 'calc(10px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {edgeBtn('sp', hud.special || FIGHTERS[pick]?.special || 'bolt', 'Special', hud.colour || '#5BE0FF', () => { pressed.current.sp = true }, hud.sp)}
+            {edgeBtn('comboR', 'combo', 'Combo: then a technique', '#5BE0FF', () => { pressed.current.comboArm = true })}
+          </div>
+        </div>
+      )}
       <div style={landscape
         ? { flex: 1, minHeight: 0, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }
         : { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: fight ? 'space-between' : 'center', paddingBottom: 'calc(10px + env(safe-area-inset-bottom, 0px))' }}>
         <div ref={hostRef} style={landscape
           ? { position: 'relative', height: '100%', maxWidth: '100%', aspectRatio: '16 / 9', isolation: 'isolate', zIndex: 0 }
           : { position: 'relative', width: '100%', maxWidth: 900, aspectRatio: '16 / 9', isolation: 'isolate', zIndex: 0 }}>
-        {fight && playStyle === 'boxer' && (
-            <div style={{ position: 'absolute', inset: 0, zIndex: 5, pointerEvents: 'none' }}>
-              {/* gesture pad over the fight */}
-              <div {...gestureHandlers} role="group" aria-label="Punch by tapping or swiping: left half lead hand, right half rear hand; lower part kicks; two fingers to block"
-                style={{ position: 'absolute', left: 80, right: 80, top: 0, bottom: 0, touchAction: 'none', pointerEvents: 'auto' }}>
-                {gestureHint && (
-                  <div style={{ position: 'absolute', left: '50%', top: '24%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.6)', color: '#C9CED6', fontSize: 12, fontWeight: 600, padding: '8px 12px', borderRadius: 10, textAlign: 'center', pointerEvents: 'none', maxWidth: 340 }}>
-                    Left half = lead hand · right half = rear hand<br />Tap = straight · swipe across = hook · up = uppercut · down = body<br />Lower part = kicks · two fingers = block · COMBO then a technique = combo
-                  </div>
-                )}
-              </div>
-              {/* edge buttons: COMBO + SPECIAL on the left, SUPER + COMBO on the right */}
-              <div style={{ position: 'absolute', left: 'calc(6px + env(safe-area-inset-left, 0px))', bottom: 'calc(10px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {edgeBtn('comboL', 'COMBO', '#F5C542', () => { pressed.current.comboArm = true })}
-                {edgeBtn('sp', 'SPECIAL', hud.colour || '#5BE0FF', () => { pressed.current.sp = true }, hud.sp)}
-              </div>
-              <div style={{ position: 'absolute', right: 'calc(6px + env(safe-area-inset-right, 0px))', bottom: 'calc(10px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {edgeBtn('comboR', 'COMBO', '#F5C542', () => { pressed.current.comboArm = true })}
-                {edgeBtn('super', 'SUPER', '#F5C542', () => { pressed.current.super = true }, hud.sup)}
-              </div>
-            </div>
-          )}
           {scene === 'boot' && !failed && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9AA3AE', fontSize: 14 }}>Loading…</div>}
           {failed && (
             <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 16, fontSize: 14 }}>
@@ -356,7 +390,7 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
             ? { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 5, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', pointerEvents: 'none', boxSizing: 'border-box',
                 padding: '0 calc(14px + env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) calc(14px + env(safe-area-inset-left, 0px))' }
             : { position: 'relative', zIndex: 5, width: '100%', maxWidth: 900, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', padding: '10px 14px', boxSizing: 'border-box' }}
-            className={landscape ? 'fg-ls-controls' : undefined}>
+            className={landscape ? 'fg-ls-controls' : undefined} ref={noTouchDefaults}>
             <div className="fg-stick" {...stickHandlers} role="group" aria-label="Joystick: drag to move, push up to jump, down to crouch"
               style={{ width: STICK_R * 2, height: STICK_R * 2, borderRadius: '50%', position: 'relative', touchAction: 'none', flexShrink: 0,
                 border: '3px solid rgba(220,220,220,0.55)', boxShadow: 'inset 0 0 0 10px rgba(255,255,255,0.04), 0 0 0 1px rgba(0,0,0,0.4)', background: 'rgba(10,12,16,0.25)' }}>

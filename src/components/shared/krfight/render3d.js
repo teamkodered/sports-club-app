@@ -96,6 +96,33 @@ function chase(rig, key, target, maxStep) {
   return g.clone().add(base)
 }
 
+// ---- clenched fists: curl each finger in at every joint, on top of whatever the animation does ----
+const FIST_SIGN = globalThis.__krFistSign || -1 // -1 closes the hand on this model (measured)
+const _fq = new THREE.Quaternion(), _fv = new THREE.Vector3(), _fa = new THREE.Vector3(), _fb = new THREE.Vector3()
+function rotateBoneWorld(bone, worldAxis, ang) {
+  const pq = bone.parent.getWorldQuaternion(new THREE.Quaternion()).invert()
+  _fv.copy(worldAxis).applyQuaternion(pq).normalize()
+  bone.quaternion.premultiply(_fq.setFromAxisAngle(_fv, ang))
+  bone.updateMatrixWorld(true)
+}
+export function clenchFists(rig) {
+  const o = rig.obj
+  if (!rig.fingers) {
+    const B = n => o.getObjectByName(n)
+    rig.fingers = ['l', 'r'].map(sd => ({
+      i1: B('index_01_' + sd), p1: B('pinky_01_' + sd),
+      chains: ['index', 'middle', 'ring', 'pinky'].map(fn => [1, 2, 3].map(k => B(`${fn}_0${k}_${sd}`)).filter(Boolean)),
+    }))
+  }
+  o.updateMatrixWorld(true)
+  for (const h of rig.fingers) {
+    if (!h.i1 || !h.p1) continue
+    const axis = h.p1.getWorldPosition(_fa).sub(h.i1.getWorldPosition(_fb)).normalize() // across the knuckles
+    const curl = [0.55, 0.7, 0.45] // tighten the animation's relaxed hand into a firm fist
+    for (const chain of h.chains) chain.forEach((bone, k) => rotateBoneWorld(bone, axis, FIST_SIGN * curl[k]))
+  }
+}
+
 // ---- one fighter's 3D body ----
 class Rig {
   constructor(gltf, clips, f, colour, cpu, skin) {
@@ -265,9 +292,12 @@ export class Renderer3D {
     this.sync()
     const dt = this.dt = Math.min(0.05, this.clock.getDelta()); this.spin(dt)
     if (this.ready) {
+      // build every fighter in both teams up front (during the intro) and warm up the shaders, so a tag-in or
+      // the first frames of the fight never stall the phone while a character is created
+      if (!this.prewarmed) { this.prewarmed = true; for (const f of [...(m.t1 || []), ...(m.t2 || [])]) this.rigFor(f); try { this.renderer.compile(this.scene, this.camera) } catch (e) { /* ignore */ } }
       const active = new Set([m.p1, m.p2])
       for (const [f, rig] of this.rigs) rig.obj.visible = active.has(f)
-      for (const side of ['p1', 'p2']) this.drive(m[side], poses[side], side, m)
+      for (const side of ['p1', 'p2']) { this.drive(m[side], poses[side], side, m); const rig = this.rigs.get(m[side]); if (rig) clenchFists(rig) }
     }
     this.renderer.render(this.scene, this.camera)
   }
@@ -417,6 +447,7 @@ export class Preview3D {
       if (this.next <= 0 && !rig.shot) { const pick = ['Punch_Jab', 'Punch_Cross', 'Punch_Jab', 'Spell_Simple_Shoot'][Math.floor(Math.random() * 4)]; rig.playShot(pick, pick === 'Spell_Simple_Shoot' ? 1.1 : 0.55); this.next = 2.2 + Math.random() * 1.5 }
       for (const [bone, q, p] of rig.rest) { bone.quaternion.copy(q); bone.position.copy(p) }
       rig.tick(dt)
+      clenchFists(rig)
     }
     this.renderer.render(this.scene, this.camera)
   }

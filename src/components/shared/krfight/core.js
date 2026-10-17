@@ -289,6 +289,7 @@ export class Match {
     def.chain = opening ? 0 : (def.chain || 0) + 1
     def.lastHitAt = this.frame
     dmg *= mdf.dmgTaken // Defence
+    if (this.playStyle === 'boxer') dmg *= 0.6 // Boxer play style: fights last longer
     def.hp = Math.max(0, def.hp - dmg)
     // Second wind: once a fight, a big heal when nearly out
     if (def.hp > 0 && !def.windUsed && M(def).secondWind && def.hp < def.maxHp * 0.25) { def.windUsed = true; def.hp = Math.min(def.maxHp, def.hp + M(def).secondWind); this.emit({ type: 'secondWind', f: def }) }
