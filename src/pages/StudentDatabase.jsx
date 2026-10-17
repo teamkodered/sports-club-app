@@ -163,7 +163,7 @@ export default function StudentDatabase() {
   async function load() {
     const { data } = await fetchAll(() => supabase
       .from('students')
-      .select('*, members(id, first_name, last_name, email, phone, date_of_birth, house_id, status, role, joined_date, stopped_at, houses(name))')
+      .select('*, members(id, auth_id, first_name, last_name, email, phone, date_of_birth, house_id, status, role, joined_date, stopped_at, houses(name))')
       .order('created_at').order('id'))
     setStudents(data || [])
     setLoading(false)

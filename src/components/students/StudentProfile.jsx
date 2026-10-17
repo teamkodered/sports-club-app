@@ -329,8 +329,10 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
         <div style={{ padding: embedded ? '14px 12px' : '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', minWidth: 0 }}>
           {kcStaff && <div style={{ order: 99, marginLeft: 'auto', display: 'flex', gap: 6 }}>
             <AppInviteButton student={localStudent} />
-            {kcAdmin && !localStudent?.members?.auth_id && localStudent?.member_id && (
-              <CreateLogin memberId={localStudent.member_id} defaults={{ email: localStudent.members?.email, phone: localStudent.guardian_phone || localStudent.members?.phone }} />
+            {kcAdmin && localStudent?.member_id && (
+              <CreateLogin memberId={localStudent.member_id} hasLogin={!!localStudent?.members?.auth_id}
+                label={localStudent?.members?.auth_id ? '🔑 Reset password' : '🔑 Create login'}
+                defaults={{ email: localStudent.members?.email, phone: localStudent.guardian_phone || localStudent.members?.phone }} />
             )}
           </div>}
           {/* hideIdentity: shown inside a register card that already has the photo and name */}

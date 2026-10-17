@@ -40,7 +40,13 @@ exports.handler = async (event) => {
     if (memberId) {
       const m = await (await fetch(`${url}/rest/v1/members?id=eq.${memberId}&select=id,auth_id`, { headers: S })).json()
       if (!m?.[0]) return json(404, { error: 'Member record not found.' })
-      if (m[0].auth_id) return json(409, { error: 'That person already has a login. Use "Reset password" in Supabase instead.' })
+      if (m[0].auth_id) {
+        // Already has a login: set a new password on it (admin reset -- no email needed) and confirm it
+        const r = await fetch(`${url}/auth/v1/admin/users/${m[0].auth_id}`, { method: 'PUT', headers: S, body: JSON.stringify({ password, email_confirm: true }) })
+        if (!r.ok) return json(400, { error: 'Could not set the new password: ' + await r.text() })
+        const u2 = await r.json().catch(() => ({}))
+        return json(200, { ok: true, reset: true, memberId, authId: m[0].auth_id, loginEmail: u2.email || null })
+      }
     } else {
       const m = await (await fetch(`${url}/rest/v1/members?email=ilike.${encodeURIComponent(email)}&auth_id=is.null&select=id`, { headers: S })).json()
       if (m?.length === 1) memberId = m[0].id
