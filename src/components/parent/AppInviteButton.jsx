@@ -19,6 +19,13 @@ export default function AppInviteButton({ student }) {
 
   async function make(kind) {
     setBusy(true)
+    // An athlete who already has a login can't use an invite -- send the sign-in page instead
+    if (kind === 'athlete') {
+      try {
+        const { data: has } = await supabase.rpc('kc_student_has_login', { p_student: student.id })
+        if (has === true) { setBusy(false); setLink({ url: `${BASE}/athlete-login`, kind: 'signin' }); return }
+      } catch { /* carry on with an invite */ }
+    }
     const { data: me } = await supabase.from('members').select('id').eq('auth_id', (await supabase.auth.getUser()).data.user?.id).maybeSingle()
     const token = newToken()
     const { error } = await supabase.from('app_invites').insert({ token, student_id: student.id, kind, created_by: me?.id || null })
@@ -26,7 +33,9 @@ export default function AppInviteButton({ student }) {
     if (error) return alert('Could not create the invite: ' + error.message + (/app_invites/.test(error.message) ? '\n\n(Has supabase_parent_view.sql been run?)' : ''))
     setLink({ url: `${BASE}/invite/${token}`, kind })
   }
-  const message = link && (link.kind === 'parent'
+  const message = link && (link.kind === 'signin'
+    ? `Hi ${name}! Your KR Centre athlete app is ready — sign in here with your email: ${link.url}\nIf you don't know your password, tap "Forgot password" on that page.`
+    : link.kind === 'parent'
     ? `Hi! Here's your link to the KR Centre parent app for ${name} — see attendance, progress and club news, and let us know about absences:\n${link.url}\n(The link works once and lasts 14 days.)`
     : `Hi ${name}! Here's your link to set up your KR Centre athlete app:\n${link.url}\n(The link works once and lasts 14 days.)`)
   const waNum = phone.startsWith('0') ? '44' + phone.slice(1) : phone.replace('+', '')
@@ -51,7 +60,9 @@ export default function AppInviteButton({ student }) {
               </>
             ) : (
               <>
-                <p style={{ fontSize: 13, marginBottom: 8 }}>{link.kind === 'parent' ? 'Parent' : 'Athlete'} invite ready. Send it:</p>
+                {link.kind === 'signin'
+                  ? <p style={{ fontSize: 13, marginBottom: 8, background: '#EF9F2718', borderRadius: 8, padding: '8px 10px' }}><b>{name} already has a login</b>, so an invite won't work. This sends them the sign-in page instead. If they've forgotten their password, an admin can use <b>🔑 Reset password</b> on their profile.</p>
+                  : <p style={{ fontSize: 13, marginBottom: 8 }}>{link.kind === 'parent' ? 'Parent' : 'Athlete'} invite ready. Send it:</p>}
                 <input readOnly value={link.url} onFocus={e => e.target.select()} style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'var(--bg-secondary)', color: 'var(--text)', fontSize: 12, marginBottom: 10 }} />
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   {waNum && <a className="btn btn-sm btn-primary" href={`https://wa.me/${waNum}?text=${encodeURIComponent(message)}`} target="_blank" rel="noreferrer">WhatsApp</a>}
