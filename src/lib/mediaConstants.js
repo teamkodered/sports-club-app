@@ -8,7 +8,7 @@
 // this tag is just for categorising a clip's technique level, not tied
 // to any specific student's own age-banded progression, so one flat
 // list covering everything is simplest.
-export const ALL_GRADES = ['Red', 'Yellow', 'Yellow tag', 'Orange', 'Orange tag', 'Green', 'Green tag', 'Blue', 'Blue tag', 'Purple', 'Purple tag', 'Brown', 'Brown tag', 'Black']
+export const ALL_GRADES = ['Ungraded', 'Red', 'Yellow', 'Yellow tag', 'Orange', 'Orange tag', 'Green', 'Green tag', 'Blue', 'Blue tag', 'Purple', 'Purple tag', 'Brown', 'Brown tag', 'Black', 'Black 2nd Dan', 'Black 3rd Dan']
 
 export const EVENT_TYPES = [
   { value: 'competition', label: 'Competition' },

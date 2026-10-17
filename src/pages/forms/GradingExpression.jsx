@@ -5,10 +5,10 @@ import FormLogo from '../../components/shared/FormLogo.jsx'
 
 // Derby PKA grade order, per age band (from the club's official grading guide).
 const PKA_GRADE_ORDERS = {
-  'Tiny Tots (3-5 years)': ['Red', 'Yellow', 'Yellow tag', 'Orange', 'Orange tag', 'Green', 'Green tag', 'Blue', 'Blue tag', 'Purple', 'Purple tag', 'Brown', 'Brown tag', 'Black'],
-  'Small Soldiers (6-8 years)': ['Red', 'Yellow', 'Orange', 'Green', 'Blue', 'Blue tag', 'Purple', 'Purple tag', 'Brown', 'Brown tag', 'Black'],
-  'Junior Jedi (9-13 years)': ['Red', 'Yellow', 'Orange', 'Green', 'Blue', 'Purple', 'Purple tag', 'Brown', 'Brown tag', 'Black'],
-  'Adults (14+)': ['Red', 'Yellow', 'Orange', 'Green', 'Blue', 'Purple', 'Brown', 'Black'],
+  'Tiny Tots (3-5 years)': ['Ungraded', 'Red', 'Yellow', 'Yellow tag', 'Orange', 'Orange tag', 'Green', 'Green tag', 'Blue', 'Blue tag', 'Purple', 'Purple tag', 'Brown', 'Brown tag', 'Black', 'Black 2nd Dan', 'Black 3rd Dan'],
+  'Small Soldiers (6-8 years)': ['Ungraded', 'Red', 'Yellow', 'Orange', 'Green', 'Blue', 'Blue tag', 'Purple', 'Purple tag', 'Brown', 'Brown tag', 'Black', 'Black 2nd Dan', 'Black 3rd Dan'],
+  'Junior Jedi (9-13 years)': ['Ungraded', 'Red', 'Yellow', 'Orange', 'Green', 'Blue', 'Purple', 'Purple tag', 'Brown', 'Brown tag', 'Black', 'Black 2nd Dan', 'Black 3rd Dan'],
+  'Adults (14+)': ['Ungraded', 'Red', 'Yellow', 'Orange', 'Green', 'Blue', 'Purple', 'Brown', 'Black', 'Black 2nd Dan', 'Black 3rd Dan'],
 }
 
 // These entries exist in the classes table for admin/register purposes,
