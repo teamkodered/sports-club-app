@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useJoinVenue, VenueQuestion, venueSchedule } from '../../lib/joinVenue.jsx'
 import { submitJoinApplication } from '../../lib/submitJoinApplication.js'
+import DobWords from '../../components/shared/DobWords.jsx'
 import { supabase } from '../../lib/supabase.js'
 import FormLogo from '../../components/shared/FormLogo.jsx'
 import { generateStudentId } from '../../lib/studentId.js'
@@ -136,7 +137,7 @@ export default function JoinKRBA() {
             <div className="field"><label>Full name <span className="required">*</span></label><input value={form.full_name} onChange={set('full_name')} placeholder="First and last name" /></div>
             <div className="field"><label>Address <span className="required">*</span></label><input value={form.address} onChange={set('address')} /></div>
             <div className="field"><label>Postcode</label><input value={form.postcode} onChange={set('postcode')} /></div>
-            <div className="field"><label>Date of birth <span className="required">*</span></label><input type="date" value={form.dob} onChange={set('dob')} /></div>
+            <div className="field"><label>Date of birth <span className="required">*</span></label><input type="date" value={form.dob} onChange={set('dob')} /><DobWords value={form.dob} /></div>
             <div className="field-row">
               <div className="field"><label>Home phone</label><input type="tel" value={form.home_phone} onChange={set('home_phone')} /></div>
               <div className="field"><label>Mobile phone <span className="required">*</span></label><input type="tel" value={form.mobile_phone} onChange={set('mobile_phone')} /></div>

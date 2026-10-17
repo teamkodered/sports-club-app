@@ -550,7 +550,7 @@ export default function Forms() {
                     <span style={{ fontSize: 12, color: 'var(--text-secondary)', minWidth: 140, textTransform: 'capitalize' }}>
                       {k.replace(/_/g, ' ')}
                     </span>
-                    <span style={{ fontSize: 13, flex: 1 }}>{String(v)}</span>
+                    <span style={{ fontSize: 13, flex: 1 }}>{/^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? new Date(v + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : String(v)}</span>
                   </div>
                 ))}
             </div>

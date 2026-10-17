@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useJoinVenue, VenueQuestion, venueSchedule } from '../../lib/joinVenue.jsx'
 import { submitJoinApplication } from '../../lib/submitJoinApplication.js'
+import DobWords from '../../components/shared/DobWords.jsx'
 import { supabase } from '../../lib/supabase.js'
 import { generateStudentId } from '../../lib/studentId.js'
 import FormLogo from '../../components/shared/FormLogo.jsx'
@@ -178,7 +179,7 @@ export default function JoinPKAChild() {
               <div className="field"><label>First name <span className="required">*</span></label><input value={form.first_name} onChange={set('first_name')} /></div>
               <div className="field"><label>Surname <span className="required">*</span></label><input value={form.last_name} onChange={set('last_name')} /></div>
             </div>
-            <div className="field"><label>Date of birth <span className="required">*</span></label><input type="date" value={form.dob} onChange={set('dob')} /></div>
+            <div className="field"><label>Date of birth <span className="required">*</span></label><input type="date" value={form.dob} onChange={set('dob')} /><DobWords value={form.dob} /></div>
             <div className="field"><label>School</label><input value={form.school} onChange={set('school')} /></div>
             <div className="field"><label>Year group</label><input value={form.year} onChange={set('year')} placeholder="e.g. Year 6" /></div>
             <div className="field"><label>Other activities / sports</label><input value={form.other_activities} onChange={set('other_activities')} /></div>
@@ -276,7 +277,7 @@ export default function JoinPKAChild() {
               <div className="field"><label>Surname</label><input value={form.signature_surname} onChange={set('signature_surname')} /></div>
             </div>
             <div className="field-row">
-              <div className="field"><label>Date of birth</label><input type="date" value={form.signature_dob} onChange={set('signature_dob')} /></div>
+              <div className="field"><label>Date of birth</label><input type="date" value={form.signature_dob} onChange={set('signature_dob')} /><DobWords value={form.signature_dob} /></div>
               <div className="field"><label>Postcode</label><input value={form.signature_postcode} onChange={set('signature_postcode')} /></div>
             </div>
             <div className="field"><label>Phone number</label><input type="tel" value={form.signature_phone} onChange={set('signature_phone')} /></div>

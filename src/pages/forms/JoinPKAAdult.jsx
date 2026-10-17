@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useJoinVenue, VenueQuestion, venueSchedule } from '../../lib/joinVenue.jsx'
 import { submitJoinApplication } from '../../lib/submitJoinApplication.js'
+import DobWords from '../../components/shared/DobWords.jsx'
 import { supabase } from '../../lib/supabase.js'
 import { generateStudentId } from '../../lib/studentId.js'
 import FormLogo from '../../components/shared/FormLogo.jsx'
@@ -153,7 +154,7 @@ export default function JoinPKAAdult() {
               <div className="field"><label>First name <span className="required">*</span></label><input value={form.first_name} onChange={set('first_name')} /></div>
               <div className="field"><label>Surname <span className="required">*</span></label><input value={form.last_name} onChange={set('last_name')} /></div>
             </div>
-            <div className="field"><label>Date of birth <span className="required">*</span></label><input type="date" max={TODAY_STR} value={form.dob} onChange={set('dob')} /></div>
+            <div className="field"><label>Date of birth <span className="required">*</span></label><input type="date" max={TODAY_STR} value={form.dob} onChange={set('dob')} /><DobWords value={form.dob} /></div>
             <div className="field"><label>Address <span className="required">*</span></label><input value={form.address} onChange={set('address')} /></div>
           </>}
           {step === 1 && <>
