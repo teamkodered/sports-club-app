@@ -3087,6 +3087,14 @@ export default function AthleteProfiles() {
   const dashLevelOf = s => s.discipline === 'KRBA' ? (s.krba_level || '—') : s.is_kr ? (s.competition_team || '—') : (s.pka_belt || '—')
   const [dashLevel, setDashLevel] = useState('all') // TEAM banner level: 'all' or one level -- filters the whole dashboard
   const inDashTeam = s => (s.is_kr || s.is_pts || s.discipline === 'KRBA') && (dashClubFilter === 'all' || s.discipline === dashClubFilter) && (dashLevel === 'all' || dashLevelOf(s) === dashLevel)
+  const pillSwipe = useRef(null)
+  const swipeProps = step => ({
+    onTouchStart: e => { pillSwipe.current = { x: e.touches[0].clientX, moved: false } },
+    onTouchMove: e => { if (pillSwipe.current && Math.abs(e.touches[0].clientX - pillSwipe.current.x) > 10) pillSwipe.current.moved = true },
+    onTouchEnd: e => { const c = pillSwipe.current; pillSwipe.current = null; if (!c) return; const dx = e.changedTouches[0].clientX - c.x; if (Math.abs(dx) > 25) { e.preventDefault(); step(dx < 0 ? 1 : -1) } },
+    onClick: () => step(1),
+    style: { touchAction: 'pan-y', userSelect: 'none' },
+  })
   const [recordFlash, setRecordFlash] = useState(false) // show 'updated <date>' beside the record for a few seconds
   const [wearView, setWearView] = useState('athletes') // coach Wearables: athletes | day | session
   const [dashWhoOpen, setDashWhoOpen] = useState({}) // coach dashboard: who's done / missing lists open
@@ -6753,10 +6761,11 @@ export default function AthleteProfiles() {
                       <span style={{ color: 'var(--text-secondary)' }}>Show</span>
                       <div style={{ display: 'flex', gap: 4 }}>
                         {/* one pill: tap to step through All -> KR -> KRBA */}
-                        <button onClick={() => setDashClubFilter(({ all: 'PKA', PKA: 'KRBA', KRBA: 'all' })[dashClubFilter] || 'all')} title="Tap to change" style={{
+                        {(() => { const order = ['all', 'PKA', 'KRBA']; const sp = swipeProps(d => setDashClubFilter(order[(order.indexOf(dashClubFilter) + d + 3) % 3])); return (
+                        <button {...sp} title="Swipe (or tap) to change" style={{ ...sp.style,
                           fontSize: 12, padding: '4px 14px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 700,
                           border: '1px solid #378ADD', background: '#378ADD20', color: '#378ADD', display: 'flex', alignItems: 'center', gap: 6,
-                        }}>{dashClubFilter === 'all' ? 'All' : dashClubFilter === 'PKA' ? 'KR' : 'KRBA'} <span style={{ fontSize: 10, opacity: 0.8 }}>⇄</span></button>
+                        }}>{dashClubFilter === 'all' ? 'All' : dashClubFilter === 'PKA' ? 'KR' : 'KRBA'}</button>) })()}
                       </div>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 14px', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
@@ -6784,11 +6793,8 @@ export default function AthleteProfiles() {
                             const idx = Math.max(0, opts.indexOf(dashLevel))
                             const step = d => setDashLevel(opts[(idx + d + opts.length) % opts.length])
                             const label = dashLevel === 'all' ? `All: ${clubFiltered.length}` : `${dashLevel}: ${levelCounts[dashLevel] || 0}`
-                            return <>
-                              <button onClick={() => step(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-tertiary)', padding: 2 }}>◀</button>
-                              <span style={{ fontWeight: 500, fontSize: 12, padding: '3px 10px', borderRadius: 20, background: dashLevel === 'all' ? 'var(--bg-secondary)' : '#378ADD20', border: `1px solid ${dashLevel === 'all' ? 'var(--border-strong)' : '#378ADD'}`, whiteSpace: 'nowrap' }}>{label}</span>
-                              <button onClick={() => step(1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-tertiary)', padding: 2 }}>▶</button>
-                            </>
+                            const sp = swipeProps(step)
+                            return <span {...sp} title="Swipe (or tap) to change" style={{ ...sp.style, cursor: 'pointer', fontWeight: 500, fontSize: 12, padding: '4px 14px', borderRadius: 20, background: dashLevel === 'all' ? 'var(--bg-secondary)' : '#378ADD20', border: `1px solid ${dashLevel === 'all' ? 'var(--border-strong)' : '#378ADD'}`, whiteSpace: 'nowrap' }}>{label}</span>
                           })()}
                         </div>
                       )}
