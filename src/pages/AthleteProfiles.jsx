@@ -6974,7 +6974,7 @@ export default function AthleteProfiles() {
                     return (
                       <div className={`card coach-stat coach-stat-${c.key} coach-stat-open`} style={{ marginBottom: 14, padding: 14 }}>
                         <button type="button" onClick={() => toggleCard(c.key)} style={{ all: 'unset', cursor: 'pointer', display: 'flex', width: '100%', alignItems: 'center', gap: 10 }}>
-                          <span style={{ fontSize: 22 }}>{c.icon}</span>
+                          <span style={{ fontSize: 18 }}>{c.icon}</span>
                           <span style={{ flex: 1, minWidth: 0 }}>
                             <span className="coach-stat-title" style={{ display: 'block', fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>{c.label}</span>
                             <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{c.count}/{teamCount} · {range}</span>
@@ -7018,7 +7018,7 @@ export default function AthleteProfiles() {
                       }}>
                         <span
                           style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: (c.key === 'all_sessions' || c.key === 'pdp' || c.key === 'f2f_sessions') ? 'pointer' : 'default' }}>
-                          <span style={{ fontSize: 16 }}>{c.icon}</span>
+                          <span style={{ fontSize: 13 }}>{c.icon}</span>
                           <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{c.label}</span>
                         </span>
                         {/* Click the pct/count/date-range area to reveal

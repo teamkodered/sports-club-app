@@ -1310,3 +1310,13 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .neon-home .neon-pillar.is-open.neon-bl > .neon-league-open { right: 46px; bottom: 96px; }
 .neon-home .neon-pillar.is-open.neon-br > .neon-league-open { left: 46px; bottom: 96px; }
 .neon-home .neon-pillar:not(.is-open) > .neon-league-open { display: none; }
+
+/* Athlete Home stat cards (Sessions / F2F / PDP): images the size of the card text */
+.neon-home .neon-stat img { height: 20px !important; max-width: none !important; margin-bottom: 4px !important; }
+/* Open sections: keep the header clear of the week graph and the place */
+.neon-home .neon-pillar.is-open [style*="Anton"] { font-size: 26px !important; }
+.neon-home .neon-pillar.is-open.neon-tl .neon-pillar-graph, .neon-home .neon-pillar.is-open.neon-tr .neon-pillar-graph { top: 96px !important; }
+.neon-home .neon-pillar.is-open.neon-bl .neon-pillar-graph, .neon-home .neon-pillar.is-open.neon-br .neon-pillar-graph { bottom: 96px !important; }
+.neon-home .neon-pillar.is-open.neon-tl > .neon-league-open, .neon-home .neon-pillar.is-open.neon-tr > .neon-league-open { top: 110px !important; }
+.neon-home .neon-pillar.is-open.neon-bl > .neon-league-open, .neon-home .neon-pillar.is-open.neon-br > .neon-league-open { bottom: 110px !important; }
+.neon-home .neon-pillar.is-open { min-height: 230px; }
