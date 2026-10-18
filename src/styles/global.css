@@ -1286,3 +1286,7 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .neon-home .neon-bottom [style*="Anton"] .neon-pillar-icon {
   position: static !important; height: 1.15em !important; width: auto !important; max-width: none !important; max-height: none !important; flex-shrink: 0; object-fit: contain; }
 .neon-home .neon-bottom > div:first-child::before { display: none !important; }
+/* league place + score after each section title */
+.neon-league-pos { display: inline-flex; align-items: baseline; gap: 4px; margin-left: 4px; font-family: 'Orbitron', sans-serif; letter-spacing: 0; }
+.neon-league-rank { font-size: 0.5em; font-weight: 800; }
+.neon-league-score { font-size: 0.38em; opacity: 0.75; }
