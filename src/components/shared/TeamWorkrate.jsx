@@ -12,6 +12,7 @@ export default function TeamWorkrate({ students = [], onOpen }) {
   const [weeks, setWeeks] = useState(8)
   const [rows, setRows] = useState(null) // { student_id, date, pct, strain }
   const [picked, setPicked] = useState([])
+  const [openSid, setOpenSid] = useState(null) // athlete quick view (slide down)
   const byId = useMemo(() => Object.fromEntries(students.map(s => [s.id, s])), [students])
 
   useEffect(() => {
@@ -65,7 +66,7 @@ export default function TeamWorkrate({ students = [], onOpen }) {
         <b style={{ fontSize: 14, flex: 1 }}>📈 Workrate over time</b>
         {[4, 8, 12].map(w => <button key={w} type="button" className={weeks === w ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setWeeks(w)}>{w} wk</button>)}
       </div>
-      <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '0 0 6px' }}>Average heart rate per session as % of each athlete's max (age-based). White = team average; tap athletes below to compare (up to 4).</p>
+      <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '0 0 6px' }}>Average heart rate per session as % of each athlete's max (age-based). White = team average. Tap an athlete for their quick view (compare on the chart or open their profile from there).</p>
       {rows == null ? <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Loading…</p> : !dates.length ? <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No heart rate sessions in this period yet.</p> : (
         <>
           <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }} role="img" aria-label="Team workrate over time">
@@ -80,15 +81,47 @@ export default function TeamWorkrate({ students = [], onOpen }) {
           <div style={{ marginTop: 8 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 52px 56px 56px', gap: 4, fontSize: 10, color: 'var(--text-tertiary)', padding: '0 0 4px' }}><span>Athlete</span><span>Sessions</span><span>Avg</span><span>Best</span></div>
             {table.map(r => {
-              const k = picked.indexOf(r.sid)
+              const k = picked.indexOf(r.sid), isOpen = openSid === r.sid
+              const mine = dates.filter(d => per[r.sid]?.[d] != null)
+              const last = mine[mine.length - 1]
+              const vsTeam = Math.round(r.avg - (mine.reduce((a, d) => a + (team[d] || 0), 0) / (mine.length || 1)))
               return (
-                <div key={r.sid} onClick={() => toggle(r.sid)} style={{ display: 'grid', gridTemplateColumns: '1fr 52px 56px 56px', gap: 4, alignItems: 'center', padding: '6px 0', borderTop: '1px solid var(--border)', cursor: 'pointer', fontSize: 13 }}>
-                  <span style={{ fontWeight: k >= 0 ? 700 : 400, color: k >= 0 ? COLS[k] : 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {name(r.s)} {onOpen && <button type="button" onClick={e => { e.stopPropagation(); onOpen(r.s) }} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 11 }}>open ›</button>}
-                  </span>
-                  <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 11 }}>{r.sessions}</span>
-                  <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 11, color: '#EF9F27' }}>{Math.round(r.avg)}%</span>
-                  <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 11, color: '#E24B4A' }}>{Math.round(r.best)}%</span>
+                <div key={r.sid} style={{ borderTop: '1px solid var(--border)' }}>
+                  <div onClick={() => setOpenSid(o => o === r.sid ? null : r.sid)} style={{ display: 'grid', gridTemplateColumns: '1fr 52px 56px 56px', gap: 4, alignItems: 'center', padding: '7px 0', cursor: 'pointer', fontSize: 13 }}>
+                    <span style={{ fontWeight: k >= 0 || isOpen ? 700 : 400, color: k >= 0 ? COLS[k] : 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{isOpen ? '▾' : '▸'} {name(r.s)}</span>
+                    <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 11 }}>{r.sessions}</span>
+                    <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 11, color: '#EF9F27' }}>{Math.round(r.avg)}%</span>
+                    <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 11, color: '#E24B4A' }}>{Math.round(r.best)}%</span>
+                  </div>
+                  {/* quick view: their own stats + mini trend, compare / open profile */}
+                  <div style={{ maxHeight: isOpen ? 260 : 0, overflow: 'hidden', transition: 'max-height 0.3s ease' }}>
+                    <div style={{ padding: '4px 0 10px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6, marginBottom: 8 }}>
+                        {[['Average workrate', `${Math.round(r.avg)}%`, '#EF9F27'], ['Best session', `${Math.round(r.best)}%`, '#E24B4A'],
+                          ['vs team (same days)', `${vsTeam > 0 ? '+' : ''}${vsTeam}%`, vsTeam >= 0 ? '#1D9E75' : '#E24B4A'], ['Avg strain', r.strain != null ? r.strain.toFixed(1) : '—', '#378ADD']].map(([l, v, c]) => (
+                          <div key={l} style={{ background: 'var(--bg-secondary)', borderRadius: 8, padding: '6px 8px' }}>
+                            <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{l}</div>
+                            <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 15, fontWeight: 700, color: c }}>{v}</div>
+                          </div>
+                        ))}
+                      </div>
+                      {mine.length > 1 && (() => {
+                        const w = 300, h = 46, px = i => 4 + i * (w - 8) / (mine.length - 1), py = v => 4 + (1 - (Math.max(50, Math.min(100, v)) - 50) / 50) * (h - 8)
+                        return (
+                          <svg viewBox={`0 0 ${w} ${h}`} width="100%" style={{ display: 'block', marginBottom: 6 }} aria-label="Their workrate per session">
+                            <path d={mine.map((d, i) => `${i ? 'L' : 'M'}${px(i).toFixed(1)},${py(team[d]).toFixed(1)}`).join(' ')} fill="none" stroke="var(--text-tertiary)" strokeWidth="1.5" strokeDasharray="4 3" />
+                            <path d={mine.map((d, i) => `${i ? 'L' : 'M'}${px(i).toFixed(1)},${py(per[r.sid][d]).toFixed(1)}`).join(' ')} fill="none" stroke="#EF9F27" strokeWidth="2.2" strokeLinejoin="round" />
+                            {mine.map((d, i) => <circle key={d} cx={px(i)} cy={py(per[r.sid][d])} r="2.5" fill="#EF9F27" />)}
+                          </svg>
+                        )
+                      })()}
+                      <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8 }}>{r.sessions} session{r.sessions === 1 ? '' : 's'}{last ? ` · last ${new Date(last + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : ''} · dashed = team</div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button type="button" className="btn btn-sm" style={{ borderColor: k >= 0 ? COLS[k] : undefined, color: k >= 0 ? COLS[k] : undefined }} onClick={() => toggle(r.sid)}>{k >= 0 ? '✓ On the chart' : '📈 Compare on chart'}</button>
+                        {onOpen && <button type="button" className="btn btn-sm btn-primary" style={{ marginLeft: 'auto' }} onClick={() => onOpen(r.s)}>Open profile ›</button>}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )
             })}
