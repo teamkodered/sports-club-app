@@ -3088,13 +3088,21 @@ export default function AthleteProfiles() {
   const [dashLevel, setDashLevel] = useState('all') // TEAM banner level: 'all' or one level -- filters the whole dashboard
   const inDashTeam = s => (s.is_kr || s.is_pts || s.discipline === 'KRBA') && (dashClubFilter === 'all' || s.discipline === dashClubFilter) && (dashLevel === 'all' || dashLevelOf(s) === dashLevel)
   const pillSwipe = useRef(null)
-  const swipeProps = step => ({
+  const swipeProps = (step, onTap) => ({
     onTouchStart: e => { pillSwipe.current = { x: e.touches[0].clientX, moved: false } },
     onTouchMove: e => { if (pillSwipe.current && Math.abs(e.touches[0].clientX - pillSwipe.current.x) > 10) pillSwipe.current.moved = true },
     onTouchEnd: e => { const c = pillSwipe.current; pillSwipe.current = null; if (!c) return; const dx = e.changedTouches[0].clientX - c.x; if (Math.abs(dx) > 25) { e.preventDefault(); step(dx < 0 ? 1 : -1) } },
-    onClick: () => step(1),
+    onClick: () => (onTap ? onTap() : step(1)),
     style: { touchAction: 'pan-y', userSelect: 'none' },
   })
+  // computers have no swipe: small ‹ › either side of the pill (hidden on touch screens)
+  const pcArrows = (step, pill) => (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+      <button type="button" className="pc-only" onClick={() => step(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 12, padding: 2 }}>‹</button>
+      {pill}
+      <button type="button" className="pc-only" onClick={() => step(1)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 12, padding: 2 }}>›</button>
+    </span>
+  )
   const [recordFlash, setRecordFlash] = useState(false) // show 'updated <date>' beside the record for a few seconds
   const [wearView, setWearView] = useState('athletes') // coach Wearables: athletes | day | session
   const [dashWhoOpen, setDashWhoOpen] = useState({}) // coach dashboard: who's done / missing lists open
@@ -5022,7 +5030,7 @@ export default function AthleteProfiles() {
   }, [])
 
   useEffect(() => {
-    supabase.from('athlete_profiles').select('student_id, pdp_notes, media_files')
+    supabase.from('athlete_profiles').select('student_id, pdp_notes, media_files, weight_division, weight_target_override')
       .then(({ data }) => setAllAthleteProfiles(data || []))
   }, [])
 
@@ -6761,24 +6769,33 @@ export default function AthleteProfiles() {
                       <span style={{ color: 'var(--text-secondary)' }}>Show</span>
                       <div style={{ display: 'flex', gap: 4 }}>
                         {/* one pill: tap to step through All -> KR -> KRBA */}
-                        {(() => { const order = ['all', 'PKA', 'KRBA']; const sp = swipeProps(d => setDashClubFilter(order[(order.indexOf(dashClubFilter) + d + 3) % 3])); return (
-                        <button {...sp} title="Swipe (or tap) to change" style={{ ...sp.style,
+                        {(() => {
+                          const order = ['all', 'PKA', 'KRBA']
+                          const anyOpen = showKrRegister || showKrbaRegister || showAllAthRegister
+                          const openFor = f => { setShowAllAthRegister(f === 'all'); setShowKrRegister(f === 'PKA'); setShowKrbaRegister(f === 'KRBA') }
+                          const change = d => { const f = order[(order.indexOf(dashClubFilter) + d + 3) % 3]; setDashClubFilter(f); if (anyOpen) openFor(f) }
+                          const tap = () => { if (anyOpen) openFor(null); else openFor(dashClubFilter) }
+                          const sp = swipeProps(change, tap)
+                          return pcArrows(change, (
+                        <button {...sp} title="Press to show this register · swipe to change" style={{ ...sp.style,
                           fontSize: 12, padding: '4px 14px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 700,
                           border: '1px solid #378ADD', background: '#378ADD20', color: '#378ADD', display: 'flex', alignItems: 'center', gap: 6,
-                        }}>{dashClubFilter === 'all' ? 'All' : dashClubFilter === 'PKA' ? 'KR' : 'KRBA'}</button>) })()}
+                        }}>{dashClubFilter === 'all' ? 'All' : dashClubFilter === 'PKA' ? 'KR' : 'KRBA'} {(showKrRegister || showKrbaRegister || showAllAthRegister) ? '▲' : '▼'}</button>)) })()}
                       </div>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 14px', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
                       <span style={{ color: 'var(--text-secondary)' }}>Record</span>
+                      <span style={{ flex: 1, textAlign: 'right', paddingRight: 8 }}>
+                        {(() => { const last = clubFiltered.map(s => s.record_updated_at).filter(Boolean).sort().pop(); return (
+                          <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--text-secondary)', opacity: recordFlash ? 1 : 0, transition: 'opacity 0.6s ease', whiteSpace: 'nowrap' }}>
+                            updated {last ? new Date(last).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+                          </span>) })()}
+                      </span>
                       <span
                         onClick={() => { setShowRecordAsPct(v => !v); setRecordFlash(true); clearTimeout(window.__kcRecT); window.__kcRecT = setTimeout(() => setRecordFlash(false), 3500) }}
                         title="Press to toggle win %"
                         style={{ fontWeight: 500, cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'baseline', gap: 8 }}>
                         {showRecordAsPct ? `${winPct}% wins` : `${totalWins}W ${totalLosses}L ${totalDraws}D`}
-                        {(() => { const last = clubFiltered.map(s => s.record_updated_at).filter(Boolean).sort().pop(); return (
-                          <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--text-secondary)', opacity: recordFlash ? 1 : 0, transition: 'opacity 0.6s ease', whiteSpace: 'nowrap' }}>
-                            · updated {last ? new Date(last).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
-                          </span>) })()}
                       </span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 14px', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
@@ -6794,7 +6811,7 @@ export default function AthleteProfiles() {
                             const step = d => setDashLevel(opts[(idx + d + opts.length) % opts.length])
                             const label = dashLevel === 'all' ? `All: ${clubFiltered.length}` : `${dashLevel}: ${levelCounts[dashLevel] || 0}`
                             const sp = swipeProps(step)
-                            return <span {...sp} title="Swipe (or tap) to change" style={{ ...sp.style, cursor: 'pointer', fontWeight: 500, fontSize: 12, padding: '4px 14px', borderRadius: 20, background: dashLevel === 'all' ? 'var(--bg-secondary)' : '#378ADD20', border: `1px solid ${dashLevel === 'all' ? 'var(--border-strong)' : '#378ADD'}`, whiteSpace: 'nowrap' }}>{label}</span>
+                            return pcArrows(step, <span {...sp} title="Swipe (or tap) to change" style={{ ...sp.style, cursor: 'pointer', fontWeight: 500, fontSize: 12, padding: '4px 14px', borderRadius: 20, background: dashLevel === 'all' ? 'var(--bg-secondary)' : '#378ADD20', border: `1px solid ${dashLevel === 'all' ? 'var(--border-strong)' : '#378ADD'}`, whiteSpace: 'nowrap' }}>{label}</span>)
                           })()}
                         </div>
                       )}
@@ -6829,7 +6846,22 @@ export default function AthleteProfiles() {
                                   color: 'var(--text)', fontFamily: 'var(--font-sans)',
                                 }}>
                                 <span>{s.members?.first_name} {s.members?.last_name}{wAge ? ` (${wAge})` : ''}</span>
-                                <span style={{ fontWeight: 600 }}>{s.weight_kg}kg</span>
+                                {(() => {
+                                  // target comes from their competition weight (+ the team %), not their current weight
+                                  const ap = allAthleteProfiles.find(p => p.student_id === s.id) || {}
+                                  const m = (ap.weight_division || '').match(/([+-]?)\s*([\d.]+)/)
+                                  if (!m) return <span style={{ fontWeight: 600 }}>{s.weight_kg}kg</span>
+                                  const comp = parseFloat(m[2]), pct = s.in_comp ? weightTargetPctInComp : weightTargetPctOutComp
+                                  const ov = ap.weight_target_override
+                                  const target = m[1] === '+' ? null : ov?.type === 'actual' && ov.value ? parseFloat(ov.value) : ov?.type === 'percent' && ov.value ? comp * (1 + parseFloat(ov.value)) : comp * (1 + pct)
+                                  const off = target ? Math.round(((s.weight_kg - target) / target) * 1000) / 10 : null
+                                  return (
+                                    <span style={{ textAlign: 'right' }}>
+                                      <b>{m[1] === '+' ? '+' : '-'}{comp}kg</b>
+                                      <span style={{ display: 'block', fontSize: 10, color: off == null ? 'var(--text-tertiary)' : off > 0 ? '#E24B4A' : '#1D9E75' }}>{s.weight_kg}kg{off != null ? ` · ${off > 0 ? '+' : ''}${off}% vs target ${target.toFixed(1)}` : ''}</span>
+                                    </span>
+                                  )
+                                })()}
                               </button>
                             )
                           })}
@@ -6839,30 +6871,6 @@ export default function AthleteProfiles() {
                   </>
                 )
               })()}
-            </div>
-
-            {/* Team KR / KRBA -- slides down the full Registers page for that
-                register type in place of the dashboard below, rather than
-                the small athlete-picker dropdown this used to open. */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
-              {(!registerAccess?.types || registerAccess.types.includes('kr')) ? (
-                <button className={showKrRegister ? 'btn btn-sm btn-primary' : 'btn btn-sm'}
-                  onClick={() => { setShowKrRegister(v => !v); setShowKrbaRegister(false); setShowAllAthRegister(false) }}>
-                  👥 Team KR {showKrRegister ? '▲' : '▼'}
-                </button>
-              ) : <span />}
-              {(!registerAccess?.types || (registerAccess.types.includes('kr') && registerAccess.types.includes('krba'))) && (
-                <button className={showAllAthRegister ? 'btn btn-sm btn-primary' : 'btn btn-sm'}
-                  onClick={() => { setShowAllAthRegister(v => !v); setShowKrRegister(false); setShowKrbaRegister(false) }}>
-                  👥 View all {showAllAthRegister ? '▲' : '▼'}
-                </button>
-              )}
-              {(!registerAccess?.types || registerAccess.types.includes('krba')) && (
-                <button className={showKrbaRegister ? 'btn btn-sm btn-primary' : 'btn btn-sm'}
-                  onClick={() => { setShowKrbaRegister(v => !v); setShowKrRegister(false); setShowAllAthRegister(false) }}>
-                  👥 KRBA {showKrbaRegister ? '▲' : '▼'}
-                </button>
-              )}
             </div>
 
             {!(showKrRegister || showKrbaRegister || showAllAthRegister) && (

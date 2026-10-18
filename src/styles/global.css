@@ -1261,3 +1261,7 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .ae-dots { display: flex; gap: 6px; }
 .ae-dots i { width: 8px; height: 8px; border-radius: 50%; background: #3A4149; cursor: pointer; }
 .ae-dots i.on { background: #22B14C; box-shadow: 0 0 6px #22B14C; width: 18px; border-radius: 4px; }
+
+/* buttons only for computers (mouse); touch screens swipe instead */
+.pc-only { display: none !important; }
+@media (hover: hover) and (pointer: fine) { .pc-only { display: inline-block !important; } }
