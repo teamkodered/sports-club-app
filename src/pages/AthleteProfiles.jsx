@@ -6944,6 +6944,52 @@ export default function AthleteProfiles() {
               ]
 
               return (
+                (() => {
+                  // One card open: it takes the whole row (bigger buttons, target shown); tap its header to go back to the three
+                  const toggleCard = key => { const open = !expandedSummaryCards[key]; setExpandedSummaryCards(open ? { [key]: true } : {}); setDashboardTab(open ? ({ all_sessions: 'calendar', f2f_sessions: 'results', pdp: 'pdp' })[key] || 'overview' : 'overview') }
+                  const openKey = cards.find(c => expandedSummaryCards[c.key])?.key
+                  const accent = { all_sessions: '#2F6BFF', f2f_sessions: '#E24B4A', pdp: '#E6B800' }
+                  if (openKey) {
+                    const c = cards.find(x => x.key === openKey), targets = targetsFor(c.key)
+                    const custom = cardDateSettings[c.key].from !== todayStr0 || cardDateSettings[c.key].to !== todayStr0
+                    const range = custom ? `${new Date(cardDateSettings[c.key].from).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${new Date(cardDateSettings[c.key].to).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : 'Today'
+                    const big = { height: 48, fontSize: 14, justifyContent: 'center', fontWeight: 600 }
+                    return (
+                      <div className={`card coach-stat coach-stat-${c.key} coach-stat-open`} style={{ marginBottom: 14, padding: 14 }}>
+                        <button type="button" onClick={() => toggleCard(c.key)} style={{ all: 'unset', cursor: 'pointer', display: 'flex', width: '100%', alignItems: 'center', gap: 10 }}>
+                          <span style={{ fontSize: 22 }}>{c.icon}</span>
+                          <span style={{ flex: 1, minWidth: 0 }}>
+                            <span className="coach-stat-title" style={{ display: 'block', fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>{c.label}</span>
+                            <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{c.count}/{teamCount} · {range}</span>
+                          </span>
+                          <span className="coach-stat-num" style={{ fontSize: 30, fontWeight: 700 }}>{c.pct}%</span>
+                          <span style={{ fontSize: 16, color: 'var(--text-tertiary)' }}>˄</span>
+                        </button>
+                        <div style={{ margin: '14px 0 12px', padding: '10px 12px', borderRadius: 8, background: 'var(--bg-secondary)', fontSize: 13 }}>
+                          {targets.length === 0 ? <span style={{ color: 'var(--text-tertiary)' }}>🎯 No target set</span> : targets.map(t => (
+                            <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0', color: accent[c.key] }}>
+                              <span style={{ flex: 1 }}>🎯 {t.preset_label ? `${t.preset_label}: ` : ''}{t.target_value}</span>
+                              <button onClick={() => deleteTeamTarget(t.id)} title="Remove this target" style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14 }}>✕</button>
+                            </div>
+                          ))}
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+                          <button className="btn" style={big} onClick={() => {
+                            if (showAddTarget && newTargetSection === c.key && newTargetQuestion === '') { setShowAddTarget(false); return }
+                            setNewTargetSection(c.key); setNewTargetQuestion(''); setShowAddTarget(true)
+                          }}>🎯 {targets.length ? 'Add another target' : 'Set target'}</button>
+                          <button className="btn" style={big} onClick={() => setShowSetDatePopup(c.key)}>📅 Set dates</button>
+                          <button className="btn" style={{ ...big, gridColumn: '1 / -1', borderColor: accent[c.key], color: accent[c.key] }} onClick={() => {
+                            if (c.key === 'all_sessions') navigate('/registers')
+                            else if (c.key === 'pdp') setDashboardTab('pdp')
+                            else if (c.key === 'f2f_sessions') { setGroupLoggerRestrictIds(null); setShowGroupLogger(true) }
+                          }}>{c.key === 'all_sessions' ? '📋 Open register' : c.key === 'pdp' ? '🎯 Open PDP' : '+ Log a session'}</button>
+                        </div>
+                        {showAddTarget && newTargetSection === c.key && newTargetQuestion === '' && <div style={{ marginTop: 10 }}>{renderInlineTargetForm()}</div>}
+                      </div>
+                    )
+                  }
+                  return (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 14 }}>
                   {cards.map(c => {
                     const targets = targetsFor(c.key)
@@ -7000,6 +7046,8 @@ export default function AthleteProfiles() {
                     )
                   })}
                 </div>
+                  )
+                })()
               )
             })()}
 

@@ -1265,3 +1265,6 @@ tbody tr:hover td { background: var(--bg-secondary); }
 /* buttons only for computers (mouse); touch screens swipe instead */
 .pc-only { display: none !important; }
 @media (hover: hover) and (pointer: fine) { .pc-only { display: inline-block !important; } }
+/* Coach dashboard: an open stat card takes the whole row */
+.coach-dash .coach-stat-open .coach-stat-title { font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800 !important; font-size: 22px !important; text-transform: uppercase; letter-spacing: 0.5px; }
+.coach-dash .coach-stat-open .coach-stat-num { font-size: 34px !important; }
