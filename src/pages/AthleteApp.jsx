@@ -4589,7 +4589,25 @@ export default function AthleteApp() {
     mediaTargetRef.current = { sectionKey, questionLabel }
     ;(camera ? mediaCameraRef : mediaFileRef).current?.click()
   }
-  function QuestionMediaUpload({ sectionKey, questionLabel }) {
+  // Question cards: "📅 Add to timetable" -- pick the day(s), attach to one of your sessions
+  // on that day (goes into that session's notes) or set a time; repeats every week.
+  function QuestionToTimetable({ questionLabel }) {
+    const active = athleteTimetableModal?.fromQuestion && athleteTimetableModal.item === questionLabel
+    const already = !!timetableEntry('what_to_do', questionLabel)
+    return (
+      <div style={{ marginTop: 8 }}>
+        <button type="button" className="btn btn-sm" onClick={() => {
+          setSchedWizardStep('days'); setSchedWizardDays([]); setSchedWizardTime('')
+          setAthleteTimetableModal(active ? null : { sectionKey: 'what_to_do', item: questionLabel, fromQuestion: true })
+        }}>📅 {already ? 'On your timetable · change' : 'Add to timetable'}</button>
+        {active && <div style={{ marginTop: 8 }}>{ScheduleWizardPanel()}</div>}
+      </div>
+    )
+  }
+  function QuestionMediaUpload(props) {
+    return <>{QuestionMediaUploadInner(props)}<QuestionToTimetable questionLabel={props.questionLabel} /></>
+  }
+  function QuestionMediaUploadInner({ sectionKey, questionLabel }) {
     if (uploadsBlocked) return null // under 18 (or no date of birth): no photo / video uploads
     const todayStr = new Date().toISOString().split('T')[0]
     const busy = false // uploads run in the background -- buttons stay usable
