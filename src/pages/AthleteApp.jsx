@@ -8,7 +8,7 @@ import { matchClass, workoutDate, workoutRange, fmtTime } from '../lib/sessionMa
 import { supabase } from '../lib/supabase.js'
 import { useSectionLeague, LeaguePos } from '../lib/sectionLeague.jsx'
 import { NoteText, DoneTick, doneCardStyle, isCompletedPdp } from '../components/shared/NoteBits.jsx'
-import { DailyCharts, WorkoutCard } from '../components/shared/WearableCharts.jsx'
+import { DailyCharts, WorkoutCard, hrSessionAsWorkout } from '../components/shared/WearableCharts.jsx'
 import LiveHeartRate from '../components/shared/LiveHeartRate.jsx'
 import * as NativeHr from '../lib/nativeHr.js'
 import { useLiveHeartRate } from '../lib/liveHr.js'
@@ -1693,6 +1693,9 @@ export default function AthleteApp() {
     setShowPhysicalSection(false); setShowTechniqueSection(false); setShowTacticalSection(false); setShowMentalitySection(false); setShowWellbeingSection(false)
     return true
   }
+  // heart rate sessions recorded in the app (live reader / Android recorder) -- shown with the wearable workouts
+  const [appHrSessions, setAppHrSessions] = useState([])
+  useEffect(() => { const id = student?.id; if (!id) { setAppHrSessions([]); return } supabase.from('hr_sessions').select('*').eq('student_id', id).order('created_at', { ascending: false }).limit(20).then(({ data }) => setAppHrSessions((data || []).map(hrSessionAsWorkout)), () => {}) }, [student?.id])
   const [videoTool, setVideoTool] = useState(null) // { mode: 'jump'|'sprint', distance, onSave, label }
   const [runEffortSel, setRunEffortSel] = useState({}) // running: which effort is being edited, per type ('__new__' = a new one)
   const [showPhysicalSection, setShowPhysicalSection] = useState(false)
@@ -8188,11 +8191,11 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
 </DailyCharts>
               )}
 
-              {whoopSessions.length === 0 ? (
+              {(whoopSessions.length + appHrSessions.length) === 0 ? (
                 <div className="empty-state"><h3>No workouts yet</h3><p>Summaries appear here shortly after each completed workout</p></div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {whoopSessions.map(s => <WorkoutCard key={s.id} s={s} maxHr={liveMaxHr} providerName={PROVIDERS?.[s.provider]?.label} providerColour={PROVIDERS?.[s.provider]?.colour} />)}
+                  {[...whoopSessions, ...appHrSessions].sort((a, b) => String(b.start_time || '').localeCompare(String(a.start_time || ''))).map(s => <WorkoutCard key={s.id} s={s} maxHr={liveMaxHr} providerName={PROVIDERS?.[s.provider]?.label} providerColour={PROVIDERS?.[s.provider]?.colour} />)}
                 </div>
               )}
             </>

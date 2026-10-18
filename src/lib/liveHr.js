@@ -103,10 +103,18 @@ export function useLiveHeartRate({ studentId, maxHr = 190 }) {
     for (let i = 1; i < list.length; i++) { const z = zoneOf(list[i - 1].bpm, maxHr); if (z) zones[`z${z.n}`] = (zones[`z${z.n}`] || 0) + (list[i].t - list[i - 1].t) / 1000 }
     const zoneMins = Object.fromEntries(Object.entries(zones).map(([k, sec]) => [k, Math.round(sec / 60)]))
     const summary = { minutes, avg, max, zones: zoneMins, maxHr, device: device?.name || 'Heart rate strap' }
+    // heart rate curve: averaged into ~5 s steps (max 600 points) so it can be drawn later
+    const span = list[list.length - 1].t - list[0].t, step = Math.max(5000, Math.ceil(span / 600))
+    const samples = []
+    for (let t0 = list[0].t, k = 0; t0 <= list[list.length - 1].t; t0 += step) {
+      let sum = 0, n = 0
+      while (k < list.length && list[k].t < t0 + step) { sum += list[k].bpm; n++; k++ }
+      if (n) samples.push(Math.round(sum / n))
+    }
     if (studentId) await supabase.from('hr_sessions').insert({
       student_id: studentId, session_date: new Date(list[0].t).toISOString().split('T')[0], class_id: meta.current.classId, attendance_id: meta.current.attendanceId,
-      minutes, avg_hr: avg, max_hr: max, avg_pct: Math.round(avg * 100 / maxHr), max_pct: Math.round(max * 100 / maxHr), zones: zoneMins, device: summary.device,
-    }).then(() => {}, () => {})
+      minutes, avg_hr: avg, max_hr: max, avg_pct: Math.round(avg * 100 / maxHr), max_pct: Math.round(max * 100 / maxHr), zones: zoneMins, device: summary.device, samples,
+    }).then(({ error }) => { if (error && /samples/.test(error.message)) supabase.from('hr_sessions').insert({ student_id: studentId, session_date: new Date(list[0].t).toISOString().split('T')[0], class_id: meta.current.classId, attendance_id: meta.current.attendanceId, minutes, avg_hr: avg, max_hr: max, avg_pct: Math.round(avg * 100 / maxHr), max_pct: Math.round(max * 100 / maxHr), zones: zoneMins, device: summary.device }) }, () => {})
     return summary
   }
   function disconnect() { try { device?.gatt?.disconnect() } catch { /* */ } setDevice(null); setBpm(null) }

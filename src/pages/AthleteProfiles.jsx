@@ -7,10 +7,11 @@ import SessionFootage from '../components/shared/SessionFootage.jsx'
 import { supabase } from '../lib/supabase.js'
 import { useSectionLeague, LeaguePos } from '../lib/sectionLeague.jsx'
 import { NoteText, DoneTick, doneCardStyle, isCompletedPdp } from '../components/shared/NoteBits.jsx'
-import { DailyCharts, WorkoutCard } from '../components/shared/WearableCharts.jsx'
+import { DailyCharts, WorkoutCard, hrSessionAsWorkout } from '../components/shared/WearableCharts.jsx'
 import { fetchAll } from '../lib/fetchAll.js'
 import WearableCompare from '../components/shared/WearableCompare.jsx'
 import LiveHrTable from '../components/shared/LiveHrTable.jsx'
+import TeamWorkrate from '../components/shared/TeamWorkrate.jsx'
 import NeedsAttention from '../components/shared/NeedsAttention.jsx'
 import PdpOverview from '../components/dashboard/PdpOverview.jsx'
 import WattBikePanel from '../components/shared/WattBikePanel.jsx'
@@ -3535,6 +3536,9 @@ export default function AthleteProfiles() {
   const [belts, setBelts] = useState({ junior: [], senior: [], krba: [] })
   const [selected, setSelected]     = useState(null)
   const sectionLeague = useSectionLeague(selected?.id) // place + score in each section's league (same as the League board)
+  // heart rate sessions recorded in the app (live reader / Android recorder) -- shown with the wearable workouts
+  const [appHrSessions, setAppHrSessions] = useState([])
+  useEffect(() => { const id = selected?.id; if (!id) { setAppHrSessions([]); return } supabase.from('hr_sessions').select('*').eq('student_id', id).order('created_at', { ascending: false }).limit(20).then(({ data }) => setAppHrSessions((data || []).map(hrSessionAsWorkout)), () => {}) }, [selected?.id])
   const [apData, setApData]         = useState(null)
   const [opponentNotes, setOpponentNotes] = useState([])
   const [newOpponentName, setNewOpponentName] = useState('')
@@ -9021,11 +9025,13 @@ export default function AthleteProfiles() {
                 <button onClick={() => setDashboardTab('overview')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
                 {/* View: athletes list / compare a day / compare a class session */}
                 <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-                  {[['athletes', 'Athletes'], ['live', '❤️ Live'], ['day', 'View by day'], ['session', 'View by session']].map(([k, l]) => (
+                  {[['athletes', 'Athletes'], ['live', '❤️ Live'], ['trend', '📈 Over time'], ['day', 'View by day'], ['session', 'View by session']].map(([k, l]) => (
                     <button key={k} type="button" className={wearView === k ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setWearView(k)}>{l}</button>
                   ))}
                 </div>
-                {wearView === 'live' ? (
+                {wearView === 'trend' ? (
+                  <TeamWorkrate students={students.filter(inDashTeam)} onOpen={st => { selectStudent(st); setTab('whoop') }} />
+                ) : wearView === 'live' ? (
                   <LiveHrTable title="❤️ Live heart rate -- recording now" />
                 ) : wearView !== 'athletes' ? (
                   <WearableCompare mode={wearView} students={students} classes={allClasses} providerLabel={providerLabel} onOpen={s => { selectStudent(s); setTab('whoop') }} />
@@ -13163,11 +13169,11 @@ export default function AthleteProfiles() {
                         </div>
 </DailyCharts>
                     )}
-                    {whoopSessions.length === 0 ? (
+                    {(whoopSessions.length + appHrSessions.length) === 0 ? (
                       <div className="empty-state"><h3>No workouts yet</h3><p>Summaries appear here shortly after each completed workout</p></div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        {whoopSessions.map(s => <WorkoutCard key={s.id} s={s} maxHr={(() => { const d = selected?.members?.date_of_birth; if (!d) return 190; const b = new Date(d), n = new Date(); return Math.max(150, 220 - (n.getFullYear() - b.getFullYear() - ((n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) ? 1 : 0))) })()} />)}
+                        {[...whoopSessions, ...appHrSessions].sort((a, b) => String(b.start_time || '').localeCompare(String(a.start_time || ''))).map(s => <WorkoutCard key={s.id} s={s} maxHr={(() => { const d = selected?.members?.date_of_birth; if (!d) return 190; const b = new Date(d), n = new Date(); return Math.max(150, 220 - (n.getFullYear() - b.getFullYear() - ((n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) ? 1 : 0))) })()} />)}
                       </div>
                     )}
                   </>
