@@ -85,7 +85,7 @@ export default function TeamWorkrate({ students = [], onOpen }) {
           {sports.map(sp => <button key={sp} type="button" className={sportSel.includes(sp) ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => toggleSport(sp)}>{sp === APP ? '❤️ ' + sp : sp}</button>)}
         </div>
       )}
-      <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '0 0 6px' }}>{sportSel.length ? `Only: ${sportSel.join(', ')}. ` : 'All activities. '}Average heart rate per session as % of each athlete's max (age-based). White = team average. Tap an athlete for their quick view (compare on the chart or open their profile from there).</p>
+      <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '0 0 6px' }}>{sportSel.length ? `Only: ${sportSel.join(', ')}. ` : 'All activities. '}Average heart rate per session as % of each athlete's max (age-based). White = team average. Tap a name for their quick view; tap their Avg / Best numbers to add them to the chart (up to 4).</p>
       {rows == null ? <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Loading…</p> : !dates.length ? <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No heart rate sessions in this period yet.</p> : (
         <>
           <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }} role="img" aria-label="Team workrate over time">
@@ -98,7 +98,7 @@ export default function TeamWorkrate({ students = [], onOpen }) {
           </svg>
           {picked.length > 0 && <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 11, margin: '4px 0' }}>{picked.map((sid, k) => <span key={sid} style={{ color: COLS[k] }}>━ {name(byId[sid])}</span>)}</div>}
           <div style={{ marginTop: 8 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 52px 56px 56px', gap: 4, fontSize: 10, color: 'var(--text-tertiary)', padding: '0 0 4px' }}><span>Athlete</span><span>Sessions</span><span>Avg</span><span>Best</span></div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 52px 120px', gap: 4, fontSize: 10, color: 'var(--text-tertiary)', padding: '0 0 4px' }}><span>Athlete · tap for quick view</span><span>Sessions</span><span style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', padding: '0 6px' }}><span>Avg</span><span>Best</span></span></div>
             {table.map(r => {
               const k = picked.indexOf(r.sid), isOpen = openSid === r.sid
               const mine = dates.filter(d => per[r.sid]?.[d] != null)
@@ -106,11 +106,16 @@ export default function TeamWorkrate({ students = [], onOpen }) {
               const vsTeam = Math.round(r.avg - (mine.reduce((a, d) => a + (team[d] || 0), 0) / (mine.length || 1)))
               return (
                 <div key={r.sid} style={{ borderTop: '1px solid var(--border)' }}>
-                  <div onClick={() => setOpenSid(o => o === r.sid ? null : r.sid)} style={{ display: 'grid', gridTemplateColumns: '1fr 52px 56px 56px', gap: 4, alignItems: 'center', padding: '7px 0', cursor: 'pointer', fontSize: 13 }}>
-                    <span style={{ fontWeight: k >= 0 || isOpen ? 700 : 400, color: k >= 0 ? COLS[k] : 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{isOpen ? '▾' : '▸'} {name(r.s)}</span>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 52px 120px', gap: 4, alignItems: 'center', fontSize: 13 }}>
+                    {/* name side: quick view */}
+                    <span onClick={() => setOpenSid(o => o === r.sid ? null : r.sid)} style={{ padding: '7px 0', cursor: 'pointer', fontWeight: k >= 0 || isOpen ? 700 : 400, color: k >= 0 ? COLS[k] : 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{isOpen ? '▾' : '▸'} {name(r.s)}</span>
                     <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 11 }}>{r.sessions}</span>
-                    <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 11, color: '#EF9F27' }}>{Math.round(r.avg)}%</span>
-                    <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 11, color: '#E24B4A' }}>{Math.round(r.best)}%</span>
+                    {/* numbers side: add to / remove from the chart */}
+                    <button type="button" onClick={() => toggle(r.sid)} title={k >= 0 ? 'Remove from the chart' : 'Compare on the chart'}
+                      style={{ all: 'unset', cursor: 'pointer', display: 'grid', gridTemplateColumns: '1fr 1fr', alignItems: 'center', padding: '5px 6px', borderRadius: 6, border: `1px solid ${k >= 0 ? COLS[k] : 'transparent'}`, background: k >= 0 ? COLS[k] + '22' : 'transparent' }}>
+                      <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 11, color: '#EF9F27' }}>{Math.round(r.avg)}%</span>
+                      <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 11, color: '#E24B4A' }}>{Math.round(r.best)}%</span>
+                    </button>
                   </div>
                   {/* quick view: their own stats + mini trend, compare / open profile */}
                   <div style={{ maxHeight: isOpen ? 260 : 0, overflow: 'hidden', transition: 'max-height 0.3s ease' }}>
@@ -136,7 +141,6 @@ export default function TeamWorkrate({ students = [], onOpen }) {
                       })()}
                       <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8 }}>{r.sessions} session{r.sessions === 1 ? '' : 's'}{last ? ` · last ${new Date(last + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : ''} · dashed = team</div>
                       <div style={{ display: 'flex', gap: 8 }}>
-                        <button type="button" className="btn btn-sm" style={{ borderColor: k >= 0 ? COLS[k] : undefined, color: k >= 0 ? COLS[k] : undefined }} onClick={() => toggle(r.sid)}>{k >= 0 ? '✓ On the chart' : '📈 Compare on chart'}</button>
                         {onOpen && <button type="button" className="btn btn-sm btn-primary" style={{ marginLeft: 'auto' }} onClick={() => onOpen(r.s)}>Open profile ›</button>}
                       </div>
                     </div>

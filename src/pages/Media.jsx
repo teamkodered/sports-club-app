@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import AthleteMedia from '../components/media/AthleteMedia.jsx'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useFightFootageUpload } from '../hooks/useFightFootageUpload.jsx'
@@ -43,6 +44,9 @@ export default function Media() {
   const [dateTo, setDateTo] = useState('')
 
   const [tab, setTab] = useState('cctv')
+  // first level: Athletes (register-style list, footage per athlete) / Study (CCTV, uploads, View iT)
+  const [level, setLevel] = useState(() => { try { return localStorage.getItem('kc_media_level') || 'athletes' } catch { return 'athletes' } })
+  const pickLevel = v => { setLevel(v); try { localStorage.setItem('kc_media_level', v) } catch { /* */ } }
 
   useEffect(() => { load() }, [])
 
@@ -59,7 +63,7 @@ export default function Media() {
   async function load() {
     const [{ data: f }, { data: s }, { data: e }, { data: fo }, { data: markerNotes }] = await Promise.all([
       supabase.from('fight_footage').select('*, fight_footage_athletes(student_id), fight_footage_featured(student_id, students(members(first_name, last_name))), events(id, name, event_type, event_date), footage_folders(id, name)').order('uploaded_at', { ascending: false }),
-      supabase.from('students').select('id, members(first_name, last_name)'),
+      supabase.from('students').select('id, is_kr, is_pts, discipline, in_comp, photo_url, members(first_name, last_name)'),
       supabase.from('events').select('*').order('event_date', { ascending: false }),
       supabase.from('footage_folders').select('*').order('name'),
       // Marker notes are searched alongside title/description -- often
@@ -136,6 +140,14 @@ export default function Media() {
         <p>CCTV footage and coach-shared fight/sparring video, all in one place</p>
       </div>
 
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <button className={level === 'athletes' ? 'btn btn-primary' : 'btn'} onClick={() => pickLevel('athletes')}>👥 Athletes</button>
+        <button className={level === 'study' ? 'btn btn-primary' : 'btn'} onClick={() => pickLevel('study')}>📚 Study</button>
+      </div>
+
+      {level === 'athletes' && <AthleteMedia students={students} />}
+
+      {level === 'study' && <>
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         <button className={tab === 'cctv' ? 'btn btn-primary' : 'btn'} onClick={() => setTab('cctv')}>📹 CCTV</button>
         <button className={tab === 'uploads' ? 'btn btn-primary' : 'btn'} onClick={() => setTab('uploads')}>⬆️ Uploads</button>
@@ -145,6 +157,7 @@ export default function Media() {
       {tab === 'cctv' && <CctvViewer embedded />}
       {tab === 'uploads' && <Uploads {...sharedProps} />}
       {tab === 'view-it' && <ViewIt embedded {...sharedProps} />}
+      </>}
     </div>
   )
 }

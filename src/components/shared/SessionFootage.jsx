@@ -17,7 +17,7 @@ const SUGGEST = c => {
     (/boxing/.test(n) && /^wed/.test(day)) || (/^sat/.test(day) && t === '09:30')
 }
 
-export default function SessionFootage({ studentId, days = 45 }) {
+export default function SessionFootage({ studentId, days = 45, onCount }) {
   const { isAdmin } = useAuth()
   const [classes, setClasses] = useState([])
   const [chosen, setChosen] = useState(null)      // class ids
@@ -35,6 +35,9 @@ export default function SessionFootage({ studentId, days = 45 }) {
       setChosen(Array.isArray(s.data?.value) ? s.data.value : (c.data || []).filter(SUGGEST).map(x => x.id))
     })
   }, [])
+
+  // tell the parent how many clips there are (Media > Athletes header counts)
+  useEffect(() => { if (sessions && onCount) onCount(sessions.reduce((n, x) => n + (x.clips?.length || 0), 0)) }, [sessions]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!studentId || !chosen) return
