@@ -14,6 +14,7 @@ export default function TeamWorkrate({ students = [], onOpen }) {
   const [rows, setRows] = useState(null) // { student_id, date, pct, strain }
   const [picked, setPicked] = useState([])
   const [openSid, setOpenSid] = useState(null) // athlete quick view (slide down)
+  const [showSports, setShowSports] = useState(false) // activity buttons folded under one button
   // Activity filter -- the same buttons + remembered choice as View by day (e.g. Boxing / Kickboxing / Martial arts)
   const [sportSel, setSportSel] = useState(() => { try { return JSON.parse(localStorage.getItem('kc_wear_sports') || '[]') } catch { return [] } })
   const saveSel = next => { setSportSel(next); try { localStorage.setItem('kc_wear_sports', JSON.stringify(next)) } catch { /* ignore */ } }
@@ -74,6 +75,11 @@ export default function TeamWorkrate({ students = [], onOpen }) {
         {[4, 8, 12].map(w => <button key={w} type="button" className={weeks === w ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setWeeks(w)}>{w} wk</button>)}
       </div>
       {sports.length > 0 && (
+        <button type="button" className="btn btn-sm" onClick={() => setShowSports(v => !v)} style={{ marginBottom: 8 }} aria-expanded={showSports}>
+          🏷 Activities: {sportSel.length ? (sportSel.length > 2 ? `${sportSel.length} selected` : sportSel.join(', ')) : 'All'} {showSports ? '▲' : '▼'}
+        </button>
+      )}
+      {sports.length > 0 && showSports && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
           <button type="button" className={sportSel.length === 0 ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => saveSel([])}>All</button>
           {sports.map(sp => <button key={sp} type="button" className={sportSel.includes(sp) ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => toggleSport(sp)}>{sp === APP ? '❤️ ' + sp : sp}</button>)}
