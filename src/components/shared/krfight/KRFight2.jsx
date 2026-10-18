@@ -403,7 +403,7 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
             style={{ position: 'absolute', inset: 0, touchAction: 'none', pointerEvents: 'auto' }}>
             {gestureHint ? (
               <div style={{ position: 'absolute', left: '50%', top: '22%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.6)', color: '#C9CED6', fontSize: 12, fontWeight: 600, padding: '8px 12px', borderRadius: 10, textAlign: 'center', pointerEvents: 'none', maxWidth: 360 }}>
-                Left half = lead hand · right half = rear hand<br />Tap = straight · swipe across = hook · up = uppercut · down = body<br />Lower part = kicks · two fingers = block · » then a technique = combo<br />Left stick = footwork · right stick = guard (back = sway, down = low guard)
+                {playStyle === 'boxer2' ? <>Numbers: left hand tap 1 · across 3 · up 5 · down 7<br />Right hand tap 2 · across 4 · up 6 · down 8 · lower part = low (body)<br />Right stick: hold = shield · up = slip · down-back = roll · back twice = double step back<br />Left stick = footwork · » then a punch = combo</> : <>Left half = lead hand · right half = rear hand<br />Tap = straight · swipe across = hook · up = uppercut · down = body<br />Lower part = kicks · two fingers = block · » then a technique = combo<br />Left stick = footwork · right stick = guard (back = sway, down = low guard)</>}
               </div>
             ) : null}
           </div>

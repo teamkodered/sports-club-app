@@ -43,6 +43,14 @@ export const LIB = {
   spinkick: { s: 11, a: 4, r: 20, dmg: 15, reach: 96, h: 'high', push: 13, name: 'Spinning Kick' },
   lowkick: { s: 6, a: 3, r: 12, dmg: 9, reach: 78, h: 'low', push: 5, name: 'Low Kick' },
   knee: { s: 6, a: 4, r: 13, dmg: 13, reach: 50, h: 'mid', push: 9, name: 'Knee' },
+  // Boxer 2 number system: lead-hand versions and body ("low") versions
+  leadhook: { s: 7, a: 4, r: 14, dmg: 11, reach: 60, h: 'high', push: 9, name: 'Lead Hook' },
+  leadbodyhook: { s: 6, a: 3, r: 12, dmg: 9, reach: 56, h: 'mid', push: 7, name: 'Lead Body Hook' },
+  leaduppercut: { s: 7, a: 4, r: 14, dmg: 11, reach: 52, h: 'mid', push: 9, name: 'Lead Uppercut' },
+  leaduppercutlow: { s: 6, a: 3, r: 13, dmg: 10, reach: 52, h: 'mid', push: 8, name: 'Lead Uppercut (body)' },
+  uppercutlow: { s: 7, a: 4, r: 15, dmg: 12, reach: 52, h: 'mid', push: 9, name: 'Rear Uppercut (body)' },
+  leadoverhand: { s: 9, a: 4, r: 16, dmg: 12, reach: 62, h: 'high', push: 10, name: 'Lead Overhand' },
+  bodycross: { s: 5, a: 3, r: 12, dmg: 8, reach: 64, h: 'mid', push: 6, name: 'Body Cross' },
   clp: { s: 3, a: 3, r: 8, dmg: 4, reach: 60, h: 'mid', push: 3 },
   clk: { s: 5, a: 3, r: 12, dmg: 7, reach: 90, h: 'low', push: 6 },
   jk: { s: 3, a: 8, r: 4, dmg: 9, reach: 70, h: 'high', push: 6 },
@@ -134,7 +142,16 @@ export const FLOW_NEXT = {
   spinkick: ['jab', 'roundkick'],
   lowkick: ['hook', 'cross', 'lowkick', 'knee'],
   knee: ['hook', 'cross', 'knee'],
+  leadhook: ['cross', 'hook', 'uppercut', 'uppercutlow', 'bodycross'],
+  leadbodyhook: ['leadhook', 'cross', 'uppercut', 'hook'],
+  leaduppercut: ['cross', 'leadhook', 'hook'],
+  leaduppercutlow: ['leadhook', 'cross', 'hook'],
+  uppercutlow: ['leadhook', 'hook', 'leaduppercut'],
+  leadoverhand: ['cross', 'hook', 'uppercut'],
+  bodycross: ['leadhook', 'leadbodyhook', 'jab', 'hook'],
 }
+// the number system also flows: 1 into 2, 2 into 3, 3 into 6 and so on
+for (const [a, list] of [['jab', ['leadhook', 'bodycross']], ['cross', ['leadhook', 'leadbodyhook', 'leaduppercut']], ['hook', ['leadhook', 'leaduppercut']], ['uppercut', ['leadhook', 'leaduppercut']], ['bodyhook', ['leaduppercutlow', 'leadhook']]]) FLOW_NEXT[a] = [...FLOW_NEXT[a], ...list]
 export const FLOW_MAX = 10
 
 // a pillar fighter in a style: same colours / special / super, style's moves and stat changes, and the
@@ -345,3 +362,35 @@ export const isBoxerStyle = ps => ps === 'boxer' || ps === 'boxer2'
 export const getPlayStyle = () => { try { return localStorage.getItem('krfight-playstyle') || 'kr' } catch (e) { return 'kr' } }
 export const setPlayStyle = v => { try { localStorage.setItem('krfight-playstyle', v) } catch (e) { /* ignore */ } }
 export const SF_BUTTON = { lp: 'LP', mp: 'MP', hp: 'HP', lk: 'LK', mk: 'MK', hk: 'HK' }
+
+
+// ---- Boxer 2: the boxing number system ----
+// Boxing only: everyone throws the 8 numbered punches (+ low / body versions). Number keys: n1..n8, and n1l..n6l
+// for the low versions. lp..hk are kept for the CPU's usual buttons, now all boxing.
+export const NUM_KEYS = ['n1', 'n2', 'n3', 'n4', 'n5', 'n6', 'n7', 'n8', 'n1l', 'n2l', 'n3l', 'n4l', 'n5l', 'n6l']
+export const BOXER2_MOVES = {
+  n1: 'jab', n2: 'cross', n3: 'leadhook', n4: 'hook', n5: 'leaduppercut', n6: 'uppercut', n7: 'leadoverhand', n8: 'overhand',
+  n1l: 'bodyjab', n2l: 'bodycross', n3l: 'leadbodyhook', n4l: 'bodyhook', n5l: 'leaduppercutlow', n6l: 'uppercutlow',
+  lp: 'jab', mp: 'cross', hp: 'hook', lk: 'leadhook', mk: 'bodyhook', hk: 'uppercut',
+}
+export const NUM_LABEL = { n1: '1', n2: '2', n3: '3', n4: '4', n5: '5', n6: '6', n7: '7', n8: '8', n1l: '1 low', n2l: '2 low', n3l: '3 low', n4l: '4 low', n5l: '5 low', n6l: '6 low' }
+// combos written in numbers -- classic boxing plus Andre Ward-style sequences
+const n = (name, seq, bonus) => ({ id: 'bx2_' + name.replace(/[^a-z0-9]+/gi, '').toLowerCase(), name, seq, bonus, rarity: 'common', styles: ['all'] })
+export const BOXER2_COMBOS = [
+  n('1 - 2', ['n1', 'n2'], 1.4),
+  n('1 - 1 - 2', ['n1', 'n1', 'n2'], 1.6),
+  n('1 - 2 - 3', ['n1', 'n2', 'n3'], 1.7),
+  n('1 - 2 - 3 - 2', ['n1', 'n2', 'n3', 'n2'], 2.0),
+  n('3 - 6 - 3', ['n3', 'n6', 'n3'], 1.9),
+  n('6 - 3 - 6 - 3 - 6 low', ['n6', 'n3', 'n6', 'n3', 'n6l'], 2.4),
+  n('3 - 5 low', ['n3', 'n5l'], 1.6),
+  n('4 low - 5 low', ['n4l', 'n5l'], 1.7),
+  n('2 low - 3', ['n2l', 'n3'], 1.6),
+  n('Step back - 1 - 2', ['b', 'n1', 'n2'], 1.7),
+  n('1 - 3 - 2', ['n1', 'n3', 'n2'], 1.8),
+  n('5 - 2 - 3', ['n5', 'n2', 'n3'], 1.9),
+]
+// apply Boxer 2 to a fighter: boxing moves for every button, number-system combos
+export function boxer2Def(def) {
+  return { ...def, moves: { ...BOXER2_MOVES }, combos: BOXER2_COMBOS.map(c => ({ ...c, level: 1 })), boxer2: true }
+}

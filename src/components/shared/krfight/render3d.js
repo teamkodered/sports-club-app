@@ -342,7 +342,7 @@ export class Renderer3D {
   }
   rigFor(f) {
     let rig = this.rigs.get(f)
-    if (!rig && this.ready) { rig = new Rig(this.gltf, this.clips, f, f.def.colour, f.side === 'p2', f.skin); this.scene.add(rig.obj); this.rigs.set(f, rig) }
+    if (!rig && this.ready) { rig = new Rig(this.gltf, this.clips, f, f.def.colour, f.side === 'p2', f.skin); if (f.stance === 'southpaw') rig.obj.scale.z *= -1; this.scene.add(rig.obj); this.rigs.set(f, rig) } // southpaw: mirrored (right hand leads)
     return rig
   }
   // game events -> one-shot clips
@@ -407,7 +407,7 @@ export class Renderer3D {
     const air = f.y < FLOOR - 2, moving = Math.abs(f.vx) > 0.3
     if (f.state === 'ko') { /* Death01 holds */ }
     else if (air) rig.playLoop('Jump_Loop')
-    else if (f.crouch) rig.playLoop('Crouch_Idle_Loop')
+    else if (f.crouch || f.slipT > 0 || f.rollT > 0) rig.playLoop('Crouch_Idle_Loop') // slips and rolls dip the body
     else if (moving && !mv) { const want = Math.sign(f.vx) === dir ? 1.3 : -1.1; rig.walkSpeed = rig.walkSpeed == null ? want : rig.walkSpeed + (want - rig.walkSpeed) * Math.min(1, (this.dt || 1 / 60) * 10); rig.playLoop('Walk_Loop', rig.walkSpeed) }
     else rig.playLoop('Idle_Loop')
     for (const [bone, q, p] of rig.rest) { bone.quaternion.copy(q); bone.position.copy(p) }

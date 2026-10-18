@@ -40,6 +40,9 @@ export function targetPose(f, frame) {
     P.lhX = 8; P.lhY = shY + 22; P.rhX = -6; P.rhY = shY + 26
   }
   if (f.counterT > 0) { P.lhX = 22; P.lhY = shY - 12; P.rhX = 26; P.rhY = shY + 6; P.shX = 0; P.lean = -2 }
+  // Boxer 2 defence: slip = head off the line with a dip; shoulder roll = deeper dip, lead shoulder up, rear hand at the chin
+  if (f.slipT > 0) { const k = Math.sin(Math.PI * (1 - f.slipT / 15)); P.headX += (f.slipSide === 'rear' ? -12 : 8) * k; P.headY += 16 * k; P.shY += 12 * k; P.hipY += 7 * k; P.lean = (f.slipSide === 'rear' ? -10 : 8) * k; P.lhX = 14; P.lhY = shY - 6; P.rhX = 6; P.rhY = shY - 10 }
+  if (f.rollT > 0) { const k = Math.sin(Math.PI * (1 - f.rollT / 18)); P.headY += 22 * k; P.shY += 16 * k; P.hipY += 9 * k; P.headX -= 6 * k; P.lean = -8 * k; P.lhX = 18; P.lhY = shY + 10; P.rhX = 8; P.rhY = shY - 14 }
 
   const m = f.move
   if (m) {
@@ -48,7 +51,12 @@ export function targetPose(f, frame) {
     const wind = t < m.s ? ease(t / Math.max(1, m.s)) : 1
     const ext = t < m.s ? 0 : t < m.s + m.a ? 1 : Math.max(0, 1 - (t - m.s - m.a) / Math.max(1, m.r))
     const reach = m.reach || 70
-    switch (m.k) {
+    // Boxer 2 number system: lead-hand punches reuse the rear-hand motion on the lead hand, and the body
+    // ("low") versions drop the punch to body height with a dip
+    const BASE = { leadhook: 'hook', leadbodyhook: 'bodyhook', leaduppercut: 'uppercut', leaduppercutlow: 'uppercut', uppercutlow: 'uppercut', leadoverhand: 'overhand', bodycross: 'cross' }
+    const kind = BASE[m.k] || m.k
+    const isLead = m.k.startsWith('lead'), lowExtra = m.k === 'bodycross' || m.k === 'uppercutlow' || m.k === 'leaduppercutlow'
+    switch (kind) {
       case 'jab': case 'clp': case 'bodyjab': {
         const y = m.k === 'clp' ? shY + 14 : m.k === 'bodyjab' ? shY + 32 : shY + 4
         if (m.k === 'bodyjab') { const d = Math.max(wind, ext); P.hipY += 6 * d; P.shY += 10 * d; P.headY += 12 * d; P.shX += 4 * d }
@@ -176,6 +184,16 @@ export function targetPose(f, frame) {
         P.lhX = 30; P.lhY = shY + 30; P.rhX = -6; P.rhY = shY + 30
         break
       }
+    }
+    if (lowExtra) { // to the body: punching hand lower, knees bend
+      const d = Math.max(wind, ext)
+      P.hipY += 6 * d; P.shY += 10 * d; P.headY += 12 * d
+      if (kind === 'cross') P.rhY += 26 * ext; else P.rhY += 22 * ext
+    }
+    if (isLead) { // same motion thrown with the lead hand; the rear hand stays home guarding the chin
+      P.lhX = P.rhX + 8; P.lhY = P.rhY
+      P.rhX = 14; P.rhY = shY - 4
+      P.lean *= 0.6; P.rfX += 4 * ext
     }
   }
   return P

@@ -1,7 +1,7 @@
 // KR FIGHT 2 -- Phaser scenes: Boot (makes textures), Title, Select, Fight, Results.
 // The world is 800x450; cameras zoom x2 onto a 1600x900 canvas so everything stays crisp on phones.
 import Phaser from 'phaser'
-import { W, H, FLOOR, FIGHTERS, MOVES, SUPER_NAME, LEVELS, comboLabel, hex, getLook, setLook, LOOK_LEVELS, HOUSES, HOUSE_KEYS, getHouse, setHouse, fxColour, cpuHouse, NATURAL_HOUSE, STYLES, STYLE_KEYS, styledDef, loadSquad, saveSquad, MAX_TEAM, COMBO_BY_ID, combosForStyle, defaultLoadout, LOADOUT_SIZE, RARITY, FLOW_MAX, BRANCHES, TIER_XP, TIER_GEMS, applyBranch, seasonOf, CARDS, CARD_BY_ID, CARD_RARITY, CARD_RARITIES, SKINS, SKIN_BY_KEY, COMBO_LIB, getPlayStyle, SF_BUTTON, isBoxerStyle } from './data.js'
+import { W, H, FLOOR, FIGHTERS, MOVES, SUPER_NAME, LEVELS, comboLabel, hex, getLook, setLook, LOOK_LEVELS, HOUSES, HOUSE_KEYS, getHouse, setHouse, fxColour, cpuHouse, NATURAL_HOUSE, STYLES, STYLE_KEYS, styledDef, loadSquad, saveSquad, MAX_TEAM, COMBO_BY_ID, combosForStyle, defaultLoadout, LOADOUT_SIZE, RARITY, FLOW_MAX, BRANCHES, TIER_XP, TIER_GEMS, applyBranch, seasonOf, CARDS, CARD_BY_ID, CARD_RARITY, CARD_RARITIES, SKINS, SKIN_BY_KEY, COMBO_LIB, getPlayStyle, SF_BUTTON, isBoxerStyle, boxer2Def, NUM_LABEL, BOXER2_MOVES, NUM_KEYS } from './data.js'
 import { Match, makeFighter } from './core.js'
 import { makePose, stepPose, drawFighter, targetPose } from './pose.js'
 import { loadProgress, PILLARS, AREAS, AREA_GROUPS, costOf, MAX_LV, DAILY_GEMS, available, wild, priceFor, buyUpgrade, fighterLevel, levelOf, matchGems, awardGems, applyUpgrades, cpuUpgrades, resetTest, UNLIMITED, loadCollection, ownsCombo, rollComboDrop, addComboCard, COMBO_MAX_LV, rollCardDrop, recordMatch, saveDefence, loadOpponents, opponentLevel, rewardChoices, pvpResult, loadLeaderboard, PILLARS_BY_INDEX, ownsCard, cardsOwnedFor, skinUnlocked, branchOf, xpOf, nextTier, unlockTier, awardXp, isLocked, tokenAvailable, lockSquad, changeStyle, cpuBranch } from './progress.js'
@@ -254,6 +254,12 @@ export class SelectScene extends Phaser.Scene {
     const CPU_MODES = [['normal', 'CPU: Normal'], ['still', 'CPU: Still (practice)'], ['block', 'CPU: Block (practice)'], ['jab', 'CPU: Jab only (practice)']]
     this.cpuBtn = button(this, 436, 336, 216, 26, '', '#5BE0FF', () => { const i = CPU_MODES.findIndex(m => m[0] === cfg.cpuMode); cfg.cpuMode = CPU_MODES[(i + 1) % CPU_MODES.length][0]; this.refresh() }, { size: 14 })
     this.cpuModes = CPU_MODES
+    // Boxer 2: stance (orthodox = left hand leads, southpaw = right hand leads)
+    this.stanceBtn = button(this, 436, 300, 216, 26, '', '#F2F2F2', () => {
+      let st = 'orthodox'; try { st = localStorage.getItem('krfight-stance') || 'orthodox' } catch (e) { /* ignore */ }
+      try { localStorage.setItem('krfight-stance', st === 'orthodox' ? 'southpaw' : 'orthodox') } catch (e) { /* ignore */ }
+      this.refresh()
+    }, { size: 14 })
     this.lvlBtns = ['easy', 'medium', 'hard'].map((l, i) => button(this, 364 + i * 72, 404, 66, 40, l[0].toUpperCase() + l.slice(1), GOLD, () => { cfg.level = l; this.refresh() }, { size: 18 }))
     this.fightBtn = null
     button(this, 674, 348, 192, 30, 'Challenge players  ▸', '#5BE0FF', () => this.scene.start('Arena'), { size: 16 })
@@ -324,6 +330,11 @@ export class SelectScene extends Phaser.Scene {
     this.summary.setText(`Level ${fighterLevel(P, f.key)}  ·  ${brDef ? `${brDef.name} tier ${b.tier}` : `No branch yet (${xpOf(P, f.key)} style XP)`}  ·  ${def.combos.length} combos equipped`)
     this.viewBtn.label.setColor(f.colour)
     this.lvlBtns.forEach((b, i) => b.setOn(['easy', 'medium', 'hard'][i] === cfg.level))
+    if (this.stanceBtn) {
+      const b2 = ((bridge(this).playStyle && bridge(this).playStyle()) || getPlayStyle()) === 'boxer2'
+      let st = 'orthodox'; try { st = localStorage.getItem('krfight-stance') || 'orthodox' } catch (e) { /* ignore */ }
+      this.stanceBtn.setVisible(b2); this.stanceBtn.label.setText(`Stance: ${st === 'southpaw' ? 'Southpaw' : 'Orthodox'}  ▸`)
+    }
     if (this.cpuBtn) { this.cpuBtn.label.setText(this.cpuModes.find(m => m[0] === cfg.cpuMode)[1]); this.cpuBtn.setOn(cfg.cpuMode !== 'normal') }
     if (this.fightBtn) this.fightBtn.destroy()
     const lead = order.length ? FIGHTERS[order[0]].colour : '#5c6670'
@@ -392,9 +403,12 @@ export class FightScene extends Phaser.Scene {
       }
       return applyBranch(applyUpgrades(styledDef(FIGHTERS[x.p], x.style, mine ? x.loadout : null, mine ? coll(this).combos : {}), mine ? (P.upgrades || {})[key] : cpuUp), mine ? branchOf(P, key) : cpuBranch(x.style, data.level))
     })
-    this.m = new Match(defs(data.team1, true), defs(data.team2, false), data.level, data.opp ? 'normal' : (data.cpuMode || 'normal'), (bridge(this).playStyle && bridge(this).playStyle()) || getPlayStyle())
+    const psFight = (bridge(this).playStyle && bridge(this).playStyle()) || getPlayStyle()
+    const b2 = list => psFight === 'boxer2' ? list.map(boxer2Def) : list
+    this.m = new Match(b2(defs(data.team1, true)), b2(defs(data.team2, false)), data.level, data.opp ? 'normal' : (data.cpuMode || 'normal'), (bridge(this).playStyle && bridge(this).playStyle()) || getPlayStyle())
     for (const f of [...this.m.t1, ...this.m.t2]) f.theme = NATURAL_HOUSE[f.def.key]
     this.m.t1.forEach((f, i) => { f.skin = (data.team1 || [])[i]?.skin || 'standard' }) // your fighters' skins
+    { let st = 'orthodox'; try { st = localStorage.getItem('krfight-stance') || 'orthodox' } catch (e) { /* ignore */ } this.m.t1.forEach(f => { f.stance = st }) } // Boxer 2 stance
     this.tagReq = null
     this.poses = { p1: makePose(this.m.p1, 0), p2: makePose(this.m.p2, 0) }
     this.acc = 0; this.slow = 1; this.shakeT = null
@@ -562,6 +576,9 @@ export class FightScene extends Phaser.Scene {
         }
         case 'super': this.superCutIn(e.f, e.name); break
         case 'refill': this.popText(e.f.x, e.f.y - 210, 'HEALTH REFILLED', '#5BE0FF', 20); break
+        case 'evade': this.popText(e.f.x, e.f.y - 220, e.roll ? 'ROLL!' : 'SLIP!', '#5BE0FF', 24); sx.whoosh?.(false); break
+        case 'slipCounter': this.popText(e.f.x, e.f.y - 240, 'COUNTER!', '#F5C542', 26); this.shake(140, 5); break
+        case 'slip': case 'roll': case 'dash': sx.whoosh?.(false); break
         case 'guardBreak': this.popText(e.f.x, e.f.y - 210, 'GUARD BREAK!', '#FF8A1F', 28); this.ringAt(e.f.x, e.f.y - 90, 0xff8a1f, 1.3); this.shake(160, 6); sx.hit?.(true, false); break
         case 'flow': this.popText(e.f.x, e.f.y - 230, e.level >= FLOW_MAX ? 'FULL FLOW!' : `FLOW ×${e.level}`, '#5BE0FF', e.level >= FLOW_MAX ? 32 : 24); if (e.level >= FLOW_MAX) { this.ringAt(e.f.x, e.f.y - 80, 0x5be0ff, 1.4); sx.special?.() } break
         case 'secondWind': this.popText(e.f.x, e.f.y - 210, 'SECOND WIND!', '#5BE04A', 28); this.ringAt(e.f.x, e.f.y - 80, 0x5be04a, 1.2); sx.special?.(); break
@@ -647,6 +664,11 @@ export class FightScene extends Phaser.Scene {
   // Boxer play style: which of this fighter's buttons a gesture means (so it follows their fighting style)
   gestureToken(g) {
     const mv = (this.m.p1.def.moves) || {}, find = ids => Object.keys(mv).find(k => ids.includes(mv[k]))
+    if (this.m.playStyle === 'boxer2') { // number system: lead hand 1 / 3 / 5 / 7, rear hand 2 / 4 / 6 / 8; lower part = low (body)
+      const num = { L: { tap: 1, across: 3, up: 5, down: 7 }, R: { tap: 2, across: 4, up: 6, down: 8 } }[g.side][g.kind]
+      if (!num) return null
+      return 'n' + num + (g.low && num <= 6 ? 'l' : '')
+    }
     if (g.low) return g.kind === 'up' || g.kind === 'across' ? 'hk' : g.side === 'L' ? 'lk' : 'mk' // lower part of the screen: kicks
     if (g.kind === 'tap') return g.side === 'L' ? 'lp' : 'mp'
     if (g.kind === 'across') return find(['hook', 'overhand', 'elbow']) || 'hp'
@@ -658,8 +680,24 @@ export class FightScene extends Phaser.Scene {
     const b = bridge(this), inp = b.input || {}, pr = b.pressed || {}
     const c = { left: inp.left, right: inp.right, down: inp.down, upPressed: pr.up || !!inp.up, tag: pr.tag ? 'next' : this.tagReq, superPressed: pr.super, lpPressed: pr.lp, mpPressed: pr.mp, hpPressed: pr.hp, lkPressed: pr.lk, mkPressed: pr.mk, hkPressed: pr.hk, spPressed: pr.sp, block: !!inp.block }
     const m = this.m, f = m.p1
+    for (const k of NUM_KEYS) if (pr[k]) c[k + 'Pressed'] = true // number punches pressed directly (Boxer 2)
     // Boxer defence stick: held = guard; down = low guard; pull back = sway back out of range; push forward = lean in
-    if (inp.defHeld) {
+    if (inp.defHeld && m.playStyle === 'boxer2') {
+      // Boxer 2: up = slip (up-forward lead slip, up-back rear slip), down-back = shoulder roll, back = step back
+      // (pull back twice quickly = double step back), down = low guard, centre = shield
+      const fwd = f.facing > 0 ? 'right' : 'left', back = fwd === 'right' ? 'left' : 'right'
+      const sx = (inp.defX || 0) * (f.facing > 0 ? 1 : -1), dy = inp.defY || 0
+      const zone = dy < -0.55 ? (sx >= 0 ? 'slipL' : 'slipR') : dy > 0.5 && sx < -0.35 ? 'roll' : sx < -0.55 ? 'back' : dy > 0.5 ? 'low' : 'shield'
+      const prev = this.defZone; this.defZone = zone
+      if (zone === 'slipL' && prev !== zone) c.slip = 'lead'
+      else if (zone === 'slipR' && prev !== zone) c.slip = 'rear'
+      else if (zone === 'roll' && prev !== zone) c.roll = true
+      else if (zone === 'back') {
+        if (prev !== 'back') { if (m.frame - (this.lastBackAt || -999) < 22) c.dashBack = true; this.lastBackAt = m.frame }
+        c[back] = true
+      } else if (zone === 'low') { c.block = true; c.down = true }
+      else if (zone === 'shield') c.block = true
+    } else if (inp.defHeld) {
       const fwd = f.facing > 0 ? 'right' : 'left', back = fwd === 'right' ? 'left' : 'right'
       const sx = (inp.defX || 0) * (f.facing > 0 ? 1 : -1), dy = inp.defY || 0
       if (sx < -0.5) { c[back] = true; c.block = false }
@@ -698,6 +736,7 @@ export class FightScene extends Phaser.Scene {
       if (!this.autoSeq.length) this.autoSeq = null
     }
     if (f.state === 'ko' || f.stun > 0) this.autoSeq = null
+    if (!inp.defHeld) this.defZone = null
     for (const k in pr) pr[k] = false
     this.tagReq = null
     return c
@@ -752,6 +791,11 @@ export class FightScene extends Phaser.Scene {
 
   // which strike a combo step means for this fighter, and how to throw it
   stepLabel(def, t) {
+    if (NUM_LABEL[t]) { // Boxer 2: the number and the punch, plus the gesture
+      const id = BOXER2_MOVES[t], mv = MOVES[id], n = parseInt(t.slice(1), 10)
+      const how = `${n % 2 ? 'left' : 'right'} ${['', 'tap', 'tap', 'across', 'across', 'up', 'up', 'down', 'down'][n]}${t.endsWith('l') ? ' low' : ''}`
+      return { name: `${NUM_LABEL[t]} · ${(mv && mv.name ? mv.name : id).toUpperCase()}`, how }
+    }
     const DIR = { f: 'FORWARD', b: 'STEP BACK', d: 'DUCK', sp: 'SPECIAL', super: 'SUPER' }
     if (DIR[t]) return { name: DIR[t], how: '' }
     const id = (def.moves && def.moves[t]) || t, mv = MOVES[id]

@@ -1,7 +1,7 @@
 // KR FIGHT 2 -- the fight simulation. A straight port of the classic game's rules (same frame data,
 // blocking, combos, chain-stun, meter, CPU brain) with no drawing in it. It runs at a fixed 60 steps
 // a second and reports what happened as events, which the Phaser scene turns into sparks, sound, etc.
-import { W, FLOOR, GRAV, COMBO_GAP, MOVES, LEVELS, SUPER_NAME, LEVEL_SCALE, FLOW_NEXT, FLOW_MAX } from './data.js'
+import { NUM_KEYS, W, FLOOR, GRAV, COMBO_GAP, MOVES, LEVELS, SUPER_NAME, LEVEL_SCALE, FLOW_NEXT, FLOW_MAX } from './data.js'
 
 let pjId = 1
 const NEUTRAL = { punchDmg: 1, kickDmg: 1, heavyPunch: 1, heavyHold: 1, dmgTaken: 1, blockChip: 1, counters: 1, opener: 1, comboBonus: 1, comboGap: 0,
@@ -103,6 +103,8 @@ export class Match {
     for (const side of ['p1', 'p2']) if (this.tagCd[side] > 0) this.tagCd[side]--
     if (c1.tag != null) this.tryTag('p1', c1.tag)
     const c2 = this.aiControl(this.p2, this.p1)
+    // Boxer 2: the CPU slips some high punches too (more on harder levels)
+    if (this.playStyle === 'boxer2' && this.cpuMode === 'normal' && this.p1.move && this.p1.move.h === 'high' && this.p1.t === 1 && Math.random() < (this.lvl.block || 0.3) * 0.35) c2.slip = Math.random() < 0.5 ? 'lead' : 'rear'
     if (c2.tag) this.tryTag('p2', 'next')
     const p1 = this.p1, p2 = this.p2
     this.update(p1, p2, c1); this.update(p2, p1, c2)
@@ -188,10 +190,13 @@ export class Match {
       return true
     }
     // the fighter's style decides which strike this button throws
-    const lvl = LEVEL_SCALE[k[0]] || LEVEL_SCALE.l, isPunch = k[1] === 'p'
+    // Boxer 2: every button is a punch; numbers 1-2 light / medium, 3 and 5 medium, 4, 6, 7, 8 heavy
+    const b2 = this.playStyle === 'boxer2'
+    const NUM_LVL = { 1: 'l', 2: 'm', 3: 'm', 4: 'h', 5: 'm', 6: 'h', 7: 'h', 8: 'h' }
+    const lvl = (k[0] === 'n' ? LEVEL_SCALE[NUM_LVL[k[1]]] : LEVEL_SCALE[k[0]]) || LEVEL_SCALE.l, isPunch = b2 || k[1] === 'p'
     let key = (f.def.moves && f.def.moves[k]) || k
     if (!MOVES[key]) return
-    if (f.y < FLOOR) key = 'jk'
+    if (f.y < FLOOR) key = b2 ? key : 'jk' // no jump kicks in Boxer 2
     else if (f.crouch) key = isPunch ? 'clp' : 'clk'
     const m = MOVES[key], scaled = key === 'jk' || key === 'clp' || key === 'clk'
     const handPower = isPunch ? (f.def.punchPower || 1) : 1, md = M(f)
@@ -243,6 +248,10 @@ export class Match {
       return
     }
     if (h === 'high' && def.crouch && def.y >= FLOOR) return // ducked under
+    // slipped (high punches) or rolled (high + mid): the punch misses and opens a counter window
+    if ((def.slipT > 0 && h === 'high') || (def.rollT > 0 && h !== 'low')) {
+      def.counterWin = 30; this.emit({ type: 'evade', f: def, att, roll: def.rollT > 0, x: def.x, y: def.y - 120 }); return
+    }
     if (this.blocks(def, h)) {
       def.hp = Math.max(0, def.hp - dmg * 0.15 * M(def).dmgTaken * M(def).blockChip); def.vx = push * 0.6 * att.facing; def.stun = 8; def.blockStun = true
       // guard break: 5 blocked strikes in quick succession and the guard gives way
@@ -289,6 +298,7 @@ export class Match {
     def.chain = opening ? 0 : (def.chain || 0) + 1
     def.lastHitAt = this.frame
     dmg *= mdf.dmgTaken // Defence
+    if (att.counterWin > 0 && !special) { dmg *= 1.35; att.counterWin = 0; this.emit({ type: 'slipCounter', f: att }) } // punish the miss
     if (this.playStyle === 'boxer' || this.playStyle === 'boxer2') dmg *= 0.6 // Boxer play style: fights last longer
     def.hp = Math.max(0, def.hp - dmg)
     // Second wind: once a fight, a big heal when nearly out
@@ -310,19 +320,27 @@ export class Match {
     if (f.flow && this.frame - ((f.lastLand && f.lastLand.at) || -999) > 90) f.flow = 0 // flow fades if you stop
     if (M(f).regen && f.hp > 0 && f.state !== 'ko' && this.phase === 'fight' && this.frame - (f.lastHitAt || -999) > 120) f.hp = Math.min(f.maxHp, f.hp + M(f).regen) // Health
     if (f.state === 'ko') f.koT++
+    for (const k of ['slipT', 'rollT', 'dashT', 'defCd', 'counterWin']) if (f[k] > 0) f[k]--
     f.facing = o.x > f.x ? 1 : -1
     const grounded = f.y >= FLOOR
     if (f.state === 'ko') { f.vx *= 0.9 }
     else if (f.stun > 0) { f.stun--; f.vx *= 0.85; f.blocking = !!f.blockStun; if (f.stun === 0) f.blockStun = false } // the guard stays up through block stun
     else {
       const back = f.facing === 1 ? ctl.left : ctl.right, fwd = f.facing === 1 ? ctl.right : ctl.left
+      // Boxer 2 defence: slip (head off line -- high punches miss), shoulder roll (rolls off high + mid), double
+      // step back (quick retreat). A punch that misses because of a slip or roll opens a counter window.
+      if (grounded && !f.move && (f.defCd || 0) <= 0) {
+        if (ctl.slip) { f.slipT = 15; f.slipSide = ctl.slip; f.defCd = 26; this.emit({ type: 'slip', f }) }
+        else if (ctl.roll) { f.rollT = 18; f.defCd = 30; this.emit({ type: 'roll', f }) }
+        else if (ctl.dashBack) { f.vx = -9.5 * f.facing; f.dashT = 10; f.defCd = 24; this.emit({ type: 'dash', f }) }
+      }
       f.crouch = grounded && !!ctl.down
       const oAttacking = !!o.move && o.move.dmg > 0
       // Block button: guard whenever held (stands still; with down = low guard). Holding back still blocks attacks.
       f.blocking = grounded && !f.move && (!!ctl.block || (!!back && (oAttacking || this.projectiles.some(p => p.owner === o))))
       if (!f.move) {
         if (grounded) {
-          f.vx = f.crouch || ctl.block ? 0 : fwd ? f.def.speed * M(f).walk * f.facing : back ? -f.def.speed * 0.75 * M(f).backWalk * f.facing : 0
+          if (f.dashT > 0) f.vx *= 0.9; else f.vx = f.crouch || ctl.block ? 0 : fwd ? f.def.speed * M(f).walk * f.facing : back ? -f.def.speed * 0.75 * M(f).backWalk * f.facing : 0
           if (ctl.upPressed && !f.crouch) { const j = M(f).jump; f.vy = -16 * Math.sqrt(j); f.vx = (fwd ? 4.5 : back ? -4.5 : 0) * j * f.facing; this.emit({ type: 'jump', f }) }
         }
         f.state = !grounded ? 'jump' : f.vx !== 0 ? 'walk' : 'idle'
@@ -332,7 +350,7 @@ export class Match {
       for (const t of ['f', 'b', 'd']) if (dirNow[t] && !f.prevDir[t]) f.buf.push({ t, at: this.frame })
       f.prevDir = dirNow
       let pressedNow = false
-      for (const k0 of ['lp', 'mp', 'hp', 'lk', 'mk', 'hk', 'sp', 'super']) if (ctl[k0 + 'Pressed']) {
+      for (const k0 of this.playStyle === 'boxer2' ? ['lp', 'mp', 'hp', 'lk', 'mk', 'hk', 'sp', 'super', ...NUM_KEYS] : ['lp', 'mp', 'hp', 'lk', 'mk', 'hk', 'sp', 'super']) if (ctl[k0 + 'Pressed']) {
         let k = k0
         if (this.playStyle === 'sf' && f.side === 'p1' && (k0 === 'lp' || k0 === 'mp' || k0 === 'hp')) { const mo = this.motion(f); if (mo) k = mo }
         pressedNow = true
