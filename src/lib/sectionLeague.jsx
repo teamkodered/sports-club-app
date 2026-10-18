@@ -40,10 +40,10 @@ export function useSectionLeague(studentId) {
 
 const ord = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][n % 100] || 'th')
 // small badge after a section title: "3rd · 24"
-export function LeaguePos({ p }) {
+export function LeaguePos({ p, big }) {
   if (!p) return null
   return (
-    <span className="neon-league-pos" title={`League: ${ord(p.rank)} of ${p.of} · ${p.score} done`}>
+    <span className={big ? 'neon-league-pos neon-league-big' : 'neon-league-pos'} title={`League: ${ord(p.rank)} of ${p.of} · ${p.score} done`}>
       <span className="neon-league-rank">{ord(p.rank)}</span><span className="neon-league-score">{p.score}</span>
     </span>
   )

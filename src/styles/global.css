@@ -1290,3 +1290,17 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .neon-league-pos { display: inline-flex; align-items: baseline; gap: 4px; margin-left: 4px; font-family: 'Orbitron', sans-serif; letter-spacing: 0; }
 .neon-league-rank { font-size: 0.5em; font-weight: 800; }
 .neon-league-score { font-size: 0.38em; opacity: 0.75; }
+/* League place in the corner where the artwork used to be: big place, score under it */
+.neon-home .neon-league-big { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 2px; margin: 0; line-height: 1; z-index: 1; pointer-events: none; }
+.neon-home .neon-league-big .neon-league-rank { font-size: 40px; font-weight: 800; }
+.neon-home .neon-league-big .neon-league-score { font-size: 13px; opacity: 0.8; }
+.neon-home .neon-tl .neon-league-big { right: 16px; bottom: 16px; }
+.neon-home .neon-tr .neon-league-big { left: 16px; bottom: 16px; }
+.neon-home .neon-bl .neon-league-big { right: 16px; top: 16px; }
+.neon-home .neon-br .neon-league-big { left: 16px; top: 16px; }
+.neon-home .neon-bottom .neon-league-big { right: 18px; top: 50%; transform: translateY(-50%); }
+/* section headers bigger: image + title fill the first line */
+.neon-home .neon-pillar { container-type: inline-size; }
+/* sized to the card so image + title fill the first line without running over the edge */
+.neon-home .neon-pillar [style*="Anton"] { font-size: clamp(16px, calc((100cqw - 70px) / 6.2), 34px) !important; white-space: nowrap; }
+.neon-home .neon-pillar [style*="Anton"] .neon-pillar-icon { height: 1.2em !important; }
