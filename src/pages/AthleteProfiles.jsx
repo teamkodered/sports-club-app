@@ -3348,6 +3348,13 @@ export default function AthleteProfiles() {
   const [guidedFor, setGuidedFor] = useState(null) // { field, type } -- guided meditation / visualisation session
   const [bwVideoTick, setBwVideoTick] = useState(0) // re-mounts bodyweight set inputs after a video count / time is added
   const [circuitPicking, setCircuitPicking] = useState(false) // Fixed load circuit: Record -> pick colour
+  // Pillar cards: with one open, pressing a different card just closes the open one; the next press opens it
+  const pillarGuard = key => {
+    const open = { physical: showPhysicalSection, technique: showTechniqueSection, tactical: showTacticalSection, mentality: showMentalitySection, wellbeing: showWellbeingSection }
+    if (!Object.entries(open).some(([k, v]) => v && k !== key)) return false
+    setShowPhysicalSection(false); setShowTechniqueSection(false); setShowTacticalSection(false); setShowMentalitySection(false); setShowWellbeingSection(false)
+    return true
+  }
   const [videoTool, setVideoTool] = useState(null) // { mode: 'jump'|'sprint', distance, onSave, label }
   const [runEffortSel, setRunEffortSel] = useState({}) // running: which effort is being edited, per type ('__new__' = a new one)
   const [showPhysicalSection, setShowPhysicalSection] = useState(false)
@@ -9925,7 +9932,7 @@ export default function AthleteProfiles() {
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, alignItems: 'start', width: '100%' }}>
                   <div ref={physicalSectionRef} className={showPhysicalSection ? 'neon-opens-up' : undefined} style={{ order: showPhysicalSection ? 11 : 4, display: 'flex', flexDirection: 'column-reverse', alignItems: 'center', minWidth: 0, gridColumn: showPhysicalSection ? '1 / -1' : (showTechniqueSection ? '2' : 'auto') }}>
-                  <button type="button" className={`neon-pillar neon-br${showPhysicalSection ? ' is-open' : ''}`} onClick={togglePhysicalSection} style={showPhysicalSection ? {
+                  <button type="button" className={`neon-pillar neon-br${showPhysicalSection ? ' is-open' : ''}`} onClick={e => { if (pillarGuard('physical')) return; togglePhysicalSection(e) }} style={showPhysicalSection ? {
                     width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
                     textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
@@ -9938,6 +9945,7 @@ export default function AthleteProfiles() {
                       <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showPhysicalSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#EF9F27' }}><img src="/logos/neon/physical.png" alt="" className="neon-pillar-icon" /><span className="neon-title-text">PHYSICAL</span>{showPhysicalSection && HeaderViewPill({ view: { sectionKey: 'physical', label: 'Physical', colour: '#E6B800' } })}<LeaguePos big p={sectionLeague.physical} /></span>
                     </div>
                     {showPhysicalSection && WeekCompletionGraph({ sectionKey: 'physical', colour: '#E6B800', embedded: true })}
+                    {showPhysicalSection && <LeaguePos big open p={sectionLeague.physical} />}
                     <CoachSectionProgressBars sectionKey="physical" ropes="br" />
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showPhysicalSection ? '▲' : '▼'}</span>
                   </button>
@@ -10299,7 +10307,7 @@ export default function AthleteProfiles() {
                   </div>
 
                   <div ref={techniqueSectionRef} className={showTechniqueSection ? 'neon-opens-up' : undefined} style={{ order: showTechniqueSection ? 10 : 3, display: 'flex', flexDirection: 'column-reverse', alignItems: 'center', minWidth: 0, gridColumn: showTechniqueSection ? '1 / -1' : 'auto' }}>
-                  <button type="button" className={`neon-pillar neon-bl${showTechniqueSection ? ' is-open' : ''}`} onClick={() => { setShowTechniqueSection(v => { if (!v) setTimeout(() => techniqueSectionRef.current?.firstElementChild?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 380); if (v) setExpandedTechniqueCategory(null); return !v }) }} style={showTechniqueSection ? {
+                  <button type="button" className={`neon-pillar neon-bl${showTechniqueSection ? ' is-open' : ''}`} onClick={() => { if (pillarGuard('technique')) return; setShowTechniqueSection(v => { if (!v) setTimeout(() => techniqueSectionRef.current?.firstElementChild?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 380); if (v) setExpandedTechniqueCategory(null); return !v }) }} style={showTechniqueSection ? {
                     width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
                     textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
@@ -10312,6 +10320,7 @@ export default function AthleteProfiles() {
                       <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showTechniqueSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#378ADD' }}><img src="/logos/neon/technical.png" alt="" className="neon-pillar-icon" /><span className="neon-title-text">TECHNICAL</span>{showTechniqueSection && HeaderViewPill({ view: { sectionKey: 'technique', label: 'Technical', colour: '#2F6BFF' } })}<LeaguePos big p={sectionLeague.technical} /></span>
                     </div>
                     {showTechniqueSection && WeekCompletionGraph({ sectionKey: 'technique', colour: '#2F6BFF', embedded: true })}
+                    {showTechniqueSection && <LeaguePos big open p={sectionLeague.technical} />}
                     <CoachSectionProgressBars sectionKey="technique" ropes="bl" />
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showTechniqueSection ? '▲' : '▼'}</span>
                   </button>
@@ -10379,7 +10388,7 @@ export default function AthleteProfiles() {
                   </div>
 
                   <div ref={tacticalSectionRef} style={{ order: showTacticalSection ? 0 : 2, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showTacticalSection ? '1 / -1' : (showMentalitySection ? '2' : 'auto') }}>
-                  <button type="button" className={`neon-pillar neon-tr${showTacticalSection ? ' is-open' : ''}`} onClick={() => { setShowTacticalSection(v => { if (!v) setTimeout(() => tacticalSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150); if (v) setExpandedTacticalCategory(null); return !v }) }} style={showTacticalSection ? {
+                  <button type="button" className={`neon-pillar neon-tr${showTacticalSection ? ' is-open' : ''}`} onClick={() => { if (pillarGuard('tactical')) return; setShowTacticalSection(v => { if (!v) setTimeout(() => tacticalSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150); if (v) setExpandedTacticalCategory(null); return !v }) }} style={showTacticalSection ? {
                     width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
                     textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
@@ -10392,6 +10401,7 @@ export default function AthleteProfiles() {
                       <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showTacticalSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#E24B4A' }}><img src="/logos/neon/tactical.png" alt="" className="neon-pillar-icon" /><span className="neon-title-text">TACTICAL</span>{showTacticalSection && HeaderViewPill({ view: { sectionKey: 'tactical', label: 'Tactical', colour: '#FF2A2A' } })}<LeaguePos big p={sectionLeague.tactical} /></span>
                     </div>
                     {showTacticalSection && WeekCompletionGraph({ sectionKey: 'tactical', colour: '#FF2A2A', embedded: true })}
+                    {showTacticalSection && <LeaguePos big open p={sectionLeague.tactical} />}
                     <CoachSectionProgressBars sectionKey="tactical" ropes="tr" />
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showTacticalSection ? '▲' : '▼'}</span>
                   </button>
@@ -10466,7 +10476,7 @@ export default function AthleteProfiles() {
                   </div>
 
                   <div ref={mentalitySectionRef} style={{ order: showMentalitySection ? 0 : 1, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, gridColumn: showMentalitySection ? '1 / -1' : 'auto' }}>
-                  <button type="button" className={`neon-pillar neon-tl${showMentalitySection ? ' is-open' : ''}`} onClick={() => { setShowMentalitySection(v => { if (!v) setTimeout(() => mentalitySectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150); if (v) setExpandedHomeMentality(null); return !v }) }} style={showMentalitySection ? {
+                  <button type="button" className={`neon-pillar neon-tl${showMentalitySection ? ' is-open' : ''}`} onClick={() => { if (pillarGuard('mentality')) return; setShowMentalitySection(v => { if (!v) setTimeout(() => mentalitySectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150); if (v) setExpandedHomeMentality(null); return !v }) }} style={showMentalitySection ? {
                     width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
                     textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
@@ -10479,6 +10489,7 @@ export default function AthleteProfiles() {
                       <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showMentalitySection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#8B5CF6' }}><img src="/logos/neon/mentality.png" alt="" className="neon-pillar-icon" /><span className="neon-title-text">MENTALITY</span>{showMentalitySection && HeaderViewPill({ view: { sectionKey: 'mentality', label: 'Mentality', colour: '#22B14C' } })}<LeaguePos big p={sectionLeague.mentality} /></span>
                     </div>
                     {showMentalitySection && WeekCompletionGraph({ sectionKey: 'mentality', colour: '#22B14C', embedded: true })}
+                    {showMentalitySection && <LeaguePos big open p={sectionLeague.mentality} />}
                     <CoachSectionProgressBars sectionKey="mentality" ropes="tl" />
                     <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 11, color: 'var(--text-tertiary)' }}>{showMentalitySection ? '▲' : '▼'}</span>
                   </button>
@@ -10781,7 +10792,7 @@ export default function AthleteProfiles() {
                   })()}
 
                   <div ref={wellbeingSectionRef} className="neon-foundation-wrap" style={{ display: 'flex', flexDirection: 'column-reverse' }}>{/* Foundation opens UPWARDS: questions render above the header */}
-                  <button type="button" className={`neon-pillar neon-bottom${showWellbeingSection ? ' is-open' : ''}`} onClick={() => { setShowWellbeingSection(v => { if (!v) setTimeout(() => wellbeingSectionRef.current?.firstElementChild?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 380); if (v) setExpandedHomeWb(null); return !v }) }} style={{
+                  <button type="button" className={`neon-pillar neon-bottom${showWellbeingSection ? ' is-open' : ''}`} onClick={() => { if (pillarGuard('wellbeing')) return; setShowWellbeingSection(v => { if (!v) setTimeout(() => wellbeingSectionRef.current?.firstElementChild?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 380); if (v) setExpandedHomeWb(null); return !v }) }} style={{
                     width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 12,
                     textAlign: 'center', padding: '18px 14px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',

@@ -1301,3 +1301,12 @@ tbody tr:hover td { background: var(--bg-secondary); }
 /* sized to the card so image + title fill the first line without running over the edge */
 .neon-home .neon-pillar [style*="Anton"] { font-size: clamp(16px, calc((100cqw - 70px) / 6.2), 34px) !important; white-space: nowrap; }
 .neon-home .neon-pillar [style*="Anton"] .neon-pillar-icon { height: 1.2em !important; }
+
+/* open section: the place moves out of the title to the free side of the week graph */
+.neon-home .neon-pillar.is-open [style*="Anton"] .neon-league-big { display: none; }
+.neon-home .neon-pillar.is-open > .neon-league-open { display: flex; position: absolute; flex-basis: auto; font-family: 'Orbitron', sans-serif; font-size: clamp(22px, 7vw, 34px); width: calc(36% - 20px); justify-content: center; }
+.neon-home .neon-pillar.is-open.neon-tl > .neon-league-open { right: 46px; top: 96px; }
+.neon-home .neon-pillar.is-open.neon-tr > .neon-league-open { left: 46px; top: 96px; }
+.neon-home .neon-pillar.is-open.neon-bl > .neon-league-open { right: 46px; bottom: 96px; }
+.neon-home .neon-pillar.is-open.neon-br > .neon-league-open { left: 46px; bottom: 96px; }
+.neon-home .neon-pillar:not(.is-open) > .neon-league-open { display: none; }

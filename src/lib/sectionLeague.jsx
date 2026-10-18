@@ -40,11 +40,12 @@ export function useSectionLeague(studentId) {
 
 const ord = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][n % 100] || 'th')
 // small badge after a section title: "3rd · 24"
-export function LeaguePos({ p, big }) {
-  if (!p) return null
+export function LeaguePos({ p, big, open }) {
+  // no entries yet this period: show a dash so the place is still there
+  if (!p) p = { rank: null, score: 0, of: 0 }
   return (
-    <span className={big ? 'neon-league-pos neon-league-big' : 'neon-league-pos'} title={`League: ${ord(p.rank)} of ${p.of} · ${p.score} done`}>
-      <span className="neon-league-rank">{ord(p.rank)}</span><span className="neon-league-score">{p.score}</span>
+    <span className={(big ? 'neon-league-pos neon-league-big' : 'neon-league-pos') + (open ? ' neon-league-open' : '')} title={p.rank ? `League: ${ord(p.rank)} of ${p.of} · ${p.score} done` : 'Nothing logged in this section yet this league period'}>
+      <span className="neon-league-rank">{p.rank ? ord(p.rank) : '–'}</span>
     </span>
   )
 }
