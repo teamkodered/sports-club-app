@@ -19,6 +19,12 @@ export const TEST_CATEGORIES = [
   { key: 'vo2max', label: 'VO2 Max', icon: '🫁', tests: [
     { name: 'VO2 Max', unit: 'ml/kg/min' },
   ]},
+  { key: 'heart', label: 'Heart rate', icon: '❤️', tests: [
+    // drop in heart rate in the first minute after hard effort (bigger = fitter)
+    { name: 'Heart Rate Recovery (1 min)', unit: 'bpm' },
+    // heart rate at which effort turns anaerobic (from a step / ramp test or wearable)
+    { name: 'Anaerobic Threshold', unit: 'bpm' },
+  ]},
   { key: 'grip', label: 'Grip', icon: '✊', tests: [
     { name: 'Left Grip Test (kg)', unit: 'kg' },
     { name: 'Right Grip Test (kg)', unit: 'kg' },

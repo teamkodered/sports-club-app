@@ -6,6 +6,7 @@ import { TestSessionModal, TestBatchModal } from '../components/shared/TestSessi
 import OtherSessions from '../components/shared/OtherSessions.jsx'
 import { matchClass, workoutDate, workoutRange, fmtTime } from '../lib/sessionMatch.js'
 import { supabase } from '../lib/supabase.js'
+import AthleteWorkrate from '../components/shared/AthleteWorkrate.jsx'
 import { useSectionLeague, LeaguePos } from '../lib/sectionLeague.jsx'
 import { NoteText, DoneTick, doneCardStyle, isCompletedPdp } from '../components/shared/NoteBits.jsx'
 import { DailyCharts, WorkoutCard, hrSessionAsWorkout } from '../components/shared/WearableCharts.jsx'
@@ -1696,6 +1697,7 @@ export default function AthleteApp() {
   // heart rate sessions recorded in the app (live reader / Android recorder) -- shown with the wearable workouts
   const [appHrSessions, setAppHrSessions] = useState([])
   useEffect(() => { const id = student?.id; if (!id) { setAppHrSessions([]); return } supabase.from('hr_sessions').select('*').eq('student_id', id).order('created_at', { ascending: false }).limit(20).then(({ data }) => setAppHrSessions((data || []).map(hrSessionAsWorkout)), () => {}) }, [student?.id])
+  const [wearSettingsOpen, setWearSettingsOpen] = useState(false) // Wearables: connections behind the ⚙
   const [videoTool, setVideoTool] = useState(null) // { mode: 'jump'|'sprint', distance, onSave, label }
   const [runEffortSel, setRunEffortSel] = useState({}) // running: which effort is being edited, per type ('__new__' = a new one)
   const [showPhysicalSection, setShowPhysicalSection] = useState(false)
@@ -5082,6 +5084,14 @@ export default function AthleteApp() {
                   const latest = [...sessions].sort((a, b) => new Date(b.session_date) - new Date(a.session_date)).find(s => s.test?.['VO2 Max'] != null)
                   return latest ? `${latest.test['VO2 Max']} ml/kg/min` : '—'
                 })()],
+                ['HR recovery', (() => {
+                  const latest = [...sessions].sort((a, b) => new Date(b.session_date) - new Date(a.session_date)).find(s => s.test?.['Heart Rate Recovery (1 min)'] != null)
+                  return latest ? `${latest.test['Heart Rate Recovery (1 min)']} bpm` : '—'
+                })()],
+                ['Anaerobic threshold', (() => {
+                  const latest = [...sessions].sort((a, b) => new Date(b.session_date) - new Date(a.session_date)).find(s => s.test?.['Anaerobic Threshold'] != null)
+                  return latest ? `${latest.test['Anaerobic Threshold']} bpm` : '—'
+                })()],
                 ['Groups', [student.is_kr && 'KR', student.is_pts && 'PTs', student.is_leader && 'Leader', student.is_coach && 'Coach'].filter(Boolean).join(', ') || 'None'],
               ].map(([label, val, target], i, arr) => {
                 const isWeightRow = label === 'Weight'
@@ -8037,8 +8047,14 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
             onSave={async hr => { await saveHrSession(hr); alert('Saved to today as an Other session.') }} />
           <LiveHrTable title="❤️ Live in the gym" />
 
-          {/* Connected devices + connect buttons, one card per provider */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+          {/* Connections (Whoop, Polar, Health Connect…) live behind the ⚙ */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, margin: '-4px 0 10px' }}>
+            <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{(wearableConnections || []).length ? `${(wearableConnections || []).length} connected` : 'Nothing connected'}</span>
+            <button type="button" className="btn btn-sm" onClick={() => setWearSettingsOpen(v => !v)} title="Wearable connections" aria-expanded={wearSettingsOpen}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+            </button>
+          </div>
+          <div style={{ display: wearSettingsOpen ? 'flex' : 'none', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
             {enabledProviders().map(p => {
               const conn = wearableConnections.find(c => c.provider === p.key)
               return (
@@ -8162,8 +8178,9 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
           {wearableConnections.length > 0 && (
             <>
               {/* Daily: sleep / recovery / resting HR / steps */}
+              <AthleteWorkrate studentId={student?.id} maxHr={liveMaxHr} />
               {wearableDaily.length > 0 && (
-                <DailyCharts daily={wearableDaily}>
+<DailyCharts daily={wearableDaily}>
 <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
                       <thead>

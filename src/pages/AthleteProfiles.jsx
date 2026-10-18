@@ -5,6 +5,7 @@ import { TestSessionModal, TestBatchModal } from '../components/shared/TestSessi
 import OtherSessions from '../components/shared/OtherSessions.jsx'
 import SessionFootage from '../components/shared/SessionFootage.jsx'
 import { supabase } from '../lib/supabase.js'
+import AthleteWorkrate from '../components/shared/AthleteWorkrate.jsx'
 import { useSectionLeague, LeaguePos } from '../lib/sectionLeague.jsx'
 import { NoteText, DoneTick, doneCardStyle, isCompletedPdp } from '../components/shared/NoteBits.jsx'
 import { DailyCharts, WorkoutCard, hrSessionAsWorkout } from '../components/shared/WearableCharts.jsx'
@@ -9484,6 +9485,10 @@ export default function AthleteProfiles() {
                           </div>
                         ) : (latestValue != null ? `${latestValue} ml/kg/min` : '—')
                       } },
+                      ...[['HR recovery', 'Heart Rate Recovery (1 min)'], ['Anaerobic threshold', 'Anaerobic Threshold']].map(([label, test]) => ({ label, render: () => {
+                        const latest = [...f2fData].sort((a, b) => new Date(b.session_date) - new Date(a.session_date)).find(s => s.test?.[test] != null)
+                        return latest ? <span>{latest.test[test]} bpm <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{new Date(latest.session_date).toLocaleDateString('en-GB')}</span></span> : '—'
+                      } })),
                       { label: 'Groups', editable: true, render: () => isAdmin ? (
                         <div style={{ display: 'flex', gap: 3 }}>
                           {[
@@ -13177,8 +13182,9 @@ export default function AthleteProfiles() {
                     <div className="card" style={{ marginBottom: 12 }}>
                       <span style={{ fontSize: 13, fontWeight: 600, color: '#1D9E75' }}>✓ Connected: {(Array.isArray(whoopConnection) ? whoopConnection : []).map(c => providerLabel(c.provider)).join(', ')}</span>
                     </div>
+                    <AthleteWorkrate studentId={selected?.id} maxHr={(() => { const d = selected?.members?.date_of_birth; if (!d) return 190; const b = new Date(d), n = new Date(); return Math.max(150, 220 - (n.getFullYear() - b.getFullYear() - ((n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) ? 1 : 0))) })()} />
                     {wearableDaily.length > 0 && (
-                      <DailyCharts daily={wearableDaily}>
+<DailyCharts daily={wearableDaily}>
 <div style={{ overflowX: 'auto' }}>
                           <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
                             <thead>
