@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase.js'
 // rate as % of each athlete's max (from wearable workouts + heart rate sessions recorded
 // in the app). Team average line, tap athletes to compare their own lines.
 const COLS = ['#EF9F27', '#1D9E75', '#C93BFF', '#E24B4A']
+const APP = 'Recorded in app' // heart rate sessions recorded in Klass Champ (class check-in or started by hand)
 const maxHrOf = s => { const d = s?.members?.date_of_birth; if (!d) return 190; const b = new Date(d), n = new Date(); return Math.max(150, 220 - (n.getFullYear() - b.getFullYear() - ((n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) ? 1 : 0))) }
 const iso = d => d.toISOString().split('T')[0]
 
@@ -13,6 +14,12 @@ export default function TeamWorkrate({ students = [], onOpen }) {
   const [rows, setRows] = useState(null) // { student_id, date, pct, strain }
   const [picked, setPicked] = useState([])
   const [openSid, setOpenSid] = useState(null) // athlete quick view (slide down)
+  // Activity filter -- the same buttons + remembered choice as View by day (e.g. Boxing / Kickboxing / Martial arts)
+  const [sportSel, setSportSel] = useState(() => { try { return JSON.parse(localStorage.getItem('kc_wear_sports') || '[]') } catch { return [] } })
+  const saveSel = next => { setSportSel(next); try { localStorage.setItem('kc_wear_sports', JSON.stringify(next)) } catch { /* ignore */ } }
+  const toggleSport = sp => saveSel(sportSel.includes(sp) ? sportSel.filter(x => x !== sp) : [...sportSel, sp])
+  const sports = useMemo(() => [...new Set([...(rows || []).map(r => r.sport), ...sportSel])].sort((a, b) => (a === APP) - (b === APP) || a.localeCompare(b)), [rows, sportSel])
+  const shown = useMemo(() => rows && (sportSel.length ? rows.filter(r => sportSel.includes(r.sport)) : rows), [rows, sportSel])
   const byId = useMemo(() => Object.fromEntries(students.map(s => [s.id, s])), [students])
 
   useEffect(() => {
@@ -25,11 +32,11 @@ export default function TeamWorkrate({ students = [], onOpen }) {
       for (let i = 0; i < ids.length; i += 150) {
         const part = ids.slice(i, i + 150)
         const [{ data: w }, { data: h }] = await Promise.all([
-          supabase.from('wearable_workouts').select('student_id, start_time, avg_heart_rate, strain').in('student_id', part).gte('start_time', from.toISOString()),
+          supabase.from('wearable_workouts').select('student_id, start_time, avg_heart_rate, strain, sport_name').in('student_id', part).gte('start_time', from.toISOString()),
           supabase.from('hr_sessions').select('student_id, session_date, avg_hr').in('student_id', part).gte('session_date', iso(from)),
         ])
-        for (const r of w || []) if (r.avg_heart_rate) out.push({ student_id: r.student_id, date: iso(new Date(r.start_time)), pct: r.avg_heart_rate * 100 / maxHrOf(byId[r.student_id]), strain: r.strain })
-        for (const r of h || []) if (r.avg_hr) out.push({ student_id: r.student_id, date: r.session_date, pct: r.avg_hr * 100 / maxHrOf(byId[r.student_id]), strain: null })
+        for (const r of w || []) if (r.avg_heart_rate) out.push({ student_id: r.student_id, date: iso(new Date(r.start_time)), pct: r.avg_heart_rate * 100 / maxHrOf(byId[r.student_id]), strain: r.strain, sport: (r.sport_name || 'Other').trim() })
+        for (const r of h || []) if (r.avg_hr) out.push({ student_id: r.student_id, date: r.session_date, pct: r.avg_hr * 100 / maxHrOf(byId[r.student_id]), strain: null, sport: APP })
       }
       if (!stop) setRows(out)
     })().catch(() => !stop && setRows([]))
@@ -38,19 +45,19 @@ export default function TeamWorkrate({ students = [], onOpen }) {
 
   // one point per athlete per day (their average that day), team = average of athletes that day
   const { dates, team, per, table } = useMemo(() => {
-    if (!rows) return { dates: [], team: {}, per: {}, table: [] }
+    if (!shown) return { dates: [], team: {}, per: {}, table: [] }
     const per = {}
-    for (const r of rows) { ((per[r.student_id] ||= {})[r.date] ||= []).push(r) }
+    for (const r of shown) { ((per[r.student_id] ||= {})[r.date] ||= []).push(r) }
     const perAvg = {}
     for (const [sid, days] of Object.entries(per)) perAvg[sid] = Object.fromEntries(Object.entries(days).map(([d, list]) => [d, list.reduce((a, b) => a + b.pct, 0) / list.length]))
-    const dates = [...new Set(rows.map(r => r.date))].sort()
+    const dates = [...new Set(shown.map(r => r.date))].sort()
     const team = Object.fromEntries(dates.map(d => { const v = Object.values(perAvg).map(x => x[d]).filter(v => v != null); return [d, v.reduce((a, b) => a + b, 0) / v.length] }))
     const table = Object.entries(per).map(([sid, days]) => {
       const all = Object.values(days).flat(), pcts = Object.values(perAvg[sid]), strains = all.map(r => r.strain).filter(v => v != null)
       return { sid, s: byId[sid], sessions: pcts.length, avg: pcts.reduce((a, b) => a + b, 0) / pcts.length, best: Math.max(...pcts), strain: strains.length ? strains.reduce((a, b) => a + b, 0) / strains.length : null }
     }).filter(r => r.s).sort((a, b) => b.avg - a.avg)
     return { dates, team, per: perAvg, table }
-  }, [rows, byId])
+  }, [shown, byId])
 
   const W = 340, H = 170, pl = 28, pr = 8, pt = 10, pb = 22
   const lo = 50, hi = 100
@@ -66,7 +73,13 @@ export default function TeamWorkrate({ students = [], onOpen }) {
         <b style={{ fontSize: 14, flex: 1 }}>📈 Workrate over time</b>
         {[4, 8, 12].map(w => <button key={w} type="button" className={weeks === w ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setWeeks(w)}>{w} wk</button>)}
       </div>
-      <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '0 0 6px' }}>Average heart rate per session as % of each athlete's max (age-based). White = team average. Tap an athlete for their quick view (compare on the chart or open their profile from there).</p>
+      {sports.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+          <button type="button" className={sportSel.length === 0 ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => saveSel([])}>All</button>
+          {sports.map(sp => <button key={sp} type="button" className={sportSel.includes(sp) ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => toggleSport(sp)}>{sp === APP ? '❤️ ' + sp : sp}</button>)}
+        </div>
+      )}
+      <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '0 0 6px' }}>{sportSel.length ? `Only: ${sportSel.join(', ')}. ` : 'All activities. '}Average heart rate per session as % of each athlete's max (age-based). White = team average. Tap an athlete for their quick view (compare on the chart or open their profile from there).</p>
       {rows == null ? <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Loading…</p> : !dates.length ? <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No heart rate sessions in this period yet.</p> : (
         <>
           <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }} role="img" aria-label="Team workrate over time">
