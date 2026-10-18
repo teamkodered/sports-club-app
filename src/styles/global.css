@@ -1271,3 +1271,10 @@ tbody tr:hover td { background: var(--bg-secondary); }
 
 /* Registers (mobile): small settings cog at the right end of the title row, above the Table button */
 .reg-title-cog .reg-m-cog { width: 38px !important; height: 38px !important; min-width: 0 !important; padding: 0 !important; border-radius: 10px !important; }
+
+/* Athlete Home (athlete app + coach view): pillar section images about the size of their titles */
+.neon-home .neon-pillar-icon,
+.neon-home .neon-tl .neon-pillar-icon, .neon-home .neon-tr .neon-pillar-icon,
+.neon-home .neon-bl .neon-pillar-icon, .neon-home .neon-br .neon-pillar-icon { height: 30px !important; max-width: 40% !important; }
+.neon-home .neon-bottom .neon-pillar-icon { height: 30px !important; width: 38px !important; }
+.neon-home .neon-bottom > div:first-child::before { width: 38px !important; height: 30px !important; }
