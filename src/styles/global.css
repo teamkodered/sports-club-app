@@ -1334,3 +1334,8 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .neon-home .neon-pillar.is-open > .neon-section-quote { margin-top: auto; padding-top: 8px; }
 .neon-home .neon-pillar.is-open.neon-bl > .neon-section-quote, .neon-home .neon-pillar.is-open.neon-br > .neon-section-quote { order: -1; margin-top: 0; margin-bottom: auto; padding: 4px 14px 8px; }
 .neon-home .neon-pillar.is-open { min-height: 300px; }
+
+/* section target tally (five-bar gates) under the place; above it on the bottom cards */
+.neon-home .neon-tally-wrap { flex-basis: 100%; display: flex; justify-content: center; align-items: center; gap: 4px; font-size: 10px; line-height: 1; }
+.neon-home .neon-tally-per { font-family: 'Orbitron', sans-serif; font-size: 9px; opacity: 0.6; }
+.neon-home .neon-bl .neon-tally-wrap, .neon-home .neon-br .neon-tally-wrap { order: -2; }

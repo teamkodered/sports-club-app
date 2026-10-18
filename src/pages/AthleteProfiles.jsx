@@ -5,6 +5,7 @@ import { TestSessionModal, TestBatchModal } from '../components/shared/TestSessi
 import OtherSessions from '../components/shared/OtherSessions.jsx'
 import SessionFootage from '../components/shared/SessionFootage.jsx'
 import { supabase } from '../lib/supabase.js'
+import TallyGate from '../components/shared/TallyGate.jsx'
 import SectionQuote from '../components/shared/SectionQuote.jsx'
 import AthleteWorkrate from '../components/shared/AthleteWorkrate.jsx'
 import { useSectionLeague, LeaguePos } from '../lib/sectionLeague.jsx'
@@ -3365,6 +3366,13 @@ export default function AthleteProfiles() {
     if (!Object.entries(open).some(([k, v]) => v && k !== key)) return false
     setShowPhysicalSection(false); setShowTechniqueSection(false); setShowTacticalSection(false); setShowMentalitySection(false); setShowWellbeingSection(false)
     return true
+  }
+  // section target as tally marks (the period that has a target: week first, then day, then month)
+  const SectionTally = ({ sectionKey, colour }) => {
+    const bp = getCoachSectionProgressByPeriod(sectionKey)
+    const per = ['week', 'day', 'month'].find(k => bp[k]?.target > 0)
+    if (!per) return null
+    return <span className="neon-tally-wrap"><TallyGate target={bp[per].target} done={bp[per].done} colour={colour} label={({ week: 'This week', day: 'Today', month: 'This month' })[per]} /><span className="neon-tally-per">{({ week: 'W', day: 'D', month: 'M' })[per]}</span></span>
   }
   const [videoTool, setVideoTool] = useState(null) // { mode: 'jump'|'sprint', distance, onSave, label }
   const [runEffortSel, setRunEffortSel] = useState({}) // running: which effort is being edited, per type ('__new__' = a new one)
@@ -9990,7 +9998,7 @@ export default function AthleteProfiles() {
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: showPhysicalSection ? 6 : 4, width: '100%' }}>
-                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showPhysicalSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#EF9F27' }}><img src="/logos/neon/physical.png" alt="" className="neon-pillar-icon" /><span className="neon-title-text">PHYSICAL</span>{showPhysicalSection && HeaderViewPill({ view: { sectionKey: 'physical', label: 'Physical', colour: '#E6B800' } })}<LeaguePos big p={sectionLeague.physical} /></span>
+                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showPhysicalSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#EF9F27' }}><img src="/logos/neon/physical.png" alt="" className="neon-pillar-icon" /><span className="neon-title-text">PHYSICAL</span>{showPhysicalSection && HeaderViewPill({ view: { sectionKey: 'physical', label: 'Physical', colour: '#E6B800' } })}<LeaguePos big p={sectionLeague.physical} /><SectionTally sectionKey="physical" colour="#E6B800" /></span>
                     </div>
                     {showPhysicalSection && <div className="neon-graph-row">{WeekCompletionGraph({ sectionKey: 'physical', colour: '#E6B800', embedded: true })}<LeaguePos big open p={sectionLeague.physical} /></div>}
                     {showPhysicalSection && <SectionQuote section="physical" colour="#E6B800" />}
@@ -10365,7 +10373,7 @@ export default function AthleteProfiles() {
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: showTechniqueSection ? 6 : 4, width: '100%' }}>
-                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showTechniqueSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#378ADD' }}><img src="/logos/neon/technical.png" alt="" className="neon-pillar-icon" /><span className="neon-title-text">TECHNICAL</span>{showTechniqueSection && HeaderViewPill({ view: { sectionKey: 'technique', label: 'Technical', colour: '#2F6BFF' } })}<LeaguePos big p={sectionLeague.technical} /></span>
+                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showTechniqueSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#378ADD' }}><img src="/logos/neon/technical.png" alt="" className="neon-pillar-icon" /><span className="neon-title-text">TECHNICAL</span>{showTechniqueSection && HeaderViewPill({ view: { sectionKey: 'technique', label: 'Technical', colour: '#2F6BFF' } })}<LeaguePos big p={sectionLeague.technical} /><SectionTally sectionKey="technique" colour="#2F6BFF" /></span>
                     </div>
                     {showTechniqueSection && <div className="neon-graph-row">{WeekCompletionGraph({ sectionKey: 'technique', colour: '#2F6BFF', embedded: true })}<LeaguePos big open p={sectionLeague.technical} /></div>}
                     {showTechniqueSection && <SectionQuote section="technical" colour="#2F6BFF" />}
@@ -10446,7 +10454,7 @@ export default function AthleteProfiles() {
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: showTacticalSection ? 6 : 4, width: '100%' }}>
-                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showTacticalSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#E24B4A' }}><img src="/logos/neon/tactical.png" alt="" className="neon-pillar-icon" /><span className="neon-title-text">TACTICAL</span>{showTacticalSection && HeaderViewPill({ view: { sectionKey: 'tactical', label: 'Tactical', colour: '#FF2A2A' } })}<LeaguePos big p={sectionLeague.tactical} /></span>
+                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showTacticalSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#E24B4A' }}><img src="/logos/neon/tactical.png" alt="" className="neon-pillar-icon" /><span className="neon-title-text">TACTICAL</span>{showTacticalSection && HeaderViewPill({ view: { sectionKey: 'tactical', label: 'Tactical', colour: '#FF2A2A' } })}<LeaguePos big p={sectionLeague.tactical} /><SectionTally sectionKey="tactical" colour="#FF2A2A" /></span>
                     </div>
                     {showTacticalSection && <div className="neon-graph-row">{WeekCompletionGraph({ sectionKey: 'tactical', colour: '#FF2A2A', embedded: true })}<LeaguePos big open p={sectionLeague.tactical} /></div>}
                     {showTacticalSection && <SectionQuote section="tactical" colour="#FF2A2A" />}
@@ -10534,7 +10542,7 @@ export default function AthleteProfiles() {
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: showMentalitySection ? 6 : 4, width: '100%' }}>
-                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showMentalitySection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#8B5CF6' }}><img src="/logos/neon/mentality.png" alt="" className="neon-pillar-icon" /><span className="neon-title-text">MENTALITY</span>{showMentalitySection && HeaderViewPill({ view: { sectionKey: 'mentality', label: 'Mentality', colour: '#22B14C' } })}<LeaguePos big p={sectionLeague.mentality} /></span>
+                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showMentalitySection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#8B5CF6' }}><img src="/logos/neon/mentality.png" alt="" className="neon-pillar-icon" /><span className="neon-title-text">MENTALITY</span>{showMentalitySection && HeaderViewPill({ view: { sectionKey: 'mentality', label: 'Mentality', colour: '#22B14C' } })}<LeaguePos big p={sectionLeague.mentality} /><SectionTally sectionKey="mentality" colour="#22B14C" /></span>
                     </div>
                     {showMentalitySection && <div className="neon-graph-row">{WeekCompletionGraph({ sectionKey: 'mentality', colour: '#22B14C', embedded: true })}<LeaguePos big open p={sectionLeague.mentality} /></div>}
                     {showMentalitySection && <SectionQuote section="mentality" colour="#22B14C" />}
@@ -10846,7 +10854,7 @@ export default function AthleteProfiles() {
                     background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                   }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: showWellbeingSection ? 6 : 4, width: '100%' }}>
-                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showWellbeingSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#1D9E75' }}><img src="/logos/neon/foundation.png" alt="" className="neon-pillar-icon" />{showWellbeingSection && HeaderViewPill({ view: { sectionKey: 'wellbeing', label: 'Foundation', colour: '#C93BFF' } })}<span className="neon-title-text">FOUNDATION</span><LeaguePos big p={sectionLeague.foundation} /></span>
+                      <span style={{ fontFamily: 'Anton, sans-serif', fontSize: showWellbeingSection ? 28 : 17, letterSpacing: 0.5, lineHeight: 1, color: '#1D9E75' }}><img src="/logos/neon/foundation.png" alt="" className="neon-pillar-icon" />{showWellbeingSection && HeaderViewPill({ view: { sectionKey: 'wellbeing', label: 'Foundation', colour: '#C93BFF' } })}<span className="neon-title-text">FOUNDATION</span><LeaguePos big p={sectionLeague.foundation} /><SectionTally sectionKey="wellbeing" colour="#C93BFF" /></span>
                     </div>
                     {showWellbeingSection && <SectionQuote section="foundation" colour="#C93BFF" />}
                     <CoachSectionProgressBars sectionKey="wellbeing" ropes="bottom" />
