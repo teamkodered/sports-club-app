@@ -7330,17 +7330,7 @@ export default function AthleteProfiles() {
               )
             })()}
 
-            {/* Dashboard tabs -- Overview / Calendar / Results */}
-            <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', marginBottom: 14 }}>
-              {[['overview', '🏠 Overview'], ['calendar', '📅 Sessions'], ['results', '📊 F2F Results'], ['pdp', '🎯 PDP']].map(([key, label]) => (
-                <button key={key} onClick={() => setDashboardTab(key)} style={{
-                  padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
-                  borderBottom: `2px solid ${dashboardTab === key ? 'var(--text)' : 'transparent'}`,
-                  color: dashboardTab === key ? 'var(--text)' : 'var(--text-secondary)',
-                  fontWeight: dashboardTab === key ? 500 : 400,
-                }}>{label}</button>
-              ))}
-            </div>
+            {/* (Tabs removed: the Sessions / Fit II Fight / PDP cards above open their section; pressing again returns to Overview) */}
 
             {dashboardTab === 'calendar' && (
               <div>
