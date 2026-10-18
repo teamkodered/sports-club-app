@@ -6851,7 +6851,7 @@ export default function AthleteProfiles() {
                                   const ap = allAthleteProfiles.find(p => p.student_id === s.id) || {}
                                   const m = (ap.weight_division || '').match(/([+-]?)\s*([\d.]+)/)
                                   if (!m) return <span style={{ fontWeight: 600 }}>{s.weight_kg}kg</span>
-                                  const comp = parseFloat(m[2]), pct = s.in_comp ? weightTargetPctInComp : weightTargetPctOutComp
+                                  const comp = parseFloat(m[2]), pct = (weightTargetActiveMode ? weightTargetActiveMode === 'in_comp' : s.in_comp) ? weightTargetPctInComp : weightTargetPctOutComp
                                   const ov = ap.weight_target_override
                                   const target = m[1] === '+' ? null : ov?.type === 'actual' && ov.value ? parseFloat(ov.value) : ov?.type === 'percent' && ov.value ? comp * (1 + parseFloat(ov.value)) : comp * (1 + pct)
                                   const off = target ? Math.round(((s.weight_kg - target) / target) * 1000) / 10 : null
