@@ -1320,3 +1320,17 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .neon-home .neon-pillar.is-open.neon-tl > .neon-league-open, .neon-home .neon-pillar.is-open.neon-tr > .neon-league-open { top: 110px !important; }
 .neon-home .neon-pillar.is-open.neon-bl > .neon-league-open, .neon-home .neon-pillar.is-open.neon-br > .neon-league-open { bottom: 110px !important; }
 .neon-home .neon-pillar.is-open { min-height: 230px; }
+
+/* open section: week graph and league place side by side, vertically lined up */
+.neon-home .neon-pillar.is-open > .neon-graph-row { position: absolute; display: flex; align-items: center; gap: 8px; width: calc(100% - 92px); z-index: 1; }
+.neon-home .neon-pillar.is-open.neon-tl > .neon-graph-row { left: 46px; top: 96px; }
+.neon-home .neon-pillar.is-open.neon-tr > .neon-graph-row { right: 46px; top: 96px; flex-direction: row-reverse; }
+.neon-home .neon-pillar.is-open.neon-bl > .neon-graph-row { left: 46px; bottom: 96px; }
+.neon-home .neon-pillar.is-open.neon-br > .neon-graph-row { right: 46px; bottom: 96px; flex-direction: row-reverse; }
+.neon-home .neon-graph-row .neon-pillar-graph { position: static !important; width: 64% !important; flex-shrink: 0; }
+.neon-home .neon-graph-row > .neon-league-open { position: static !important; flex: 1; width: auto !important; justify-content: center; }
+
+/* section quote: bottom of the open card (top for the lower cards, whose title is at the bottom) */
+.neon-home .neon-pillar.is-open > .neon-section-quote { margin-top: auto; padding-top: 8px; }
+.neon-home .neon-pillar.is-open.neon-bl > .neon-section-quote, .neon-home .neon-pillar.is-open.neon-br > .neon-section-quote { order: -1; margin-top: 0; margin-bottom: auto; padding: 4px 14px 8px; }
+.neon-home .neon-pillar.is-open { min-height: 300px; }
