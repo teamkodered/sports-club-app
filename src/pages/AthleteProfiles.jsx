@@ -7449,6 +7449,7 @@ export default function AthleteProfiles() {
 
             {dashboardTab === 'calendar' && (
               <div>
+                <button onClick={() => { setExpandedSummaryCards({}); setDashboardTab('overview') }} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to dashboard</button>
             {/* Club events */}
             <div className="card" style={{ padding: 0, marginBottom: 14 }}>
               <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -7779,6 +7780,7 @@ export default function AthleteProfiles() {
 
             {dashboardTab === 'results' && (
               <div>
+                <button onClick={() => { setExpandedSummaryCards({}); setDashboardTab('overview') }} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to dashboard</button>
             {/* F2F Results -- team-wide graph at top, full sortable/customisable table at bottom */}
             <div className="card" style={{ marginBottom: 14 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
@@ -8211,6 +8213,7 @@ export default function AthleteProfiles() {
 
             {dashboardTab === 'pdp' && (
               <div>
+                <button onClick={() => { setExpandedSummaryCards({}); setDashboardTab('overview') }} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to dashboard</button>
                 {/* PDP overview: every athlete x section (collapsible, closed on open) */}
                 <div className="card" style={{ marginBottom: 14, padding: pdpOverviewOpen ? undefined : '10px 14px' }}>
                   <button type="button" onClick={() => setPdpOverviewOpen(v => !v)} style={{ all: 'unset', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
@@ -9121,12 +9124,12 @@ export default function AthleteProfiles() {
                 <button onClick={() => setDashboardTab('overview')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
                 {isAdmin && <LeagueBoardSettings />}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <a href="/league-public?limit=10" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 24, color: '#8B5CF6' }}>
+                  <a href="/league-public?limit=10&from=app&home=/athletes" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 24, color: '#8B5CF6' }}>
                     <div style={{ fontSize: 36, marginBottom: 8 }}>🏠</div>
                     <div style={{ fontWeight: 700, fontSize: 15 }}>House League</div>
                     <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>Points standings by house</div>
                   </a>
-                  <a href="/results-public" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 24, color: '#EF9F27' }}>
+                  <a href="/results-public?from=app&home=/athletes" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 24, color: '#EF9F27' }}>
                     <div style={{ fontSize: 36, marginBottom: 8 }}>🏋️</div>
                     <div style={{ fontWeight: 700, fontSize: 15 }}>Exercise Leagues</div>
                     <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>Fitness results leaderboard</div>
@@ -13249,12 +13252,12 @@ export default function AthleteProfiles() {
                 <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
                 {isAdmin && <LeagueBoardSettings />}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <a href="/league-public?limit=10" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 24, color: '#8B5CF6' }}>
+                  <a href="/league-public?limit=10&from=app&home=/athletes" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 24, color: '#8B5CF6' }}>
                     <div style={{ fontSize: 36, marginBottom: 8 }}>🏠</div>
                     <div style={{ fontWeight: 700, fontSize: 15 }}>House League</div>
                     <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>Points standings by house</div>
                   </a>
-                  <a href="/results-public" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 24, color: '#EF9F27' }}>
+                  <a href="/results-public?from=app&home=/athletes" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 24, color: '#EF9F27' }}>
                     <div style={{ fontSize: 36, marginBottom: 8 }}>🏋️</div>
                     <div style={{ fontWeight: 700, fontSize: 15 }}>Exercise Leagues</div>
                     <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>Fitness results leaderboard</div>

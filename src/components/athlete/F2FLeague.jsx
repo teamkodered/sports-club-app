@@ -189,8 +189,8 @@ export default function F2FLeague({ student, onBack }) {
       )}
 
       <div style={{ display: 'flex', gap: 14, marginTop: 24, fontSize: 12 }}>
-        <a href="/league-public?limit=10" style={{ color: '#9A9A9A' }}>Club house league ↗</a>
-        <a href="/results-public" style={{ color: '#9A9A9A' }}>Exercise leaderboards ↗</a>
+        <a href="/league-public?limit=10&from=app&home=/athlete-app" style={{ color: '#9A9A9A' }}>Club house league ↗</a>
+        <a href="/results-public?from=app&home=/athlete-app" style={{ color: '#9A9A9A' }}>Exercise leaderboards ↗</a>
       </div>
     </div>
   )

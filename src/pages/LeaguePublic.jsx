@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import AppBackBar from '../components/shared/AppBackBar.jsx'
 import { useBackableTab } from '../hooks/useBackableTab.js'
 import { supabasePublic as supabase } from '../lib/supabasePublic.js'
 
@@ -176,6 +177,7 @@ export default function LeaguePublic() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-tertiary)', padding: '24px 16px' }}>
+      <AppBackBar />
       <div style={{ maxWidth: tab === 'student-house' ? 960 : 560, margin: '0 auto', transition: 'max-width 0.2s' }}>
         <button onClick={() => window.history.back()} className="btn btn-sm" style={{ marginBottom: 14 }}>← Back</button>
         {/* Header */}

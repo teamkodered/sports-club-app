@@ -7799,12 +7799,12 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
         <div>
           <button onClick={goBackTab} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <a href="/league-public?limit=10" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 24, color: '#8B5CF6' }}>
+            <a href="/league-public?limit=10&from=app&home=/athlete-app" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 24, color: '#8B5CF6' }}>
               <div style={{ fontSize: 36, marginBottom: 8 }}>🏠</div>
               <div style={{ fontWeight: 700, fontSize: 15 }}>House League</div>
               <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>Points standings by house</div>
             </a>
-            <a href="/results-public" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 24, color: '#EF9F27' }}>
+            <a href="/results-public?from=app&home=/athlete-app" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 24, color: '#EF9F27' }}>
               <div style={{ fontSize: 36, marginBottom: 8 }}>🏋️</div>
               <div style={{ fontWeight: 700, fontSize: 15 }}>Exercise Leagues</div>
               <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>Fitness results leaderboard</div>

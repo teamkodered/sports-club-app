@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import AppBackBar from '../components/shared/AppBackBar.jsx'
 import { supabasePublic as supabase } from '../lib/supabasePublic.js'
 import { CATEGORIES, buildLeaderboard, maskName } from './ResultsPublic.jsx'
 import LiveHrTable from '../components/shared/LiveHrTable.jsx'
@@ -309,6 +310,7 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
       onTouchStart={e => { swipe.current = { x: e.touches[0].clientX, y: e.touches[0].clientY } }}
       onTouchEnd={e => { const c = swipe.current; swipe.current = null; if (!c) return; const dx = e.changedTouches[0].clientX - c.x, dy = e.changedTouches[0].clientY - c.y; if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) go(dx < 0 ? 1 : -1) }}
       style={{ background: '#000', color: '#F2F2F2', minHeight: '100vh', margin: embedded ? '-20px -16px' : 0, padding: embedded ? '20px 16px 40px' : '20px 16px 40px', boxSizing: 'border-box' }}>
+      {!embedded && <AppBackBar />}
       <style>{'@keyframes lbFade { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }'}</style>
       <div style={{ maxWidth: 640, margin: '0 auto' }}>
         {embedded && onBack && <button onClick={onBack} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>}
