@@ -3106,6 +3106,7 @@ export default function AthleteProfiles() {
   )
   const [recordFlash, setRecordFlash] = useState(false) // show 'updated <date>' beside the record for a few seconds
   const [wearView, setWearView] = useState('athletes') // coach Wearables: athletes | day | session
+  const [dashMiniOpen, setDashMiniOpen] = useState(null) // Notes / MTP card opened
   const [dashWhoOpen, setDashWhoOpen] = useState({}) // coach dashboard: who's done / missing lists open
   const [dashboardTab, setDashboardTab] = useState('overview') // 'overview' | 'calendar' | 'results' | 'pdp'
   const [wearableAthletes, setWearableAthletes] = useState(null) // [{ student_id, providers: [...], last_sync_at }] for the Wearables list
@@ -7389,6 +7390,94 @@ export default function AthleteProfiles() {
 
             {dashboardTab === 'calendar' && (
               <div>
+            {/* Club events */}
+            <div className="card" style={{ padding: 0, marginBottom: 14 }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h2 style={{ fontSize: 14, fontWeight: 600 }}>📅 Events</h2>
+                <button className="btn btn-sm" onClick={() => setShowAddEvent(v => !v)}>{showAddEvent ? 'Cancel' : '+ Add event'}</button>
+              </div>
+              <div style={{ padding: 16 }}>
+                {showAddEvent && (
+                  <div style={{ marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--border)' }}>
+                    <input value={newEventTitle} onChange={e => setNewEventTitle(e.target.value)} placeholder="Event title" style={{ marginBottom: 8 }} />
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                      <input type="date" value={newEventDate} onChange={e => setNewEventDate(e.target.value)} style={{ flex: 1, minWidth: 140 }} />
+                      <input type="time" value={newEventTime} onChange={e => setNewEventTime(e.target.value)} style={{ flex: 1, minWidth: 100 }} />
+                    </div>
+                    <textarea value={newEventDesc} onChange={e => setNewEventDesc(e.target.value)} placeholder="Description (optional)" rows={2}
+                      style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
+                    <label style={{ fontSize: 11, color: 'var(--text-tertiary)', display: 'block', marginBottom: 4 }}>Who is this event for?</label>
+                    <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+                      {[['all', 'Everyone'], ['kr', 'All KR'], ['krba', 'All KRBA'], ['individual', 'One athlete']].map(([val, label]) => (
+                        <button key={val} onClick={() => setShowAddEventTarget(val)} style={{
+                          fontSize: 12, padding: '5px 10px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                          border: `1px solid ${showAddEventTarget === val ? '#378ADD' : 'var(--border-strong)'}`,
+                          background: showAddEventTarget === val ? '#378ADD20' : 'none', color: showAddEventTarget === val ? '#378ADD' : 'var(--text-secondary)',
+                        }}>{label}</button>
+                      ))}
+                    </div>
+                    {showAddEventTarget === 'individual' && (
+                      <div style={{ marginBottom: 10 }}>
+                        {addEventAthlete ? (
+                          <span className="btn btn-sm" style={{ background: '#1D9E7520', borderColor: '#1D9E75', cursor: 'pointer' }}
+                            onClick={() => setAddEventAthlete(null)} title="Click to remove">
+                            → {addEventAthlete.members?.first_name} {addEventAthlete.members?.last_name} ×
+                          </span>
+                        ) : (
+                          <div style={{ position: 'relative' }}>
+                            <input value={addEventAthleteSearch} onChange={e => setAddEventAthleteSearch(e.target.value)}
+                              placeholder="Search athlete…" style={{ width: '100%' }} />
+                            {addEventAthleteSearch && (
+                              <div className="card" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20, padding: 4, maxHeight: 200, overflowY: 'auto' }}>
+                                {students.filter(s => `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.toLowerCase().includes(addEventAthleteSearch.toLowerCase())).slice(0, 10).map(s => (
+                                  <button key={s.id} onClick={() => { setAddEventAthlete(s); setAddEventAthleteSearch('') }}
+                                    style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, borderRadius: 6, color: 'var(--text)', fontFamily: 'var(--font-sans)' }}>
+                                    {s.members?.first_name} {s.members?.last_name}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 10, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={newEventSendAll} onChange={e => setNewEventSendAll(e.target.checked)} style={{ width: 16, height: 16 }} />
+                      Also show in the Sessions tab of whoever this targets
+                    </label>
+                    <button className="btn btn-primary btn-sm" disabled={!newEventTitle.trim() || !newEventDate || (showAddEventTarget === 'individual' && !addEventAthlete) || savingEvent} onClick={addEvent}>
+                      {savingEvent ? 'Saving…' : 'Add event'}
+                    </button>
+                  </div>
+                )}
+                {clubEvents.filter(e => e.event_date >= new Date().toISOString().split('T')[0]).length === 0 ? (
+                  <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No upcoming events.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {clubEvents.filter(e => e.event_date >= new Date().toISOString().split('T')[0]).map(ev => (
+                      <div key={ev.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 600 }}>{ev.title}</div>
+                          <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                            {new Date(ev.event_date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}{ev.event_time ? ` · ${ev.event_time.slice(0,5)}` : ''}
+                            {ev.target_type === 'individual' && ev.target_student_id && (() => {
+                              const s = students.find(st => st.id === ev.target_student_id)
+                              return s ? <span style={{ marginLeft: 6, color: '#EF9F27' }}>· {s.members?.first_name} {s.members?.last_name}</span> : null
+                            })()}
+                            {ev.target_type === 'kr' && <span style={{ marginLeft: 6, color: '#EF9F27' }}>· All KR</span>}
+                            {ev.target_type === 'krba' && <span style={{ marginLeft: 6, color: '#EF9F27' }}>· All KRBA</span>}
+                            {ev.send_to_all_students && <span style={{ marginLeft: 6, color: '#1D9E75' }}>· sent to Sessions tab</span>}
+                          </div>
+                          {ev.description && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{ev.description}</div>}
+                        </div>
+                        <button onClick={() => deleteEvent(ev.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14 }}>×</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Team calendar -- shows the recurring class schedule, colour-coded by type */}
             <div className="card" id="team-calendar" style={{ marginBottom: 14 }}>
               {(() => {
@@ -7437,7 +7526,7 @@ export default function AthleteProfiles() {
                               <div key={cl.id} title={`${cl.name} ${cl.start_time?.slice(0,5) || ''}`} style={{ height: 3, background: classColour(cl), borderRadius: 2, marginTop: 2 }} />
                             ))}
                             {eventsThatDay.map(ev => (
-                              <div key={ev.id} title={ev.title} style={{ height: 3, background: '#EF9F27', borderRadius: 2, marginTop: 2, border: '1px dashed #EF9F27' }} />
+                              <div key={ev.id} title={ev.title} style={{ marginTop: 2, padding: '0 2px', borderRadius: 3, background: '#EF9F2733', border: '1px dashed #EF9F27', color: '#EF9F27', fontSize: 8, lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.title}</div>
                             ))}
                           </div>
                         )
@@ -8461,6 +8550,28 @@ export default function AthleteProfiles() {
                         })}
                       </div>
                     )}
+                    {/* this section's targets (team + individual), at the bottom when the section is open */}
+                    {isOpen && (() => {
+                      const keys = new Set([section.key, ...section.subItems.map(si => si.key)])
+                      const list = teamTargets.filter(t => keys.has(t.section_key) || t.section_key === section.key)
+                      return (
+                        <div className="card" style={{ marginTop: 8, padding: 12 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>🎯 {section.label} targets ({list.length})</div>
+                          {list.length === 0 ? <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No targets set -- use + Target above.</div> : list.map(t => {
+                            const forStudent = t.student_id ? students.find(st => st.id === t.student_id) : null
+                            return (
+                              <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '6px 0', borderTop: '1px solid var(--border)' }}>
+                                <div style={{ minWidth: 0 }}>
+                                  <div style={{ fontSize: 13 }}>{t.question_label || 'Whole section'} · <span style={{ color: '#EF9F27' }}>{t.preset_label ? `${t.preset_label}: ` : ''}{t.target_value}</span></div>
+                                  <div style={{ fontSize: 11, color: forStudent ? '#1D9E75' : 'var(--text-tertiary)' }}>{forStudent ? `👤 ${forStudent.members?.first_name} ${forStudent.members?.last_name}` : '👥 Whole team'}{t.notes ? ` · ${t.notes}` : ''}</div>
+                                </div>
+                                <button onClick={() => deleteTeamTarget(t.id)} title="Remove target" style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14 }}>×</button>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )
+                    })()}
                   </div>
                 )
               })}</div>
@@ -8504,7 +8615,9 @@ export default function AthleteProfiles() {
                   {cards.map(c => {
                     const targets = targetsFor(c.key)
                     return (
-                      <div key={c.key} className="coach-mini" style={{
+                      <div key={c.key} className={`coach-mini${dashMiniOpen === c.key ? ' is-open' : ''}`}
+                        onClick={['notes', 'ttp'].includes(c.key) ? () => setDashMiniOpen(o => o === c.key ? null : c.key) : undefined}
+                        style={{ cursor: ['notes', 'ttp'].includes(c.key) ? 'pointer' : undefined,
                         display: 'flex', flexDirection: 'column', gap: 6,
                         padding: '10px 14px', fontFamily: 'var(--font-sans)',
                         background: 'var(--bg-secondary)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)',
@@ -8518,7 +8631,8 @@ export default function AthleteProfiles() {
                             <span style={{ fontSize: 15, fontWeight: 700, color: colour }}>{c.pct}%</span>
                             <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{c.count}/{teamCount}</span>
                           </span>
-                          <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => {
+                          <button className="btn btn-sm" style={{ fontSize: 10 }} onClick={e => {
+                            e.stopPropagation()
                             if (showAddTarget && newTargetSection === c.key && newTargetQuestion === '') { setShowAddTarget(false); return }
                             setNewTargetSection(c.key); setNewTargetQuestion(''); setShowAddTarget(true)
                           }}>{targets.length ? '+ Add' : '+ Target'}</button>
@@ -8529,7 +8643,8 @@ export default function AthleteProfiles() {
                             <button onClick={() => deleteTeamTarget(t.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 11, padding: 0 }}>✕</button>
                           </span>
                         ))}
-                        {showAddTarget && newTargetSection === c.key && newTargetQuestion === '' && renderInlineTargetForm()}
+                        {['notes', 'ttp'].includes(c.key) && <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{dashMiniOpen === c.key ? 'Hide ▲' : c.key === 'notes' ? 'Team notes ▼' : 'Benchmarks ▼'}</span>}
+                        {showAddTarget && newTargetSection === c.key && newTargetQuestion === '' && <div onClick={e => e.stopPropagation()}>{renderInlineTargetForm()}</div>}
                       </div>
                     )
                   })}
@@ -8537,134 +8652,8 @@ export default function AthleteProfiles() {
               )
             })()}
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 14 }}>
-              <button onClick={() => { setDashboardTab('sweep'); loadShedTasksAll() }} style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                padding: '14px 8px', background: '#1D9E7512',
-                border: '1px solid #1D9E7530', borderRadius: 'var(--border-radius-lg)',
-                cursor: 'pointer', fontFamily: 'var(--font-sans)',
-              }}>
-                <span style={{ fontSize: 13 }}>🧹</span>
-                <span style={{ fontSize: 12, fontWeight: 500, color: '#1D9E75' }}>Sweep the sheds</span>
-              </button>
-              <button onClick={() => { setDashboardTab('wearables'); loadWearableAthletes() }} style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                padding: '14px 8px', background: '#0EA5E912',
-                border: '1px solid #0EA5E930', borderRadius: 'var(--border-radius-lg)',
-                cursor: 'pointer', fontFamily: 'var(--font-sans)',
-              }}>
-                <span style={{ fontSize: 13 }}>⌚</span>
-                <span style={{ fontSize: 12, fontWeight: 500, color: '#0EA5E9' }}>Wearables</span>
-              </button>
-              <button onClick={() => setDashboardTab('leagues')} style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                padding: '14px 8px', background: '#8B5CF612',
-                border: '1px solid #8B5CF630', borderRadius: 'var(--border-radius-lg)',
-                cursor: 'pointer', fontFamily: 'var(--font-sans)',
-              }}>
-                <span style={{ fontSize: 13 }}>🏆</span>
-                <span style={{ fontSize: 12, fontWeight: 500, color: '#8B5CF6' }}>Leagues</span>
-              </button>
-            </div>
-
-            {/* MTP Benchmark */}
-            <div className="card" style={{ padding: 0, marginBottom: 14 }}>
-              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h2 style={{ fontSize: 14, fontWeight: 600 }}>🎯 MTP Benchmark</h2>
-                <button className="btn btn-sm" onClick={() => {
-                  if (!showSetBenchmark) setBenchmarkScores(ttpBenchmark ? Object.fromEntries(MTP_BENCHMARK_FIELDS.map(f => [f, ttpBenchmark[f] ?? ''])) : {})
-                  setShowSetBenchmark(v => !v)
-                }}>{showSetBenchmark ? 'Cancel' : '+ Set new benchmark'}</button>
-              </div>
-              <div style={{ padding: 16 }}>
-                {ttpBenchmark ? (
-                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: showSetBenchmark ? 14 : 0 }}>
-                    Current benchmark set {new Date(ttpBenchmark.set_at).toLocaleDateString('en-GB')}
-                    {ttpBenchmark.notes ? ` — ${ttpBenchmark.notes}` : ''}. Shown for comparison on every athlete's MTP page.
-                  </p>
-                ) : (
-                  <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: showSetBenchmark ? 14 : 0 }}>No benchmark set yet.</p>
-                )}
-
-                {showSetBenchmark && (
-                  <div style={{ borderTop: ttpBenchmark ? '1px solid var(--border)' : 'none', paddingTop: ttpBenchmark ? 14 : 0 }}>
-                    <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Complete a MTP form to set this as the new team benchmark</p>
-                    {[
-                      { label: 'Technical', fields: ['shapes','punch_quality','footwork','defence','counters','attack','combinations','change_of_tempo','use_of_phases','distance','flow','self_expression'] },
-                      { label: 'Tactical', fields: ['read_opponent','tempo_rhythm','tactical_intelligence','ring_awareness','know_strengths_weaknesses','heart_grit','concentration','timing'] },
-                      { label: 'Physical', fields: ['foot_speed','limb_speed','combination_speed','reaction','punching_power','strength_upper','strength_lower','stability_core','agility','stop_n_go','stamina_aerobic','stamina_anaerobic','suppleness_upper','suppleness_lower','recovery','health'] },
-                    ].map(group => (
-                      <div key={group.label} style={{ marginBottom: 14 }}>
-                        <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, textTransform: 'uppercase' }}>{group.label}</p>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 8 }}>
-                          {group.fields.map(f => (
-                            <div key={f} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
-                              <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{BOX_LABELS[f] || f}</span>
-                              <input type="number" min="0" max="10" value={benchmarkScores[f] ?? ''}
-                                onChange={e => setBenchmarkScores(prev => ({ ...prev, [f]: e.target.value }))}
-                                style={{ width: 50, padding: '3px 6px', fontSize: 12 }} />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                    <textarea value={benchmarkNotes} onChange={e => setBenchmarkNotes(e.target.value)} placeholder="Notes (optional)" rows={2}
-                      style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
-                    <button className="btn btn-primary btn-sm" disabled={savingBenchmark} onClick={saveNewBenchmark}>
-                      {savingBenchmark ? 'Saving…' : 'Save as new benchmark'}
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Kickboxing MTP Benchmark */}
-            <div className="card" style={{ padding: 0, marginBottom: 14 }}>
-              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h2 style={{ fontSize: 14, fontWeight: 600 }}>🎯 MTP Benchmark (Kickboxing)</h2>
-                <button className="btn btn-sm" onClick={() => {
-                  if (!showSetBenchmarkKB) setBenchmarkScoresKB(ttpBenchmarkKB ? Object.fromEntries(KB_MTP_FIELDS.map(f => [f, ttpBenchmarkKB[f] ?? ''])) : {})
-                  setShowSetBenchmarkKB(v => !v)
-                }}>{showSetBenchmarkKB ? 'Cancel' : '+ Set new benchmark'}</button>
-              </div>
-              <div style={{ padding: 16 }}>
-                {ttpBenchmarkKB ? (
-                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: showSetBenchmarkKB ? 14 : 0 }}>
-                    Current benchmark set {new Date(ttpBenchmarkKB.set_at).toLocaleDateString('en-GB')}
-                    {ttpBenchmarkKB.notes ? ` — ${ttpBenchmarkKB.notes}` : ''}. Shown for comparison on every kickboxing athlete's MTP page.
-                  </p>
-                ) : (
-                  <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: showSetBenchmarkKB ? 14 : 0 }}>No benchmark set yet.</p>
-                )}
-
-                {showSetBenchmarkKB && (
-                  <div style={{ borderTop: ttpBenchmarkKB ? '1px solid var(--border)' : 'none', paddingTop: ttpBenchmarkKB ? 14 : 0 }}>
-                    <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Complete a Kickboxing MTP form to set this as the new team benchmark</p>
-                    {KB_MTP_SECTIONS.map(group => (
-                      <div key={group.label} style={{ marginBottom: 14 }}>
-                        <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, textTransform: 'uppercase' }}>{group.label}</p>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 8 }}>
-                          {group.fields.map(f => (
-                            <div key={f.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
-                              <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{f.label} ({f.unit})</span>
-                              <input type="number" min="0" step="any" value={benchmarkScoresKB[f.key] ?? ''}
-                                onChange={e => setBenchmarkScoresKB(prev => ({ ...prev, [f.key]: e.target.value }))}
-                                style={{ width: 60, padding: '3px 6px', fontSize: 12 }} />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                    <textarea value={benchmarkNotesKB} onChange={e => setBenchmarkNotesKB(e.target.value)} placeholder="Notes (optional)" rows={2}
-                      style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
-                    <button className="btn btn-primary btn-sm" disabled={savingBenchmarkKB} onClick={saveNewBenchmarkKB}>
-                      {savingBenchmarkKB ? 'Saving…' : 'Save as new benchmark'}
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-
+            {/* Notes / MTP cards open their lists here */}
+            {dashMiniOpen === 'notes' && (<>
             {/* Team notes */}
             <div className="card" style={{ padding: 0, marginBottom: 14 }}>
               <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: teamNotes.length > 0 ? 'pointer' : 'default' }}
@@ -8785,6 +8774,154 @@ export default function AthleteProfiles() {
               </div>
             )}
 
+            </>)}
+            {dashMiniOpen === 'ttp' && (<>
+            {/* MTP Benchmark */}
+            <div className="card" style={{ padding: 0, marginBottom: 14 }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h2 style={{ fontSize: 14, fontWeight: 600 }}>🎯 MTP Benchmark</h2>
+                <button className="btn btn-sm" onClick={() => {
+                  if (!showSetBenchmark) setBenchmarkScores(ttpBenchmark ? Object.fromEntries(MTP_BENCHMARK_FIELDS.map(f => [f, ttpBenchmark[f] ?? ''])) : {})
+                  setShowSetBenchmark(v => !v)
+                }}>{showSetBenchmark ? 'Cancel' : '+ Set new benchmark'}</button>
+              </div>
+              <div style={{ padding: 16 }}>
+                {ttpBenchmark ? (
+                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: showSetBenchmark ? 14 : 0 }}>
+                    Current benchmark set {new Date(ttpBenchmark.set_at).toLocaleDateString('en-GB')}
+                    {ttpBenchmark.notes ? ` — ${ttpBenchmark.notes}` : ''}. Shown for comparison on every athlete's MTP page.
+                  </p>
+                ) : (
+                  <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: showSetBenchmark ? 14 : 0 }}>No benchmark set yet.</p>
+                )}
+
+                {showSetBenchmark && (
+                  <div style={{ borderTop: ttpBenchmark ? '1px solid var(--border)' : 'none', paddingTop: ttpBenchmark ? 14 : 0 }}>
+                    <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Complete a MTP form to set this as the new team benchmark</p>
+                    {[
+                      { label: 'Technical', fields: ['shapes','punch_quality','footwork','defence','counters','attack','combinations','change_of_tempo','use_of_phases','distance','flow','self_expression'] },
+                      { label: 'Tactical', fields: ['read_opponent','tempo_rhythm','tactical_intelligence','ring_awareness','know_strengths_weaknesses','heart_grit','concentration','timing'] },
+                      { label: 'Physical', fields: ['foot_speed','limb_speed','combination_speed','reaction','punching_power','strength_upper','strength_lower','stability_core','agility','stop_n_go','stamina_aerobic','stamina_anaerobic','suppleness_upper','suppleness_lower','recovery','health'] },
+                    ].map(group => (
+                      <div key={group.label} style={{ marginBottom: 14 }}>
+                        <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, textTransform: 'uppercase' }}>{group.label}</p>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 8 }}>
+                          {group.fields.map(f => (
+                            <div key={f} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
+                              <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{BOX_LABELS[f] || f}</span>
+                              <input type="number" min="0" max="10" value={benchmarkScores[f] ?? ''}
+                                onChange={e => setBenchmarkScores(prev => ({ ...prev, [f]: e.target.value }))}
+                                style={{ width: 50, padding: '3px 6px', fontSize: 12 }} />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                    <textarea value={benchmarkNotes} onChange={e => setBenchmarkNotes(e.target.value)} placeholder="Notes (optional)" rows={2}
+                      style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
+                    <button className="btn btn-primary btn-sm" disabled={savingBenchmark} onClick={saveNewBenchmark}>
+                      {savingBenchmark ? 'Saving…' : 'Save as new benchmark'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Kickboxing MTP Benchmark */}
+            <div className="card" style={{ padding: 0, marginBottom: 14 }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h2 style={{ fontSize: 14, fontWeight: 600 }}>🎯 MTP Benchmark (Kickboxing)</h2>
+                <button className="btn btn-sm" onClick={() => {
+                  if (!showSetBenchmarkKB) setBenchmarkScoresKB(ttpBenchmarkKB ? Object.fromEntries(KB_MTP_FIELDS.map(f => [f, ttpBenchmarkKB[f] ?? ''])) : {})
+                  setShowSetBenchmarkKB(v => !v)
+                }}>{showSetBenchmarkKB ? 'Cancel' : '+ Set new benchmark'}</button>
+              </div>
+              <div style={{ padding: 16 }}>
+                {ttpBenchmarkKB ? (
+                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: showSetBenchmarkKB ? 14 : 0 }}>
+                    Current benchmark set {new Date(ttpBenchmarkKB.set_at).toLocaleDateString('en-GB')}
+                    {ttpBenchmarkKB.notes ? ` — ${ttpBenchmarkKB.notes}` : ''}. Shown for comparison on every kickboxing athlete's MTP page.
+                  </p>
+                ) : (
+                  <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: showSetBenchmarkKB ? 14 : 0 }}>No benchmark set yet.</p>
+                )}
+
+                {showSetBenchmarkKB && (
+                  <div style={{ borderTop: ttpBenchmarkKB ? '1px solid var(--border)' : 'none', paddingTop: ttpBenchmarkKB ? 14 : 0 }}>
+                    <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Complete a Kickboxing MTP form to set this as the new team benchmark</p>
+                    {KB_MTP_SECTIONS.map(group => (
+                      <div key={group.label} style={{ marginBottom: 14 }}>
+                        <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, textTransform: 'uppercase' }}>{group.label}</p>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 8 }}>
+                          {group.fields.map(f => (
+                            <div key={f.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
+                              <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{f.label} ({f.unit})</span>
+                              <input type="number" min="0" step="any" value={benchmarkScoresKB[f.key] ?? ''}
+                                onChange={e => setBenchmarkScoresKB(prev => ({ ...prev, [f.key]: e.target.value }))}
+                                style={{ width: 60, padding: '3px 6px', fontSize: 12 }} />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                    <textarea value={benchmarkNotesKB} onChange={e => setBenchmarkNotesKB(e.target.value)} placeholder="Notes (optional)" rows={2}
+                      style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
+                    <button className="btn btn-primary btn-sm" disabled={savingBenchmarkKB} onClick={saveNewBenchmarkKB}>
+                      {savingBenchmarkKB ? 'Saving…' : 'Save as new benchmark'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            </>)}
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 14 }}>
+              <button onClick={() => { setDashboardTab('sweep'); loadShedTasksAll() }} style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                padding: '14px 8px', background: '#1D9E7512',
+                border: '1px solid #1D9E7530', borderRadius: 'var(--border-radius-lg)',
+                cursor: 'pointer', fontFamily: 'var(--font-sans)',
+              }}>
+                <span style={{ fontSize: 13 }}>🧹</span>
+                <span style={{ fontSize: 12, fontWeight: 500, color: '#1D9E75' }}>Sweep the sheds</span>
+              </button>
+              <button onClick={() => { setDashboardTab('wearables'); loadWearableAthletes() }} style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                padding: '14px 8px', background: '#0EA5E912',
+                border: '1px solid #0EA5E930', borderRadius: 'var(--border-radius-lg)',
+                cursor: 'pointer', fontFamily: 'var(--font-sans)',
+              }}>
+                <span style={{ fontSize: 13 }}>⌚</span>
+                <span style={{ fontSize: 12, fontWeight: 500, color: '#0EA5E9' }}>Wearables</span>
+              </button>
+              <button onClick={() => setDashboardTab('reports')} style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                padding: '14px 8px', background: '#EF9F2712',
+                border: '1px solid #EF9F2730', borderRadius: 'var(--border-radius-lg)',
+                cursor: 'pointer', fontFamily: 'var(--font-sans)',
+              }}>
+                <span style={{ fontSize: 13 }}>📄</span>
+                <span style={{ fontSize: 12, fontWeight: 500, color: '#EF9F27' }}>Reports</span>
+              </button>
+              <button onClick={() => setDashboardTab('leagues')} style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                padding: '14px 8px', background: '#8B5CF612',
+                border: '1px solid #8B5CF630', borderRadius: 'var(--border-radius-lg)',
+                cursor: 'pointer', fontFamily: 'var(--font-sans)',
+              }}>
+                <span style={{ fontSize: 13 }}>🏆</span>
+                <span style={{ fontSize: 12, fontWeight: 500, color: '#8B5CF6' }}>Leagues</span>
+              </button>
+            </div>
+
+              </>
+            )}
+
+            {/* ── Reports (team dashboard) ── */}
+            {dashboardTab === 'reports' && (
+              <div>
+                <button onClick={() => setDashboardTab('overview')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
             {/* Send Reports */}
             <div className="card" style={{ padding: 0, marginBottom: 14 }}>
               <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -8858,95 +8995,7 @@ export default function AthleteProfiles() {
               </div>
             </div>
 
-            {/* Club events */}
-            <div className="card" style={{ padding: 0, marginBottom: 14 }}>
-              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h2 style={{ fontSize: 14, fontWeight: 600 }}>📅 Events</h2>
-                <button className="btn btn-sm" onClick={() => setShowAddEvent(v => !v)}>{showAddEvent ? 'Cancel' : '+ Add event'}</button>
               </div>
-              <div style={{ padding: 16 }}>
-                {showAddEvent && (
-                  <div style={{ marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--border)' }}>
-                    <input value={newEventTitle} onChange={e => setNewEventTitle(e.target.value)} placeholder="Event title" style={{ marginBottom: 8 }} />
-                    <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-                      <input type="date" value={newEventDate} onChange={e => setNewEventDate(e.target.value)} style={{ flex: 1, minWidth: 140 }} />
-                      <input type="time" value={newEventTime} onChange={e => setNewEventTime(e.target.value)} style={{ flex: 1, minWidth: 100 }} />
-                    </div>
-                    <textarea value={newEventDesc} onChange={e => setNewEventDesc(e.target.value)} placeholder="Description (optional)" rows={2}
-                      style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text)', fontFamily: 'var(--font-sans)', resize: 'vertical', marginBottom: 8 }} />
-                    <label style={{ fontSize: 11, color: 'var(--text-tertiary)', display: 'block', marginBottom: 4 }}>Who is this event for?</label>
-                    <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-                      {[['all', 'Everyone'], ['kr', 'All KR'], ['krba', 'All KRBA'], ['individual', 'One athlete']].map(([val, label]) => (
-                        <button key={val} onClick={() => setShowAddEventTarget(val)} style={{
-                          fontSize: 12, padding: '5px 10px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                          border: `1px solid ${showAddEventTarget === val ? '#378ADD' : 'var(--border-strong)'}`,
-                          background: showAddEventTarget === val ? '#378ADD20' : 'none', color: showAddEventTarget === val ? '#378ADD' : 'var(--text-secondary)',
-                        }}>{label}</button>
-                      ))}
-                    </div>
-                    {showAddEventTarget === 'individual' && (
-                      <div style={{ marginBottom: 10 }}>
-                        {addEventAthlete ? (
-                          <span className="btn btn-sm" style={{ background: '#1D9E7520', borderColor: '#1D9E75', cursor: 'pointer' }}
-                            onClick={() => setAddEventAthlete(null)} title="Click to remove">
-                            → {addEventAthlete.members?.first_name} {addEventAthlete.members?.last_name} ×
-                          </span>
-                        ) : (
-                          <div style={{ position: 'relative' }}>
-                            <input value={addEventAthleteSearch} onChange={e => setAddEventAthleteSearch(e.target.value)}
-                              placeholder="Search athlete…" style={{ width: '100%' }} />
-                            {addEventAthleteSearch && (
-                              <div className="card" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20, padding: 4, maxHeight: 200, overflowY: 'auto' }}>
-                                {students.filter(s => `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.toLowerCase().includes(addEventAthleteSearch.toLowerCase())).slice(0, 10).map(s => (
-                                  <button key={s.id} onClick={() => { setAddEventAthlete(s); setAddEventAthleteSearch('') }}
-                                    style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, borderRadius: 6, color: 'var(--text)', fontFamily: 'var(--font-sans)' }}>
-                                    {s.members?.first_name} {s.members?.last_name}
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 10, cursor: 'pointer' }}>
-                      <input type="checkbox" checked={newEventSendAll} onChange={e => setNewEventSendAll(e.target.checked)} style={{ width: 16, height: 16 }} />
-                      Also show in the Sessions tab of whoever this targets
-                    </label>
-                    <button className="btn btn-primary btn-sm" disabled={!newEventTitle.trim() || !newEventDate || (showAddEventTarget === 'individual' && !addEventAthlete) || savingEvent} onClick={addEvent}>
-                      {savingEvent ? 'Saving…' : 'Add event'}
-                    </button>
-                  </div>
-                )}
-                {clubEvents.filter(e => e.event_date >= new Date().toISOString().split('T')[0]).length === 0 ? (
-                  <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No upcoming events.</p>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {clubEvents.filter(e => e.event_date >= new Date().toISOString().split('T')[0]).map(ev => (
-                      <div key={ev.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 600 }}>{ev.title}</div>
-                          <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-                            {new Date(ev.event_date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}{ev.event_time ? ` · ${ev.event_time.slice(0,5)}` : ''}
-                            {ev.target_type === 'individual' && ev.target_student_id && (() => {
-                              const s = students.find(st => st.id === ev.target_student_id)
-                              return s ? <span style={{ marginLeft: 6, color: '#EF9F27' }}>· {s.members?.first_name} {s.members?.last_name}</span> : null
-                            })()}
-                            {ev.target_type === 'kr' && <span style={{ marginLeft: 6, color: '#EF9F27' }}>· All KR</span>}
-                            {ev.target_type === 'krba' && <span style={{ marginLeft: 6, color: '#EF9F27' }}>· All KRBA</span>}
-                            {ev.send_to_all_students && <span style={{ marginLeft: 6, color: '#1D9E75' }}>· sent to Sessions tab</span>}
-                          </div>
-                          {ev.description && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{ev.description}</div>}
-                        </div>
-                        <button onClick={() => deleteEvent(ev.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14 }}>×</button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-              </>
             )}
 
             {/* ── Sweep the Sheds (team dashboard) ── */}
@@ -9032,40 +9081,6 @@ export default function AthleteProfiles() {
                 onClick={() => filtered.length > 0 && selectStudent(filtered[0])} title="Browse athlete profiles">Next →</button>
             </div>
 
-            {/* Targets management -- all existing targets in one place; use the "+ Target"/"+ Set target" buttons on each card above to add a new one right where you need it */}
-            <div className="card" style={{ padding: 0, marginBottom: 14, marginTop: 14 }}>
-              <div style={{ padding: '12px 16px', borderBottom: showTargetsList ? '1px solid var(--border)' : 'none', cursor: 'pointer' }} onClick={() => setShowTargetsList(v => !v)}>
-                <h2 style={{ fontSize: 14, fontWeight: 600 }}>{showTargetsList ? '▾' : '▸'} 🎯 All Targets ({teamTargets.length})</h2>
-              </div>
-              {showTargetsList && (
-              <div style={{ padding: 16 }}>
-                {teamTargets.length === 0 ? (
-                  <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No targets set yet. Use the "+ Target" button on any card above to add one.</p>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {teamTargets.map(t => {
-                      const forStudent = t.student_id ? students.find(s => s.id === t.student_id) : null
-                      return (
-                      <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 600, textTransform: 'capitalize' }}>
-                            {t.section_key.replace(/_/g, ' ')}{t.question_label ? ` — ${t.question_label}` : ''}
-                          </div>
-                          <div style={{ fontSize: 12, color: '#EF9F27' }}>Target: {t.target_value}</div>
-                          <div style={{ fontSize: 11, color: forStudent ? '#1D9E75' : 'var(--text-tertiary)' }}>
-                            {forStudent ? `👤 Individual: ${forStudent.members?.first_name} ${forStudent.members?.last_name}` : '👥 Whole team'}
-                          </div>
-                          {t.notes && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{t.notes}</div>}
-                        </div>
-                        <button onClick={() => deleteTeamTarget(t.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14 }}>×</button>
-                      </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-              )}
-            </div>
             </>
             )}
           </div>
