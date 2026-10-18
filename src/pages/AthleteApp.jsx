@@ -1707,6 +1707,27 @@ export default function AthleteApp() {
     if (!per) return null
     return <span className="neon-tally-wrap"><TallyGate target={bp[per].target} done={bp[per].done} colour={colour} label={({ week: 'This week', day: 'Today', month: 'This month' })[per]} /><span className="neon-tally-per">{({ week: 'W', day: 'D', month: 'M' })[per]}</span></span>
   }
+  // Daily reminders (once a day, can be switched off): session today, weekly running left, monthly tests left
+  const [remindersOn, setRemindersOn] = useState(() => { try { return localStorage.getItem('kc_reminders') !== 'off' } catch { return true } })
+  const [reminderPopup, setReminderPopup] = useState(null)
+  const setReminders = on => { setRemindersOn(on); try { localStorage.setItem('kc_reminders', on ? 'on' : 'off') } catch { /* ignore */ } }
+  useEffect(() => {
+    if (!student || !remindersOn) return
+    const today = new Date().toISOString().split('T')[0]
+    try { if (localStorage.getItem('kc_reminders_day') === today) return } catch { /* */ }
+    const t = setTimeout(() => {
+      const items = []
+      const dow = new Date().toLocaleDateString('en-GB', { weekday: 'long' }).toLowerCase()
+      const todays = (assignedClasses || []).filter(a => a.classes && (a.classes.day_of_week || '').toLowerCase() === dow && assignmentActiveOn(a, today))
+        .sort((a, b) => String(a.classes.start_time).localeCompare(String(b.classes.start_time)))
+      for (const a of todays) items.push({ icon: '📅', text: `You have a session today at ${String(a.classes.start_time).slice(0, 5)}${a.classes.name ? ` (${a.classes.name})` : ''}` })
+      try { const r = getQuestionProgressByPeriod('physical', 'Running'); if (r?.week?.target > 0 && r.week.done < r.week.target) items.push({ icon: '🏃', text: `Running: ${r.week.done} of ${r.week.target} this week -- ${r.week.target - r.week.done} left` }) } catch { /* */ }
+      try { const t2 = getSectionProgressByPeriod('test'); if (t2?.month?.target > 0 && t2.month.done < t2.month.target) items.push({ icon: '📋', text: `Tests: ${t2.month.target - t2.month.done} left to complete this month` }) } catch { /* */ }
+      try { localStorage.setItem('kc_reminders_day', today) } catch { /* */ }
+      if (items.length) setReminderPopup(items)
+    }, 2500)
+    return () => clearTimeout(t)
+  }, [student?.id, remindersOn, assignedClasses.length]) // eslint-disable-line react-hooks/exhaustive-deps
   const [videoTool, setVideoTool] = useState(null) // { mode: 'jump'|'sprint', distance, onSave, label }
   const [runEffortSel, setRunEffortSel] = useState({}) // running: which effort is being edited, per type ('__new__' = a new one)
   const [showPhysicalSection, setShowPhysicalSection] = useState(false)
@@ -5130,6 +5151,18 @@ export default function AthleteApp() {
       {tab === 'home' && (
         <div className="neon-home">
           {HistoryViewModal()}
+          {reminderPopup && (
+            <div role="dialog" aria-modal="true" onClick={() => setReminderPopup(null)} style={{ position: 'fixed', inset: 0, zIndex: 570, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '80px 16px 0' }}>
+              <div className="card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 380, padding: 18 }}>
+                <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 10 }}>🔔 Today</h3>
+                {reminderPopup.map((r, i) => <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '8px 0', borderTop: i ? '1px solid var(--border)' : 'none', fontSize: 14 }}><span>{r.icon}</span><span>{r.text}</span></div>)}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
+                  <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}><input type="checkbox" checked={!remindersOn} onChange={e => setReminders(!e.target.checked)} /> Turn reminders off</label>
+                  <button type="button" className="btn btn-primary" style={{ marginLeft: 'auto' }} onClick={() => setReminderPopup(null)}>Got it</button>
+                </div>
+              </div>
+            </div>
+          )}
           {liveHrPrompt && (
             <div role="dialog" aria-modal="true" onClick={() => setLiveHrPrompt(null)} style={{ position: 'fixed', inset: 0, zIndex: 560, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '80px 16px 0' }}>
               <div className="card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 380, padding: 18, border: '1px solid #E24B4A' }}>
@@ -5183,6 +5216,9 @@ export default function AthleteApp() {
           {UndoBar()}
           {student ? (
             <>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
+                <button type="button" className="btn btn-sm" onClick={() => setReminders(!remindersOn)} title="Daily reminders (session today, running, tests)" style={{ fontSize: 11, opacity: 0.85 }}>🔔 Reminders {remindersOn ? 'on' : 'off'}</button>
+              </div>
               {pushPermission === 'default' && (
                 <div className="card" style={{ marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 12 }}>🔔 Get notified when your coach logs something, or you move on the league ladder.</span>
