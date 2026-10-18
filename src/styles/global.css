@@ -1339,3 +1339,19 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .neon-home .neon-tally-wrap { flex-basis: 100%; display: flex; justify-content: center; align-items: center; gap: 4px; font-size: 10px; line-height: 1; }
 .neon-home .neon-tally-per { font-family: 'Orbitron', sans-serif; font-size: 9px; opacity: 0.6; }
 .neon-home .neon-bl .neon-tally-wrap, .neon-home .neon-br .neon-tally-wrap { order: -2; }
+
+/* ── Section cards, Oct 2026 tidy ───────────────────────────────────────
+   Rope D/W/M numbers + letters hidden for now (the rope charge effect stays). */
+.neon-home .neon-pillar .neon-rope-count, .neon-home .neon-pillar .neon-rope-letter, .neon-home .neon-gap-letter { display: none !important; }
+/* D / W / M tallies, always shown (dash when no target) */
+.neon-home .neon-tally-wrap { flex-basis: 100%; display: flex !important; flex-direction: column; align-items: center; gap: 2px; }
+.neon-home .neon-tally-row { display: flex; align-items: center; gap: 5px; line-height: 1; }
+.neon-home .neon-tally-per { font-family: 'Orbitron', sans-serif; font-size: 9px; opacity: 0.65; width: 9px; text-align: right; }
+.neon-home .neon-tally-dash { font-family: 'Orbitron', sans-serif; font-size: 11px; opacity: 0.45; }
+/* Open section: everything in normal flow (no overlapping) -- title, graph + place, quote */
+.neon-home .neon-pillar.is-open { display: flex !important; flex-direction: column !important; align-items: stretch !important; gap: 12px !important; padding: 44px 50px !important; min-height: 0 !important; }
+.neon-home .neon-pillar.is-open > div:first-child { position: static !important; width: 100%; display: flex !important; justify-content: center !important; }
+.neon-home .neon-pillar.is-open [style*="Anton"] { position: static !important; inset: auto !important; transform: none !important; justify-content: center; margin: 0 auto; }
+.neon-home .neon-pillar.is-open > .neon-graph-row { position: static !important; width: 100% !important; inset: auto !important; flex-direction: row !important; justify-content: center; }
+.neon-home .neon-pillar.is-open > .neon-section-quote { order: 5; margin: 0 !important; padding: 0 !important; }
+.neon-home .neon-pillar.is-open .neon-tally-wrap { margin-top: 4px; }

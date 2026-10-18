@@ -3369,11 +3369,20 @@ export default function AthleteProfiles() {
   }
   // section target as tally marks (the period that has a target: week first, then day, then month)
   const SectionTally = ({ sectionKey, colour }) => {
+    // D / W / M always shown: tally gates where there's a target, a dash where there isn't
     const bp = getCoachSectionProgressByPeriod(sectionKey)
-    const per = ['week', 'day', 'month'].find(k => bp[k]?.target > 0)
-    if (!per) return null
-    return <span className="neon-tally-wrap"><TallyGate target={bp[per].target} done={bp[per].done} colour={colour} label={({ week: 'This week', day: 'Today', month: 'This month' })[per]} /><span className="neon-tally-per">{({ week: 'W', day: 'D', month: 'M' })[per]}</span></span>
+    return (
+      <span className="neon-tally-wrap">
+        {[['day', 'D'], ['week', 'W'], ['month', 'M']].map(([k, l]) => (
+          <span key={k} className="neon-tally-row">
+            <span className="neon-tally-per">{l}</span>
+            {bp[k]?.target > 0 ? <TallyGate target={bp[k].target} done={bp[k].done} colour={colour} label={({ day: 'Today', week: 'This week', month: 'This month' })[k]} /> : <span className="neon-tally-dash">–</span>}
+          </span>
+        ))}
+      </span>
+    )
   }
+
   const [videoTool, setVideoTool] = useState(null) // { mode: 'jump'|'sprint', distance, onSave, label }
   const [runEffortSel, setRunEffortSel] = useState({}) // running: which effort is being edited, per type ('__new__' = a new one)
   const [showPhysicalSection, setShowPhysicalSection] = useState(false)
