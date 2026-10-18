@@ -6857,8 +6857,11 @@ export default function AthleteProfiles() {
                                   const off = target ? Math.round(((s.weight_kg - target) / target) * 1000) / 10 : null
                                   return (
                                     <span style={{ textAlign: 'right' }}>
-                                      <b>{m[1] === '+' ? '+' : '-'}{comp}kg</b>
-                                      <span style={{ display: 'block', fontSize: 10, color: off == null ? 'var(--text-tertiary)' : off > 0 ? '#E24B4A' : '#1D9E75' }}>{s.weight_kg}kg{off != null ? ` · ${off > 0 ? '+' : ''}${off}% vs target ${target.toFixed(1)}` : ''}</span>
+                                      <b>{s.weight_kg}kg</b>
+                                      <span style={{ display: 'block', fontSize: 10, color: 'var(--text-tertiary)' }}>
+                                        {target ? <span style={{ color: off > 0 ? '#E24B4A' : '#1D9E75' }}>target {target.toFixed(1)}kg{off != null ? ` (${off > 0 ? '+' : ''}${off}%)` : ''}</span> : null}
+                                        {target ? ' · ' : ''}comp {m[1] === '+' ? '+' : '-'}{comp}kg
+                                      </span>
                                     </span>
                                   )
                                 })()}
@@ -7116,7 +7119,7 @@ export default function AthleteProfiles() {
                     <button onClick={() => setShowWeightTargetPopup(false)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
                   </div>
                   <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16 }}>
-                    Each athlete's target weight is their current weight plus this fraction — e.g. 0.025 means +2.5%, so an 80kg athlete has a target weight of 82kg. Use the checkbox to choose which one applies to everyone — this replaces each athlete's individual "In comp" status for this calculation.
+                    Each athlete's target weight is their competition weight plus this fraction — e.g. 0.025 means +2.5%, so an athlete fighting at -80kg has a target weight of 82kg. Use the checkbox to choose which one applies to everyone — this replaces each athlete's individual "In comp" status for this calculation.
                   </p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     <div>
