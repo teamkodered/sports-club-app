@@ -54,7 +54,6 @@ export default function PdpOverview({ athletes, sections, groups, colours, onOpe
     return () => clearTimeout(t)
   }, [focus, view])
   const visible = useMemo(() => athletes
-    .filter(showFilters[show] || showFilters.all)
     .filter(s => !search || nameOf(s).toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => nameOf(a).localeCompare(nameOf(b))), [athletes, show, search])
   const jumpTo = (id, key) => { const g = groups.find(x => x.keys.includes(key)); setView(g ? g.label : 'General'); setFocus({ id, key }) }
@@ -185,13 +184,6 @@ export default function PdpOverview({ athletes, sections, groups, colours, onOpe
       {/* hide / search */}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search athlete…" style={{ flex: '1 1 160px', minWidth: 140 }} />
-        <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>Show
-          <select value={show} onChange={e => pickShow(e.target.value)} style={{ minWidth: 90 }}>
-            <option value="all">All</option>
-            <option value="kr">KR</option>
-            <option value="krba">KRBA</option>
-          </select>
-        </label>
         <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{visible.length} athlete{visible.length === 1 ? '' : 's'}</span>
       </div>
       {/* clipboard */}
@@ -261,6 +253,40 @@ export default function PdpOverview({ athletes, sections, groups, colours, onOpe
           </div>
         )
       })() : (
+      !cols ? (
+        <div>
+          {visible.map(s => {
+            const pdp = rows[s.id] || {}
+            const block = (k, n, bg, title) => (
+              <button key={k} onClick={() => jumpTo(s.id, k)} title={title}
+                style={{ all: 'unset', cursor: 'pointer', minWidth: 30, textAlign: 'center', padding: '5px 6px', borderRadius: 6, fontSize: 14, fontWeight: 800, fontFamily: 'Orbitron, sans-serif',
+                  color: n ? '#fff' : '#E24B4A', background: n ? bg : 'transparent', border: n ? 'none' : '1px dashed #E24B4A88' }}>{n || '·'}</button>
+            )
+            return (
+              <div key={s.id} className="card" style={{ padding: 12, marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
+                  <button onClick={() => setQuick(q => q === s.id ? null : s.id)} style={{ all: 'unset', cursor: 'pointer', fontWeight: 700, fontSize: 16 }}>{quick === s.id ? '▾' : '▸'} {nameOf(s)}</button>
+                  <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{s.discipline === 'KRBA' ? 'KRBA' : s.in_comp ? 'In comp' : 'Out of comp'}</span>
+                </div>
+                {quick === s.id && <PdpQuick s={s} pdp={pdp} />}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, rowGap: 10 }}>
+                  <div>
+                    <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 4 }}>General</div>
+                    <div style={{ display: 'flex', gap: 4 }}>{general.map(c => block(c.key, (pdp[c.key] || []).length, '#1D9E75', c.label))}</div>
+                  </div>
+                  {groups.map(g => (
+                    <div key={g.label}>
+                      <div style={{ fontSize: 10, color: g.colour || 'var(--text-tertiary)', marginBottom: 4 }}>{g.label}</div>
+                      <div style={{ display: 'flex', gap: 4 }}>{g.keys.map((k, i) => block(k, (pdp[k] || []).length, colours[SUB[i][0]] || '#666', `${g.label} · ${SUB[i][1]}`))}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+          {!visible.length && <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No athletes to show.</p>}
+        </div>
+      ) : (
       <div ref={tableRef} style={{ overflowX: 'auto', maxHeight: '70vh', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
@@ -311,6 +337,7 @@ export default function PdpOverview({ athletes, sections, groups, colours, onOpe
           </tbody>
         </table>
       </div>
+      )
       )}
       {clipEdit && (
         <div onClick={() => setClipEdit(null)} style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '70px 12px 0' }}>
