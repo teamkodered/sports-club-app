@@ -1049,7 +1049,7 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .coach-dash .coach-pillar > button:first-child > span:last-child > span:first-child { font-family: 'Orbitron', sans-serif; font-size: 22px !important; color: var(--pillar) !important; }
 .coach-dash .coach-pillar > button:first-child > span:last-child > span:last-child { margin-left: auto; }
 .coach-dash .coach-pillar-title { font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800; font-size: 20px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--pillar); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.coach-dash .coach-pillar-img { height: 36px; width: auto; flex-shrink: 0; }
+.coach-dash .coach-pillar-img { height: 22px; width: auto; flex-shrink: 0; }
 .coach-dash .coach-pillar.is-open > .card { border-top: 2px solid var(--pillar) !important; }
 /* who's done / missing */
 .coach-dash .coach-who { margin: 4px 0 10px; }
@@ -1271,5 +1271,3 @@ tbody tr:hover td { background: var(--bg-secondary); }
 
 /* Registers (mobile): small settings cog at the right end of the title row, above the Table button */
 .reg-title-cog .reg-m-cog { width: 38px !important; height: 38px !important; min-width: 0 !important; padding: 0 !important; border-radius: 10px !important; }
-/* athlete Home tiles: line icon the same size as the tile text */
-.neon-home .neon-tile .neon-tile-icon { width: 20px !important; height: 20px !important; }

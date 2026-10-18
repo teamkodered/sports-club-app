@@ -8293,7 +8293,7 @@ export default function AthleteProfiles() {
                       background: 'var(--bg-secondary)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)',
                     }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                        {pil.img ? <img src={pil.img} alt="" className="coach-pillar-img" /> : <span style={{ fontSize: 22 }}>{section.icon}</span>}
+                        {pil.img ? <img src={pil.img} alt="" className="coach-pillar-img" /> : <span style={{ fontSize: 18 }}>{section.icon}</span>}
                         <span className="coach-pillar-title">{section.label}</span>
                       </span>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
