@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase.js'
 
 // PDP overview (coach PDP page): every athlete's PDP notes in one table -- a row per athlete, a column per
@@ -112,6 +112,37 @@ export default function PdpOverview({ athletes, sections, groups, colours, onOpe
   const th = { textAlign: 'left', padding: '6px 8px', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', position: 'sticky', top: 0, background: 'var(--bg-primary, #0f1318)', zIndex: 1 }
   const tdBase = { padding: '6px 8px', verticalAlign: 'top', borderBottom: '1px solid var(--border)' }
 
+  // athlete quick view (press a name): their PDP at a glance + open profile
+  const [quick, setQuick] = useState(null)
+  const PdpQuick = ({ s, pdp }) => {
+    const today = new Date().toISOString().split('T')[0]
+    const counts = sections.map(sec => ({ ...sec, n: (pdp[sec.key] || []).map(itemText).filter(Boolean).length })).filter(x => x.n > 0)
+    const total = counts.reduce((a, b) => a + b.n, 0)
+    const done = Object.keys(pdp).filter(k => k.startsWith('__completed_')).reduce((a, k) => a + (pdp[k] || []).length, 0)
+    let overdue = 0
+    for (const k of Object.keys(pdp)) if (k.startsWith('__timetable_')) { const sec = k.slice(12), fin = new Set(pdp[`__completed_${sec}`] || []), still = new Set((pdp[sec] || []).map(itemText)); for (const [item, e] of Object.entries(pdp[k] || {})) if (e?.date && e.date < today && still.has(item) && !fin.has(item)) overdue++ }
+    return (
+      <div style={{ padding: '8px 4px 10px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6, marginBottom: 8 }}>
+          {[['PDP items', total, 'var(--text)'], ['Completed', done, '#1D9E75'], ['Overdue', overdue, overdue ? '#E24B4A' : 'var(--text-tertiary)']].map(([l, v, c]) => (
+            <div key={l} style={{ background: 'var(--bg-secondary)', borderRadius: 8, padding: '6px 8px' }}>
+              <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{l}</div>
+              <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 16, fontWeight: 700, color: c }}>{v}</div>
+            </div>
+          ))}
+        </div>
+        {counts.length > 0 ? (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+            {counts.map(c => <span key={c.key} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, border: `1px solid ${c.colour || 'var(--border)'}`, color: c.colour || 'var(--text-secondary)' }}>{c.label} · {c.n}</span>)}
+          </div>
+        ) : <div style={{ fontSize: 12, color: '#E24B4A', marginBottom: 8 }}>No PDP notes yet</div>}
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button className="btn btn-sm btn-primary" onClick={() => onOpenAthlete?.(s)}>Open profile ›</button>
+        </div>
+      </div>
+    )
+  }
+
   // one athlete x section: notes (tap to copy), Paste / + Add
   const cellBody = (s, c, items) => (
     <>
@@ -213,9 +244,10 @@ export default function PdpOverview({ athletes, sections, groups, colours, onOpe
                 <div key={s.id} className="card" style={{ padding: 10, marginBottom: 8 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                     <input type="checkbox" checked={ticked.has(s.id)} onChange={() => setTicked(t => { const nn = new Set(t); nn.has(s.id) ? nn.delete(s.id) : nn.add(s.id); return nn })} aria-label="Tick for bulk paste" />
-                    <button onClick={() => onOpenAthlete?.(s)} style={{ all: 'unset', cursor: 'pointer', fontWeight: 700, fontSize: 14 }}>{nameOf(s)}</button>
+                    <button onClick={() => setQuick(q => q === s.id ? null : s.id)} style={{ all: 'unset', cursor: 'pointer', fontWeight: 700, fontSize: 14 }}>{quick === s.id ? '▾' : '▸'} {nameOf(s)}</button>
                     <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{s.discipline === 'KRBA' ? 'KRBA' : s.in_comp ? 'In comp' : 'Out of comp'}</span>
                   </div>
+                  {quick === s.id && <PdpQuick s={s} pdp={pdp} />}
                   <div style={{ display: 'grid', gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))`, gap: 8, fontSize: fs }}>
                     {shown.map(c => {
                       const items = (pdp[c.key] || []).map(itemText).filter(Boolean)
@@ -248,10 +280,11 @@ export default function PdpOverview({ athletes, sections, groups, colours, onOpe
             {visible.map(s => {
               const pdp = rows[s.id] || {}
               return (
-                <tr key={s.id}>
+                <Fragment key={s.id}>
+                <tr>
                   {cols && <td style={tdBase}><input type="checkbox" checked={ticked.has(s.id)} onChange={() => setTicked(t => { const n = new Set(t); n.has(s.id) ? n.delete(s.id) : n.add(s.id); return n })} aria-label={`Tick ${nameOf(s)}`} /></td>}
                   <td style={{ ...tdBase, whiteSpace: 'nowrap', position: 'sticky', left: 0, background: 'var(--bg-primary, #0f1318)' }}>
-                    <button onClick={() => onOpenAthlete?.(s)} style={{ all: 'unset', cursor: 'pointer', fontWeight: 600 }} title="Open athlete">{nameOf(s)}</button>
+                    <button onClick={() => setQuick(q => q === s.id ? null : s.id)} style={{ all: 'unset', cursor: 'pointer', fontWeight: 600 }} title="Quick view">{quick === s.id ? '▾' : '▸'} {nameOf(s)}</button>
                     <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{s.discipline === 'KRBA' ? 'KRBA' : s.in_comp ? 'In comp' : 'Out of comp'}</div>
                   </td>
                   {cols ? cols.map(c => {
@@ -270,6 +303,8 @@ export default function PdpOverview({ athletes, sections, groups, colours, onOpe
                     ))}
                   </>}
                 </tr>
+                {quick === s.id && <tr><td colSpan={99} style={{ padding: '0 10px', borderBottom: '1px solid var(--border)' }}><PdpQuick s={s} pdp={pdp} /></td></tr>}
+                </Fragment>
               )
             })}
             {!visible.length && <tr><td colSpan={20} style={{ ...tdBase, color: 'var(--text-tertiary)' }}>No athletes to show.</td></tr>}

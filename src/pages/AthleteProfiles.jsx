@@ -3108,6 +3108,14 @@ export default function AthleteProfiles() {
   )
   const [recordFlash, setRecordFlash] = useState(false) // show 'updated <date>' beside the record for a few seconds
   const [wearView, setWearView] = useState('athletes') // coach Wearables: athletes | day | session
+  const [weightQuick, setWeightQuick] = useState(null) // View by weight: athlete quick view
+  const [weightTrend, setWeightTrend] = useState({})   // student_id -> [{ d, w }] recent weigh-ins
+  async function loadWeightTrend(id) {
+    if (weightTrend[id]) return
+    const { data } = await supabase.from('fit2fight_sessions').select('session_date, weight_before, weight_after').eq('student_id', id).order('session_date', { ascending: false }).limit(12)
+    const list = (data || []).map(r => ({ d: r.session_date, w: parseFloat(r.weight_after ?? r.weight_before) })).filter(r => !isNaN(r.w)).reverse()
+    setWeightTrend(t => ({ ...t, [id]: list }))
+  }
   const [dashMiniOpen, setDashMiniOpen] = useState(null) // Notes / MTP card opened
   const [dashWhoOpen, setDashWhoOpen] = useState({}) // coach dashboard: who's done / missing lists open
   const [dashboardTab, setDashboardTab] = useState('overview') // 'overview' | 'calendar' | 'results' | 'pdp'
@@ -6859,14 +6867,15 @@ export default function AthleteProfiles() {
                           ) : weightSorted.map(s => {
                             const wAge = s.members?.date_of_birth ? Math.floor((Date.now() - new Date(s.members.date_of_birth)) / (365.25 * 24 * 60 * 60 * 1000)) : null
                             return (
-                              <button key={s.id} onClick={() => { selectStudent(s); setShowDashWeightList(false) }}
+                              <div key={s.id}>
+                              <button onClick={() => { const open = weightQuick !== s.id; setWeightQuick(open ? s.id : null); if (open) loadWeightTrend(s.id) }}
                                 style={{
                                   display: 'flex', justifyContent: 'space-between', width: '100%', textAlign: 'left',
                                   padding: '6px 8px', fontSize: 12, borderBottom: '1px solid var(--border)',
                                   background: 'none', border: 'none', borderRadius: 6, cursor: 'pointer',
                                   color: 'var(--text)', fontFamily: 'var(--font-sans)',
                                 }}>
-                                <span>{s.members?.first_name} {s.members?.last_name}{wAge ? ` (${wAge})` : ''}</span>
+                                <span>{weightQuick === s.id ? '▾' : '▸'} {s.members?.first_name} {s.members?.last_name}{wAge ? ` (${wAge})` : ''}</span>
                                 {(() => {
                                   // target comes from their competition weight (+ the team %), not their current weight
                                   const ap = allAthleteProfiles.find(p => p.student_id === s.id) || {}
@@ -6887,6 +6896,33 @@ export default function AthleteProfiles() {
                                   )
                                 })()}
                               </button>
+                              {/* quick view: weight trend + target + open profile */}
+                              {weightQuick === s.id && (() => {
+                                const tr = weightTrend[s.id]
+                                const vals = (tr || []).map(r => r.w)
+                                return (
+                                  <div style={{ padding: '6px 8px 10px', borderBottom: '1px solid var(--border)' }}>
+                                    {tr == null ? <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Loading…</div> : vals.length < 2 ? <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{vals.length ? 'Only one weigh-in so far' : 'No weigh-ins logged'}</div> : (() => {
+                                      const w = 280, h = 54, lo = Math.min(...vals) - 0.5, hi = Math.max(...vals) + 0.5
+                                      const px = i => 4 + i * (w - 8) / (vals.length - 1), py = v => 4 + (1 - (v - lo) / (hi - lo)) * (h - 14)
+                                      return (
+                                        <svg viewBox={`0 0 ${w} ${h}`} width="100%" style={{ display: 'block' }} aria-label="Weight trend">
+                                          <path d={vals.map((v, i) => `${i ? 'L' : 'M'}${px(i).toFixed(1)},${py(v).toFixed(1)}`).join(' ')} fill="none" stroke="#378ADD" strokeWidth="2" strokeLinejoin="round" />
+                                          {vals.map((v, i) => <circle key={i} cx={px(i)} cy={py(v)} r="2.5" fill="#378ADD" />)}
+                                          <text x={4} y={h - 1} fontSize="9" fill="var(--text-tertiary)">{new Date(tr[0].d + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</text>
+                                          <text x={w - 4} y={h - 1} fontSize="9" textAnchor="end" fill="var(--text-tertiary)">{new Date(tr[tr.length - 1].d + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</text>
+                                        </svg>
+                                      )
+                                    })()}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, fontSize: 11, color: 'var(--text-secondary)' }}>
+                                      <span>{s.in_comp ? <b style={{ color: '#1D9E75' }}>In comp</b> : <b style={{ color: '#F5821F' }}>Out of comp</b>}</span>
+                                      {vals.length > 1 && <span>{(vals[vals.length - 1] - vals[0] > 0 ? '+' : '') + (vals[vals.length - 1] - vals[0]).toFixed(1)}kg over {vals.length} weigh-ins</span>}
+                                      <button className="btn btn-sm btn-primary" style={{ marginLeft: 'auto' }} onClick={() => { selectStudent(s); setShowDashWeightList(false) }}>Open profile ›</button>
+                                    </div>
+                                  </div>
+                                )
+                              })()}
+                              </div>
                             )
                           })}
                         </div>
