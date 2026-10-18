@@ -3084,7 +3084,10 @@ export default function AthleteProfiles() {
   // Coach dashboard team filter (All / KR / KRBA) -- remembered on this device for next time
   const [dashClubFilter, setDashClubFilterRaw] = useState(() => { try { return localStorage.getItem('coach_dash_team') || 'all' } catch { return 'all' } }) // 'all' | 'PKA' | 'KRBA'
   const setDashClubFilter = v => { setDashClubFilterRaw(v); try { localStorage.setItem('coach_dash_team', v) } catch { /* ignore */ } }
-  const inDashTeam = s => (s.is_kr || s.is_pts || s.discipline === 'KRBA') && (dashClubFilter === 'all' || s.discipline === dashClubFilter)
+  const dashLevelOf = s => s.discipline === 'KRBA' ? (s.krba_level || '—') : s.is_kr ? (s.competition_team || '—') : (s.pka_belt || '—')
+  const [dashLevel, setDashLevel] = useState('all') // TEAM banner level: 'all' or one level -- filters the whole dashboard
+  const inDashTeam = s => (s.is_kr || s.is_pts || s.discipline === 'KRBA') && (dashClubFilter === 'all' || s.discipline === dashClubFilter) && (dashLevel === 'all' || dashLevelOf(s) === dashLevel)
+  const [recordFlash, setRecordFlash] = useState(false) // show 'updated <date>' beside the record for a few seconds
   const [wearView, setWearView] = useState('athletes') // coach Wearables: athletes | day | session
   const [dashWhoOpen, setDashWhoOpen] = useState({}) // coach dashboard: who's done / missing lists open
   const [dashboardTab, setDashboardTab] = useState('overview') // 'overview' | 'calendar' | 'results' | 'pdp'
@@ -5584,10 +5587,13 @@ export default function AthleteProfiles() {
   }
 
   async function updateSelectedField(field, value) {
-    const { error } = await supabase.from('students').update({ [field]: value }).eq('id', selected.id)
+    const patch = { [field]: value }
+    if (['wins', 'losses', 'draws'].includes(field)) patch.record_updated_at = new Date().toISOString() // shown on the dashboard record
+    let { error } = await supabase.from('students').update(patch).eq('id', selected.id)
+    if (error && /record_updated_at/.test(error.message)) ({ error } = await supabase.from('students').update({ [field]: value }).eq('id', selected.id))
     if (error) { alert('Error saving: ' + error.message); return }
-    setSelected(prev => ({ ...prev, [field]: value }))
-    setStudents(prev => prev.map(s => s.id === selected.id ? { ...s, [field]: value } : s))
+    setSelected(prev => ({ ...prev, ...patch }))
+    setStudents(prev => prev.map(s => s.id === selected.id ? { ...s, ...patch } : s))
   }
 
   async function toggleSelectedGroup(key) {
@@ -6746,22 +6752,24 @@ export default function AthleteProfiles() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 14px', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
                       <span style={{ color: 'var(--text-secondary)' }}>Show</span>
                       <div style={{ display: 'flex', gap: 4 }}>
-                        {['all', 'PKA', 'KRBA'].map(f => (
-                          <button key={f} onClick={() => setDashClubFilter(f)} style={{
-                            fontSize: 11, padding: '3px 8px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                            border: `1px solid ${dashClubFilter === f ? '#378ADD' : 'var(--border-strong)'}`,
-                            background: dashClubFilter === f ? '#378ADD20' : 'none', color: dashClubFilter === f ? '#378ADD' : 'var(--text-secondary)',
-                          }}>{f === 'all' ? 'All' : f === 'PKA' ? 'KR' : f}</button>
-                        ))}
+                        {/* one pill: tap to step through All -> KR -> KRBA */}
+                        <button onClick={() => setDashClubFilter(({ all: 'PKA', PKA: 'KRBA', KRBA: 'all' })[dashClubFilter] || 'all')} title="Tap to change" style={{
+                          fontSize: 12, padding: '4px 14px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 700,
+                          border: '1px solid #378ADD', background: '#378ADD20', color: '#378ADD', display: 'flex', alignItems: 'center', gap: 6,
+                        }}>{dashClubFilter === 'all' ? 'All' : dashClubFilter === 'PKA' ? 'KR' : 'KRBA'} <span style={{ fontSize: 10, opacity: 0.8 }}>⇄</span></button>
                       </div>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 14px', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
                       <span style={{ color: 'var(--text-secondary)' }}>Record</span>
                       <span
-                        onClick={() => setShowRecordAsPct(v => !v)}
+                        onClick={() => { setShowRecordAsPct(v => !v); setRecordFlash(true); clearTimeout(window.__kcRecT); window.__kcRecT = setTimeout(() => setRecordFlash(false), 3500) }}
                         title="Press to toggle win %"
-                        style={{ fontWeight: 500, cursor: 'pointer', userSelect: 'none' }}>
+                        style={{ fontWeight: 500, cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'baseline', gap: 8 }}>
                         {showRecordAsPct ? `${winPct}% wins` : `${totalWins}W ${totalLosses}L ${totalDraws}D`}
+                        {(() => { const last = clubFiltered.map(s => s.record_updated_at).filter(Boolean).sort().pop(); return (
+                          <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--text-secondary)', opacity: recordFlash ? 1 : 0, transition: 'opacity 0.6s ease', whiteSpace: 'nowrap' }}>
+                            · updated {last ? new Date(last).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+                          </span>) })()}
                       </span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 14px', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
@@ -6770,16 +6778,18 @@ export default function AthleteProfiles() {
                         <span style={{ fontWeight: 500, fontSize: 12 }}>—</span>
                       ) : (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <button onClick={() => setDashLevelIndex(i => (i - 1 + levelBreakdown.length) % levelBreakdown.length)}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-tertiary)', padding: 2 }}>◀</button>
-                          <span style={{
-                            fontWeight: 500, fontSize: 12, padding: '3px 10px', borderRadius: 20,
-                            background: 'var(--bg-secondary)', border: '1px solid var(--border-strong)', whiteSpace: 'nowrap',
-                          }}>
-                            {levelBreakdown[dashLevelIndex % levelBreakdown.length]?.[0]}: {levelBreakdown[dashLevelIndex % levelBreakdown.length]?.[1]}
-                          </span>
-                          <button onClick={() => setDashLevelIndex(i => (i + 1) % levelBreakdown.length)}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-tertiary)', padding: 2 }}>▶</button>
+                          {(() => {
+                            // All + each level; picking one filters the whole dashboard (stat cards, overview, needs attention…)
+                            const opts = ['all', ...levelBreakdown.map(([l]) => l)]
+                            const idx = Math.max(0, opts.indexOf(dashLevel))
+                            const step = d => setDashLevel(opts[(idx + d + opts.length) % opts.length])
+                            const label = dashLevel === 'all' ? `All: ${clubFiltered.length}` : `${dashLevel}: ${levelCounts[dashLevel] || 0}`
+                            return <>
+                              <button onClick={() => step(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-tertiary)', padding: 2 }}>◀</button>
+                              <span style={{ fontWeight: 500, fontSize: 12, padding: '3px 10px', borderRadius: 20, background: dashLevel === 'all' ? 'var(--bg-secondary)' : '#378ADD20', border: `1px solid ${dashLevel === 'all' ? 'var(--border-strong)' : '#378ADD'}`, whiteSpace: 'nowrap' }}>{label}</span>
+                              <button onClick={() => step(1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-tertiary)', padding: 2 }}>▶</button>
+                            </>
+                          })()}
                         </div>
                       )}
                     </div>
@@ -6921,13 +6931,12 @@ export default function AthleteProfiles() {
                   {cards.map(c => {
                     const targets = targetsFor(c.key)
                     return (
-                      <div key={c.key} className={`coach-stat coach-stat-${c.key}`} style={{
+                      <div key={c.key} className={`coach-stat coach-stat-${c.key}`} onClick={() => setExpandedSummaryCards(prev => ({ ...prev, [c.key]: !prev[c.key] }))} style={{ cursor: 'pointer',
                         display: 'flex', flexDirection: 'column', gap: 6,
                         padding: '10px 12px', fontFamily: 'var(--font-sans)',
                         background: 'var(--bg-secondary)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)',
                       }}>
                         <span
-                          onClick={c.key === 'all_sessions' ? () => setDashboardTab('calendar') : c.key === 'pdp' ? () => setDashboardTab('pdp') : c.key === 'f2f_sessions' ? () => setDashboardTab('results') : undefined}
                           style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: (c.key === 'all_sessions' || c.key === 'pdp' || c.key === 'f2f_sessions') ? 'pointer' : 'default' }}>
                           <span style={{ fontSize: 16 }}>{c.icon}</span>
                           <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{c.label}</span>
@@ -6936,9 +6945,7 @@ export default function AthleteProfiles() {
                             the Target/Set date/Log controls below -- kept
                             separate from the icon+label click above, which
                             still navigates to that tab as before. */}
-                        <div
-                          onClick={() => setExpandedSummaryCards(prev => ({ ...prev, [c.key]: !prev[c.key] }))}
-                          style={{ display: 'flex', flexDirection: 'column', cursor: 'pointer' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
                           <span className="coach-stat-num" style={{ fontSize: 18, fontWeight: 700, color: colour }}>{c.pct}%</span>
                           <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{c.count}/{teamCount}</span>
                           {cardDateSettings[c.key].from !== todayStr0 || cardDateSettings[c.key].to !== todayStr0 ? (
@@ -6947,7 +6954,7 @@ export default function AthleteProfiles() {
                             </span>
                           ) : null}
                         </div>
-                        <div style={{
+                        <div onClick={e => e.stopPropagation()} style={{
                           display: 'flex', flexDirection: 'column', gap: 6,
                           maxHeight: expandedSummaryCards[c.key] ? 300 : 0,
                           opacity: expandedSummaryCards[c.key] ? 1 : 0,
