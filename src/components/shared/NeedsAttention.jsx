@@ -22,6 +22,11 @@ async function inAll(table, select, ids, extra = q => q) {
 export default function NeedsAttention({ athletes = [], onOpen }) {
   const [data, setData] = useState(null)
   const [open, setOpen] = useState({})
+  // Low attendance threshold (team setting): press the 📉 to change it (slider or type), press again to save
+  const [lowAtt, setLowAtt] = useState(LOW_ATT)
+  const [editLow, setEditLow] = useState(false)
+  useEffect(() => { supabase.from('team_settings').select('value').eq('key', 'needs_attention_low_att').maybeSingle().then(({ data }) => { const v = parseInt(data?.value); if (!isNaN(v)) setLowAtt(v) }, () => {}) }, [])
+  const saveLow = async () => { setEditLow(false); await supabase.from('team_settings').upsert({ key: 'needs_attention_low_att', value: String(lowAtt) }, { onConflict: 'key' }).then(() => {}, () => {}) }
   const ids = useMemo(() => athletes.map(a => a.id), [athletes])
   const idsKey = ids.slice().sort().join(',')
 
@@ -51,7 +56,7 @@ export default function NeedsAttention({ athletes = [], onOpen }) {
         // 1. attendance (last 4 weeks)
         const r = ownAttendanceRate({ rows: attBy[a.id] || [], assignments: asgBy[a.id] || [], holidays: hol, studentId: a.id, from: from28, to: today, today })
         const rate = r?.pct ?? (r && (r.attended + r.missed) ? Math.round(r.attended / (r.attended + r.missed) * 100) : null)
-        if (rate != null && rate < LOW_ATT) low.push({ a, note: `${rate}% attendance (4 weeks)`, sort: rate })
+        if (rate != null) low.push({ a, note: `${rate}% attendance (4 weeks)`, sort: rate }) // filtered by the threshold when shown
         // 2. no F2F in 7 days
         const recent = (f2fBy[a.id] || []).filter(s => s.session_date >= from7)
         if (!recent.length) {
@@ -94,13 +99,14 @@ export default function NeedsAttention({ athletes = [], onOpen }) {
   }, [idsKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const groups = [
-    ['low', '📉 Low attendance', 'under 50% · last 4 weeks', '#E24B4A'],
+    ['low', '📉 Low attendance', `under ${lowAtt}% · last 4 weeks`, '#E24B4A'],
     ['noF2f', '💤 No F2F logged', 'last 7 days', '#EF9F27'],
     ['pdp', '🎯 Overdue PDP', 'to-dos past their date', '#E6B800'],
     ['weight', '⚖️ Weight off target', 'in comp', '#2F6BFF'],
     ['sync', '⌚ Wearables not syncing', '3+ days', '#C93BFF'],
   ]
-  const total = data ? groups.reduce((n, [k]) => n + (data[k]?.length || 0), 0) : null
+  const lists = data ? { ...data, low: (data.low || []).filter(r => r.sort < lowAtt) } : null
+  const total = lists ? groups.reduce((n, [k]) => n + (lists[k]?.length || 0), 0) : null
   return (
     <div className="card coach-attention" style={{ marginBottom: 12, padding: 12 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -108,18 +114,31 @@ export default function NeedsAttention({ athletes = [], onOpen }) {
         <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{data == null ? 'Checking…' : total === 0 ? 'All good 👍' : `${total} to follow up`}</span>
       </div>
       {data && groups.map(([k, label, sub, c]) => {
-        const list = data[k] || []
-        if (!list.length) return null
+        const list = lists[k] || []
+        if (!list.length && k !== 'low') return null
         const isOpen = !!open[k] // all groups start collapsed
         return (
           <div key={k} style={{ borderTop: '1px solid var(--border)', padding: '6px 0' }}>
-            <button type="button" onClick={() => setOpen(o => ({ ...o, [k]: !isOpen }))}
+            <div role="button" tabIndex={0} onClick={() => setOpen(o => ({ ...o, [k]: !isOpen }))}
               style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', padding: '4px 0', cursor: 'pointer', color: 'var(--text)', fontFamily: 'inherit', textAlign: 'left' }}>
-              <span style={{ fontWeight: 700, fontSize: 14 }}>{label}</span>
-              <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{sub}</span>
+              {k === 'low' ? <>
+                <span role="button" title={editLow ? 'Save' : 'Change the attendance threshold'} onClick={e => { e.stopPropagation(); editLow ? saveLow() : setEditLow(true) }}
+                  style={{ fontSize: 18, padding: '0 2px', borderRadius: 6, outline: editLow ? '2px solid #E24B4A' : 'none' }}>📉</span>
+                <span style={{ fontWeight: 700, fontSize: 14 }}>{label.replace('📉 ', '')}</span>
+                {editLow ? (
+                  <span onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+                    <input type="number" min="0" max="100" value={lowAtt} onChange={e => setLowAtt(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)))}
+                      style={{ width: 52, padding: '2px 4px', fontSize: 13, textAlign: 'center' }} aria-label="Attendance threshold %" />%
+                    <input type="range" min="0" max="100" step="5" value={lowAtt} onChange={e => setLowAtt(parseInt(e.target.value))} style={{ flex: 1, minWidth: 60, accentColor: '#E24B4A' }} aria-label="Attendance threshold" />
+                  </span>
+                ) : <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{sub}</span>}
+              </> : <>
+                <span style={{ fontWeight: 700, fontSize: 14 }}>{label}</span>
+                <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{sub}</span>
+              </>}
               <span style={{ marginLeft: 'auto', fontFamily: 'Orbitron, sans-serif', fontSize: 14, color: c }}>{list.length}</span>
               <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{isOpen ? '▲' : '▼'}</span>
-            </button>
+            </div>
             {isOpen && list.map(({ a, note }) => (
               <button key={a.id} type="button" onClick={() => onOpen(a)} className="coach-who-name" style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                 <span>{a.members?.first_name} {a.members?.last_name}</span>

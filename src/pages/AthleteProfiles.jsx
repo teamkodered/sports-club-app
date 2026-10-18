@@ -3085,8 +3085,9 @@ export default function AthleteProfiles() {
   const [dashClubFilter, setDashClubFilterRaw] = useState(() => { try { return localStorage.getItem('coach_dash_team') || 'all' } catch { return 'all' } }) // 'all' | 'PKA' | 'KRBA'
   const setDashClubFilter = v => { setDashClubFilterRaw(v); try { localStorage.setItem('coach_dash_team', v) } catch { /* ignore */ } }
   const dashLevelOf = s => s.discipline === 'KRBA' ? (s.krba_level || '—') : s.is_kr ? (s.competition_team || '—') : (s.pka_belt || '—')
+  const [dashCompFilter, setDashCompFilter] = useState('all') // TEAM banner: all | in (comp) | out (of comp)
   const [dashLevel, setDashLevel] = useState('all') // TEAM banner level: 'all' or one level -- filters the whole dashboard
-  const inDashTeam = s => (s.is_kr || s.is_pts || s.discipline === 'KRBA') && (dashClubFilter === 'all' || s.discipline === dashClubFilter) && (dashLevel === 'all' || dashLevelOf(s) === dashLevel)
+  const inDashTeam = s => (s.is_kr || s.is_pts || s.discipline === 'KRBA') && (dashClubFilter === 'all' || s.discipline === dashClubFilter) && (dashLevel === 'all' || dashLevelOf(s) === dashLevel) && (dashCompFilter === 'all' || (dashCompFilter === 'in' ? !!s.in_comp : !s.in_comp))
   const pillSwipe = useRef(null)
   const swipeProps = (step, onTap) => ({
     onTouchStart: e => { pillSwipe.current = { x: e.touches[0].clientX, moved: false } },
@@ -6744,7 +6745,9 @@ export default function AthleteProfiles() {
             {testBatchOpen && <TestBatchModal onClose={() => setTestBatchOpen(false)} />}
             {/* Team banner (was the Profile card): the filters for the whole dashboard + team record / level / weight */}
             <div className="card coach-banner" style={{ padding: 0, marginBottom: 10 }}>
-              <div style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)' }}>Team</div>
+              <div role="button" tabIndex={0} title="Back to the dashboard home"
+                onClick={() => { setShowKrRegister(false); setShowKrbaRegister(false); setShowAllAthRegister(false); setExpandedSummaryCards({}); setDashboardTab('overview'); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+                style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>Team</div>
               {(() => {
                 const clubFiltered = students.filter(s =>
                   (s.is_kr || s.is_pts || s.discipline === 'KRBA') && (dashClubFilter === 'all' || s.discipline === dashClubFilter)
@@ -6766,7 +6769,11 @@ export default function AthleteProfiles() {
                 return (
                   <>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 14px', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Show</span>
+                      {/* press 'Show' to step All / In comp / Out of comp */}
+                      <span role="button" tabIndex={0} onClick={() => setDashCompFilter(f => ({ all: 'in', in: 'out', out: 'all' })[f])} title="Press to show All / In comp / Out of comp"
+                        style={{ color: 'var(--text-secondary)', cursor: 'pointer', userSelect: 'none' }}>
+                        Show{dashCompFilter !== 'all' && <b style={{ color: '#378ADD', marginLeft: 6 }}>{dashCompFilter === 'in' ? 'In comp' : 'Out of comp'}</b>}
+                      </span>
                       <div style={{ display: 'flex', gap: 4 }}>
                         {/* one pill: tap to step through All -> KR -> KRBA */}
                         {(() => {
