@@ -1278,3 +1278,11 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .neon-home .neon-bl .neon-pillar-icon, .neon-home .neon-br .neon-pillar-icon { height: 30px !important; max-width: 40% !important; }
 .neon-home .neon-bottom .neon-pillar-icon { height: 30px !important; width: 38px !important; }
 .neon-home .neon-bottom > div:first-child::before { width: 38px !important; height: 30px !important; }
+/* Pillar images now sit to the left of each title, the height of the title text */
+.neon-home .neon-pillar [style*="Anton"] { display: inline-flex !important; align-items: center; gap: 8px; }
+.neon-home .neon-pillar [style*="Anton"] .neon-pillar-icon,
+.neon-home .neon-tl [style*="Anton"] .neon-pillar-icon, .neon-home .neon-tr [style*="Anton"] .neon-pillar-icon,
+.neon-home .neon-bl [style*="Anton"] .neon-pillar-icon, .neon-home .neon-br [style*="Anton"] .neon-pillar-icon,
+.neon-home .neon-bottom [style*="Anton"] .neon-pillar-icon {
+  position: static !important; height: 1.15em !important; width: auto !important; max-width: none !important; max-height: none !important; flex-shrink: 0; object-fit: contain; }
+.neon-home .neon-bottom > div:first-child::before { display: none !important; }
