@@ -6780,7 +6780,7 @@ export default function AthleteProfiles() {
                         <button {...sp} title="Press to show this register · swipe to change" style={{ ...sp.style,
                           fontSize: 12, padding: '4px 14px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 700,
                           border: '1px solid #378ADD', background: '#378ADD20', color: '#378ADD', display: 'flex', alignItems: 'center', gap: 6,
-                        }}>{dashClubFilter === 'all' ? 'All' : dashClubFilter === 'PKA' ? 'KR' : 'KRBA'} {(showKrRegister || showKrbaRegister || showAllAthRegister) ? '▲' : '▼'}</button>)) })()}
+                        }}>{dashClubFilter === 'all' ? 'All' : dashClubFilter === 'PKA' ? 'KR' : 'KRBA'}</button>)) })()}
                       </div>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 14px', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
@@ -6938,7 +6938,7 @@ export default function AthleteProfiles() {
               const pdp = pctFromIds(pdpIds)
 
               const cards = [
-                { key: 'all_sessions', icon: '📅', label: 'Attendance', ...allSessions },
+                { key: 'all_sessions', icon: '📅', label: 'Sessions', ...allSessions },
                 { key: 'f2f_sessions', icon: '💪', label: 'Fit II Fight', ...f2fSessions },
                 { key: 'pdp', icon: '🎯', label: 'PDP', ...pdp },
               ]
@@ -6948,7 +6948,7 @@ export default function AthleteProfiles() {
                   {cards.map(c => {
                     const targets = targetsFor(c.key)
                     return (
-                      <div key={c.key} className={`coach-stat coach-stat-${c.key}`} onClick={() => setExpandedSummaryCards(prev => ({ ...prev, [c.key]: !prev[c.key] }))} style={{ cursor: 'pointer',
+                      <div key={c.key} className={`coach-stat coach-stat-${c.key}`} onClick={() => { const open = !expandedSummaryCards[c.key]; setExpandedSummaryCards(open ? { [c.key]: true } : {}); setDashboardTab(open ? ({ all_sessions: 'calendar', f2f_sessions: 'results', pdp: 'pdp' })[c.key] || 'overview' : 'overview') }} style={{ cursor: 'pointer',
                         display: 'flex', flexDirection: 'column', gap: 6,
                         padding: '10px 12px', fontFamily: 'var(--font-sans)',
                         background: 'var(--bg-secondary)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)',
@@ -7332,7 +7332,7 @@ export default function AthleteProfiles() {
 
             {/* Dashboard tabs -- Overview / Calendar / Results */}
             <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', marginBottom: 14 }}>
-              {[['overview', '🏠 Overview'], ['calendar', '📅 Calendar'], ['results', '📊 F2F Results'], ['pdp', '🎯 PDP']].map(([key, label]) => (
+              {[['overview', '🏠 Overview'], ['calendar', '📅 Sessions'], ['results', '📊 F2F Results'], ['pdp', '🎯 PDP']].map(([key, label]) => (
                 <button key={key} onClick={() => setDashboardTab(key)} style={{
                   padding: '8px 16px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
                   borderBottom: `2px solid ${dashboardTab === key ? 'var(--text)' : 'transparent'}`,
