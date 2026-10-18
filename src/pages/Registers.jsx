@@ -192,7 +192,8 @@ const monthsSince = d => { const a = new Date(String(d).slice(0, 10) + 'T12:00:0
 const mmyy = d => { const [yy, mm] = String(d).slice(0, 10).split('-'); return `${mm}/${yy.slice(2)}` }
 const lastInColour = d => ((Date.now() - new Date(String(d).slice(0, 10) + 'T12:00:00')) / 86400000 < 28 ? '#EF9F27' : '#E24B4A') // < 4 weeks orange, else red
 
-export default function Registers({ initialRegType, onStudentNameClick, onWeightClick } = {}) {
+export default function Registers({ initialRegType, onStudentNameClick, onWeightClick, extraFilter } = {}) {
+  // extraFilter: the coach dashboard's Show (in / out of comp) and Level choices narrow the register too
   const { isAdmin, isCoach, isLeader, isStaff, registerAccess, viewAsStudentIds } = useAuth()
   // Per-person register access (Settings -> Team): which register types and classes this person may take
   const allowedRegTypes = registerAccess?.types || null     // null = all
@@ -901,7 +902,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     return `${fmtTime(s)}–${fmtTime(e)} ${w.sport_name || ''}`.trim()
   }
 
-  const sortedStudents = (regType === 'adhoc' ? adhocPills.map(p => students.find(s => s.id === p.id)).filter(Boolean) : students)
+  const sortedStudents = (regType === 'adhoc' ? adhocPills.map(p => students.find(s => s.id === p.id)).filter(Boolean) : students).filter(s => !extraFilter || extraFilter(s))
     .filter(s => !viewAsStudentIds || viewAsStudentIds.has(s.id))   // admin previewing as a head coach
     .filter(s => !showOnlyAttended || (attendance[s.id] && attendance[s.id] !== 'none'))
     .filter(s => !groupFilter || studentGroups(s, s.members).includes(groupFilter))
@@ -1565,7 +1566,9 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
           {searchParams.get('student_id') && (
             <button className="btn btn-sm" style={{ marginBottom: 8 }} onClick={() => navigate(-1)}>← Back</button>
           )}
-          <h1 className="reg-title">Registers</h1>
+          <h1 className="reg-title" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>Registers<span className="reg-mobile-only reg-title-cog" style={{ marginLeft: 'auto' }}><button type="button" className="reg-m-icon reg-m-cog" aria-label="Register settings" onClick={() => setMSettingsOpen(true)}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+              </button></span></h1>
           {/* hidden on mobile: the date picker and the 'x / N in' count below already show this */}
           <p className="reg-desktop-only">{displayStudents.length} students · {new Date(date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
         </div>
@@ -1922,9 +1925,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                 onClick={() => { setSelectedStudents([]); setMExpanded(null); setPmOn(v => { if (!v) pmToTop(); return !v }); if (!pmReason) setPmPickerOpen(true) }}
                 title="Points mode: pick a reason, then tap students to award it">⭐ Points</button>
               <button type="button" className="reg-m-icon reg-m-text" onClick={() => setMShowTable(true)} title="Show the full table (all columns and editing)">Table</button>
-              <button type="button" className="reg-m-icon" aria-label="Register settings" onClick={() => setMSettingsOpen(true)}>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
-              </button>
+              
             </div>
 
             {/* Headcount (tap = shortlist to attended, as before) */}

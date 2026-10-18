@@ -6772,7 +6772,7 @@ export default function AthleteProfiles() {
                       {/* press 'Show' to step All / In comp / Out of comp */}
                       <span role="button" tabIndex={0} onClick={() => setDashCompFilter(f => ({ all: 'in', in: 'out', out: 'all' })[f])} title="Press to show All / In comp / Out of comp"
                         style={{ color: 'var(--text-secondary)', cursor: 'pointer', userSelect: 'none' }}>
-                        Show{dashCompFilter !== 'all' && <b style={{ color: '#378ADD', marginLeft: 6 }}>{dashCompFilter === 'in' ? 'In comp' : 'Out of comp'}</b>}
+                        Show <b style={{ marginLeft: 4, color: dashCompFilter === 'in' ? '#1D9E75' : dashCompFilter === 'out' ? '#F5821F' : 'var(--text-tertiary)' }}>{dashCompFilter === 'in' ? 'In comp' : dashCompFilter === 'out' ? 'Out of comp' : 'All'}</b>
                       </span>
                       <div style={{ display: 'flex', gap: 4 }}>
                         {/* one pill: tap to step through All -> KR -> KRBA */}
@@ -6833,7 +6833,7 @@ export default function AthleteProfiles() {
                           display: 'flex', justifyContent: 'flex-end', alignItems: 'center', flex: 1,
                           background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-sans)', color: 'var(--text)',
                         }}>
-                          <span style={{ fontWeight: 500 }}>{showDashWeightList ? '▲' : '▼'} View by weight</span>
+                          <span style={{ fontWeight: 500 }}>View by weight</span>
                         </button>
                         <button onClick={() => setShowWeightTargetPopup(true)} title="Set weight target %"
                           style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, marginLeft: 8, color: 'var(--text-tertiary)' }}>⚙</button>
@@ -6888,7 +6888,7 @@ export default function AthleteProfiles() {
             )}
 
             {(showKrRegister || showKrbaRegister || showAllAthRegister) ? (
-              <Registers key={showKrRegister ? 'kr' : showKrbaRegister ? 'krba' : 'allath'} initialRegType={showKrRegister ? 'kr' : showKrbaRegister ? 'krba' : 'allath'}
+              <Registers key={(showKrRegister ? 'kr' : showKrbaRegister ? 'krba' : 'allath') + dashCompFilter + dashLevel} extraFilter={s => (dashLevel === 'all' || dashLevelOf(s) === dashLevel) && (dashCompFilter === 'all' || (dashCompFilter === 'in' ? !!s.in_comp : !s.in_comp))} initialRegType={showKrRegister ? 'kr' : showKrbaRegister ? 'krba' : 'allath'}
                 onStudentNameClick={registerStudent => {
                   // Registers.jsx fetches its own students with a
                   // different query shape than this page's own
@@ -8510,7 +8510,7 @@ export default function AthleteProfiles() {
                         background: 'var(--bg-secondary)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)',
                       }}>
                         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontSize: 18 }}>{c.icon}</span>
+                          <span style={{ fontSize: 14 }}>{c.icon}</span>
                           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{c.label}</span>
                         </span>
                         <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
@@ -8544,7 +8544,7 @@ export default function AthleteProfiles() {
                 border: '1px solid #1D9E7530', borderRadius: 'var(--border-radius-lg)',
                 cursor: 'pointer', fontFamily: 'var(--font-sans)',
               }}>
-                <span style={{ fontSize: 24 }}>🧹</span>
+                <span style={{ fontSize: 13 }}>🧹</span>
                 <span style={{ fontSize: 12, fontWeight: 500, color: '#1D9E75' }}>Sweep the sheds</span>
               </button>
               <button onClick={() => { setDashboardTab('wearables'); loadWearableAthletes() }} style={{
@@ -8553,7 +8553,7 @@ export default function AthleteProfiles() {
                 border: '1px solid #0EA5E930', borderRadius: 'var(--border-radius-lg)',
                 cursor: 'pointer', fontFamily: 'var(--font-sans)',
               }}>
-                <span style={{ fontSize: 24 }}>⌚</span>
+                <span style={{ fontSize: 13 }}>⌚</span>
                 <span style={{ fontSize: 12, fontWeight: 500, color: '#0EA5E9' }}>Wearables</span>
               </button>
               <button onClick={() => setDashboardTab('leagues')} style={{
@@ -8562,7 +8562,7 @@ export default function AthleteProfiles() {
                 border: '1px solid #8B5CF630', borderRadius: 'var(--border-radius-lg)',
                 cursor: 'pointer', fontFamily: 'var(--font-sans)',
               }}>
-                <span style={{ fontSize: 24 }}>🏆</span>
+                <span style={{ fontSize: 13 }}>🏆</span>
                 <span style={{ fontSize: 12, fontWeight: 500, color: '#8B5CF6' }}>Leagues</span>
               </button>
             </div>
