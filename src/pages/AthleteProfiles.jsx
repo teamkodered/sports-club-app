@@ -3142,6 +3142,8 @@ export default function AthleteProfiles() {
   const [wearableDaily, setWearableDaily] = useState([])
   const [whoopSessions, setWhoopSessions] = useState([])
   const [showAllWeightsGraph, setShowAllWeightsGraph] = useState(false)
+  const [weightRange, setWeightRange] = useState('all')   // weight graph range (All keeps the full history)
+  const [showWeightLegend, setShowWeightLegend] = useState(false)
   const [weightOverrideType, setWeightOverrideType] = useState('actual') // 'actual' | 'percent'
   const [weightOverrideValue, setWeightOverrideValue] = useState('')
   const [showWeightTargetPopup, setShowWeightTargetPopup] = useState(false)
@@ -6880,7 +6882,7 @@ export default function AthleteProfiles() {
                           style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, marginLeft: 8, color: 'var(--text-tertiary)' }}>⚙</button>
                       </div>
                       {showDashWeightList && (
-                        <div className="card" style={{ position: 'absolute', top: '100%', left: 14, right: 14, zIndex: 20, marginTop: 4, padding: 8, maxHeight: 280, overflowY: 'auto' }}>
+                        <div style={{ margin: '8px 0 4px', padding: 8, maxHeight: 360, overflowY: 'auto', borderTop: '1px solid var(--border)', animation: 'kcSlideDown 0.25s ease' }}>
                           {weightSorted.length === 0 ? (
                             <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No weights recorded.</p>
                           ) : weightSorted.map(s => {
@@ -6952,6 +6954,75 @@ export default function AthleteProfiles() {
               })()}
             </div>
 
+            {showAllWeightsGraph && (() => {
+              const activeStudentIds = new Set(students.filter(s => s.members?.status === 'active' && inDashTeam(s)).map(s => s.id))
+              const rangeFrom = weightRange === 'all' ? null : (() => { const d = new Date(); d.setDate(d.getDate() - ({ '4w': 28, '12w': 84, '6m': 183, '1y': 365 })[weightRange]); return d.toISOString().split('T')[0] })()
+              const byAthlete = {}
+              allTeamSessions.forEach(s => {
+                if (!activeStudentIds.has(s.student_id)) return
+                if (rangeFrom && s.session_date < rangeFrom) return
+                const val = s.weight_after ?? s.weight_before
+                if (val == null) return
+                if (!byAthlete[s.student_id]) {
+                  const st = students.find(x => x.id === s.student_id)
+                  byAthlete[s.student_id] = { name: `${st?.members?.first_name || ''} ${st?.members?.last_name || ''}`.trim(), points: [] }
+                }
+                byAthlete[s.student_id].points.push({ date: s.session_date, value: parseFloat(val) })
+              })
+              const athleteSeries = Object.values(byAthlete).map(a => ({ ...a, points: a.points.sort((x,y) => x.date.localeCompare(y.date)) })).filter(a => a.points.length)
+              const allDates = [...new Set(athleteSeries.flatMap(a => a.points.map(p => p.date)))].sort()
+              const w = 640, h = 260, pad = { t: 10, r: 10, b: 20, l: 34 }
+              const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b
+              const allVals = athleteSeries.flatMap(a => a.points.map(p => p.value))
+              const minV = allVals.length ? Math.min(...allVals) : 0, maxV = allVals.length ? Math.max(...allVals) : 1
+              const range = (maxV - minV) || 1
+              const x = i => pad.l + (allDates.length > 1 ? (i / (allDates.length - 1)) * iw : iw / 2)
+              const y = v => pad.t + ih - ((v - minV) / range) * ih
+
+              return (
+                <div>
+                  <div className="card" style={{ padding: 14, marginBottom: 12, animation: 'kcSlideDown 0.25s ease' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8, flexWrap: 'wrap' }}>
+                      <h2 style={{ fontSize: 15, fontWeight: 600 }}>⚖️ Weight over time</h2>
+                      <button onClick={() => setShowAllWeightsGraph(false)} className="btn btn-sm">Hide ▲</button>
+                    </div>
+                    {/* range (top page filters -- Show / comp / level -- already apply) */}
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
+                      {[['4w', '4 wk'], ['12w', '12 wk'], ['6m', '6 mth'], ['1y', '1 yr'], ['all', 'All']].map(([k, l]) => (
+                        <button key={k} type="button" className={weightRange === k ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setWeightRange(k)}>{l}</button>
+                      ))}
+                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{athleteSeries.length} athletes · follows the filters above</span>
+                    </div>
+                    {athleteSeries.length === 0 ? (
+                      <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No weight data logged yet.</p>
+                    ) : (
+                      <>
+                        <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', height: 'auto', marginBottom: 14 }}>
+                          {athleteSeries.map((a, ai) => {
+                            const pts = allDates.map((d, i) => {
+                              const p = a.points.find(pt => pt.date === d)
+                              return p ? [x(i), y(p.value)] : null
+                            }).filter(Boolean)
+                            if (pts.length < 2) return null
+                            const lineColour = `hsl(${(ai * 47) % 360}, 65%, 45%)`
+                            return <polyline key={a.name} points={pts.map(p => p.join(',')).join(' ')} fill="none" stroke={lineColour} strokeWidth="1.5" opacity="0.85" />
+                          })}
+                        </svg>
+                        <button type="button" className="btn btn-sm" onClick={() => setShowWeightLegend(v => !v)} style={{ marginBottom: 6 }}>{showWeightLegend ? 'Hide athletes ▲' : `Show athletes (${athleteSeries.length}) ▼`}</button>
+                        {showWeightLegend && <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}>
+                          {athleteSeries.map((a, ai) => (
+                            <span key={a.name} style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: `hsl(${(ai * 47) % 360}, 65%, 45%)` }} />
+                              {a.name}
+                            </span>
+                          ))}
+                        </div>}
+                      </>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
             {!(showKrRegister || showKrbaRegister || showAllAthRegister) && (
               <button className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 10 }} onClick={() => setTestBatchOpen(true)}>📋 Group test entry</button>
             )}
@@ -7127,66 +7198,6 @@ export default function AthleteProfiles() {
               )
             })()}
 
-            {showAllWeightsGraph && (() => {
-              const activeStudentIds = new Set(students.filter(s => s.members?.status === 'active').map(s => s.id))
-              const byAthlete = {}
-              allTeamSessions.forEach(s => {
-                if (!activeStudentIds.has(s.student_id)) return
-                const val = s.weight_after ?? s.weight_before
-                if (val == null) return
-                if (!byAthlete[s.student_id]) {
-                  const st = students.find(x => x.id === s.student_id)
-                  byAthlete[s.student_id] = { name: `${st?.members?.first_name || ''} ${st?.members?.last_name || ''}`.trim(), points: [] }
-                }
-                byAthlete[s.student_id].points.push({ date: s.session_date, value: parseFloat(val) })
-              })
-              const athleteSeries = Object.values(byAthlete).map(a => ({ ...a, points: a.points.sort((x,y) => x.date.localeCompare(y.date)) })).filter(a => a.points.length)
-              const allDates = [...new Set(athleteSeries.flatMap(a => a.points.map(p => p.date)))].sort()
-              const w = 640, h = 260, pad = { t: 10, r: 10, b: 20, l: 34 }
-              const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b
-              const allVals = athleteSeries.flatMap(a => a.points.map(p => p.value))
-              const minV = allVals.length ? Math.min(...allVals) : 0, maxV = allVals.length ? Math.max(...allVals) : 1
-              const range = (maxV - minV) || 1
-              const x = i => pad.l + (allDates.length > 1 ? (i / (allDates.length - 1)) * iw : iw / 2)
-              const y = v => pad.t + ih - ((v - minV) / range) * ih
-
-              return (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}
-                  onClick={() => setShowAllWeightsGraph(false)}>
-                  <div className="card" style={{ width: '95vw', maxWidth: 700, maxHeight: '85vh', overflowY: 'auto', padding: 20 }} onClick={e => e.stopPropagation()}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                      <h2 style={{ fontSize: 16, fontWeight: 600 }}>⚖️ Weight over time — everyone</h2>
-                      <button onClick={() => setShowAllWeightsGraph(false)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
-                    </div>
-                    {athleteSeries.length === 0 ? (
-                      <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No weight data logged yet.</p>
-                    ) : (
-                      <>
-                        <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', height: 'auto', marginBottom: 14 }}>
-                          {athleteSeries.map((a, ai) => {
-                            const pts = allDates.map((d, i) => {
-                              const p = a.points.find(pt => pt.date === d)
-                              return p ? [x(i), y(p.value)] : null
-                            }).filter(Boolean)
-                            if (pts.length < 2) return null
-                            const lineColour = `hsl(${(ai * 47) % 360}, 65%, 45%)`
-                            return <polyline key={a.name} points={pts.map(p => p.join(',')).join(' ')} fill="none" stroke={lineColour} strokeWidth="1.5" opacity="0.85" />
-                          })}
-                        </svg>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}>
-                          {athleteSeries.map((a, ai) => (
-                            <span key={a.name} style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
-                              <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: `hsl(${(ai * 47) % 360}, 65%, 45%)` }} />
-                              {a.name}
-                            </span>
-                          ))}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-              )
-            })()}
 
             {showSetDatePopup && (() => {
               const cardLabels = { all_sessions: 'Attendance', f2f_sessions: 'Fit II Fight', pdp: 'PDP' }

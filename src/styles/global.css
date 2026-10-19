@@ -1355,3 +1355,5 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .neon-home .neon-pillar.is-open > .neon-graph-row { position: static !important; width: 100% !important; inset: auto !important; flex-direction: row !important; justify-content: center; }
 .neon-home .neon-pillar.is-open > .neon-section-quote { order: 5; margin: 0 !important; padding: 0 !important; }
 .neon-home .neon-pillar.is-open .neon-tally-wrap { margin-top: 4px; }
+
+@keyframes kcSlideDown { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
