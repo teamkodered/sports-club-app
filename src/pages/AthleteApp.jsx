@@ -5584,7 +5584,7 @@ export default function AthleteApp() {
                         (Physical, Technique, Tactical, Mentality), only the
                         displayed sequence and pairing changes: Mentality+Tactical
                         side by side, then Technique+Physical side by side. */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, alignItems: 'start', width: '100%' }}>
+                    <div className="neon-pillar-quad" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, alignItems: 'start', width: '100%' }}>
                     <div ref={physicalSectionRef} className={showPhysicalSection ? 'neon-opens-up' : undefined} style={{ order: showPhysicalSection ? 11 : 4, display: 'flex', flexDirection: 'column-reverse', alignItems: 'center', minWidth: 0, gridColumn: showPhysicalSection ? '1 / -1' : (showTechniqueSection ? '2' : 'auto') }}>
                     <button type="button" className={`neon-pillar neon-br${showPhysicalSection ? ' is-open' : ''}`} onClick={e => { if (pillarGuard('physical')) return; togglePhysicalSection(e) }} style={showPhysicalSection ? {
                       width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,

@@ -1357,3 +1357,15 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .neon-home .neon-pillar.is-open .neon-tally-wrap { margin-top: 4px; }
 
 @keyframes kcSlideDown { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+/* The four section cards touch -- one square (ring effect); only their inner gap changes */
+.neon-home .neon-pillar-quad { gap: 0 !important; }
+.neon-home .neon-pillar-quad > div[style*="grid-column: 1 / -1"] { margin: 10px 0; }  /* an open section keeps its spacing */
+.neon-home .neon-pillar-quad .neon-pillar.neon-tl:not(.is-open) { border-radius: 14px 0 0 0 !important; }
+.neon-home .neon-pillar-quad .neon-pillar.neon-tr:not(.is-open) { border-radius: 0 14px 0 0 !important; }
+.neon-home .neon-pillar-quad .neon-pillar.neon-bl:not(.is-open) { border-radius: 0 0 0 14px !important; }
+.neon-home .neon-pillar-quad .neon-pillar.neon-br:not(.is-open) { border-radius: 0 0 14px 0 !important; }
+/* D / W / M tallies lined up on the left, in line with the section image */
+.neon-home .neon-pillar [style*="Anton"] .neon-tally-wrap { align-items: flex-start !important; align-self: flex-start; justify-content: flex-start; }
+.neon-home .neon-tally-row { justify-content: flex-start; }
+.neon-home .neon-tally-per { text-align: left; width: 10px; }

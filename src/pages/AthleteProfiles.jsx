@@ -10009,7 +10009,7 @@ export default function AthleteProfiles() {
                         sum + (isToDoSectionKey(s.key) ? (apData?.pdp_notes?.[s.key] || []).length : (apData?.pdp_shared?.[s.key] || []).length), 0)} />
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, alignItems: 'start', width: '100%' }}>
+                  <div className="neon-pillar-quad" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, alignItems: 'start', width: '100%' }}>
                   <div ref={physicalSectionRef} className={showPhysicalSection ? 'neon-opens-up' : undefined} style={{ order: showPhysicalSection ? 11 : 4, display: 'flex', flexDirection: 'column-reverse', alignItems: 'center', minWidth: 0, gridColumn: showPhysicalSection ? '1 / -1' : (showTechniqueSection ? '2' : 'auto') }}>
                   <button type="button" className={`neon-pillar neon-br${showPhysicalSection ? ' is-open' : ''}`} onClick={e => { if (pillarGuard('physical')) return; togglePhysicalSection(e) }} style={showPhysicalSection ? {
                     width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
