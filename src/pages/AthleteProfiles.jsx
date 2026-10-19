@@ -5,6 +5,7 @@ import { TestSessionModal, TestBatchModal } from '../components/shared/TestSessi
 import OtherSessions from '../components/shared/OtherSessions.jsx'
 import SessionFootage from '../components/shared/SessionFootage.jsx'
 import { supabase } from '../lib/supabase.js'
+import AthleteMedia from '../components/media/AthleteMedia.jsx'
 import TallyGate from '../components/shared/TallyGate.jsx'
 import SectionQuote from '../components/shared/SectionQuote.jsx'
 import AthleteWorkrate from '../components/shared/AthleteWorkrate.jsx'
@@ -8698,8 +8699,8 @@ export default function AthleteProfiles() {
                     const targets = targetsFor(c.key)
                     return (
                       <div key={c.key} className={`coach-mini${dashMiniOpen === c.key ? ' is-open' : ''}`}
-                        onClick={['notes', 'ttp'].includes(c.key) ? () => setDashMiniOpen(o => o === c.key ? null : c.key) : undefined}
-                        style={{ cursor: ['notes', 'ttp'].includes(c.key) ? 'pointer' : undefined,
+                        onClick={['media', 'notes', 'ttp'].includes(c.key) ? () => setDashMiniOpen(o => o === c.key ? null : c.key) : undefined}
+                        style={{ cursor: ['media', 'notes', 'ttp'].includes(c.key) ? 'pointer' : undefined,
                         display: 'flex', flexDirection: 'column', gap: 6,
                         padding: '10px 14px', fontFamily: 'var(--font-sans)',
                         background: 'var(--bg-secondary)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)',
@@ -8725,7 +8726,7 @@ export default function AthleteProfiles() {
                             <button onClick={() => deleteTeamTarget(t.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 11, padding: 0 }}>✕</button>
                           </span>
                         ))}
-                        {['notes', 'ttp'].includes(c.key) && <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{dashMiniOpen === c.key ? 'Hide ▲' : c.key === 'notes' ? 'Team notes ▼' : 'Benchmarks ▼'}</span>}
+                        {['media', 'notes', 'ttp'].includes(c.key) && <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{dashMiniOpen === c.key ? 'Hide ▲' : c.key === 'notes' ? 'Team notes ▼' : c.key === 'media' ? 'Athletes ▼' : 'Benchmarks ▼'}</span>}
                         {showAddTarget && newTargetSection === c.key && newTargetQuestion === '' && <div onClick={e => e.stopPropagation()}>{renderInlineTargetForm()}</div>}
                       </div>
                     )
@@ -8735,6 +8736,12 @@ export default function AthleteProfiles() {
             })()}
 
             {/* Notes / MTP cards open their lists here */}
+            {dashMiniOpen === 'media' && (
+              <div className="card" style={{ padding: 12, marginBottom: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}><b style={{ fontSize: 14 }}>🖼 Athlete media</b><span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>follows the filters above</span></div>
+                <AthleteMedia students={students.filter(inDashTeam)} useOwnFilters={false} />
+              </div>
+            )}
             {dashMiniOpen === 'notes' && (<>
             {/* Team notes */}
             <div className="card" style={{ padding: 0, marginBottom: 14 }}>

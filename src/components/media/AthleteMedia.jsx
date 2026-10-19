@@ -10,7 +10,8 @@ import MediaViewer from '../shared/MediaViewer.jsx'
 const SECTION_NAMES = { mentality: '🧠 Mentality', tactical: '🧩 Tactical', technique: '🥊 Technical', physical: '💪 Physical', wellbeing: '🌱 Foundation', test: '📋 Tests', notes: '📝 Notes' }
 const nameOf = s => `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.trim()
 
-export default function AthleteMedia({ students = [] }) {
+export default function AthleteMedia({ students = [], useOwnFilters = true }) {
+  // useOwnFilters = false: the list is already filtered by the caller (coach dashboard TEAM banner)
   const [show, setShow] = useState('all') // all | kr | krba
   const [search, setSearch] = useState('')
   const [open, setOpen] = useState(null)
@@ -23,7 +24,7 @@ export default function AthleteMedia({ students = [] }) {
     <div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search athlete…" style={{ flex: '1 1 160px', minWidth: 140 }} />
-        {[['all', 'All'], ['kr', 'KR'], ['krba', 'KRBA']].map(([k, l]) => <button key={k} type="button" className={show === k ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setShow(k)}>{l}</button>)}
+        {useOwnFilters && [['all', 'All'], ['kr', 'KR'], ['krba', 'KRBA']].map(([k, l]) => <button key={k} type="button" className={show === k ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setShow(k)}>{l}</button>)}
         <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{list.length} athletes</span>
       </div>
       {list.map(s => (
