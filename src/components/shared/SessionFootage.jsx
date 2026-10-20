@@ -70,7 +70,9 @@ export default function SessionFootage({ studentId, days: daysDefault = 45, onCo
         const start = at(s.date, (sm ?? 0) - 10), end = at(s.date, (em ?? 1440) + 10)   // 10 min either side
         return { ...s, clips: (clips || []).filter(c => {
           const cs = new Date(c.recorded_at), ce = new Date(cs.getTime() + (c.duration_seconds || 0) * 1000)
-          return cs <= end && ce >= start
+          // only files that cover at least 5 minutes of the session window (drops ones that just clip the edge)
+          const overlap = Math.min(ce, end) - Math.max(cs, start)
+          return overlap >= 5 * 60000
         }) }
       }))
     })()
