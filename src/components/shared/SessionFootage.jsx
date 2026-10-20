@@ -6,6 +6,10 @@ import FightFootagePlayer from './FightFootagePlayer.jsx'
 // 🎥 Session footage (coach view, testing): CCTV clips recorded during sessions this athlete
 // attended, for the classes chosen below (settings 'footage_classes'). Clips play through the
 // usual secure player. Athletes don't see this yet.
+// Camera names: 01 = Bags, 02 = Ring, the third camera (04) = Main
+const CAMS = [{ key: '1', label: 'Bags' }, { key: '2', label: 'Ring' }, { key: '3', label: 'Main' }]
+const camKey = n => { const m = String(n || '').match(/(\d+)/); const v = m ? parseInt(m[1]) : 0; return v === 1 ? '1' : v === 2 ? '2' : '3' }
+export const camLabel = n => CAMS.find(c => c.key === camKey(n))?.label || n
 const fmtDay = d => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
 const mins = t => { if (!t) return null; const [h, m] = String(t).split(':').map(Number); return h * 60 + (m || 0) }
 const at = (date, m) => { const d = new Date(date + 'T00:00:00'); d.setMinutes(m); return d }
@@ -122,11 +126,20 @@ export default function SessionFootage({ studentId, days: daysDefault = 45, onCo
             {withClips.map(s => (
               <div key={s.date + s.cls.id} style={{ padding: '8px 0', borderTop: '1px solid var(--border)' }}>
                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>{fmtDay(s.date)} · {s.cls.name} {String(s.cls.start_time).slice(0, 5)}</div>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {s.clips.map(c => (
-                    <button key={c.id} className="btn btn-sm" disabled={opening === c.id} onClick={() => play(c, s)}>
-                      ▶ {c.camera_name} {new Date(c.recorded_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}{c.duration_seconds ? ` · ${Math.round(c.duration_seconds / 60)}m` : ''}
-                    </button>
+                {/* three columns, one per camera (Bags / Ring / Main), square tiles in time order */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6 }}>
+                  {CAMS.map(cam => (
+                    <div key={cam.key} style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textAlign: 'center' }}>{cam.label}</div>
+                      {s.clips.filter(c => camKey(c.camera_name) === cam.key).map(c => (
+                        <button key={c.id} className="btn" disabled={opening === c.id} onClick={() => play(c, s)}
+                          style={{ aspectRatio: '1 / 1', width: '100%', padding: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, borderRadius: 10 }}>
+                          <span style={{ fontSize: 16 }}>▶</span>
+                          <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 13, fontWeight: 700 }}>{new Date(c.recorded_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
+                          {c.duration_seconds ? <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{Math.round(c.duration_seconds / 60)} min</span> : null}
+                        </button>
+                      ))}
+                    </div>
                   ))}
                 </div>
               </div>
@@ -135,7 +148,7 @@ export default function SessionFootage({ studentId, days: daysDefault = 45, onCo
         )}
 
       {player && (
-        <FightFootagePlayer videoUrl={player.url} title={`${player.clip.camera_name} — ${new Date(player.clip.recorded_at).toLocaleString('en-GB')}`}
+        <FightFootagePlayer videoUrl={player.url} title={`${camLabel(player.clip.camera_name)} — ${new Date(player.clip.recorded_at).toLocaleString('en-GB')}`}
           cctvClipId={player.clip.id} storagePath={player.clip.storage_path} isCoach startAt={player.startAt || 0} onClose={() => setPlayer(null)} />
       )}
     </div>
