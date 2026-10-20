@@ -10,6 +10,9 @@ import FightFootagePlayer from './FightFootagePlayer.jsx'
 const CAMS = [{ key: '1', label: 'Bags' }, { key: '2', label: 'Ring' }, { key: '3', label: 'Main' }]
 const camKey = n => { const m = String(n || '').match(/(\d+)/); const v = m ? parseInt(m[1]) : 0; return v === 1 ? '1' : v === 2 ? '2' : '3' }
 export const camLabel = n => CAMS.find(c => c.key === camKey(n))?.label || n
+// CCTV times: the recorder's local clock is saved as if it were UTC, so read the stored
+// digits back as local time (otherwise everything is an hour out in summer time)
+export const wall = iso => { const d = new Date(iso); return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds()) }
 const fmtDay = d => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
 const mins = t => { if (!t) return null; const [h, m] = String(t).split(':').map(Number); return h * 60 + (m || 0) }
 const at = (date, m) => { const d = new Date(date + 'T00:00:00'); d.setMinutes(m); return d }
@@ -69,7 +72,7 @@ export default function SessionFootage({ studentId, days: daysDefault = 45, onCo
         const sm = mins(s.cls.start_time), em = mins(s.cls.end_time) ?? (sm != null ? sm + 60 : null)
         const start = at(s.date, (sm ?? 0) - 10), end = at(s.date, (em ?? 1440) + 10)   // 10 min either side
         return { ...s, clips: (clips || []).filter(c => {
-          const cs = new Date(c.recorded_at), ce = new Date(cs.getTime() + (c.duration_seconds || 0) * 1000)
+          const cs = wall(c.recorded_at), ce = new Date(cs.getTime() + (c.duration_seconds || 0) * 1000)
           // only files that cover at least 5 minutes of the session window (drops ones that just clip the edge)
           const overlap = Math.min(ce, end) - Math.max(cs, start)
           return overlap >= 5 * 60000
@@ -83,16 +86,34 @@ export default function SessionFootage({ studentId, days: daysDefault = 45, onCo
     const { error } = await supabase.from('settings').upsert({ key: 'footage_classes', value: ids }, { onConflict: 'key' })
     if (error) alert('Could not save the classes: ' + error.message)
   }
-  async function play(clip, sess) {
+  // swipe in the player: left / right = next / previous file on this camera, up / down = the other cameras at the same moment
+  function clipSwipe(dir, currentTime) {
+    if (!player?.sess) return
+    const list = player.sess.clips
+    const cur = player.clip, curWall = new Date(wall(cur.recorded_at).getTime() + (currentTime || 0) * 1000)
+    if (dir === 'next' || dir === 'prev') {
+      const same = list.filter(c => camKey(c.camera_name) === camKey(cur.camera_name)).sort((a, b) => wall(a.recorded_at) - wall(b.recorded_at))
+      const i = same.findIndex(c => c.id === cur.id), nx = same[i + (dir === 'next' ? 1 : -1)]
+      if (nx) play(nx, player.sess, 0)
+      return
+    }
+    const order = ['1', '2', '3'], ci = order.indexOf(camKey(cur.camera_name))
+    for (let step = 1; step < order.length; step++) {
+      const key = order[(ci + (dir === 'camUp' ? step : order.length - step)) % order.length]
+      const hit = list.find(c => camKey(c.camera_name) === key && wall(c.recorded_at) <= curWall && new Date(wall(c.recorded_at).getTime() + (c.duration_seconds || 0) * 1000) > curWall)
+      if (hit) { play(hit, player.sess, Math.round((curWall - wall(hit.recorded_at)) / 1000)); return }
+    }
+  }
+  async function play(clip, sess, atSeconds) {
     setOpening(clip.id)
     const { data: { session } } = await supabase.auth.getSession()
     const { data, error } = await supabase.functions.invoke('cctv-presigned-url', { body: { storage_path: clip.storage_path }, headers: { Authorization: `Bearer ${session?.access_token}` } })
     setOpening(null)
     if (error || data?.error) return alert("Couldn't open the clip: " + (data?.error || error.message))
     // start at the class start (inside a long recording), not the start of the file
-    let startAt = 0
-    if (sess) { const sm = mins(sess.cls.start_time); if (sm != null) startAt = Math.max(0, Math.round((at(sess.date, sm) - new Date(clip.recorded_at)) / 1000)) }
-    setPlayer({ url: data.url, clip, startAt })
+    let startAt = atSeconds ?? 0
+    if (sess && atSeconds == null) { const sm = mins(sess.cls.start_time); if (sm != null) startAt = Math.max(0, Math.round((at(sess.date, sm) - wall(clip.recorded_at)) / 1000)) }
+    setPlayer({ url: data.url, clip, startAt, sess })
   }
 
   const chosenSet = useMemo(() => new Set(chosen || []), [chosen])
@@ -137,7 +158,7 @@ export default function SessionFootage({ studentId, days: daysDefault = 45, onCo
                         <button key={c.id} className="btn" disabled={opening === c.id} onClick={() => play(c, s)}
                           style={{ aspectRatio: '1 / 1', width: '100%', padding: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, borderRadius: 10 }}>
                           <span style={{ fontSize: 16 }}>▶</span>
-                          <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 13, fontWeight: 700 }}>{new Date(c.recorded_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
+                          <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 13, fontWeight: 700 }}>{wall(c.recorded_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
                           {c.duration_seconds ? <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{Math.round(c.duration_seconds / 60)} min</span> : null}
                         </button>
                       ))}
@@ -150,8 +171,8 @@ export default function SessionFootage({ studentId, days: daysDefault = 45, onCo
         )}
 
       {player && (
-        <FightFootagePlayer videoUrl={player.url} title={`${camLabel(player.clip.camera_name)} — ${new Date(player.clip.recorded_at).toLocaleString('en-GB')}`}
-          cctvClipId={player.clip.id} storagePath={player.clip.storage_path} isCoach startAt={player.startAt || 0} onClose={() => setPlayer(null)} />
+        <FightFootagePlayer videoUrl={player.url} title={`${camLabel(player.clip.camera_name)} — ${wall(player.clip.recorded_at).toLocaleString('en-GB')}`}
+          cctvClipId={player.clip.id} storagePath={player.clip.storage_path} isCoach startAt={player.startAt || 0} key={player.clip.id} onClipSwipe={clipSwipe} swipeHint={`${camLabel(player.clip.camera_name)} · swipe ← → for the next file, ↑ ↓ for the other cameras`} onClose={() => setPlayer(null)} />
       )}
     </div>
   )

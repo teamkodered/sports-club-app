@@ -119,7 +119,29 @@ export default function CctvViewer({ embedded = false }) {
     })
   }
 
-  async function openClip(clip) {
+  // swipe in the player (controls hidden): left / right = next / previous file on this camera,
+  // up / down = another camera at the same moment
+  const [startAt, setStartAt] = useState(0)
+  const camNo = n => { const m = String(n || '').match(/(\d+)/); return m ? parseInt(m[1]) : 0 }
+  function clipSwipe(dir, currentTime) {
+    const cur = selectedClip; if (!cur) return
+    const t0 = new Date(cur.recorded_at).getTime(), now = t0 + (currentTime || 0) * 1000
+    if (dir === 'next' || dir === 'prev') {
+      const same = clips.filter(c => camNo(c.camera_name) === camNo(cur.camera_name)).sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at))
+      const i = same.findIndex(c => c.id === cur.id), nx = same[i + (dir === 'next' ? 1 : -1)]
+      if (nx) openClip(nx, 0)
+      return
+    }
+    const cams = [...new Set(clips.map(c => camNo(c.camera_name)))].sort((a, b) => a - b)
+    const ci = cams.indexOf(camNo(cur.camera_name))
+    for (let step = 1; step < cams.length; step++) {
+      const cam = cams[(ci + (dir === 'camUp' ? step : cams.length - step)) % cams.length]
+      const hit = clips.find(c => camNo(c.camera_name) === cam && new Date(c.recorded_at).getTime() <= now && new Date(c.recorded_at).getTime() + (c.duration_seconds || 0) * 1000 > now)
+      if (hit) { openClip(hit, Math.round((now - new Date(hit.recorded_at).getTime()) / 1000)); return }
+    }
+  }
+
+  async function openClip(clip, autoplayAt) {
     setSelectedClip(clip)
     setShowPlayer(false)
     setPlaybackUrl(null)
@@ -137,6 +159,7 @@ export default function CctvViewer({ embedded = false }) {
     setPlaybackLoading(false)
     if (error || data?.error) { setPlaybackError(data?.error || error.message); return }
     setPlaybackUrl(data.url)
+    if (autoplayAt != null) { setStartAt(autoplayAt); setShowPlayer(true) } else setStartAt(0)
   }
 
   async function updateClipField(field, value) {
@@ -311,7 +334,7 @@ export default function CctvViewer({ embedded = false }) {
                         <input type="checkbox" checked={bulkSelected.has(clip.id)} onClick={e => e.stopPropagation()} onChange={() => toggleBulkSelect(clip.id)} style={{ marginTop: 3, flexShrink: 0 }} />
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                            {new Date(clip.recorded_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                            {new Date(clip.recorded_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
                           </div>
                           <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{formatDuration(clip.duration_seconds)}</div>
                           <div style={{ display: 'flex', gap: 4, marginTop: 3, flexWrap: 'wrap' }}>
@@ -341,7 +364,7 @@ export default function CctvViewer({ embedded = false }) {
                     <span style={{ color: 'var(--text-tertiary)' }}>{formatDuration(clip.duration_seconds)}</span>
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
-                    {new Date(clip.recorded_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    {new Date(clip.recorded_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
                   </div>
                   <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 10, background: 'var(--bg-secondary)', color: 'var(--text-tertiary)' }}>
@@ -376,7 +399,7 @@ export default function CctvViewer({ embedded = false }) {
               <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={runDebugProbe}>🔍 Run diagnostic check</button>
               {debugResult && <pre style={{ fontSize: 10, background: 'var(--bg-secondary)', padding: 10, borderRadius: 6, marginTop: 8, overflowX: 'auto', whiteSpace: 'pre-wrap' }}>{debugResult}</pre>}
               <div style={{ fontSize: 13, fontWeight: 500, marginTop: 10 }}>
-                {selectedClip.camera_name} — {new Date(selectedClip.recorded_at).toLocaleString('en-GB')}
+                {selectedClip.camera_name} — {new Date(selectedClip.recorded_at).toLocaleString('en-GB', { timeZone: 'UTC' })}
               </div>
               {selectedClip.allow_download && (
                 <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={downloadClip}>⬇ Download</button>
@@ -433,8 +456,8 @@ export default function CctvViewer({ embedded = false }) {
       </div>
 
       {showPlayer && playbackUrl && selectedClip && (
-        <FightFootagePlayer videoUrl={playbackUrl} title={`${selectedClip.camera_name} — ${new Date(selectedClip.recorded_at).toLocaleString('en-GB')}`}
-          cctvClipId={selectedClip.id} storagePath={selectedClip.storage_path} isCoach
+        <FightFootagePlayer videoUrl={playbackUrl} title={`${selectedClip.camera_name} — ${new Date(selectedClip.recorded_at).toLocaleString('en-GB', { timeZone: 'UTC' })}`}
+          cctvClipId={selectedClip.id} storagePath={selectedClip.storage_path} isCoach key={selectedClip.id} startAt={startAt} onClipSwipe={clipSwipe}
           onClose={() => setShowPlayer(false)} />
       )}
     </div>
