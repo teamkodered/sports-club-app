@@ -128,7 +128,8 @@ function SectionSpeedPicker({ value, onChange }) {
   )
 }
 
-export default function FightFootagePlayer({ videoUrl, title, footageId, cctvClipId, storagePath, isCoach = false, rotation: initialRotation = 0, onRotationSaved, onClose }) {
+export default function FightFootagePlayer({ videoUrl, title, footageId, cctvClipId, storagePath, isCoach = false, rotation: initialRotation = 0, onRotationSaved, onClose, startAt = 0 }) {
+  // startAt: seconds into the video to start from (e.g. the class start inside a long CCTV recording)
   // Markers can belong to either a View IT fight_footage row or a CCTV
   // clip -- whichever id was actually passed in is "the" source for
   // this whole component. fight_footage_clips (saved/extracted
@@ -1498,6 +1499,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
             ref={videoRef}
             src={videoUrl}
             crossOrigin="anonymous"
+            onLoadedMetadata={e => { if (startAt > 0 && startAt < (e.currentTarget.duration || Infinity)) e.currentTarget.currentTime = startAt }}
             style={videoStyle}
             playsInline
             webkit-playsinline="true"

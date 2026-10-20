@@ -54,7 +54,7 @@ function Folder({ icon, title, count, children, defaultOpen = false }) {
     <div style={{ borderTop: '1px solid var(--border)' }}>
       <button type="button" onClick={() => setO(v => !v)} style={{ all: 'unset', boxSizing: 'border-box', width: '100%', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 14px' }}>
         <span>{icon}</span><b style={{ flex: 1, fontSize: 13 }}>{title}</b>
-        <span style={{ minWidth: 22, textAlign: 'center', fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 10, background: count ? '#378ADD' : 'var(--bg-secondary)', color: count ? '#fff' : 'var(--text-tertiary)' }}>{count ?? '…'}</span>
+        <span style={{ minWidth: 22, textAlign: 'center', fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 10, background: count && !String(count).startsWith('0 ') ? '#378ADD' : 'var(--bg-secondary)', color: count && !String(count).startsWith('0 ') ? '#fff' : 'var(--text-tertiary)' }}>{count ?? '…'}</span>
         <span style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>{o ? '▲' : '▼'}</span>
       </button>
       {o && <div style={{ padding: '0 14px 12px' }}>{children}</div>}
@@ -98,7 +98,7 @@ function AthleteFolders({ student }) {
   )
   return (
     <div>
-      <Folder icon="📹" title="Training (CCTV)" count={cctvCount}>
+      <Folder icon="📹" title="Training (CCTV)" count={cctvCount == null ? null : `${cctvCount.sessions} session${cctvCount.sessions === 1 ? '' : 's'} · ${cctvCount.clips} clip${cctvCount.clips === 1 ? '' : 's'}`}>
         <SessionFootage studentId={student.id} onCount={setCctvCount} />
       </Folder>
       <Folder icon="🥊" title="Fights" count={fights?.length}>

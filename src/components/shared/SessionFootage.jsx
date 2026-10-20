@@ -17,7 +17,8 @@ const SUGGEST = c => {
     (/boxing/.test(n) && /^wed/.test(day)) || (/^sat/.test(day) && t === '09:30')
 }
 
-export default function SessionFootage({ studentId, days = 45, onCount }) {
+export default function SessionFootage({ studentId, days: daysDefault = 45, onCount }) {
+  const [days, setDays] = useState(daysDefault) // look-back range (30 / 45 / 90 / 180 / 365 days)
   const { isAdmin } = useAuth()
   const [classes, setClasses] = useState([])
   const [chosen, setChosen] = useState(null)      // class ids
@@ -37,17 +38,25 @@ export default function SessionFootage({ studentId, days = 45, onCount }) {
   }, [])
 
   // tell the parent how many clips there are (Media > Athletes header counts)
-  useEffect(() => { if (sessions && onCount) onCount(sessions.reduce((n, x) => n + (x.clips?.length || 0), 0)) }, [sessions]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (sessions && onCount) { const w = sessions.filter(x => x.clips?.length); onCount({ sessions: w.length, clips: w.reduce((n, x) => n + x.clips.length, 0) }) } }, [sessions]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!studentId || !chosen) return
     setSessions(null)
     ;(async () => {
       const from = new Date(); from.setDate(from.getDate() - days)
-      const { data: att } = await supabase.from('attendance').select('session_date, class_id')
-        .eq('student_id', studentId).in('class_id', chosen.length ? chosen : ['00000000-0000-0000-0000-000000000000'])
+      // ticked classes, plus check-ins with no timetabled class (e.g. open-gym training) using their own times
+      const ids = chosen.length ? chosen : ['00000000-0000-0000-0000-000000000000']
+      const { data: att } = await supabase.from('attendance').select('session_date, class_id, attended_at, checked_out_at')
+        .eq('student_id', studentId).or(`class_id.in.(${ids.join(',')}),class_id.is.null`)
         .gte('session_date', from.toISOString().slice(0, 10)).order('session_date', { ascending: false })
-      const list = (att || []).map(a => ({ date: a.session_date, cls: classes.find(c => c.id === a.class_id) })).filter(x => x.cls)
+      const hhmm = t => { const d = new Date(t); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` }
+      const list = (att || []).map(a => {
+        if (a.class_id) return { date: a.session_date, cls: classes.find(c => c.id === a.class_id) }
+        if (!a.attended_at || String(a.attended_at).includes('T12:00:00')) return null   // no real check-in time
+        const end = a.checked_out_at ? hhmm(a.checked_out_at) : hhmm(new Date(new Date(a.attended_at).getTime() + 90 * 60000))
+        return { date: a.session_date, cls: { id: 'checkin-' + a.attended_at, name: 'Check-in', start_time: hhmm(a.attended_at), end_time: end } }
+      }).filter(x => x && x.cls)
       if (!list.length) { setSessions([]); return }
       const minDate = list[list.length - 1].date, maxDate = list[0].date
       const { data: clips } = await supabase.from('cctv_clips').select('id, camera_name, recorded_at, duration_seconds, storage_path')
@@ -61,20 +70,23 @@ export default function SessionFootage({ studentId, days = 45, onCount }) {
         }) }
       }))
     })()
-  }, [studentId, chosen, classes])
+  }, [studentId, chosen, classes, days])
 
   async function saveChosen(ids) {
     setChosen(ids)
     const { error } = await supabase.from('settings').upsert({ key: 'footage_classes', value: ids }, { onConflict: 'key' })
     if (error) alert('Could not save the classes: ' + error.message)
   }
-  async function play(clip) {
+  async function play(clip, sess) {
     setOpening(clip.id)
     const { data: { session } } = await supabase.auth.getSession()
     const { data, error } = await supabase.functions.invoke('cctv-presigned-url', { body: { storage_path: clip.storage_path }, headers: { Authorization: `Bearer ${session?.access_token}` } })
     setOpening(null)
     if (error || data?.error) return alert("Couldn't open the clip: " + (data?.error || error.message))
-    setPlayer({ url: data.url, clip })
+    // start at the class start (inside a long recording), not the start of the file
+    let startAt = 0
+    if (sess) { const sm = mins(sess.cls.start_time); if (sm != null) startAt = Math.max(0, Math.round((at(sess.date, sm) - new Date(clip.recorded_at)) / 1000)) }
+    setPlayer({ url: data.url, clip, startAt })
   }
 
   const chosenSet = useMemo(() => new Set(chosen || []), [chosen])
@@ -85,7 +97,10 @@ export default function SessionFootage({ studentId, days = 45, onCount }) {
         <h2 style={{ fontSize: 14, fontWeight: 600 }}>🎥 Session footage <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-tertiary)' }}>coaches only — testing</span></h2>
         {isAdmin && <button className="btn btn-sm" onClick={() => setPicking(v => !v)}>{picking ? 'Done' : '⚙ Classes'}</button>}
       </div>
-      <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10 }}>CCTV clips recorded during sessions this athlete attended (last {days} days), for the chosen classes.</p>
+      <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>CCTV clips recorded during sessions this athlete attended -- the chosen classes plus their own check-ins with no class. Clips open at the session start.</p>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+        {[30, 45, 90, 180, 365].map(d => <button key={d} type="button" className={days === d ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setDays(d)}>{d === 365 ? '1 yr' : `${d} days`}</button>)}
+      </div>
 
       {picking && (
         <div style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 10, marginBottom: 10, maxHeight: 260, overflowY: 'auto' }}>
@@ -109,7 +124,7 @@ export default function SessionFootage({ studentId, days = 45, onCount }) {
                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>{fmtDay(s.date)} · {s.cls.name} {String(s.cls.start_time).slice(0, 5)}</div>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   {s.clips.map(c => (
-                    <button key={c.id} className="btn btn-sm" disabled={opening === c.id} onClick={() => play(c)}>
+                    <button key={c.id} className="btn btn-sm" disabled={opening === c.id} onClick={() => play(c, s)}>
                       ▶ {c.camera_name} {new Date(c.recorded_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}{c.duration_seconds ? ` · ${Math.round(c.duration_seconds / 60)}m` : ''}
                     </button>
                   ))}
@@ -121,7 +136,7 @@ export default function SessionFootage({ studentId, days = 45, onCount }) {
 
       {player && (
         <FightFootagePlayer videoUrl={player.url} title={`${player.clip.camera_name} — ${new Date(player.clip.recorded_at).toLocaleString('en-GB')}`}
-          cctvClipId={player.clip.id} storagePath={player.clip.storage_path} isCoach onClose={() => setPlayer(null)} />
+          cctvClipId={player.clip.id} storagePath={player.clip.storage_path} isCoach startAt={player.startAt || 0} onClose={() => setPlayer(null)} />
       )}
     </div>
   )
