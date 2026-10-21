@@ -1499,6 +1499,17 @@ export default function CRM() {
     return ORDER.indexOf(current) >= ORDER.indexOf(target) ? current : target
   }
   // Find an existing enquiry for this email -- including one saved earlier with the scrambled address
+  // Same email but is it the same PERSON? Families share an email/phone (a second child, siblings),
+  // so a different name means a NEW enquiry rather than updating someone else's.
+  function samePersonAsEnquiry(existing, d) {
+    if (!existing) return false
+    const clean = n => String(n || '').toLowerCase().replace(/\b(mr|mrs|miss|ms|dr|mx)\.?\s+/g, '').replace(/[^a-z\s'-]/g, ' ').trim()
+    const a = clean(existing.name), b = clean(d.name)
+    if (!a || !b || /^\|/.test(existing.name || '') || existing.name === 'Unknown') return true   // no usable name: treat as the same
+    const fa = a.split(/\s+/)[0], fb = b.split(/\s+/)[0]
+    return a === b || fa === fb || a.includes(b) || b.includes(a)
+  }
+
   async function findEnquiryForEmail(d) {
     // 1. exact address; 2. a saved address that ENDS with it (website emails glued the name onto
     // the front, e.g. 'AdamKowalewskima.kowalewska@yahoo.com'); 3. the scrambled sender itself.
@@ -1558,7 +1569,9 @@ export default function CRM() {
     if (!msg?.from) return
     try {
       const d = await enquiryDetailsFromEmail(msg)
-      const existing = await findEnquiryForEmail(d)
+      const found = await findEnquiryForEmail(d)
+      const existing = samePersonAsEnquiry(found, d) ? found : null
+      if (found && !existing) d.notes = `${d.notes ? d.notes + '\n' : ''}Same email as the enquiry for ${found.name}.`
       if (existing) {
         const badName = !existing.name || /^\|/.test(existing.name) || existing.name === 'Unknown'
         const { error: updateErr } = await supabase.from('enquiries').update({
@@ -1591,7 +1604,9 @@ export default function CRM() {
       delete pendingContactTimers.current[msg.uid]
       try {
         const d = await enquiryDetailsFromEmail(msg)
-        const existing = await findEnquiryForEmail(d)
+        const found = await findEnquiryForEmail(d)
+        const existing = samePersonAsEnquiry(found, d) ? found : null
+        if (found && !existing) d.notes = `${d.notes ? d.notes + '\n' : ''}Same email as the enquiry for ${found.name}.`
         let saveErr, note
         if (existing) {
           const badName = !existing.name || /^\|/.test(existing.name) || existing.name === 'Unknown'
@@ -1607,7 +1622,7 @@ export default function CRM() {
             enquiry_date: msg.date ? new Date(msg.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
             notes: d.notes, status: 'not_started',   // every email goes into Enquiries as a NEW enquiry (booking emails too)
           }))
-          note = `✓ ${d.name || d.email} added to Enquiries.`
+          note = `✓ ${d.name || d.email} added to Enquiries.${found ? ` (Same email as ${found.name} — added as a separate enquiry.)` : ''}`
         }
         // nothing saved -> leave the email where it is and say why
         if (saveErr) throw new Error(saveErr.message)
