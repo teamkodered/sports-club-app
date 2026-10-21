@@ -367,7 +367,8 @@ export default function CRM() {
   // Head Coach: his venue's CRM -- enquiries (venue-limited in the database) and the tabs whose data
   // is already limited to his students. Club inbox, payments, gradings, notices etc. stay hidden.
   const HEAD_COACH_TABS = ['enquiries', 'missed_training', 'stopped_training', 'standing_orders', 'trackers', 'birthdays']
-  const [enqVenue, setEnqVenue] = useState('all')   // admin's venue filter on enquiries
+  const [enqVenue, setEnqVenue] = useState('all')
+  const [enqSearch, setEnqSearch] = useState('')   // Enquiries search: name, phone, email, who it's for, notes   // admin's venue filter on enquiries
   const location = useLocation()
   const DEFAULT_TAB_ORDER = ['standing_orders', 'missed_training', 'stopped_training', 'grading_requests', 'birthdays', 'enquiries', 'trackers', 'messages', 'email', 'courses', 'parent_requests', 'sell', 'sales', 'stock', 'level_up']
   const [tabOrder, setTabOrder] = useSyncedPreference('crm_tab_order', DEFAULT_TAB_ORDER)
@@ -3501,6 +3502,13 @@ export default function CRM() {
             </div>
           )}
           {showNewEnquiryForm && !editingEnquiryId && enquiryForm()}
+          <div style={{ position: 'relative', margin: '4px 0 10px' }}>
+            <input type="search" value={enqSearch} onChange={e => setEnqSearch(e.target.value)} placeholder="🔍 Search enquiries — name, phone, email, child's name, notes"
+              aria-label="Search enquiries"
+              style={{ width: '100%', boxSizing: 'border-box', padding: '10px 36px 10px 12px', borderRadius: 10, border: '1px solid var(--border-strong)', background: 'var(--bg-secondary)', color: 'var(--text)', fontSize: 15 }} />
+            {enqSearch && <button type="button" onClick={() => setEnqSearch('')} aria-label="Clear search"
+              style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', fontSize: 18, color: 'var(--text-tertiary)', cursor: 'pointer' }}>×</button>}
+          </div>
           {enqSel.length > 0 && (
             <div className="enq-bulk">
               <b>{enqSel.length} selected</b>
@@ -3528,8 +3536,24 @@ export default function CRM() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {(() => {
+                const sq = enqSearch.trim().toLowerCase()
+                const sqDigits = sq.replace(/[^0-9]/g, '')
+                const matchesSearch = e => {
+                  if (!sq) return true
+                  const forNames = Array.isArray(e.enquiry_for?.names) ? e.enquiry_for.names.join(' ') : ''
+                  const hay = `${e.name || ''} ${e.contact_email || ''} ${forNames} ${e.notes || ''}`.toLowerCase()
+                  if (hay.includes(sq)) return true
+                  // phone: match on digits, so "07700 900" finds "07700900123" and +44 numbers
+                  if (sqDigits.length >= 3) {
+                    const ph = String(e.contact_phone || '').replace(/[^0-9]/g, '')
+                    const local = ph.startsWith('44') ? '0' + ph.slice(2) : ph
+                    if (ph.includes(sqDigits) || local.includes(sqDigits)) return true
+                  }
+                  return false
+                }
                 const shown = enquiries.filter(e => (enquiryStatusFilter === 'all' || e.status === enquiryStatusFilter) && (enquiryMethodFilter === 'all' || e.contact_method === enquiryMethodFilter)
-                  && (enqVenue === 'all' || (e.venue || 'kr-centre') === enqVenue))
+                  && (enqVenue === 'all' || (e.venue || 'kr-centre') === enqVenue) && matchesSearch(e))
+                if (sq && !shown.length) return <p style={{ fontSize: 13, color: 'var(--text-tertiary)', padding: '8px 2px' }}>No enquiries match "{enqSearch.trim()}".</p>
                 const renderCard = enq => {
                 if (editingEnquiryId === enq.id) return <div key={enq.id} id={`enq-${enq.id}`}>{enquiryForm()}</div>
                 const stageIdx = ENQUIRY_STAGES.findIndex(s => s.key === enq.status)
@@ -3690,7 +3714,7 @@ export default function CRM() {
                 return SECTIONS.map(([key, label, colour]) => {
                   const items = shown.filter(e => sectionOf(e.status) === key)
                   if (!items.length) return null
-                  const open = enquirySectionsOpen[key] === true
+                  const open = !!enqSearch.trim() || enquirySectionsOpen[key] === true   // searching: show every match
                   const header = (
                     <button type="button" onClick={() => setEnquirySectionsOpen(o => ({ ...o, [key]: !open }))} aria-expanded={open}
                       style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 2px', marginTop: 8, border: 'none', borderBottom: `2px solid ${colour}`, background: 'none', color: 'var(--text)', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-sans)', textAlign: 'left' }}>
