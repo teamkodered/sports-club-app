@@ -112,7 +112,15 @@ export function personaliseEnquiry(text, enq) {
     .replace(/^Hi \n/m, 'Hi\n')   // no name on file: "Hi {name}" reads "Hi"
 }
 
-export default function EnquirySendTemplates({ enquiries = [], templates, onSaveTemplates, sendEmail, onSent, onClose, manageOnly = false, noEmail = false }) {
+// Two ways in: (1) select enquiries, then pick a template; (2) from 'Templates', pick a template,
+// then choose who to send it to (allEnquiries). Both end at the same previews + send step.
+const STAGES = [['not_started', 'Enquiries'], ['contacted', 'Contacted'], ['trial_booked', 'Trial booked'], ['attended', 'Attended'], ['waiting_list', 'Waiting list'], ['joined', 'Joined'], ['not_interested', 'Not interested']]
+export default function EnquirySendTemplates({ enquiries = [], allEnquiries = [], templates, onSaveTemplates, sendEmail, onSent, onClose, manageOnly = false, noEmail = false }) {
+  const [picked, setPicked] = useState(enquiries)        // who it's going to
+  const [picking, setPicking] = useState(false)          // template-first: choosing recipients
+  const [pickSel, setPickSel] = useState(new Set())
+  const [pickQ, setPickQ] = useState('')
+  const [pickStage, setPickStage] = useState('not_started')
   const [tplId, setTplId] = useState(templates[0]?.id || null)
   const [channel, setChannel] = useState(noEmail ? 'whatsapp' : 'email')   // 'email' | 'whatsapp' | 'text'
   const [overrides, setOverrides] = useState({})         // enquiry id -> edited text
@@ -126,8 +134,8 @@ export default function EnquirySendTemplates({ enquiries = [], templates, onSave
   const tpl = templates.find(t => t.id === tplId)
   const textFor = enq => overrides[enq.id] ?? personaliseEnquiry(tpl?.body, enq)
   const reachable = enq => channel === 'email' ? !!enq.contact_email : !!enq.contact_phone
-  const list = enquiries.filter(reachable)
-  const unreachable = enquiries.filter(e => !reachable(e))
+  const list = picked.filter(reachable)
+  const unreachable = picked.filter(e => !reachable(e))
 
   async function sendAllEmails() {
     setStep('sending')
@@ -156,11 +164,54 @@ export default function EnquirySendTemplates({ enquiries = [], templates, onSave
     <div className="ets-backdrop" onClick={onClose}>
       <div className="ets-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-label="Send a template">
         <div className="ets-head">
-          <b>{manageOnly ? '📝 Enquiry templates' : `📨 Send template · ${enquiries.length} selected`}</b>
+          <b>{picking ? `📨 ${tpl?.label || 'Template'} — who to send to` : managing ? '📝 Enquiry templates' : `📨 Send template · ${picked.length} selected`}</b>
           <button className="btn btn-sm" onClick={onClose}>Close</button>
         </div>
 
-        {managing ? (
+        {picking ? (() => {
+          const q = pickQ.trim().toLowerCase()
+          const shown = allEnquiries.filter(e => (pickStage === 'all' || (e.status || 'not_started') === pickStage || (pickStage === 'sent' && String(e.status).startsWith('sent_')))
+            && (!q || `${e.name || ''} ${e.contact_email || ''} ${e.contact_phone || ''}`.toLowerCase().includes(q)))
+          const allOn = shown.length > 0 && shown.every(e => pickSel.has(e.id))
+          const toggle = id => setPickSel(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+          return (
+            <div className="ets-col">
+              <div className="ets-hint">Choose who gets <b>{tpl?.label}</b>. You'll see each person's message before anything is sent.</div>
+              <input value={pickQ} onChange={e => setPickQ(e.target.value)} placeholder="🔍 Search name, email or phone" />
+              <div className="ets-row" style={{ flexWrap: 'wrap' }}>
+                {[...STAGES, ['all', 'All']].map(([k, l]) => {
+                  const n = k === 'all' ? allEnquiries.length : allEnquiries.filter(e => (e.status || 'not_started') === k).length
+                  return <button key={k} type="button" className={`btn btn-sm${pickStage === k ? ' btn-primary' : ''}`} onClick={() => setPickStage(k)}>{l} {n}</button>
+                })}
+              </div>
+              <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, fontWeight: 600 }}>
+                <input type="checkbox" checked={allOn} onChange={() => setPickSel(prev => { const n = new Set(prev); shown.forEach(e => allOn ? n.delete(e.id) : n.add(e.id)); return n })} />
+                Select all shown ({shown.length})
+              </label>
+              <div style={{ maxHeight: '42vh', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 10 }}>
+                {shown.length === 0 && <div className="ets-hint" style={{ padding: 10 }}>Nobody here.</div>}
+                {shown.map(e => (
+                  <label key={e.id} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '8px 10px', borderBottom: '1px solid var(--border)', cursor: 'pointer', background: pickSel.has(e.id) ? '#378ADD14' : undefined }}>
+                    <input type="checkbox" checked={pickSel.has(e.id)} onChange={() => toggle(e.id)} />
+                    <span style={{ minWidth: 0 }}>
+                      <b style={{ fontSize: 14 }}>{e.name || 'No name'}</b>
+                      <span style={{ display: 'block', fontSize: 12, color: 'var(--text-tertiary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {[e.contact_phone, e.contact_email].filter(Boolean).join(' · ') || 'no contact details'}{e.enquiry_date ? ` · ${new Date(e.enquiry_date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : ''}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <div className="ets-row">
+                <button className="btn btn-primary" disabled={!pickSel.size} onClick={() => {
+                  setPicked(allEnquiries.filter(e => pickSel.has(e.id))); setOverrides({}); setCursor(0); setSentIds(new Set()); setSkipped([])
+                  setPicking(false); setManaging(false); setStep('preview')
+                }}>Next — preview {pickSel.size || ''} message{pickSel.size === 1 ? '' : 's'}</button>
+                <button className="btn" onClick={() => setPicking(false)}>Back</button>
+              </div>
+            </div>
+          )
+        })() : managing ? (
           draft ? (
             <div className="ets-col">
               <label className="ets-label">NAME</label>
@@ -184,6 +235,7 @@ export default function EnquirySendTemplates({ enquiries = [], templates, onSave
                     <span style={{ fontSize: 12, color: 'var(--text-tertiary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 380 }}>{String(t.body || '').replace(/\s+/g, ' ').slice(0, 90)}…</span>
                   </span>
                   <span className="ets-row">
+                    {allEnquiries.length > 0 && <button className="btn btn-sm btn-primary" onClick={() => { setTplId(t.id); setPickSel(new Set()); setPickQ(''); setPicking(true) }}>📨 Send</button>}
                     <button className="btn btn-sm" onClick={() => setDraft({ ...t })}>Edit</button>
                     <button className="btn btn-sm" style={{ color: '#E24B4A' }} onClick={() => { if (window.confirm(`Delete "${t.label}"?`)) onSaveTemplates(templates.filter(x => x.id !== t.id)) }}>Delete</button>
                   </span>

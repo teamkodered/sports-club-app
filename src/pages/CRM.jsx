@@ -3500,7 +3500,8 @@ export default function CRM() {
             </div>
           )}
           {enqTemplatesOpen && (
-            <EnquirySendTemplates manageOnly templates={enquiryTemplates} onSaveTemplates={saveEnquiryTemplates} onClose={() => setEnqTemplatesOpen(false)} />
+            <EnquirySendTemplates manageOnly templates={enquiryTemplates} onSaveTemplates={saveEnquiryTemplates} onClose={() => setEnqTemplatesOpen(false)}
+              allEnquiries={enquiries} noEmail={isHeadCoach} sendEmail={sendRealEmail} onSent={enquiryTemplateSent} />
           )}
           {enqSendOpen && (
             <EnquirySendTemplates
