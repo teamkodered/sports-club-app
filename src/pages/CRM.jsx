@@ -1561,7 +1561,7 @@ export default function CRM() {
       if (existing) {
         const badName = !existing.name || /^\|/.test(existing.name) || existing.name === 'Unknown'
         const { error: updateErr } = await supabase.from('enquiries').update({
-          status: nextEnquiryStatus(existing.status, d.status),
+          status: nextEnquiryStatus(existing.status, 'not_started'),
           updated_at: new Date().toISOString(),
           contact_email: d.email,                                   // repairs a scrambled address
           contact_phone: existing.contact_phone || d.phone || null,  // don't overwrite an already-known number
@@ -1572,7 +1572,7 @@ export default function CRM() {
         const { error: insertErr } = await supabase.from('enquiries').insert({
           name: d.name, contact_email: d.email, contact_phone: d.phone || null, contact_method: 'email',
           enquiry_date: msg.date ? new Date(msg.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-          notes: d.notes, status: d.status || 'contacted',
+          notes: d.notes, status: 'not_started',
         })
         if (insertErr) throw insertErr
       }
@@ -1594,14 +1594,14 @@ export default function CRM() {
         if (existing) {
           const badName = !existing.name || /^\|/.test(existing.name) || existing.name === 'Unknown'
           await supabase.from('enquiries').update({
-            status: nextEnquiryStatus(existing.status, d.status || 'not_started'), updated_at: new Date().toISOString(), contact_email: d.email,
+            status: nextEnquiryStatus(existing.status, 'not_started'), updated_at: new Date().toISOString(), contact_email: d.email,
             contact_phone: existing.contact_phone || d.phone || null, ...(badName && d.name ? { name: d.name } : {}),
           }).eq('id', existing.id)
         } else {
           await supabase.from('enquiries').insert({
             name: d.name, contact_email: d.email, contact_phone: d.phone || null, contact_method: 'email',
             enquiry_date: msg.date ? new Date(msg.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-            notes: d.notes, status: d.status || 'not_started',   // into Enquiries as a NEW enquiry (booking emails -> Trial booked)
+            notes: d.notes, status: 'not_started',   // every email goes into Enquiries as a NEW enquiry (booking emails too)
           })
         }
         if (enquiriesLoaded) loadEnquiries()
