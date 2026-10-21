@@ -1591,22 +1591,30 @@ export default function CRM() {
       try {
         const d = await enquiryDetailsFromEmail(msg)
         const existing = await findEnquiryForEmail(d)
+        let saveErr, note
         if (existing) {
           const badName = !existing.name || /^\|/.test(existing.name) || existing.name === 'Unknown'
-          await supabase.from('enquiries').update({
+          ;({ error: saveErr } = await supabase.from('enquiries').update({
             status: nextEnquiryStatus(existing.status, 'not_started'), updated_at: new Date().toISOString(), contact_email: d.email,
             contact_phone: existing.contact_phone || d.phone || null, ...(badName && d.name ? { name: d.name } : {}),
-          }).eq('id', existing.id)
+          }).eq('id', existing.id))
+          const stage = { not_started: 'Enquiries', contacted: 'Contacted', trial_booked: 'Trial booked', attended: 'Attended', joined: 'Joined', waiting_list: 'Waiting list', not_interested: 'Not interested' }[existing.status] || 'Sent to other venues'
+          note = `${existing.name || d.name} was already in the CRM — under "${stage}" — so that enquiry was updated (no new card).`
         } else {
-          await supabase.from('enquiries').insert({
+          ;({ error: saveErr } = await supabase.from('enquiries').insert({
             name: d.name, contact_email: d.email, contact_phone: d.phone || null, contact_method: 'email',
             enquiry_date: msg.date ? new Date(msg.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
             notes: d.notes, status: 'not_started',   // every email goes into Enquiries as a NEW enquiry (booking emails too)
-          })
+          }))
+          note = `✓ ${d.name || d.email} added to Enquiries.`
         }
+        // nothing saved -> leave the email where it is and say why
+        if (saveErr) throw new Error(saveErr.message)
         if (enquiriesLoaded) loadEnquiries()
         await moveEmailToFolder(msg.uid, 'Contacted')
         setInboxMessages(prev => prev.filter(x => x.uid !== msg.uid))
+        setEmailNote(note)
+        setTimeout(() => setEmailNote(n => n === note ? null : n), 9000)
       } catch (err) {
         alert("Couldn't send this email to Enquiries: " + err.message)
       }
@@ -1614,6 +1622,7 @@ export default function CRM() {
     }
     pendingContactTimers.current[msg.uid] = { timerId: setTimeout(run, 8000), run, until: Date.now() + 8000 }
   }
+  const [emailNote, setEmailNote] = useState(null)   // where the last email went
   // ticks the "Undo (Xs)" countdown on rows waiting to go to Enquiries
   const [, setUndoTick] = useState(0)
   useEffect(() => {
@@ -5553,6 +5562,15 @@ export default function CRM() {
 
       {tab === 'email' && (
         <div>
+          {emailNote && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '10px 12px', marginBottom: 10, borderRadius: 10, background: '#1D9E7518', border: '1px solid #1D9E7555', fontSize: 14 }}>
+              <span>{emailNote}</span>
+              <span style={{ display: 'flex', gap: 6 }}>
+                <button className="btn btn-sm" onClick={() => { setEmailNote(null); setTab('enquiries') }}>Open Enquiries</button>
+                <button className="btn btn-sm" onClick={() => setEmailNote(null)}>✕</button>
+              </span>
+            </div>
+          )}
           <div className="card" style={{ marginBottom: 16 }}>
             <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 10 }}>📧 Email — info@derbykickboxing.org.uk</h2>
             <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
