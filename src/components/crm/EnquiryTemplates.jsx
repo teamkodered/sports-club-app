@@ -358,6 +358,19 @@ export default function EnquirySendTemplates({ enquiries = [], allEnquiries = []
                 ? <button className="btn btn-primary ets-big" onClick={sendAllEmails}>Send {list.length} email{list.length === 1 ? '' : 's'}</button>
                 : <button className="btn btn-primary ets-big" onClick={() => { setCursor(0); setStep('sending') }}>Start sending ({list.length})</button>}
             </div>
+            {/* other ways to send the same messages (one by one, from your phone) */}
+            {(() => {
+              const withPhone = picked.filter(e => e.contact_phone).length
+              const others = [['whatsapp', '🟢 Send by WhatsApp'], ['text', '💬 Send by text'], ...(noEmail ? [] : [['email', '✉️ Send by email']])].filter(([k]) => k !== channel)
+              return (
+                <div className="ets-alt">
+                  {others.map(([k, l]) => {
+                    const n = k === 'email' ? picked.filter(e => e.contact_email && !/placeholder/.test(e.contact_email)).length : withPhone
+                    return <button key={k} type="button" className="btn" disabled={!n} onClick={() => { setChannel(k); if (k !== 'email') { setCursor(0); setStep('sending') } }}>{l} ({n})</button>
+                  })}
+                </div>
+              )
+            })()}
           </div>
         ) : step === 'sending' && channel === 'email' ? (
           <div className="ets-col"><div className="ets-hint">Sending emails…</div></div>

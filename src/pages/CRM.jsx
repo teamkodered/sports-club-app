@@ -2695,10 +2695,28 @@ export default function CRM() {
     loadEnquiries()
   }
 
-  async function updateEnquiryStatus(id, status) {
+  // Every section change shows "Moved X to <section> · Undo (8s)" -- tap Undo to put it back
+  const [enqUndo, setEnqUndo] = useState(null)   // { id, name, from, to, until }
+  const [, setEnqUndoTick] = useState(0)
+  useEffect(() => {
+    if (!enqUndo) return
+    const t = setInterval(() => {
+      if (Date.now() >= enqUndo.until) { setEnqUndo(null); clearInterval(t) } else setEnqUndoTick(n => n + 1)
+    }, 1000)
+    return () => clearInterval(t)
+  }, [enqUndo])
+  const STAGE_NAME = { not_started: 'Enquiries', contacted: 'Contacted', trial_booked: 'Trial booked', attended: 'Attended', joined: 'Joined', waiting_list: 'Waiting list', not_interested: 'Not interested', sent_derby_moore: 'Sent to Derby Moore', sent_moorways: 'Sent to Moorways' }
+  async function updateEnquiryStatus(id, status, { undoable = true } = {}) {
+    const before = enquiries.find(e => e.id === id)
     const { error } = await supabase.from('enquiries').update({ status, updated_at: new Date().toISOString() }).eq('id', id)
     if (error) { alert('Error updating status: ' + error.message); return }
     loadEnquiries()
+    if (undoable && before && before.status !== status) setEnqUndo({ id, name: before.name || 'Enquiry', from: before.status || 'not_started', to: status, until: Date.now() + 8000 })
+  }
+  async function undoEnquiryStatus() {
+    const u = enqUndo; if (!u) return
+    setEnqUndo(null)
+    await updateEnquiryStatus(u.id, u.from, { undoable: false })
   }
 
   // The progress button's stages, in order. Each entry's label is the
@@ -3444,6 +3462,13 @@ export default function CRM() {
       {tab === 'sell' && <StockPanel key="sell" section="sell" />}
       {tab === 'sales' && <StockPanel key="sales" section="sales" />}
       {tab === 'stock' && <StockPanel key="stock" section="stock" />}
+      {enqUndo && tab === 'enquiries' && (
+        <div className="enq-undo" role="status">
+          <span>Moved <b>{enqUndo.name}</b> to {STAGE_NAME[enqUndo.to] || enqUndo.to}</span>
+          <button type="button" onClick={undoEnquiryStatus}>↺ Undo ({Math.max(0, Math.ceil((enqUndo.until - Date.now()) / 1000))}s)</button>
+          <button type="button" className="x" aria-label="Dismiss" onClick={() => setEnqUndo(null)}>✕</button>
+        </div>
+      )}
       {tab === 'parent_requests' && <ParentRequestsPanel onCount={setParentReqCount} />}
 
       {tab === 'enquiries' && (
