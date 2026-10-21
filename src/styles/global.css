@@ -1388,3 +1388,12 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .enq-chip select { border: none; background: transparent; color: inherit; font: inherit; cursor: pointer; padding: 0; }
 .enq-chip.empty { border-style: dashed; background: transparent; color: var(--text-tertiary); font-weight: 500; }
 .enq-chip.guess { border-style: dashed; }
+
+/* Other sessions: today's question + grouped activity cards (neon) */
+.oth-today { border: 1px solid #E6B80055; border-radius: 10px; padding: 10px; margin: 6px 0 12px; background: rgba(230,184,0,0.05); }
+.oth-today-title { font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800; font-size: 16px; text-transform: uppercase; color: #E6B800; margin-bottom: 6px; }
+.oth-entry { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; border-bottom: 1px solid var(--border); margin-bottom: 8px; }
+.oth-entry input, .oth-today input { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--bg-secondary); color: var(--text); font-size: 13px; }
+.oth-group { border: 1px solid var(--border); border-radius: 10px; margin-bottom: 6px; overflow: hidden; background: var(--bg-secondary); }
+.oth-group-head { all: unset; box-sizing: border-box; width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 9px 12px; cursor: pointer; font-size: 14px; }
+.oth-group .oth-row { padding: 8px 12px; }

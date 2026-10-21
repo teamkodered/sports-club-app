@@ -10279,7 +10279,7 @@ export default function AthleteProfiles() {
                         <span style={{ fontSize: 8, color: 'var(--text-tertiary)', textAlign: 'center', lineHeight: 1.3 }}>{todaysTest && Object.values(todaysTest).some(v => v !== '' && v != null) ? 'Logged today' : 'Log results'}</span>
                       </span>
                     </button>
-                    {selected?.id && <OtherSessions studentId={selected.id} />}
+                    {selected?.id && <OtherSessions studentId={selected.id} history={f2fData || []} todaysOther={todaysOtherSession} onSaveOther={list => savePhysicalField('other_session', list, setTodaysOtherSession)} />}
                     </div>
                     <div style={{
                       display: 'flex', alignItems: 'stretch', width: '100%',

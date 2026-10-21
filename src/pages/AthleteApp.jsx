@@ -5921,7 +5921,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                         <span style={{ fontSize: 8, color: 'var(--text-tertiary)', textAlign: 'center', lineHeight: 1.3 }}>{todaysTest && Object.values(todaysTest).some(v => v !== '' && v != null) ? 'Logged today' : 'Log results'}</span>
                       </span>
                     </button>
-                    {student?.id && <OtherSessions studentId={student.id} />}
+                    {student?.id && <OtherSessions studentId={student.id} history={sessions || []} todaysOther={[].concat((sessions.find(x => x.session_date === new Date().toISOString().split('T')[0]) || {}).other_session || [])} onSaveOther={list => savePhysicalField('other_session', list, () => {})} />}
                     </div>
                     )}
                     {showSncCards && (
