@@ -1372,3 +1372,7 @@ tbody tr:hover td { background: var(--bg-secondary); }
 /* Templates window opens in the middle of the screen */
 .ets-backdrop { align-items: center !important; padding: calc(12px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px)); }
 .ets-sheet { border-radius: 18px !important; max-height: 86vh !important; }
+.ets-warn { font-size: 11px; font-weight: 700; color: #B45309; background: #EF9F2722; border-radius: 8px; padding: 1px 8px; margin: 0 6px; }
+.ets-fix { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 6px; font-size: 12px; color: var(--text-secondary); }
+.ets-fix label { display: flex; align-items: center; gap: 4px; }
+.ets-fix input, .ets-fix select { padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--bg); color: var(--text); font-size: 13px; max-width: 170px; }

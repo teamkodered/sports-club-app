@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { supabase } from '../../lib/supabase.js'
 
 // ── Enquiry message templates ──
 // Placeholders (filled per enquiry):
@@ -20,15 +21,15 @@ www.teamkodered.com`
 export const DEFAULT_ENQUIRY_TEMPLATES = [
   { id: 'follow_up_intro', label: 'Follow-up — free intro session', subject: 'Your enquiry to Derby PKA Kickboxing',
     body: `Hi {name}
-I'm following up an enquiry you made to Derby PKA re kickboxing sessions.
+I'm following up the enquiry you made to Derby PKA about kickboxing sessions for {who}.
 We can offer a free intro session if this is something {who_is} interested in?
 
 ${SIGNATURE_SARA}` },
   { id: 'junior_intro_booking', label: 'Junior free intro lesson (KR Centre)', subject: 'Your free introductory lesson — Derby PKA Kickboxing',
     body: `Hi {name}
 
-Thank you for your recent interest in our junior kickboxing classes.
-We can book {who} in for a free introductory lesson at our full time training centre:
+Thank you for your recent interest in our junior kickboxing classes for {who}.
+We can book {them} in for a free introductory lesson at our full time training centre:
 
 The KR Centre
 Kedleston House
@@ -76,11 +77,30 @@ Derby PKA Kickboxing
 💪❤️` },
   { id: 'tinys_waiting_list', label: "Tiny's waiting list", subject: "Tiny's kickboxing — Derby PKA",
     body: `Hi {name}
-I'm following up an enquiry you made to Derby PKA re kickboxing sessions.
-There is currently a waiting list for the tinys, would you like me to add {who} to the waiting list?
+I'm following up the enquiry you made to Derby PKA about kickboxing sessions for {who}.
+There is currently a waiting list for our Tiny Tots classes — would you like me to add {who} to the waiting list?
 
 ${SIGNATURE_SARA}` },
 ]
+
+// Saved templates still word-for-word the old starter text get the updated wording (edited ones are left alone)
+const OLD_LINES = [
+  ["I'm following up an enquiry you made to Derby PKA re kickboxing sessions.\nWe can offer a free intro session if this is something {who_is} interested in?",
+   "I'm following up the enquiry you made to Derby PKA about kickboxing sessions for {who}.\nWe can offer a free intro session if this is something {who_is} interested in?"],
+  ["I'm following up an enquiry you made to Derby PKA re kickboxing sessions.\nThere is currently a waiting list for the tinys, would you like me to add {who} to the waiting list?",
+   "I'm following up the enquiry you made to Derby PKA about kickboxing sessions for {who}.\nThere is currently a waiting list for our Tiny Tots classes — would you like me to add {who} to the waiting list?"],
+  ["Thank you for your recent interest in our junior kickboxing classes.\nWe can book {who} in for a free introductory lesson",
+   "Thank you for your recent interest in our junior kickboxing classes for {who}.\nWe can book {them} in for a free introductory lesson"],
+]
+export function upgradeStarterTemplates(list) {
+  let changed = false
+  const next = (list || []).map(t => {
+    let body = t.body || ''
+    for (const [a, b] of OLD_LINES) if (body.includes(a)) { body = body.replace(a, b); changed = true }
+    return body === t.body ? t : { ...t, body }
+  })
+  return { next, changed }
+}
 
 // wa.me needs full international digits: 07... -> 447...
 const toWhatsappNumber = phone => { const d = String(phone || '').replace(/[^0-9]/g, ''); return d.startsWith('0') ? '44' + d.slice(1) : d }
@@ -94,18 +114,44 @@ export function enquiryClass(enq) {
   return m ? m[1].trim() : ''
 }
 
-export function personaliseEnquiry(text, enq) {
-  const first = String(enq?.name || '').trim().split(/\s+/)[0] || ''
+// Greeting name: the first name, ignoring titles (Mr, Mrs…); '' when it doesn't look like a real
+// name (initials like "DR", an email address, a business, blank) -> the message just says "Hi".
+const TITLES = /^(mr|mrs|miss|ms|mx|dr|master|sir|madam)\.?$/i
+export function greetingName(enq) {
+  const g = enq?.enquiry_for?.greeting
+  if (g !== undefined && g !== null) return String(g).trim()
+  const parts = String(enq?.name || '').trim().split(/\s+/).filter(w => w && !TITLES.test(w))
+  const first = parts[0] || ''
+  if (!first || /[@\d]/.test(first) || first.length < 2) return ''
+  if (first === first.toUpperCase() && first.length <= 3) return ''          // initials, e.g. "DR"
+  if (/\b(ltd|limited|club|academy|school|centre|center)\b/i.test(enq?.name || '')) return ''
+  return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase()
+}
+
+// Who the enquiry is for: saved "Enquiring for" first; otherwise worked out from the notes
+// (a Kids / Junior / Tiny Tots booking or form -> a child; Adult / Mixed / Ladies -> themselves).
+export function enquiryFor(enq) {
   const f = enq?.enquiry_for || {}
   const names = (f.names || []).map(x => String(x).trim()).filter(Boolean)
-  const self = f.self || names.length === 0
-  const who = self ? 'you' : joinNames(names)
+  if (names.length) return { kind: 'names', names, saved: true }
+  if (f.child) return { kind: 'child', saved: true }
+  if (f.self) return { kind: 'self', saved: true }
+  const n = `${enq?.notes || ''}`
+  if (/\b(kids?|junior|juniors|jnr|tiny|tinys|tots|small soldiers|jedi|child|children)\b/i.test(n)) return { kind: 'child', saved: false }
+  if (/\b(adults?|mixed|ladies|men|women|14\+|16\+|senior)\b/i.test(n)) return { kind: 'self', saved: false }
+  return { kind: 'self', saved: false, guessed: true }
+}
+
+export function personaliseEnquiry(text, enq) {
+  const w = enquiryFor(enq)
+  const who = w.kind === 'names' ? joinNames(w.names) : w.kind === 'child' ? 'your child' : 'you'
+  const plural = w.kind === 'names' && w.names.length > 1
   const vals = {
-    '{name}': first,
+    '{name}': greetingName(enq),
     '{who}': who,
-    '{who_is}': self ? 'you are' : `${who} ${names.length > 1 ? 'are' : 'is'}`,
-    '{their}': self ? 'your' : 'their',
-    '{them}': self ? 'you' : 'them',
+    '{who_is}': w.kind === 'self' ? 'you are' : `${who} ${plural ? 'are' : 'is'}`,
+    '{their}': w.kind === 'self' ? 'your' : 'their',
+    '{them}': w.kind === 'self' ? 'you' : 'them',
     '{class}': enquiryClass(enq),
   }
   return String(text || '').replace(/\{(name|who|who_is|their|them|class)\}/g, m => vals[m] ?? m)
@@ -136,6 +182,19 @@ export default function EnquirySendTemplates({ enquiries = [], allEnquiries = []
   const reachable = enq => channel === 'email' ? !!enq.contact_email : !!enq.contact_phone
   const list = picked.filter(reachable)
   const unreachable = picked.filter(e => !reachable(e))
+
+  // Corrections in the preview: rewrite the message straight away and save them to the enquiry
+  const saveTimers = useRef({}).current
+  function fixEnquiry(enq, patch) {
+    const nextFor = { ...(enq.enquiry_for || {}), ...patch }
+    setPicked(prev => prev.map(e => e.id === enq.id ? { ...e, enquiry_for: nextFor } : e))
+    setOverrides(o => { const n = { ...o }; delete n[enq.id]; return n })   // re-personalise from the template
+    clearTimeout(saveTimers[enq.id])
+    saveTimers[enq.id] = setTimeout(() => {
+      const clean = { ...nextFor, names: (nextFor.names || []).map(x => String(x).trim()).filter(Boolean) }
+      supabase.from('enquiries').update({ enquiry_for: clean }).eq('id', enq.id).then(({ error }) => { if (error) console.warn('enquiry_for save', error.message) })
+    }, 600)
+  }
 
   async function sendAllEmails() {
     setStep('sending')
@@ -267,7 +326,29 @@ export default function EnquirySendTemplates({ enquiries = [], allEnquiries = []
             <div className="ets-hint">Check each one — tap into any message to change it just for that person. "{'{who}'}" follows each enquiry's "Enquiring for".</div>
             {list.map(enq => (
               <div key={enq.id} className="ets-preview">
-                <div className="ets-preview-head"><b>{enq.name}</b><span>{channel === 'email' ? enq.contact_email : enq.contact_phone}{enq.enquiry_for?.names?.length ? ` · for ${joinNames(enq.enquiry_for.names)}` : enq.enquiry_for?.self ? ' · for themselves' : ''}</span></div>
+                <div className="ets-preview-head"><b>{enq.name}</b>
+                  {(() => { const w = enquiryFor(enq); return (!greetingName(enq) || w.guessed) ? <span className="ets-warn">⚠ check this one</span> : null })()}
+                  <span>{channel === 'email' ? enq.contact_email : enq.contact_phone}</span></div>
+                <div className="ets-fix">
+                  <label>Hi
+                    <input value={greetingName(enq)} placeholder="(no name)" onChange={e => fixEnquiry(enq, { greeting: e.target.value })} />
+                  </label>
+                  <label>For
+                    <select value={(() => { const w = enquiryFor(enq); return w.kind })()} onChange={e => {
+                      const k = e.target.value
+                      fixEnquiry(enq, k === 'self' ? { self: true, child: false, names: [] } : k === 'child' ? { self: false, child: true, names: [] } : { self: false, child: false, names: enquiryFor(enq).names || [''] })
+                    }}>
+                      <option value="self">Themselves</option>
+                      <option value="child">Their child (name unknown)</option>
+                      <option value="names">Named child / children…</option>
+                    </select>
+                  </label>
+                  {enquiryFor(enq).kind === 'names' || (enq.enquiry_for?.names && !enq.enquiry_for?.child && !enq.enquiry_for?.self) ? (
+                    <label>Names
+                      <input value={(enq.enquiry_for?.names || []).join(', ')} placeholder="e.g. Alfie, Mia" onChange={e => fixEnquiry(enq, { self: false, child: false, names: e.target.value.split(',').map(x => x.trim()) })} />
+                    </label>
+                  ) : null}
+                </div>
                 <textarea rows={6} value={textFor(enq)} onChange={e => setOverrides(o => ({ ...o, [enq.id]: e.target.value }))} />
               </div>
             ))}

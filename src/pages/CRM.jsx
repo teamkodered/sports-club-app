@@ -4,7 +4,7 @@ import StockPanel from '../components/crm/StockPanel.jsx'
 import LevelUpPanel from '../components/crm/LevelUpPanel.jsx'
 import { viewAsVenueScope } from '../lib/viewAsScope.js'
 import ParentRequestsPanel from '../components/parent/ParentRequestsPanel.jsx'
-import EnquirySendTemplates, { DEFAULT_ENQUIRY_TEMPLATES } from '../components/crm/EnquiryTemplates.jsx'
+import EnquirySendTemplates, { DEFAULT_ENQUIRY_TEMPLATES, upgradeStarterTemplates } from '../components/crm/EnquiryTemplates.jsx'
 import { isDateOnHoliday } from '../lib/attendanceDays.js'
 import { studentProfileLink } from '../lib/studentLinks.js'
 import { useLocation } from 'react-router-dom'
@@ -530,7 +530,12 @@ export default function CRM() {
   const enqHoldFired = useRef(false)
   useEffect(() => {
     supabase.from('settings').select('value').eq('key', 'crm_enquiry_message_templates').maybeSingle()
-      .then(({ data }) => { if (Array.isArray(data?.value) && data.value.length) setEnquiryTemplates(data.value) })
+      .then(({ data }) => {
+        if (!(Array.isArray(data?.value) && data.value.length)) return
+        const { next, changed } = upgradeStarterTemplates(data.value)   // starter wording -> {who} style
+        setEnquiryTemplates(next)
+        if (changed) supabase.from('settings').upsert({ key: 'crm_enquiry_message_templates', value: next }, { onConflict: 'key' })
+      })
   }, [])
   async function saveEnquiryTemplates(next) {
     setEnquiryTemplates(next)
