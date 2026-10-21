@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase.js'
+import { INTEREST_GROUPS, interestOf, introOf } from '../../lib/enquiryInterest.js'
 
 // ── Enquiry message templates ──
 // Placeholders (filled per enquiry):
@@ -8,8 +9,12 @@ import { supabase } from '../../lib/supabase.js'
 //   {who_is} who it's for + is/are             "you are" | "Alfie is" | "Alfie and Mia are"
 //   {their}  "your" (themselves) / "their"
 //   {them}   "you" (themselves) / "them"
-//   {class}  the class they asked about / booked, if known
-export const ENQUIRY_PLACEHOLDERS = ['{name}', '{who}', '{who_is}', '{their}', '{them}', '{class}']
+//   {class}  what they're interested in long-term       "Juniors" | "Tiny Tots" | "Adults" …
+//   {intro_date} {intro_day} {intro_time} {intro_venue} {intro_address}  their free intro session
+//   {intro_details}  "Monday 20 October at 6.30pm at The KR Centre"
+export const ENQUIRY_PLACEHOLDERS = ['{name}', '{who}', '{who_is}', '{their}', '{them}', '{class}', '{intro_details}', '{intro_date}', '{intro_day}', '{intro_time}', '{intro_venue}', '{intro_address}']
+export const usesIntro = t => /\{intro_/.test(t || '')
+export const usesClass = t => /\{class\}/.test(t || '')
 
 const SIGNATURE_SARA = `Sara (Derby PKA)💪❤️
 
@@ -142,7 +147,7 @@ export function enquiryFor(enq) {
   return { kind: 'self', saved: false, guessed: true }
 }
 
-export function personaliseEnquiry(text, enq) {
+export function personaliseEnquiry(text, enq, classes = []) {
   const w = enquiryFor(enq)
   const who = w.kind === 'names' ? joinNames(w.names) : w.kind === 'child' ? 'your child' : 'you'
   const plural = w.kind === 'names' && w.names.length > 1
@@ -152,16 +157,22 @@ export function personaliseEnquiry(text, enq) {
     '{who_is}': w.kind === 'self' ? 'you are' : `${who} ${plural ? 'are' : 'is'}`,
     '{their}': w.kind === 'self' ? 'your' : 'their',
     '{them}': w.kind === 'self' ? 'you' : 'them',
-    '{class}': enquiryClass(enq),
+    '{class}': interestOf(enq)?.group || enquiryClass(enq),
   }
-  return String(text || '').replace(/\{(name|who|who_is|their|them|class)\}/g, m => vals[m] ?? m)
+  const intro = introOf(enq, classes)
+  Object.assign(vals, {
+    '{intro_date}': intro?.date || '', '{intro_day}': intro?.day || '', '{intro_time}': intro?.time || '',
+    '{intro_venue}': intro?.venue || '', '{intro_address}': intro?.address || '',
+    '{intro_details}': intro ? [intro.date, intro.time && `at ${intro.time}`, intro.venue && `at ${intro.venue}`].filter(Boolean).join(' ') : '',
+  })
+  return String(text || '').replace(/\{(name|who|who_is|their|them|class|intro_details|intro_date|intro_day|intro_time|intro_venue|intro_address)\}/g, m => vals[m] ?? m)
     .replace(/^Hi \n/m, 'Hi\n')   // no name on file: "Hi {name}" reads "Hi"
 }
 
 // Two ways in: (1) select enquiries, then pick a template; (2) from 'Templates', pick a template,
 // then choose who to send it to (allEnquiries). Both end at the same previews + send step.
 const STAGES = [['not_started', 'Enquiries'], ['contacted', 'Contacted'], ['trial_booked', 'Trial booked'], ['attended', 'Attended'], ['waiting_list', 'Waiting list'], ['joined', 'Joined'], ['not_interested', 'Not interested']]
-export default function EnquirySendTemplates({ enquiries = [], allEnquiries = [], templates, onSaveTemplates, sendEmail, onSent, onClose, manageOnly = false, noEmail = false }) {
+export default function EnquirySendTemplates({ classes = [], enquiries = [], allEnquiries = [], templates, onSaveTemplates, sendEmail, onSent, onClose, manageOnly = false, noEmail = false }) {
   const [picked, setPicked] = useState(enquiries)        // who it's going to
   const [picking, setPicking] = useState(false)          // template-first: choosing recipients
   const [pickSel, setPickSel] = useState(new Set())
@@ -178,7 +189,7 @@ export default function EnquirySendTemplates({ enquiries = [], allEnquiries = []
   const [draft, setDraft] = useState(null)               // template being edited
 
   const tpl = templates.find(t => t.id === tplId)
-  const textFor = enq => overrides[enq.id] ?? personaliseEnquiry(tpl?.body, enq)
+  const textFor = enq => overrides[enq.id] ?? personaliseEnquiry(tpl?.body, enq, classes)
   const reachable = enq => channel === 'email' ? !!enq.contact_email : !!enq.contact_phone
   const list = picked.filter(reachable)
   const unreachable = picked.filter(e => !reachable(e))
@@ -200,7 +211,7 @@ export default function EnquirySendTemplates({ enquiries = [], allEnquiries = []
     setStep('sending')
     const sent = new Set(), failed = []
     for (const enq of list) {
-      const ok = await sendEmail(enq.contact_email, personaliseEnquiry(tpl.subject || tpl.label, enq), textFor(enq), true)
+      const ok = await sendEmail(enq.contact_email, personaliseEnquiry(tpl.subject || tpl.label, enq, classes), textFor(enq), true)
       if (ok) { sent.add(enq.id); await onSent(enq) } else failed.push(enq)
     }
     setSentIds(sent); setSkipped(failed); setStep('done')
@@ -327,12 +338,30 @@ export default function EnquirySendTemplates({ enquiries = [], allEnquiries = []
             {list.map(enq => (
               <div key={enq.id} className="ets-preview">
                 <div className="ets-preview-head"><b>{enq.name}</b>
-                  {(() => { const w = enquiryFor(enq); return (!greetingName(enq) || w.guessed) ? <span className="ets-warn">⚠ check this one</span> : null })()}
+                  {(() => {
+                    const w = enquiryFor(enq)
+                    const missIntro = usesIntro(tpl?.body) && !introOf(enq, classes)
+                    const missClass = usesClass(tpl?.body) && !interestOf(enq)
+                    const why = missIntro ? 'no intro session set' : missClass ? '"interested in" not set' : (!greetingName(enq) || w.guessed) ? 'check this one' : null
+                    return why ? <span className="ets-warn">⚠ {why}</span> : null
+                  })()}
                   <span>{channel === 'email' ? enq.contact_email : enq.contact_phone}</span></div>
                 <div className="ets-fix">
                   <label>Hi
                     <input value={greetingName(enq)} placeholder="(no name)" onChange={e => fixEnquiry(enq, { greeting: e.target.value })} />
                   </label>
+                  <label>⭐
+                    <select value={enq.interest_group || ''} onChange={e => {
+                      const v = e.target.value || null
+                      setPicked(prev => prev.map(x => x.id === enq.id ? { ...x, interest_group: v } : x))
+                      setOverrides(o => { const n = { ...o }; delete n[enq.id]; return n })
+                      supabase.from('enquiries').update({ interest_group: v }).eq('id', enq.id)
+                    }}>
+                      <option value="">{interestOf(enq)?.guessed ? `${interestOf(enq).group}?` : 'Interested in…'}</option>
+                      {INTEREST_GROUPS.map(g => <option key={g} value={g}>{g}</option>)}
+                    </select>
+                  </label>
+                  {introOf(enq, classes) && <span style={{ alignSelf: 'center' }}>📅 {introOf(enq, classes).short}</span>}
                   <label>For
                     <select value={(() => { const w = enquiryFor(enq); return w.kind })()} onChange={e => {
                       const k = e.target.value

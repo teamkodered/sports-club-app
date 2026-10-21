@@ -2,6 +2,7 @@ import { useState, useEffect, Fragment, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import StockPanel from '../components/crm/StockPanel.jsx'
 import LevelUpPanel from '../components/crm/LevelUpPanel.jsx'
+import { INTEREST_GROUPS, interestOf, nextDateForDay, introOf } from '../lib/enquiryInterest.js'
 import { viewAsVenueScope } from '../lib/viewAsScope.js'
 import ParentRequestsPanel from '../components/parent/ParentRequestsPanel.jsx'
 import EnquirySendTemplates, { DEFAULT_ENQUIRY_TEMPLATES, upgradeStarterTemplates } from '../components/crm/EnquiryTemplates.jsx'
@@ -1467,6 +1468,7 @@ export default function CRM() {
       name: field('User'), email: email ? email.toLowerCase() : null, phone: phone ? phone.replace(/[\s()-]/g, '') : null,
       notes: `Booked online: ${[event, day && time ? `${day} ${time}` : day || time, where].filter(Boolean).join(', ')}`,
       booking: true,
+      intro: { day, label: [event, day && time ? `${day} ${time}` : day || time, where].filter(Boolean).join(', ') },
     }
   }
   async function fetchMessageBody(msg) {
@@ -1486,6 +1488,7 @@ export default function CRM() {
     if (booking) return {
       name: booking.name || booking.email?.split('@')[0] || 'Website booking', email: booking.email || msg.from, phone: booking.phone,
       notes: booking.notes, status: 'trial_booked',   // they've booked a session -> straight to Trial booked
+      intro: booking.intro ? { intro_label: booking.intro.label, intro_date: nextDateForDay(booking.intro.day, msg.date ? new Date(msg.date) : new Date()) } : null,
       oldEmail: msg.from && booking.email && msg.from.toLowerCase() !== booking.email ? msg.from : null,
     }
     if (web) return {
@@ -1591,7 +1594,7 @@ export default function CRM() {
         const { error: insertErr } = await supabase.from('enquiries').insert({
           name: d.name, contact_email: d.email, contact_phone: d.phone || null, contact_method: 'email',
           enquiry_date: msg.date ? new Date(msg.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-          notes: d.notes, status: 'not_started',
+          notes: d.notes, status: 'not_started', ...(d.intro || {}),
         })
         if (insertErr) throw insertErr
       }
@@ -1618,6 +1621,7 @@ export default function CRM() {
           ;({ error: saveErr } = await supabase.from('enquiries').update({
             status: nextEnquiryStatus(existing.status, 'not_started'), updated_at: new Date().toISOString(), contact_email: d.email,
             contact_phone: existing.contact_phone || d.phone || null, ...(badName && d.name ? { name: d.name } : {}),
+            ...(d.intro || {}),
           }).eq('id', existing.id))
           const stage = { not_started: 'Enquiries', contacted: 'Contacted', trial_booked: 'Trial booked', attended: 'Attended', joined: 'Joined', waiting_list: 'Waiting list', not_interested: 'Not interested' }[existing.status] || 'Sent to other venues'
           note = `${existing.name || d.name} was already in the CRM — under "${stage}" — so that enquiry was updated (no new card).`
@@ -1626,6 +1630,7 @@ export default function CRM() {
             name: d.name, contact_email: d.email, contact_phone: d.phone || null, contact_method: 'email',
             enquiry_date: msg.date ? new Date(msg.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
             notes: d.notes, status: 'not_started',   // every email goes into Enquiries as a NEW enquiry (booking emails too)
+            ...(d.intro || {}),
           }))
           note = `✓ ${d.name || d.email} added to Enquiries.${found ? ` (Same email as ${found.name} — added as a separate enquiry.)` : ''}`
         }
@@ -2696,6 +2701,15 @@ export default function CRM() {
   }
 
   // Every section change shows "Moved X to <section> · Undo (8s)" -- tap Undo to put it back
+  const [enqClasses, setEnqClasses] = useState([])   // timetable for the intro-session picker
+  useEffect(() => { supabase.from('classes').select('id, name, day_of_week, start_time, end_time').eq('active', true).order('start_time').then(({ data }) => setEnqClasses(data || [])) }, [])
+  const [introPick, setIntroPick] = useState(null)   // { enq, date, classId } -- shown when moving to Trial booked
+  async function saveEnquiryFields(id, patch) {
+    const { error } = await supabase.from('enquiries').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id)
+    if (error) { alert('Could not save: ' + error.message + (/interest_group|intro_/.test(error.message) ? '\n\n(Has supabase_enquiry_interest_intro.sql been run?)' : '')); return false }
+    setEnquiries(prev => prev.map(e => e.id === id ? { ...e, ...patch } : e))
+    return true
+  }
   const [enqUndo, setEnqUndo] = useState(null)   // { id, name, from, to, until }
   const [, setEnqUndoTick] = useState(0)
   useEffect(() => {
@@ -2711,6 +2725,10 @@ export default function CRM() {
     const { error } = await supabase.from('enquiries').update({ status, updated_at: new Date().toISOString() }).eq('id', id)
     if (error) { alert('Error updating status: ' + error.message); return }
     loadEnquiries()
+    if (undoable && status === 'trial_booked' && before) {
+      const today = new Date(); const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+      setIntroPick({ enq: before, date: before.intro_date || iso, classId: before.intro_class_id || '' })
+    }
     if (undoable && before && before.status !== status) setEnqUndo({ id, name: before.name || 'Enquiry', from: before.status || 'not_started', to: status, until: Date.now() + 8000 })
   }
   async function undoEnquiryStatus() {
@@ -3462,6 +3480,44 @@ export default function CRM() {
       {tab === 'sell' && <StockPanel key="sell" section="sell" />}
       {tab === 'sales' && <StockPanel key="sales" section="sales" />}
       {tab === 'stock' && <StockPanel key="stock" section="stock" />}
+      {introPick && (() => {
+        const dayName = introPick.date ? new Date(introPick.date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long' }) : ''
+        const dayClasses = enqClasses.filter(c => dayName && String(c.day_of_week || '').toLowerCase().split('/').some(d => dayName.toLowerCase().startsWith(d.trim().slice(0, 3))))
+        const save = async () => {
+          const ok = await saveEnquiryFields(introPick.enq.id, { intro_date: introPick.date || null, intro_class_id: introPick.classId || null })
+          if (ok) setIntroPick(null)
+        }
+        return (
+          <div className="ets-backdrop" onClick={() => setIntroPick(null)}>
+            <div className="ets-sheet" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()} role="dialog" aria-label="Intro session">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <b>📅 Intro session — {introPick.enq.name}</b>
+                <button className="btn btn-sm" onClick={() => setIntroPick(null)}>Skip</button>
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 10px' }}>When is their free intro? (Optional — Skip if you don't know yet.)</p>
+              <div className="field"><label>Date</label>
+                <input type="date" value={introPick.date} onChange={e => setIntroPick(p => ({ ...p, date: e.target.value, classId: '' }))} /></div>
+              {introPick.date && (
+                <div className="field"><label>Class{dayName ? ` (${dayName})` : ''}</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {!dayClasses.length && <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No classes on {dayName}s in the timetable.</span>}
+                    {dayClasses.map(c => (
+                      <button key={c.id} type="button" className={`btn${introPick.classId === c.id ? ' btn-primary' : ''}`} style={{ justifyContent: 'flex-start' }}
+                        onClick={() => setIntroPick(p => ({ ...p, classId: c.id }))}>
+                        {String(c.start_time).slice(0, 5)} · {c.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} disabled={!introPick.date} onClick={save}>Save intro</button>
+                <button className="btn" onClick={() => setIntroPick(null)}>Skip</button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
       {enqUndo && tab === 'enquiries' && (
         <div className="enq-undo" role="status">
           <span>Moved <b>{enqUndo.name}</b> to {STAGE_NAME[enqUndo.to] || enqUndo.to}</span>
@@ -3562,11 +3618,12 @@ export default function CRM() {
             </div>
           )}
           {enqTemplatesOpen && (
-            <EnquirySendTemplates manageOnly templates={enquiryTemplates} onSaveTemplates={saveEnquiryTemplates} onClose={() => setEnqTemplatesOpen(false)}
+            <EnquirySendTemplates classes={enqClasses} manageOnly templates={enquiryTemplates} onSaveTemplates={saveEnquiryTemplates} onClose={() => setEnqTemplatesOpen(false)}
               allEnquiries={enquiries} noEmail={isHeadCoach} sendEmail={sendRealEmail} onSent={enquiryTemplateSent} />
           )}
           {enqSendOpen && (
             <EnquirySendTemplates
+              classes={enqClasses}
               noEmail={isHeadCoach}
               enquiries={enquiries.filter(e => enqSel.includes(e.id))}
               templates={enquiryTemplates}
@@ -3682,6 +3739,24 @@ export default function CRM() {
                         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
                           <div style={{ fontSize: 15, fontWeight: 600 }}>{enq.name}</div>
                           {enq.contact_phone && <div style={{ fontSize: 14, fontWeight: 600, color: '#378ADD' }}>📞 {enq.contact_phone}</div>}
+                          {(() => {
+                            const it = interestOf(enq), intro = introOf(enq, enqClasses)
+                            return (
+                              <div className="enq-chips" onClick={e => e.stopPropagation()}>
+                                <label className={`enq-chip${it ? '' : ' empty'}${it?.guessed ? ' guess' : ''}`} title="What they're interested in long-term">
+                                  ⭐
+                                  <select value={enq.interest_group || ''} onChange={e => saveEnquiryFields(enq.id, { interest_group: e.target.value || null })}>
+                                    <option value="">{it?.guessed ? `${it.group}?` : 'Interested in…'}</option>
+                                    {INTEREST_GROUPS.map(g => <option key={g} value={g}>{g}</option>)}
+                                  </select>
+                                </label>
+                                <button type="button" className={`enq-chip${intro ? '' : ' empty'}`} title="Their free intro session"
+                                  onClick={() => setIntroPick({ enq, date: enq.intro_date || '', classId: enq.intro_class_id || '' })}>
+                                  📅 {intro ? `Intro: ${intro.short}` : 'Intro session…'}
+                                </button>
+                              </div>
+                            )
+                          })()}
                           {!isHeadCoach && enq.venue && enq.venue !== 'kr-centre' && (
                             <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 10, background: '#6366F118', color: '#6366F1' }}>{enq.venue === 'derby-moore' ? 'Derby Moore' : 'Moorways'}</span>
                           )}

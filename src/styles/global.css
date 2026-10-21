@@ -1382,3 +1382,9 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .enq-undo button.x { background: transparent; color: #9CA3AF; padding: 6px; }
 .ets-alt { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 .ets-alt .btn { flex: 1; justify-content: center; min-width: 140px; }
+/* Enquiry card: ⭐ interested in + 📅 intro session chips */
+.enq-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.enq-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 12px; border: 1px solid #8B5CF655; background: #8B5CF612; color: var(--text); cursor: pointer; font-family: inherit; }
+.enq-chip select { border: none; background: transparent; color: inherit; font: inherit; cursor: pointer; padding: 0; }
+.enq-chip.empty { border-style: dashed; background: transparent; color: var(--text-tertiary); font-weight: 500; }
+.enq-chip.guess { border-style: dashed; }
