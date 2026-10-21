@@ -1369,3 +1369,6 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .neon-home .neon-pillar [style*="Anton"] .neon-tally-wrap { align-items: flex-start !important; align-self: flex-start; justify-content: flex-start; }
 .neon-home .neon-tally-row { justify-content: flex-start; }
 .neon-home .neon-tally-per { text-align: left; width: 10px; }
+/* Templates window opens in the middle of the screen */
+.ets-backdrop { align-items: center !important; padding: calc(12px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px)); }
+.ets-sheet { border-radius: 18px !important; max-height: 86vh !important; }

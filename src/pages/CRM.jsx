@@ -1594,26 +1594,61 @@ export default function CRM() {
         if (existing) {
           const badName = !existing.name || /^\|/.test(existing.name) || existing.name === 'Unknown'
           await supabase.from('enquiries').update({
-            status: nextEnquiryStatus(existing.status, d.status), updated_at: new Date().toISOString(), contact_email: d.email,
+            status: nextEnquiryStatus(existing.status, d.status || 'not_started'), updated_at: new Date().toISOString(), contact_email: d.email,
             contact_phone: existing.contact_phone || d.phone || null, ...(badName && d.name ? { name: d.name } : {}),
           }).eq('id', existing.id)
         } else {
           await supabase.from('enquiries').insert({
             name: d.name, contact_email: d.email, contact_phone: d.phone || null, contact_method: 'email',
             enquiry_date: msg.date ? new Date(msg.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-            notes: d.notes, status: d.status || 'contacted',
+            notes: d.notes, status: d.status || 'not_started',   // into Enquiries as a NEW enquiry (booking emails -> Trial booked)
           })
         }
         if (enquiriesLoaded) loadEnquiries()
         await moveEmailToFolder(msg.uid, 'Contacted')
         setInboxMessages(prev => prev.filter(x => x.uid !== msg.uid))
       } catch (err) {
-        alert("Couldn't mark this email as contacted: " + err.message)
+        alert("Couldn't send this email to Enquiries: " + err.message)
       }
       setPendingContactUids(prev => { const next = new Set(prev); next.delete(msg.uid); return next })
     }
-    pendingContactTimers.current[msg.uid] = { timerId: setTimeout(run, 5000), run }
+    pendingContactTimers.current[msg.uid] = { timerId: setTimeout(run, 8000), run, until: Date.now() + 8000 }
   }
+  // ticks the "Undo (Xs)" countdown on rows waiting to go to Enquiries
+  const [, setUndoTick] = useState(0)
+  useEffect(() => {
+    if (!pendingContactUids.size) return
+    const t = setInterval(() => setUndoTick(n => n + 1), 1000)
+    return () => clearInterval(t)
+  }, [pendingContactUids.size])
+  const undoSecs = uid => Math.max(0, Math.ceil(((pendingContactTimers.current[uid]?.until || 0) - Date.now()) / 1000))
+
+  // Inbox preview: name + phone read from each email (website / booking enquiry formats too).
+  // Filled in the background for the first 30 messages; cached for the session.
+  const [previews, setPreviews] = useState(() => { try { return JSON.parse(sessionStorage.getItem('kc_email_previews') || '{}') } catch { return {} } })
+  const previewKey = m => `${emailFolder}:${m.uid}`
+  const previewOf = m => previews[previewKey(m)]
+  useEffect(() => {
+    if (tab !== 'email' || !inboxMessages.length) return
+    let stop = false
+    ;(async () => {
+      for (const m of inboxMessages.slice(0, 30)) {
+        if (stop) return
+        const k = `${emailFolder}:${m.uid}`
+        if (previews[k]) continue
+        try {
+          const d = await enquiryDetailsFromEmail(m)
+          if (stop) return
+          setPreviews(prev => {
+            const next = { ...prev, [k]: { name: d.name, phone: d.phone || null } }
+            try { sessionStorage.setItem('kc_email_previews', JSON.stringify(next)) } catch { /* full */ }
+            return next
+          })
+        } catch { /* skip this one */ }
+      }
+    })()
+    return () => { stop = true }
+  }, [tab, emailFolder, inboxMessages.map(m => m.uid).join(',')])
 
   function undoMarkContacted(uid) {
     clearTimeout(pendingContactTimers.current[uid]?.timerId)
@@ -5577,14 +5612,14 @@ export default function CRM() {
                   </div>
                 ) : pendingContactUids.has(m.uid) ? (
                   <div key={m.uid} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '14px 16px', minHeight: 64, borderTop: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
-                    <span style={{ fontSize: 14, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>Marked "{m.subject}" contacted</span>
-                    <button className="btn btn-sm" style={{ flexShrink: 0 }} onClick={() => undoMarkContacted(m.uid)}>↺ Undo</button>
+                    <span style={{ fontSize: 14, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>Sending {previewOf(m)?.name || m.fromName || m.from} to Enquiries…</span>
+                    <button className="btn btn-sm btn-primary" style={{ flexShrink: 0 }} onClick={() => undoMarkContacted(m.uid)}>↺ Undo ({undoSecs(m.uid)}s)</button>
                   </div>
                 ) : (
                   <div key={m.uid} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 16px', minHeight: 64, borderTop: '1px solid var(--border)', background: addedToEnquiriesUids.has(m.uid) ? '#1D9E7518' : undefined }}>
                     <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
                       {emailFolder === 'INBOX' && (
-                        <button className="btn btn-sm" title="Mark contacted → Enquiries" onClick={() => markContactedForMessage(m)}>✓</button>
+                        <button className="btn btn-sm" title="Send to Enquiries (as a new enquiry) -- 8 seconds to undo" onClick={() => markContactedForMessage(m)}>➕ Enquiries</button>
                       )}
                       {emailFolder !== 'INBOX' && (
                         <button className="btn btn-sm" title="Add to Enquiries" disabled={addedToEnquiriesUids.has(m.uid)}
@@ -5613,6 +5648,12 @@ export default function CRM() {
                           </span>
                         </div>
                         <div style={{ fontSize: 15, fontWeight: m.seen ? 400 : 600, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.subject}</div>
+                        {previewOf(m) && (previewOf(m).name || previewOf(m).phone) && (
+                          <div style={{ fontSize: 13, marginTop: 3, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {previewOf(m).name && <>👤 {previewOf(m).name}</>}
+                            {previewOf(m).phone && <> · 📞 <a href={`tel:${previewOf(m).phone}`} onClick={e => e.stopPropagation()} style={{ color: '#378ADD' }}>{previewOf(m).phone}</a></>}
+                          </div>
+                        )}
                       </div>
                       <span style={{ fontSize: 12, color: 'var(--text-tertiary)', flexShrink: 0 }}>
                         {m.date ? new Date(m.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''}
@@ -5675,7 +5716,7 @@ export default function CRM() {
                           {phone && <a className="btn btn-sm" href={`https://wa.me/${phone.replace(/[^0-9]/g, '').replace(/^0/, '44')}`} target="_blank" rel="noreferrer">💬 WhatsApp</a>}
                           {phone && isMobile && <a className="btn btn-sm" href={`sms:${phone}`}>💬 Text {phone}</a>}
                           {emailFolder === 'INBOX' && (
-                            <button className="btn btn-sm" onClick={markMessageContacted}>✓ Mark contacted → Enquiries</button>
+                            <button className="btn btn-sm" onClick={markMessageContacted}>➕ Send to Enquiries</button>
                           )}
                           {emailFolder !== 'INBOX' && (
                             <button className="btn btn-sm" onClick={() => { addToEnquiries(openMessage); setOpenMessage(null) }}>✓ Add to Enquiries</button>
