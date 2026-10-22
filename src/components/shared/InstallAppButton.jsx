@@ -3,15 +3,23 @@ import { useEffect, useState } from 'react'
 // "📲 Install the app" -- Android/Chrome installs in one tap (the browser's install prompt);
 // iPhone shows the Share -> Add to Home Screen steps. Hidden once installed or after "Not now".
 const isStandalone = () => window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true
+// which app this page installs (athlete app or the Klass Champ club app) -- each remembered separately
+const appKey = () => /^\/(athlete|league-public|results-public)/.test(window.location.pathname) ? 'athlete' : 'club'
+const markInstalled = () => { try { localStorage.setItem(`kc_installed_${appKey()}`, '1') } catch { /* */ } }
+const knownInstalled = () => { try { return localStorage.getItem(`kc_installed_${appKey()}`) === '1' } catch { return false } }
+// opened as the installed app -> remember it, so the browser stops offering the install
+if (typeof window !== 'undefined' && (window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true)) markInstalled()
 const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
 
 export default function InstallAppButton({ compact = false, subtitle }) {
   const [prompt, setPrompt] = useState(() => window.__kcInstallPrompt || null)
-  const [hidden, setHidden] = useState(() => { try { return isStandalone() || localStorage.getItem('kc_install_dismissed') === '1' } catch { return isStandalone() } })
+  const [hidden, setHidden] = useState(() => { try { return isStandalone() || knownInstalled() || localStorage.getItem('kc_install_dismissed') === '1' } catch { return isStandalone() } })
   const [help, setHelp] = useState(false)
   useEffect(() => {
     const onPrompt = () => setPrompt(window.__kcInstallPrompt)
-    const onInstalled = () => setHidden(true)
+    const onInstalled = () => { markInstalled(); setHidden(true) }
+    // Chrome can also tell us if this app is already on the phone
+    navigator.getInstalledRelatedApps?.().then(list => { if (list?.length) { markInstalled(); setHidden(true) } }).catch(() => {})
     window.addEventListener('kc-install-ready', onPrompt)
     window.addEventListener('appinstalled', onInstalled)
     return () => { window.removeEventListener('kc-install-ready', onPrompt); window.removeEventListener('appinstalled', onInstalled) }
@@ -22,7 +30,7 @@ export default function InstallAppButton({ compact = false, subtitle }) {
       prompt.prompt()
       const choice = await prompt.userChoice.catch(() => null)
       window.__kcInstallPrompt = null; setPrompt(null)
-      if (choice?.outcome === 'accepted') setHidden(true)
+      if (choice?.outcome === 'accepted') { markInstalled(); setHidden(true) }
       return
     }
     setHelp(true) // iPhone, or a browser without the one-tap prompt: show the steps

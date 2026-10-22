@@ -34,5 +34,11 @@
       "purpose": "maskable"
     }
   ],
-  "id": "/dashboard"
+  "id": "/dashboard",
+  "related_applications": [
+    {
+      "platform": "webapp",
+      "url": "https://klasschamp.netlify.app/manifest-coach.json"
+    }
+  ]
 }

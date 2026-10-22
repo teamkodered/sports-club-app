@@ -34,5 +34,11 @@
       "purpose": "maskable"
     }
   ],
-  "id": "/athlete-app"
+  "id": "/athlete-app",
+  "related_applications": [
+    {
+      "platform": "webapp",
+      "url": "https://klasschamp.netlify.app/manifest.json"
+    }
+  ]
 }
