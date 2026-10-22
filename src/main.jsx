@@ -195,6 +195,17 @@ function App() {
 try {
   if (window.matchMedia('(pointer: coarse)').matches && Math.min(window.screen.width, window.screen.height) <= 600) document.documentElement.classList.add('is-phone')
 } catch { /* ignore */ }
+// Installed app (home-screen): behave like a real app -- page fixed to the screen width,
+// no pinch-zoom / double-tap zoom of the whole page, no sideways drifting. The browser
+// version keeps normal zoom for accessibility. (Photo viewers still pinch-zoom their image.)
+try {
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true
+  if (standalone) {
+    document.documentElement.classList.add('is-app')
+    const vp = document.querySelector('meta[name="viewport"]')
+    if (vp) vp.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover')
+  }
+} catch { /* ignore */ }
 // keep the browser's "install this app" prompt so the 📲 Install button can use it
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); window.__kcInstallPrompt = e; window.dispatchEvent(new Event('kc-install-ready')) })
 ReactDOM.createRoot(document.getElementById('root')).render(<App />)
