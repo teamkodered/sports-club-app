@@ -5,6 +5,10 @@ import { useEffect, useRef, useState } from 'react'
 export default function MediaViewer({ items = [], start = 0, onClose, onMeasure }) {
   const [i, setI] = useState(start)
   const swipe = useRef(null)
+  const [zoom, setZoom] = useState({ s: 1, x: 0, y: 0 })
+  const pinch = useRef(null)
+  useEffect(() => { setZoom({ s: 1, x: 0, y: 0 }) }, [i])
+  const dist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY)
   const item = items[i]
   const isVideo = item && (item.type?.includes('video') || /\.(mp4|mov|webm|m4v)(\?|$)/i.test(item.url || ''))
   const isImage = item && (item.type?.startsWith('image') || /\.(jpe?g|png|gif|webp|heic)(\?|$)/i.test(item.url || ''))
@@ -17,8 +21,16 @@ export default function MediaViewer({ items = [], start = 0, onClose, onMeasure 
   const btn = { width: 44, height: 44, borderRadius: 22, border: 'none', background: 'rgba(255,255,255,0.12)', color: '#fff', fontSize: 20, cursor: 'pointer' }
   return (
     <div role="dialog" aria-modal="true" style={{ position: 'fixed', inset: 0, zIndex: 520, background: '#000', display: 'flex', flexDirection: 'column' }}
-      onTouchStart={e => { if (e.touches.length === 1) swipe.current = { x: e.touches[0].clientX, y: e.touches[0].clientY } }}
-      onTouchEnd={e => { const c = swipe.current; swipe.current = null; if (!c || isVideo) return; const dx = e.changedTouches[0].clientX - c.x, dy = e.changedTouches[0].clientY - c.y; if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.5) go(dx < 0 ? 1 : -1); else if (dy > 110 && Math.abs(dy) > Math.abs(dx) * 1.5) onClose() }}>
+      onTouchStart={e => {
+        if (e.touches.length === 2 && isImage) { pinch.current = { d: dist(e.touches), s: zoom.s }; swipe.current = null; return }
+        if (e.touches.length === 1) swipe.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, zx: zoom.x, zy: zoom.y }
+      }}
+      onTouchMove={e => {
+        if (pinch.current && e.touches.length === 2) { const s2 = Math.max(1, Math.min(4, pinch.current.s * dist(e.touches) / pinch.current.d)); setZoom(z => ({ ...z, s: s2, ...(s2 === 1 ? { x: 0, y: 0 } : {}) })); return }
+        const c = swipe.current
+        if (c && zoom.s > 1 && e.touches.length === 1) setZoom(z => ({ ...z, x: c.zx + e.touches[0].clientX - c.x, y: c.zy + e.touches[0].clientY - c.y }))
+      }}
+      onTouchEnd={e => { if (pinch.current) { if (e.touches.length < 2) pinch.current = null; return } const c = swipe.current; swipe.current = null; if (!c || isVideo || zoom.s > 1) return; const dx = e.changedTouches[0].clientX - c.x, dy = e.changedTouches[0].clientY - c.y; if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.5) go(dx < 0 ? 1 : -1); else if (dy > 110 && Math.abs(dy) > Math.abs(dx) * 1.5) onClose() }}>
       <style>{'.mv-top { display: flex; flex-direction: column; gap: 8px; align-items: flex-start } @media (orientation: landscape) { .mv-top { flex-direction: row; align-items: center } }'}</style>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: 'calc(10px + env(safe-area-inset-top, 0px)) 12px 10px', color: '#fff' }}>
         {/* top-left buttons: Measure sits under ✕ in portrait, beside it in landscape */}
@@ -33,7 +45,7 @@ export default function MediaViewer({ items = [], start = 0, onClose, onMeasure 
         {isVideo ? (
           <video key={item.url} src={item.url} controls playsInline autoPlay style={{ maxWidth: '100%', maxHeight: '100%' }} />
         ) : isImage ? (
-          <img key={item.url} src={item.url} alt={item.name || ''} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+          <img key={item.url} src={item.url} alt={item.name || ''} onDoubleClick={() => setZoom(z => z.s > 1 ? { s: 1, x: 0, y: 0 } : { s: 2.5, x: 0, y: 0 })} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', transform: `translate(${zoom.x}px, ${zoom.y}px) scale(${zoom.s})`, transition: pinch.current ? 'none' : 'transform 0.15s ease', touchAction: 'none' }} />
         ) : (
           <div style={{ color: '#fff', textAlign: 'center', padding: 20 }}>
             <div style={{ fontSize: 44, marginBottom: 10 }}>📄</div>
