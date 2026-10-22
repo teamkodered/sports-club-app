@@ -69,14 +69,21 @@ export function useLiveHeartRate({ studentId, maxHr = 190 }) {
   // Connect: known strap straight away, otherwise the phone's picker (needs a tap)
   async function connect() {
     if (!bluetoothSupported()) { setStatus('Live heart rate needs Chrome on Android (or a computer)'); return false }
+    if (/SamsungBrowser/i.test(navigator.userAgent)) { setStatus('Samsung Internet can\u2019t connect to straps -- open klasschamp.netlify.app in Chrome instead.'); return false }
     if (device?.gatt?.connected) return true
-    const known = await remembered()
-    if (known && await attach(known)) return true
+    // open the phone's strap list straight away (it must come straight from the tap, so nothing is awaited first)
+    let picked = false
+    const stuck = setTimeout(() => { if (!picked) setStatus('The strap list didn\u2019t open -- check Bluetooth (and Location) are on, use Chrome, and tap Connect again.') }, 15000)
     try {
-      setStatus('Choose your strap…')
+      setStatus('Choose your strap from the list…')
       const dev = await navigator.bluetooth.requestDevice({ filters: [{ services: ['heart_rate'] }] })
+      picked = true; clearTimeout(stuck)
       return await attach(dev)
-    } catch (e) { setStatus(e?.name === 'NotFoundError' ? '' : 'Could not connect: ' + (e?.message || e)); return false }
+    } catch (e) {
+      picked = true; clearTimeout(stuck)
+      setStatus(e?.name === 'NotFoundError' ? 'No strap picked -- make sure it\u2019s on (Whoop: broadcast on) and close by, then try again.' : 'Could not connect: ' + (e?.message || e))
+      return false
+    }
   }
   // quietly reconnect to the strap used last time
   useEffect(() => {
