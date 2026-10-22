@@ -65,6 +65,7 @@ async function loadPeriod(from, to) {
   const krIds = new Set((tErr ? [] : tasks || []).map(t => t.student_id))
   const { data: notesP, error: nErr } = await supabase.rpc('public_notes_period', { p_from: from, p_to: to })
   const { data: hrP, error: hErr } = await supabase.rpc('public_hr_sessions', { p_from: from, p_to: to })
+  const { data: wrP, error: wErr } = await supabase.rpc('public_workrate_league', { p_from: from, p_to: to })
   return {
     houses: Object.keys(HOUSE_COLOUR).map(n => ({ name: n, points: houses[n] || 0 })).concat(Object.keys(houses).filter(n => !HOUSE_COLOUR[n]).map(n => ({ name: n, points: houses[n] })))
       .sort((a, b) => b.points - a.points),
@@ -73,6 +74,7 @@ async function loadPeriod(from, to) {
     tasks: tErr ? [] : (tasks || []),
     notes: nErr ? null : (notesP || []), // null = function not set up yet -> all-time notes
     hr: hErr ? [] : (hrP || []), // best heart rate per checked-in session
+    workrate: wErr ? [] : (wrP || []).filter(r => r.sessions >= 2), // avg % of max + above club average (2+ sessions)
   }
 }
 
@@ -144,6 +146,7 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
     if (pd.houses.some(h => h.points > 0)) out.push({ kind: 'houses' })
     if (pd.individuals.length) out.push({ kind: 'individuals' })
     for (const a of AREAS) if (pd.tasks.some(r => taskValue(r, a.key) > 0)) out.push({ kind: 'tasks', area: a })
+    if ((pd.workrate || []).length) { out.push({ kind: 'workrate', metric: 'avg' }); out.push({ kind: 'workrate', metric: 'above' }) }
     if ((pd.hr || []).length) { out.push({ kind: 'hr', metric: 'avg' }); out.push({ kind: 'hr', metric: 'max' }) }
     for (const cat of CATEGORIES) if (!cat.aggregate && buildLeaderboard(cat, exRows, cfg.topBoard).length) out.push({ kind: 'exercise', cat })
     if ((pd.notes ? pd.notes.length : notesRows.length)) out.push({ kind: 'notes' })
@@ -156,7 +159,7 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
     const t = setInterval(() => setIdx(i => { const n = i + 1; if (n >= slides.length) { setCycle(c => c + 1); return 0 } return n }), cfg.seconds * 1000)
     return () => clearInterval(t)
   }, [paused, slides.length, cfg.seconds])
-  const slideKey = sl => !sl ? '' : sl.kind === 'tasks' ? `tasks:${sl.area.key}` : sl.kind === 'exercise' ? `ex:${sl.cat.key}` : sl.kind === 'hr' ? `hr:${sl.metric}` : sl.kind
+  const slideKey = sl => !sl ? '' : sl.kind === 'tasks' ? `tasks:${sl.area.key}` : sl.kind === 'exercise' ? `ex:${sl.cat.key}` : sl.kind === 'hr' ? `hr:${sl.metric}` : sl.kind === 'workrate' ? `wr:${sl.metric}` : sl.kind
   const lastKeyRef = useRef('')
   useEffect(() => {
     // when the slide list changes (e.g. League period <-> This month) stay on the same board if it exists
@@ -259,6 +262,19 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
     }
     if (s.kind === 'live') {
       return <Slide title="Live heart rate" colour="#E24B4A" emoji="❤️" sub="recording now" fixedPeriod><LiveHrTable dark /></Slide>
+    }
+    if (s.kind === 'workrate') {
+      const key = s.metric === 'avg' ? 'avg_pct' : 'above_team'
+      const list = ranked([...pd.workrate].sort((a, b) => Number(b[key]) - Number(a[key])), r => Number(r[key]))
+      const top = list.slice(0, cfg.topBoard), me = list.find(r => r.student_id === meId)
+      const fmt = r => s.metric === 'avg' ? `${Math.round(r.avg_pct)}` : `${Number(r.above_team) > 0 ? '+' : ''}${Math.round(Number(r.above_team))}`
+      return (
+        <Slide title={s.metric === 'avg' ? 'Workrate · avg % of max HR' : 'Workrate · above club average'} colour="#E24B4A" emoji="🔥"
+          sub={s.metric === 'avg' ? 'average heart rate per session · 2+ sessions' : '% above the club average on the days they trained · 2+ sessions'}>
+          {top.map(r => <Row key={r.student_id} rank={r.rank} name={r.display_name} sub={`${r.house_name || ''} · ${r.sessions} sessions`} subColour={HOUSE_COLOUR[r.house_name]} value={fmt(r)} unit="%" colour="#E24B4A" me={r.student_id === meId} />)}
+          {me && !top.includes(me) && <><div style={{ textAlign: 'center', color: '#666' }}>···</div><Row rank={me.rank} name={me.display_name} value={fmt(me)} unit="%" colour="#E24B4A" me /></>}
+        </Slide>
+      )
     }
     if (s.kind === 'hr') {
       // Ranked by % of each athlete's own max heart rate (fair across ages); BPM shown underneath
