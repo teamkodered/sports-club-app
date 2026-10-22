@@ -23,6 +23,29 @@ www.derbykickboxing.org.uk
 www.pka-kickboxing.com
 www.teamkodered.com`
 
+// Templates belong to a group: 'enquiry' (default), 'starter' (new member joined), 'stopped' (stopped training)
+export const TEMPLATE_KINDS = [['enquiry', 'Enquiry'], ['starter', 'New starter'], ['stopped', 'Stopped training']]
+export const kindOf = t => t?.kind || 'enquiry'
+export const DEFAULT_KIND_TEMPLATES_RAW = {
+  starter: [{ id: 'starter_welcome', kind: 'starter', label: 'Welcome — new starter', subject: 'Welcome to Derby PKA!', body: `Hi {name}
+Welcome to Derby PKA Kickboxing — we're really pleased {who_is} joining us! 🥳
+
+A few things to help {them} settle in:
+• Arrive 5–10 minutes early and bring a drink of water
+• Wear comfortable sports clothes (club kit is available at the desk)
+• The KR Centre app is the place to check in, see progress and earn house points
+
+If you've any questions at all, just reply to this message.
+
+{SIG}` }],
+  stopped: [{ id: 'stopped_goodbye', kind: 'stopped', label: 'Sorry to see you go', subject: "We'll miss you at Derby PKA", body: `Hi {name}
+We noticed {who_is} no longer training with us, and just wanted to say a big thank you for being part of Derby PKA.
+
+If there's anything we could have done better, or anything that would help {them} come back, we'd really like to hear it.
+The door is always open — {who} would be very welcome back any time.
+
+{SIG}` }],
+}
 export const DEFAULT_ENQUIRY_TEMPLATES = [
   { id: 'follow_up_intro', label: 'Follow-up — free intro session', subject: 'Your enquiry to Derby PKA Kickboxing',
     body: `Hi {name}
@@ -87,6 +110,13 @@ There is currently a waiting list for our Tiny Tots classes — would you like m
 
 ${SIGNATURE_SARA}` },
 ]
+export const DEFAULT_KIND_TEMPLATES = Object.fromEntries(Object.entries(DEFAULT_KIND_TEMPLATES_RAW).map(([k, list]) => [k, list.map(t => ({ ...t, body: t.body.replace('{SIG}', SIGNATURE_SARA) }))]))
+// make sure a group has at least its starter template
+export function withKindDefaults(all, kind) {
+  if (kind === 'enquiry' || (all || []).some(t => kindOf(t) === kind)) return all || []
+  return [...(all || []), ...(DEFAULT_KIND_TEMPLATES[kind] || [])]
+}
+
 
 // Saved templates still word-for-word the old starter text get the updated wording (edited ones are left alone)
 const OLD_LINES = [
@@ -172,7 +202,7 @@ export function personaliseEnquiry(text, enq, classes = []) {
 // Two ways in: (1) select enquiries, then pick a template; (2) from 'Templates', pick a template,
 // then choose who to send it to (allEnquiries). Both end at the same previews + send step.
 const STAGES = [['not_started', 'Enquiries'], ['contacted', 'Contacted'], ['trial_booked', 'Trial booked'], ['attended', 'Attended'], ['waiting_list', 'Waiting list'], ['joined', 'Joined'], ['not_interested', 'Not interested']]
-export default function EnquirySendTemplates({ classes = [], enquiries = [], allEnquiries = [], templates, onSaveTemplates, sendEmail, onSent, onClose, manageOnly = false, noEmail = false }) {
+export default function EnquirySendTemplates({ title = null, kind = 'enquiry', classes = [], enquiries = [], allEnquiries = [], templates, onSaveTemplates, sendEmail, onSent, onClose, manageOnly = false, noEmail = false }) {
   const [picked, setPicked] = useState(enquiries)        // who it's going to
   const [picking, setPicking] = useState(false)          // template-first: choosing recipients
   const [pickSel, setPickSel] = useState(new Set())
@@ -188,7 +218,8 @@ export default function EnquirySendTemplates({ classes = [], enquiries = [], all
   const [managing, setManaging] = useState(manageOnly)   // manageOnly: opened from 'Templates' just to view / edit them
   const [draft, setDraft] = useState(null)               // template being edited
 
-  const tpl = templates.find(t => t.id === tplId)
+  const [custom, setCustom] = useState({ subject: kind === 'starter' ? 'Welcome to Derby PKA!' : kind === 'stopped' ? 'From Derby PKA' : 'Derby PKA', body: '' })   // ✍️ write your own
+  const tpl = tplId === 'custom' ? { id: 'custom', label: 'Your message', subject: custom.subject, body: custom.body } : templates.find(t => t.id === tplId)
   const textFor = enq => overrides[enq.id] ?? personaliseEnquiry(tpl?.body, enq, classes)
   const reachable = enq => channel === 'email' ? !!enq.contact_email : !!enq.contact_phone
   const list = picked.filter(reachable)
@@ -234,7 +265,7 @@ export default function EnquirySendTemplates({ classes = [], enquiries = [], all
     <div className="ets-backdrop" onClick={onClose}>
       <div className="ets-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-label="Send a template">
         <div className="ets-head">
-          <b>{picking ? `📨 ${tpl?.label || 'Template'} — who to send to` : managing ? '📝 Enquiry templates' : `📨 Send template · ${picked.length} selected`}</b>
+          <b>{picking ? `📨 ${tpl?.label || 'Template'} — who to send to` : managing ? (kind === 'enquiry' ? '📝 Enquiry templates' : `📝 ${(TEMPLATE_KINDS.find(k => k[0] === kind) || [])[1]} templates`) : title || `📨 Send template · ${picked.length} selected`}</b>
           <button className="btn btn-sm" onClick={onClose}>Close</button>
         </div>
 
@@ -312,7 +343,7 @@ export default function EnquirySendTemplates({ classes = [], enquiries = [], all
                 </div>
               ))}
               <div className="ets-row">
-                <button className="btn btn-primary" onClick={() => setDraft({ id: null, label: '', subject: '', body: 'Hi {name}\n\n' })}>+ New template</button>
+                <button className="btn btn-primary" onClick={() => setDraft({ kind, id: null, label: '', subject: '', body: 'Hi {name}\n\n' })}>+ New template</button>
                 <button className="btn" onClick={() => manageOnly ? onClose() : setManaging(false)}>Done</button>
               </div>
             </div>
@@ -322,7 +353,15 @@ export default function EnquirySendTemplates({ classes = [], enquiries = [], all
             <div className="ets-label" style={{ display: 'flex', justifyContent: 'space-between' }}>TEMPLATE <button className="btn btn-sm" onClick={() => setManaging(true)}>Manage templates</button></div>
             <div className="ets-tpls">
               {templates.map(t => <button key={t.id} type="button" className={t.id === tplId ? 'on' : ''} onClick={() => setTplId(t.id)}>{t.label}</button>)}
+              <button type="button" className={tplId === 'custom' ? 'on' : ''} onClick={() => setTplId('custom')}>✍️ Write your own</button>
             </div>
+            {tplId === 'custom' && (
+              <div className="ets-col" style={{ gap: 6 }}>
+                {channel === 'email' && <input value={custom.subject} onChange={e => setCustom(c => ({ ...c, subject: e.target.value }))} placeholder="Email subject" />}
+                <textarea rows={7} value={custom.body} onChange={e => setCustom(c => ({ ...c, body: e.target.value }))} placeholder={'Hi {name}\n\n…'} />
+                <div className="ets-hint">You can use {'{name}'} {'{who}'} {'{their}'} {'{them}'} — each person's message is personalised in the preview.</div>
+              </div>
+            )}
             <div className="ets-label">SEND BY</div>
             <div className="ets-seg">
               {[['email', '✉️ Email'], ['whatsapp', '🟢 WhatsApp'], ['text', '💬 Text']].filter(([k]) => !(noEmail && k === 'email')).map(([k, l]) => (
@@ -330,7 +369,7 @@ export default function EnquirySendTemplates({ classes = [], enquiries = [], all
               ))}
             </div>
             {unreachable.length > 0 && <div className="ets-hint">{unreachable.length} selected {unreachable.length === 1 ? 'has' : 'have'} no {channel === 'email' ? 'email address' : 'phone number'} and will be skipped: {unreachable.map(e => e.name).join(', ')}</div>}
-            <button className="btn btn-primary ets-big" disabled={!tpl || !list.length} onClick={() => setStep('preview')}>Preview {list.length} message{list.length === 1 ? '' : 's'}</button>
+            <button className="btn btn-primary ets-big" disabled={!tpl || !list.length || (tplId === 'custom' && !custom.body.trim())} onClick={() => setStep('preview')}>Preview {list.length} message{list.length === 1 ? '' : 's'}</button>
           </div>
         ) : step === 'preview' ? (
           <div className="ets-col">

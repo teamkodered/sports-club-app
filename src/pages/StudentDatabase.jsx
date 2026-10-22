@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import MessagePrompt, { recipientFromStudent } from '../components/crm/MessagePrompt.jsx'
 import { supabase } from '../lib/supabase.js'
 import { fetchAll } from '../lib/fetchAll.js'
 import { isPastAssignment, askAssignmentDates, insertAssignment, endAssignment } from '../lib/classAssignments.jsx'
@@ -279,12 +280,15 @@ export default function StudentDatabase() {
     setStudents(prev => prev.map(s => s.id === studentId ? { ...s, [field]: value } : s))
   }
 
+  const [stopMsgFor, setStopMsgFor] = useState(null)
   async function setMemberStatus(student, status) {
     const memberId = student.member_id
     const payload = { status, stopped_at: status === 'stopped' ? new Date().toISOString() : null }
     const { error } = await supabase.from('members').update(payload).eq('id', memberId)
     if (error) { alert('Error updating status: ' + error.message); return }
     setStudents(prev => prev.map(s => s.id === student.id ? { ...s, members: { ...s.members, ...payload } } : s))
+    // marked as stopped -> offer a stopped training message (Skip if not wanted)
+    if (status === 'stopped' && student.members?.status !== 'stopped' && isAdmin) setStopMsgFor(recipientFromStudent(student))
   }
 
   function previewCycleStatus(student) {
@@ -360,6 +364,7 @@ export default function StudentDatabase() {
 
   return (
     <div>
+      {stopMsgFor && <MessagePrompt kind="stopped" recipients={[stopMsgFor]} onClose={() => setStopMsgFor(null)} />}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <div className="page-header" style={{ marginBottom: 0 }}>
           <h1>Students</h1>

@@ -5,7 +5,8 @@ import LevelUpPanel from '../components/crm/LevelUpPanel.jsx'
 import { INTEREST_GROUPS, interestOf, nextDateForDay, introOf } from '../lib/enquiryInterest.js'
 import { viewAsVenueScope } from '../lib/viewAsScope.js'
 import ParentRequestsPanel from '../components/parent/ParentRequestsPanel.jsx'
-import EnquirySendTemplates, { DEFAULT_ENQUIRY_TEMPLATES, upgradeStarterTemplates } from '../components/crm/EnquiryTemplates.jsx'
+import EnquirySendTemplates, { DEFAULT_ENQUIRY_TEMPLATES, upgradeStarterTemplates, kindOf } from '../components/crm/EnquiryTemplates.jsx'
+import MessagePrompt, { recipientFromStudent } from '../components/crm/MessagePrompt.jsx'
 import { isDateOnHoliday } from '../lib/attendanceDays.js'
 import { studentProfileLink } from '../lib/studentLinks.js'
 import { useLocation } from 'react-router-dom'
@@ -538,7 +539,9 @@ export default function CRM() {
         if (changed) supabase.from('settings').upsert({ key: 'crm_enquiry_message_templates', value: next }, { onConflict: 'key' })
       })
   }, [])
-  async function saveEnquiryTemplates(next) {
+  async function saveEnquiryTemplates(nextEnquiryOnes) {
+    // the enquiry windows edit only the Enquiry group -- keep New starter / Stopped templates
+    const next = [...enquiryTemplates.filter(t => kindOf(t) !== 'enquiry'), ...nextEnquiryOnes]
     setEnquiryTemplates(next)
     const { error } = await supabase.from('settings').upsert({ key: 'crm_enquiry_message_templates', value: next }, { onConflict: 'key' })
     if (error) alert('Could not save templates: ' + error.message)
@@ -1972,6 +1975,8 @@ export default function CRM() {
     // no longer "missing", they've actually stopped, which is a
     // different tab (Stopped training) entirely now.
     setMissedTraining(prev => prev.filter(r => r.student.id !== confirmStopFor.studentId))
+    const stoppedRow = missedTraining.find(r => r.student.id === confirmStopFor.studentId)?.student
+    if (stoppedRow) setMsgPrompt({ kind: 'stopped', recipients: [recipientFromStudent(stoppedRow)] })
     setConfirmStopFor(null)
     setStoppedLoaded(false) // force a fresh load next time that tab is opened, so this student shows up there
   }
@@ -2703,6 +2708,7 @@ export default function CRM() {
   // Every section change shows "Moved X to <section> · Undo (8s)" -- tap Undo to put it back
   const [enqClasses, setEnqClasses] = useState([])   // timetable for the intro-session picker
   useEffect(() => { supabase.from('classes').select('id, name, day_of_week, start_time, end_time').eq('active', true).order('start_time').then(({ data }) => setEnqClasses(data || [])) }, [])
+  const [msgPrompt, setMsgPrompt] = useState(null)   // { kind: 'starter'|'stopped', recipients }
   const [introPick, setIntroPick] = useState(null)   // { enq, date, classId } -- shown when moving to Trial booked
   async function saveEnquiryFields(id, patch) {
     const { error } = await supabase.from('enquiries').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id)
@@ -2725,6 +2731,7 @@ export default function CRM() {
     const { error } = await supabase.from('enquiries').update({ status, updated_at: new Date().toISOString() }).eq('id', id)
     if (error) { alert('Error updating status: ' + error.message); return }
     loadEnquiries()
+    if (undoable && status === 'joined' && before) setMsgPrompt({ kind: 'starter', recipients: [before] })
     if (undoable && status === 'trial_booked' && before) {
       const today = new Date(); const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
       setIntroPick({ enq: before, date: before.intro_date || iso, classId: before.intro_class_id || '' })
@@ -3480,6 +3487,8 @@ export default function CRM() {
       {tab === 'sell' && <StockPanel key="sell" section="sell" />}
       {tab === 'sales' && <StockPanel key="sales" section="sales" />}
       {tab === 'stock' && <StockPanel key="stock" section="stock" />}
+      {msgPrompt && <MessagePrompt kind={msgPrompt.kind} recipients={msgPrompt.recipients} onClose={() => setMsgPrompt(null)}
+        onSent={msgPrompt.kind === 'starter' ? async r => { await supabase.from('enquiries').update({ contact_count: (r.contact_count || 0) + 1, last_contacted_at: new Date().toISOString() }).eq('id', r.id) } : undefined} />}
       {introPick && (() => {
         const dayName = introPick.date ? new Date(introPick.date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long' }) : ''
         const dayClasses = enqClasses.filter(c => dayName && String(c.day_of_week || '').toLowerCase().split('/').some(d => dayName.toLowerCase().startsWith(d.trim().slice(0, 3))))
@@ -3618,7 +3627,7 @@ export default function CRM() {
             </div>
           )}
           {enqTemplatesOpen && (
-            <EnquirySendTemplates classes={enqClasses} manageOnly templates={enquiryTemplates} onSaveTemplates={saveEnquiryTemplates} onClose={() => setEnqTemplatesOpen(false)}
+            <EnquirySendTemplates classes={enqClasses} manageOnly templates={enquiryTemplates.filter(t => kindOf(t) === 'enquiry')} onSaveTemplates={saveEnquiryTemplates} onClose={() => setEnqTemplatesOpen(false)}
               allEnquiries={enquiries} noEmail={isHeadCoach} sendEmail={sendRealEmail} onSent={enquiryTemplateSent} />
           )}
           {enqSendOpen && (
@@ -3626,7 +3635,7 @@ export default function CRM() {
               classes={enqClasses}
               noEmail={isHeadCoach}
               enquiries={enquiries.filter(e => enqSel.includes(e.id))}
-              templates={enquiryTemplates}
+              templates={enquiryTemplates.filter(t => kindOf(t) === 'enquiry')}
               onSaveTemplates={saveEnquiryTemplates}
               sendEmail={sendRealEmail}
               onSent={enquiryTemplateSent}
