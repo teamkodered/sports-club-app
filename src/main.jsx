@@ -186,7 +186,15 @@ function App() {
   const athletePage = /^\/(athlete-app|athlete-login|league-public|results-public)/.test(window.location.pathname)
   const link = document.querySelector('link[rel="manifest"]')
   if (link && !athletePage) link.setAttribute('href', '/manifest-coach.json')
+  // iPhone home-screen icon follows the app too
+  const apple = document.querySelector('link[rel="apple-touch-icon"]')
+  if (apple && !athletePage) apple.setAttribute('href', '/apple-touch-icon-coach.png')
 })()
+// Phones (browser or the installed app): tag <html> so phone layouts (e.g. the register cards)
+// apply even when the window reports a wider size (installed app, landscape, display zoom)
+try {
+  if (window.matchMedia('(pointer: coarse)').matches && Math.min(window.screen.width, window.screen.height) <= 600) document.documentElement.classList.add('is-phone')
+} catch { /* ignore */ }
 // keep the browser's "install this app" prompt so the 📲 Install button can use it
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); window.__kcInstallPrompt = e; window.dispatchEvent(new Event('kc-install-ready')) })
 ReactDOM.createRoot(document.getElementById('root')).render(<App />)

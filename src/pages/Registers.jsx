@@ -372,7 +372,9 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   const [mFilter, setMFilter] = useState('all')         // 'all' | 'out' | 'in'
   const [mExpanded, setMExpanded] = useState(null)      // student id opened in place
   const [mSettingsOpen, setMSettingsOpen] = useState(false)
-  const [mShowTable, setMShowTable] = useSyncedPreference('register_phone_table', false) // phone: show the full table instead of cards
+  // phone: show the full table instead of cards -- kept per device (a computer's choice no longer follows you to the phone)
+  const [mShowTable, setMShowTableRaw] = useState(() => { try { return localStorage.getItem('kc_reg_phone_table') === '1' } catch { return false } })
+  const setMShowTable = v => setMShowTableRaw(prev => { const next = typeof v === 'function' ? v(prev) : v; try { localStorage.setItem('kc_reg_phone_table', next ? '1' : '0') } catch { /* */ } return next })
   const mLongPress = useRef(null)
   const mLongPressFired = useRef(false)
   const mLastSel = useRef(null)   // last card added to the selection (hold another to select the range between)

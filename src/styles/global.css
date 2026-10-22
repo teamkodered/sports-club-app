@@ -641,6 +641,10 @@ tbody tr:hover td { background: var(--bg-secondary); }
   .reg-root:not(.reg-force-table) .reg-desktop-only { display: none !important; }
   .reg-force-table .reg-phone-cards-btn { display: block; width: 100%; height: 44px; margin-bottom: 10px; border-radius: 12px; border: 1px solid var(--border-strong); background: var(--bg-secondary); color: var(--text); font-size: 14px; font-weight: 600; cursor: pointer; }
 }
+/* Phones (incl. the installed app): use the phone register layout even if the window reports a wider size */
+.is-phone .reg-root:not(.reg-force-table) .reg-mobile-only { display: block; }
+.is-phone .reg-root:not(.reg-force-table) .reg-desktop-only { display: none !important; }
+.is-phone .reg-force-table .reg-phone-cards-btn { display: block; width: 100%; height: 44px; margin-bottom: 10px; border-radius: 12px; border: 1px solid var(--border-strong); background: var(--bg-secondary); color: var(--text); font-size: 14px; font-weight: 600; cursor: pointer; }
 .reg-m-text { width: auto !important; padding: 0 12px; font-size: 13px; font-weight: 600; }
 .reg-m-table-btn { height: 44px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--bg); color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer; }
 .reg-m-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
