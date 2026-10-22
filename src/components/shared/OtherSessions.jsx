@@ -10,7 +10,7 @@ const fmtDay = d => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { week
 
 // The original Other session question (back, Oct 2026): quick types, notes and a result / score,
 // saved to today's other_session as before (counts toward Physical).
-export const OTHER_SESSION_PRESETS = ['Bout/Comp', 'External Sparring', 'Training in other sport', 'Squad training session']
+export const OTHER_SESSION_PRESETS = ['Bout/Comp', 'External Sparring', 'Squad training session', 'Training in other sport'] // A-Z
 const norm = a => String(a || 'Other').trim().replace(/\s+/g, ' ').toLowerCase().replace(/^\w/, c => c.toUpperCase())
 
 export default function OtherSessions({ studentId, canAdd = true, title = 'Other sessions', todaysOther = [], onSaveOther, history = [] }) {
@@ -41,7 +41,8 @@ export default function OtherSessions({ studentId, canAdd = true, title = 'Other
       key: `q-${h.session_date}-${i}`, date: h.session_date, activity: e.type || 'Other session', note: e.description || '', result: (e.sets || []).filter(Boolean).join(', '), logged: true })))
     setRows([...fromWear, ...manual, ...logged].sort((a, b) => String(b.date).localeCompare(String(a.date))))
   }
-  useEffect(() => { load() }, [studentId, history.length]) // eslint-disable-line react-hooks/exhaustive-deps
+  const todayKey = JSON.stringify((todaysOther || []).map(e => [e.type, e.description]))
+  useEffect(() => { load() }, [studentId, history.length, todayKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function save() {
     if (!adding.activity?.trim()) return alert('What did you do? e.g. Run, Gym, Swimming')
@@ -78,14 +79,13 @@ export default function OtherSessions({ studentId, canAdd = true, title = 'Other
                       <b>📦 {entry.type || 'Other session'}</b>
                       <button type="button" className="oth-x" onClick={() => onSaveOther(todaysOther.filter((_, j) => j !== idx))} aria-label="Remove">×</button>
                     </div>
-                    <input defaultValue={entry.description || ''} placeholder="Notes about this session" onBlur={e => e.target.value !== (entry.description || '') && upd({ description: e.target.value })} />
-                    <input defaultValue={(entry.sets || []).join(', ')} placeholder="Result / score (e.g. won 3-0, 5 rounds)" onBlur={e => { const v = e.target.value.split(',').map(x => x.trim()).filter(Boolean); if (v.join(',') !== (entry.sets || []).join(',')) upd({ sets: v }) }} />
+                    <textarea defaultValue={entry.description || ''} rows={4} placeholder="Notes about this session (how it went, result, what to work on…)" onBlur={e => e.target.value !== (entry.description || '') && upd({ description: e.target.value })} />
                   </div>
                 )
               })}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              <div className="oth-presets">
                 {OTHER_SESSION_PRESETS.filter(r => !todaysOther.some(e => e.type === r)).map(r => (
-                  <button key={r} type="button" className="btn btn-sm neon-opt" onClick={() => onSaveOther([...todaysOther, { type: r, sets: [] }])}>+ {r}</button>
+                  <button key={r} type="button" className="oth-preset-btn" onClick={() => onSaveOther([...todaysOther, { type: r, sets: [] }])}>+ {r}</button>
                 ))}
               </div>
               <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
