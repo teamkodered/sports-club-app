@@ -19,6 +19,7 @@ export default function OtherSessions({ studentId, canAdd = true, title = 'Other
   const [open, setOpen] = useState(false)
   const [openGroup, setOpenGroup] = useState(null)
   const [customType, setCustomType] = useState('')
+  const [savedIdx, setSavedIdx] = useState(null)
 
   async function load() {
     if (!studentId) return
@@ -79,7 +80,10 @@ export default function OtherSessions({ studentId, canAdd = true, title = 'Other
                       <b>📦 {entry.type || 'Other session'}</b>
                       <button type="button" className="oth-x" onClick={() => onSaveOther(todaysOther.filter((_, j) => j !== idx))} aria-label="Remove">×</button>
                     </div>
-                    <textarea defaultValue={entry.description || ''} rows={4} placeholder="Notes about this session (how it went, result, what to work on…)" onBlur={e => e.target.value !== (entry.description || '') && upd({ description: e.target.value })} />
+                    <textarea id={`oth-notes-${idx}`} defaultValue={entry.description || ''} rows={4} placeholder="Notes about this session (how it went, result, what to work on…)" onBlur={e => e.target.value !== (entry.description || '') && upd({ description: e.target.value })} />
+                    <button type="button" className="oth-save-btn" onClick={() => { const v = document.getElementById(`oth-notes-${idx}`)?.value ?? ''; upd({ description: v }); setSavedIdx(idx); setTimeout(() => setSavedIdx(x => x === idx ? null : x), 2000) }}>
+                      {savedIdx === idx ? '✓ Saved' : '💾 Save session'}
+                    </button>
                   </div>
                 )
               })}
@@ -98,7 +102,7 @@ export default function OtherSessions({ studentId, canAdd = true, title = 'Other
           {/* Last 30 days, grouped by activity (wearable + added + logged), each group collapsible */}
           {rows?.length === 0 && <p className="oth-hint">Nothing in the last 30 days.</p>}
           {Object.entries((rows || []).reduce((m, r) => ((m[norm(r.activity)] ||= []).push(r), m), {}))
-            .sort((x, y) => y[1].length - x[1].length || x[0].localeCompare(y[0]))
+            .sort((x, y) => x[0].localeCompare(y[0], undefined, { sensitivity: 'base' }))
             .map(([act, list]) => {
               const mins = list.reduce((n, r) => n + (r.minutes || 0), 0), isOpen = openGroup === act
               return (
