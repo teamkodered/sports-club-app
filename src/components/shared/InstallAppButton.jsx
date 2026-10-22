@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 const isStandalone = () => window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true
 const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
 
-export default function InstallAppButton({ compact = false }) {
+export default function InstallAppButton({ compact = false, subtitle }) {
   const [prompt, setPrompt] = useState(() => window.__kcInstallPrompt || null)
   const [hidden, setHidden] = useState(() => { try { return isStandalone() || localStorage.getItem('kc_install_dismissed') === '1' } catch { return isStandalone() } })
   const [help, setHelp] = useState(false)
@@ -32,7 +32,7 @@ export default function InstallAppButton({ compact = false }) {
     <div className="kc-install">
       <button type="button" className="kc-install-btn" onClick={install}>
         <span className="kc-install-icon">📲</span>
-        <span className="kc-install-text">Install the app<small>{compact ? 'on your phone' : 'Open Klass Champ straight from your home screen'}</small></span>
+        <span className="kc-install-text">Install the app<small>{subtitle || (compact ? 'on your phone' : 'Open Klass Champ straight from your home screen')}</small></span>
       </button>
       <button type="button" className="kc-install-later" onClick={notNow}>Not now</button>
       {help && (
@@ -52,7 +52,7 @@ export default function InstallAppButton({ compact = false }) {
                 <li>Tap <b>Install app</b> (or <b>Add to Home screen</b>), then <b>Install</b>.</li>
               </ol>
             )}
-            <p style={{ fontSize: 12, opacity: 0.75, margin: '8px 0 12px' }}>The app icon appears on your home screen and opens straight into your athlete app.</p>
+            <p style={{ fontSize: 12, opacity: 0.75, margin: '8px 0 12px' }}>The app icon appears on your home screen and opens straight into {/^\/athlete/.test(window.location.pathname) ? 'your athlete app' : 'the Klass Champ dashboard'}.</p>
             <button type="button" className="kc-install-btn" style={{ justifyContent: 'center' }} onClick={() => setHelp(false)}>Got it</button>
           </div>
         </div>

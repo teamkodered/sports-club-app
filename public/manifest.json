@@ -1,7 +1,7 @@
 {
   "name": "Fit II Fight",
   "short_name": "Fit II Fight",
-  "description": "Fit II Fight — training log, PDP, results and more for Kode Red athletes.",
+  "description": "Fit II Fight \u2014 training log, PDP, results and more for Kode Red athletes.",
   "start_url": "/athlete-app",
   "scope": "/",
   "display": "standalone",
@@ -33,5 +33,6 @@
       "type": "image/png",
       "purpose": "maskable"
     }
-  ]
+  ],
+  "id": "/athlete-app"
 }

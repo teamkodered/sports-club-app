@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
+import InstallAppButton from '../components/shared/InstallAppButton.jsx'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useSyncedPreference } from '../hooks/useSyncedPreference.js'
@@ -238,6 +239,7 @@ export default function Dashboard() {
         </h1>
         <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>{dayName}, {dateStr}</p>
       </div>
+      <InstallAppButton subtitle="Open the Klass Champ dashboard straight from your home screen" />
 
       {/* Stats row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 18 }}>

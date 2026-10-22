@@ -180,6 +180,13 @@ function App() {
   )
 }
 
+// Two installable apps from one site: the athlete app (Fit II Fight) and the club app for
+// coaches (Klass Champ, opens on the Dashboard). Pick the manifest by page before anything renders.
+;(() => {
+  const athletePage = /^\/(athlete-app|athlete-login|league-public|results-public)/.test(window.location.pathname)
+  const link = document.querySelector('link[rel="manifest"]')
+  if (link && !athletePage) link.setAttribute('href', '/manifest-coach.json')
+})()
 // keep the browser's "install this app" prompt so the 📲 Install button can use it
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); window.__kcInstallPrompt = e; window.dispatchEvent(new Event('kc-install-ready')) })
 ReactDOM.createRoot(document.getElementById('root')).render(<App />)
