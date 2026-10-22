@@ -1,7 +1,7 @@
 -- Workrate leagues for the League board (Oct 2026): per athlete over a period --
 --   avg_pct    : their average heart rate per session as % of their age-based max
 --   above_team : how far above (or below) the club average they were on the days they trained
--- From wearable workouts + heart rate sessions recorded in the app. Name = first name + initial.
+-- From club-type wearable workouts (Boxing / Kickboxing / Martial Arts …) + heart rate sessions recorded in the app. Name = first name + initial.
 create or replace function public.public_workrate_league(p_from date, p_to date)
 returns table (student_id uuid, display_name text, house_name text, sessions int, avg_pct numeric, above_team numeric)
 language sql stable security definer set search_path = public as $$
@@ -9,6 +9,8 @@ language sql stable security definer set search_path = public as $$
     select ww.student_id, (ww.start_time at time zone 'Europe/London')::date as day, ww.avg_heart_rate::numeric as hr
     from wearable_workouts ww
     where ww.avg_heart_rate is not null and (ww.start_time at time zone 'Europe/London')::date between p_from and p_to
+      -- club-type activities only (Boxing, Kickboxing, Martial Arts, MMA, Muay Thai, sparring…)
+      and ww.sport_name ~* '(box|martial|mma|muay|thai|spar|kick|combat|fight|jiu|judo|karate|taekwondo|wrestl)'
     union all
     select h.student_id, h.session_date, h.avg_hr::numeric from hr_sessions h
     where h.avg_hr is not null and h.session_date between p_from and p_to
