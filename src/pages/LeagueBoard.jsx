@@ -98,7 +98,7 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
   const [notesRows, setNotesRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [liveCount, setLiveCount] = useState(0)
-  const [periodMode, setPeriodMode] = useState(embedded ? 'league' : 'auto') // auto | league | month
+  const [periodMode, setPeriodMode] = useState(embedded ? 'league' : 'auto') // auto | league | month | live
   const [cycle, setCycle] = useState(0)
   const [idx, setIdx] = useState(0)
   const [paused, setPaused] = useState(false)
@@ -132,7 +132,7 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
     return () => { cancelled = true }
   }, [])
 
-  const period = periodMode === 'auto' ? (cycle % 2 === 0 ? 'league' : 'month') : periodMode
+  const period = periodMode === 'auto' ? (cycle % 2 === 0 ? 'league' : 'month') : periodMode === 'live' ? 'league' : periodMode
   const pd = data[period]
   const periodLabel = period === 'league'
     ? `League · ${cfg.from ? new Date(cfg.from + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''} – ${cfg.to ? new Date(cfg.to + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''}`
@@ -141,7 +141,6 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
   const slides = useMemo(() => {
     if (!pd) return []
     const out = []
-    if (liveCount > 0) out.push({ kind: 'live' })
     if (pd.houses.some(h => h.points > 0)) out.push({ kind: 'houses' })
     if (pd.individuals.length) out.push({ kind: 'individuals' })
     for (const a of AREAS) if (pd.tasks.some(r => taskValue(r, a.key) > 0)) out.push({ kind: 'tasks', area: a })
@@ -321,19 +320,25 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
         </div>
         <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
           {!embedded && chip(periodMode === 'auto', 'AUTO', () => setPeriodMode('auto'))}
-          {chip(period === 'league' && periodMode !== 'auto', 'LEAGUE PERIOD', () => setPeriodMode('league'))}
-          {chip(period === 'month' && periodMode !== 'auto', 'THIS MONTH', () => setPeriodMode('month'))}
+          {chip(period === 'league' && periodMode !== 'auto' && periodMode !== 'live', 'LEAGUE PERIOD', () => setPeriodMode('league'))}
+          {chip(period === 'month' && periodMode !== 'auto' && periodMode !== 'live', 'THIS MONTH', () => setPeriodMode('month'))}
+          {chip(periodMode === 'live', `❤️ LIVE${liveCount ? ` · ${liveCount}` : ''}`, () => setPeriodMode('live'))}
           {periodMode === 'auto' && <span style={{ ...NUM, fontSize: 9, letterSpacing: 1.5, color: '#9A9A9A', alignSelf: 'center' }}>NOW: {period === 'league' ? 'LEAGUE' : 'THIS MONTH'}</span>}
         </div>
-        {slides.length > 1 && (
+        {periodMode !== 'live' && slides.length > 1 && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, marginBottom: 12 }}>
             <button type="button" onClick={() => go(-1)} style={{ background: 'none', border: '1px solid #2A3138', color: '#F2F2F2', borderRadius: 6, width: 40, height: 36, cursor: 'pointer' }}>‹</button>
             <span style={{ ...NUM, fontSize: 11, color: '#9A9A9A' }}>{idx + 1} / {slides.length}{paused ? ' · paused' : ''}</span>
             <button type="button" onClick={() => go(1)} style={{ background: 'none', border: '1px solid #2A3138', color: '#F2F2F2', borderRadius: 6, width: 40, height: 36, cursor: 'pointer' }}>›</button>
           </div>
         )}
-        {loading ? <p style={{ color: '#9A9A9A' }}>Loading league…</p> : <Board />}
-        <div style={{ display: 'none' }}><LiveHrTable dark onRows={r => setLiveCount(r.length)} /></div>
+        {periodMode === 'live' ? (
+          <div style={{ marginTop: 6 }}>
+            <div style={{ ...TITLE, color: '#E24B4A', fontSize: 28, marginBottom: 10 }}>❤️ Live heart rate</div>
+            <LiveHrTable dark onRows={r => setLiveCount(r.length)} />
+          </div>
+        ) : loading ? <p style={{ color: '#9A9A9A' }}>Loading league…</p> : <Board />}
+        {periodMode !== 'live' && <div style={{ display: 'none' }}><LiveHrTable dark onRows={r => setLiveCount(r.length)} /></div>}
       </div>
     </div>
   )
