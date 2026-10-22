@@ -111,7 +111,10 @@ function WebHeartRate({ live, onSave }) {
         <>
           <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 6px' }}><b>Polar H10:</b> put the strap on (wet the sensors), then connect.</p>
           <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 8px' }}><b>Whoop:</b> first turn on <b>Heart Rate Broadcast</b> in the Whoop app (Device settings), then connect.</p>
-          <button type="button" className="btn btn-primary" onClick={() => live.connect()}>Connect strap</button>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button type="button" className="btn btn-primary" onClick={() => live.connect()}>Connect strap</button>
+            <button type="button" className="btn" onClick={() => live.connect(true)} title="Lists every nearby Bluetooth device">Can't see it? Show all devices</button>
+          </div>
         </>
       ) : (
         <>
