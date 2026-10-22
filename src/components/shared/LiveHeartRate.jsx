@@ -99,7 +99,9 @@ function WebHeartRate({ live, onSave }) {
   async function stopSave() {
     const s = await live.stop()
     if (!s) { alert('Not enough heart rate data recorded to save.'); return }
-    if (confirm(`Save this heart rate session?\n${s.minutes} min · average ${s.avg} bpm · max ${s.max} bpm`)) await onSave?.(s)
+    // always saved to Wearables; during a class it stays with that session, otherwise it also goes to Other sessions
+    await onSave?.(s)
+    alert(`Saved: ${s.minutes} min · average ${s.avg} bpm · max ${s.max} bpm${s.classId ? ' -- added to this class session' : ' -- added to today\u2019s Other sessions'}`)
   }
   return (
     <div className="card" style={{ marginBottom: 12 }}>
@@ -134,7 +136,7 @@ function WebHeartRate({ live, onSave }) {
             {ZONES.map(zz => <div key={zz.n} style={{ flex: 1, borderRadius: 4, background: zz.colour, opacity: z?.n === zz.n ? 1 : 0.25 }} />)}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            {!recording ? <button type="button" className="btn btn-primary" onClick={() => live.start()}>⏺ Start session</button>
+            {!recording ? <button type="button" className="btn btn-primary" onClick={() => live.start(live.findClassNow?.() || {})}>⏺ Start session</button>
               : <button type="button" className="btn" style={{ borderColor: '#E24B4A', color: '#E24B4A' }} onClick={stopSave}>■ Stop & save</button>}
             <button type="button" className="btn" onClick={() => live.disconnect()}>Disconnect</button>
           </div>

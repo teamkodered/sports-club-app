@@ -6,6 +6,7 @@ import { TestSessionModal, TestBatchModal } from '../components/shared/TestSessi
 import OtherSessions from '../components/shared/OtherSessions.jsx'
 import { matchClass, workoutDate, workoutRange, fmtTime } from '../lib/sessionMatch.js'
 import { supabase } from '../lib/supabase.js'
+import SessionHr from '../components/shared/SessionHr.jsx'
 import TallyGate from '../components/shared/TallyGate.jsx'
 import SectionQuote from '../components/shared/SectionQuote.jsx'
 import AthleteWorkrate from '../components/shared/AthleteWorkrate.jsx'
@@ -1685,6 +1686,7 @@ export default function AthleteApp() {
   // One live heart rate connection for the whole app (check-in can start it; keeps going across tabs)
   const liveMaxHr = (() => { const d = student?.members?.date_of_birth; if (!d) return 190; const b = new Date(d), n = new Date(); const age = n.getFullYear() - b.getFullYear() - ((n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) ? 1 : 0); return Math.max(150, 220 - age) })()
   const live = useLiveHeartRate({ studentId: student?.id, maxHr: liveMaxHr })
+  live.findClassNow = () => classNow()
   const [liveHrPrompt, setLiveHrPrompt] = useState(null) // check-in reminder: { classId, attendanceId, already }
   const [aePage, setAePage] = useState(0) // Alter Ego workbook: one part per page
   const aeSwipe = useRef(null)
@@ -1698,7 +1700,8 @@ export default function AthleteApp() {
   }
   // heart rate sessions recorded in the app (live reader / Android recorder) -- shown with the wearable workouts
   const [appHrSessions, setAppHrSessions] = useState([])
-  useEffect(() => { const id = student?.id; if (!id) { setAppHrSessions([]); return } supabase.from('hr_sessions').select('*').eq('student_id', id).order('created_at', { ascending: false }).limit(20).then(({ data }) => setAppHrSessions((data || []).map(hrSessionAsWorkout)), () => {}) }, [student?.id])
+  const loadAppHrSessions = () => { const id = student?.id; if (!id) { setAppHrSessions([]); return } supabase.from('hr_sessions').select('*').eq('student_id', id).order('created_at', { ascending: false }).limit(20).then(({ data }) => setAppHrSessions((data || []).map(hrSessionAsWorkout)), () => {}) }
+  useEffect(() => { loadAppHrSessions() }, [student?.id]) // eslint-disable-line react-hooks/exhaustive-deps
   const [wearSettingsOpen, setWearSettingsOpen] = useState(false) // Wearables: connections behind the ⚙
   // section target as tally marks (the period that has a target: week first, then day, then month)
   const SectionTally = ({ sectionKey, colour }) => {
@@ -4397,12 +4400,27 @@ export default function AthleteApp() {
   }
 
   // Heart rate session -> today's Other session (live reader, or the Android app's background recorder)
+  // a class on the timetable happening now (start-15 min .. end+15 min) -> its id + today's attendance
+  function classNow() {
+    const now = new Date(), today = now.toISOString().split('T')[0]
+    const dow = now.toLocaleDateString('en-GB', { weekday: 'long' }).toLowerCase(), mins = now.getHours() * 60 + now.getMinutes()
+    const m = t => { const [h, mi] = String(t || '').split(':').map(Number); return isNaN(h) ? null : h * 60 + (mi || 0) }
+    const a = (assignedClasses || []).find(x => x.classes && (x.classes.day_of_week || '').toLowerCase() === dow && m(x.classes.start_time) != null
+      && mins >= m(x.classes.start_time) - 15 && mins <= (m(x.classes.end_time) ?? m(x.classes.start_time) + 60) + 15)
+    if (!a) return null
+    const att = attendanceData.find(r => r.class_id === a.class_id && r.session_date === today)
+    return { classId: a.class_id, attendanceId: att?.id || null, name: a.classes.name }
+  }
+  // Heart rate sessions: during a class -> stay with that class session (timetable / calendar),
+  // otherwise -> today's Other sessions. Always listed in Wearables (hr_sessions).
   async function saveHrSession(hr) {
+    if (hr.classId) { loadAppHrSessions(); return }
     const today = new Date().toISOString().split('T')[0]
     const cur = (sessions.find(x => x.session_date === today) || {}).other_session
     const list = Array.isArray(cur) ? cur : (cur ? [cur] : [])
     const entry = { type: `Heart rate session (${/whoop/i.test(hr.device || '') ? 'Whoop' : /polar/i.test(hr.device || '') ? 'Polar H10' : hr.device || 'strap'})`, sets: [`${hr.minutes} min`, `avg ${hr.avg} bpm`, `max ${hr.max} bpm`], heart_rate: hr }
     await savePhysicalField('other_session', [...list, entry], () => {})
+    loadAppHrSessions()
   }
   const athleteMaxHr = () => { const d = student?.members?.date_of_birth; if (!d) return 190; const b = new Date(d), n = new Date(); const age = n.getFullYear() - b.getFullYear() - ((n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) ? 1 : 0); return Math.max(150, 220 - age) }
 
@@ -4718,7 +4736,7 @@ export default function AthleteApp() {
         if (!st.recording) return
         const hr = await NativeHr.stop(athleteMaxHr())
         if ((hr.samples || 0) >= 5) {
-          await saveHrSession({ minutes: hr.minutes, avg: hr.avg, max: hr.max, zones: hr.zones, maxHr: athleteMaxHr(), device: NativeHr.savedStrap()?.name })
+          await saveHrSession({ minutes: hr.minutes, avg: hr.avg, max: hr.max, zones: hr.zones, maxHr: athleteMaxHr(), device: NativeHr.savedStrap()?.name, classId: activeCheckIn?.class_id || null })
           supabase.from('hr_sessions').insert({ student_id: student.id, session_date: new Date().toISOString().split('T')[0], class_id: activeCheckIn?.class_id || null, attendance_id: activeCheckIn?.id || null,
             minutes: hr.minutes, avg_hr: hr.avg, max_hr: hr.max, avg_pct: Math.round(hr.avg * 100 / athleteMaxHr()), max_pct: Math.round(hr.max * 100 / athleteMaxHr()), zones: hr.zones, device: NativeHr.savedStrap()?.name || null }).then(() => {}, () => {})
         }
@@ -7369,6 +7387,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
             {classDetailPanel.classInfo?.description && (
               <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 14, lineHeight: 1.4 }}>{classDetailPanel.classInfo.description}</p>
             )}
+            <SessionHr studentId={student?.id} dateStr={classDetailPanel.dateStr} classId={classDetailPanel.classInfo?.id || classDetailPanel.classId} />
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, marginTop: classDetailPanel.classInfo?.description ? 0 : 10 }}>
               {(() => {
                 const header = `${classDetailPanel.classInfo?.name} — ${new Date(classDetailPanel.dateStr + 'T12:00:00').toLocaleDateString('en-GB')}`
@@ -8118,7 +8137,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
 
           {/* Live heart rate from a Bluetooth strap (Polar H10) -- saved as an Other session on today's log */}
           <LiveHeartRate live={live} age={(() => { const d = student?.members?.date_of_birth; if (!d) return null; const b = new Date(d), n = new Date(); return n.getFullYear() - b.getFullYear() - ((n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) ? 1 : 0) })()}
-            onSave={async hr => { await saveHrSession(hr); alert('Saved to today as an Other session.') }} />
+            onSave={async hr => { await saveHrSession(hr) }} />
           <LiveHrTable title="❤️ Live in the gym" />
 
           {/* Connections (Whoop, Polar, Health Connect…) live behind the ⚙ */}

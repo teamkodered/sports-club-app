@@ -111,7 +111,7 @@ export function useLiveHeartRate({ studentId, maxHr = 190 }) {
     const zones = {}
     for (let i = 1; i < list.length; i++) { const z = zoneOf(list[i - 1].bpm, maxHr); if (z) zones[`z${z.n}`] = (zones[`z${z.n}`] || 0) + (list[i].t - list[i - 1].t) / 1000 }
     const zoneMins = Object.fromEntries(Object.entries(zones).map(([k, sec]) => [k, Math.round(sec / 60)]))
-    const summary = { minutes, avg, max, zones: zoneMins, maxHr, device: device?.name || 'Heart rate strap' }
+    const summary = { minutes, avg, max, zones: zoneMins, maxHr, device: device?.name || 'Heart rate strap', classId: meta.current.classId, attendanceId: meta.current.attendanceId }
     // heart rate curve: averaged into ~5 s steps (max 600 points) so it can be drawn later
     const span = list[list.length - 1].t - list[0].t, step = Math.max(5000, Math.ceil(span / 600))
     const samples = []
