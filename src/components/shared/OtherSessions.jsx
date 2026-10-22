@@ -38,8 +38,8 @@ export default function OtherSessions({ studentId, canAdd = true, title = 'Other
     })
     const manual = (man.data || []).map(m => ({ key: `m-${m.id}`, id: m.id, date: m.session_date, activity: m.activity, minutes: m.minutes, note: m.note, manual: true }))
     const fromIso = from.toISOString().slice(0, 10)
-    const logged = (history || []).filter(h => h.session_date >= fromIso).flatMap(h => [].concat(h.other_session || []).filter(e => e && typeof e === 'object' && !e.heart_rate).map((e, i) => ({
-      key: `q-${h.session_date}-${i}`, date: h.session_date, activity: e.type || 'Other session', note: e.description || '', result: (e.sets || []).filter(Boolean).join(', '), logged: true })))
+    const logged = (history || []).filter(h => h.session_date >= fromIso).flatMap(h => [].concat(h.other_session || []).filter(e => e && typeof e === 'object').map((e, i) => ({
+      key: `q-${h.session_date}-${i}`, date: h.session_date, activity: e.type || 'Other session', note: e.description || '', result: (e.sets || []).filter(Boolean).join(', '), logged: true, minutes: e.heart_rate?.minutes || null })))
     setRows([...fromWear, ...manual, ...logged].sort((a, b) => String(b.date).localeCompare(String(a.date))))
   }
   const todayKey = JSON.stringify((todaysOther || []).map(e => [e.type, e.description]))
