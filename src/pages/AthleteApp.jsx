@@ -6,6 +6,7 @@ import { TestSessionModal, TestBatchModal } from '../components/shared/TestSessi
 import OtherSessions from '../components/shared/OtherSessions.jsx'
 import { matchClass, workoutDate, workoutRange, fmtTime } from '../lib/sessionMatch.js'
 import { supabase } from '../lib/supabase.js'
+import InstallAppButton from '../components/shared/InstallAppButton.jsx'
 import SessionHr from '../components/shared/SessionHr.jsx'
 import TallyGate from '../components/shared/TallyGate.jsx'
 import SectionQuote from '../components/shared/SectionQuote.jsx'
@@ -5262,6 +5263,7 @@ export default function AthleteApp() {
           {UndoBar()}
           {student ? (
             <>
+              <InstallAppButton />
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
                 <button type="button" className="btn btn-sm" onClick={() => setReminders(!remindersOn)} title="Daily reminders (session today, running, tests)" style={{ fontSize: 11, opacity: 0.85 }}>🔔 Reminders {remindersOn ? 'on' : 'off'}</button>
               </div>

@@ -180,6 +180,8 @@ function App() {
   )
 }
 
+// keep the browser's "install this app" prompt so the 📲 Install button can use it
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); window.__kcInstallPrompt = e; window.dispatchEvent(new Event('kc-install-ready')) })
 ReactDOM.createRoot(document.getElementById('root')).render(<App />)
 
 // Register a minimal, pass-through service worker -- this exists purely

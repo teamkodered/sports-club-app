@@ -1404,3 +1404,16 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .oth-preset-btn:active { background: rgba(230,184,0,0.25); }
 .oth-entry textarea { padding: 10px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--bg-secondary); color: var(--text); font-size: 14px; font-family: inherit; resize: vertical; min-height: 90px; }
 .oth-save-btn { align-self: flex-end; min-height: 40px; padding: 0 18px; border-radius: 10px; border: 1px solid #1D9E75; background: rgba(29,158,117,0.15); color: #F2F2F2; font-weight: 700; cursor: pointer; font-family: inherit; }
+
+/* 📲 Install the app (neon) */
+.kc-install { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
+.kc-install-btn { flex: 1; display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 8px 14px; border-radius: 12px; cursor: pointer; text-align: left;
+  border: 1px solid #FF2A2A; background: linear-gradient(90deg, rgba(255,42,42,0.18), rgba(255,42,42,0.04)); color: #F2F2F2; box-shadow: 0 0 12px rgba(255,42,42,0.35); font-family: inherit; }
+.kc-install-btn:active { background: rgba(255,42,42,0.28); }
+.kc-install-icon { font-size: 22px; }
+.kc-install-text { display: flex; flex-direction: column; font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800; font-size: 19px; letter-spacing: 0.5px; text-transform: uppercase; line-height: 1.1; }
+.kc-install-text small { font-family: 'Rajdhani', sans-serif; font-style: normal; font-weight: 600; font-size: 12px; letter-spacing: 0; text-transform: none; opacity: 0.75; }
+.kc-install-later { background: none; border: none; color: #9A9A9A; font-size: 12px; cursor: pointer; padding: 6px; }
+.kc-install-help { width: 100%; max-width: 420px; background: #14181C; color: #F2F2F2; border: 1px solid #FF2A2A; border-radius: 14px; padding: 16px; box-shadow: 0 0 18px rgba(255,42,42,0.3); }
+.kc-install-help-title { font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800; font-size: 22px; text-transform: uppercase; color: #FF2A2A; margin-bottom: 8px; }
+.kc-install-help ol { margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.7; }

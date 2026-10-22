@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import InstallAppButton from '../components/shared/InstallAppButton.jsx'
 import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
@@ -83,6 +84,7 @@ export default function AthleteLogin() {
           <h1 style={{ fontSize: 22, fontWeight: 700, color: '#fff' }}>Fit II Fight</h1>
           <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginTop: 3 }}>Athlete Login</p>
         </div>
+        <div style={{ margin: '0 0 14px' }}><InstallAppButton compact /></div>
 
         <div className="card">
           {stuckWithNoProfile ? (
