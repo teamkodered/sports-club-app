@@ -5198,7 +5198,8 @@ export default function AthleteApp() {
                 ) : (
                   <>
                     <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>❤️ Record your heart rate this class?</h3>
-                    <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px' }}>{liveHrPrompt.whoop ? <>Turn on <b>Heart Rate Broadcast</b> in the Whoop app first, then connect.</> : <>Put your strap on, then connect.</>}</p>
+                    <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 6px' }}>{liveHrPrompt.whoop ? <>In the Whoop app: tap <b>More</b> (•••) → <b>Device settings</b> → turn on <b>Heart Rate Broadcast</b>, then connect here.</> : <>Put your strap on, then connect.</>}</p>
+          <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '0 0 12px' }}>✓ Once connected, it reconnects and starts recording automatically each time you check in to a session.</p>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button type="button" className="btn btn-primary" style={{ flex: 2, justifyContent: 'center' }} onClick={async () => { const p = liveHrPrompt; if (await live.connect()) { live.start({ classId: p.classId, attendanceId: p.attendanceId }); setLiveHrPrompt({ already: true }); setTimeout(() => setLiveHrPrompt(x => x?.already ? null : x), 2500) } }}>
                         {liveHrPrompt.whoop ? 'Connect to Whoop' : 'Connect strap'}

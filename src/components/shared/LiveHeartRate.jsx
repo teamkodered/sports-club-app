@@ -52,7 +52,9 @@ function NativeHeartRate({ age, onSave }) {
       </div>
       {!strap ? (
         <>
-          <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 8px' }}>Put the strap on (Whoop: turn on Heart Rate Broadcast first), then find it -- you only do this once.</p>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 4px' }}>Put the strap on, then find it -- you only do this once.</p>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 4px' }}><b>Whoop:</b> In the Whoop app: tap <b>More</b> (•••) → <b>Device settings</b> → turn on <b>Heart Rate Broadcast</b>, then connect here.</p>
+          <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '0 0 8px' }}>✓ Once connected, it reconnects and starts recording automatically each time you check in to a session.</p>
           <button type="button" className="btn btn-primary" disabled={!!busy} onClick={find}>{busy || 'Find my strap'}</button>
           {found && (found.length === 0 ? <p style={{ fontSize: 12, marginTop: 8 }}>No straps found -- check it's on and close by, then try again.</p> : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
@@ -110,7 +112,8 @@ function WebHeartRate({ live, onSave }) {
       ) : !connected ? (
         <>
           <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 6px' }}><b>Polar H10:</b> put the strap on (wet the sensors), then connect.</p>
-          <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 8px' }}><b>Whoop:</b> first turn on <b>Heart Rate Broadcast</b> in the Whoop app (Device settings), then connect.</p>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 4px' }}><b>Whoop:</b> In the Whoop app: tap <b>More</b> (•••) → <b>Device settings</b> → turn on <b>Heart Rate Broadcast</b>, then connect here.</p>
+          <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '0 0 8px' }}>✓ Once connected, it reconnects and starts recording automatically each time you check in to a session.</p>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button type="button" className="btn btn-primary" onClick={() => live.connect()}>Connect strap</button>
             <button type="button" className="btn" onClick={() => live.connect(true)} title="Lists every nearby Bluetooth device">Can't see it? Show all devices</button>
