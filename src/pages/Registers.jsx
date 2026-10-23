@@ -2322,6 +2322,11 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
               <div className="reg-m-sheet-backdrop" onClick={() => setMSettingsOpen(false)}>
                 <div className="reg-m-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-label="Register settings">
                   <div className="reg-m-sheet-head"><b>Register settings</b><button type="button" onClick={() => setMSettingsOpen(false)}>Done</button></div>
+                  <div className="reg-m-sheet-label">VIEW</div>
+                  <div className="reg-m-seg" style={{ marginBottom: 14 }}>
+                    <button type="button" className="on" onClick={() => setMSettingsOpen(false)}>Phone cards</button>
+                    <button type="button" onClick={() => { setMShowTable(true); setMSettingsOpen(false) }}>Table</button>
+                  </div>
                   <div className="reg-m-sheet-label">ATTENDANCE STATS RANGE</div>
                   <div className="reg-m-seg">
                     {[['4 weeks', 28], ['3 months', 91], ['All time', null]].map(([l, days]) => {
@@ -2341,7 +2346,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                       <button key={l} type="button" className={sortKey === k ? 'on' : ''} onClick={() => { setSortKey(k); setSortDir(d) }}>{l}</button>
                     ))}
                   </div>
-                  <button type="button" className="reg-m-table-btn" onClick={() => { setMShowTable(true); setMSettingsOpen(false) }}>Show the full table (all columns, W/L/D, in-comp, groups…)</button>
+                  
                   <div className="reg-m-sheet-note">The ⚙ Columns picker controls the full table.</div>
                 </div>
               </div>
