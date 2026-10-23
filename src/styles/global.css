@@ -1449,3 +1449,11 @@ html.is-app button, html.is-app a, html.is-app input, html.is-app select, html.i
 }
 input, select, textarea { background-color: var(--bg-secondary); color: var(--text); border-color: var(--border-strong); }
 input::placeholder, textarea::placeholder { color: var(--text-tertiary); }
+
+/* Registers (phone): title cycles the registers -- "Registers · Class", press / swipe for the next */
+.reg-title-cycle { cursor: pointer; background: none; border: none; padding: 0; margin: 0; text-align: left; font: inherit; color: inherit; letter-spacing: inherit; }
+.reg-title-dots { margin-top: 6px; }
+.reg-title-type { color: #FF2A2A; font-style: italic; }
+.reg-title-dots { display: flex; gap: 4px; }
+.reg-title-dots i { width: 6px; height: 6px; border-radius: 3px; background: var(--border-strong); display: block; }
+.reg-title-dots i.on { width: 16px; background: #FF2A2A; }

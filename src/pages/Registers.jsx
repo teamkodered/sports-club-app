@@ -1568,7 +1568,21 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
           {searchParams.get('student_id') && (
             <button className="btn btn-sm" style={{ marginBottom: 8 }} onClick={() => navigate(-1)}>← Back</button>
           )}
-          <h1 className="reg-title">Registers</h1>
+          <h1 className="reg-title">
+            <span className="reg-desktop-only" style={{ display: 'inline' }}>Registers</span>
+            {(() => {
+              const types = (initialRegType ? REGISTER_TYPES.filter(r => r.key === 'kr' || r.key === 'krba' || (r.key === 'allath' && initialRegType === 'allath')) : REGISTER_TYPES.filter(r => !r.hidden)).filter(r => regTypeAllowed(r.key))
+              const cur = types.find(r => r.key === regType) || types[0]
+              const step = d => { const i = types.findIndex(r => r.key === regType); const nx = types[(i + d + types.length) % types.length]; if (nx) setRegType(nx.key) }
+              return (
+                <button type="button" className="reg-mobile-only reg-title-cycle" onClick={() => step(1)} disabled={types.length < 2} title="Press for the next register"
+                  onTouchStart={e => { e.currentTarget.dataset.x = e.touches[0].clientX }}
+                  onTouchEnd={e => { const dx = e.changedTouches[0].clientX - Number(e.currentTarget.dataset.x || 0); if (Math.abs(dx) > 40) { e.preventDefault(); step(dx < 0 ? 1 : -1) } }}>
+                  Registers <span className="reg-title-type">· {cur?.label}</span>{types.length > 1 && <span className="reg-title-dots">{types.map(r => <i key={r.key} className={r.key === regType ? 'on' : ''} />)}</span>}
+                </button>
+              )
+            })()}
+          </h1>
           {/* hidden on mobile: the date picker and the 'x / N in' count below already show this */}
           <p className="reg-desktop-only">{displayStudents.length} students · {new Date(date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
         </div>
@@ -1603,7 +1617,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
           the Athlete Profile page (signalled by initialRegType being
           set), since that's the only context Team KR/KRBA buttons there
           are meant to offer, not the full set of registers. */}
-      <div className={`reg-hide-in-pm${initialRegType ? ' reg-desktop-only' : ''}`} style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
+      <div className="reg-hide-in-pm reg-desktop-only" style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
         {(initialRegType ? REGISTER_TYPES.filter(r => r.key === 'kr' || r.key === 'krba' || (r.key === 'allath' && initialRegType === 'allath')) : REGISTER_TYPES.filter(r => !r.hidden)).filter(r => regTypeAllowed(r.key)).map(r => (
           <button key={r.key} onClick={() => setRegType(r.key)} style={{
             padding: '8px 14px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer',
