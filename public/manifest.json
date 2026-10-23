@@ -5,8 +5,8 @@
   "start_url": "/athlete-app",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#E24B4A",
+  "background_color": "#111316",
+  "theme_color": "#111316",
   "orientation": "portrait",
   "icons": [
     {

@@ -1427,3 +1427,25 @@ html.is-app, html.is-app body { overflow-x: hidden; max-width: 100vw; overscroll
 html.is-app body { -webkit-text-size-adjust: 100%; }
 html.is-app * { -webkit-tap-highlight-color: transparent; }
 html.is-app button, html.is-app a, html.is-app input, html.is-app select, html.is-app textarea { touch-action: manipulation; }
+
+/* ── Always dark (Oct 2026): the whole app uses the dark palette, matching the neon screens,
+   whatever the phone / computer is set to (and so browsers like Samsung Internet don't
+   force-invert it). ── */
+:root {
+  color-scheme: dark;
+  --bg: #1A1D21;
+  --bg-secondary: #23272C;
+  --bg-tertiary: #111316;
+  --text: #F2F2F2;
+  --text-secondary: #A8ADB3;
+  --text-tertiary: #7C828A;
+  --border: rgba(255,255,255,0.10);
+  --border-strong: rgba(255,255,255,0.18);
+  --accent: #e24b4a;
+  --accent-bg: rgba(226,75,74,0.16);
+  --success: #1d9e75;
+  --success-bg: rgba(29,158,117,0.16);
+  --logo-filter: invert(0) brightness(1.2);
+}
+input, select, textarea { background-color: var(--bg-secondary); color: var(--text); border-color: var(--border-strong); }
+input::placeholder, textarea::placeholder { color: var(--text-tertiary); }

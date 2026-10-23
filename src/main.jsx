@@ -206,6 +206,35 @@ try {
     if (vp) vp.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover')
   }
 } catch { /* ignore */ }
+// Safety net: a phone that lays the page out at computer width (e.g. installed from a browser in
+// "desktop site" mode) is switched to the phone layout -- page scaled to the real screen, every
+// width rule (max-width / min-width) re-evaluated for the phone's width, and width checks in the
+// code (matchMedia / innerWidth) answered for the phone.
+;(() => {
+  try {
+    const coarse = window.matchMedia('(pointer: coarse)').matches
+    const sw = window.screen.width
+    if (!coarse || Math.min(window.screen.width, window.screen.height) > 600) return
+    const ratio = window.innerWidth / sw
+    if (ratio < 1.3) return   // already laid out for the phone
+    document.documentElement.classList.add('is-phone', 'forced-phone')
+    document.documentElement.style.zoom = String(ratio)
+    // width checks in the code
+    const origMM = window.matchMedia.bind(window)
+    const widthOk = q => q.replace(/\((max|min)-width:\s*(\d+(?:\.\d+)?)px\)/g, (_, k, n) => (k === 'max' ? sw <= +n : sw >= +n) ? '(min-width: 0px)' : '(max-width: 0px)')
+    window.matchMedia = q => origMM(widthOk(String(q)))
+    Object.defineProperty(window, 'innerWidth', { configurable: true, get: () => sw })
+    // width rules in the stylesheets
+    const fix = () => {
+      for (const sheet of Array.from(document.styleSheets)) {
+        let rules; try { rules = sheet.cssRules } catch { continue }
+        const walk = list => { for (const r of Array.from(list || [])) { if (r.media && r.cssRules) { const t = r.media.mediaText; if (/width/.test(t) && !t.includes('/*kc*/')) { try { r.media.mediaText = widthOk(t) } catch { /* */ } } walk(r.cssRules) } } }
+        walk(rules)
+      }
+    }
+    fix(); window.addEventListener('load', fix); setTimeout(fix, 1500)
+  } catch { /* ignore */ }
+})()
 // keep the browser's "install this app" prompt so the 📲 Install button can use it
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); window.__kcInstallPrompt = e; window.dispatchEvent(new Event('kc-install-ready')) })
 ReactDOM.createRoot(document.getElementById('root')).render(<App />)
