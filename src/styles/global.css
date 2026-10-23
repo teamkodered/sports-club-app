@@ -1469,3 +1469,8 @@ input::placeholder, textarea::placeholder { color: var(--text-tertiary); }
 .reg-m-xclass { color: var(--text-secondary); }
 .reg-m-xchamp { font-weight: 700; color: #E6B800; }
 .reg-m-xhead { font-size: 10px; letter-spacing: 1px; color: var(--text-tertiary); margin-left: auto; }
+
+/* Register (phone): class selector, same feel as the title */
+.reg-class-cycle { cursor: pointer; background: none; border: none; padding: 0; margin: 0 0 12px; text-align: left; color: inherit; font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800; font-size: 26px; line-height: 1.1; text-transform: uppercase; letter-spacing: 0.5px; }
+.reg-class-cycle-time { margin-left: 10px; color: #FF2A2A; }
+.reg-class-cycle .reg-title-dots { margin-top: 6px; }

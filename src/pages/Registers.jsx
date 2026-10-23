@@ -1583,7 +1583,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                 <button type="button" className="reg-mobile-only reg-title-cycle" onClick={() => step(1)} disabled={types.length < 2} title="Press for the next register"
                   onTouchStart={e => { e.currentTarget.dataset.x = e.touches[0].clientX }}
                   onTouchEnd={e => { const dx = e.changedTouches[0].clientX - Number(e.currentTarget.dataset.x || 0); if (Math.abs(dx) > 40) { e.preventDefault(); step(dx < 0 ? 1 : -1) } }}>
-                  Registers <span className="reg-title-type">· {cur?.label}</span>{types.length > 1 && <span className="reg-title-dots">{types.map(r => <i key={r.key} className={r.key === regType ? 'on' : ''} />)}</span>}
+                  Register <span className="reg-title-type">· {cur?.key === 'class' ? 'Classes' : cur?.label}</span>{types.length > 1 && <span className="reg-title-dots">{types.map(r => <i key={r.key} className={r.key === regType ? 'on' : ''} />)}</span>}
                 </button>
               )
             })()}
@@ -1670,7 +1670,24 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
           Hidden entirely when embedded in the Athlete Profile (initialRegType set) -- always shows the full
           KR/KRBA register there for now, rather than narrowing down to one specific class time. */}
       {!initialRegType && (todayClasses.length > 0 || derbyMooreClasses.length > 0 || moorwaysClasses.length > 0) && (
-        <div className="reg-class-pills reg-hide-in-pm" style={{ marginBottom: 12 }}>
+        <>
+        {(() => {
+          // phone: one selector -- press / swipe for the next class, dots show which (same feel as the title)
+          const list = [...todayClasses, ...derbyMooreClasses, ...moorwaysClasses].filter(classAllowed).map(c => ({ id: c.id, name: c.name, time: `${c.start_time?.slice(0, 5) || ''}–${c.end_time?.slice(0, 5) || ''}` }))
+          if (!allowedClassIds) list.push({ id: 'all', name: 'All classes', time: '' })
+          if (!list.length) return null
+          const i = Math.max(0, list.findIndex(c => c.id === classFilter)), cur = list[i]
+          const step = d => setClassFilter(list[(i + d + list.length) % list.length].id)
+          return (
+            <button type="button" className="reg-mobile-only reg-hide-in-pm reg-class-cycle" onClick={() => step(1)} disabled={list.length < 2}
+              onTouchStart={e => { e.currentTarget.dataset.x = e.touches[0].clientX }}
+              onTouchEnd={e => { const dx = e.changedTouches[0].clientX - Number(e.currentTarget.dataset.x || 0); if (Math.abs(dx) > 40) { e.preventDefault(); step(dx < 0 ? 1 : -1) } }}>
+              <span className="reg-class-cycle-name">{cur.name}</span>{cur.time && <span className="reg-class-cycle-time">{cur.time}</span>}
+              {list.length > 1 && <span className="reg-title-dots">{list.map(c => <i key={c.id} className={c.id === cur.id ? 'on' : ''} />)}</span>}
+            </button>
+          )
+        })()}
+        <div className="reg-class-pills reg-hide-in-pm reg-desktop-only" style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {allowedClassIds && regType === 'class' && ![...todayClasses, ...derbyMooreClasses, ...moorwaysClasses].some(classAllowed) && (
               <div style={{ fontSize: 13, color: 'var(--text-secondary)', padding: '6px 2px' }}>None of your classes run on this day.</div>
@@ -1748,6 +1765,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
             </div>
           )}
         </div>
+        </>
       )}
 
       {/* Large headcount display for quick visual reference during a session -- click to shortlist to only attended students, click again to show everyone */}
@@ -1946,7 +1964,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
               <button type="button" className={`reg-m-icon reg-m-text${pmOn ? ' reg-m-pm-on' : ''}`} aria-pressed={pmOn}
                 onClick={() => { setSelectedStudents([]); setMExpanded(null); setPmOn(v => { if (!v) pmToTop(); return !v }); if (!pmReason) setPmPickerOpen(true) }}
                 title="Points mode: pick a reason, then tap students to award it">⭐ Points</button>
-              <button type="button" className="reg-m-icon reg-m-text" onClick={() => setMShowTable(true)} title="Show the full table (all columns and editing)">Table</button>
+
               
             </div>
 
