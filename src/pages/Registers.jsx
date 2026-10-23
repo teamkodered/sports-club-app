@@ -307,6 +307,9 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   // for KR/KRBA regardless of any saved preference, so an existing
   // saved list predating this change shouldn't be read as "the user
   // chose to hide it".
+  const [startColSeen, setStartColSeen] = useSyncedPreference('register_cols_start_seen', false)
+  // 'Started' is new (Oct 2026): show it once by default; after that the column picker decides
+  useEffect(() => { if (!startColSeen && Array.isArray(visibleColsRaw)) { if (!visibleColsRaw.includes('start_date')) setVisibleCols([...visibleColsRaw, 'start_date']); setStartColSeen(true) } }, [startColSeen]) // eslint-disable-line react-hooks/exhaustive-deps
   const visibleCols = visibleColsRaw.includes('record') ? visibleColsRaw : [...visibleColsRaw, 'record']
 
   const ALL_REG_COLS = [
@@ -327,6 +330,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     { key: 'weight_entries', label: 'Entries' },
     { key: 'att_total',   label: 'Total sessions' },
     { key: 'att_last',    label: 'Last attended' },
+    { key: 'start_date',  label: 'Started' },
     { key: 'att_pct',     label: 'Attendance %' },
     { key: 'groups',      label: 'Groups' },
     { key: 'attendance',  label: 'Attend.' },
@@ -368,6 +372,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   const [attendanceStats, setAttendanceStats] = useState({})
   const [calendarStudent, setCalendarStudent] = useState(null) // student whose attendance calendar popup is open
   // Phone layout (cards) -- same data and functions as the table
+  const [mWeightOpen, setMWeightOpen] = useState(null) // phone Extras: last 5 weights slide-down
   const [mPage, setMPage] = useState(0)                 // 0 = Age/Weight/Attend., 1 = Level/Record/Weight trend
   const [mFilter, setMFilter] = useState('all')         // 'all' | 'out' | 'in'
   const [mExpanded, setMExpanded] = useState(null)      // student id opened in place
@@ -2008,7 +2013,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
 
             {/* Sort headers + page dots (swipe the list to switch detail sets) */}
             <div className="reg-m-dots" role="tablist" aria-label="Detail columns">
-              {(isMainReg ? [0, 1, 2] : [0, 1, 2, 3]).map(i => <button key={i} type="button" role="tab" aria-selected={mPage === i} aria-label={isMainReg ? (['Age, attendance, media', 'Grade, house, points', 'Sessions, last in, start date'][i]) : (['Age, weight, attendance', 'Level, record, weight trend', 'Sessions, last in, start date', 'House, points, media'][i])} className={mPage === i ? 'on' : ''} onClick={() => setMPage(i)} />)}
+              {(isMainReg ? [0, 1, 2, 3] : [0, 1, 2, 3, 4]).map(i => <button key={i} type="button" role="tab" aria-selected={mPage === i} aria-label={isMainReg ? (['Age, attendance, media', 'Grade, house, points', 'Sessions, last in, start date', 'Extras: class time, groups'][i]) : (['Age, weight, attendance', 'Level, record, weight trend', 'Sessions, last in, start date', 'House, points, media'][i])} className={mPage === i ? 'on' : ''} onClick={() => setMPage(i)} />)}
             </div>
             {sortThen.length > 0 && (
               <div className="reg-m-sortchain">
@@ -2022,11 +2027,13 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
               {isMainReg
                 ? (mPage === 0 ? <><SortBtn k="age" label="AGE" /><SortBtn k="att_pct" label="ATTEND." /><SortBtn k="media_restriction" label="MEDIA" /><span style={{ width: 58, flexShrink: 0 }} /></>
                                : mPage === 1 ? <><SortBtn k="grade" label="GRADE" /><SortBtn k="house" label="HOUSE" /><SortBtn k="house_points" label="POINTS" /></>
-                               : <><SortBtn k="att_total" label="SESSIONS" /><SortBtn k="att_last" label="LAST IN" /><SortBtn k="start_date" label="STARTED" /></>)
+                               : mPage === 2 ? <><SortBtn k="att_total" label="SESSIONS" /><SortBtn k="att_last" label="LAST IN" /><SortBtn k="start_date" label="STARTED" /></>
+                               : <><span className="reg-m-xhead">EXTRAS · CLASS · GROUPS</span></>)
                 : (mPage === 0 ? <><SortBtn k="age" label="AGE" /><SortBtn k="weight_current" label="WEIGHT" /><SortBtn k="att_pct" label="ATTEND." /><span style={{ width: 58, flexShrink: 0 }} /></>
                                : mPage === 1 ? <><SortBtn k="grade" label="LEVEL" /><SortBtn k="wins" label="RECORD" /><SortBtn k="weight_current" label="WEIGHT" /></>
                                : mPage === 2 ? <><SortBtn k="att_total" label="SESSIONS" /><SortBtn k="att_last" label="LAST IN" /><SortBtn k="start_date" label="STARTED" /></>
-                               : <><SortBtn k="house" label="HOUSE" /><SortBtn k="house_points" label="POINTS" /><SortBtn k="media_restriction" label="MEDIA" /></>)}
+                               : mPage === 3 ? <><SortBtn k="house" label="HOUSE" /><SortBtn k="house_points" label="POINTS" /><SortBtn k="media_restriction" label="MEDIA" /></>
+                               : <><SortBtn k="weight_current" label="WEIGHT · COMP · %" /><span className="reg-m-xhead">CLASS · GROUPS</span></>)}
             </div>
 
             <div className="reg-m-list"
@@ -2035,7 +2042,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                 const st = mSwipeX.current; mSwipeX.current = null
                 if (!st) return
                 const dx = e.changedTouches[0].clientX - st.x, dy = e.changedTouches[0].clientY - st.y
-                if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) setMPage(p => Math.max(0, Math.min(isMainReg ? 2 : 3, p + (dx < 0 ? 1 : -1))))
+                if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) setMPage(p => Math.max(0, Math.min(isMainReg ? 3 : 4, p + (dx < 0 ? 1 : -1))))
               }}>
               {list.length === 0 && <div className="reg-m-empty">{search ? 'No students match your search' : 'No students here'}</div>}
               {list.map(st => {
@@ -2093,6 +2100,29 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                             <span className="reg-m-pct"><span className="bar"><span style={{ width: `${pct || 0}%`, background: pctColour(pct) }} /></span><b style={{ color: pctColour(pct) }}>{pct != null ? `${pct}%` : '—'}</b></span>
                             <span style={{ display: 'inline-flex', alignItems: 'center' }}><MediaCam restriction={st.media_restriction} /></span>
                           </div>
+                        ) : mPage === 3 ? (
+                          <div className="reg-m-details reg-m-extras" onClick={e => e.stopPropagation()}>
+                            {!isMainReg && (
+                              <button type="button" className="reg-m-xweight" onClick={() => setMWeightOpen(o => o === st.id ? null : st.id)}>
+                                <b>{wd?.current != null ? `${wd.current}kg` : (st.weight_kg ? `${st.weight_kg}kg` : '–')}</b>
+                                <span className="reg-m-xcomp">{wd?.compWeightLabel ? `comp ${wd.compWeightLabel}` : 'no comp weight'}</span>
+                                {wd?.pctDiff != null && <b style={{ color: wd.isPlusDivision ? '#1D9E75' : wd.pctDiff > 0 ? '#E24B4A' : '#1D9E75' }}>{wd.pctDiff > 0 ? '+' : ''}{wd.pctDiff.toFixed(1)}%</b>}
+                                <span className="reg-m-xmore">{mWeightOpen === st.id ? '▲' : '▼'}</span>
+                              </button>
+                            )}
+                            {!isMainReg && mWeightOpen === st.id && (
+                              <div className="reg-m-xweights">
+                                {(wd?.last5 || []).length ? [...wd.last5].reverse().map((e, i) => <span key={i}><b>{e.weight}kg</b> {e.date || e.session_date ? ddmm(e.date || e.session_date) : ''}</span>) : <span>No weigh-ins yet</span>}
+                                <span className="reg-m-xcount">{wd?.entryCount ?? 0} weigh-ins in total</span>
+                              </div>
+                            )}
+                            <div className="reg-m-xrow">
+                              {st.class_time && <span className="reg-m-xclass">🕒 {st.class_time}</span>}
+                              {st.class_champion_count > 0 && <span className="reg-m-xchamp">🏆 {st.class_champion_count}</span>}
+                              {studentGroups(st, m).map(g => <span key={g} className={`badge ${g==='KR'?'badge-purple':g==='PTs'?'badge-blue':g==='Leader'?'badge-green':g==='Coach'?'badge-amber':'badge-gray'}`} style={{ fontSize: 10 }}>{g}</span>)}
+                              {!st.class_time && !(st.class_champion_count > 0) && studentGroups(st, m).length === 0 && <span style={{ color: 'var(--text-tertiary)' }}>No groups</span>}
+                            </div>
+                          </div>
                         ) : mPage === 1 ? (
                           <div className="reg-m-details reg-m-details-3">
                             <span><b style={{ color: gradeColour(st.pka_belt || st.krba_level) }}>{st.pka_belt || st.krba_level || '—'}</b></span>
@@ -2116,6 +2146,29 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                             <span><b>{stats?.total ?? 0}</b></span>
                             <span>{stats?.last ? <b style={{ color: lastInColour(stats.last) }}>{ddmm(stats.last)}</b> : '—'}</span>
                             <span>{(m?.joined_date || stats?.first) ? <><b style={{ color: '#1D9E75' }}>{mmyy(m?.joined_date || stats?.first)}</b><span className="reg-m-months" title="Months trained">={monthsSince(m?.joined_date || stats?.first)}</span></> : '—'}</span>
+                          </div>
+                        ) : mPage === 4 ? (
+                          <div className="reg-m-details reg-m-extras" onClick={e => e.stopPropagation()}>
+                            {!isMainReg && (
+                              <button type="button" className="reg-m-xweight" onClick={() => setMWeightOpen(o => o === st.id ? null : st.id)}>
+                                <b>{wd?.current != null ? `${wd.current}kg` : (st.weight_kg ? `${st.weight_kg}kg` : '–')}</b>
+                                <span className="reg-m-xcomp">{wd?.compWeightLabel ? `comp ${wd.compWeightLabel}` : 'no comp weight'}</span>
+                                {wd?.pctDiff != null && <b style={{ color: wd.isPlusDivision ? '#1D9E75' : wd.pctDiff > 0 ? '#E24B4A' : '#1D9E75' }}>{wd.pctDiff > 0 ? '+' : ''}{wd.pctDiff.toFixed(1)}%</b>}
+                                <span className="reg-m-xmore">{mWeightOpen === st.id ? '▲' : '▼'}</span>
+                              </button>
+                            )}
+                            {!isMainReg && mWeightOpen === st.id && (
+                              <div className="reg-m-xweights">
+                                {(wd?.last5 || []).length ? [...wd.last5].reverse().map((e, i) => <span key={i}><b>{e.weight}kg</b> {e.date || e.session_date ? ddmm(e.date || e.session_date) : ''}</span>) : <span>No weigh-ins yet</span>}
+                                <span className="reg-m-xcount">{wd?.entryCount ?? 0} weigh-ins in total</span>
+                              </div>
+                            )}
+                            <div className="reg-m-xrow">
+                              {st.class_time && <span className="reg-m-xclass">🕒 {st.class_time}</span>}
+                              {st.class_champion_count > 0 && <span className="reg-m-xchamp">🏆 {st.class_champion_count}</span>}
+                              {studentGroups(st, m).map(g => <span key={g} className={`badge ${g==='KR'?'badge-purple':g==='PTs'?'badge-blue':g==='Leader'?'badge-green':g==='Coach'?'badge-amber':'badge-gray'}`} style={{ fontSize: 10 }}>{g}</span>)}
+                              {!st.class_time && !(st.class_champion_count > 0) && studentGroups(st, m).length === 0 && <span style={{ color: 'var(--text-tertiary)' }}>No groups</span>}
+                            </div>
                           </div>
                         ) : mPage === 3 ? (
                           <div className="reg-m-details reg-m-details-3">
@@ -2368,6 +2421,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                 </>}
                 {visibleCols.includes('att_total') && <th style={{ background: 'var(--bg)', textAlign: 'center' }} title="All-time sessions attended">Total sessions</th>}
                 {visibleCols.includes('att_last') && <th style={{ background: 'var(--bg)', textAlign: 'center' }}>Last attended</th>}
+                {visibleCols.includes('start_date') && <SortTh col="start_date" label="Started" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} style={{ textAlign: 'center' }} />}
                 {visibleCols.includes('att_pct') && <th style={{ background: 'var(--bg)', textAlign: 'center' }} title="Days attended out of days attended + missed (same rules as the attendance calendar)">Attendance %</th>}
                 {(regType === 'kr' || regType === 'krba' || regType === 'allath') && (() => {
                   const inCount = displayStudents.filter(s => s.in_comp).length
@@ -2557,6 +2611,11 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                     {visibleCols.includes('att_last') && (
                       <td style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-secondary)' }}>
                         {attendanceStats[s.id]?.last ? new Date(attendanceStats[s.id].last + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+                      </td>
+                    )}
+                    {visibleCols.includes('start_date') && (
+                      <td style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-secondary)' }}>
+                        {(m?.joined_date || attendanceStats[s.id]?.first) ? new Date((m?.joined_date || attendanceStats[s.id].first) + (String(m?.joined_date || attendanceStats[s.id].first).length === 10 ? 'T12:00:00' : '')).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }) : '–'}
                       </td>
                     )}
                     {visibleCols.includes('att_pct') && (
