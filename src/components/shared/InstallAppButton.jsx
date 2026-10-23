@@ -13,7 +13,7 @@ const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.
 
 export default function InstallAppButton({ compact = false, subtitle }) {
   const [prompt, setPrompt] = useState(() => window.__kcInstallPrompt || null)
-  const [hidden, setHidden] = useState(() => { try { return isStandalone() || knownInstalled() || localStorage.getItem('kc_install_dismissed') === '1' } catch { return isStandalone() } })
+  const [hidden, setHidden] = useState(() => { try { return isStandalone() || knownInstalled() || localStorage.getItem(`kc_install_dismissed_${appKey()}`) === '1' } catch { return isStandalone() } })
   const [help, setHelp] = useState(false)
   useEffect(() => {
     const onPrompt = () => setPrompt(window.__kcInstallPrompt)
@@ -35,7 +35,7 @@ export default function InstallAppButton({ compact = false, subtitle }) {
     }
     setHelp(true) // iPhone, or a browser without the one-tap prompt: show the steps
   }
-  const notNow = () => { try { localStorage.setItem('kc_install_dismissed', '1') } catch { /* */ } setHidden(true) }
+  const notNow = () => { try { localStorage.setItem(`kc_install_dismissed_${appKey()}`, '1') } catch { /* */ } setHidden(true) }
   return (
     <div className="kc-install">
       <button type="button" className="kc-install-btn" onClick={install}>
