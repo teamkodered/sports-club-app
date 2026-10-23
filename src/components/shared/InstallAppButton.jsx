@@ -9,14 +9,19 @@ const markInstalled = () => { try { localStorage.setItem(`kc_installed_${appKey(
 const knownInstalled = () => { try { return localStorage.getItem(`kc_installed_${appKey()}`) === '1' } catch { return false } }
 // opened as the installed app -> remember it, so the browser stops offering the install
 if (typeof window !== 'undefined' && (window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true)) markInstalled()
+// ?install=1 on any page clears the remembered "installed" / "Not now" for that app (e.g. after removing it)
+if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('install') === '1') {
+  try { localStorage.removeItem(`kc_installed_${appKey()}`); localStorage.removeItem(`kc_install_dismissed_${appKey()}`) } catch { /* */ }
+}
+const dismissed = () => { try { return localStorage.getItem(`kc_install_dismissed_${appKey()}`) === '1' } catch { return false } }
 const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
 
 export default function InstallAppButton({ compact = false, subtitle }) {
   const [prompt, setPrompt] = useState(() => window.__kcInstallPrompt || null)
-  const [hidden, setHidden] = useState(() => { try { return isStandalone() || knownInstalled() || localStorage.getItem(`kc_install_dismissed_${appKey()}`) === '1' } catch { return isStandalone() } })
+  const [hidden, setHidden] = useState(() => { if (isStandalone()) return true; if (window.__kcInstallPrompt) return dismissed(); return knownInstalled() || dismissed() })
   const [help, setHelp] = useState(false)
   useEffect(() => {
-    const onPrompt = () => setPrompt(window.__kcInstallPrompt)
+    const onPrompt = () => { setPrompt(window.__kcInstallPrompt); try { localStorage.removeItem(`kc_installed_${appKey()}`) } catch { /* */ } if (!isStandalone() && !dismissed()) setHidden(false) }
     const onInstalled = () => { markInstalled(); setHidden(true) }
     // Chrome can also tell us if this app is already on the phone
     navigator.getInstalledRelatedApps?.().then(list => { if (list?.length) { markInstalled(); setHidden(true) } }).catch(() => {})
