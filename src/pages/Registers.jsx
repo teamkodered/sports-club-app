@@ -373,6 +373,9 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   const [calendarStudent, setCalendarStudent] = useState(null) // student whose attendance calendar popup is open
   // Phone layout (cards) -- same data and functions as the table
   const [mWeightOpen, setMWeightOpen] = useState(null) // phone Extras: last 5 weights slide-down
+  const [regHolidays, setRegHolidays] = useState([]) // for the settings Holiday button
+  const loadRegHolidays = () => supabase.from('holidays').select('id, start_date, end_date, class_id, student_id').is('student_id', null).then(({ data }) => setRegHolidays(data || []), () => {})
+  useEffect(() => { loadRegHolidays() }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const [mPage, setMPage] = useState(0)                 // 0 = Age/Weight/Attend., 1 = Level/Record/Weight trend
   const [mFilter, setMFilter] = useState('all')         // 'all' | 'out' | 'in'
   const [mExpanded, setMExpanded] = useState(null)      // student id opened in place
@@ -1993,7 +1996,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                       // same groups as the computer view (in the same order), A-Z inside each, deductions last
                       const q = pmSearch.trim().toLowerCase()
                       const groups = {}
-                      pointTypes.filter(pt => !q || `${pt.label} ${pt.group || ''}`.toLowerCase().includes(q)).forEach(pt => { const g = pt.group || 'General'; (groups[g] ||= []).push(pt) })
+                      pointTypes.filter(pt => !q || `${pt.label} ${pt.group || ''}`.toLowerCase().includes(q)).forEach(pt => { const g = pt.group && pt.group !== 'Custom' ? pt.group : 'General'; (groups[g] ||= []).push(pt) })
                       return Object.entries(groups).map(([g, list]) => {
                         const items = [...list].sort(reasonOrder)
                         return (
@@ -2015,7 +2018,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           <button type="button" aria-label="More points" onClick={() => setPmNewPts(n => n + 1)}>+</button>
                           <button type="button" className="add" disabled={pmNewPts === 0} onClick={async () => {
                             const label = pmSearch.trim(), pts = pmNewPts
-                            const reason = { label, points: pts, group: 'Custom' }
+                            const reason = { label, points: pts, group: 'General' }
                             if (saveNewReason) {
                               const next = [...pointTypes, reason]
                               const { error } = await supabase.from('settings').update({ value: next }).eq('key', 'point_types')
@@ -2338,6 +2341,29 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                     <button type="button" className="on" onClick={() => setMSettingsOpen(false)}>Phone cards</button>
                     <button type="button" onClick={() => { setMShowTable(true); setMSettingsOpen(false) }}>Table</button>
                   </div>
+                  <div className="reg-m-sheet-label">HOLIDAY</div>
+                  {(() => {
+                    const cls = classFilter && classFilter !== 'all' ? [...todayClasses, ...derbyMooreClasses, ...moorwaysClasses].find(c => c.id === classFilter) : null
+                    const hol = (regHolidays || []).find(h => h.start_date <= date && h.end_date >= date && (cls ? h.class_id === cls.id : (!h.class_id && !h.student_id)))
+                    const label = cls ? `${cls.name} ${cls.start_time?.slice(0, 5) || ''}` : 'the whole club'
+                    const dayTxt = new Date(date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+                    return (
+                      <button type="button" className={`reg-m-holiday${hol ? ' on' : ''}`} onClick={async () => {
+                        if (hol) {
+                          if (!confirm(`Remove the holiday for ${label} on ${dayTxt}?`)) return
+                          const { error } = await supabase.from('holidays').delete().eq('id', hol.id)
+                          if (error) { alert('Could not remove: ' + error.message); return }
+                        } else {
+                          if (!confirm(`Set ${label} on ${dayTxt} as a holiday? It won't count against anyone's attendance.`)) return
+                          const { error } = await supabase.from('holidays').insert({ name: 'Holiday', start_date: date, end_date: date, ...(cls ? { class_id: cls.id } : {}) })
+                          if (error) { alert('Could not save: ' + error.message); return }
+                        }
+                        loadRegHolidays()
+                      }}>
+                        🏖 {hol ? `Holiday set -- ${label}, ${dayTxt} (tap to remove)` : `Set holiday -- ${label}, ${dayTxt}`}
+                      </button>
+                    )
+                  })()}
                   <div className="reg-m-sheet-label">ATTENDANCE STATS RANGE</div>
                   <div className="reg-m-seg">
                     {[['4 weeks', 28], ['3 months', 91], ['All time', null]].map(([l, days]) => {
@@ -2891,7 +2917,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                 const groups = {}
                 const q = pointSearch.trim().toLowerCase()
                 pointTypes.filter(pt => !q || `${pt.label} ${pt.group || ''}`.toLowerCase().includes(q)).forEach(pt => {
-                  const grp = pt.group || 'General'
+                  const grp = pt.group && pt.group !== 'Custom' ? pt.group : 'General' // custom reasons sit in General
                   if (!groups[grp]) groups[grp] = []
                   groups[grp].push(pt)
                 })
