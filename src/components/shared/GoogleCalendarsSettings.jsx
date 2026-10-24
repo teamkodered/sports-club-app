@@ -24,8 +24,14 @@ export default function GoogleCalendarsSettings() {
   async function test(id, url) {
     setTesting({ id, result: 'Checking…' })
     const { data: { session } } = await supabase.auth.getSession()
-    const res = await fetch('/.netlify/functions/calendar-events', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` }, body: JSON.stringify({ test_url: url }) })
-    const r = await res.json().catch(() => ({}))
+    const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), 15000)
+    let r = {}
+    try {
+      const res = await fetch('/.netlify/functions/calendar-events', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` }, body: JSON.stringify({ test_url: url }), signal: ctl.signal })
+      r = await res.json().catch(() => ({ error: res.status === 404 ? "The calendar link isn't live yet — wait for Netlify's deploy to finish, then try again" : `The server answered ${res.status}` }))
+    } catch (e) {
+      r = { error: e.name === 'AbortError' ? 'No answer after 15 seconds — check the address is the "Secret address in iCal format", or try again in a minute' : e.message }
+    } finally { clearTimeout(timer) }
     setTesting({ id, result: r.ok ? `✓ Working — ${r.count} event${r.count === 1 ? '' : 's'} in the next 6 months${r.sample?.length ? `, e.g. "${r.sample[0].title}"` : ''}` : `✗ ${r.error || 'Could not read it'}` })
     return !!r.ok
   }

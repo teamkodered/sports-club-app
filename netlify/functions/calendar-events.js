@@ -12,7 +12,12 @@ async function fetchIcs(url) {
   // Google's iCal addresses are https; "webcal://" is the same address for calendar apps
   const u = String(url || '').trim().replace(/^webcal:\/\//i, 'https://')
   if (!/^https:\/\//i.test(u)) throw new Error('The address must start with https:// (or webcal://)')
-  const res = await fetch(u, { headers: { 'User-Agent': 'KlassChamp/1.0' } })
+  // give Google 8 seconds (Netlify stops functions at 10)
+  const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), 8000)
+  let res
+  try { res = await fetch(u, { headers: { 'User-Agent': 'KlassChamp/1.0' }, signal: ctl.signal }) }
+  catch (e) { throw new Error(e.name === 'AbortError' ? "Google didn't answer in time — check it's the 'Secret address in iCal format'" : 'Could not reach that address') }
+  finally { clearTimeout(timer) }
   if (!res.ok) throw new Error(`The calendar address returned ${res.status}`)
   const text = await res.text()
   if (!/BEGIN:VCALENDAR/.test(text)) throw new Error("That address isn't an iCal calendar (use the 'Secret address in iCal format')")
