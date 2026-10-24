@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import TeamAccess from '../components/shared/TeamAccess.jsx'
+import GoogleCalendarsSettings from '../components/shared/GoogleCalendarsSettings.jsx'
 import { moveAllOldMemberDocs } from '../lib/memberDocs.js'
 import { supabase } from '../lib/supabase.js'
 import { matchesSearch } from '../lib/searchMatch.js'
@@ -442,6 +443,7 @@ export default function Settings() {
         <div style={{ fontSize: 13 }}><b>🔒 Membership documents</b><div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>New uploads are private. Move older ones too, so they can't be opened from a link.</div></div>
         <button className="btn btn-sm btn-primary" disabled={!!docMove} onClick={moveDocs}>{docMove ? `Moving ${docMove.done}/${docMove.total}…` : 'Move older documents to private storage'}</button>
       </div>
+      <GoogleCalendarsSettings />
       <div className="page-header">
         <h1>Settings</h1>
         <p>Configure club details, belt levels, age categories, point types and Fit II Fight options</p>

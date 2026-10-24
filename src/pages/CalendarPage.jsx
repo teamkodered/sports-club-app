@@ -35,6 +35,15 @@ export default function CalendarPage() {
   const [studentSearchResults, setStudentSearchResults] = useState([])
   const [savingHoliday, setSavingHoliday] = useState(false)
   const dragStateRef = useRef({ dragging: false, mode: 'add' }) // mode: whether this drag is adding or removing
+  // Shared Google calendars (read-only) + Month / Week / List views + filters
+  const [view, setView] = useState(() => localStorage.getItem('kc_cal_view') || 'month')
+  useEffect(() => { try { localStorage.setItem('kc_cal_view', view) } catch { /* ignore */ } }, [view])
+  const [weekStart, setWeekStart] = useState(() => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d })
+  const [gEvents, setGEvents] = useState([])
+  const [gFeeds, setGFeeds] = useState([])
+  const [gErrors, setGErrors] = useState([])
+  const [show, setShow] = useState({ sessions: true, holidays: true, fixtures: true, courses: true })
+  const [hiddenFeeds, setHiddenFeeds] = useState(new Set())
 
   useEffect(() => { load() }, [])
 
@@ -53,6 +62,60 @@ export default function CalendarPage() {
   }
 
   const { year, month: m } = month
+  const isoD = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  // the date range on screen -> fetch those Google events
+  const range = (() => {
+    if (view === 'week') { const e = new Date(weekStart); e.setDate(e.getDate() + 6); return [isoD(weekStart), isoD(e)] }
+    if (view === 'list') { const a = new Date(); const b = new Date(); b.setDate(b.getDate() + 90); return [isoD(a), isoD(b)] }
+    const a = new Date(year, m, 1); a.setDate(a.getDate() - 7); const b = new Date(year, m + 1, 0); b.setDate(b.getDate() + 7); return [isoD(a), isoD(b)]
+  })()
+  useEffect(() => {
+    let stop = false
+    ;(async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+      try {
+        const res = await fetch(`/.netlify/functions/calendar-events?from=${range[0]}&to=${range[1]}`, { headers: { Authorization: `Bearer ${session.access_token}` } })
+        const r = await res.json()
+        if (stop) return
+        setGEvents(r.events || []); setGFeeds(r.feeds || []); setGErrors(r.errors || [])
+      } catch { /* calendar still works without Google */ }
+    })()
+    return () => { stop = true }
+  }, [range[0], range[1]])
+  // a Google event's days (all-day events end the day AFTER their last day)
+  function gEventDays(ev) {
+    const s0 = new Date(ev.start), e0 = new Date(ev.end)
+    const first = ev.allDay ? ev.start.slice(0, 10) : isoD(s0)
+    let last = ev.allDay ? (() => { const d = new Date(ev.end.slice(0, 10) + 'T12:00:00'); d.setDate(d.getDate() - 1); return isoD(d) })() : isoD(new Date(e0 - 1))
+    if (last < first) last = first
+    return [first, last]
+  }
+  function gEventsForDate(dateStr) {
+    return gEvents.filter(ev => !hiddenFeeds.has(ev.feedId)).filter(ev => { const [a, b] = gEventDays(ev); return a <= dateStr && b >= dateStr })
+  }
+  const looksClosed = ev => /\b(closed|closure|holiday|holidays|half[ -]?term|no (classes|training|sessions)|bank holiday|christmas|xmas|easter break)\b/i.test(ev.title)
+  const linkedHoliday = ev => holidays.find(h => h.google_event_uid && h.google_event_uid === ev.uid && h.start_date === gEventDays(ev)[0])
+  async function makeClubHoliday(ev) {
+    const [a, b] = gEventDays(ev)
+    const { data, error } = await supabase.from('holidays').insert({ name: ev.title, start_date: a, end_date: b, google_event_uid: ev.uid }).select('*, classes(name)')
+    if (error) return alert('Could not add the holiday: ' + error.message + (/google_event_uid/.test(error.message) ? '\n\n(Has supabase_google_calendars.sql been run?)' : ''))
+    setHolidays(prev => [...(data || []), ...prev])
+  }
+  const fmtT = iso => new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+  const gEventRow = ev => {
+    const linked = linkedHoliday(ev)
+    return (
+      <div key={ev.id} className="gcal-row" style={{ borderLeftColor: ev.colour }}>
+        <div style={{ minWidth: 0 }}>
+          <b>{ev.title}</b>
+          <span>{ev.allDay ? 'All day' : `${fmtT(ev.start)}–${fmtT(ev.end)}`}{ev.location ? ` · ${ev.location}` : ''} · <i style={{ color: ev.colour }}>{ev.feed}</i></span>
+        </div>
+        {linked ? <span className="gcal-linked">🏖 Club holiday ✓</span>
+          : (looksClosed(ev) || ev.allDay) && <button className="btn btn-sm" title="Close the club on these dates (registers and missed training will respect it)" onClick={() => makeClubHoliday(ev)}>🏖 Make club holiday</button>}
+      </div>
+    )
+  }
   const firstDay = new Date(year, m, 1)
   const startWeekday = (firstDay.getDay() + 6) % 7 // Monday-first
   const daysInMonth = new Date(year, m + 1, 0).getDate()
@@ -232,6 +295,9 @@ export default function CalendarPage() {
           <h1>Calendar</h1>
           <p>Sessions, holiday closures, and fixtures all in one place</p>
         </div>
+        <div className="cal-views">
+          {[['month', 'Month'], ['week', 'Week'], ['list', 'List']].map(([k, l]) => <button key={k} type="button" className={view === k ? 'on' : ''} onClick={() => setView(k)}>{l}</button>)}
+        </div>
         {!settingHolidays ? (
           <button className="btn btn-primary" onClick={startSettingHolidays}>🏖️ Set holidays</button>
         ) : (
@@ -239,7 +305,68 @@ export default function CalendarPage() {
         )}
       </div>
 
-      {loading ? <p>Loading…</p> : (
+      <div className="cal-filters">
+        {[['sessions', '● Sessions', '#378ADD'], ['holidays', '🏖 Closed', '#E24B4A'], ['fixtures', '🏆 Fixtures', '#EF9F27'], ['courses', '🎓 Courses', '#8B5CF6']].map(([k, l, c]) => (
+          <button key={k} type="button" className={show[k] ? 'on' : ''} style={show[k] ? { borderColor: c } : undefined} onClick={() => setShow(x => ({ ...x, [k]: !x[k] }))}>{l}</button>
+        ))}
+        {gFeeds.map(f => (
+          <button key={f.id} type="button" className={!hiddenFeeds.has(f.id) ? 'on' : ''} style={!hiddenFeeds.has(f.id) ? { borderColor: f.colour } : undefined}
+            onClick={() => setHiddenFeeds(prev => { const n = new Set(prev); n.has(f.id) ? n.delete(f.id) : n.add(f.id); return n })}>
+            <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 4, background: f.colour, marginRight: 5 }} />{f.name}
+          </button>
+        ))}
+      </div>
+      {gErrors.length > 0 && <div style={{ fontSize: 12, color: '#B45309', margin: '0 0 8px' }}>⚠ Couldn't read: {gErrors.map(e => `${e.feed} (${e.error})`).join('; ')}</div>}
+      {(() => {
+        const pending = gEvents.filter(ev => looksClosed(ev) && !linkedHoliday(ev) && gEventDays(ev)[1] >= isoD(new Date()))
+        return pending.length > 0 && !settingHolidays ? (
+          <div className="card gcal-suggest">
+            <b>🏖 {pending.length} Google event{pending.length === 1 ? '' : 's'} look{pending.length === 1 ? 's' : ''} like club closures</b>
+            {pending.slice(0, 6).map(ev => <div key={ev.id} className="gcal-sugg-row"><span>{ev.title} · {new Date(gEventDays(ev)[0] + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}{gEventDays(ev)[1] !== gEventDays(ev)[0] ? `–${new Date(gEventDays(ev)[1] + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : ''}</span><button className="btn btn-sm" onClick={() => makeClubHoliday(ev)}>Make club holiday</button></div>)}
+          </div>
+        ) : null
+      })()}
+
+      {!loading && view !== 'month' && (() => {
+        // Week / List: each day with everything on it
+        const days = []
+        if (view === 'week') for (let i = 0; i < 7; i++) { const d = new Date(weekStart); d.setDate(d.getDate() + i); days.push(isoD(d)) }
+        else { const d = new Date(); for (let i = 0; i < 90; i++) { days.push(isoD(d)); d.setDate(d.getDate() + 1) } }
+        const rows = days.map(ds => {
+          const hol = show.holidays ? holidayCoveringDate(ds) : null
+          const cls = show.sessions && !hol ? classesForDate(ds) : []
+          const fx = show.fixtures ? fixturesForDate(ds) : []
+          const co = show.courses ? coursesForDate(ds) : []
+          const ge = gEventsForDate(ds)
+          return { ds, hol, cls, fx, co, ge, empty: !hol && !fx.length && !co.length && !ge.length && (view === 'list' || !cls.length) }
+        }).filter(r => view === 'week' || !r.empty)
+        return (
+          <div className="card">
+            {view === 'week' && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <button className="btn btn-sm" onClick={() => setWeekStart(w => { const d = new Date(w); d.setDate(d.getDate() - 7); return d })}>←</button>
+                <h2 style={{ fontSize: 15, fontWeight: 600 }}>Week of {weekStart.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}</h2>
+                <button className="btn btn-sm" onClick={() => setWeekStart(w => { const d = new Date(w); d.setDate(d.getDate() + 7); return d })}>→</button>
+              </div>
+            )}
+            {view === 'list' && <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 10 }}>Coming up — next 90 days</h2>}
+            {!rows.length && <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Nothing coming up.</p>}
+            {rows.map(r => (
+              <div key={r.ds} className="cal-day">
+                <div className="cal-day-h">{new Date(r.ds + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}{r.ds === isoD(new Date()) ? ' · Today' : ''}</div>
+                {r.hol && <div className="cal-item" style={{ borderLeftColor: '#E24B4A' }}>🏖 <b>{r.hol.name}</b> — club closed</div>}
+                {r.cls.length > 0 && <div className="cal-item" style={{ borderLeftColor: '#378ADD' }}>● {r.cls.length} session{r.cls.length === 1 ? '' : 's'}: {r.cls.slice(0, 4).map(c => `${String(c.start_time).slice(0, 5)} ${c.name}`).join(' · ')}{r.cls.length > 4 ? ' …' : ''}</div>}
+                {r.fx.map(f => <div key={f.id} className="cal-item" style={{ borderLeftColor: '#EF9F27' }}>🏆 {f.home_house?.name || ''} v {f.away_house?.name || ''}</div>)}
+                {r.co.map(c => <div key={c.id} className="cal-item" style={{ borderLeftColor: '#8B5CF6' }}>🎓 {c.title}</div>)}
+                {r.ge.map(gEventRow)}
+                {view === 'week' && r.empty && !r.cls.length && <div className="cal-item muted">Nothing on</div>}
+              </div>
+            ))}
+          </div>
+        )
+      })()}
+
+      {loading ? <p>Loading…</p> : view !== 'month' ? null : (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }}>
           <div className="card">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -277,10 +404,13 @@ export default function CalendarPage() {
                       background: isHolidaySelected ? '#EF9F2725' : clubWideHoliday ? '#E24B4A12' : 'var(--bg-secondary)',
                     }}>
                     <span style={{ fontSize: 11, fontWeight: isToday ? 700 : 500 }}>{d}</span>
-                    {!settingHolidays && clubWideHoliday && <span style={{ fontSize: 8 }}>🏖️</span>}
-                    {!settingHolidays && !clubWideHoliday && runningClasses.length > 0 && <span style={{ fontSize: 8, color: '#378ADD' }}>●{runningClasses.length > 1 ? runningClasses.length : ''}</span>}
-                    {!settingHolidays && dayFixtures.length > 0 && <span style={{ fontSize: 8, color: '#EF9F27' }}>🏆</span>}
-                    {!settingHolidays && dayCourses.length > 0 && <span style={{ fontSize: 8, color: '#8B5CF6' }}>🎓</span>}
+                    {!settingHolidays && show.holidays && clubWideHoliday && <span style={{ fontSize: 8 }}>🏖️</span>}
+                    {!settingHolidays && gEventsForDate(dateStr).length > 0 && (
+                      <span className="gcal-dots">{gEventsForDate(dateStr).slice(0, 3).map(ev => <i key={ev.id} style={{ background: ev.colour }} title={ev.title} />)}</span>
+                    )}
+                    {!settingHolidays && show.sessions && !clubWideHoliday && runningClasses.length > 0 && <span style={{ fontSize: 8, color: '#378ADD' }}>●{runningClasses.length > 1 ? runningClasses.length : ''}</span>}
+                    {!settingHolidays && show.fixtures && dayFixtures.length > 0 && <span style={{ fontSize: 8, color: '#EF9F27' }}>🏆</span>}
+                    {!settingHolidays && show.courses && dayCourses.length > 0 && <span style={{ fontSize: 8, color: '#8B5CF6' }}>🎓</span>}
                   </button>
                 )
               })}
@@ -490,6 +620,12 @@ export default function CalendarPage() {
                 </div>
               )}
 
+              {gEventsForDate(selectedDate).length > 0 && (
+                <>
+                  <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, marginTop: 12 }}>📅 Google calendar</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{gEventsForDate(selectedDate).map(gEventRow)}</div>
+                </>
+              )}
               <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, marginTop: 12 }}>Courses</p>
               {selectedCourses.length === 0 ? (
                 <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No courses</p>

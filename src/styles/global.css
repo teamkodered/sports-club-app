@@ -1486,3 +1486,22 @@ input::placeholder, textarea::placeholder { color: var(--text-tertiary); }
 .reg-m-pm .reg-m-pm-picker { max-height: calc(100vh - 170px); max-height: calc(100dvh - 170px); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 /* Dashboard welcome: clear of the phone's ☰ menu button (fixed top-left, 40px) */
 @media (max-width: 767px) { .dash-head { padding-left: 48px; min-height: 40px; } }
+/* Calendar: views, filters, Google events */
+.cal-views { display: inline-flex; border: 1px solid var(--border-strong); border-radius: 10px; overflow: hidden; }
+.cal-views button { border: none; padding: 7px 14px; background: var(--bg); color: var(--text); font-family: inherit; font-size: 13px; cursor: pointer; }
+.cal-views button.on { background: var(--text); color: var(--bg); font-weight: 700; }
+.cal-filters { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 10px; }
+.cal-filters button { padding: 5px 10px; border-radius: 14px; border: 1px solid var(--border-strong); background: var(--bg); color: var(--text-tertiary); font-size: 12px; cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; }
+.cal-filters button.on { color: var(--text); font-weight: 600; background: var(--bg-secondary); border-width: 2px; }
+.gcal-dots { display: flex; gap: 2px; }
+.gcal-dots i { width: 6px; height: 6px; border-radius: 3px; display: block; }
+.gcal-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 10px; border-left: 4px solid; border-radius: var(--radius); background: var(--bg-secondary); font-size: 12px; }
+.gcal-row b { display: block; font-size: 13px; }
+.gcal-row span { color: var(--text-secondary); }
+.gcal-linked { font-size: 11px; font-weight: 700; color: #E24B4A; white-space: nowrap; }
+.gcal-suggest { margin-bottom: 12px; border-left: 3px solid #E24B4A; }
+.gcal-sugg-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid var(--border); font-size: 13px; }
+.cal-day { padding: 8px 0; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 5px; }
+.cal-day-h { font-size: 13px; font-weight: 700; }
+.cal-item { font-size: 12px; padding: 5px 10px; border-left: 4px solid var(--border-strong); border-radius: var(--radius); background: var(--bg-secondary); }
+.cal-item.muted { color: var(--text-tertiary); }
