@@ -14,7 +14,7 @@ const FightFootageUploadContext = createContext(null)
 export function FightFootageUploadProvider({ children }) {
   const [upload, setUpload] = useState(null) // { title, current, total, progress, status: 'uploading'|'processing'|'done'|'error', error }
 
-  const uploadSingleFile = useCallback(async (file, { title, description, accessMode, featuredIds, viewerIds, eventId, folderId, tags, gradeTag }) => {
+  const uploadSingleFile = useCallback(async (file, { title, description, accessMode, featuredIds, viewerIds, eventId, folderId, tags, gradeTag, kind = 'fight' }) => {
     const { data: sessionData } = await supabase.auth.getSession()
     const accessToken = sessionData?.session?.access_token
 
@@ -45,7 +45,9 @@ export function FightFootageUploadProvider({ children }) {
       folder_id: folderId || null,
       tags: tags && tags.length > 0 ? tags : null,
       grade_tag: gradeTag || null,
-      published: false, // sits in the Uploads tab's pending list first -- an explicit "Publish to View IT" action is what makes it show there
+      // fight footage sits in the Uploads tab's pending list first -- an explicit "Publish to View IT" makes it show there.
+      // Study videos (Media > 📚 Study) go straight into the Study list; who sees them is set by access_mode.
+      ...(kind === 'study' ? { kind: 'study', published: true } : { published: false }),
     }).select().single()
     if (insertErr) throw insertErr
 
@@ -53,10 +55,10 @@ export function FightFootageUploadProvider({ children }) {
     return newFootage
   }, [])
 
-  const runUpload = useCallback(async ({ file, title, description, accessMode, featuredIds, viewerIds, eventId, folderId, tags, gradeTag }) => {
+  const runUpload = useCallback(async ({ file, title, description, accessMode, featuredIds, viewerIds, eventId, folderId, tags, gradeTag, kind }) => {
     setUpload({ title, current: 1, total: 1, progress: 0, status: 'uploading', error: null })
     try {
-      const result = await uploadSingleFile(file, { title, description, accessMode, featuredIds, viewerIds, eventId, folderId, tags, gradeTag })
+      const result = await uploadSingleFile(file, { title, description, accessMode, featuredIds, viewerIds, eventId, folderId, tags, gradeTag, kind })
       setUpload(u => u ? { ...u, status: 'done' } : u)
       setTimeout(() => setUpload(u => (u?.status === 'done' ? null : u)), 5000) // auto-clears the "done" banner after a few seconds, but leaves an error banner up until dismissed
       return result

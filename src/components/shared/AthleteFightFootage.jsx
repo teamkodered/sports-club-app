@@ -41,6 +41,8 @@ export default function AthleteFightFootage({ studentId }) {
   }, [studentId])
 
   async function open(item) {
+    // Study links (Media > 📚 Study) open the web page; videos play here as before
+    if (item.link_url) { window.open(item.link_url, '_blank', 'noopener'); return }
     const { data: sessionData } = await supabase.auth.getSession()
     const accessToken = sessionData?.session?.access_token
     const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fight-footage-url`, {
@@ -63,7 +65,7 @@ export default function AthleteFightFootage({ studentId }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {footage.map(item => (
           <div key={item.id} onClick={() => open(item)} style={{ cursor: 'pointer', padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 8 }}>
-            <div style={{ fontSize: 13, fontWeight: 500 }}>▶️ {item.title}</div>
+            <div style={{ fontSize: 13, fontWeight: 500 }}>{item.link_url ? '🔗' : '▶️'} {item.kind === 'study' ? '📚 ' : ''}{item.title}</div>
             <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
               {new Date(item.uploaded_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
             </div>

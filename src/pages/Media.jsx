@@ -7,6 +7,7 @@ import { matchesSearch } from '../lib/searchMatch.js'
 import CctvViewer from './CctvViewer.jsx'
 import Uploads from './Uploads.jsx'
 import ViewIt from './ViewIt.jsx'
+import Study from './Study.jsx'
 import AthleteMedia from '../components/media/AthleteMedia.jsx'
 import { loadCalendarItems } from '../lib/footageEvents.js'
 
@@ -45,14 +46,10 @@ export default function Media() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
 
-  // first level: Athletes (register-style list, each athlete's folders) / Study (CCTV, Uploads, View IT).
-  // Remembers the last one used; starts on Study.
-  const [level, setLevel] = useState(() => { try { return localStorage.getItem('kc_media_level') || 'study' } catch { return 'study' } })
-  const pickLevel = v => { setLevel(v); try { localStorage.setItem('kc_media_level', v) } catch { /* private mode */ } }
-
-  const [tab, setTab] = useState('cctv')
-  // CCTV starts hidden; pressing 📹 CCTV shows it, pressing again hides it
-  const [cctvOpen, setCctvOpen] = useState(false)
+  // One row of tabs -- 👥 Athletes · 📹 CCTV · ⬆️ Uploads · 🥊 View IT · 📚 Study.
+  // All start hidden: press a tab to show it, press it again to hide it.
+  const [openTab, setOpenTab] = useState(null)
+  const toggleTab = t => setOpenTab(cur => (cur === t ? null : t))
 
   useEffect(() => { load() }, [])
   useEffect(() => { loadCalendarItems().then(setCalendarItems).catch(() => setCalendarItems([])) }, [])
@@ -109,7 +106,10 @@ export default function Media() {
     return `${s.members?.first_name || ''} ${s.members?.last_name || ''}`.trim()
   }
 
+  // Study videos / links (kind = 'study') only show in the 📚 Study tab
+  const studyFootage = footage.filter(item => item.kind === 'study')
   const visibleFootage = footage.filter(item => {
+    if (item.kind === 'study') return false
     if (!item.published) return false // sits in the Uploads pending list until explicitly published
     if (filterEventId && item.event_id !== filterEventId) return false
     if (filterFolderId && item.folder_id !== filterFolderId) return false
@@ -123,7 +123,7 @@ export default function Media() {
     return true
   })
 
-  const pendingFootage = footage.filter(item => !item.published)
+  const pendingFootage = footage.filter(item => !item.published && item.kind !== 'study')
 
   const hasAnyFilter = filterEventId || filterFolderId || filterStudentId || filterTag || filterGrade || filterEventType || searchText || dateFrom || dateTo
   function clearFilters() {
@@ -147,24 +147,19 @@ export default function Media() {
         <p>CCTV footage and coach-shared fight/sparring video, all in one place</p>
       </div>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-        <button className={level === 'athletes' ? 'btn btn-primary' : 'btn'} onClick={() => pickLevel('athletes')}>👥 Athletes</button>
-        <button className={level === 'study' ? 'btn btn-primary' : 'btn'} onClick={() => pickLevel('study')}>📚 Study</button>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        <button className={openTab === 'athletes' ? 'btn btn-primary' : 'btn'} onClick={() => toggleTab('athletes')}>👥 Athletes {openTab === 'athletes' ? '▾' : '▸'}</button>
+        <button className={openTab === 'cctv' ? 'btn btn-primary' : 'btn'} onClick={() => toggleTab('cctv')}>📹 CCTV {openTab === 'cctv' ? '▾' : '▸'}</button>
+        <button className={openTab === 'uploads' ? 'btn btn-primary' : 'btn'} onClick={() => toggleTab('uploads')}>⬆️ Uploads {openTab === 'uploads' ? '▾' : '▸'}</button>
+        <button className={openTab === 'view-it' ? 'btn btn-primary' : 'btn'} onClick={() => toggleTab('view-it')}>🥊 View IT {openTab === 'view-it' ? '▾' : '▸'}</button>
+        <button className={openTab === 'study' ? 'btn btn-primary' : 'btn'} onClick={() => toggleTab('study')}>📚 Study {openTab === 'study' ? '▾' : '▸'}</button>
       </div>
 
-      {level === 'athletes' && <AthleteMedia students={students} />}
-
-      {level === 'study' && <>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <button className={tab === 'cctv' && cctvOpen ? 'btn btn-primary' : 'btn'} onClick={() => { if (tab === 'cctv') setCctvOpen(v => !v); else { setTab('cctv'); setCctvOpen(true) } }}>📹 CCTV {tab === 'cctv' ? (cctvOpen ? '▾' : '▸') : ''}</button>
-        <button className={tab === 'uploads' ? 'btn btn-primary' : 'btn'} onClick={() => setTab('uploads')}>⬆️ Uploads</button>
-        <button className={tab === 'view-it' ? 'btn btn-primary' : 'btn'} onClick={() => setTab('view-it')}>🥊 View IT</button>
-      </div>
-
-      {tab === 'cctv' && cctvOpen && <CctvViewer embedded />}
-      {tab === 'uploads' && <Uploads {...sharedProps} />}
-      {tab === 'view-it' && <ViewIt embedded {...sharedProps} />}
-      </>}
+      {openTab === 'athletes' && <AthleteMedia students={students} />}
+      {openTab === 'cctv' && <CctvViewer embedded />}
+      {openTab === 'uploads' && <Uploads {...sharedProps} />}
+      {openTab === 'view-it' && <ViewIt embedded {...sharedProps} />}
+      {openTab === 'study' && <Study studyFootage={studyFootage} students={students} studentName={studentName} load={load} startUpload={startUpload} />}
     </div>
   )
 }

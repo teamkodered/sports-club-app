@@ -70,8 +70,8 @@ function AthleteFolders({ student }) {
   const [playing, setPlaying] = useState(null)
   const [viewer, setViewer] = useState(null)
   useEffect(() => {
-    supabase.from('fight_footage_featured').select('fight_footage(id, title, created_at, storage_path, published)').eq('student_id', student.id)
-      .then(({ data }) => setFights((data || []).map(r => r.fight_footage).filter(Boolean).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))), () => setFights([]))
+    supabase.from('fight_footage_featured').select('fight_footage(*)').eq('student_id', student.id)
+      .then(({ data }) => setFights((data || []).map(r => r.fight_footage).filter(f => f && f.kind !== 'study').sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))), () => setFights([]))
     supabase.from('opponent_notes').select('*').eq('student_id', student.id).order('created_at', { ascending: false })
       .then(({ data }) => setOpps(data || []), () => setOpps([]))
     supabase.from('athlete_profiles').select('media_files').eq('student_id', student.id).maybeSingle()
