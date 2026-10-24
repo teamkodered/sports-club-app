@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { wall } from '../components/shared/SessionFootage.jsx'
 import { supabase } from '../lib/supabase.js'
 import FightFootagePlayer from '../components/shared/FightFootagePlayer.jsx'
@@ -34,6 +34,9 @@ export default function CctvViewer({ embedded = false }) {
   const [clips, setClips] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedClip, setSelectedClip] = useState(null)
+  const panelRef = useRef(null)
+  // the clip panel sits above the list, so bring it into view when a clip is opened
+  useEffect(() => { if (selectedClip) panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }, [selectedClip?.id])
   const [showPlayer, setShowPlayer] = useState(false)
   const [playbackUrl, setPlaybackUrl] = useState(null)
   const [playbackLoading, setPlaybackLoading] = useState(false)
@@ -315,7 +318,8 @@ export default function CctvViewer({ embedded = false }) {
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: selectedClip ? '1fr 1fr' : '1fr', gap: 20 }}>
+      {/* One column: the open clip's panel sits first (right under the buttons + filters), the day boxes below it */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
         <div>
           {loading ? (
             <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Loading…</p>
@@ -370,7 +374,7 @@ export default function CctvViewer({ embedded = false }) {
         </div>
 
         {selectedClip && (
-          <div>
+          <div ref={panelRef} style={{ order: -1, scrollMarginTop: 12 }}>
             <div className="card" style={{ padding: 16, marginBottom: 12 }}>
               {playbackLoading ? (
                 <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Preparing playback…</p>
