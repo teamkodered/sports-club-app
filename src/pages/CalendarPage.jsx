@@ -430,29 +430,42 @@ export default function CalendarPage() {
                     onMouseDown={() => settingHolidays ? handleMouseDown(dateStr) : null}
                     onMouseEnter={() => settingHolidays ? handleMouseEnter(dateStr) : null}
                     onClick={() => { if (!settingHolidays) setSelectedDate(isSelected ? null : dateStr) }}
+                    className="cal-cell"
                     style={{
-                      aspectRatio: '0.85', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start',
-                      padding: '6px 2px', borderRadius: 6, cursor: 'pointer', fontFamily: 'var(--font-sans)', gap: 2,
+                      display: 'flex', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'flex-start',
+                      padding: '4px 3px', borderRadius: 6, cursor: 'pointer', fontFamily: 'var(--font-sans)', gap: 2, minWidth: 0,
                       border: isHolidaySelected ? '2px solid #EF9F27' : isSelected ? '2px solid var(--text)' : isToday ? '2px solid #378ADD' : '1px solid var(--border)',
                       background: isHolidaySelected ? '#EF9F2725' : clubWideHoliday ? '#E24B4A12' : 'var(--bg-secondary)',
                     }}>
-                    <span style={{ fontSize: 11, fontWeight: isToday ? 700 : 500 }}>{d}</span>
-                    {!settingHolidays && show.holidays && clubWideHoliday && <span style={{ fontSize: 8 }}>🏖️</span>}
-                    {!settingHolidays && gEventsForDate(dateStr).length > 0 && (
-                      <span className="gcal-dots">{gEventsForDate(dateStr).slice(0, 3).map(ev => <i key={ev.id} style={{ background: ev.colour }} title={ev.title} />)}</span>
-                    )}
-                    {!settingHolidays && show.sessions && !clubWideHoliday && runningClasses.length > 0 && <span style={{ fontSize: 8, color: '#378ADD' }}>●{runningClasses.length > 1 ? runningClasses.length : ''}</span>}
-                    {!settingHolidays && show.fixtures && dayFixtures.length > 0 && <span style={{ fontSize: 8, color: '#EF9F27' }}>🏆</span>}
-                    {!settingHolidays && show.courses && dayCourses.length > 0 && <span style={{ fontSize: 8, color: '#8B5CF6' }}>🎓</span>}
+                    <span className={`cal-num${isToday ? ' today' : ''}`}>{d}</span>
+                    {!settingHolidays && (() => {
+                      // Google Calendar style: a coloured bar with a short description for each entry
+                      const bars = []
+                      if (show.holidays && clubWideHoliday) bars.push({ k: 'h', t: clubWideHoliday.name || 'Closed', c: '#E24B4A' })
+                      if (show.fixtures) dayFixtures.forEach(f => bars.push({ k: 'f' + f.id, t: eventTitle(f), c: '#EF9F27' }))
+                      gEventsForDate(dateStr).forEach(ev => bars.push({ k: ev.id, t: ev.allDay ? ev.title : `${fmtT(ev.start).replace(':00', '')} ${ev.title}`, c: ev.colour }))
+                      if (show.courses) dayCourses.forEach(c => bars.push({ k: 'c' + c.id, t: c.title, c: '#8B5CF6' }))
+                      if (show.sessions && !clubWideHoliday && runningClasses.length) bars.push({ k: 's', t: `${runningClasses.length} session${runningClasses.length === 1 ? '' : 's'}`, c: '#378ADD', light: true })
+                      const max = 3, extra = bars.length - max
+                      return (
+                        <>
+                          {bars.slice(0, extra > 0 ? max - 1 : max).map(b => (
+                            <span key={b.k} className={`cal-bar${b.light ? ' light' : ''}`} style={b.light ? { color: b.c, borderColor: b.c + '66' } : { background: b.c }} title={b.t}>{b.t}</span>
+                          ))}
+                          {extra > 0 && <span className="cal-more">+{extra + 1} more</span>}
+                        </>
+                      )
+                    })()}
                   </button>
                 )
               })}
             </div>
             <div style={{ display: 'flex', gap: 14, marginTop: 12, fontSize: 11, color: 'var(--text-secondary)' }}>
-              <span>● Session(s)</span>
-              <span>🏖️ Closed</span>
-              <span>🏆 Fixture</span>
-              <span>🎓 Course</span>
+              <span><i className="cal-key" style={{ background: '#E24B4A' }} />Closed</span>
+              <span><i className="cal-key" style={{ background: '#EF9F27' }} />Event</span>
+              <span><i className="cal-key" style={{ background: '#8B5CF6' }} />Course</span>
+              <span><i className="cal-key" style={{ border: '1px solid #378ADD' }} />Sessions</span>
+              <span>Google calendars in their own colours</span>
             </div>
           </div>
 

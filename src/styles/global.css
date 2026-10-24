@@ -1530,3 +1530,16 @@ input::placeholder, textarea::placeholder { color: var(--text-tertiary); }
 .ev-pick-list button.on span { color: #1D9E75; }
 .ev-pick-list button em { margin-left: auto; font-style: normal; font-size: 10px; font-weight: 700; color: var(--text-tertiary); }
 .ev-team { align-self: flex-start; font-size: 10px; font-weight: 800; letter-spacing: .5px; padding: 1px 7px; border-radius: 8px; background: #E24B4A18; color: #E24B4A; }
+/* Calendar month grid: Google Calendar-style bars */
+.cal-cell { min-height: 92px; text-align: left; overflow: hidden; }
+.cal-num { font-size: 12px; font-weight: 500; align-self: center; width: 22px; height: 22px; line-height: 22px; text-align: center; border-radius: 11px; margin-bottom: 1px; }
+.cal-num.today { background: #378ADD; color: #fff; font-weight: 700; }
+.cal-bar { display: block; font-size: 10.5px; line-height: 15px; padding: 0 5px; border-radius: 4px; color: #fff; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-bar.light { background: transparent; border: 1px solid; font-weight: 500; }
+.cal-more { font-size: 10px; color: var(--text-secondary); padding: 0 4px; font-weight: 600; }
+@media (max-width: 640px) {
+  .cal-cell { min-height: 74px; padding: 3px 1px !important; }
+  .cal-bar { font-size: 9px; line-height: 13px; padding: 0 3px; border-radius: 3px; }
+  .cal-num { font-size: 11px; width: 20px; height: 20px; line-height: 20px; }
+}
+.cal-key { display: inline-block; width: 12px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
