@@ -286,15 +286,6 @@ export default function Dashboard() {
         })()}
       </div>
 
-      {/* Current focus + Format (side by side; stacked on a phone) */}
-      {/* PKA + KR coaches: the original focus / format. KRBA coaches: KRBA's own. Admins: both. */}
-      {(() => {
-        const grp = String(profile?.access?.group || '')
-        const krbaCoach = /krba/i.test(grp)
-        if (isAdmin) return <><FocusAndFormat team="pka" label="PKA / KR" /><FocusAndFormat team="krba" label="KRBA" /></>
-        return krbaCoach ? <FocusAndFormat team="krba" /> : <FocusAndFormat team="pka" />
-      })()}
-
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
         {/* House standings */}
         <div className="card" style={{ padding: 0 }}>
@@ -353,6 +344,15 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Current focus + Format (side by side; stacked on a phone) */}
+      {/* PKA + KR coaches: the original focus / format. KRBA coaches: KRBA's own. Admins: both. */}
+      {(() => {
+        const grp = String(profile?.access?.group || '')
+        const krbaCoach = /krba/i.test(grp)
+        if (isAdmin) return <><FocusAndFormat team="pka" label="PKA / KR" /><FocusAndFormat team="krba" label="KRBA" /></>
+        return krbaCoach ? <FocusAndFormat team="krba" /> : <FocusAndFormat team="pka" />
+      })()}
+
       {/* Quick links */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginBottom: 14 }}>
         {[
@@ -380,6 +380,26 @@ export default function Dashboard() {
             <span style={{ fontSize: 12, fontWeight: 500, color: l.colour }}>{l.label}</span>
           </button>
         ) : (
+          <Link key={l.label} to={l.to} style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+            padding: '14px 8px', background: l.colour + '12',
+            border: `1px solid ${l.colour}30`, borderRadius: 'var(--border-radius-lg)',
+            textDecoration: 'none',
+          }}>
+            <span style={{ fontSize: 24 }}>{l.icon}</span>
+            <span style={{ fontSize: 12, fontWeight: 500, color: l.colour }}>{l.label}</span>
+          </Link>
+        ))}
+      </div>
+
+      {/* More shortcuts (same as the side menu): under My App / Add Points / Fixtures / Coaching tools */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, margin: '14px 0' }}>
+        {[
+          { label: 'Calendar', icon: '📆', to: '/calendar', colour: '#378ADD', page: 'calendar' },
+          { label: 'CRM',      icon: '💳', to: '/crm',      colour: '#1D9E75', page: 'crm' },
+          { label: 'Media',    icon: '🎬', to: '/media',    colour: '#E24B4A', page: 'media' },
+          ...(isAdmin ? [{ label: 'Settings', icon: '⚙️', to: '/settings', colour: '#64748B' }] : []),
+        ].filter(l => !l.page || pageAccess(l.page) !== 'none').map(l => (
           <Link key={l.label} to={l.to} style={{
             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
             padding: '14px 8px', background: l.colour + '12',
@@ -432,26 +452,6 @@ export default function Dashboard() {
           </div>
         </div>
       )}
-
-      {/* More shortcuts (same as the side menu): under the recent points */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, margin: '14px 0' }}>
-        {[
-          { label: 'Calendar', icon: '📆', to: '/calendar', colour: '#378ADD', page: 'calendar' },
-          { label: 'CRM',      icon: '💳', to: '/crm',      colour: '#1D9E75', page: 'crm' },
-          { label: 'Media',    icon: '🎬', to: '/media',    colour: '#E24B4A', page: 'media' },
-          ...(isAdmin ? [{ label: 'Settings', icon: '⚙️', to: '/settings', colour: '#64748B' }] : []),
-        ].filter(l => !l.page || pageAccess(l.page) !== 'none').map(l => (
-          <Link key={l.label} to={l.to} style={{
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-            padding: '14px 8px', background: l.colour + '12',
-            border: `1px solid ${l.colour}30`, borderRadius: 'var(--border-radius-lg)',
-            textDecoration: 'none',
-          }}>
-            <span style={{ fontSize: 24 }}>{l.icon}</span>
-            <span style={{ fontSize: 12, fontWeight: 500, color: l.colour }}>{l.label}</span>
-          </Link>
-        ))}
-      </div>
 
       {/* Add Points quick scorer */}
       {showAddPoints && (
