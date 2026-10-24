@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
+import EventsStrip, { eventTitle } from '../components/shared/EventsStrip.jsx'
+import { useAuth } from '../hooks/useAuth.jsx'
 import { supabase } from '../lib/supabase.js'
 
 const DAY_TO_JS_DAYS = {
@@ -14,6 +16,7 @@ function toDateStr(d) { return d.toISOString().split('T')[0] }
 // as the athlete app's own calendar, so what a coach sees here always
 // stays consistent with what an athlete sees on their own profile.
 export default function CalendarPage() {
+  const { isAdmin } = useAuth()
   const [classes, setClasses] = useState([])
   const [holidays, setHolidays] = useState([])
   const [fixtures, setFixtures] = useState([])
@@ -134,7 +137,7 @@ export default function CalendarPage() {
     return holidays.find(h => !h.class_id && !h.student_id && h.start_date <= dateStr && h.end_date >= dateStr)
   }
   function fixturesForDate(dateStr) {
-    return fixtures.filter(f => f.date === dateStr)
+    return fixtures.filter(f => f.date <= dateStr && (f.end_date || f.date) >= dateStr)
   }
   function coursesForDate(dateStr) {
     return courses.filter(c => c.start_date <= dateStr && (c.end_date || c.start_date) >= dateStr)
@@ -293,7 +296,7 @@ export default function CalendarPage() {
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 10 }}>
         <div>
           <h1>Calendar</h1>
-          <p>Sessions, holiday closures, and fixtures all in one place</p>
+          <p>Sessions, holidays, events and your Google calendars in one place</p>
         </div>
         <div className="cal-views">
           {[['month', 'Month'], ['week', 'Week'], ['list', 'List']].map(([k, l]) => <button key={k} type="button" className={view === k ? 'on' : ''} onClick={() => setView(k)}>{l}</button>)}
@@ -306,7 +309,7 @@ export default function CalendarPage() {
       </div>
 
       <div className="cal-filters">
-        {[['sessions', '● Sessions', '#378ADD'], ['holidays', '🏖 Closed', '#E24B4A'], ['fixtures', '🏆 Fixtures', '#EF9F27'], ['courses', '🎓 Courses', '#8B5CF6']].map(([k, l, c]) => (
+        {[['sessions', '● Sessions', '#378ADD'], ['holidays', '🏖 Closed', '#E24B4A'], ['fixtures', '🏆 Events', '#EF9F27'], ['courses', '🎓 Courses', '#8B5CF6']].map(([k, l, c]) => (
           <button key={k} type="button" className={show[k] ? 'on' : ''} style={show[k] ? { borderColor: c } : undefined} onClick={() => setShow(x => ({ ...x, [k]: !x[k] }))}>{l}</button>
         ))}
         {gFeeds.map(f => (
@@ -316,6 +319,7 @@ export default function CalendarPage() {
           </button>
         ))}
       </div>
+      {!loading && <EventsStrip fixtures={fixtures} canEdit={isAdmin} onChanged={load} />}
       {gErrors.length > 0 && <div style={{ fontSize: 12, color: '#B45309', margin: '0 0 8px' }}>⚠ Couldn't read: {gErrors.map(e => `${e.feed} (${e.error})`).join('; ')}</div>}
       {(() => {
         const pending = gEvents.filter(ev => looksClosed(ev) && !linkedHoliday(ev) && gEventDays(ev)[1] >= isoD(new Date()))
@@ -356,7 +360,7 @@ export default function CalendarPage() {
                 <div className="cal-day-h">{new Date(r.ds + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}{r.ds === isoD(new Date()) ? ' · Today' : ''}</div>
                 {r.hol && <div className="cal-item" style={{ borderLeftColor: '#E24B4A' }}>🏖 <b>{r.hol.name}</b> — club closed</div>}
                 {r.cls.length > 0 && <div className="cal-item" style={{ borderLeftColor: '#378ADD' }}>● {r.cls.length} session{r.cls.length === 1 ? '' : 's'}: {r.cls.slice(0, 4).map(c => `${String(c.start_time).slice(0, 5)} ${c.name}`).join(' · ')}{r.cls.length > 4 ? ' …' : ''}</div>}
-                {r.fx.map(f => <div key={f.id} className="cal-item" style={{ borderLeftColor: '#EF9F27' }}>🏆 {f.home_house?.name || ''} v {f.away_house?.name || ''}</div>)}
+                {r.fx.map(f => <div key={f.id} className="cal-item" style={{ borderLeftColor: '#EF9F27' }}>🏆 {eventTitle(f)}{f.venue ? ` · ${f.venue}` : ''}</div>)}
                 {r.co.map(c => <div key={c.id} className="cal-item" style={{ borderLeftColor: '#8B5CF6' }}>🎓 {c.title}</div>)}
                 {r.ge.map(gEventRow)}
                 {view === 'week' && r.empty && !r.cls.length && <div className="cal-item muted">Nothing on</div>}
@@ -607,12 +611,12 @@ export default function CalendarPage() {
 
               <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Fixtures</p>
               {selectedFixtures.length === 0 ? (
-                <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No fixtures</p>
+                <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No events</p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {selectedFixtures.map(f => (
                     <div key={f.id} style={{ padding: '6px 10px', background: '#EF9F2712', borderRadius: 'var(--radius)' }}>
-                      <span style={{ fontSize: 12, fontWeight: 600 }}>{f.home_house?.name} vs {f.away_house?.name}</span>
+                      <span style={{ fontSize: 12, fontWeight: 600 }}>🏆 {eventTitle(f)}</span>
                       {f.venue && <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{f.venue}</div>}
                       {f.status === 'completed' && <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{f.home_score} – {f.away_score}</div>}
                     </div>

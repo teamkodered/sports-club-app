@@ -1505,3 +1505,27 @@ input::placeholder, textarea::placeholder { color: var(--text-tertiary); }
 .cal-day-h { font-size: 13px; font-weight: 700; }
 .cal-item { font-size: 12px; padding: 5px 10px; border-left: 4px solid var(--border-strong); border-radius: var(--radius); background: var(--bg-secondary); }
 .cal-item.muted { color: var(--text-tertiary); }
+/* Calendar: events strip */
+.ev-strip-wrap { margin: 0 0 12px; }
+.ev-strip-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 14px; }
+.ev-strip { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; scroll-snap-type: x proximity; }
+.ev-card { all: unset; box-sizing: border-box; flex: 0 0 210px; scroll-snap-align: start; display: flex; flex-direction: column; gap: 4px; padding: 12px; border-radius: 12px; background: var(--bg); border: 1px solid var(--border-strong); border-top: 4px solid #EF9F27; cursor: pointer; }
+.ev-card.now { border-top-color: #1D9E75; background: #1D9E750F; }
+.ev-card b { font-size: 14px; line-height: 1.25; }
+.ev-date { font-size: 11px; font-weight: 700; letter-spacing: .4px; color: #B45309; text-transform: uppercase; }
+.ev-card.now .ev-date { color: #1D9E75; }
+.ev-venue, .ev-count { font-size: 12px; color: var(--text-secondary); }
+.ev-empty { font-size: 12px; color: var(--text-tertiary); padding: 8px 2px; }
+.ev-form { display: flex; flex-direction: column; gap: 8px; }
+.ev-form label { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--text-secondary); flex: 1; }
+.ev-form input, .ev-form textarea, .ev-picker input { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--bg-secondary); color: var(--text); font-size: 14px; font-family: inherit; box-sizing: border-box; width: 100%; }
+.ev-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.ev-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 6px 4px 10px; border-radius: 14px; background: #EF9F2718; border: 1px solid #EF9F2755; font-size: 13px; }
+.ev-chip button { border: none; background: none; color: var(--text-tertiary); font-size: 15px; cursor: pointer; padding: 0 4px; }
+.ev-picker { margin-top: 8px; border: 1px solid var(--border); border-radius: 10px; padding: 8px; }
+.ev-pick-list { max-height: 38vh; overflow-y: auto; margin-top: 6px; display: flex; flex-direction: column; }
+.ev-pick-list button { display: flex; align-items: center; gap: 8px; text-align: left; padding: 8px 6px; border: none; border-bottom: 1px solid var(--border); background: none; color: var(--text); font-size: 14px; cursor: pointer; font-family: inherit; }
+.ev-pick-list button span { width: 18px; font-weight: 800; color: #378ADD; }
+.ev-pick-list button.on { background: #1D9E7514; }
+.ev-pick-list button.on span { color: #1D9E75; }
+.ev-pick-list button em { margin-left: auto; font-style: normal; font-size: 10px; font-weight: 700; color: var(--text-tertiary); }

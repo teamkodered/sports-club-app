@@ -154,7 +154,7 @@ function App() {
             <Route path="registers"       element={<ProtectedRoute page="registers"><Registers /></ProtectedRoute>} />
             <Route path="students"        element={<ProtectedRoute page="students"><StudentDatabase /></ProtectedRoute>} />
             <Route path="members"         element={<ProtectedRoute staffOnly><Members /></ProtectedRoute>} />
-            <Route path="fixtures"        element={<ProtectedRoute page="fixtures"><Fixtures /></ProtectedRoute>} />
+            <Route path="fixtures"        element={<Navigate to="/calendar" replace />} />
             <Route path="coaching-tools"  element={<ProtectedRoute staffOnly><CoachingTools /></ProtectedRoute>} />
             <Route path="calendar"        element={<ProtectedRoute page="calendar"><CalendarPage /></ProtectedRoute>} />
             <Route path="crm"             element={<ProtectedRoute page="crm"><CRM /></ProtectedRoute>} />

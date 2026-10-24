@@ -110,7 +110,6 @@ export default function Layout() {
     { to: '/calendar',       icon: '📆', label: 'Calendar',          page: 'calendar' },
     { to: '/crm',            icon: '💳', label: 'CRM',               page: 'crm' },
     { to: '/students',       icon: '🎽', label: 'Students',           page: 'students' },
-    { to: '/fixtures',       icon: '📅', label: 'Fixtures',           page: 'fixtures' },
     { to: '/athlete-app',    icon: '🎽', label: 'My app' },
     { to: '/athletes',       icon: '🏅', label: 'Athlete profiles',   page: 'athletes' },
     { to: '/media',          icon: '🎬', label: 'Media',              page: 'media' },

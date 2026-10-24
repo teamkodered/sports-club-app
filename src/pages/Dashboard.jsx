@@ -362,7 +362,7 @@ export default function Dashboard() {
           { label: 'Trackers',   icon: '📈', to: '/trackers',   colour: '#E24B4A' },
           { label: 'My App',     icon: '🎽', to: '/athlete-app', colour: '#8B5CF6' },
           { label: 'Add Points', icon: '⭐', to: null, action: 'addPoints', colour: '#EC4899' },
-          { label: 'Fixtures',   icon: '📅', to: '/fixtures',   colour: '#06B6D4' },
+          { label: 'Events',     icon: '🏆', to: '/calendar',   colour: '#06B6D4' },
           { label: 'Coaching tools', icon: '🧰', to: '/coaching-tools', colour: '#64748B' },
         ].filter(l => {
           // only show shortcuts to pages this person can open (e.g. a Head Coach)
