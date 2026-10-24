@@ -281,7 +281,8 @@ export default function CctvViewer({ embedded = false }) {
     : clips
 
   return (
-    <div style={{ padding: embedded ? 0 : 20, maxWidth: 1100, margin: '0 auto' }}>
+    // embedded in Media: left-aligned under the tab buttons (centring pushed it across on wide screens)
+    <div style={{ padding: embedded ? 0 : 20, maxWidth: 1100, margin: embedded ? 0 : '0 auto' }}>
       {!embedded && (
         <>
           <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 4 }}>📹 CCTV</h1>
@@ -340,7 +341,7 @@ export default function CctvViewer({ embedded = false }) {
                   return (
                     <div key={day} style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 10 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>{fmtDayHead(day)} <span style={{ fontWeight: 400, color: 'var(--text-tertiary)', fontSize: 11 }}>· {dayClips.length} clip{dayClips.length === 1 ? '' : 's'}</span></div>
-                      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.max(1, cols.length)}, minmax(0, 1fr))`, gap: 6 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.max(1, cols.length)}, minmax(0, 150px))`, gap: 8 }}>
                         {cols.map(cam => (
                           <div key={cam.key} style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
                             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textAlign: 'center' }}>{cam.label}</div>
