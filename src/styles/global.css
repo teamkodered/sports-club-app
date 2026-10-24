@@ -1484,3 +1484,5 @@ input::placeholder, textarea::placeholder { color: var(--text-tertiary); }
 .reg-m-holiday.on { border-color: #EF9F27; background: rgba(239,159,39,0.15); }
 /* Points: the reason list scrolls inside the panel (no more page scrolling behind it / getting stuck) */
 .reg-m-pm .reg-m-pm-picker { max-height: calc(100vh - 170px); max-height: calc(100dvh - 170px); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+/* Dashboard welcome: clear of the phone's ☰ menu button (fixed top-left, 40px) */
+@media (max-width: 767px) { .dash-head { padding-left: 48px; min-height: 40px; } }

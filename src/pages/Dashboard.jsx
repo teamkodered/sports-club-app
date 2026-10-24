@@ -232,8 +232,8 @@ export default function Dashboard() {
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ marginBottom: 20 }}>
+      {/* Header (shifted right on phones so the ☰ menu button doesn't cover it) */}
+      <div className="dash-head" style={{ marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700 }}>
           Welcome back{profile?.first_name ? `, ${profile.first_name}` : ''} 👋
         </h1>
