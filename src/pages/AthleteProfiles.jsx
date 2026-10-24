@@ -11284,20 +11284,23 @@ export default function AthleteProfiles() {
                     </div>
                     <div className="field-row">
                       {(() => {
-                        // official weights for their division (boxing for KRBA athletes, kickboxing otherwise) + sex
-                        const div = selected?.discipline === 'KRBA' ? (editForm.age_division_boxing || editForm.age_division_kickboxing) : (editForm.age_division_kickboxing || editForm.age_division_boxing)
+                        // KR = kickboxing (WAKO) weights, KRBA = boxing (England Boxing) weights; in both teams -> both lists
+                        const g = divisionsForAge(selected?.members?.date_of_birth)
+                        const boxer = selected?.discipline === 'KRBA', kicker = !!selected?.is_kr || selected?.discipline !== 'KRBA'
+                        const kbDiv = editForm.age_division_kickboxing || g.kickboxing?.label, bxDiv = editForm.age_division_boxing || g.boxing?.label
+                        const div = boxer && !kicker ? bxDiv : kbDiv
                         const sex = selected?.gender === 'M' || selected?.gender === 'F' ? selected.gender : null
-                        const opts = weightsFor(div, sex)
+                        const opts = [...(kicker ? weightsFor(kbDiv, sex) : []), ...(boxer ? weightsFor(bxDiv, sex) : [])]
                         const sugg = suggestDivision(selected?.weight_kg, div, sex)
-                        const off = !editForm.weight_division || !opts.length || isOfficial(editForm.weight_division, div, sex)
+                        const off = !editForm.weight_division || !opts.length || isOfficial(editForm.weight_division, kbDiv, sex) || isOfficial(editForm.weight_division, bxDiv, sex)
                         return (
-                          <div className="field"><label>Weight division{div ? ` — ${div}${sex ? ` ${sex === 'M' ? 'male' : 'female'}` : ''}` : ''}</label>
+                          <div className="field"><label>Weight division{kicker && boxer ? ' — KR kickboxing + KRBA boxing' : boxer ? ` — KRBA boxing${bxDiv ? `, ${bxDiv}` : ''}` : ` — KR kickboxing${kbDiv ? `, ${kbDiv}` : ''}`}{sex ? ` (${sex === 'M' ? 'male' : 'female'})` : ''}</label>
                             <input list="wd-official" value={editForm.weight_division} onChange={e => setEditForm(f => ({ ...f, weight_division: e.target.value }))} placeholder={opts.length ? 'Pick from the list…' : 'Choose an age division first'} />
                             <datalist id="wd-official">{opts.map(o => <option key={o} value={o} />)}</datalist>
                             {sugg && sugg !== editForm.weight_division && (
                               <button type="button" className="btn btn-sm" style={{ marginTop: 4 }} onClick={() => setEditForm(f => ({ ...f, weight_division: sugg }))}>Use {sugg} (from {selected.weight_kg}kg)</button>
                             )}
-                            {!off && <div style={{ fontSize: 11, color: '#B45309', marginTop: 3 }}>⚠ Not an official {div} weight</div>}
+                            {!off && <div style={{ fontSize: 11, color: '#B45309', marginTop: 3 }}>⚠ Not an official {boxer && !kicker ? 'boxing' : 'kickboxing'} weight for {div || 'this division'}{kicker && boxer ? ' (or boxing)' : ''}</div>}
                           </div>
                         )
                       })()}
@@ -13317,11 +13320,11 @@ export default function AthleteProfiles() {
             )}
 
             {selected && (() => {
-              const div = selected.discipline === 'KRBA' ? (apData?.age_division_boxing || apData?.age_division_kickboxing) : (apData?.age_division_kickboxing || apData?.age_division_boxing)
               const g = divisionsForAge(selected.members?.date_of_birth)
-              const d = div || (selected.discipline === 'KRBA' ? g.boxing?.label : g.kickboxing?.label)
+              const boxer = selected.discipline === 'KRBA', kicker = !!selected.is_kr || selected.discipline !== 'KRBA'
               const sex = selected.gender === 'M' || selected.gender === 'F' ? selected.gender : null
-              return <datalist id="wd-official-quick">{weightsFor(d, sex).map(o => <option key={o} value={o} />)}</datalist>
+              const opts = [...(kicker ? weightsFor(apData?.age_division_kickboxing || g.kickboxing?.label, sex) : []), ...(boxer ? weightsFor(apData?.age_division_boxing || g.boxing?.label, sex) : [])]
+              return <datalist id="wd-official-quick">{opts.map(o => <option key={o} value={o} />)}</datalist>
             })()}
             {tab === 'media' && (
               <div>
