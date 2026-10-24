@@ -1529,3 +1529,4 @@ input::placeholder, textarea::placeholder { color: var(--text-tertiary); }
 .ev-pick-list button.on { background: #1D9E7514; }
 .ev-pick-list button.on span { color: #1D9E75; }
 .ev-pick-list button em { margin-left: auto; font-style: normal; font-size: 10px; font-weight: 700; color: var(--text-tertiary); }
+.ev-team { align-self: flex-start; font-size: 10px; font-weight: 800; letter-spacing: .5px; padding: 1px 7px; border-radius: 8px; background: #E24B4A18; color: #E24B4A; }

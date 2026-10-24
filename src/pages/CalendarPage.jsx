@@ -105,6 +105,17 @@ export default function CalendarPage() {
     if (error) return alert('Could not add the holiday: ' + error.message + (/google_event_uid/.test(error.message) ? '\n\n(Has supabase_google_calendars.sql been run?)' : ''))
     setHolidays(prev => [...(data || []), ...prev])
   }
+  // Competitions in Google ("KRBA … bout", "KR … comp", championships…) -> 🏆 events
+  const looksEvent = ev => /\b(bouts?|comps?|competitions?|championships?|champs|tournament|open|interclub|inter-club|fight night|show|grading|nationals|worlds|europeans|british)\b/i.test(ev.title)
+  const teamOf = t => /\bkrba\b/i.test(t) ? 'KRBA' : /\bkr\b/i.test(t) ? 'KR' : null
+  const linkedEvent = ev => fixtures.find(f => f.google_event_uid && f.google_event_uid === ev.uid && f.date === gEventDays(ev)[0])
+  async function makeEvent(ev) {
+    const [a, b] = gEventDays(ev)
+    const { error } = await supabase.from('fixtures').insert({ title: ev.title, date: a, end_date: b !== a ? b : null, venue: ev.location || null,
+      notes: ev.description ? ev.description.slice(0, 500) : null, status: 'scheduled', google_event_uid: ev.uid, team: teamOf(ev.title) })
+    if (error) return alert('Could not add the event: ' + error.message + (/google_event_uid|team|title/.test(error.message) ? '\n\n(Have supabase_events.sql and supabase_events_from_google.sql been run?)' : ''))
+    load()
+  }
   const fmtT = iso => new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
   const gEventRow = ev => {
     const linked = linkedHoliday(ev)
@@ -114,8 +125,12 @@ export default function CalendarPage() {
           <b>{ev.title}</b>
           <span>{ev.allDay ? 'All day' : `${fmtT(ev.start)}–${fmtT(ev.end)}`}{ev.location ? ` · ${ev.location}` : ''} · <i style={{ color: ev.colour }}>{ev.feed}</i></span>
         </div>
-        {linked ? <span className="gcal-linked">🏖 Club holiday ✓</span>
-          : (looksClosed(ev) || ev.allDay) && <button className="btn btn-sm" title="Close the club on these dates (registers and missed training will respect it)" onClick={() => makeClubHoliday(ev)}>🏖 Make club holiday</button>}
+        <span style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          {linkedEvent(ev) ? <span className="gcal-linked" style={{ color: '#B45309' }}>🏆 Event ✓</span>
+            : (looksEvent(ev) || !looksClosed(ev)) && isAdmin && <button className="btn btn-sm" title="Add to the Events strip, with athletes" onClick={() => makeEvent(ev)}>🏆 Make event</button>}
+          {linked ? <span className="gcal-linked">🏖 Club holiday ✓</span>
+            : (looksClosed(ev) || (ev.allDay && !looksEvent(ev))) && <button className="btn btn-sm" title="Close the club on these dates (registers and missed training will respect it)" onClick={() => makeClubHoliday(ev)}>🏖 Make club holiday</button>}
+        </span>
       </div>
     )
   }
@@ -331,6 +346,20 @@ export default function CalendarPage() {
         ) : null
       })()}
 
+      {(() => {
+        const pending = gEvents.filter(ev => looksEvent(ev) && !looksClosed(ev) && !linkedEvent(ev) && gEventDays(ev)[1] >= isoD(new Date()))
+        return pending.length > 0 && isAdmin && !settingHolidays ? (
+          <div className="card gcal-suggest" style={{ borderLeftColor: '#EF9F27' }}>
+            <b>🏆 {pending.length} Google event{pending.length === 1 ? '' : 's'} look{pending.length === 1 ? 's' : ''} like competitions</b>
+            {pending.slice(0, 8).map(ev => (
+              <div key={ev.id} className="gcal-sugg-row">
+                <span>{ev.title} · {new Date(gEventDays(ev)[0] + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}{teamOf(ev.title) ? ` · ${teamOf(ev.title)}` : ''}</span>
+                <button className="btn btn-sm" onClick={() => makeEvent(ev)}>Make event</button>
+              </div>
+            ))}
+          </div>
+        ) : null
+      })()}
       {!loading && view !== 'month' && (() => {
         // Week / List: each day with everything on it
         const days = []

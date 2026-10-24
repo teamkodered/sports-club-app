@@ -16,6 +16,7 @@ export default function EventsStrip({ fixtures = [], canEdit = false, onChanged 
   const [picker, setPicker] = useState(false)
   const [q, setQ] = useState('')
   const [showPast, setShowPast] = useState(false)
+  const [team, setTeam] = useState('all')   // athlete picker filter: all | KR | KRBA
   const today = iso(new Date())
 
   const list = useMemo(() => fixtures
@@ -39,11 +40,11 @@ export default function EventsStrip({ fixtures = [], canEdit = false, onChanged 
   }
   const nameOf = id => { const s = (athletes || []).find(a => a.id === id); return s ? `${s.members.first_name} ${s.members.last_name}` : '…' }
 
-  async function openEvent(f) { setOpen({ ...f }); setPicker(false); setQ(''); loadAthletes() }
+  async function openEvent(f) { setOpen({ ...f }); setPicker(false); setQ(''); setTeam(f.team || 'all'); loadAthletes() }
   async function saveEvent() {
     const f = open
     if (!f.title?.trim() || !f.date) return alert('Give the event a name and a date.')
-    const row = { title: f.title.trim(), date: f.date, end_date: f.end_date || null, venue: f.venue || null, notes: f.notes || null }
+    const row = { title: f.title.trim(), date: f.date, end_date: f.end_date || null, venue: f.venue || null, notes: f.notes || null, team: f.team || null }
     const r = f.id ? await supabase.from('fixtures').update(row).eq('id', f.id).select().single()
       : await supabase.from('fixtures').insert({ ...row, status: 'scheduled' }).select().single()
     if (r.error) return alert('Could not save: ' + r.error.message + (/title|end_date|notes|null value/.test(r.error.message) ? '\n\n(Has supabase_events.sql been run?)' : ''))
@@ -64,7 +65,8 @@ export default function EventsStrip({ fixtures = [], canEdit = false, onChanged 
 
   const entered = open?.id ? (entries[open.id] || []) : []
   const ql = q.trim().toLowerCase()
-  const pickList = (athletes || []).filter(a => !ql || `${a.members.first_name} ${a.members.last_name}`.toLowerCase().includes(ql))
+  const teamOfA = a => a.discipline === 'KRBA' ? 'KRBA' : 'KR'
+  const pickList = (athletes || []).filter(a => (team === 'all' || teamOfA(a) === team) && (!ql || `${a.members.first_name} ${a.members.last_name}`.toLowerCase().includes(ql)))
 
   return (
     <div className="ev-strip-wrap">
@@ -83,6 +85,7 @@ export default function EventsStrip({ fixtures = [], canEdit = false, onChanged 
             <button key={f.id} type="button" className={`ev-card${now ? ' now' : ''}`} onClick={() => openEvent(f)}>
               <span className="ev-date">{now ? 'ON NOW' : fmt(f.date)}{f.end_date && f.end_date !== f.date ? ` – ${fmt(f.end_date, { day: 'numeric', month: 'short' })}` : ''}</span>
               <b>{eventTitle(f)}</b>
+              {f.team && <span className="ev-team">{f.team}</span>}
               {f.venue && <span className="ev-venue">📍 {f.venue}</span>}
               <span className="ev-count">👥 {(entries[f.id] || []).length} athlete{(entries[f.id] || []).length === 1 ? '' : 's'}</span>
             </button>
@@ -105,6 +108,9 @@ export default function EventsStrip({ fixtures = [], canEdit = false, onChanged 
                   <label>To (optional)<input type="date" value={open.end_date || ''} min={open.date || undefined} onChange={e => setOpen(o => ({ ...o, end_date: e.target.value }))} /></label>
                 </div>
                 <input value={open.venue || ''} onChange={e => setOpen(o => ({ ...o, venue: e.target.value }))} placeholder="Venue" />
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12 }}>Team
+                  {[[null, 'Both'], ['KR', 'KR'], ['KRBA', 'KRBA']].map(([k, l]) => <button key={l} type="button" className={`btn btn-sm${(open.team || null) === k ? ' btn-primary' : ''}`} onClick={() => setOpen(o => ({ ...o, team: k }))}>{l}</button>)}
+                </div>
                 <textarea rows={2} value={open.notes || ''} onChange={e => setOpen(o => ({ ...o, notes: e.target.value }))} placeholder="Notes (weigh-in time, entry deadline…)" />
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button className="btn btn-primary" onClick={saveEvent}>{open.id ? 'Save changes' : 'Save event'}</button>
@@ -131,7 +137,10 @@ export default function EventsStrip({ fixtures = [], canEdit = false, onChanged 
                     <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => { setPicker(v => !v); loadAthletes() }}>{picker ? '▾ Hide athletes' : '+ Add athletes'}</button>
                     {picker && (
                       <div className="ev-picker">
-                        <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="🔍 Type a name — KR & KRBA athletes" />
+                        <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+                          {[['all', 'All'], ['KR', 'KR'], ['KRBA', 'KRBA']].map(([k, l]) => <button key={k} type="button" className={`btn btn-sm${team === k ? ' btn-primary' : ''}`} onClick={() => setTeam(k)}>{l}</button>)}
+                        </div>
+                        <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="🔍 Type a name" />
                         <div className="ev-pick-list">
                           {athletes === null && <div className="ev-empty">Loading…</div>}
                           {athletes && !pickList.length && <div className="ev-empty">No match.</div>}
