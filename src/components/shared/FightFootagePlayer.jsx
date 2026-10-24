@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import FootageTagPanel from './FootageTagPanel.jsx'
 import { rotationLayout, drawRotatedFrame, normaliseRotation } from '../../lib/videoRotation.js'
 import { supabase } from '../../lib/supabase.js'
 import VideoMeasureTool from './VideoMeasureTool.jsx'
@@ -128,7 +129,7 @@ function SectionSpeedPicker({ value, onChange }) {
   )
 }
 
-export default function FightFootagePlayer({ videoUrl, title, footageId, cctvClipId, storagePath, isCoach = false, rotation: initialRotation = 0, onRotationSaved, onClose, startAt = 0, onClipSwipe, swipeHint }) {
+export default function FightFootagePlayer({ videoUrl, title, footageId, cctvClipId, storagePath, isCoach = false, rotation: initialRotation = 0, onRotationSaved, onTagsSaved, onClose, startAt = 0, onClipSwipe, swipeHint }) {
   // onClipSwipe(dir, currentTime): with the controls hidden, swipe left/right = 'next'/'prev' file, up/down = 'camUp'/'camDown'
   // startAt: seconds into the video to start from (e.g. the class start inside a long CCTV recording)
   // Markers can belong to either a View IT fight_footage row or a CCTV
@@ -149,6 +150,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
   const [isFullscreen, setIsFullscreen] = useState(false)
   // 📐 Measure: jump / sprint / punch speed / punch count on this video. Results are shown
   // to read off (View iT footage isn't tied to one athlete's test results).
+  const [tagOpen, setTagOpen] = useState(false) // 🏷 tag athletes + event (coaches, View iT clips)
   const [measureMode, setMeasureMode] = useState(null) // null | 'jump' | 'sprint' | 'punch' | 'timer' | 'count' | 'reps'
   function openMeasure() {
     try { videoRef.current?.pause() } catch { /* */ }
@@ -1588,14 +1590,25 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
           <button className="view-it-btn ffp-measure-land" title="Measure (jump / sprint / punch)"
             style={{ width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer', padding: 0 }}
             onClick={e => { e.stopPropagation(); openMeasure() }}>📐</button>
+          {isCoach && footageId && (
+            <button className="view-it-btn ffp-measure-land" title="Tag video (athletes, event)"
+              style={{ width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer', padding: 0 }}
+              onClick={e => { e.stopPropagation(); setTagOpen(true) }}>🏷</button>
+          )}
         </div>
         <button className="view-it-btn ffp-measure-port" title="Measure (jump / sprint / punch)"
           style={{ position: 'absolute', top: 56, left: 12, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer', padding: 0 }}
           onClick={e => { e.stopPropagation(); openMeasure() }}>📐</button>
+        {/* portrait: 🏷 under 📍 (📐 is under ⛶); landscape: to the right of 📐 (above) */}
+        {isCoach && footageId && (
+          <button className="view-it-btn ffp-measure-port" title="Tag video (athletes, event)"
+            style={{ position: 'absolute', top: 56, left: 56, width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer', padding: 0 }}
+            onClick={e => { e.stopPropagation(); setTagOpen(true) }}>🏷</button>
+        )}
         {/* Title sits between the fullscreen button's corner and the
             right-hand cluster, so it can't run underneath either. */}
-        <span style={{
-          position: 'absolute', top: 18, left: 100, right: 190, textAlign: 'center',
+        <span className="ffp-title" style={{
+          position: 'absolute', top: 18, right: 190, textAlign: 'center',
           color: '#fff', fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>{title}</span>
         {/* 📷 and ⟳ live in one row with Close (to its left), pinned to the
@@ -1970,6 +1983,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
           </div>
         </div>
       )}
+      {tagOpen && footageId && <FootageTagPanel footageId={footageId} onClose={() => setTagOpen(false)} onSaved={() => onTagsSaved?.()} />}
       {measureMode && createPortal(measureMode !== 'count' && measureMode !== 'reps'
         ? <VideoMeasureTool key={measureMode} mode={measureMode} initialUrl={videoUrl} switchable zIndex={600}
             onCount={() => setMeasureMode('count')} onReps={() => setMeasureMode('reps')}

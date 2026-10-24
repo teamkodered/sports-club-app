@@ -975,6 +975,9 @@ tbody tr:hover td { background: var(--bg-secondary); }
 .ffp-measure-land { display: none; }
 .ffp-measure-port { display: flex; }
 @media (orientation: landscape) { .ffp-measure-land { display: flex; } .ffp-measure-port { display: none; } }
+/* player title: starts after ⛶ 📍 in portrait, after ⛶ 📍 📐 🏷 in landscape */
+.ffp-title { left: 100px; }
+@media (orientation: landscape) { .ffp-title { left: 188px; } }
 
 /* Test session: 📹 measuring buttons -- full size, neon style like the other buttons */
 .ts-measure { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 12px; }

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { unusedCalendarItems, eventIdForCalendarItem } from '../lib/footageEvents.js'
 import { supabase } from '../lib/supabase.js'
 import { ALL_GRADES, EVENT_TYPES, FOOTAGE_ACCESS_MODES, footageAccessLabel, eventLabel } from '../lib/mediaConstants.js'
 import { saveFootageAthletes, guessAthletesFromFilename } from '../lib/fightFootageTags.js'
@@ -16,7 +17,7 @@ export default function Uploads({
   filterEventId, setFilterEventId, filterFolderId, setFilterFolderId, filterStudentId, setFilterStudentId, filterTag, setFilterTag,
   filterGrade, setFilterGrade, filterEventType, setFilterEventType, searchText, setSearchText,
   dateFrom, setDateFrom, dateTo, setDateTo, hasAnyFilter, clearFilters,
-  startUpload, startBulkUpload,
+  startUpload, startBulkUpload, calendarItems = [],
 }) {
   const [showUpload, setShowUpload] = useState(false)
   const [showMoreDetails, setShowMoreDetails] = useState(false)
@@ -49,6 +50,17 @@ export default function Uploads({
   // real event_id -- creating a brand new event row first if "+ New
   // event" was chosen instead of an existing one.
   async function resolveEventId() {
+    // A calendar fixture / club event: reuse the footage event with the same name + date, or create it
+    if (uploadForm.eventId?.startsWith?.('cal:')) {
+      const item = calendarItems.find(i => i.key === uploadForm.eventId.slice(4))
+      if (!item) return null
+      try {
+        const { id, created } = await eventIdForCalendarItem(item, events)
+        if (created) setEvents(prev => [created, ...prev].sort((a, b) => (b.event_date || '').localeCompare(a.event_date || '')))
+        setUploadForm(f => ({ ...f, eventId: id })) // a second batch straight after reuses it
+        return id
+      } catch (err) { alert('Could not create event: ' + err.message); return null }
+    }
     if (uploadForm.eventId === '__new__') {
       if (!uploadForm.newEventName.trim()) return null
       const { data: newEvent, error } = await supabase.from('events').insert({ name: uploadForm.newEventName.trim(), event_type: uploadForm.newEventType, event_date: uploadForm.newEventDate || null }).select().single()
@@ -539,8 +551,40 @@ export default function Uploads({
               <button type="button" onClick={() => setUploadForm(f => ({ ...f, eventId: '__new__', newEventDate: f.newEventDate || new Date().toISOString().slice(0, 10) }))}
                 className={uploadForm.eventId === '__new__' ? 'btn btn-primary' : 'btn'} style={{ padding: '10px 14px', fontSize: 14, borderRadius: 10 }}>+ New event</button>
             </div>
+            {(() => {
+              // Fixtures + club events from the calendar that don't have footage yet: one tap to use one
+              const cal = unusedCalendarItems(calendarItems, events)
+              if (!cal.length) return null
+              const today = new Date().toISOString().slice(0, 10)
+              const recent = cal.filter(i => i.date <= today).slice(0, 4)
+              const picked = cal.find(i => `cal:${i.key}` === uploadForm.eventId)
+              const chips = picked && !recent.includes(picked) ? [...recent, picked] : recent
+              return (
+                <div style={{ marginTop: 10 }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>📅 From the calendar</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {chips.map(i => {
+                      const on = uploadForm.eventId === `cal:${i.key}`
+                      return (
+                        <button key={i.key} type="button" onClick={() => setUploadForm(f => ({ ...f, eventId: on ? '' : `cal:${i.key}` }))}
+                          className={on ? 'btn btn-primary' : 'btn'} style={{ padding: '10px 14px', fontSize: 14, borderRadius: 10, textAlign: 'left', lineHeight: 1.25 }}>
+                          <div style={{ fontWeight: 600 }}>{on ? '✓ ' : ''}{i.name}</div>
+                          <div style={{ fontSize: 11, opacity: 0.75 }}>{new Date(i.date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} · {i.source}</div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {cal.length > chips.length && (
+                    <select value={picked && !chips.includes(picked) ? uploadForm.eventId : ''} onChange={e => setUploadForm(f => ({ ...f, eventId: e.target.value }))} style={{ marginTop: 8, fontSize: 13 }}>
+                      <option value="">More from the calendar…</option>
+                      {cal.filter(i => !chips.includes(i)).map(i => <option key={i.key} value={`cal:${i.key}`}>{i.name} · {new Date(i.date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</option>)}
+                    </select>
+                  )}
+                </div>
+              )
+            })()}
             {events.length > recentEvents.length && (
-              <select value={recentEvents.some(ev => ev.id === uploadForm.eventId) || uploadForm.eventId === '__new__' ? '' : uploadForm.eventId}
+              <select value={recentEvents.some(ev => ev.id === uploadForm.eventId) || uploadForm.eventId === '__new__' || uploadForm.eventId?.startsWith?.('cal:') ? '' : uploadForm.eventId}
                 onChange={e => setUploadForm(f => ({ ...f, eventId: e.target.value }))} style={{ marginTop: 8, fontSize: 13 }}>
                 <option value="">Older events…</option>
                 {events.filter(ev => !recentEvents.some(r => r.id === ev.id)).map(ev => <option key={ev.id} value={ev.id}>{eventLabel(ev)}</option>)}
