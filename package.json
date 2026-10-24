@@ -17,6 +17,7 @@
     "mammoth": "^1.8.0",
     "node-ical": "0.27.2",
     "nodemailer": "^9.0.5",
+    "pdfjs-dist": "6.3.289",
     "phaser": "^3.90.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

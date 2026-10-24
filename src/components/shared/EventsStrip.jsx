@@ -123,6 +123,7 @@ export default function EventsStrip({ fixtures = [], canEdit = false, onChanged 
               </div>
             )}
 
+            {open.id && <a className="btn btn-sm" style={{ marginTop: 10 }} href={`/fight-finder?event=${open.id}`}>🥊 Fight finder for this event</a>}
             {open.id && (
               <div style={{ marginTop: 12 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Athletes entered ({entered.length})</div>

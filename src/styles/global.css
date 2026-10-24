@@ -1546,3 +1546,34 @@ input::placeholder, textarea::placeholder { color: var(--text-tertiary); }
   .cal-num { font-size: 11px; width: 20px; height: 20px; line-height: 20px; }
 }
 .cal-key { display: inline-block; width: 12px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+/* Fight finder */
+.ffd { max-width: 1100px; }
+.ffd-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.ffd-head h1 { font-size: 22px; margin: 0; }
+.ffd-title { font-size: 20px; font-weight: 700; flex: 1; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
+.ffd-muted { font-size: 12px; color: var(--text-secondary); }
+.ffd-saved { display: flex; justify-content: space-between; width: 100%; padding: 10px 4px; border: none; border-bottom: 1px solid var(--border); background: none; color: var(--text); font-size: 14px; cursor: pointer; text-align: left; font-family: inherit; }
+.ffd-saved span { font-size: 12px; color: var(--text-tertiary); }
+.ffd-load, .ffd-opts, .ffd-clash { margin-bottom: 10px; display: flex; flex-direction: column; gap: 6px; }
+.ffd-opts { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 14px; font-size: 13px; }
+.ffd-opts label { display: flex; align-items: center; gap: 6px; }
+.ffd-opts input { padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--bg-secondary); color: var(--text); }
+.ffd-coaches { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+.ffd-clash { border-left: 4px solid #E24B4A; font-size: 13px; }
+.ffd-clash-row { padding: 4px 0; border-top: 1px solid var(--border); }
+.ffd-clash-row em { color: var(--text-tertiary); }
+.ffd-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 10px; }
+.ffd-tabs button, .ffd-wa { padding: 6px 12px; border-radius: 16px; border: 1px solid var(--border-strong); background: var(--bg); color: var(--text); font-size: 13px; cursor: pointer; font-family: inherit; text-decoration: none; }
+.ffd-tabs button.on { background: var(--text); color: var(--bg); font-weight: 700; }
+.ffd-table-wrap { overflow-x: auto; }
+.ffd-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ffd-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-tertiary); padding: 6px; border-bottom: 2px solid var(--border-strong); }
+.ffd-table td { padding: 7px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.ffd-table tr.possible td { color: var(--text-secondary); font-style: italic; }
+.ffd-table tr.clash td { background: #E24B4A12; }
+.ffd-table td.tbc { color: #B45309; }
+.ffd-res { display: inline-flex; gap: 4px; }
+.ffd-res button { padding: 3px 8px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--bg); color: var(--text); font-size: 12px; cursor: pointer; }
+.ffd-res button.won { background: #1D9E75; color: #fff; border-color: #1D9E75; }
+.ffd-res button.lost { background: #E24B4A; color: #fff; border-color: #E24B4A; }
+@media print { .app-sidebar, .app-menu-btn, .ffd-load, .ffd-opts details, .ffd-tabs, .ffd-head button { display: none !important; } .ffd-table tr.clash td { background: #fdd !important; } }

@@ -21,6 +21,7 @@ import InviteRedeem from './pages/InviteRedeem.jsx'
 import ParentView from './pages/ParentView.jsx'
 import CoachingTools from './pages/CoachingTools.jsx'
 import LevelUp from './pages/LevelUp.jsx'
+import FightFinder from './pages/FightFinder.jsx'
 import Claim from './pages/Claim.jsx'
 import JoinPKAChild from './pages/forms/JoinPKAChild.jsx'
 import JoinPKAAdult from './pages/forms/JoinPKAAdult.jsx'
@@ -155,6 +156,7 @@ function App() {
             <Route path="students"        element={<ProtectedRoute page="students"><StudentDatabase /></ProtectedRoute>} />
             <Route path="members"         element={<ProtectedRoute staffOnly><Members /></ProtectedRoute>} />
             <Route path="fixtures"        element={<Navigate to="/calendar" replace />} />
+            <Route path="fight-finder"    element={<ProtectedRoute staffOnly><FightFinder /></ProtectedRoute>} />
             <Route path="coaching-tools"  element={<ProtectedRoute staffOnly><CoachingTools /></ProtectedRoute>} />
             <Route path="calendar"        element={<ProtectedRoute page="calendar"><CalendarPage /></ProtectedRoute>} />
             <Route path="crm"             element={<ProtectedRoute page="crm"><CRM /></ProtectedRoute>} />

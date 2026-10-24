@@ -313,6 +313,7 @@ export default function CalendarPage() {
           <h1>Calendar</h1>
           <p>Sessions, holidays, events and your Google calendars in one place</p>
         </div>
+        <a className="btn" href="/fight-finder" title="Find our athletes' bouts at a competition">🥊 Fight finder</a>
         <div className="cal-views">
           {[['month', 'Month'], ['week', 'Week'], ['list', 'List']].map(([k, l]) => <button key={k} type="button" className={view === k ? 'on' : ''} onClick={() => setView(k)}>{l}</button>)}
         </div>
