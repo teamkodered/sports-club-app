@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useRef } from 'react'
+import { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react'
 import { supabase } from '../lib/supabase.js'
 import { saveFootageAthletes } from '../lib/fightFootageTags.js'
 
@@ -11,29 +11,71 @@ const FightFootageUploadContext = createContext(null)
 // this, the progress %, and the follow-up steps (creating the
 // fight_footage row, tagging athletes) would have nowhere to live
 // once the component that started them unmounts.
+// --- Keeping uploads going (Oct 2026) ---
+// The provider sits at the app root (main.jsx), so moving between pages never
+// interrupts an upload. Leaving the app is different: phones pause or cut off web
+// pages in the background, so the file transfer can stall or fail. Each file
+// therefore retries on its own -- it waits until the app is back on screen and
+// online, then restarts that file with a fresh upload link (up to MAX_ATTEMPTS).
+// A transfer with no progress for STALL_MS while on screen is restarted too.
+const MAX_ATTEMPTS = 4
+const STALL_MS = 90000
+const isActive = () => document.visibilityState === 'visible' && navigator.onLine !== false
+function waitUntilActive() {
+  if (isActive()) return Promise.resolve()
+  return new Promise(res => {
+    const check = () => { if (isActive()) { document.removeEventListener('visibilitychange', check); window.removeEventListener('online', check); res() } }
+    document.addEventListener('visibilitychange', check)
+    window.addEventListener('online', check)
+  })
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+
 export function FightFootageUploadProvider({ children }) {
   const [upload, setUpload] = useState(null) // { title, current, total, progress, status: 'uploading'|'processing'|'done'|'error', error }
 
   const uploadSingleFile = useCallback(async (file, { title, description, accessMode, featuredIds, viewerIds, eventId, folderId, tags, gradeTag, kind = 'fight', thumb = null }) => {
-    const { data: sessionData } = await supabase.auth.getSession()
-    const accessToken = sessionData?.session?.access_token
+    let urlData = null
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await waitUntilActive()
+        const { data: sessionData } = await supabase.auth.getSession()
+        const accessToken = sessionData?.session?.access_token
+        const urlRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fight-footage-url`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify({ mode: 'upload', file_name: file.name }),
+        })
+        urlData = await urlRes.json()
+        if (urlData.error) throw Object.assign(new Error(urlData.error), { permanent: true })
+        setUpload(u => u ? { ...u, progress: 0, note: attempt > 1 ? `Retrying (attempt ${attempt} of ${MAX_ATTEMPTS})…` : null } : u)
 
-    const urlRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fight-footage-url`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-      body: JSON.stringify({ mode: 'upload', file_name: file.name }),
-    })
-    const urlData = await urlRes.json()
-    if (urlData.error) throw new Error(urlData.error)
-
-    await new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest()
-      xhr.open('PUT', urlData.upload_url)
-      xhr.upload.onprogress = e => { if (e.lengthComputable) setUpload(u => u ? { ...u, progress: Math.round((e.loaded / e.total) * 100) } : u) }
-      xhr.onload = () => (xhr.status >= 200 && xhr.status < 300) ? resolve() : reject(new Error(`Upload failed (${xhr.status})`))
-      xhr.onerror = () => reject(new Error('Upload failed'))
-      xhr.send(file)
-    })
+        await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest()
+          let lastProgress = Date.now()
+          const watchdog = setInterval(() => {
+            // only judge a stall while on screen -- in the background the phone may simply have paused us
+            if (isActive() && Date.now() - lastProgress > STALL_MS) { clearInterval(watchdog); xhr.abort(); reject(new Error('Upload stalled')) }
+            if (!isActive()) { lastProgress = Date.now(); setUpload(u => u ? { ...u, note: '⏸ Paused while the app is in the background -- continues when you come back' } : u) }
+          }, 5000)
+          xhr.open('PUT', urlData.upload_url)
+          xhr.upload.onprogress = e => {
+            lastProgress = Date.now()
+            if (e.lengthComputable) setUpload(u => u ? { ...u, progress: Math.round((e.loaded / e.total) * 100), note: u.note?.startsWith('⏸') ? null : u.note } : u)
+          }
+          xhr.onload = () => { clearInterval(watchdog); (xhr.status >= 200 && xhr.status < 300) ? resolve() : reject(new Error(`Upload failed (${xhr.status})`)) }
+          xhr.onerror = () => { clearInterval(watchdog); reject(new Error('Upload failed')) }
+          xhr.onabort = () => { clearInterval(watchdog); reject(new Error('Upload stalled')) }
+          xhr.send(file)
+        })
+        break
+      } catch (err) {
+        if (err.permanent || attempt >= MAX_ATTEMPTS) throw err
+        setUpload(u => u ? { ...u, note: isActive() ? `Connection dropped -- retrying…` : '⏸ Paused while the app is in the background -- continues when you come back' } : u)
+        await waitUntilActive()
+        await sleep(2000 * attempt)
+      }
+    }
 
     const row = {
       title: title.trim(),
@@ -122,9 +164,26 @@ export function FightFootageUploadProvider({ children }) {
   // away so the next batch can be set up and queued immediately.
   const chainRef = useRef(Promise.resolve())
   const [queued, setQueued] = useState(0)
+  // jobs waiting or running -- while > 0 the screen is kept on and leaving the page asks first
+  const activeJobsRef = useRef(0)
+  const wakeRef = useRef(null)
+  const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    if (!busy) { try { wakeRef.current?.release() } catch { /* */ } wakeRef.current = null; return }
+    const lock = async () => { try { if (!wakeRef.current && document.visibilityState === 'visible') { wakeRef.current = await navigator.wakeLock?.request('screen'); wakeRef.current?.addEventListener?.('release', () => { wakeRef.current = null }) } } catch { /* not supported */ } }
+    const onVis = () => { if (document.visibilityState === 'visible') lock() } // the browser drops the lock when the page is hidden
+    const warn = e => { e.preventDefault(); e.returnValue = 'Videos are still uploading.' }
+    lock()
+    document.addEventListener('visibilitychange', onVis)
+    window.addEventListener('beforeunload', warn)
+    return () => { document.removeEventListener('visibilitychange', onVis); window.removeEventListener('beforeunload', warn) }
+  }, [busy])
+
   const enqueue = useCallback((job) => {
     setQueued(q => q + 1)
+    activeJobsRef.current += 1; setBusy(true)
     const p = chainRef.current.then(() => { setQueued(q => q - 1); return job() }).catch(err => { console.error('Upload job failed:', err) })
+      .finally(() => { activeJobsRef.current -= 1; if (activeJobsRef.current <= 0) { activeJobsRef.current = 0; setBusy(false) } })
     chainRef.current = p
     return p
   }, [])
