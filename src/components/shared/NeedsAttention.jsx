@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase.js'
+import { divMatch } from '../../lib/divisions.js'
 import { ownAttendanceRate, toLocalISO } from '../../lib/attendanceDays.js'
 
 // Coach dashboard "Needs attention" (Oct 2026): who to follow up, in priority order --
@@ -78,7 +79,7 @@ export default function NeedsAttention({ athletes = [], onOpen }) {
         if (a.in_comp) {
           const ws = (f2fBy[a.id] || []).filter(s => (s.weight_after ?? s.weight_before) != null).sort((x, y) => x.session_date.localeCompare(y.session_date))
           const current = ws.length ? (ws[ws.length - 1].weight_after ?? ws[ws.length - 1].weight_before) : null
-          const m = profBy[a.id]?.weight_division?.match(/([+-]?)\s*([\d.]+)/)
+          const m = divMatch(profBy[a.id]?.weight_division)
           if (current != null && m && m[1] !== '+') {
             const base = parseFloat(m[2]), ov = profBy[a.id]?.weight_target_override
             let target = +(base * (1 + pct)).toFixed(1)

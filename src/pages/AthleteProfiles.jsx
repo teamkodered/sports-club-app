@@ -5,6 +5,7 @@ import { TestSessionModal, TestBatchModal } from '../components/shared/TestSessi
 import OtherSessions from '../components/shared/OtherSessions.jsx'
 import SessionFootage from '../components/shared/SessionFootage.jsx'
 import { supabase } from '../lib/supabase.js'
+import { divMatch, KB_DIVISIONS as KB_OFFICIAL, BOX_DIVISIONS as BOX_OFFICIAL, kbLabel, boxLabel, weightsFor, suggestDivision, isOfficial, divisionsForAge } from '../lib/divisions.js'
 import AthleteMedia from '../components/media/AthleteMedia.jsx'
 import TallyGate from '../components/shared/TallyGate.jsx'
 import SectionQuote from '../components/shared/SectionQuote.jsx'
@@ -1269,8 +1270,9 @@ function ModuleButton({ b, sorted, moduleSubType, setModuleSubType, colour, setT
   )
 }
 
-const KB_DIVISIONS  = ['Children', 'Younger Cadet (10-12)', 'Older Cadet (13-15)', 'Junior (16-18)', 'Senior (19-40)', 'Masters (40+)']
-const BOX_DIVISIONS = ['Schoolboy', 'Schoolgirl', 'Junior', 'Youth', 'Elite', 'Senior']
+// Official age divisions (WAKO 2025 for kickboxing, England Boxing 2026 for boxing) -- see lib/divisions.js
+const KB_DIVISIONS  = KB_OFFICIAL.map(d => d.label)
+const BOX_DIVISIONS = BOX_OFFICIAL.map(d => d.label)
 
 
 // ── PDP Tab Component ──────────────────────────────────────────────────────
@@ -6449,8 +6451,8 @@ export default function AthleteProfiles() {
     loadDaily(s.id).then(d => { if (selectingIdRef.current === s.id) setWearableDaily(d) })
     if (data) {
       setEditForm({
-        age_division_kickboxing: data.age_division_kickboxing || '',
-        age_division_boxing: data.age_division_boxing || '',
+        age_division_kickboxing: kbLabel(data.age_division_kickboxing || ''),
+        age_division_boxing: boxLabel(data.age_division_boxing || ''),
         weight_division: data.weight_division || '',
         kode_red_debut: data.kode_red_debut || '',
         top_achievements: data.top_achievements || '',
@@ -6901,7 +6903,7 @@ export default function AthleteProfiles() {
                                 {(() => {
                                   // target comes from their competition weight (+ the team %), not their current weight
                                   const ap = allAthleteProfiles.find(p => p.student_id === s.id) || {}
-                                  const m = (ap.weight_division || '').match(/([+-]?)\s*([\d.]+)/)
+                                  const m = divMatch(ap.weight_division)
                                   if (!m) return <span style={{ fontWeight: 600 }}>{s.weight_kg}kg</span>
                                   const comp = parseFloat(m[2]), pct = (weightTargetActiveMode ? weightTargetActiveMode === 'in_comp' : s.in_comp) ? weightTargetPctInComp : weightTargetPctOutComp
                                   const ov = ap.weight_target_override
@@ -9458,7 +9460,7 @@ export default function AthleteProfiles() {
                         // text field (e.g. "-52kg", "-37kg kickboxing, 35kg boxing"), so
                         // pull out the first number found; fall back to current weight
                         // if Comp weight isn't set or has no parseable number.
-                        const compWeightMatch = apData?.weight_division?.match(/([+-]?)\s*([\d.]+)/)
+                        const compWeightMatch = divMatch(apData?.weight_division)
                         const isPlusDivision = compWeightMatch?.[1] === '+'
                         const baseWeight = compWeightMatch ? parseFloat(compWeightMatch[2]) : selected.weight_kg
                         const override = apData?.weight_target_override
@@ -9507,7 +9509,7 @@ export default function AthleteProfiles() {
                         )
                       } },
                       { label: 'Comp weight', editable: true, render: () => isAdmin ? (
-                        <input key={`compweight-${selected.id}`} defaultValue={apData?.weight_division || ''} placeholder="e.g. -60kg"
+                        <input key={`compweight-${selected.id}`} list="wd-official-quick" defaultValue={apData?.weight_division || ''} placeholder="e.g. -60kg"
                           onBlur={e => { if (e.target.value !== (apData?.weight_division || '')) saveCompWeightHere(e.target.value || null) }}
                           style={{ width: 90, fontSize: 12, padding: '4px 6px', textAlign: 'right', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text)' }} />
                       ) : (apData?.weight_division || '—') },
@@ -11265,6 +11267,10 @@ export default function AthleteProfiles() {
                   <div className="card" ref={editProfileRef}>
                     <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 14 }}>Edit athlete profile</h2>
                     <div className="field-row">
+                      {(() => {
+                        const g = divisionsForAge(selected?.members?.date_of_birth)
+                        return g.age ? <div style={{ flexBasis: '100%', fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>Competition age {g.age} this year: kickboxing <b>{g.kickboxing?.label || '—'}</b>{g.ring ? ` / ring ${g.ring.label.replace(' — ring', '')}` : ''} · boxing <b>{g.boxing?.label || '—'}</b></div> : null
+                      })()}
                       <div className="field"><label>Age division (kickboxing)</label>
                         <select value={editForm.age_division_kickboxing} onChange={e => setEditForm(f => ({ ...f, age_division_kickboxing: e.target.value }))}>
                           <option value="">Select…</option>{KB_DIVISIONS.map(d => <option key={d}>{d}</option>)}
@@ -11277,7 +11283,24 @@ export default function AthleteProfiles() {
                       </div>
                     </div>
                     <div className="field-row">
-                      <div className="field"><label>Weight division</label><input value={editForm.weight_division} onChange={e => setEditForm(f => ({ ...f, weight_division: e.target.value }))} placeholder="e.g. -47kg, 63-69kg" /></div>
+                      {(() => {
+                        // official weights for their division (boxing for KRBA athletes, kickboxing otherwise) + sex
+                        const div = selected?.discipline === 'KRBA' ? (editForm.age_division_boxing || editForm.age_division_kickboxing) : (editForm.age_division_kickboxing || editForm.age_division_boxing)
+                        const sex = selected?.gender === 'M' || selected?.gender === 'F' ? selected.gender : null
+                        const opts = weightsFor(div, sex)
+                        const sugg = suggestDivision(selected?.weight_kg, div, sex)
+                        const off = !editForm.weight_division || !opts.length || isOfficial(editForm.weight_division, div, sex)
+                        return (
+                          <div className="field"><label>Weight division{div ? ` — ${div}${sex ? ` ${sex === 'M' ? 'male' : 'female'}` : ''}` : ''}</label>
+                            <input list="wd-official" value={editForm.weight_division} onChange={e => setEditForm(f => ({ ...f, weight_division: e.target.value }))} placeholder={opts.length ? 'Pick from the list…' : 'Choose an age division first'} />
+                            <datalist id="wd-official">{opts.map(o => <option key={o} value={o} />)}</datalist>
+                            {sugg && sugg !== editForm.weight_division && (
+                              <button type="button" className="btn btn-sm" style={{ marginTop: 4 }} onClick={() => setEditForm(f => ({ ...f, weight_division: sugg }))}>Use {sugg} (from {selected.weight_kg}kg)</button>
+                            )}
+                            {!off && <div style={{ fontSize: 11, color: '#B45309', marginTop: 3 }}>⚠ Not an official {div} weight</div>}
+                          </div>
+                        )
+                      })()}
                       <div className="field"><label>Kode Red debut</label><input type="date" value={editForm.kode_red_debut} onChange={e => setEditForm(f => ({ ...f, kode_red_debut: e.target.value }))} /></div>
                     </div>
                     <div className="field"><label>Top achievements to date</label>
@@ -13293,6 +13316,13 @@ export default function AthleteProfiles() {
               </div>
             )}
 
+            {selected && (() => {
+              const div = selected.discipline === 'KRBA' ? (apData?.age_division_boxing || apData?.age_division_kickboxing) : (apData?.age_division_kickboxing || apData?.age_division_boxing)
+              const g = divisionsForAge(selected.members?.date_of_birth)
+              const d = div || (selected.discipline === 'KRBA' ? g.boxing?.label : g.kickboxing?.label)
+              const sex = selected.gender === 'M' || selected.gender === 'F' ? selected.gender : null
+              return <datalist id="wd-official-quick">{weightsFor(d, sex).map(o => <option key={o} value={o} />)}</datalist>
+            })()}
             {tab === 'media' && (
               <div>
                 {selected?.id && <SessionFootage studentId={selected.id} />}

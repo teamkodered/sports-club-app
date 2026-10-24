@@ -6,6 +6,7 @@ import { TestSessionModal, TestBatchModal } from '../components/shared/TestSessi
 import OtherSessions from '../components/shared/OtherSessions.jsx'
 import { matchClass, workoutDate, workoutRange, fmtTime } from '../lib/sessionMatch.js'
 import { supabase } from '../lib/supabase.js'
+import { divMatch } from '../lib/divisions.js'
 import InstallAppButton from '../components/shared/InstallAppButton.jsx'
 import SessionHr from '../components/shared/SessionHr.jsx'
 import TallyGate from '../components/shared/TallyGate.jsx'
@@ -5132,8 +5133,8 @@ export default function AthleteApp() {
 
         {student && (() => {
           const pct = weightTargetActiveMode === 'in_comp' ? weightTargetPctInComp : weightTargetPctOutComp
-          const compWeightMatch = apData?.weight_division?.match(/[\d.]+/)
-          const baseWeight = compWeightMatch ? parseFloat(compWeightMatch[0]) : student.weight_kg
+          const compWeightMatch = divMatch(apData?.weight_division)
+          const baseWeight = compWeightMatch ? parseFloat(compWeightMatch[2]) : student.weight_kg
           const override = apData?.weight_target_override
           let targetWeight = baseWeight ? (baseWeight * (1 + pct)).toFixed(1) : null
           if (override?.type === 'actual' && override.value) targetWeight = parseFloat(override.value).toFixed(1)

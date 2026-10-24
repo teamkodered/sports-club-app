@@ -75,6 +75,7 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { matchClass, workoutRange, fmtTime, isClubSport } from '../lib/sessionMatch.js'
 import { supabase } from '../lib/supabase.js'
+import { divMatch } from '../lib/divisions.js'
 import { fetchAll } from '../lib/fetchAll.js'
 import { assignmentActiveOn, todayISO } from '../lib/classAssignments.jsx'
 import { matchesSearch } from '../lib/searchMatch.js'
@@ -664,9 +665,9 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
         // value regardless of sign, since that's a genuine magnitude
         // comparison, not a weight-class label.
         const compWeightByStudent = Object.fromEntries((profiles || []).map(p => {
-          const match = p.weight_division?.match(/([+-]?)\s*([\d.]+)/)
+          const match = divMatch(p.weight_division)
           if (!match) return [p.student_id, null]
-          return [p.student_id, { sign: match[1] || '', value: parseFloat(match[2]) }]
+          return [p.student_id, { sign: match[1] || '', value: parseFloat(match[2]), raw: String(p.weight_division).trim() }]
         }))
         const entriesByStudent = {}
         for (const s of (sessions || [])) {
@@ -684,7 +685,8 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
           const trend = previous == null || current == null ? null : current > previous ? 'up' : current < previous ? 'down' : 'same'
           const compWeightInfo = compWeightByStudent[id] ?? null
           const compWeight = compWeightInfo?.value ?? null
-          const compWeightLabel = compWeightInfo ? `${compWeightInfo.sign}${compWeightInfo.value}kg` : null
+          // kickboxing style (-54kg / +94kg) is rebuilt; boxing style (Under 54kg, 45-48kg) is shown as saved
+          const compWeightLabel = compWeightInfo ? (/^\s*[+-]/.test(compWeightInfo.raw) || /^\d/.test(compWeightInfo.raw) && !/-/.test(compWeightInfo.raw) ? `${compWeightInfo.sign}${compWeightInfo.value}kg` : compWeightInfo.raw) : null
           const isPlusDivision = compWeightInfo?.sign === '+'
           const pctDiff = compWeight && current != null ? ((current - compWeight) / compWeight * 100) : null
           const baseWeight = compWeight ?? ([...filteredStudents, ...stillMissing].find(x => x.id === id)?.weight_kg ?? null)
