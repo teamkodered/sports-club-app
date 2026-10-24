@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { captureFrames } from '../lib/videoThumbs.js'
+import TagVideosStepper from '../components/shared/TagVideosStepper.jsx'
 import { unusedCalendarItems, eventIdForCalendarItem } from '../lib/footageEvents.js'
 import { supabase } from '../lib/supabase.js'
 import { ALL_GRADES, EVENT_TYPES, FOOTAGE_ACCESS_MODES, footageAccessLabel, eventLabel } from '../lib/mediaConstants.js'
@@ -119,11 +121,12 @@ export default function Uploads({
       : { ...it, featuredIds: matchFileToAthletes(it.file.name, next) }))
   }
 
-  function toggleItemAthlete(key, studentId) {
+  function toggleItemAthlete(key, studentId, forceOn = false) {
     setBulkItems(items => items.map(it => {
       if (it.key !== key) return it
       const next = new Set(it.featuredIds)
-      if (next.has(studentId)) next.delete(studentId); else next.add(studentId)
+      if (forceOn) next.add(studentId)
+      else if (next.has(studentId)) next.delete(studentId); else next.add(studentId)
       return { ...it, featuredIds: next, touched: true }
     }))
   }
@@ -179,12 +182,26 @@ export default function Uploads({
     }
     if (bulkItems.length === 1) {
       const it = bulkItems[0]
-      startUpload({ file: it.file, title: name || it.title, description: uploadForm.description, featuredIds: uploadForm.featuredIds, ...shared })
+      // one video: athletes ticked in its preview count too
+      startUpload({ file: it.file, title: name || it.title, description: uploadForm.description, featuredIds: new Set([...uploadForm.featuredIds, ...it.featuredIds]), thumb: it.thumb, ...shared })
     } else {
-      startBulkUpload(bulkItems.map(({ file, title, featuredIds }) => ({ file, title, featuredIds })), shared)
+      startBulkUpload(bulkItems.map(({ file, title, featuredIds, thumb }) => ({ file, title, featuredIds, thumb })), shared)
     }
     resetUploadForm({ keepOpen: true })
   }
+
+  // Frames from each chosen video (on the device, one at a time) -- see who's in it
+  // before uploading. A newer selection stops the previous run.
+  const frameRunRef = useRef(0)
+  async function grabFrames(list) {
+    const run = ++frameRunRef.current
+    for (const { key, file } of list) {
+      const { frames, thumb } = await captureFrames(file)
+      if (frameRunRef.current !== run) return
+      setBulkItems(items => items.map(x => x.key === key ? { ...x, frames, thumb, framesDone: true } : x))
+    }
+  }
+  const [stepper, setStepper] = useState(null) // { start, keys? } -- 👀 tag one by one / preview
 
   function handleFolderSelect(e) {
     const totalSelected = e.target.files.length
@@ -195,7 +212,9 @@ export default function Uploads({
       title: f.name.replace(/\.[^.]+$/, '').replace(/[_]+/g, ' '),
       featuredIds: matchFileToAthletes(f.name, uploadForm.featuredIds),
       touched: false,
+      frames: [], thumb: null, framesDone: false,
     })))
+    grabFrames(files.map((f, i) => ({ key: `${f.name}-${f.size}-${i}`, file: f })))
     setBulkTotalSelected(totalSelected)
     // Suggests the containing folder's name as the Folder (a separate
     // concept from Event) -- if a folder with that exact name already
@@ -619,6 +638,27 @@ export default function Uploads({
                 <label htmlFor="quick-folder-picker" style={{ fontSize: 12, textDecoration: 'underline', cursor: 'pointer', color: 'var(--text-secondary)' }}>📁 or pick a whole folder</label>
               </span>
             </div>
+            {bulkItems.length > 0 && (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))', gap: 6, marginTop: 8 }}>
+                  {bulkItems.map((it, idx) => {
+                    const who = students.filter(st => it.featuredIds.has(st.id)).map(studentName)
+                    return (
+                      <button key={it.key} type="button" onClick={() => setStepper({ start: idx, keys: [it.key] })} title={`${it.file.name} -- tap to preview`}
+                        style={{ padding: 0, border: `2px solid ${who.length ? '#22B14C' : 'var(--border)'}`, borderRadius: 8, overflow: 'hidden', background: 'var(--bg-secondary)', cursor: 'pointer', textAlign: 'left', color: 'inherit' }}>
+                        <div style={{ aspectRatio: '16 / 9', background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#888' }}>
+                          {it.frames?.[1] ? <img src={it.frames[1]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} /> : it.framesDone ? '🎞️' : '⏳'}
+                        </div>
+                        <div style={{ padding: '3px 5px', fontSize: 10, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{who.length ? `✓ ${who.join(', ')}` : it.file.name}</div>
+                      </button>
+                    )
+                  })}
+                </div>
+                <button type="button" className="btn" style={{ width: '100%', marginTop: 8, padding: '12px', fontSize: 15, borderRadius: 10 }} onClick={() => setStepper({ start: Math.max(0, bulkItems.findIndex(it => it.featuredIds.size === 0)) })}>
+                  👀 Tag athletes one by one{bulkItems.length > 1 ? ` (${bulkItems.filter(it => it.featuredIds.size === 0).length} untagged)` : ''}
+                </button>
+              </>
+            )}
             {bulkTotalSelected > 0 && bulkItems.length === 0 && (
               <p style={{ fontSize: 12, color: '#E24B4A', marginTop: 4 }}>Selected {bulkTotalSelected} file{bulkTotalSelected === 1 ? '' : 's'}, but none looked like a recognised video format.</p>
             )}
@@ -655,6 +695,12 @@ export default function Uploads({
               <div style={{ border: '1px solid var(--border)', borderRadius: 6, maxHeight: 320, overflowY: 'auto' }}>
                 {bulkItems.map(it => (
                   <div key={it.key} style={{ padding: '8px 10px', borderBottom: '1px solid var(--border)' }}>
+                    {it.frames?.length > 0 && (
+                      <button type="button" onClick={() => setStepper({ start: bulkItems.findIndex(x => x.key === it.key), keys: [it.key] })} title="Tap to preview"
+                        style={{ display: 'grid', gridTemplateColumns: `repeat(${it.frames.length}, 1fr)`, gap: 3, width: '100%', padding: 0, border: 'none', background: 'none', cursor: 'pointer', marginBottom: 4 }}>
+                        {it.frames.map((f, k) => <img key={k} src={f} alt="" style={{ width: '100%', borderRadius: 4, display: 'block' }} />)}
+                      </button>
+                    )}
                     <input value={it.title} onChange={e => setBulkItems(items => items.map(x => x.key === it.key ? { ...x, title: e.target.value } : x))}
                       style={{ width: '100%', fontSize: 13, marginBottom: 4 }} />
                     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -836,7 +882,7 @@ export default function Uploads({
                           const ticked = folderEdit.itemAthletes[item.id] || new Set()
                           return (
                             <div key={item.id} style={{ padding: '8px 10px', borderBottom: '1px solid var(--border)' }}>
-                              <div style={{ fontSize: 13, marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, minWidth: 0 }}>{item.thumb && <img src={item.thumb} alt="" style={{ width: 64, height: 36, objectFit: 'cover', borderRadius: 6, flexShrink: 0, background: '#000' }} />}<div style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</div></div>
                               <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
                                 {students.filter(st => folderEdit.batchIds.has(st.id)).map(st => (
                                   <button key={st.id} type="button" onClick={() => toggleFolderItemAthlete(item.id, st.id)}
@@ -868,6 +914,7 @@ export default function Uploads({
                   if (e.target.checked) next.add(item.id); else next.delete(item.id)
                   return next
                 })} />
+                {item.thumb && <img src={item.thumb} alt="" style={{ width: 72, height: 41, objectFit: 'cover', borderRadius: 6, flexShrink: 0, background: '#000' }} />}
                 <div style={{ flex: 1, minWidth: 0 }}>
                 {editingPendingId === item.id ? (
                   <div>
@@ -1047,6 +1094,15 @@ export default function Uploads({
           )}
         </div>
       </div>
+      {stepper && bulkItems.length > 0 && (
+        <TagVideosStepper
+          items={stepper.keys ? bulkItems.filter(it => stepper.keys.includes(it.key)) : bulkItems}
+          startIndex={stepper.keys ? 0 : stepper.start}
+          batchIds={uploadForm.featuredIds} students={students} studentName={studentName}
+          onToggle={toggleItemAthlete}
+          onAddToBatch={id => { const next = new Set(uploadForm.featuredIds); next.add(id); setBatchAthletes(next) }}
+          onClose={() => setStepper(null)} />
+      )}
     </div>
   )
 }

@@ -222,6 +222,7 @@ export default function ViewIt({ visibleFootage, footage, events, students, stud
           {group.items.map(item => (
             <div key={item.id} className="card" style={{ padding: 14 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                {item.thumb && <img src={item.thumb} alt="" onClick={() => openFootage(item)} style={{ width: 96, height: 54, objectFit: 'cover', borderRadius: 6, flexShrink: 0, cursor: 'pointer', background: '#000' }} />}
                 <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => openFootage(item)}>
                   <div style={{ fontSize: 14, fontWeight: 500 }}>▶️ {item.title}</div>
                   <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>

@@ -64,12 +64,15 @@ export default function AthleteFightFootage({ studentId }) {
       <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>🥊 Fight footage from your coach</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {footage.map(item => (
-          <div key={item.id} onClick={() => open(item)} style={{ cursor: 'pointer', padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 8 }}>
+          <div key={item.id} onClick={() => open(item)} style={{ cursor: 'pointer', padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 8, display: 'flex', gap: 10, alignItems: 'center' }}>
+            {item.thumb && <img src={item.thumb} alt="" style={{ width: 64, height: 36, objectFit: 'cover', borderRadius: 6, flexShrink: 0, background: '#000' }} />}
+            <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 500 }}>{item.link_url ? '🔗' : '▶️'} {item.kind === 'study' ? '📚 ' : ''}{item.title}</div>
             <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
               {new Date(item.uploaded_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
             </div>
             {item.description && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{item.description}</div>}
+            </div>
           </div>
         ))}
       </div>

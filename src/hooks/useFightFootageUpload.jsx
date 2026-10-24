@@ -14,7 +14,7 @@ const FightFootageUploadContext = createContext(null)
 export function FightFootageUploadProvider({ children }) {
   const [upload, setUpload] = useState(null) // { title, current, total, progress, status: 'uploading'|'processing'|'done'|'error', error }
 
-  const uploadSingleFile = useCallback(async (file, { title, description, accessMode, featuredIds, viewerIds, eventId, folderId, tags, gradeTag, kind = 'fight' }) => {
+  const uploadSingleFile = useCallback(async (file, { title, description, accessMode, featuredIds, viewerIds, eventId, folderId, tags, gradeTag, kind = 'fight', thumb = null }) => {
     const { data: sessionData } = await supabase.auth.getSession()
     const accessToken = sessionData?.session?.access_token
 
@@ -35,7 +35,7 @@ export function FightFootageUploadProvider({ children }) {
       xhr.send(file)
     })
 
-    const { data: newFootage, error: insertErr } = await supabase.from('fight_footage').insert({
+    const row = {
       title: title.trim(),
       description: description?.trim() || null,
       storage_path: urlData.storage_path,
@@ -48,17 +48,23 @@ export function FightFootageUploadProvider({ children }) {
       // fight footage sits in the Uploads tab's pending list first -- an explicit "Publish to View IT" makes it show there.
       // Study videos (Media > 📚 Study) go straight into the Study list; who sees them is set by access_mode.
       ...(kind === 'study' ? { kind: 'study', published: true } : { published: false }),
-    }).select().single()
+    }
+    // small preview picture (data URL, ~5 KB) grabbed on the device -- see lib/videoThumbs.js
+    let { data: newFootage, error: insertErr } = await supabase.from('fight_footage').insert(thumb ? { ...row, thumb } : row).select().single()
+    if (insertErr && thumb && /thumb/i.test(insertErr.message || '')) {
+      // thumb column not added yet (supabase_fight_footage_thumbs.sql) -- save the video without it
+      ({ data: newFootage, error: insertErr } = await supabase.from('fight_footage').insert(row).select().single())
+    }
     if (insertErr) throw insertErr
 
     await saveFootageAthletes(newFootage.id, { accessMode, featuredIds, viewerIds })
     return newFootage
   }, [])
 
-  const runUpload = useCallback(async ({ file, title, description, accessMode, featuredIds, viewerIds, eventId, folderId, tags, gradeTag, kind }) => {
+  const runUpload = useCallback(async ({ file, title, description, accessMode, featuredIds, viewerIds, eventId, folderId, tags, gradeTag, kind, thumb }) => {
     setUpload({ title, current: 1, total: 1, progress: 0, status: 'uploading', error: null })
     try {
-      const result = await uploadSingleFile(file, { title, description, accessMode, featuredIds, viewerIds, eventId, folderId, tags, gradeTag, kind })
+      const result = await uploadSingleFile(file, { title, description, accessMode, featuredIds, viewerIds, eventId, folderId, tags, gradeTag, kind, thumb })
       setUpload(u => u ? { ...u, status: 'done' } : u)
       setTimeout(() => setUpload(u => (u?.status === 'done' ? null : u)), 5000) // auto-clears the "done" banner after a few seconds, but leaves an error banner up until dismissed
       return result
@@ -79,7 +85,7 @@ export function FightFootageUploadProvider({ children }) {
     let successCount = 0
     let firstError = null
     for (let i = 0; i < items.length; i++) {
-      const { file, title, featuredIds } = items[i]
+      const { file, title, featuredIds, thumb } = items[i]
       setUpload(u => u ? { ...u, current: i + 1, progress: 0, title: title || file.name } : u)
       try {
         await uploadSingleFile(file, {
@@ -92,6 +98,7 @@ export function FightFootageUploadProvider({ children }) {
           folderId,
           tags,
           gradeTag,
+          thumb,
         })
         successCount++
       } catch (err) {
