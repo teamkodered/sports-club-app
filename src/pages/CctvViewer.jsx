@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { wall } from '../components/shared/SessionFootage.jsx'
 import { supabase } from '../lib/supabase.js'
 import FightFootagePlayer from '../components/shared/FightFootagePlayer.jsx'
 
@@ -15,6 +16,13 @@ function formatDuration(seconds) {
   const m = Math.floor((seconds % 3600) / 60)
   return h > 0 ? `${h}h ${m}m` : `${m}m`
 }
+
+// Same layout as the athlete-side Session footage: one heading per day, three camera columns
+// (Bags / Ring / Main -- recordings come from cameras 01, 02 and 04), square tiles in time order.
+const CAM_COLS = [{ key: '1', label: 'Bags' }, { key: '2', label: 'Ring' }, { key: '3', label: 'Main' }]
+const camCol = n => { const m = String(n || '').match(/(\d+)/); const v = m ? parseInt(m[1]) : 0; return v === 1 ? '1' : v === 2 ? '2' : '3' }
+const dayKey = iso => { const d = wall(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
+const fmtDayHead = k => new Date(k + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
 
 export default function CctvViewer({ embedded = false }) {
   const [cameras, setCameras] = useState([])
@@ -317,68 +325,48 @@ export default function CctvViewer({ embedded = false }) {
                 : activityFilter === 'unmatched' ? 'No unmatched clips -- everything recorded lines up with a check-in or scheduled class. 👍'
                 : 'No clips found for this filter.'}
             </p>
-          ) : cameraFilter === 'all' && cameras.length > 1 ? (
-            // Side-by-side columns, one per camera, so the same time
-            // period across different cameras can be compared/switched
-            // between at a glance instead of scrolling through one
-            // long mixed list to find the matching moment on another camera.
-            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(cameras.length, 3)}, 1fr)`, gap: 12 }}>
-              {cameras.map(cam => (
-                <div key={cam}>
-                  <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>{cam}</p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 600, overflowY: 'auto' }}>
-                    {visibleClips.filter(c => c.camera_name === cam).map(clip => (
-                      <div key={clip.id} onClick={() => openClip(clip)}
-                        className="card"
-                        style={{ padding: '8px 10px', cursor: 'pointer', border: selectedClip?.id === clip.id ? '2px solid var(--text)' : undefined, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                        <input type="checkbox" checked={bulkSelected.has(clip.id)} onClick={e => e.stopPropagation()} onChange={() => toggleBulkSelect(clip.id)} style={{ marginTop: 3, flexShrink: 0 }} />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                            {new Date(clip.recorded_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
+          ) : (() => {
+            // newest day first; within a day, tiles run in time order like the athlete view
+            const days = [...new Set(visibleClips.map(c => dayKey(c.recorded_at)))].sort().reverse()
+            const cols = cameraFilter === 'all' ? CAM_COLS.filter(cam => visibleClips.some(c => camCol(c.camera_name) === cam.key)) : CAM_COLS.filter(cam => cam.key === camCol(cameraFilter))
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 700, overflowY: 'auto' }}>
+                {days.map(day => {
+                  const dayClips = visibleClips.filter(c => dayKey(c.recorded_at) === day).sort((a, b) => wall(a.recorded_at) - wall(b.recorded_at))
+                  return (
+                    <div key={day} style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 10 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>{fmtDayHead(day)} <span style={{ fontWeight: 400, color: 'var(--text-tertiary)', fontSize: 11 }}>· {dayClips.length} clip{dayClips.length === 1 ? '' : 's'}</span></div>
+                      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.max(1, cols.length)}, minmax(0, 1fr))`, gap: 6 }}>
+                        {cols.map(cam => (
+                          <div key={cam.key} style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textAlign: 'center' }}>{cam.label}</div>
+                            {dayClips.filter(c => camCol(c.camera_name) === cam.key).map(clip => (
+                              <div key={clip.id} role="button" tabIndex={0} onClick={() => openClip(clip)} onKeyDown={e => { if (e.key === 'Enter') openClip(clip) }} className="btn"
+                                style={{ position: 'relative', aspectRatio: '1 / 1', width: '100%', padding: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, borderRadius: 10, cursor: 'pointer',
+                                  outline: selectedClip?.id === clip.id ? '2px solid var(--text)' : 'none', outlineOffset: -2 }}>
+                                <input type="checkbox" checked={bulkSelected.has(clip.id)} onClick={e => e.stopPropagation()} onChange={() => toggleBulkSelect(clip.id)}
+                                  aria-label="Select clip" style={{ position: 'absolute', top: 5, left: 5, margin: 0 }} />
+                                <span style={{ fontSize: 16 }}>▶</span>
+                                <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 13, fontWeight: 700 }}>{wall(clip.recorded_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
+                                {clip.duration_seconds ? <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{Math.round(clip.duration_seconds / 60)} min</span> : null}
+                                {(clip.flagged_reason || clip.allow_download) && (
+                                  <span style={{ position: 'absolute', top: 4, right: 5, fontSize: 9, display: 'flex', gap: 2 }}>
+                                    {clip.flagged_reason && <span title="Flagged">🚩</span>}
+                                    {clip.allow_download && <span title="Downloadable" style={{ color: '#1D9E75' }}>⬇</span>}
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                            {dayClips.every(c => camCol(c.camera_name) !== cam.key) && <div style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center' }}>—</div>}
                           </div>
-                          <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{formatDuration(clip.duration_seconds)}</div>
-                          <div style={{ display: 'flex', gap: 4, marginTop: 3, flexWrap: 'wrap' }}>
-                            {clip.flagged_reason && <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 10, background: '#E24B4A22', color: '#E24B4A' }}>🚩</span>}
-                            {clip.allow_download && <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 10, background: '#1D9E7522', color: '#1D9E75' }}>⬇</span>}
-                          </div>
-                        </div>
+                        ))}
                       </div>
-                    ))}
-                    {visibleClips.filter(c => c.camera_name === cam).length === 0 && (
-                      <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No clips</p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 600, overflowY: 'auto' }}>
-              {visibleClips.map(clip => (
-                <div key={clip.id} onClick={() => openClip(clip)}
-                  className="card"
-                  style={{ padding: '10px 14px', cursor: 'pointer', border: selectedClip?.id === clip.id ? '2px solid var(--text)' : undefined, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                  <input type="checkbox" checked={bulkSelected.has(clip.id)} onClick={e => e.stopPropagation()} onChange={() => toggleBulkSelect(clip.id)} style={{ marginTop: 3, flexShrink: 0 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 500 }}>
-                    <span>{clip.camera_name}</span>
-                    <span style={{ color: 'var(--text-tertiary)' }}>{formatDuration(clip.duration_seconds)}</span>
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
-                    {new Date(clip.recorded_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
-                  </div>
-                  <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 10, background: 'var(--bg-secondary)', color: 'var(--text-tertiary)' }}>
-                      {ACCESS_MODES.find(m => m.value === clip.access_mode)?.label || clip.access_mode}
-                    </span>
-                    {clip.keep_forever && <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 10, background: 'var(--bg-secondary)', color: 'var(--text-tertiary)' }}>Kept forever</span>}
-                    {clip.flagged_reason && <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 10, background: '#E24B4A22', color: '#E24B4A' }}>🚩 Flagged</span>}
-                    {clip.allow_download && <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 10, background: '#1D9E7522', color: '#1D9E75' }}>⬇ Downloadable</span>}
-                  </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })()}
         </div>
 
         {selectedClip && (

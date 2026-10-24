@@ -43,6 +43,8 @@ export default function Media() {
   const [dateTo, setDateTo] = useState('')
 
   const [tab, setTab] = useState('cctv')
+  // CCTV starts hidden; pressing 📹 CCTV shows it, pressing again hides it
+  const [cctvOpen, setCctvOpen] = useState(false)
 
   useEffect(() => { load() }, [])
 
@@ -137,12 +139,12 @@ export default function Media() {
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <button className={tab === 'cctv' ? 'btn btn-primary' : 'btn'} onClick={() => setTab('cctv')}>📹 CCTV</button>
+        <button className={tab === 'cctv' && cctvOpen ? 'btn btn-primary' : 'btn'} onClick={() => { if (tab === 'cctv') setCctvOpen(v => !v); else { setTab('cctv'); setCctvOpen(true) } }}>📹 CCTV {tab === 'cctv' ? (cctvOpen ? '▾' : '▸') : ''}</button>
         <button className={tab === 'uploads' ? 'btn btn-primary' : 'btn'} onClick={() => setTab('uploads')}>⬆️ Uploads</button>
         <button className={tab === 'view-it' ? 'btn btn-primary' : 'btn'} onClick={() => setTab('view-it')}>🥊 View IT</button>
       </div>
 
-      {tab === 'cctv' && <CctvViewer embedded />}
+      {tab === 'cctv' && cctvOpen && <CctvViewer embedded />}
       {tab === 'uploads' && <Uploads {...sharedProps} />}
       {tab === 'view-it' && <ViewIt embedded {...sharedProps} />}
     </div>
