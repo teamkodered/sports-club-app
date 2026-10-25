@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
+import SituationCards from '../components/shared/SituationCards.jsx'
 import HandbookReader, { wordToPageHtml } from '../components/shared/HandbookReader.jsx'
 
 // Coaching tools: documents, videos and links for coaches. Admin adds / removes; Head Coaches,
@@ -107,6 +108,8 @@ export default function CoachingTools() {
         <div><h1>🧰 Coaching tools</h1><p>Documents, videos and links for coaches</p></div>
         {isAdmin && <button className="btn btn-primary" onClick={() => setAdding({ title: '', description: '', category: '', kind: 'doc', url: '', file: null })}>+ Add</button>}
       </div>
+
+      <SituationCards canEdit={isAdmin} />
       {err && <div className="card" style={{ color: '#E24B4A', marginBottom: 12 }}>{err}</div>}
 
       <div className="ct-filters">
