@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import AppBackBar from '../components/shared/AppBackBar.jsx'
 import { supabasePublic as supabase } from '../lib/supabasePublic.js'
 import { CATEGORIES, buildLeaderboard, maskName } from './ResultsPublic.jsx'
+import { useSectionLeague } from '../lib/sectionLeague.jsx'
 import LiveHrTable from '../components/shared/LiveHrTable.jsx'
 
 // Combined League board (Oct 2026) -- public display (/results-public) and the
@@ -79,9 +80,10 @@ async function loadPeriod(from, to) {
 }
 
 function Row({ rank, name, sub, subColour, value, unit, colour, me }) {
+  const cls = `lb-row${me ? ' lb-me' : ''}`
   const medal = rank <= 3 ? ['#F5C542', '#C0C4CC', '#CD7F32'][rank - 1] : null
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 6, background: '#1A1F24',
+    <div className={cls} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 6, background: '#1A1F24',
       border: me ? `1px solid ${colour}` : '1px solid #2A3138', boxShadow: me ? `0 0 10px ${colour}66` : 'none' }}>
       <span style={{ ...NUM, width: 26, textAlign: 'center', fontSize: 13, color: medal || '#9A9A9A', textShadow: medal ? `0 0 6px ${medal}` : 'none' }}>{rank}</span>
       <span style={{ flex: 1, minWidth: 0 }}>
@@ -93,7 +95,8 @@ function Row({ rank, name, sub, subColour, value, unit, colour, me }) {
   )
 }
 
-export default function LeagueBoard({ embedded = false, student = null, onBack }) {
+export default function LeagueBoard({ embedded = false, student = null, onBack, listMode = false }) {
+  // listMode (athlete app): every board as a compact card -- top 3 + you, tap for the top 10 -- grouped by type; no house points
   const [cfg, setCfg] = useState({ from: null, to: null, topHouse: 10, topIndiv: 10, topBoard: 10, seconds: 8, club: 'KR Centre' })
   const [data, setData] = useState({ league: null, month: null })
   const [exRows, setExRows] = useState([])
@@ -143,8 +146,8 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
   const slides = useMemo(() => {
     if (!pd) return []
     const out = []
-    if (pd.houses.some(h => h.points > 0)) out.push({ kind: 'houses' })
-    if (pd.individuals.length) out.push({ kind: 'individuals' })
+    if (!listMode && pd.houses.some(h => h.points > 0)) out.push({ kind: 'houses' })
+    if (!listMode && pd.individuals.length) out.push({ kind: 'individuals' })
     for (const a of AREAS) if (pd.tasks.some(r => taskValue(r, a.key) > 0)) out.push({ kind: 'tasks', area: a })
     if ((pd.workrate || []).length) { out.push({ kind: 'workrate', metric: 'avg' }); out.push({ kind: 'workrate', metric: 'above' }) }
     if ((pd.hr || []).length) { out.push({ kind: 'hr', metric: 'avg' }); out.push({ kind: 'hr', metric: 'max' }) }
@@ -175,12 +178,16 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
 
   const s = slides[idx]
   const meId = student?.id
+  const sectionPos = useSectionLeague(listMode ? student?.id : null)
+  const [openCard, setOpenCard] = useState(null)
+  const myMasked = student?.members ? maskName(student.members.first_name, student.members.last_name) : null
   const ranked = (list, valueOf) => {
     let rank = 0, prev = null
     return list.map((r, i) => { const v = valueOf(r); if (v !== prev) { rank = i + 1; prev = v } return { ...r, v, rank } })
   }
 
-  function Board() {
+  function Board({ sl } = {}) {
+    const s = sl || slides[idx]
     if (!s) return <p style={{ color: '#9A9A9A', textAlign: 'center', marginTop: 40 }}>Nothing to show yet.</p>
     if (s.kind === 'houses') {
       const max = Math.max(1, ...pd.houses.map(h => h.points))
@@ -293,7 +300,7 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
       const cat = s.cat, list = buildLeaderboard(cat, exRows, cfg.topBoard)
       return (
         <Slide title={cat.label.replace(/^\S+\s/, '')} colour={cat.colour} emoji={cat.label.split(' ')[0]} sub="Personal bests" fixedPeriod>
-          {list.map((r, i) => <Row key={r.name + i} rank={i + 1} name={r.name} sub={r.sub} value={r.value} unit={cat.unit} colour={cat.colour} />)}
+          {list.map((r, i) => <Row key={r.name + i} rank={i + 1} name={r.name} sub={r.sub} value={r.value} unit={cat.unit} colour={cat.colour} me={!!myMasked && r.name === myMasked} />)}
         </Slide>
       )
     }
@@ -301,13 +308,60 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
     return <Slide title="Most notes" colour="#9A9A9A" emoji="📝" fixedPeriod={!pd.notes}>{notes.map((r, i) => <Row key={r.name + i} rank={i + 1} name={r.name} value={r.value} unit="NOTES" colour="#C0C4CC" />)}</Slide>
   }
 
+  // athlete app: my standing + every board as a compact card, grouped
+  function ListView() {
+    const ord = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][n % 100] || 'th')
+    const badges = []
+    const rankIn = (list, val) => { let rank = 0, prev = null; for (let i = 0; i < list.length; i++) { const v = val(list[i]); if (v !== prev) { rank = i + 1; prev = v } if (list[i].student_id === meId) return rank } return null }
+    if (meId) {
+      const wr = pd.workrate || []
+      const r1 = rankIn([...wr].sort((a, b) => b.avg_pct - a.avg_pct), r => Number(r.avg_pct)); if (r1 && r1 <= 10) badges.push(['🔥', `${ord(r1)} · Workrate`])
+      const r2 = rankIn([...wr].sort((a, b) => b.above_team - a.above_team), r => Number(r.above_team)); if (r2 && r2 <= 10) badges.push(['🔥', `${ord(r2)} · Above club average`])
+      const hr = pd.hr || []
+      const r3 = rankIn([...hr].sort((a, b) => (b.best_avg_pct || 0) - (a.best_avg_pct || 0)), r => r.best_avg_pct); if (r3 && r3 <= 10) badges.push(['❤️', `${ord(r3)} · Heart rate average`])
+      for (const cat of CATEGORIES) { if (cat.aggregate || !myMasked) continue; const lb = buildLeaderboard(cat, exRows, cfg.topBoard); const i = lb.findIndex(r => r.name === myMasked); if (i >= 0) badges.push([['🥇', '🥈', '🥉'][i] || '🏅', `${ord(i + 1)} · ${cat.label.replace(/^\S+\s/, '')}`]) }
+    }
+    const SECT = [['mentality', 'Mental', '#22B14C'], ['tactical', 'Tactical', '#FF2A2A'], ['technical', 'Technical', '#2F6BFF'], ['physical', 'Physical', '#E6B800'], ['foundation', 'Foundation', '#C93BFF']]
+    const groupOf = sl => sl.kind === 'tasks' ? 'Sections' : sl.kind === 'exercise' ? 'Exercise PBs' : (sl.kind === 'workrate' || sl.kind === 'hr') ? 'Workrate & heart rate' : 'Notes & more'
+    const order = ['Sections', 'Exercise PBs', 'Workrate & heart rate', 'Notes & more']
+    const grouped = order.map(g => [g, slides.filter(sl => groupOf(sl) === g)]).filter(([, l]) => l.length)
+    return (
+      <div>
+        {student && (
+          <div style={{ background: '#1A1F24', border: '1px solid #2A3138', borderRadius: 12, padding: 14, marginBottom: 14 }}>
+            <div style={{ ...TITLE, fontSize: 20, color: '#F2F2F2', marginBottom: 10 }}>My standing</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 6, textAlign: 'center', marginBottom: badges.length ? 10 : 0 }}>
+              {SECT.map(([k, l, c]) => <div key={k}><div style={{ ...NUM, fontSize: 18, color: c, textShadow: `0 0 6px ${c}66` }}>{sectionPos[k]?.rank ? ord(sectionPos[k].rank) : '–'}</div><div style={{ fontSize: 10, color: '#9A9A9A' }}>{l}</div></div>)}
+            </div>
+            {badges.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{badges.map(([e, t]) => <span key={t} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 12, border: '1px solid #F5C54266', color: '#F5C542', background: '#F5C54214' }}>{e} {t}</span>)}</div>}
+          </div>
+        )}
+        {grouped.map(([g, list]) => (
+          <div key={g} style={{ marginBottom: 16 }}>
+            <div style={{ ...NUM, fontSize: 10, letterSpacing: 2, color: '#9A9A9A', margin: '0 2px 8px' }}>{g.toUpperCase()}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {list.map(sl => { const k = slideKey(sl), open = openCard === k; return (
+                <div key={k} className={`lb-card${open ? ' open' : ''}`} onClick={() => setOpenCard(o => o === k ? null : k)}
+                  style={{ background: '#111417', border: '1px solid #2A3138', borderRadius: 12, padding: '10px 10px 8px', cursor: 'pointer' }}>
+                  <Board sl={sl} />
+                  <div style={{ textAlign: 'center', fontSize: 11, color: '#9A9A9A', marginTop: 6 }}>{open ? 'Show less ▲' : 'Top 10 ▼'}</div>
+                </div>
+              ) })}
+            </div>
+          </div>
+        ))}
+        {!grouped.length && <p style={{ color: '#9A9A9A', textAlign: 'center' }}>Nothing on the boards yet for this period.</p>}
+      </div>
+    )
+  }
+
   function Slide({ title, colour, icon, emoji, sub, fixedPeriod, children }) {
     return (
-      <div key={idx + ':' + period} style={{ animation: 'lbFade 0.4s ease' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-          {icon ? <img src={icon} alt="" style={{ width: 40, height: 40, objectFit: 'contain' }} /> : emoji ? <span style={{ fontSize: 30 }}>{emoji}</span> : null}
+      <div key={idx + ':' + period} style={{ animation: listMode ? 'none' : 'lbFade 0.4s ease' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: listMode ? 8 : 12 }}>
+          {icon ? <img src={icon} alt="" style={{ width: listMode ? 26 : 40, height: listMode ? 26 : 40, objectFit: 'contain' }} /> : emoji ? <span style={{ fontSize: listMode ? 20 : 30 }}>{emoji}</span> : null}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ ...TITLE, fontSize: 28, color: colour, textShadow: `0 0 10px ${colour}66` }}>{title}</div>
+            <div style={{ ...TITLE, fontSize: listMode ? 19 : 28, color: colour, textShadow: `0 0 10px ${colour}66` }}>{title}</div>
             <div style={{ ...NUM, fontSize: 9, letterSpacing: 2, color: '#9A9A9A', marginTop: 4 }}>{(fixedPeriod ? 'ALL TIME' : periodLabel).toUpperCase()}{sub ? ` · ${sub.toUpperCase()}` : ''}</div>
           </div>
         </div>
@@ -341,7 +395,7 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
           {chip(periodMode === 'live', `❤️ LIVE${liveCount ? ` · ${liveCount}` : ''}`, () => setPeriodMode('live'))}
           {periodMode === 'auto' && <span style={{ ...NUM, fontSize: 9, letterSpacing: 1.5, color: '#9A9A9A', alignSelf: 'center' }}>NOW: {period === 'league' ? 'LEAGUE' : 'THIS MONTH'}</span>}
         </div>
-        {periodMode !== 'live' && slides.length > 1 && (
+        {!listMode && periodMode !== 'live' && slides.length > 1 && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, marginBottom: 12 }}>
             <button type="button" onClick={() => go(-1)} style={{ background: 'none', border: '1px solid #2A3138', color: '#F2F2F2', borderRadius: 6, width: 40, height: 36, cursor: 'pointer' }}>‹</button>
             <span style={{ ...NUM, fontSize: 11, color: '#9A9A9A' }}>{idx + 1} / {slides.length}{paused ? ' · paused' : ''}</span>
@@ -351,9 +405,9 @@ export default function LeagueBoard({ embedded = false, student = null, onBack }
         {periodMode === 'live' ? (
           <div style={{ marginTop: 6 }}>
             <div style={{ ...TITLE, color: '#E24B4A', fontSize: 28, marginBottom: 10 }}>❤️ Live heart rate</div>
-            <LiveHrTable dark onRows={r => setLiveCount(r.length)} />
+            <LiveHrTable dark meId={meId} onRows={r => setLiveCount(r.length)} />
           </div>
-        ) : loading ? <p style={{ color: '#9A9A9A' }}>Loading league…</p> : <Board />}
+        ) : loading ? <p style={{ color: '#9A9A9A' }}>Loading league…</p> : listMode ? <ListView /> : <Board />}
         {periodMode !== 'live' && <div style={{ display: 'none' }}><LiveHrTable dark onRows={r => setLiveCount(r.length)} /></div>}
       </div>
     </div>

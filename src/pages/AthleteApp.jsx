@@ -7824,25 +7824,12 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
 
       {/* ── Leagues -- choose House League or Exercise Leagues ── */}
       {tab === 'f2fleague' && student && (
-        <LeagueBoard embedded student={student} onBack={() => setTab('home')} />
+        <LeagueBoard embedded listMode student={student} onBack={() => setTab('home')} />
       )}
 
-      {tab === 'leagues' && (
-        <div>
-          <button onClick={goBackTab} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <a href="/league-public?limit=10&from=app&home=/athlete-app" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 24, color: '#8B5CF6' }}>
-              <div style={{ fontSize: 36, marginBottom: 8 }}>🏠</div>
-              <div style={{ fontWeight: 700, fontSize: 15 }}>House League</div>
-              <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>Points standings by house</div>
-            </a>
-            <a href="/results-public?from=app&home=/athlete-app" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 24, color: '#EF9F27' }}>
-              <div style={{ fontSize: 36, marginBottom: 8 }}>🏋️</div>
-              <div style={{ fontWeight: 700, fontSize: 15 }}>Exercise Leagues</div>
-              <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>Fitness results leaderboard</div>
-            </a>
-          </div>
-        </div>
+      {/* League: every board as compact cards (top 3 + you, tap for top 10), My standing, Live -- house points no longer shown to athletes */}
+      {tab === 'leagues' && student && (
+        <LeagueBoard embedded listMode student={student} onBack={goBackTab} />
       )}
 
       {/* ── Opponents (moved out from being an inline card on Home) ── */}

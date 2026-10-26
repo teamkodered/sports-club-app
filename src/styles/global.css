@@ -1611,3 +1611,7 @@ input::placeholder, textarea::placeholder { color: var(--text-tertiary); }
 .sc-card.back .sc-text { font-size: 18px; font-weight: 600; }
 .sc-tip { color: #ddd; font-size: 13px; margin: 0; }
 .sc-stage-btns { display: flex; gap: 10px; }
+
+/* League (athlete app list mode): top 3 + you until a card is opened */
+.lb-card:not(.open) .lb-row:nth-child(n+4):not(.lb-me) { display: none !important; }
+.lb-card:not(.open) .lb-row:nth-child(n+4) ~ div:not(.lb-row) { display: none; }
