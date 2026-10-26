@@ -155,12 +155,6 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
     // hide the mouse pointer when it's not moving
     let hideT = null; const onMove = () => { document.body.style.cursor = ''; clearTimeout(hideT); hideT = setTimeout(() => { document.body.style.cursor = 'none' }, 3000) }
     window.addEventListener('mousemove', onMove); onMove()
-    // next class today (public timetable)
-    supabase.from('classes').select('name, day_of_week, start_time').then(({ data: cls }) => {
-      const dow = new Date().toLocaleDateString('en-GB', { weekday: 'long' }).toLowerCase(), hm = new Date().toTimeString().slice(0, 5)
-      const n = (cls || []).filter(c => (c.day_of_week || '').toLowerCase() === dow && String(c.start_time).slice(0, 5) > hm).sort((a, b) => String(a.start_time).localeCompare(String(b.start_time)))[0]
-      setNextClass(n || null)
-    }, () => {})
     return () => { clearInterval(t); window.removeEventListener('resize', onR); document.removeEventListener('visibilitychange', onVis); clearTimeout(daily); window.removeEventListener('mousemove', onMove); clearTimeout(hideT); lock?.release?.().catch?.(() => {}); document.body.style.cursor = '' }
   }, [tv])
 
@@ -425,7 +419,6 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
             <span style={{ ...NUM, fontSize: tall ? 40 : 28, color: '#F2F2F2' }}>{clock.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
             <span style={{ flex: 1, ...NUM, fontSize: tall ? 14 : 11, letterSpacing: 1.5, color: '#9A9A9A' }}>
               {clock.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' }).toUpperCase()}
-              {nextClass && <span style={{ display: 'block', color: '#F5C542' }}>NEXT: {String(nextClass.name).toUpperCase()} {String(nextClass.start_time).slice(0, 5)}</span>}
             </span>
             {document.fullscreenEnabled && !document.fullscreenElement && <button type="button" onClick={() => document.documentElement.requestFullscreen?.().catch(() => {})}
               style={{ background: 'none', border: '1px solid #2A3138', color: '#9A9A9A', borderRadius: 6, height: 32, padding: '0 10px', cursor: 'pointer', fontSize: 12 }}>⛶ Full screen</button>}
@@ -466,7 +459,13 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
                   <div key={`${idx}:${paused}`} style={{ height: '100%', background: '#F5C542', width: paused ? '100%' : 0, opacity: paused ? 0.3 : 1, animation: paused ? 'none' : `lbTimer ${cfg.seconds}s linear forwards` }} />
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'center', gap: 5, marginTop: 8, flexWrap: 'wrap' }}>
-                  {slides.map((_, i) => <span key={i} style={{ width: i >= idx && i < idx + perView() ? 14 : 6, height: 6, borderRadius: 3, background: i >= idx && i < idx + perView() ? '#F5C542' : '#2A3138', transition: 'width 0.3s' }} />)}
+                  {slides.map((_, i) => (
+                    // tap a dot to jump to that board (pauses the rotation for a moment, like the arrows)
+                    <button key={i} type="button" aria-label={`Board ${i + 1}`} onClick={e => { e.stopPropagation(); interact(); setIdx(i) }}
+                      style={{ border: 'none', padding: 6, margin: -6, background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                      <span style={{ display: 'block', width: i >= idx && i < idx + perView() ? 14 : 6, height: 6, borderRadius: 3, background: i >= idx && i < idx + perView() ? '#F5C542' : '#2A3138', transition: 'width 0.3s' }} />
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
