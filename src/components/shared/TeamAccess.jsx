@@ -25,7 +25,7 @@ export default function TeamAccess() {
 
   async function load() {
     const [{ data: ms }, { data: cs }, { data: gr }] = await Promise.all([
-      supabase.from('members').select('id, first_name, last_name, email, role, access').order('first_name'),
+      supabase.from('members').select('id, first_name, last_name, email, phone, role, access, auth_id').order('first_name'),
       supabase.from('classes').select('id, name, day_of_week, start_time').eq('active', true).order('day_of_week').order('start_time'),
       supabase.from('settings').select('value').eq('key', 'access_groups').maybeSingle(),
     ])
@@ -170,7 +170,7 @@ export default function TeamAccess() {
           <button key={m.id} type="button" onClick={() => open(m)} className="team-row">
             <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, textAlign: 'left' }}>
               <b style={{ fontSize: 14 }}>{m.first_name} {m.last_name}</b>
-              <span style={{ fontSize: 11, color: 'var(--text-tertiary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.email}</span>
+              <span style={{ fontSize: 11, color: 'var(--text-tertiary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.email}{!m.auth_id && isTeam(m) && <span style={{ marginLeft: 6, color: 'var(--danger, #e5484d)', fontWeight: 600 }}>· no login</span>}</span>
             </span>
             <span className={`team-role team-role-${normRole(m.role)}`}>{label(m)}{normRole(m.role) === 'admin' ? ' · full access' : ['head_coach', 'captain', 'leader'].includes(normRole(m.role)) ? ` · ${(m.access?.registers?.classes || groupOf(m)?.access?.registers?.classes || []).length} classes` : ''}</span>
           </button>
@@ -183,7 +183,14 @@ export default function TeamAccess() {
           <div className="team-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-label={`Access for ${editing.member.first_name} ${editing.member.last_name}`}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
               <div><b style={{ fontSize: 17 }}>{editing.member.first_name} {editing.member.last_name}</b><div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{editing.member.email}</div></div>
-              <span style={{ display: 'flex', gap: 6 }}>
+              <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                {/* Login problems fixed here: no login -> create one (or link the login that already exists
+                    for this email, e.g. from a half-finished sign-up); has a login -> set a new password.
+                    No email is sent either way -- you give them the password. */}
+                <CreateLogin key={editing.member.id} memberId={editing.member.id} hasLogin={!!editing.member.auth_id}
+                  label={editing.member.auth_id ? '🔑 New password' : '🔑 Set up login'}
+                  defaults={{ email: editing.member.email, firstName: editing.member.first_name, lastName: editing.member.last_name, phone: editing.member.phone }}
+                  onDone={async () => { await load(); setEditing(e => e && { ...e, member: { ...e.member, auth_id: e.member.auth_id || 'linked' } }) }} />
                 {normRole(editing.member.role) !== 'admin' && normRole(editing.member.role) !== 'member' && (
                   <button type="button" className="btn btn-sm" title="Preview the app as this person sees it" onClick={() => startViewAs(editing.member)}>👁 View as</button>
                 )}

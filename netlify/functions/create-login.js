@@ -48,8 +48,15 @@ exports.handler = async (event) => {
         return json(200, { ok: true, reset: true, memberId, authId: m[0].auth_id, loginEmail: u2.email || null })
       }
     } else {
-      const m = await (await fetch(`${url}/rest/v1/members?email=ilike.${encodeURIComponent(email)}&auth_id=is.null&select=id`, { headers: S })).json()
+      const m = await (await fetch(`${url}/rest/v1/members?email=ilike.${encodeURIComponent(email)}&auth_id=is.null&select=id,first_name,last_name`, { headers: S })).json()
       if (m?.length === 1) memberId = m[0].id
+      else if (m?.length > 1) {
+        // several records share this email (e.g. a parent and their child): use the one with the name typed in
+        const norm = x => String(x || '').trim().toLowerCase()
+        const byName = m.filter(r => norm(r.first_name) === norm(body.firstName) && (!norm(body.lastName) || norm(r.last_name) === norm(body.lastName)))
+        if (byName.length === 1) memberId = byName[0].id
+        else return json(409, { error: `${m.length} records use this email (${m.map(r => `${String(r.first_name).trim()} ${String(r.last_name).trim()}`).join(', ')}). Open the right person in Settings → Team and use 🔑 Set up login there, so the login goes on the right record.` })
+      }
     }
 
     // create the login, already confirmed (or reuse an existing unlinked one)

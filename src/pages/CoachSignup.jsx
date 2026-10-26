@@ -60,7 +60,7 @@ export default function CoachSignup() {
       // rather than trying to link a members row to an auth_id that
       // doesn't actually exist, which fails with a foreign key error.
       if (authData?.user && authData.user.identities?.length === 0) {
-        throw new Error('An account with this email already exists. Try signing in instead, or reset your password if you\'ve forgotten it.')
+        throw new Error('An account with this email already exists. Try signing in instead, or reset your password. If that doesn\'t work, ask the club to set up your login for you (Settings → Team → 🔑).')
       }
       if (!authData?.user?.id) {
         throw new Error('Something went wrong creating your login — please try again.')

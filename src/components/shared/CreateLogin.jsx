@@ -33,7 +33,7 @@ export default function CreateLogin({ memberId = null, defaults = {}, label = '�
     <>
       <button type="button" className="btn btn-sm" onClick={start}>{label}</button>
       {open && (
-        <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 320, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+        <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div className="card" onClick={e => e.stopPropagation()} role="dialog" aria-label="Create login" style={{ width: '100%', maxWidth: 420, maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}><b style={{ fontSize: 16 }}>{hasLogin ? '🔑 Reset password' : '🔑 Create login'}</b><button className="btn btn-sm" onClick={() => setOpen(false)}>Close</button></div>
             {done ? (
@@ -48,7 +48,7 @@ export default function CreateLogin({ memberId = null, defaults = {}, label = '�
               </>
             ) : (
               <>
-                <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10 }}>{hasLogin ? 'They already have a login — this sets a NEW password on it (their email stays the same). ' : ''}Creates a ready-to-use login with no confirmation email (avoids the email limit). {memberId ? 'Linked to this person\'s record.' : 'If a record with this email already exists (and has no login), it\'s used.'}</p>
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10 }}>{hasLogin ? 'They already have a login — this sets a NEW password on it (their email stays the same). ' : ''}Creates a ready-to-use login with no confirmation email (avoids the email limit). {memberId ? 'Linked to this person\'s record (if a login already exists for this email, e.g. from a sign-up that didn\'t finish, it\'s linked and given this password).' : 'If a record with this email already exists (and has no login), it\'s used.'}</p>
                 {!memberId && <div style={{ display: 'flex', gap: 8 }}>
                   <div className="field" style={{ flex: 1 }}><label>First name</label><input value={f.firstName} onChange={e => setF(x => ({ ...x, firstName: e.target.value }))} /></div>
                   <div className="field" style={{ flex: 1 }}><label>Last name</label><input value={f.lastName} onChange={e => setF(x => ({ ...x, lastName: e.target.value }))} /></div>
