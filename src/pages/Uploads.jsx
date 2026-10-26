@@ -201,6 +201,7 @@ export default function Uploads({
       setBulkItems(items => items.map(x => x.key === key ? { ...x, frames, thumb, framesDone: true } : x))
     }
   }
+  const [calSearch, setCalSearch] = useState('')
   const [stepper, setStepper] = useState(null) // { start, keys? } -- 👀 tag one by one / preview
 
   function handleFolderSelect(e) {
@@ -571,34 +572,33 @@ export default function Uploads({
                 className={uploadForm.eventId === '__new__' ? 'btn btn-primary' : 'btn'} style={{ padding: '10px 14px', fontSize: 14, borderRadius: 10 }}>+ New event</button>
             </div>
             {(() => {
-              // Fixtures + club events from the calendar that don't have footage yet: one tap to use one
+              // Calendar events (fixtures, club events and the linked Google calendars) not yet used
+              // for footage, as a list -- newest first, upcoming ones included, with a search box
               const cal = unusedCalendarItems(calendarItems, events)
               if (!cal.length) return null
+              const q = calSearch.trim().toLowerCase()
               const today = new Date().toISOString().slice(0, 10)
-              const recent = cal.filter(i => i.date <= today).slice(0, 4)
-              const picked = cal.find(i => `cal:${i.key}` === uploadForm.eventId)
-              const chips = picked && !recent.includes(picked) ? [...recent, picked] : recent
+              const shown = cal.filter(i => !q || i.name.toLowerCase().includes(q) || i.source.toLowerCase().includes(q))
               return (
                 <div style={{ marginTop: 10 }}>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>📅 From the calendar</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                    {chips.map(i => {
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <span style={{ fontSize: 12, color: 'var(--text-secondary)', flex: 1 }}>📅 From the calendar ({cal.length})</span>
+                    <input value={calSearch} onChange={e => setCalSearch(e.target.value)} placeholder="🔍 Search" style={{ width: 150, fontSize: 13 }} />
+                  </div>
+                  <div style={{ border: '1px solid var(--border)', borderRadius: 10, maxHeight: 240, overflowY: 'auto' }}>
+                    {shown.map(i => {
                       const on = uploadForm.eventId === `cal:${i.key}`
                       return (
                         <button key={i.key} type="button" onClick={() => setUploadForm(f => ({ ...f, eventId: on ? '' : `cal:${i.key}` }))}
-                          className={on ? 'btn btn-primary' : 'btn'} style={{ padding: '10px 14px', fontSize: 14, borderRadius: 10, textAlign: 'left', lineHeight: 1.25 }}>
-                          <div style={{ fontWeight: 600 }}>{on ? '✓ ' : ''}{i.name}</div>
-                          <div style={{ fontSize: 11, opacity: 0.75 }}>{new Date(i.date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} · {i.source}</div>
+                          style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 12px', border: 'none', borderBottom: '1px solid var(--border)', background: on ? 'var(--bg-tertiary, rgba(55,138,221,0.18))' : 'transparent', color: 'inherit', textAlign: 'left', cursor: 'pointer', fontSize: 14 }}>
+                          <span style={{ width: 92, flexShrink: 0, fontSize: 12, color: i.date > today ? '#378ADD' : 'var(--text-secondary)' }}>{new Date(i.date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
+                          <span style={{ flex: 1, minWidth: 0, fontWeight: on ? 700 : 500 }}>{on ? '✓ ' : ''}{i.name}</span>
+                          <span style={{ fontSize: 11, color: 'var(--text-tertiary)', flexShrink: 0, maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i.source}</span>
                         </button>
                       )
                     })}
+                    {shown.length === 0 && <p style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: 10 }}>No calendar events match.</p>}
                   </div>
-                  {cal.length > chips.length && (
-                    <select value={picked && !chips.includes(picked) ? uploadForm.eventId : ''} onChange={e => setUploadForm(f => ({ ...f, eventId: e.target.value }))} style={{ marginTop: 8, fontSize: 13 }}>
-                      <option value="">More from the calendar…</option>
-                      {cal.filter(i => !chips.includes(i)).map(i => <option key={i.key} value={`cal:${i.key}`}>{i.name} · {new Date(i.date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</option>)}
-                    </select>
-                  )}
                 </div>
               )
             })()}

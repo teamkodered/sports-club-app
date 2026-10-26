@@ -159,7 +159,7 @@ export default function Media() {
       {openTab === 'cctv' && <CctvViewer embedded />}
       {openTab === 'uploads' && <Uploads {...sharedProps} />}
       {openTab === 'view-it' && <ViewIt embedded {...sharedProps} />}
-      {openTab === 'study' && <Study studyFootage={studyFootage} students={students} studentName={studentName} load={load} startUpload={startUpload} />}
+      {openTab === 'study' && <Study studyFootage={studyFootage} students={students} studentName={studentName} load={load} startUpload={startUpload} startBulkUpload={startBulkUpload} />}
     </div>
   )
 }

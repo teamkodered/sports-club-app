@@ -4,6 +4,7 @@ import { FOOTAGE_ACCESS_MODES, footageAccessLabel } from '../lib/mediaConstants.
 import { saveFootageAthletes } from '../lib/fightFootageTags.js'
 import AthletePicker from '../components/shared/AthletePicker.jsx'
 import FightFootagePlayer from '../components/shared/FightFootagePlayer.jsx'
+import { captureFrames } from '../lib/videoThumbs.js'
 
 // Media > 📚 Study (Oct 2026): study videos (uploaded) and links (YouTube or any
 // web page). Stored in fight_footage with kind = 'study', so sharing works exactly
@@ -11,9 +12,9 @@ import FightFootagePlayer from '../components/shared/FightFootagePlayer.jsx'
 // using the same athlete read rules. Study items skip the Uploads "Awaiting
 // publish" step -- they're live as soon as they're added, and who sees them is
 // decided by who-can-see (default Coach only).
-const EMPTY = { kind: 'video', title: '', notes: '', url: '', file: null, accessMode: 'coach_only', featuredIds: new Set(), viewerIds: new Set() }
+const EMPTY = { kind: 'video', title: '', notes: '', url: '', files: [], accessMode: 'coach_only', featuredIds: new Set(), viewerIds: new Set() }
 
-export default function Study({ studyFootage = [], students = [], studentName, load, startUpload }) {
+export default function Study({ studyFootage = [], students = [], studentName, load, startUpload, startBulkUpload }) {
   const [form, setForm] = useState(null) // null = closed
   const [saving, setSaving] = useState(false)
   const [editingId, setEditingId] = useState(null)
@@ -24,7 +25,8 @@ export default function Study({ studyFootage = [], students = [], studentName, l
 
   async function add() {
     const f = form
-    if (!f.title.trim()) { alert('Give it a title.'); return }
+    const many = f.kind === 'video' && f.files.length > 1
+    if (!many && !f.title.trim()) { alert('Give it a title.'); return }
     if (f.kind === 'link') {
       let url = f.url.trim()
       if (!url) { alert('Paste the link.'); return }
@@ -39,9 +41,20 @@ export default function Study({ studyFootage = [], students = [], studentName, l
         setForm(null); load()
       } catch (err) { alert('Could not add link: ' + err.message) } finally { setSaving(false) }
     } else {
-      if (!f.file) { alert('Choose a video.'); return }
-      // queued like other uploads (progress shows in the upload banner); the list refreshes when it's done
-      startUpload({ file: f.file, title: f.title.trim(), description: f.notes, accessMode: f.accessMode, featuredIds: f.featuredIds, viewerIds: f.viewerIds, kind: 'study' })
+      if (!f.files.length) { alert('Choose a video.'); return }
+      // queued like other uploads (progress shows in the upload banner); the list refreshes when it's done.
+      // A small picture is grabbed from each video first (on the device) and saved with it.
+      setSaving(true)
+      const withThumbs = []
+      for (const file of f.files) withThumbs.push({ file, thumb: (await captureFrames(file)).thumb })
+      setSaving(false)
+      if (many) {
+        // several videos: each is its own study item, titled from its filename, same sharing for all
+        startBulkUpload(withThumbs.map(({ file, thumb }) => ({ file, thumb, title: file.name.replace(/\.[^.]+$/, '').replace(/_/g, ' '), featuredIds: f.featuredIds })),
+          { accessMode: f.accessMode, viewerIds: f.viewerIds, kind: 'study' })
+      } else {
+        startUpload({ file: f.files[0], thumb: withThumbs[0].thumb, title: f.title.trim(), description: f.notes, accessMode: f.accessMode, featuredIds: f.featuredIds, viewerIds: f.viewerIds, kind: 'study' })
+      }
       setForm(null)
     }
   }
@@ -68,6 +81,14 @@ export default function Study({ studyFootage = [], students = [], studentName, l
     try { await saveFootageAthletes(item.id, edit) } catch (err) { alert('Could not save athletes: ' + err.message); return }
     setEditingId(null); load()
   }
+  async function rename(item) {
+    const title = prompt('New title', item.title)
+    if (title == null || !title.trim() || title.trim() === item.title) return
+    const { error } = await supabase.from('fight_footage').update({ title: title.trim() }).eq('id', item.id)
+    if (error) { alert('Could not rename: ' + error.message); return }
+    load()
+  }
+
   async function remove(item) {
     if (!confirm(`Delete "${item.title}"? This cannot be undone.`)) return
     await supabase.from('fight_footage').delete().eq('id', item.id)
@@ -110,19 +131,21 @@ export default function Study({ studyFootage = [], students = [], studentName, l
               <button key={k} type="button" className={form.kind === k ? 'btn btn-primary' : 'btn'} style={{ flex: 1 }} onClick={() => setForm(f => ({ ...f, kind: k }))}>{l}</button>
             ))}
           </div>
-          <div className="field"><label>Title</label>
+          {form.kind === 'video' && form.files.length > 1 ? (
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10 }}>{form.files.length} videos: each becomes its own study item, titled from its filename (rename any of them afterwards with ✏️).</p>
+          ) : <div className="field"><label>Title</label>
             <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Southpaw jab counters" style={{ fontSize: 16, padding: '10px 12px' }} />
-          </div>
+          </div>}
           {form.kind === 'link' ? (
             <div className="field"><label>Link</label>
               <input value={form.url} onChange={e => setForm(f => ({ ...f, url: e.target.value }))} placeholder="Paste a YouTube / web link" inputMode="url" style={{ fontSize: 16, padding: '10px 12px' }} />
             </div>
           ) : (
             <div className="field"><label>Video</label>
-              <input type="file" accept="video/*" id="study-file" style={{ display: 'none' }}
-                onChange={e => { const file = e.target.files?.[0]; if (file) setForm(f => ({ ...f, file, title: f.title || file.name.replace(/\.[^.]+$/, '').replace(/_/g, ' ') })) }} />
+              <input type="file" accept="video/*" multiple id="study-file" style={{ display: 'none' }}
+                onChange={e => { const files = [...(e.target.files || [])]; if (files.length) setForm(f => ({ ...f, files, title: f.title || (files.length === 1 ? files[0].name.replace(/\.[^.]+$/, '').replace(/_/g, ' ') : '') })) }} />
               <label htmlFor="study-file" className="btn" style={{ display: 'block', textAlign: 'center', padding: 14, borderRadius: 10, border: '2px dashed var(--border)', cursor: 'pointer' }}>
-                {form.file ? `🎞️ ${form.file.name} — tap to change` : '🎞️ Choose video'}
+                {form.files.length === 1 ? `🎞️ ${form.files[0].name} — tap to change` : form.files.length > 1 ? `🎞️ ${form.files.length} videos chosen — tap to change` : '🎞️ Choose video(s)'}
               </label>
             </div>
           )}
@@ -132,7 +155,7 @@ export default function Study({ studyFootage = [], students = [], studentName, l
           {sharing(form, setForm)}
           <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
             <button type="button" className="btn" style={{ flex: 1 }} onClick={() => setForm(null)}>Cancel</button>
-            <button type="button" className="btn btn-primary" style={{ flex: 2 }} disabled={saving} onClick={add}>{saving ? 'Saving…' : form.kind === 'link' ? 'Add link' : '⬆️ Upload'}</button>
+            <button type="button" className="btn btn-primary" style={{ flex: 2 }} disabled={saving} onClick={add}>{saving ? (form.kind === 'link' ? 'Saving…' : 'Preparing…') : form.kind === 'link' ? 'Add link' : form.files.length > 1 ? `⬆️ Upload ${form.files.length} videos` : '⬆️ Upload'}</button>
           </div>
         </div>
       )}
@@ -146,7 +169,10 @@ export default function Study({ studyFootage = [], students = [], studentName, l
             return (
               <div key={item.id} className="card" style={{ padding: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                  <button type="button" className="btn" onClick={() => open(item)} style={{ width: 44, height: 44, padding: 0, justifyContent: 'center', fontSize: 18, flexShrink: 0 }} title={item.link_url ? 'Open link' : 'Play'}>{item.link_url ? '🔗' : '▶'}</button>
+                  <button type="button" className="btn" onClick={() => open(item)} style={{ width: item.thumb ? 80 : 44, height: 44, padding: 0, justifyContent: 'center', fontSize: 18, flexShrink: 0, overflow: 'hidden', position: 'relative' }} title={item.link_url ? 'Open link' : 'Play'}>
+                    {item.thumb && <img src={item.thumb} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
+                    <span style={{ position: 'relative', textShadow: '0 1px 3px #000' }}>{item.link_url ? '🔗' : '▶'}</span>
+                  </button>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 600 }}>{item.title}</div>
                     {item.description && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{item.description}</div>}
@@ -155,6 +181,7 @@ export default function Study({ studyFootage = [], students = [], studentName, l
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                    <button type="button" className="btn btn-sm" title="Rename" onClick={() => rename(item)}>✏️</button>
                     <button type="button" className="btn btn-sm" onClick={() => editingId === item.id ? setEditingId(null) : startEdit(item)}>{editingId === item.id ? 'Close' : 'Share'}</button>
                     <button type="button" className="btn btn-sm" style={{ color: '#E24B4A' }} onClick={() => remove(item)}>Delete</button>
                   </div>

@@ -5,16 +5,33 @@ import { supabase } from './supabase.js'
 // picking a calendar item reuses the footage event with the same name and date,
 // or creates it. Typing a new event (free write) still works as before.
 
+// Events from the linked Google calendars -- the same feed the Calendar page shows
+// (netlify function calendar-events). Quietly empty if it isn't set up / fails.
+async function loadGoogleEvents(from, to) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return []
+    const res = await fetch(`/.netlify/functions/calendar-events?from=${from}&to=${to}`, { headers: { Authorization: `Bearer ${session.access_token}` } })
+    const r = await res.json()
+    return (r.events || []).filter(ev => ev.title && ev.start).map(ev => {
+      const date = ev.allDay ? String(ev.start).slice(0, 10) : (() => { const d = new Date(ev.start); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` })()
+      return { key: `g:${ev.uid || ev.title}:${date}`, name: String(ev.title).trim(), date, source: ev.feed || 'Calendar' }
+    })
+  } catch { return [] }
+}
+
 export async function loadCalendarItems() {
   const from = new Date(Date.now() - 180 * 864e5).toISOString().slice(0, 10)
   const to = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10)
-  const [fx, ce] = await Promise.all([
+  const [fx, ce, g] = await Promise.all([
     supabase.from('fixtures').select('id, title, date').gte('date', from).lte('date', to),
     supabase.from('club_events').select('id, title, event_date').gte('event_date', from).lte('event_date', to),
+    loadGoogleEvents(from, to),
   ])
   const items = [
     ...(fx.data || []).filter(f => f.title && f.date).map(f => ({ key: `fx:${f.id}`, name: f.title.trim(), date: String(f.date).slice(0, 10), source: 'Fixture' })),
     ...(ce.data || []).filter(e => e.title && e.event_date).map(e => ({ key: `ce:${e.id}`, name: e.title.trim(), date: String(e.event_date).slice(0, 10), source: 'Club event' })),
+    ...g,
   ]
   // newest first; drop exact duplicates (same name + date in both tables)
   const seen = new Set()

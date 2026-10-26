@@ -121,7 +121,7 @@ export function FightFootageUploadProvider({ children }) {
   // batch can hold several athletes' fights from the same event. Uploaded
   // one at a time (sequentially) so a big backlog doesn't hammer the
   // connection with dozens of simultaneous large uploads.
-  const runBulkUpload = useCallback(async (items, { accessMode, viewerIds, eventId, folderId, tags, gradeTag }) => {
+  const runBulkUpload = useCallback(async (items, { accessMode, viewerIds, eventId, folderId, tags, gradeTag, kind }) => {
     const total = items.length
     setUpload({ title: `${total} file${total === 1 ? '' : 's'}`, current: 0, total, progress: 0, status: 'uploading', error: null })
     let successCount = 0
@@ -141,6 +141,7 @@ export function FightFootageUploadProvider({ children }) {
           tags,
           gradeTag,
           thumb,
+          kind,
         })
         successCount++
       } catch (err) {
