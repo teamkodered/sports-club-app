@@ -1615,3 +1615,9 @@ input::placeholder, textarea::placeholder { color: var(--text-tertiary); }
 /* League (athlete app list mode): top 3 + you until a card is opened */
 .lb-card:not(.open) .lb-row:nth-child(n+4):not(.lb-me) { display: none !important; }
 .lb-card:not(.open) .lb-row:nth-child(n+4) ~ div:not(.lb-row) { display: none; }
+/* Coaching tools pages (Word imports): tables with borders, scroll sideways on phones */
+.hb-content table { border-collapse: collapse; display: block; overflow-x: auto; max-width: 100%; margin: 10px 0; font-size: 13px; }
+.hb-content th, .hb-content td { border: 1px solid var(--border-strong, #555); padding: 7px 10px; text-align: left; vertical-align: top; min-width: 64px; }
+.hb-content th { background: var(--bg-secondary); font-weight: 700; white-space: nowrap; }
+.hb-content td p { margin: 0; }
+.hb-content ol, .hb-content ul { padding-left: 22px; line-height: 1.8; }
