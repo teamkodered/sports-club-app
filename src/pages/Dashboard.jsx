@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useSyncedPreference } from '../hooks/useSyncedPreference.js'
 import FocusAndFormat from '../components/dashboard/FocusAndFormat.jsx'
+import WebsiteProfiles from '../components/dashboard/WebsiteProfiles.jsx'
 import { supabase } from '../lib/supabase.js'
 import { fetchAll } from '../lib/fetchAll.js'
 import { studentProfileLink } from '../lib/studentLinks.js'
@@ -16,6 +17,8 @@ const MEDALS = ['🥇','🥈','🥉','🎖️']
 
 export default function Dashboard() {
   const { profile, isAdmin, isHeadCoach, pageAccess } = useAuth()
+  const [websiteWaiting, setWebsiteWaiting] = useState(0) // 🌐 website profile changes waiting for a coach
+  const showWebsite = pageAccess('athletes') !== 'none'
   const [stats, setStats]         = useState({})
   const [memberBreakdownIndex, setMemberBreakdownIndex] = useState(0)
   const [athleteBreakdownIndex, setAthleteBreakdownIndex] = useState(0)
@@ -241,6 +244,14 @@ export default function Dashboard() {
       </div>
       <InstallAppButton subtitle="Open the Klass Champ dashboard straight from your home screen" />
 
+      {/* 🌐 notification: website profile changes waiting (the card itself is at the bottom) */}
+      {showWebsite && websiteWaiting > 0 && (
+        <button onClick={() => document.getElementById('website-profiles-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', marginBottom: 14, background: '#378ADD15', border: '1px solid #378ADD40', borderRadius: 'var(--border-radius-lg)', color: '#378ADD', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-sans)', textAlign: 'left' }}>
+          🌐 {websiteWaiting} website profile change{websiteWaiting === 1 ? '' : 's'} waiting for approval <span style={{ marginLeft: 'auto' }}>↓</span>
+        </button>
+      )}
+
       {/* Stats row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 18 }}>
         {(() => {
@@ -452,6 +463,9 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* 🌐 Website profiles approval (teamkodered.com) -- bottom of the coach dashboard */}
+      {showWebsite && <WebsiteProfiles profile={profile} onCount={setWebsiteWaiting} />}
 
       {/* Add Points quick scorer */}
       {showAddPoints && (
