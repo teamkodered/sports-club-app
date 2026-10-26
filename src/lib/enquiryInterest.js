@@ -25,6 +25,8 @@ export function nextDateForDay(dayName, from = new Date()) {
 
 export const VENUE_ADDRESS = {
   'The KR Centre': 'The KR Centre\nKedleston House\nAspen Drive\nSpondon\nDerby\nDE21 7SS',
+  'Derby Moore': 'Derby Moor Spencer Academy\nMoorway Lane\nDerby\nDE23 2FS',
+  'Moorways': 'Moorways Sports Village\nMoor Lane\nDerby\nDE24 9HY',
 }
 export const venueOfClass = name => /derby moore/i.test(name || '') ? 'Derby Moore' : /moorway/i.test(name || '') ? 'Moorways' : 'The KR Centre'
 const fmtTime = t => { if (!t) return ''; const [h, m] = String(t).split(':').map(Number); const h12 = ((h + 11) % 12) + 1; return `${h12}${m ? '.' + String(m).padStart(2, '0') : ''}${h < 12 ? 'am' : 'pm'}` }
