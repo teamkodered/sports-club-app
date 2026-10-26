@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth.jsx'
 import { viewAsVenueScope } from '../lib/viewAsScope.js'
 import JoinApplicationsPanel from '../components/shared/JoinApplicationsPanel.jsx'
 import { supabase } from '../lib/supabase.js'
+import { printMembershipForm, printGenericResponse, printBlankForm } from '../lib/printForm.jsx'
 
 function SortTh({ children, col, sortKey, sortDir, onSort, style = {} }) {
   const active = sortKey === col
@@ -247,6 +248,15 @@ export default function Forms() {
   const [colFilters, setColFilters] = useState({ date: '', name: '', email: '', status: '' })
   const [sortKey, setSortKey] = useState('date')
   const [sortDir, setSortDir] = useState('desc')
+  // phone: one column -- picking 📋 Responses shows the responses full width (with a back button)
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 760px)').matches)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 760px)')
+    const on = () => setIsMobile(mq.matches)
+    mq.addEventListener?.('change', on)
+    return () => mq.removeEventListener?.('change', on)
+  }, [])
+  useEffect(() => { if (isMobile && selectedForm) window.scrollTo({ top: 0, behavior: 'smooth' }) }, [selectedForm, isMobile])
   function toggleSort(col) {
     if (sortKey === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
     else { setSortKey(col); setSortDir('asc') }
@@ -257,28 +267,8 @@ export default function Forms() {
   }, [selectedForm])
 
   function printResponse(r) {
-    const w = window.open('', '_blank')
-    const fields = Object.entries(r).filter(([k,v]) => v && !['id','form_type','waiver_agreed'].includes(k))
-    w.document.write(`
-      <html><head><title>${r.first_name} ${r.last_name} — Membership Form</title>
-      <style>
-        body { font-family: Arial, sans-serif; max-width: 600px; margin: 40px auto; font-size: 13px; }
-        h1 { font-size: 18px; border-bottom: 2px solid #333; padding-bottom: 8px; }
-        .field { display: flex; gap: 16px; padding: 6px 0; border-bottom: 1px solid #eee; }
-        .label { min-width: 180px; font-weight: bold; color: #555; text-transform: capitalize; }
-        .value { flex: 1; }
-        @media print { body { margin: 20px; } }
-      </style></head>
-      <body>
-        <h1>KR Centre — Membership Form</h1>
-        <p><strong>Form type:</strong> ${r.form_type?.replace('_',' ').toUpperCase()}</p>
-        ${fields.map(([k,v]) => `<div class="field"><div class="label">${k.replace(/_/g,' ')}</div><div class="value">${v}</div></div>`).join('')}
-        <br><br>
-        <p>Signature: _________________________ &nbsp;&nbsp; Date: _________________________</p>
-      </body></html>
-    `)
-    w.document.close()
-    setTimeout(() => w.print(), 500)
+    if (['pka_child', 'pka_adult', 'krba'].includes(selectedForm?.key) || ['pka_child', 'pka_adult', 'krba'].includes(r.form_type)) printMembershipForm(r)
+    else printGenericResponse(r, selectedForm?.label)
   }
 
   // These four forms save to their own dedicated table rather than the
@@ -369,10 +359,10 @@ export default function Forms() {
 
       {isStaff && <JoinApplicationsPanel />}
 
-      <div style={{ display: 'grid', gridTemplateColumns: selectedForm ? '280px 1fr' : '1fr', gap: 16, alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: selectedForm && !isMobile ? '280px 1fr' : 'minmax(0, 1fr)', gap: 16, alignItems: 'start' }}>
 
         {/* Left — forms list */}
-        <div style={selectedForm ? { display: 'flex', flexDirection: 'column', gap: 8 } : { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div style={selectedForm && isMobile ? { display: 'none' } : selectedForm ? { display: 'flex', flexDirection: 'column', gap: 8 } : { display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', gap: 12 }}>
           {FORMS.filter(f => !f.adminOnly || isAdmin).map(f => (
             <div key={f.key} className="card" style={{
               borderLeft: `3px solid ${f.colour}`,
@@ -402,7 +392,7 @@ export default function Forms() {
                 </button>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <a href={f.path} target="_blank" rel="noreferrer" className="btn btn-sm"
-                    onClick={e => { e.preventDefault(); const w = window.open(f.path, '_blank'); setTimeout(() => w?.print(), 1000) }}
+                    onClick={e => { e.preventDefault(); ['pka_child', 'pka_adult', 'krba'].includes(f.key) ? printMembershipForm({ form_type: f.key }, { blank: true }) : printBlankForm(f.path) }}
                     style={{ flex: 1, justifyContent: 'center', fontSize: 11 }} title="Print">
                     🖨️
                   </a>
@@ -421,7 +411,10 @@ export default function Forms() {
 
         {/* Right — responses panel */}
         {selectedForm && (
-          <div className="card" style={{ position: 'sticky', top: 20 }}>
+          <div className="card" style={{ position: isMobile ? 'static' : 'sticky', top: 20, minWidth: 0 }}>
+            {isMobile && (
+              <button className="btn btn-sm" onClick={() => setSelectedForm(null)} style={{ marginBottom: 10 }}>← All forms</button>
+            )}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <div>
                 <h2 style={{ fontSize: 15, fontWeight: 600 }}>{selectedForm.icon} {selectedForm.label}</h2>
@@ -443,8 +436,8 @@ export default function Forms() {
                 </a>
               </div>
             ) : (
-              <div>
-                <table>
+              <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', maxWidth: '100%' }}>
+                <table style={{ minWidth: isMobile ? 520 : undefined }}>
                   <thead>
                     <tr>
                       <SortTh col="date" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>Date</SortTh>
