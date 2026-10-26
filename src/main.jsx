@@ -215,8 +215,12 @@ try {
 ;(() => {
   try {
     const coarse = window.matchMedia('(pointer: coarse)').matches
-    const sw = window.screen.width
     if (!coarse || Math.min(window.screen.width, window.screen.height) > 600) return
+    // the screen's width in the CURRENT orientation -- many Android phones report screen.width as
+    // the portrait width even when held sideways, so opening the app in landscape used to look like
+    // "laid out at computer width" and zoomed everything ~2x (oversized player controls)
+    const landscape = window.matchMedia('(orientation: landscape)').matches
+    const sw = landscape ? Math.max(window.screen.width, window.screen.height) : Math.min(window.screen.width, window.screen.height)
     const ratio = window.innerWidth / sw
     if (ratio < 1.3) return   // already laid out for the phone
     document.documentElement.classList.add('is-phone', 'forced-phone')
