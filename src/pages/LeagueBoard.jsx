@@ -134,11 +134,41 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
       setCfg(c); setData({ league, month }); setExRows(ex.data || []); setNotesRows(notes.data || []); setLoading(false)
     }
     load().catch(() => setLoading(false))
-    return () => { cancelled = true }
+    const refresh = !embedded ? setInterval(() => load().catch(() => {}), 5 * 60000) : null
+    return () => { cancelled = true; if (refresh) clearInterval(refresh) }
   }, [])
+  // TV / gym screen (not inside the app)
+  const tv = !embedded && !listMode
+  const [clock, setClock] = useState(new Date())
+  const [nextClass, setNextClass] = useState(null)
+  const [tall, setTall] = useState(() => typeof window !== 'undefined' && window.innerHeight >= 1000)
+  useEffect(() => {
+    if (!tv) return
+    const t = setInterval(() => setClock(new Date()), 15000)
+    const onR = () => setTall(window.innerHeight >= 1000); window.addEventListener('resize', onR)
+    // keep the screen awake
+    let lock = null; const wake = () => navigator.wakeLock?.request('screen').then(l => { lock = l }).catch(() => {})
+    wake(); const onVis = () => { if (document.visibilityState === 'visible') wake() }; document.addEventListener('visibilitychange', onVis)
+    // reload once a day at ~4am so it never goes stale
+    const reloadAt = new Date(); reloadAt.setDate(reloadAt.getDate() + (reloadAt.getHours() >= 4 ? 1 : 0)); reloadAt.setHours(4, 0, 0, 0)
+    const daily = setTimeout(() => window.location.reload(), reloadAt - new Date())
+    // hide the mouse pointer when it's not moving
+    let hideT = null; const onMove = () => { document.body.style.cursor = ''; clearTimeout(hideT); hideT = setTimeout(() => { document.body.style.cursor = 'none' }, 3000) }
+    window.addEventListener('mousemove', onMove); onMove()
+    // next class today (public timetable)
+    supabase.from('classes').select('name, day_of_week, start_time').then(({ data: cls }) => {
+      const dow = new Date().toLocaleDateString('en-GB', { weekday: 'long' }).toLowerCase(), hm = new Date().toTimeString().slice(0, 5)
+      const n = (cls || []).filter(c => (c.day_of_week || '').toLowerCase() === dow && String(c.start_time).slice(0, 5) > hm).sort((a, b) => String(a.start_time).localeCompare(String(b.start_time)))[0]
+      setNextClass(n || null)
+    }, () => {})
+    return () => { clearInterval(t); window.removeEventListener('resize', onR); document.removeEventListener('visibilitychange', onVis); clearTimeout(daily); window.removeEventListener('mousemove', onMove); clearTimeout(hideT); lock?.release?.().catch?.(() => {}); document.body.style.cursor = '' }
+  }, [tv])
 
   const period = periodMode === 'auto' ? (cycle % 2 === 0 ? 'league' : 'month') : periodMode === 'live' ? 'league' : periodMode
   const pd = data[period]
+  // boards on screen at once: 2 on a tall portrait TV (1 while the live panel is showing)
+  const liveTakeover = tv && liveCount >= 3 && periodMode !== 'live'
+  const perView = () => (tv && tall && !liveTakeover ? 2 : 1)
   const periodLabel = period === 'league'
     ? `League · ${cfg.from ? new Date(cfg.from + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''} – ${cfg.to ? new Date(cfg.to + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''}`
     : `This month · ${new Date().toLocaleDateString('en-GB', { month: 'long' })}`
@@ -159,9 +189,10 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
   // rotation; a full cycle flips the period when on auto
   useEffect(() => {
     if (paused || slides.length === 0) return
-    const t = setInterval(() => setIdx(i => { const n = i + 1; if (n >= slides.length) { setCycle(c => c + 1); return 0 } return n }), cfg.seconds * 1000)
+    const step = perView()
+    const t = setInterval(() => setIdx(i => { const n = i + step; if (n >= slides.length) { setCycle(c => c + 1); return 0 } return n }), cfg.seconds * 1000)
     return () => clearInterval(t)
-  }, [paused, slides.length, cfg.seconds])
+  }, [paused, slides.length, cfg.seconds, tall, liveCount]) // eslint-disable-line react-hooks/exhaustive-deps
   const slideKey = sl => !sl ? '' : sl.kind === 'tasks' ? `tasks:${sl.area.key}` : sl.kind === 'exercise' ? `ex:${sl.cat.key}` : sl.kind === 'hr' ? `hr:${sl.metric}` : sl.kind === 'workrate' ? `wr:${sl.metric}` : sl.kind
   const lastKeyRef = useRef('')
   useEffect(() => {
@@ -380,14 +411,26 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
       onTouchEnd={e => { const c = swipe.current; swipe.current = null; if (!c) return; const dx = e.changedTouches[0].clientX - c.x, dy = e.changedTouches[0].clientY - c.y; if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) go(dx < 0 ? 1 : -1) }}
       style={{ background: '#000', color: '#F2F2F2', minHeight: '100vh', margin: embedded ? '-20px -16px' : 0, padding: embedded ? '20px 16px 40px' : '20px 16px 40px', boxSizing: 'border-box' }}>
       {!embedded && <AppBackBar />}
-      <style>{'@keyframes lbFade { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }'}</style>
-      <div style={{ maxWidth: 640, margin: '0 auto' }}>
+      <style>{'@keyframes lbFade { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } } @keyframes lbTimer { from { width: 0 } to { width: 100% } }'}</style>
+      <div style={{ maxWidth: tv && tall ? 1000 : 640, margin: '0 auto', fontSize: tv && tall ? '1.15em' : undefined }}>
         {embedded && onBack && <button onClick={onBack} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
           <img src="/logos/kr-dragon.gif" alt="KR" style={{ height: 48, width: 'auto' }} />
           <img src="/logos/f2f-logo-red.png" alt="Fit II Fight" style={{ height: 48, width: 'auto', filter: 'drop-shadow(0 0 8px rgba(255,42,42,0.5))' }} />
           <img src="/logos/krba-logo.png" alt="KRBA" style={{ height: 44, width: 'auto' }} />
         </div>
+        {tv && (
+          // across-the-room header: clock, next class, full screen
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+            <span style={{ ...NUM, fontSize: tall ? 40 : 28, color: '#F2F2F2' }}>{clock.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
+            <span style={{ flex: 1, ...NUM, fontSize: tall ? 14 : 11, letterSpacing: 1.5, color: '#9A9A9A' }}>
+              {clock.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' }).toUpperCase()}
+              {nextClass && <span style={{ display: 'block', color: '#F5C542' }}>NEXT: {String(nextClass.name).toUpperCase()} {String(nextClass.start_time).slice(0, 5)}</span>}
+            </span>
+            {document.fullscreenEnabled && !document.fullscreenElement && <button type="button" onClick={() => document.documentElement.requestFullscreen?.().catch(() => {})}
+              style={{ background: 'none', border: '1px solid #2A3138', color: '#9A9A9A', borderRadius: 6, height: 32, padding: '0 10px', cursor: 'pointer', fontSize: 12 }}>⛶ Full screen</button>}
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
           {!embedded && chip(periodMode === 'auto', 'AUTO', () => setPeriodMode('auto'))}
           {chip(period === 'league' && periodMode !== 'auto' && periodMode !== 'live', 'LEAGUE PERIOD', () => setPeriodMode('league'))}
@@ -395,7 +438,7 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
           {chip(periodMode === 'live', `❤️ LIVE${liveCount ? ` · ${liveCount}` : ''}`, () => setPeriodMode('live'))}
           {periodMode === 'auto' && <span style={{ ...NUM, fontSize: 9, letterSpacing: 1.5, color: '#9A9A9A', alignSelf: 'center' }}>NOW: {period === 'league' ? 'LEAGUE' : 'THIS MONTH'}</span>}
         </div>
-        {!listMode && periodMode !== 'live' && slides.length > 1 && (
+        {!listMode && !tv && periodMode !== 'live' && slides.length > 1 && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, marginBottom: 12 }}>
             <button type="button" onClick={() => go(-1)} style={{ background: 'none', border: '1px solid #2A3138', color: '#F2F2F2', borderRadius: 6, width: 40, height: 36, cursor: 'pointer' }}>‹</button>
             <span style={{ ...NUM, fontSize: 11, color: '#9A9A9A' }}>{idx + 1} / {slides.length}{paused ? ' · paused' : ''}</span>
@@ -407,7 +450,28 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
             <div style={{ ...TITLE, color: '#E24B4A', fontSize: 28, marginBottom: 10 }}>❤️ Live heart rate</div>
             <LiveHrTable dark meId={meId} onRows={r => setLiveCount(r.length)} />
           </div>
-        ) : loading ? <p style={{ color: '#9A9A9A' }}>Loading league…</p> : listMode ? <ListView /> : <Board />}
+        ) : loading ? <p style={{ color: '#9A9A9A' }}>Loading league…</p> : listMode ? <ListView /> : (
+          <>
+            <Board />
+            {perView() === 2 && slides[idx + 1] && <div style={{ marginTop: 28, paddingTop: 22, borderTop: '1px solid #2A3138' }}><Board sl={slides[idx + 1]} /></div>}
+            {liveTakeover && (
+              <div style={{ marginTop: 24, paddingTop: 18, borderTop: '2px solid #E24B4A' }}>
+                <div style={{ ...TITLE, color: '#E24B4A', fontSize: 24, marginBottom: 10 }}>❤️ Live heart rate</div>
+                <LiveHrTable dark />
+              </div>
+            )}
+            {tv && slides.length > 1 && (
+              <div style={{ marginTop: 18 }}>
+                <div style={{ height: 4, borderRadius: 2, background: '#1A1F24', overflow: 'hidden' }}>
+                  <div key={`${idx}:${paused}`} style={{ height: '100%', background: '#F5C542', width: paused ? '100%' : 0, opacity: paused ? 0.3 : 1, animation: paused ? 'none' : `lbTimer ${cfg.seconds}s linear forwards` }} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 5, marginTop: 8, flexWrap: 'wrap' }}>
+                  {slides.map((_, i) => <span key={i} style={{ width: i >= idx && i < idx + perView() ? 14 : 6, height: 6, borderRadius: 3, background: i >= idx && i < idx + perView() ? '#F5C542' : '#2A3138', transition: 'width 0.3s' }} />)}
+                </div>
+              </div>
+            )}
+          </>
+        )}
         {periodMode !== 'live' && <div style={{ display: 'none' }}><LiveHrTable dark onRows={r => setLiveCount(r.length)} /></div>}
       </div>
     </div>
