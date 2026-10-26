@@ -13,6 +13,9 @@ const CLUB = [
   ['Fighting an aggressive kicker', 'Opponent style'], ['Fighting an aggressive puncher', 'Opponent style'],
   ['Fighting a counter puncher', 'Opponent style'], ['Fighting a counter kicker', 'Opponent style'], ['Fighting a mover', 'Opponent style'],
   ['Opponent in open stance', 'Opponent style'], ['Opponent in closed stance', 'Opponent style'],
+  // added Oct 2026 (always at the end so saved hidden cards keep pointing at the right card)
+  ['Beat the side kicker — same stance', 'Opponent style'], ['Beat the side kicker — opposite stance', 'Opponent style'],
+  ['Beat the power puncher', 'Opponent style'], ['Beat the power kicker', 'Opponent style'],
 ].map(([text, group], i) => ({ id: `club_${i}`, text, group }))
 const SUGGESTED = [
   ['Scores level, 10 seconds left — next point wins', 'Score & clock'], ['Losing by 1 point with 30 seconds left', 'Score & clock'],
@@ -24,6 +27,11 @@ const SUGGESTED = [
   ['Opponent fakes a lot', 'Opponent style'], ['Opponent keeps grabbing / holding', 'Opponent style'],
   ['You are tired — opponent is still fresh', 'Your condition'], ['Opponent is tired — you are fresh', 'Your condition'],
   ['Hurt hand — no punching with your back hand', 'Your condition'], ["Can't hear your coach", 'Ring craft & rules'],
+  // added Oct 2026 (always at the end)
+  ['Beat the front (push) kicker', 'Opponent style'], ['Beat the switch kicker (lead-leg round kick)', 'Opponent style'],
+  ['Beat the hook / spinning hook kicker', 'Opponent style'], ['Beat the spinning back kicker', 'Opponent style'],
+  ['Beat the low kicker (leg kicks)', 'Opponent style'], ['Beat the jabber who keeps you on the end of it', 'Opponent style'],
+  ['Beat the body puncher', 'Opponent style'], ['Beat the blitzer (fast in, fast out)', 'Opponent style'],
 ].map(([text, group], i) => ({ id: `sugg_${i}`, text, group, suggested: true }))
 
 export default function SituationCards({ canEdit }) {
