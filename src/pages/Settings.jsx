@@ -258,7 +258,7 @@ export default function Settings() {
   }
 
   function AthleteHousePointsEditor() {
-    const defaults = { f2f_question: 1, checkin: 1, pdp_complete: 1, pdp_calendar: 1 }
+    const defaults = { f2f_question: 1, checkin: 3, checkout: 3, weigh_in: 5, weigh_out: 5, pdp_action: 2, pdp_calendar: 1 }
     const stored = { ...defaults, ...(settings.athlete_house_points || {}) }
     const [local, setLocal] = useState(stored)
     const [ahpSaving, setAhpSaving] = useState(false)
@@ -277,8 +277,11 @@ export default function Settings() {
 
     const rows = [
       { key: 'f2f_question', label: 'F2F target question logged (via quick-log)' },
-      { key: 'checkin', label: 'Self check-in via the app' },
-      { key: 'pdp_complete', label: 'PDP task marked completed' },
+      { key: 'checkin', label: 'Check in via the app (each class, once a day)' },
+      { key: 'checkout', label: 'Check out via the app (each class, once a day)' },
+      { key: 'weigh_in', label: 'Weigh in at check-in (weight entered)' },
+      { key: 'weigh_out', label: 'Weigh out at check-out (weight entered)' },
+      { key: 'pdp_action', label: 'Each PDP action ticked done (once a day each; unticking takes it back)' },
       { key: 'pdp_calendar', label: 'PDP note sent to calendar' },
     ]
 

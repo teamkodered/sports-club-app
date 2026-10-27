@@ -1007,7 +1007,11 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     q[student.id] = run.catch(() => {})
     return run
   }
-  async function awardAttendancePointsNow(student, type, classId) {    // Reverse any attendance points already awarded to this student for
+  async function awardAttendancePointsNow(student, type, classId) {
+    // No attendance points for a session that hasn't happened yet (marking ahead of time, e.g.
+    // tomorrow's register). They get them when they're marked on the day.
+    { const n = new Date(), today = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`
+      if (date > today) return 0 }    // Reverse any attendance points already awarded to this student for
     // THIS SPECIFIC CLASS today, so cycling attended -> full_kit reflects
     // only the final state's points rather than stacking both awards.
     // Scoped by class_id (not just date) so a student attending two

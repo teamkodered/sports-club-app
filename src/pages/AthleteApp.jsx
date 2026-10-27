@@ -1477,7 +1477,7 @@ export default function AthleteApp() {
   const [f2fQuickLogQuestion, setF2fQuickLogQuestion] = useState(null) // which question within that section is expanded to show the log control
   const [f2fQuickLogTestValue, setF2fQuickLogTestValue] = useState('')
   const [f2fQuickLogSaving, setF2fQuickLogSaving] = useState(false)
-  const [athleteHousePoints, setAthleteHousePoints] = useState({ f2f_question: 1, checkin: 1, pdp_complete: 1, pdp_calendar: 1 })
+  const [athleteHousePoints, setAthleteHousePoints] = useState({ f2f_question: 1, checkin: 3, checkout: 3, weigh_in: 5, weigh_out: 5, pdp_action: 2, pdp_calendar: 1 })
   const [athleteTimetableModal, setAthleteTimetableModal] = useState(null) // { sectionKey, item } or null
   const [expandedToDoItems, setExpandedToDoItems] = useState(() => new Set()) // composite "scope:type:index" keys whose own "To do" panel is currently revealed
   const [newToDoDrafts, setNewToDoDrafts] = useState({}) // scope key -> draft text for the athlete's own new to-do note
@@ -2422,7 +2422,7 @@ export default function AthleteApp() {
         setIntervalModes(map.f2f_interval_modes || ['20 seconds on 20 seconds off', '30 seconds on 30 seconds off', '40 seconds on 20 seconds off'])
         setBodyweightTypeOptions(map.f2f_bodyweight_types || ['Push-ups', 'Pull-ups', 'Squats', 'Dips', 'Sit-ups', 'Burpees', 'Other'])
         setStretchOptionsList(map.f2f_stretch_options || ['Other'])
-        setAthleteHousePoints({ f2f_question: 1, checkin: 1, pdp_complete: 1, pdp_calendar: 1, ...(map.athlete_house_points || {}) })
+        setAthleteHousePoints({ f2f_question: 1, checkin: 3, checkout: 3, weigh_in: 5, weigh_out: 5, pdp_action: 2, pdp_calendar: 1, ...(map.athlete_house_points || {}) })
       })
   }, [])
 
@@ -2475,6 +2475,22 @@ export default function AthleteApp() {
     setMonthHousePoints(n => Math.max(0, (n || 0) - amount))
   }
 
+  // which class an award is for (check in / out and weigh in / out count once per class per day)
+  function classLabelFor(classId) {
+    const c = (assignedClasses || []).find(a => a.classes?.id === classId)?.classes
+    return c ? [c.day_of_week, String(c.start_time || '').slice(0, 5), c.name].filter(Boolean).join(' ') : null
+  }
+  // Taking back a point (e.g. a PDP action unticked the same day)
+  async function revokeHousePoints(reasonKey, detail) {
+    if (!student) return
+    const { data: taken, error } = await supabase.rpc('kc_revoke_my_points', { p_reason: reasonKey, p_detail: detail || null })
+    if (error) { console.warn('Points not taken back:', error.message); return }
+    if (taken > 0) {
+      setStudent(prev => prev ? { ...prev, house_points: (prev.house_points || 0) - taken, individual_points: (prev.individual_points || 0) - taken } : prev)
+      setMonthHousePoints(n => Math.max(0, (n || 0) - taken))
+    }
+  }
+
   async function awardHousePoints(reasonKey, detail) {
     const amount = athleteHousePoints[reasonKey]
     if (!student || !amount) return
@@ -2495,6 +2511,10 @@ export default function AthleteApp() {
     const reasonLabels = {
       f2f_question: 'F2F question logged',
       checkin: 'Self check-in (app)',
+      checkout: 'Self check-out (app)',
+      weigh_in: 'Weigh in',
+      weigh_out: 'Weigh out',
+      pdp_action: 'PDP action done',
       pdp_complete: 'PDP task completed',
       pdp_calendar: 'PDP added to calendar',
     }
@@ -3568,7 +3588,7 @@ export default function AthleteApp() {
     }).select().single()
     if (error && error.code !== '23505') return alert('Could not check in: ' + error.message)
     if (data) setAttendanceData(prev => [data, ...(prev || [])])
-    awardHousePoints('checkin')
+    awardHousePoints('checkin', classLabelFor(sg.classId))
     dismissWearableSuggestion(sg.key)
   }
 
@@ -3653,7 +3673,11 @@ export default function AthleteApp() {
     const updated = { ...cur, [k]: dates.includes(today) ? dates.filter(d => d !== today) : [...dates, today] }
     setApData(a => ({ ...(a || {}), pdp_done: updated }))
     const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_done: updated }, { onConflict: 'student_id' })
-    if (error) { setApData(a => ({ ...(a || {}), pdp_done: cur })); alert('Could not save: ' + error.message + (/pdp_done/.test(error.message) ? ' (run supabase_pdp_links.sql first)' : '')) }
+    if (error) { setApData(a => ({ ...(a || {}), pdp_done: cur })); alert('Could not save: ' + error.message + (/pdp_done/.test(error.message) ? ' (run supabase_pdp_links.sql first)' : '')); return }
+    // points for each PDP action ticked done today (unticking it takes them back)
+    const detail = String(text || '').trim().slice(0, 80)
+    if (dates.includes(today)) revokeHousePoints('pdp_action', detail)
+    else awardHousePoints('pdp_action', detail)
   }
   function openLinkedQuestion(pillar, link) {
     setPillarView(v => ({ ...v, [pillar]: 'questions' }))
@@ -4394,7 +4418,7 @@ export default function AthleteApp() {
       setActiveCheckIn(data)
       setShowWeightCheckPrompt('in')
       setWeightCheckValue('')
-      awardHousePoints('checkin')
+      awardHousePoints('checkin', classLabelFor(matchedClassId))
       // Android app: start background heart rate recording for the class
       if (NativeHr.isNativeHr() && NativeHr.autoRecord() && NativeHr.savedStrap()) NativeHr.start(120).catch(() => {})
       // Web app: if they use a wearable, remind / connect live heart rate for the class
@@ -4493,6 +4517,7 @@ export default function AthleteApp() {
       if (error) { alert('Error checking in: ' + error.message); return }
       setAttendanceData(prev => prev.map(a => a.id === sessionNoteModal.attendanceId ? { ...a, present: true, attendance_type: 'attended', self_checked_in: true, attended_at: nowIso } : a))
       setSessionNoteModal(m => ({ ...m, selfCheckedIn: true, checkedOutAt: null, attendedAt: nowIso, attendanceType: 'attended' }))
+      if (sessionNoteModal.dateStr === new Date().toISOString().split('T')[0]) awardHousePoints('checkin', classLabelFor(sessionNoteModal.classId))
       return
     }
     const { data, error } = await supabase.from('attendance').insert({
@@ -4503,6 +4528,7 @@ export default function AthleteApp() {
     if (error) { alert('Error checking in: ' + error.message); return }
     setAttendanceData(prev => [...prev, data])
     setSessionNoteModal(m => ({ ...m, attendanceId: data.id, checkedOutAt: null, selfCheckedIn: true, attendedAt: nowIso, attendanceType: 'attended' }))
+    if (sessionNoteModal.dateStr === new Date().toISOString().split('T')[0]) awardHousePoints('checkin', classLabelFor(sessionNoteModal.classId))
   }
 
   async function checkOutForSessionModal() {
@@ -4511,6 +4537,7 @@ export default function AthleteApp() {
     if (error) { alert('Error checking out: ' + error.message); return }
     setAttendanceData(prev => prev.map(a => a.id === sessionNoteModal.attendanceId ? { ...a, checked_out_at: new Date().toISOString() } : a))
     setSessionNoteModal(m => ({ ...m, checkedOutAt: new Date().toISOString() }))
+    if (sessionNoteModal.dateStr === new Date().toISOString().split('T')[0]) awardHousePoints('checkout', classLabelFor(sessionNoteModal.classId))
   }
 
   // Register-marked attendance (a coach ticking someone present rather
@@ -4779,6 +4806,10 @@ export default function AthleteApp() {
         }
       }
       setAttendanceData(prev => prev.map(a => a.id === activeCheckIn.id ? { ...a, ...updates } : a))
+      // points: weigh in / weigh out (only when a weight was entered), check out
+      const cl = classLabelFor(activeCheckIn.class_id)
+      if (updates[field] != null) await awardHousePoints(showWeightCheckPrompt === 'in' ? 'weigh_in' : 'weigh_out', cl)
+      if (showWeightCheckPrompt === 'out') await awardHousePoints('checkout', cl)
       if (showWeightCheckPrompt === 'in') {
         setCheckedInMsg(updates.attendance_type === 'full_kit' ? '✓ Checked in — Full Kit!' : '✓ Checked in!')
         setTimeout(() => setCheckedInMsg(null), 3000)
