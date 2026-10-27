@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Phaser from 'phaser'
 import { FgIcon } from '../FightGame.jsx'
-import { FIGHTERS, CHARGE_MS, PLAY_STYLES, getPlayStyle, setPlayStyle, isBoxerStyle } from './data.js'
+import { FIGHTERS, CHARGE_MS, PLAY_STYLES, getPlayStyle, setPlayStyle, isBoxerStyle, boxer3Buttons, STYLES } from './data.js'
 import { makeSfx } from './sfx.js'
 import { BootScene, TitleScene, SelectScene, FightScene, ResultsScene, UpgradeScene, CombosScene, BranchScene, FighterScene, CollectionScene, ArenaScene, Z } from './scenes.js'
 
@@ -19,6 +19,29 @@ function PadIcon({ name, colour, size }) {
       {name === 'jump' && <g {...p}><path d="M6 13l6-6 6 6" /><path d="M6 19l6-6 6 6" /></g>}
       {name === 'shield' && <g {...p}><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z" /><path d="M12 7v10" /></g>}
       {name === 'combo' && <g {...p}><path d="M4 7l4 5-4 5" /><path d="M10 7l4 5-4 5" /><path d="M16 7l4 5-4 5" /></g>}
+    </svg>
+  )
+}
+
+// Boxer 3 button symbols: what the button throws, drawn as a line icon (no writing)
+const STRIKE_ICON = { jab: 'straight', bodyjab: 'straight', cross: 'cross', bodycross: 'cross', hook: 'hook', bodyhook: 'hook', leadhook: 'hook', overhand: 'overhand', leadoverhand: 'overhand',
+  uppercut: 'upper', leaduppercut: 'upper', elbow: 'hook', teep: 'kick', sidekick: 'kick', bodykick: 'kickArc', roundkick: 'kickArc', lowkick: 'kickLow', highkick: 'kickHigh', spinkick: 'kickSpin', knee: 'knee' }
+function StrikeIcon({ kind, colour, size = 30 }) {
+  const p = { fill: 'none', stroke: colour, strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }
+  const fist = (cx, cy, r = 3.6) => <circle cx={cx} cy={cy} r={r} {...p} />
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" style={{ display: 'block', filter: `drop-shadow(0 0 3px ${colour}88)` }}>
+      {kind === 'straight' && <>{fist(6.5, 12)}<path d="M11 12h9M17 9l3 3-3 3" {...p} /></>}
+      {kind === 'cross' && <>{fist(6, 12)}<path d="M10.5 10h8.5M10.5 14h8.5M17 7.5l3 4.5-3 4.5" {...p} /></>}
+      {kind === 'hook' && <>{fist(6, 16)}<path d="M9.5 13.5C11 8 17 6 20.5 9" {...p} /><path d="M21 5.5V9.5h-4" {...p} /></>}
+      {kind === 'overhand' && <>{fist(5.5, 8)}<path d="M9 6.5c5-2.5 10 0 11 6" {...p} /><path d="M17 11.5l3 2 1.5-3.5" {...p} /></>}
+      {kind === 'upper' && <>{fist(12, 18)}<path d="M12 14V4M8.5 7.5 12 4l3.5 3.5" {...p} /></>}
+      {kind === 'kick' && <><path d="M4 20V11l3-2" {...p} /><path d="M7 9h6" {...p} /><path d="M14 9h6M17 6l3 3-3 3" {...p} /></>}
+      {kind === 'kickArc' && <><path d="M5 20l2-7 5-2" {...p} /><path d="M12 11c3-1 6 0 8 3" {...p} /><path d="M20.5 10v4h-4" {...p} /></>}
+      {kind === 'kickLow' && <><path d="M5 4v9l4 3" {...p} /><path d="M10 17h9M16 14l3 3-3 3" {...p} /></>}
+      {kind === 'kickHigh' && <><path d="M5 21l3-6 5-3 7-7" {...p} /><path d="M16 5h4v4" {...p} /></>}
+      {kind === 'kickSpin' && <><path d="M12 4a8 8 0 1 1-7.5 5" {...p} /><path d="M4 5v4h4" {...p} /></>}
+      {kind === 'knee' && <><path d="M7 21v-7l6-4" {...p} /><path d="M13 10l-1 6M15 9h5M18 6l3 3-3 3" {...p} /></>}
     </svg>
   )
 }
@@ -71,6 +94,7 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
   const input = useRef({ left: false, right: false, up: false, down: false, lp: false, hp: false, lk: false, hk: false, sp: false, super: false })
   const pressed = useRef({})
   const gestures = useRef([]) // Boxer play style: queued touch gestures
+  const chainQ = useRef([]) // Boxer 3: buttons dragged across, in order
   const onRoundRef = useRef(onRound); onRoundRef.current = onRound
   const onCloseRef = useRef(onClose); onCloseRef.current = onClose
   const sfxRef = useRef(null)
@@ -181,7 +205,7 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
           input: { activePointers: 3, keyboard: false }, audio: { noAudio: true }, banner: false,
           render: { antialias: true, powerPreference: 'high-performance' },
         })
-        game.bridge = { input: input.current, pressed: pressed.current, gestures: gestures.current, sfx, skipTitle: !!keep, onScene: s => !dead && setScene(s), onHud: h => !dead && setHud(h), onRound: () => onRoundRef.current?.(), playStyle: () => playStyleRef.current }
+        game.bridge = { input: input.current, pressed: pressed.current, gestures: gestures.current, chain: chainQ.current, sfx, skipTitle: !!keep, onScene: s => !dead && setScene(s), onHud: h => !dead && setHud(h), onRound: () => onRoundRef.current?.(), playStyle: () => playStyleRef.current }
         if (keep?.cfg) game.cfg = keep.cfg
         game.canvas?.addEventListener('webglcontextlost', e => { e.preventDefault(); setTimeout(rebuild, 300) })
         gameRef.current = game
@@ -368,6 +392,31 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
     </div>
   )
 
+  // ---- Boxer 3: four buttons; press one and drag across the others to throw them in order ----
+  const b3Box = useRef(null)
+  const b3Drag = useRef(null)            // { id, last, pts: [[x, y]] }
+  const [b3Path, setB3Path] = useState(null)
+  const b3Hit = (x, y) => { const el = document.elementFromPoint(x, y); const b = el && el.closest && el.closest('[data-b3]'); return b ? b.getAttribute('data-b3') : null }
+  const b3Centre = key => { const box = b3Box.current, el = box && box.querySelector(`[data-b3="${key}"]`); if (!el) return null; const r = el.getBoundingClientRect(), br = box.getBoundingClientRect(); return [r.left + r.width / 2 - br.left, r.top + r.height / 2 - br.top] }
+  const b3Handlers = {
+    onPointerDown: e => {
+      const k = b3Hit(e.clientX, e.clientY); if (!k) return
+      e.preventDefault(); sfxRef.current?.resume(); e.currentTarget.setPointerCapture?.(e.pointerId)
+      b3Drag.current = { id: e.pointerId, last: k, pts: [b3Centre(k)] }
+      chainQ.current.push(k); setB3Path([b3Centre(k)])
+      if (navigator.vibrate) navigator.vibrate(8)
+    },
+    onPointerMove: e => {
+      const d = b3Drag.current; if (!d || d.id !== e.pointerId) return
+      const k = b3Hit(e.clientX, e.clientY)
+      if (k && k !== d.last) { d.last = k; d.pts.push(b3Centre(k)); chainQ.current.push(k); setB3Path([...d.pts]); if (navigator.vibrate) navigator.vibrate(8) }
+    },
+    onPointerUp: e => { if (b3Drag.current && b3Drag.current.id === e.pointerId) { b3Drag.current = null; setTimeout(() => setB3Path(null), 220) } },
+    onPointerCancel: () => { b3Drag.current = null; setB3Path(null) },
+  }
+  const b3Keys = boxer3Buttons(hud.style || 'kickboxer')
+  const b3Colour = { lp: '#F2F2F2', mp: '#F5C542', hp: '#E24B4A', lk: '#8FD3FF', mk: '#378ADD', hk: '#C93BFF' }
+
   const pick = gameRef.current?.cfg?.pick ?? 0
   const pad = { height: 36, padding: '0 12px', borderRadius: 12, border: '1px solid #2A3138', background: 'rgba(26,31,36,0.85)', color: '#F2F2F2', fontSize: 14, fontWeight: 800, touchAction: 'none', userSelect: 'none', cursor: 'pointer' }
   const fight = scene === 'fight'
@@ -396,6 +445,44 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
         {!fight && onClassic && <button type="button" onClick={onClassic} style={{ ...pad, color: '#9AA3AE' }}>Classic</button>}
       </div>
 
+      {fight && playStyle === 'boxer3' && (
+        <div ref={noTouchDefaults} style={{ position: 'absolute', left: 0, right: 0, bottom: 0, top: topH, zIndex: 6, pointerEvents: 'none' }}>
+          {/* left: small joystick (move; up = jump, down = crouch; hold back to block) */}
+          <div style={{ position: 'absolute', left: 'calc(28px + env(safe-area-inset-left, 0px))', bottom: 'calc(30px + env(safe-area-inset-bottom, 0px))' }}>
+            <MiniStick size={76} label="Move: left and right to step, up to jump, down to crouch, hold back to block" onChange={(dx, dy) => setStickDirs(dx * 60, dy * 60)} />
+          </div>
+          {/* right: SPECIAL + SUPER (small), then the four strike buttons -- drag across them for combos */}
+          <div style={{ position: 'absolute', right: 'calc(14px + env(safe-area-inset-right, 0px))', bottom: 'calc(10px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 10, pointerEvents: 'auto' }}>
+              {[['sp', hud.special || FIGHTERS[pick]?.special || 'bolt', hud.colour || '#5BE0FF', hud.sp, 'Special'], ['super', 'bolt', '#F5C542', hud.sup, 'Super']].map(([k, icon, col, ring, label]) => (
+                <div key={k} style={{ width: 46, height: 46, borderRadius: '50%', padding: 3, boxSizing: 'border-box', background: `conic-gradient(${col} ${Math.round((ring ?? 0) * 360)}deg, rgba(42,49,56,0.9) 0)`, boxShadow: ring >= 1 ? `0 0 12px ${col}` : 'none' }}>
+                  <button type="button" aria-label={label} onPointerDown={e => { e.preventDefault(); e.stopPropagation(); sfxRef.current?.resume(); pressed.current[k] = true; if (navigator.vibrate) navigator.vibrate(10) }}
+                    style={{ width: '100%', height: '100%', borderRadius: '50%', border: `2px solid ${col}`, background: 'radial-gradient(circle at 35% 30%, #2A3138, #0B0E12 80%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, touchAction: 'none', opacity: ring < 1 ? 0.6 : 1 }}>
+                    <FgIcon name={icon} colour={col} size={22} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div ref={b3Box} {...b3Handlers} role="group" aria-label="Strikes: tap a button, or drag across several to chain them"
+              style={{ position: 'relative', display: 'grid', gridTemplateColumns: 'repeat(2, 64px)', gap: 12, padding: 4, touchAction: 'none', pointerEvents: 'auto' }}>
+              {b3Path && b3Path.length > 1 && (
+                <svg aria-hidden="true" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible', zIndex: 2 }}>
+                  <polyline points={b3Path.filter(Boolean).map(pt => pt.join(',')).join(' ')} fill="none" stroke="#5BE0FF" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" opacity="0.85" style={{ filter: 'drop-shadow(0 0 6px #5BE0FF)' }} />
+                </svg>
+              )}
+              {b3Keys.map(k => {
+                const strike = (hud.moves || {})[k] || k, col = b3Colour[k]
+                return (
+                  <div key={k} data-b3={k} aria-label={strike} role="img"
+                    style={{ width: 64, height: 64, borderRadius: '50%', border: `2px solid ${col}`, boxSizing: 'border-box', background: 'radial-gradient(circle at 35% 30%, #2A3138, #0B0E12 80%)', boxShadow: `inset 0 0 10px ${col}44`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <StrikeIcon kind={STRIKE_ICON[strike] || 'straight'} colour={col} />
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
       {fight && isBoxerStyle(playStyle) && (
         <div ref={noTouchDefaults} style={{ position: 'absolute', left: 0, right: 0, bottom: 0, top: topH, zIndex: 6, pointerEvents: 'none' }}>
           {/* gesture pad: the whole screen below the top bar, edge to edge */}
@@ -444,7 +531,7 @@ export default function KRFight2({ onRound, onClose, onClassic }) {
         {!landscape && !fight && scene !== 'boot' && typeof window !== 'undefined' && window.innerHeight > window.innerWidth && (
           <div style={{ marginTop: 14, fontSize: 13, color: '#9AA3AE', textAlign: 'center', padding: '0 20px' }}>Turn your phone sideways for a bigger arena.</div>
         )}
-        {fight && !isBoxerStyle(playStyle) && (
+        {fight && !isBoxerStyle(playStyle) && playStyle !== 'boxer3' && (
           <div style={landscape
             ? { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 5, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', pointerEvents: 'none', boxSizing: 'border-box',
                 padding: '0 calc(14px + env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) calc(14px + env(safe-area-inset-left, 0px))' }

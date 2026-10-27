@@ -299,7 +299,7 @@ export class Match {
     def.lastHitAt = this.frame
     dmg *= mdf.dmgTaken // Defence
     if (att.counterWin > 0 && !special) { dmg *= 1.35; att.counterWin = 0; this.emit({ type: 'slipCounter', f: att }) } // punish the miss
-    if (this.playStyle === 'boxer' || this.playStyle === 'boxer2') dmg *= 0.6 // Boxer play style: fights last longer
+    if (this.playStyle === 'boxer' || this.playStyle === 'boxer2' || this.playStyle === 'boxer3') dmg *= 0.6 // Boxer play style: fights last longer
     def.hp = Math.max(0, def.hp - dmg)
     // Second wind: once a fight, a big heal when nearly out
     if (def.hp > 0 && !def.windUsed && M(def).secondWind && def.hp < def.maxHp * 0.25) { def.windUsed = true; def.hp = Math.min(def.maxHp, def.hp + M(def).secondWind); this.emit({ type: 'secondWind', f: def }) }

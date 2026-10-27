@@ -357,7 +357,13 @@ export const SKIN_BY_KEY = Object.fromEntries(SKINS.map(s => [s.key, s]))
 //      swipe across = hook, up = uppercut, down = body; lower part = kicks; two fingers = block), auto footwork,
 //      COMBO buttons (next technique starts an equipped combo that leads with it), SPECIAL and SUPER buttons
 //  boxer2: the Boxer controls, shown in 3D from a three-quarter TV angle in a boxing ring
-export const PLAY_STYLES = [{ key: 'kr', name: 'KR' }, { key: 'sf', name: 'SF' }, { key: 'boxer', name: 'Boxer' }, { key: 'boxer2', name: 'Boxer 2' }]
+//  boxer3: classic set -- small joystick on the left, four round buttons on the right (boxers: jab, cross, hook,
+//      uppercut; kickboxers: jab, cross, light kick, power kick); drag across the buttons to chain them as a combo
+export const PLAY_STYLES = [{ key: 'kr', name: 'KR' }, { key: 'sf', name: 'SF' }, { key: 'boxer', name: 'Boxer' }, { key: 'boxer2', name: 'Boxer 2' }, { key: 'boxer3', name: 'Boxer 3' }]
+// the Boxer pace (slower play, less damage) applies to every Boxer play style
+export const isBoxerPace = ps => ps === 'boxer' || ps === 'boxer2' || ps === 'boxer3'
+// Boxer 3's four buttons for a fighter's style: boxers punch x4, kickboxers punch, punch, kick, kick
+export const boxer3Buttons = styleKey => (styleKey === 'pro' || styleKey === 'am') ? ['lp', 'mp', 'hp', 'hk'] : ['lp', 'mp', 'lk', 'hk']
 export const isBoxerStyle = ps => ps === 'boxer' || ps === 'boxer2'
 export const getPlayStyle = () => { try { return localStorage.getItem('krfight-playstyle') || 'kr' } catch (e) { return 'kr' } }
 export const setPlayStyle = v => { try { localStorage.setItem('krfight-playstyle', v) } catch (e) { /* ignore */ } }

@@ -1,7 +1,7 @@
 // KR FIGHT 2 -- Phaser scenes: Boot (makes textures), Title, Select, Fight, Results.
 // The world is 800x450; cameras zoom x2 onto a 1600x900 canvas so everything stays crisp on phones.
 import Phaser from 'phaser'
-import { W, H, FLOOR, FIGHTERS, MOVES, SUPER_NAME, LEVELS, comboLabel, hex, getLook, setLook, LOOK_LEVELS, HOUSES, HOUSE_KEYS, getHouse, setHouse, fxColour, cpuHouse, NATURAL_HOUSE, STYLES, STYLE_KEYS, styledDef, loadSquad, saveSquad, MAX_TEAM, COMBO_BY_ID, combosForStyle, defaultLoadout, LOADOUT_SIZE, RARITY, FLOW_MAX, BRANCHES, TIER_XP, TIER_GEMS, applyBranch, seasonOf, CARDS, CARD_BY_ID, CARD_RARITY, CARD_RARITIES, SKINS, SKIN_BY_KEY, COMBO_LIB, getPlayStyle, SF_BUTTON, isBoxerStyle, boxer2Def, NUM_LABEL, BOXER2_MOVES, NUM_KEYS } from './data.js'
+import { W, H, FLOOR, FIGHTERS, MOVES, SUPER_NAME, LEVELS, comboLabel, hex, getLook, setLook, LOOK_LEVELS, HOUSES, HOUSE_KEYS, getHouse, setHouse, fxColour, cpuHouse, NATURAL_HOUSE, STYLES, STYLE_KEYS, styledDef, loadSquad, saveSquad, MAX_TEAM, COMBO_BY_ID, combosForStyle, defaultLoadout, LOADOUT_SIZE, RARITY, FLOW_MAX, BRANCHES, TIER_XP, TIER_GEMS, applyBranch, seasonOf, CARDS, CARD_BY_ID, CARD_RARITY, CARD_RARITIES, SKINS, SKIN_BY_KEY, COMBO_LIB, getPlayStyle, SF_BUTTON, isBoxerStyle, boxer2Def, NUM_LABEL, BOXER2_MOVES, NUM_KEYS, isBoxerPace } from './data.js'
 import { Match, makeFighter } from './core.js'
 import { makePose, stepPose, drawFighter, targetPose } from './pose.js'
 import { loadProgress, PILLARS, AREAS, AREA_GROUPS, costOf, MAX_LV, DAILY_GEMS, available, wild, priceFor, buyUpgrade, fighterLevel, levelOf, matchGems, awardGems, applyUpgrades, cpuUpgrades, resetTest, UNLIMITED, loadCollection, ownsCombo, rollComboDrop, addComboCard, COMBO_MAX_LV, rollCardDrop, recordMatch, saveDefence, loadOpponents, opponentLevel, rewardChoices, pvpResult, loadLeaderboard, PILLARS_BY_INDEX, ownsCard, cardsOwnedFor, skinUnlocked, branchOf, xpOf, nextTier, unlockTier, awardXp, isLocked, tokenAvailable, lockSquad, changeStyle, cpuBranch } from './progress.js'
@@ -681,6 +681,12 @@ export class FightScene extends Phaser.Scene {
     const c = { left: inp.left, right: inp.right, down: inp.down, upPressed: pr.up || !!inp.up, tag: pr.tag ? 'next' : this.tagReq, superPressed: pr.super, lpPressed: pr.lp, mpPressed: pr.mp, hpPressed: pr.hp, lkPressed: pr.lk, mkPressed: pr.mk, hkPressed: pr.hk, spPressed: pr.sp, block: !!inp.block }
     const m = this.m, f = m.p1
     for (const k of NUM_KEYS) if (pr[k]) c[k + 'Pressed'] = true // number punches pressed directly (Boxer 2)
+    // Boxer 3: buttons dragged across in one go are thrown in order as a chain
+    const chain = b.chain || []
+    if (chain.length) {
+      if (!this.autoSeq || !this.autoSeq.length) { this.autoSeq = []; this.autoAt = m.frame - 99 }
+      while (chain.length) this.autoSeq.push(chain.shift())
+    }
     // Boxer defence stick: held = guard; down = low guard; pull back = sway back out of range; push forward = lean in
     if (inp.defHeld && m.playStyle === 'boxer2') {
       // Boxer 2: up = slip (up-forward lead slip, up-back rear slip), down-back = shoulder roll, back = step back
@@ -726,7 +732,8 @@ export class FightScene extends Phaser.Scene {
     }
     // run the rest of an auto combo: next step as soon as the fighter can chain (or after a short beat)
     if (this.autoSeq && this.autoSeq.length && m.phase === 'fight') {
-      const ready = (!f.move || f.t >= f.move.s + f.move.a) && m.frame - this.autoAt >= 6
+      // next step as soon as the game will take it: the previous strike has landed and is past its active part, or it's over
+      const ready = (!f.move || (f.hitDone && f.t >= f.move.s + f.move.a)) && m.frame - this.autoAt >= 6
       if (ready && f.state !== 'ko' && f.stun === 0) {
         const t = this.autoSeq.shift(); this.autoAt = m.frame
         if (t === 'd') c.down = true
@@ -745,7 +752,7 @@ export class FightScene extends Phaser.Scene {
   update(time, delta) {
     const m = this.m
     // game speed: play runs a little slower than real time (more so in the Boxer play style)
-    const speed = isBoxerStyle(this.m.playStyle) ? 0.75 : 0.85
+    const speed = isBoxerPace(this.m.playStyle) ? 0.75 : 0.85
     this.acc += Math.min(100, delta) * this.slow * speed
     let n = 0
     while (this.acc >= STEP && n < 6) {
@@ -800,6 +807,7 @@ export class FightScene extends Phaser.Scene {
     if (DIR[t]) return { name: DIR[t], how: '' }
     const id = (def.moves && def.moves[t]) || t, mv = MOVES[id]
     if (this.m && this.m.playStyle === 'sf') return { name: (mv && mv.name ? mv.name : id).toUpperCase(), how: SF_BUTTON[t] || '' } // SF: the button to press
+    if (this.m && this.m.playStyle === 'boxer3') return { name: (mv && mv.name ? mv.name : id).toUpperCase(), how: '' } // Boxer 3: the button shows the strike
     return { name: (mv && mv.name ? mv.name : id).toUpperCase(), how: t[0] === 'l' ? 'tap' : t[0] === 'm' ? 'hold' : 'long hold' }
   }
   drawGuide() {
@@ -884,7 +892,7 @@ export class FightScene extends Phaser.Scene {
     setT(this.sp1, spTxt(m.p1), (m.p1.meter || 0) >= 100 ? GOLD : m.p1.specialCd === 0 ? fxColour(m.p1) : '#5c6670')
     setT(this.sp2, spTxt(m.p2), (m.p2.meter || 0) >= 100 ? GOLD : m.p2.specialCd === 0 ? fxColour(m.p2) : '#5c6670')
     // live readings for the React buttons' charge rings
-    if (m.frame % 6 === 0) bridge(this).onHud?.({ sp: 1 - Math.min(1, (m.p1.specialCd || 0) / (m.p1.specialCdMax || 150)), sup: Math.min(1, (m.p1.meter || 0) / 100), special: m.p1.def.special, colour: m.p1.def.colour })
+    if (m.frame % 6 === 0) bridge(this).onHud?.({ sp: 1 - Math.min(1, (m.p1.specialCd || 0) / (m.p1.specialCdMax || 150)), sup: Math.min(1, (m.p1.meter || 0) / 100), special: m.p1.def.special, colour: m.p1.def.colour, style: m.p1.def.style, moves: m.p1.def.moves })
   }
 }
 
