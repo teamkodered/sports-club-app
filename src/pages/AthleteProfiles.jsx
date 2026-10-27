@@ -5576,8 +5576,17 @@ export default function AthleteProfiles() {
   // one-time app invite (/invite/<token>) that links their new login automatically.
   // (Replaces the old /claim?ref= links, which looped for people who already had a login.)
   const [inviteInfo, setInviteInfo] = useState(null)   // { url, msg, hasLogin } for the open Invite menu
+  const [inviteStep, setInviteStep] = useState('')
   async function prepareInvite(s) {
     setInviteInfo(null)
+    // safety net: whatever happens, show a result within 15 s
+    const guard = setTimeout(() => setInviteInfo(cur => cur || { error: `Still waiting (${inviteStepRef.current || 'starting'}) -- tap Try again.` }), 15000)
+    try { await prepareInviteSteps(s) } catch (e) { setInviteInfo({ error: e?.message || String(e) }) } finally { clearTimeout(guard) }
+  }
+  const inviteStepRef = useRef('')
+  const stepTo = t => { inviteStepRef.current = t; setInviteStep(t) }
+  async function prepareInviteSteps(s) {
+    stepTo('checking for a login')
     const name = s.members?.first_name || 'there'
     const origin = window.location.origin
     // never hang on "Preparing their link…": each step gives up after a few seconds
@@ -5589,6 +5598,7 @@ export default function AthleteProfiles() {
       setInviteInfo({ hasLogin, url, msg: `Hi ${name}, your KR Centre athlete app is ready. Sign in here with your email: ${url} — if you don't know your password, tap "Forgot password" on that page.` })
       return
     }
+    stepTo('creating the invite')
     const a = new Uint8Array(18); crypto.getRandomValues(a)
     const token = Array.from(a, b => b.toString(36).padStart(2, '0')).join('').slice(0, 24)
     let error = null
@@ -9333,7 +9343,7 @@ export default function AthleteProfiles() {
                   onClick={() => setShowInviteMenu(false)}>
                   <div className="card" style={{ maxWidth: 320, width: '100%' }} onClick={e => e.stopPropagation()}>
                     <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Invite {m?.first_name}</h3>
-                    <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>{!inviteInfo ? 'Preparing their link…' : inviteInfo.error ? `Couldn't create the invite: ${inviteInfo.error}` : inviteInfo.hasLogin ? `${m?.first_name} already has a login — this sends them the sign-in page.` : 'Choose how to share their one-time invite link'}</p>
+                    <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>{!inviteInfo ? `Preparing their link… (${inviteStep || 'starting'})` : inviteInfo.error ? `Couldn't create the invite: ${inviteInfo.error}` : inviteInfo.hasLogin ? `${m?.first_name} already has a login — this sends them the sign-in page.` : 'Choose how to share their one-time invite link'}</p>
                     {inviteInfo?.error && <button className="btn btn-sm" style={{ marginBottom: 12 }} onClick={() => prepareInvite(selected)}>↻ Try again</button>}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       <button className="btn btn-sm" style={{ justifyContent: 'flex-start' }} disabled={!hasRealEmail || invitingId === selected.id}
