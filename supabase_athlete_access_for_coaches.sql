@@ -6,7 +6,10 @@
 -- their Athlete profiles access: 'edit' | 'view' | 'none' (admin = edit; access group first, then own setting)
 create or replace function public.kc_athlete_access()
 returns text language sql stable security definer set search_path = public as $$
-  with me as (select role, access from members where auth_id = auth.uid() limit 1),
+  -- someone can have more than one member record (e.g. a 'member' one as an athlete + a 'head_coach' one):
+  -- use the staff record first
+  with me as (select role, access from members where auth_id = auth.uid()
+              order by (role = 'admin') desc, (role in ('head_coach','captain','coach','leader')) desc limit 1),
   grp as (
     select g from settings s, me, jsonb_array_elements(case when jsonb_typeof(s.value::jsonb) = 'array' then s.value::jsonb else '[]'::jsonb end) g
     where s.key = 'access_groups' and g->>'id' = me.access->>'group'
