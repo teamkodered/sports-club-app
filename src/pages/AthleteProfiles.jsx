@@ -2988,7 +2988,7 @@ function OpponentQuickNoteForm({ onSave, showShareToggle, disabled }) {
 export default function AthleteProfiles() {
   const [testSessionOpen, setTestSessionOpen] = useState(false)
   const [testBatchOpen, setTestBatchOpen] = useState(false)
-  const { profile, isAdmin, registerAccess } = useAuth()
+  const { profile, isAdmin, registerAccess, pageAccess } = useAuth()
   const navigate = useNavigate()
   // Quick logger (pick another athlete to log a session for without
   // leaving this screen) is paused for now -- its old trigger (hold on
@@ -7045,7 +7045,7 @@ export default function AthleteProfiles() {
             )}
 
             {(showKrRegister || showKrbaRegister || showAllAthRegister) ? (
-              <Registers key={(showKrRegister ? 'kr' : showKrbaRegister ? 'krba' : 'allath') + dashCompFilter + dashLevel} extraFilter={s => (dashLevel === 'all' || dashLevelOf(s) === dashLevel) && (dashCompFilter === 'all' || (dashCompFilter === 'in' ? !!s.in_comp : !s.in_comp))} initialRegType={showKrRegister ? 'kr' : showKrbaRegister ? 'krba' : 'allath'}
+              <Registers key={(showKrRegister ? 'kr' : showKrbaRegister ? 'krba' : 'allath') + dashCompFilter + dashLevel} readOnly={!isAdmin && pageAccess?.('athletes') === 'view'} extraFilter={s => (dashLevel === 'all' || dashLevelOf(s) === dashLevel) && (dashCompFilter === 'all' || (dashCompFilter === 'in' ? !!s.in_comp : !s.in_comp))} initialRegType={showKrRegister ? 'kr' : showKrbaRegister ? 'krba' : 'allath'}
                 onStudentNameClick={registerStudent => {
                   // Registers.jsx fetches its own students with a
                   // different query shape than this page's own

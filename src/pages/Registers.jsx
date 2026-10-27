@@ -193,12 +193,14 @@ const monthsSince = d => { const a = new Date(String(d).slice(0, 10) + 'T12:00:0
 const mmyy = d => { const [yy, mm] = String(d).slice(0, 10).split('-'); return `${mm}/${yy.slice(2)}` }
 const lastInColour = d => ((Date.now() - new Date(String(d).slice(0, 10) + 'T12:00:00')) / 86400000 < 28 ? '#EF9F27' : '#E24B4A') // < 4 weeks orange, else red
 
-export default function Registers({ initialRegType, onStudentNameClick, onWeightClick, extraFilter } = {}) {
+export default function Registers({ initialRegType, onStudentNameClick, onWeightClick, extraFilter, readOnly = false } = {}) {
+  // readOnly: Athlete Dashboard register for someone with view-only athlete access (see, but no marking / points / edits)
+  const guardRO = () => { if (readOnly) { alert('View only -- your access to athletes is set to view in Settings → Team.'); return true } return false }
   // extraFilter: the coach dashboard's Show (in / out of comp) and Level choices narrow the register too
   const { isAdmin, isCoach, isLeader, isStaff, registerAccess, viewAsStudentIds } = useAuth()
   // Per-person register access (Settings -> Team): which register types and classes this person may take
-  const allowedRegTypes = registerAccess?.types || null     // null = all
-  const allowedClassIds = registerAccess?.classes || null   // null = all
+  const allowedRegTypes = initialRegType ? null : (registerAccess?.types || null)     // null = all
+  const allowedClassIds = initialRegType ? null : (registerAccess?.classes || null)   // null = all
   const regTypeAllowed = k => !allowedRegTypes || allowedRegTypes.includes(k)
   const classAllowed = c => !allowedClassIds || allowedClassIds.includes(c.id)
   const navigate = useNavigate()
@@ -399,6 +401,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   const photoHeldRef = useRef(false)
   const [uploadingPhotoFor, setUploadingPhotoFor] = useState(null)
   async function uploadRegisterPhoto(st, file) {
+    if (guardRO()) return
     if (!st || !file) return
     setUploadingPhotoFor(st.id)
     try {
@@ -1179,6 +1182,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   }
 
   async function toggleAttendance(id) {
+    if (guardRO()) return
     const cur = attendance[id] || 'none'
     const next = cur === 'none' ? 'attended' : cur === 'attended' ? 'full_kit' : 'none'
     setAttendance(prev => ({ ...prev, [id]: next }))
@@ -1220,12 +1224,14 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   }
 
   async function toggleInComp(s) {
+    if (guardRO()) return
     const { error } = await supabase.from('students').update({ in_comp: !s.in_comp }).eq('id', s.id)
     if (error) { alert('Error updating: ' + error.message); return }
     setStudents(prev => prev.map(x => x.id === s.id ? { ...x, in_comp: !s.in_comp } : x))
   }
 
   async function updateWLD(studentId, field, value) {
+    if (guardRO()) return
     const { error } = await supabase.from('students').update({ [field]: value }).eq('id', studentId)
     if (error) { alert('Error updating: ' + error.message); return }
     setStudents(prev => prev.map(x => x.id === studentId ? { ...x, [field]: value } : x))
@@ -1259,6 +1265,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   }
 
   async function markAttendance(type) {
+    if (guardRO()) return
     if (selectedStudents.length === 0) return
     setSaving(true)
 
@@ -1317,6 +1324,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   }
 
   async function updatePointEntry(entry, newPoints, newNote) {
+    if (guardRO()) return
     const diff = newPoints - entry.points_awarded
     const { error } = await supabase.from('points_log').update({ points_awarded: newPoints, note: newNote }).eq('id', entry.id)
     if (error) { alert('Error saving: ' + error.message); return }
@@ -1350,6 +1358,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   }
 
   async function deletePointEntry(entry) {
+    if (guardRO()) return
     if (!confirm('Remove this points entry? This cannot be undone.')) return
     const { error } = await supabase.from('points_log').delete().eq('id', entry.id)
     if (error) { alert('Error deleting: ' + error.message); return }
@@ -1380,6 +1389,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   }
 
   async function submitPoints(studentIds, points) {
+    if (guardRO()) return
     setSaving(true)
     const savedEntries = []   // returned so quick awards can be undone
     const total = points.reduce((s, p) => s + p.points, 0)
@@ -1463,6 +1473,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
 
   // ── Quick awards (phone register): Points mode, reason chips, group undo ──
   async function quickAward(studentIds, pt) {
+    if (guardRO()) return
     if (!studentIds.length || !pt) return
     if (navigator.vibrate) navigator.vibrate(15)
     studentIds.forEach(id => floatPoints(id, pt.points))
