@@ -193,7 +193,8 @@ const monthsSince = d => { const a = new Date(String(d).slice(0, 10) + 'T12:00:0
 const mmyy = d => { const [yy, mm] = String(d).slice(0, 10).split('-'); return `${mm}/${yy.slice(2)}` }
 const lastInColour = d => ((Date.now() - new Date(String(d).slice(0, 10) + 'T12:00:00')) / 86400000 < 28 ? '#EF9F27' : '#E24B4A') // < 4 weeks orange, else red
 
-export default function Registers({ initialRegType, onStudentNameClick, onWeightClick, extraFilter, readOnly = false } = {}) {
+export default function Registers({ initialRegType, onStudentNameClick, onWeightClick, extraFilter, readOnly = false, onStudentChange } = {}) {
+  // onStudentChange(id, patch): tell the page around the register (Athlete Dashboard) so its totals update straight away
   // readOnly: Athlete Dashboard register for someone with view-only athlete access (see, but no marking / points / edits)
   const guardRO = () => { if (readOnly) { alert('View only -- your access to athletes is set to view in Settings → Team.'); return true } return false }
   // extraFilter: the coach dashboard's Show (in / out of comp) and Level choices narrow the register too
@@ -1228,13 +1229,18 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     const { error } = await supabase.from('students').update({ in_comp: !s.in_comp }).eq('id', s.id)
     if (error) { alert('Error updating: ' + error.message); return }
     setStudents(prev => prev.map(x => x.id === s.id ? { ...x, in_comp: !s.in_comp } : x))
+    onStudentChange?.(s.id, { in_comp: !s.in_comp })
   }
 
   async function updateWLD(studentId, field, value) {
     if (guardRO()) return
-    const { error } = await supabase.from('students').update({ [field]: value }).eq('id', studentId)
+    const patch = { [field]: value }
+    if (['wins', 'losses', 'draws'].includes(field)) patch.record_updated_at = new Date().toISOString()   // 'updated' date on the dashboard record
+    let { error } = await supabase.from('students').update(patch).eq('id', studentId)
+    if (error && /record_updated_at/.test(error.message)) { delete patch.record_updated_at; ({ error } = await supabase.from('students').update(patch).eq('id', studentId)) }
     if (error) { alert('Error updating: ' + error.message); return }
-    setStudents(prev => prev.map(x => x.id === studentId ? { ...x, [field]: value } : x))
+    setStudents(prev => prev.map(x => x.id === studentId ? { ...x, ...patch } : x))
+    onStudentChange?.(studentId, patch)
   }
 
   // Lets a coach extend a specific session's effective end time (e.g.

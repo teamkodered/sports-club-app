@@ -7060,6 +7060,7 @@ export default function AthleteProfiles() {
                   setCameFromRegisterType(showKrRegister ? 'kr' : showKrbaRegister ? 'krba' : 'allath')
                   selectStudent(full)
                 }}
+                onStudentChange={(id, patch) => setStudents(prev => prev.map(x => x.id === id ? { ...x, ...patch } : x))}
                 onWeightClick={registerStudent => {
                   const full = students.find(x => x.id === registerStudent.id)
                   if (!full) return
