@@ -12,7 +12,9 @@ import { assignmentActiveOn, isPastAssignment, isFutureAssignment, askAssignment
 
 const HOUSE_COLOURS = { Phoenix: '#e24b4a', Titan: '#378add', Viper: '#1d9e75', Storm: '#ef9f27' }
 
-export default function StudentProfile({ student, onClose, isAdmin, embedded = false, swipeTabs = false, omitTabs = [], onSwipeBeforeFirst, hideIdentity = false }) {
+// classPoints: on a register, the points given in that class -- shows 'Class pts' (tap for the list) instead of house points
+export default function StudentProfile({ student, onClose, isAdmin, embedded = false, swipeTabs = false, omitTabs = [], onSwipeBeforeFirst, hideIdentity = false, classPoints = null }) {
+  const [showClassPts, setShowClassPts] = useState(false)
   const { isStaff: kcStaff, isAdmin: kcAdmin } = useAuth()
   // Does this person already have a login? (decides "Create login" vs "Reset password")
   const [hasLogin, setHasLogin] = useState(null)
@@ -389,10 +391,18 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
             </div>
           </div>
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 18, fontWeight: 700 }}>{localStudent.house_points || 0}</div>
-              <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>House pts</div>
-            </div>
+            {classPoints ? (
+              <button type="button" onClick={() => setShowClassPts(v => !v)} title="What was awarded in this class"
+                style={{ textAlign: 'center', background: 'none', border: 'none', padding: 0, color: 'inherit', cursor: 'pointer' }}>
+                <div style={{ fontSize: 18, fontWeight: 700 }}>{classPoints.reduce((n, p) => n + (p.points_awarded || 0), 0)}</div>
+                <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Class pts {showClassPts ? '▴' : '▾'}</div>
+              </button>
+            ) : (
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 18, fontWeight: 700 }}>{localStudent.house_points || 0}</div>
+                <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>House pts</div>
+              </div>
+            )}
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 18, fontWeight: 700 }}>{localStudent.individual_points || 0}</div>
               <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Indiv. pts</div>
@@ -402,6 +412,17 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
               <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Champ</div>
             </div>
           </div>
+          {classPoints && showClassPts && (
+            <div style={{ flexBasis: '100%', fontSize: 13, background: 'var(--bg-secondary)', borderRadius: 8, padding: '8px 10px' }}>
+              {classPoints.length === 0 ? <span style={{ color: 'var(--text-tertiary)' }}>No points given in this class yet.</span>
+                : classPoints.map(p => (
+                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '2px 0' }}>
+                    <span>{p.point_type}{p.note ? ` — ${p.note}` : ''}</span>
+                    <strong style={{ color: (p.points_awarded || 0) < 0 ? '#E24B4A' : '#1D9E75' }}>{(p.points_awarded || 0) > 0 ? '+' : ''}{p.points_awarded}</strong>
+                  </div>
+                ))}
+            </div>
+          )}
           {!embedded && (
             <button className="btn btn-sm" onClick={() => {
               const params = new URLSearchParams({ student_id: localStudent.id })

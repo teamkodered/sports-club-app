@@ -263,6 +263,8 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   const [cascadedEntries, setCascadedEntries] = useState([])
   const [showOnlyAttended, setShowOnlyAttended] = useState(false)
   const [pointsByStudent, setPointsByStudent] = useState({}) // student_id -> points_log rows for the selected date
+  // points given in the class being registered (entries for this class, or not tied to a class) -- 'Class pts' on the card
+  const classPointsFor = sid => (pointsByStudent[sid] || []).filter(p => !classFilter || classFilter === 'all' || !p.class_id || p.class_id === classFilter)
   const [weightByStudent, setWeightByStudent] = useState({}) // student_id -> {weight_before, weight_after} for the selected date (KRBA)
   const [pointsPanelFor, setPointsPanelFor] = useState(null) // student currently open in the points-for-this-day panel
   const [search, setSearch]             = useState('')
@@ -760,7 +762,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
       const dayEnd   = `${date}T23:59:59.999Z`
       const { data: dayPoints } = await supabase
         .from('points_log')
-        .select('id, student_id, point_type, points_awarded, point_scope, note, awarded_at')
+        .select('id, student_id, point_type, points_awarded, point_scope, note, awarded_at, class_id')
         .gte('awarded_at', dayStart).lte('awarded_at', dayEnd)
       const map = {}
       ;(dayPoints || []).forEach(p => { (map[p.student_id] ||= []).push(p) })
@@ -1421,7 +1423,8 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
           student_id: sid, point_type: pt.label,
           points_awarded: pt.points, point_scope: 'both',
           awarded_at: new Date(date).toISOString(),
-        }).select('id, student_id, point_type, points_awarded, point_scope, note, awarded_at').single()
+          class_id: classFilter && classFilter !== 'all' ? classFilter : null,
+        }).select('id, student_id, point_type, points_awarded, point_scope, note, awarded_at, class_id').single()
         if (logRow) {
           savedEntries.push(logRow)
           setPointsByStudent(prev => ({ ...prev, [sid]: [...(prev[sid] || []), logRow] }))
@@ -2252,7 +2255,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                             </>
                           ) : (
                             <>
-                              <StudentProfile student={st} isAdmin={isAdmin} embedded={true} hideIdentity={true} onClose={() => setMExpanded(null)}
+                              <StudentProfile student={st} isAdmin={isAdmin} embedded={true} hideIdentity={true} classPoints={classPointsFor(st.id)} onClose={() => setMExpanded(null)}
                                 swipeTabs omitTabs={['contact']} onSwipeBeforeFirst={() => setMCardTab(t => ({ ...t, [st.id]: 'contact' }))} />
                               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
                                 <button type="button" className="btn btn-sm" onClick={() => navigate(studentProfileLink(st))}>Full profile →</button>
@@ -2295,7 +2298,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                               {renderContactCard(st, { showProfileButton: false })}
                             </>
                           ) : (
-                            <StudentProfile student={st} isAdmin={isAdmin} embedded={true} hideIdentity={true} onClose={() => setMExpanded(null)}
+                            <StudentProfile student={st} isAdmin={isAdmin} embedded={true} hideIdentity={true} classPoints={classPointsFor(st.id)} onClose={() => setMExpanded(null)}
                               swipeTabs omitTabs={['contact']} onSwipeBeforeFirst={() => setMCardTab(t => ({ ...t, [st.id]: 'contact' }))} />
                           )}
                         </div>
