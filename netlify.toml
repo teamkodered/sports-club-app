@@ -11,6 +11,11 @@
   # just this one key rather than disabling the scan entirely.
   SECRETS_SCAN_OMIT_KEYS = "VITE_WHOOP_CLIENT_ID"
 
+# Athlete-app invite links (?app=f2f): Fit II Fight link preview (edge function)
+[[edge_functions]]
+  path = "/invite/*"
+  function = "f2f-preview"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

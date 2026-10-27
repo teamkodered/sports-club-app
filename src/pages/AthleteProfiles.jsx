@@ -5591,7 +5591,7 @@ export default function AthleteProfiles() {
     const token = Array.from(a, b => b.toString(36).padStart(2, '0')).join('').slice(0, 24)
     const { error } = await supabase.from('app_invites').insert({ token, student_id: s.id, kind: 'athlete', created_by: profile?.id || null })
     if (error) { setInviteInfo({ error: error.message }); return }
-    const url = `${origin}/invite/${token}`
+    const url = `${origin}/invite/${token}?app=f2f` // ?app=f2f -> the link preview shows the Fit II Fight logo
     setInviteInfo({ hasLogin, url, msg: `Hi ${name}, you've been invited to the KR Centre athlete app. Tap this link to set up your login (it works once and lasts 14 days): ${url}` })
   }
   useEffect(() => { if (showInviteMenu && selected) prepareInvite(selected) }, [showInviteMenu, selected?.id])
