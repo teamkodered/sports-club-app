@@ -281,8 +281,9 @@ const shade = (c, k) => (Math.min(255, ((c >> 16) & 255) * k) << 16) | (Math.min
 const OUTLINE = 0x07090c
 
 function drawBody(g, f, P, fx, fy, dir, frame, opts) {
-  if (getLook() === 'stick' || getLook() === '3d') return drawStick(g, f, P, fx, fy, dir, frame, opts)
-  if (getLook() === 'house') return drawHouse(g, f, P, fx, fy, dir, frame, opts)
+  const look = opts.look || getLook() // other games (Last Man Standing) can ask for a look without changing the setting
+  if (look === 'stick' || look === '3d') return drawStick(g, f, P, fx, fy, dir, frame, opts)
+  if (look === 'house') return drawHouse(g, f, P, fx, fy, dir, frame, opts)
   const L = LOOKS[f.def.key] || LOOKS.mentality
   const ghost = opts.ghost
   const flash = !ghost && f.flash > 0 && f.flash % 4 < 2

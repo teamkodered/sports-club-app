@@ -22,6 +22,9 @@ import LiveHrTable from '../components/shared/LiveHrTable.jsx'
 import WattBikePanel from '../components/shared/WattBikePanel.jsx'
 import MediaViewer from '../components/shared/MediaViewer.jsx'
 import FightGame from '../components/shared/FightGame.jsx'
+import { lazy as lazyLoad, Suspense as SuspenseLoad } from 'react'
+// Last Man Standing -- loaded only when opened from the Games menu
+const LastManStanding = lazyLoad(() => import('../components/shared/lms/LastManStanding.jsx'))
 import ChessGame from '../components/shared/ChessGame.jsx'
 import GuidedSession from '../components/shared/GuidedSession.jsx'
 import VideoMeasureTool from '../components/shared/VideoMeasureTool.jsx'
@@ -1681,6 +1684,8 @@ export default function AthleteApp() {
   const [wattEffortSel, setWattEffortSel] = useState({}) // watt bike: which effort is being edited, per group
   const [sprintVideoTick, setSprintVideoTick] = useState(0) // re-mounts the sprint inputs after a video time is added
   const [fightOpen, setFightOpen] = useState(false) // KR Fight game for Gaming (combat)
+  const [gamesMenu, setGamesMenu] = useState(false) // Games tile: choose a game
+  const [lmsOpen, setLmsOpen] = useState(false)     // Last Man Standing
   const [chessOpen, setChessOpen] = useState(false) // in-app chess game for the Chess question
   const [guidedFor, setGuidedFor] = useState(null) // { field, type } -- guided meditation / visualisation session
   const [bwVideoTick, setBwVideoTick] = useState(0) // re-mounts bodyweight set inputs after a video count / time is added
@@ -5252,6 +5257,25 @@ export default function AthleteApp() {
               ))}
             </div>
           )}
+          {gamesMenu && (
+            <div role="dialog" aria-modal="true" aria-label="Games" onClick={() => setGamesMenu(false)}
+              style={{ position: 'fixed', inset: 0, zIndex: 480, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+              <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, background: '#0B0E12', border: '1px solid #2A3138', borderRadius: 16, padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <b style={{ fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontSize: 22, color: '#FFFFFF' }}>GAMES</b>
+                  <button type="button" className="btn btn-sm" onClick={() => setGamesMenu(false)}>Close</button>
+                </div>
+                {[['KR FIGHT', 'Team fights: styles, combos, upgrades, players', '#22B14C', () => setFightOpen(true)], ['LAST MAN STANDING', 'Ten fighters, one ring -- pick yours and watch who wins', '#F5C542', () => setLmsOpen(true)]].map(([name, blurb, col, open]) => (
+                  <button key={name} type="button" onClick={() => { setGamesMenu(false); open() }}
+                    style={{ textAlign: 'left', padding: '14px 16px', borderRadius: 12, border: `1px solid ${col}55`, background: `${col}12`, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <span style={{ fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 22, color: col }}>{name}</span>
+                    <span style={{ fontSize: 13, color: '#C9CED6' }}>{blurb}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {lmsOpen && <SuspenseLoad fallback={null}><LastManStanding onClose={() => setLmsOpen(false)} defaultName={m?.first_name || ''} /></SuspenseLoad>}
           {fightOpen && <FightGame onClose={() => setFightOpen(false)} onRound={() => saveMentalityField('gaming', cur => ({ ...cur, count: (cur.count || 0) + 1 }))} />}
           {chessOpen && <ChessGame onClose={() => setChessOpen(false)} onFinished={() => saveMentalityField('chess', cur => ({ ...cur, count: (cur.count || 0) + 1 }))} />}
           {guidedFor && <GuidedSession kind={guidedFor.field} type={guidedFor.type} colour="#22B14C" onClose={() => setGuidedFor(null)} onComplete={mins => saveMentalityField(guidedFor.field, cur => ({ ...cur, entries: [...(cur.entries || []), { type: guidedFor.type, duration: String(mins), guided: true }] }))} />}
@@ -6922,7 +6946,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
               {/* Games (KR FIGHT) -- hidden from athletes for now; only shows for the admin */}
               {realIsAdmin && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginTop: 8 }}>
-                  <button onClick={() => setFightOpen(true)} className="neon-tile" style={{
+                  <button onClick={() => setGamesMenu(true)} className="neon-tile" style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
                     padding: '14px 8px', background: '#22B14C12',
                     border: '1px solid #22B14C30', borderRadius: 'var(--border-radius-lg)',
