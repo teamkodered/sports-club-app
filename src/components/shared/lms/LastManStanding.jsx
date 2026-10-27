@@ -10,7 +10,7 @@ const pill = (on, col) => ({ height: 40, padding: '0 14px', borderRadius: 12, bo
 
 export default function LastManStanding({ onClose, defaultName = '' }) {
   const [stage, setStage] = useState('setup') // setup | battle | results
-  const [player, setPlayer] = useState(() => { try { return { name: defaultName, colour: 'mentality', style: 'pro', ...JSON.parse(localStorage.getItem(LS) || '{}') } } catch (e) { return { name: defaultName, colour: 'mentality', style: 'pro' } } })
+  const [player, setPlayer] = useState(() => { try { return { name: defaultName, colour: 'mentality', style: 'pro', arena: 'ring', ...JSON.parse(localStorage.getItem(LS) || '{}') } } catch (e) { return { name: defaultName, colour: 'mentality', style: 'pro' } } })
   const [results, setResults] = useState(null)
   const [portrait, setPortrait] = useState(() => window.innerHeight > window.innerWidth)
   const host = useRef(null), game = useRef(null), sfx = useRef(null)
@@ -28,7 +28,7 @@ export default function LastManStanding({ onClose, defaultName = '' }) {
     import('./scene.js').then(({ startLms }) => {
       if (dead) return
       sfx.current?.resume?.()
-      game.current = startLms(host.current, { roster: makeRoster(player), sfx: sfx.current, onDone: placings => { if (!dead) { setResults(placings); setStage('results') } } })
+      game.current = startLms(host.current, { roster: makeRoster(player), arena: player.arena || 'ring', sfx: sfx.current, onDone: placings => { if (!dead) { setResults(placings); setStage('results') } } })
     })
     return () => { dead = true; try { sfx.current?.stopMusic?.() } catch (e) { /* ignore */ } try { game.current?.destroy(true) } catch (e) { /* ignore */ } game.current = null }
   }, [stage])
@@ -47,10 +47,18 @@ export default function LastManStanding({ onClose, defaultName = '' }) {
 
       {stage === 'setup' && (
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: '10px 16px 20px' }}>
-          <div style={{ fontSize: 14, color: '#9AA3AE', textAlign: 'center', maxWidth: 520 }}>Ten fighters, one ring. Every hit raises their damage % — the higher it is, the further they fly. Knock them over the ropes. Last one in the ring wins. Pick your fighter and watch.</div>
+          <div style={{ fontSize: 14, color: '#9AA3AE', textAlign: 'center', maxWidth: 520 }}>Ten fighters. Every hit raises their damage % — the higher it is, the further they fly. In the Ring, knock them over the ropes: last one in wins. On the Track, race to the finish and knock them off the sides: first across the line wins. Pick your fighter and watch.</div>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 700, color: '#C9CED6' }}>Your name
             <input value={player.name} maxLength={14} onChange={e => setPlayer(p => ({ ...p, name: e.target.value }))} placeholder="Your name" style={{ height: 40, width: 220, borderRadius: 10, border: '1px solid #2A3138', background: '#0B0E12', color: '#F2F2F2', padding: '0 12px', fontSize: 16 }} />
           </label>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#C9CED6' }}>Arena</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+            {[['ring', 'Ring', 'Knock them over the ropes · last one in wins'], ['track', 'Track', 'Race to the finish · knock them off the track']].map(([k, name, blurb]) => (
+              <button key={k} type="button" onClick={() => setPlayer(p => ({ ...p, arena: k }))} style={{ ...pill((player.arena || 'ring') === k, '#F5C542'), height: 'auto', padding: '8px 14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                <span>{name}</span><span style={{ fontFamily: "'Rajdhani', sans-serif", fontStyle: 'normal', fontWeight: 600, fontSize: 12, color: '#9AA3AE' }}>{blurb}</span>
+              </button>
+            ))}
+          </div>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#C9CED6' }}>Colour</div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
             {FIGHTERS.map(f => <button key={f.key} type="button" onClick={() => setPlayer(p => ({ ...p, colour: f.key }))} style={pill(player.colour === f.key, f.colour)}>{f.name}</button>)}
@@ -70,7 +78,7 @@ export default function LastManStanding({ onClose, defaultName = '' }) {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, minWidth: 240 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: '#9AA3AE', letterSpacing: 2 }}>WINNER</div>
             <div style={{ fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 40, color: results[0].colour, textAlign: 'center' }}>{results[0].colourName} · {results[0].name}</div>
-            <div style={{ fontSize: 14, color: '#C9CED6' }}>{STYLES[results[0].style].name} · {results[0].kos} knock-out{results[0].kos === 1 ? '' : 's'}</div>
+            <div style={{ fontSize: 14, color: '#C9CED6' }}>{STYLES[results[0].style].name} · {results[0].kos} knock-{player.arena === 'track' ? 'off' : 'out'}{results[0].kos === 1 ? '' : 's'}{player.arena === 'track' ? ' · first across the line' : ''}</div>
             {you && <div style={{ marginTop: 6, fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 24, color: '#5BE0FF' }}>{yourPlace === 1 ? 'YOU WON!' : `You came ${ordinal(yourPlace)}`}</div>}
             <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
               <button type="button" onClick={start} style={{ ...btn, borderColor: '#22B14C', color: '#22B14C' }}>Run it again</button>
@@ -83,7 +91,7 @@ export default function LastManStanding({ onClose, defaultName = '' }) {
                 <b style={{ width: 34, color: i === 0 ? '#F5C542' : '#9AA3AE' }}>{ordinal(i + 1)}</b>
                 <span style={{ width: 10, height: 10, borderRadius: '50%', background: r.colour }} />
                 <span style={{ flex: 1, fontWeight: 700 }}>{r.name}{r.you ? ' (you)' : ''}</span>
-                <span style={{ fontSize: 12, color: '#9AA3AE' }}>{STYLES[r.style].name.split(' ')[0]} · {r.kos} KO</span>
+                <span style={{ fontSize: 12, color: '#9AA3AE' }}>{STYLES[r.style].name.split(' ')[0]} · {r.kos} KO{r.finished ? ' · finished' : r.fell ? ' · fell off' : (player.arena === 'track' ? ' · still racing' : '')}</span>
               </li>
             ))}
           </ol>
