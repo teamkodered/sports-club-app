@@ -184,7 +184,9 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
   useEffect(() => {
     if (paused || slides.length === 0) return
     const step = perView()
-    const t = setInterval(() => setIdx(i => { const n = i + step; if (n >= slides.length) { setCycle(c => c + 1); return 0 } return n }), cfg.seconds * 1000)
+    // at the end of the list: start again from the first board (and forget the last board, so the
+    // League period <-> This month flip doesn't jump straight back to it -- that kept it stuck on Notes)
+    const t = setInterval(() => setIdx(i => { const n = i + step; if (n >= slides.length) { lastKeyRef.current = ''; setCycle(c => c + 1); return 0 } return n }), cfg.seconds * 1000)
     return () => clearInterval(t)
   }, [paused, slides.length, cfg.seconds, tall, liveCount]) // eslint-disable-line react-hooks/exhaustive-deps
   const slideKey = sl => !sl ? '' : sl.kind === 'tasks' ? `tasks:${sl.area.key}` : sl.kind === 'exercise' ? `ex:${sl.cat.key}` : sl.kind === 'hr' ? `hr:${sl.metric}` : sl.kind === 'workrate' ? `wr:${sl.metric}` : sl.kind
