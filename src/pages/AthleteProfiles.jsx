@@ -5580,8 +5580,10 @@ export default function AthleteProfiles() {
     setInviteInfo(null)
     const name = s.members?.first_name || 'there'
     const origin = window.location.origin
+    // never hang on "Preparing their link…": each step gives up after a few seconds
+    const within = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))])
     let hasLogin = false
-    try { const r = await supabase.rpc('kc_student_has_login', { p_student: s.id }); hasLogin = r.data === true } catch { /* ignore */ }
+    try { const r = await within(supabase.rpc('kc_student_has_login', { p_student: s.id }), 6000); hasLogin = r.data === true } catch { /* ignore -- treat as no login yet */ }
     if (hasLogin) {
       const url = `${origin}/athlete-login`
       setInviteInfo({ hasLogin, url, msg: `Hi ${name}, your KR Centre athlete app is ready. Sign in here with your email: ${url} — if you don't know your password, tap "Forgot password" on that page.` })
@@ -5589,7 +5591,9 @@ export default function AthleteProfiles() {
     }
     const a = new Uint8Array(18); crypto.getRandomValues(a)
     const token = Array.from(a, b => b.toString(36).padStart(2, '0')).join('').slice(0, 24)
-    const { error } = await supabase.from('app_invites').insert({ token, student_id: s.id, kind: 'athlete', created_by: profile?.id || null })
+    let error = null
+    try { ({ error } = await within(supabase.from('app_invites').insert({ token, student_id: s.id, kind: 'athlete', created_by: profile?.id || null }), 10000)) }
+    catch { error = { message: 'The connection timed out -- check the signal and tap Try again.' } }
     if (error) { setInviteInfo({ error: error.message }); return }
     const url = `${origin}/invite/${token}?app=f2f` // ?app=f2f -> the link preview shows the Fit II Fight logo
     setInviteInfo({ hasLogin, url, msg: `Hi ${name}, you've been invited to the KR Centre athlete app. Tap this link to set up your login (it works once and lasts 14 days): ${url}` })
@@ -9330,6 +9334,7 @@ export default function AthleteProfiles() {
                   <div className="card" style={{ maxWidth: 320, width: '100%' }} onClick={e => e.stopPropagation()}>
                     <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Invite {m?.first_name}</h3>
                     <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>{!inviteInfo ? 'Preparing their link…' : inviteInfo.error ? `Couldn't create the invite: ${inviteInfo.error}` : inviteInfo.hasLogin ? `${m?.first_name} already has a login — this sends them the sign-in page.` : 'Choose how to share their one-time invite link'}</p>
+                    {inviteInfo?.error && <button className="btn btn-sm" style={{ marginBottom: 12 }} onClick={() => prepareInvite(selected)}>↻ Try again</button>}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       <button className="btn btn-sm" style={{ justifyContent: 'flex-start' }} disabled={!hasRealEmail || invitingId === selected.id}
                         onClick={() => { setShowInviteMenu(false); inviteStudent(selected, 'email') }}
