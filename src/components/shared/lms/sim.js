@@ -31,8 +31,9 @@ export function makeRoster(player) {
 
 export class Battle {
   // arena: 'ring' (knock them over the ropes, last one in wins) or 'track' (race to the finish, knock them off)
-  constructor(roster, arena = 'ring') {
+  constructor(roster, arena = 'ring', traps = true) {
     this.arena = arena; this.track = arena === 'track'
+    this.traps = traps ? this.makeTraps() : []
     this.frame = 0; this.events = []; this.phase = 'intro'; this.introT = 150; this.placings = []; this.finishers = []; this.endT = 0
     // start spread around the ring
     this.fs = roster.map((r, i) => {
@@ -45,6 +46,46 @@ export class Battle {
       f.x = f.px
       return f
     })
+  }
+  // ---- traps (can be switched off) ----
+  // banana: slide out of control, then land in a heap (used up) / gum: stuck for ~2 s / oil: skid sideways /
+  // spring: launched / boost (track): burst of speed / glove (track): a swinging glove smacks you sideways
+  makeTraps() {
+    const T = []
+    if (this.track) {
+      const bag = [['banana', 25], ['gum', 20], ['oil', 18], ['boost', 15], ['spring', 11], ['glove', 11]]
+      const pick = () => { let r = Math.random() * 100; for (const [k, w] of bag) { r -= w; if (r <= 0) return k } return 'banana' }
+      for (let x = 260; x < TRACK_LEN - 160; x += 150 + Math.random() * 90) {
+        const type = pick()
+        T.push({ type, x, z: type === 'glove' ? 0 : (Math.random() * 2 - 1) * TRACK_W * 0.7, r: type === 'oil' ? 30 : type === 'boost' ? 26 : 18, phase: Math.random() * 6.28, on: true })
+      }
+    } else {
+      for (const type of ['banana', 'banana', 'gum', 'oil', 'spring']) {
+        const a = Math.random() * 6.28, d = RING * (0.25 + Math.random() * 0.5)
+        T.push({ type, x: Math.cos(a) * d, z: Math.sin(a) * d * 0.85, r: type === 'oil' ? 30 : 18, on: true })
+      }
+    }
+    return T
+  }
+  // where the swinging glove is (across the track's width)
+  gloveZ(t) { return Math.sin(this.frame * 0.035 + t.phase) * TRACK_W * 0.95 }
+  checkTraps(f) {
+    for (const t of this.traps) {
+      if (!t.on) continue
+      const tz = t.type === 'glove' ? this.gloveZ(t) : t.z
+      if (Math.abs(f.px - t.x) > t.r || Math.abs(f.pz - tz) > t.r * 0.8) continue
+      const key = 'trapCd_' + this.traps.indexOf(t)
+      if ((f[key] || 0) > this.frame) continue
+      f[key] = this.frame + ({ gum: 320, oil: 140, spring: 140, boost: 220, glove: 70 }[t.type] || 90) // the same trap can't catch you again straight away
+      f.trapCause = t.type; f.trapCauseAt = this.frame
+      if (t.type === 'banana') { f.slideT = 45; f.kx = (f.facing || 1) * 5.5; f.kz += (Math.random() * 2 - 1) * 3.5; f.move = null; t.on = false; t.respawn = this.frame + 60 * 8 }
+      else if (t.type === 'gum') { f.stuckT = 120 }
+      else if (t.type === 'oil') { f.kz += (Math.random() < 0.5 ? -1 : 1) * 4.2; f.kx += (f.facing || 1) * 1.5 }
+      else if (t.type === 'spring') { const a = Math.random() * 6.28; f.hopT = 30; if (this.track) f.kx += 9; else { f.kx += Math.cos(a) * 7.5; f.kz += Math.sin(a) * 5 } }
+      else if (t.type === 'boost') { f.boostT = 120 }
+      else if (t.type === 'glove') { const dir = Math.cos(this.frame * 0.035 + t.phase) >= 0 ? 1 : -1; f.kz += dir * 6.5; f.stun = 18; f.move = null; f.flash = 8 }
+      this.emit({ type: 'trap', trap: t.type, f })
+    }
   }
   emit(e) { this.events.push(e) }
   drain() { const e = this.events; this.events = []; return e }
@@ -62,6 +103,8 @@ export class Battle {
       if (f.out) { if (f.flyT > 0) { f.flyT--; f.px += f.kx; f.pz += f.kz; f.flyY += f.flyVy; f.flyVy += 0.9 } continue }
       if (f.finished) { f.state = 'idle'; f.move = null; f.vx = 0; continue }
       if (f.stun > 0) f.stun--
+      for (const k of ['slideT', 'stuckT', 'boostT', 'hopT']) if (f[k] > 0) f[k]--
+      if (f.slideT === 1) { f.stun = 26; this.emit({ type: 'trap', trap: 'land', f }) } // end of a slip: down in a heap
       if (f.cd > 0) f.cd--
       if (f.blockT > 0) f.blockT--
       if (f.flash > 0) f.flash--
@@ -98,6 +141,8 @@ export class Battle {
           if (best) { f.hitDone = true; this.hit(f, best, m) }
         }
         if (f.t >= m.s + m.a + m.r) f.move = null
+      } else if (f.slideT > 0) {
+        f.kx *= 1.08; f.kz *= 1.05 // sliding: no control, the slip keeps you going
       } else if (t && f.stun === 0) {
         if (t.px !== f.px) f.facing = t.px > f.px ? 1 : -1
         const dx = t.px - f.px, dz = t.pz - f.pz, ax = Math.abs(dx)
@@ -122,12 +167,13 @@ export class Battle {
         if (t.move && t.target === f && t.t === 1 && Math.random() < 0.22) f.blockT = 22
         if (Math.random() < 0.004) f.strafe *= -1
       }
-      if (this.track && !f.move && f.stun === 0) {
-        const run = (f.def.speed || 4.2) * 0.5
+      if (this.track && !f.move && f.stun === 0 && !(f.slideT > 0)) {
+        const run = (f.def.speed || 4.2) * 0.5 * (f.boostT > 0 ? 1.8 : 1)
         if (!t) { wx = run; wz = -f.pz * 0.04; f.facing = 1 } // nobody close: run for the line, drifting to the middle
         else { wx += run * 0.35; if (Math.abs(f.pz) > TRACK_W * 0.55) wz -= Math.sign(f.pz) * run * 0.5 } // still edging forward while fighting, and away from the edge
       }
-      f.state = f.move ? 'attack' : f.stun > 0 ? 'hit' : (wx || wz) ? 'walk' : 'idle'
+      if (f.stuckT > 0) { wx = 0; wz = 0 } // stuck in gum: can still punch, can't go anywhere
+      f.state = f.move ? 'attack' : f.stun > 0 || f.slideT > 0 ? 'hit' : (wx || wz) ? 'walk' : 'idle'
       f.vx = wx
       // move: walking + knock-back (which fades)
       f.px += wx + f.kx; f.pz += wz + f.kz
@@ -135,6 +181,7 @@ export class Battle {
       if (Math.abs(f.kx) < 0.05) f.kx = 0
       if (Math.abs(f.kz) < 0.05) f.kz = 0
       // the ropes: hit them hard and you go over the top; otherwise bounce off
+      if (this.traps.length && this.phase === 'fight') this.checkTraps(f)
       const sp = Math.hypot(f.kx, f.kz)
       if (this.track) {
         // the side of the track: pushed over it and you fall; walking up to it you just stop at the edge
@@ -153,6 +200,7 @@ export class Battle {
       }
       f.x = f.px
     }
+    for (const t of this.traps) if (!t.on && t.respawn && this.frame >= t.respawn) { t.on = true; t.respawn = 0 }
     // fighters don't stand inside each other
     const live = this.alive()
     for (let i = 0; i < live.length; i++) for (let j = i + 1; j < live.length; j++) {
@@ -206,9 +254,10 @@ export class Battle {
 
   knockOut(f) {
     f.out = true; f.flyT = 45; f.flyY = 0; f.flyVy = -9; f.kx *= 1.2; f.kz *= 1.2
-    const by = f.lastHitBy && !f.lastHitBy.out ? f.lastHitBy : null
+    const recentTrap = f.trapCause && ((f.slideT || 0) > 0 || (f['trapCd_last'] || 0) > 0 || (f.trapCauseAt || 0) > this.frame - 50) ? f.trapCause : null
+    const by = !recentTrap && f.lastHitBy && !f.lastHitBy.out ? f.lastHitBy : null
     if (by) by.kos++
     this.placings.unshift(f)
-    this.emit({ type: 'ko', f, by, left: this.alive().length })
+    this.emit({ type: 'ko', f, by, trap: recentTrap, left: this.alive().length })
   }
 }

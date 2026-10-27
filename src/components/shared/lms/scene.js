@@ -18,7 +18,7 @@ export class LmsScene extends Phaser.Scene {
   create() {
     const cfg = this.game.cfg
     this.track = cfg.arena === 'track'
-    this.b = new Battle(cfg.roster, this.track ? 'track' : 'ring')
+    this.b = new Battle(cfg.roster, this.track ? 'track' : 'ring', cfg.traps !== false)
     this.camX = 250
     this.sfx = cfg.sfx
     this.acc = 0
@@ -40,6 +40,8 @@ export class LmsScene extends Phaser.Scene {
       this.mapG = this.add.graphics().setDepth(1000)
     }
     this.fx = this.add.graphics().setDepth(900)
+    this.trapG = this.add.graphics().setDepth(8)   // traps on the floor
+    this.gloveG = this.add.graphics()               // the swinging glove (depth set by where it is)
     this.sparks = []
     // HUD
     this.leftT = this.add.text(18, 12, '', { fontFamily: HEAD, fontStyle: 'italic', fontSize: '20px', color: '#F2F2F2', stroke: '#000', strokeThickness: 4 }).setDepth(1000)
@@ -97,6 +99,41 @@ export class LmsScene extends Phaser.Scene {
       if (f.r.you) { g.lineStyle(2, 0x5be0ff, 1); g.strokeCircle(x, Y, 9) }
     }
   }
+  drawTraps() {
+    const g = this.trapG; g.clear(); this.gloveG.clear()
+    for (const t of this.b.traps) {
+      if (t.type === 'glove') { this.drawGlove(t); continue }
+      if (!t.on) continue
+      const p = this.proj(t.x, t.z)
+      if (p.x < -40 || p.x > W + 40) continue
+      const k = p.s * 1.4 // a bit bigger than life so they read on a phone
+      if (t.type === 'banana') {
+        g.fillStyle(0xf5d742, 1); g.fillEllipse(p.x, p.y, 26 * k, 9 * k)
+        g.fillStyle(0xf5d742, 1); g.fillTriangle(p.x - 4 * k, p.y, p.x - 18 * k, p.y + 8 * k, p.x - 10 * k, p.y - 2 * k); g.fillTriangle(p.x + 4 * k, p.y, p.x + 18 * k, p.y + 8 * k, p.x + 10 * k, p.y - 2 * k)
+        g.fillStyle(0x6b4a12, 1); g.fillCircle(p.x, p.y - 3 * k, 2.5 * k)
+      } else if (t.type === 'gum') {
+        g.fillStyle(0xff6fb5, 1); g.fillEllipse(p.x, p.y, 28 * k, 10 * k); g.fillStyle(0xffb3d9, 1); g.fillEllipse(p.x - 4 * k, p.y - 2 * k, 10 * k, 4 * k)
+      } else if (t.type === 'oil') {
+        g.fillStyle(0x07080c, 0.85); g.fillEllipse(p.x, p.y, 70 * k, 20 * k); g.fillStyle(0x6a5acd, 0.35); g.fillEllipse(p.x - 10 * k, p.y - 3 * k, 26 * k, 6 * k); g.fillStyle(0x2ecc71, 0.25); g.fillEllipse(p.x + 12 * k, p.y + 2 * k, 18 * k, 4 * k)
+      } else if (t.type === 'spring') {
+        g.lineStyle(2.5, 0xb9c0c9, 1); for (let i = 0; i < 4; i++) g.strokeEllipse(p.x, p.y - i * 4 * k, 22 * k, 7 * k)
+        g.fillStyle(0xe24b4a, 1); g.fillEllipse(p.x, p.y - 17 * k, 26 * k, 8 * k)
+      } else if (t.type === 'boost') {
+        const glow = 0.55 + 0.45 * Math.sin(this.b.frame * 0.2)
+        for (let i = 0; i < 3; i++) { const a = this.proj(t.x - 14 + i * 14, t.z - 10), b = this.proj(t.x - 4 + i * 14, t.z), c = this.proj(t.x - 14 + i * 14, t.z + 10); g.lineStyle(4, 0x5be0ff, glow); g.lineBetween(a.x, a.y, b.x, b.y); g.lineBetween(b.x, b.y, c.x, c.y) }
+      }
+    }
+  }
+  drawGlove(t) {
+    const z = this.b.gloveZ(t), p = this.proj(t.x, z), top = this.proj(t.x, 0)
+    if (p.x < -60 || p.x > W + 60) return
+    const g = this.gloveG.setDepth(10 + p.t * 700 + 1), k = p.s, gy = p.y - 70 * k
+    g.lineStyle(2, 0x9aa3ae, 0.9); g.lineBetween(top.x, 140, p.x, gy) // chain from the gantry
+    g.fillStyle(0x3a4152, 1); g.fillRect(top.x - 60, 134, 120, 6)
+    g.fillStyle(0xc8102e, 1); g.fillEllipse(p.x, gy, 34 * k, 28 * k); g.fillEllipse(p.x + 12 * k * Math.sign(Math.cos(this.b.frame * 0.035 + t.phase)), gy + 4 * k, 14 * k, 12 * k)
+    g.fillStyle(0xffffff, 0.5); g.fillEllipse(p.x - 6 * k, gy - 6 * k, 10 * k, 6 * k)
+    g.fillStyle(0xf2f2f2, 1); g.fillRect(p.x - 10 * k, gy + 10 * k, 20 * k, 6 * k)
+  }
   drawArena() {
     const g = this.add.graphics().setDepth(0)
     // crowd + lights
@@ -138,6 +175,12 @@ export class LmsScene extends Phaser.Scene {
     const p = this.proj(x, z)
     this.sparks.push({ x: p.x, y: p.y - 95 * p.s, r: 4, life: big ? 14 : 9, col })
   }
+  pop(f, text, col) {
+    const p = this.proj(f.px, f.pz)
+    if (p.x < -40 || p.x > W + 40) return
+    const t = this.add.text(p.x, p.y - 190 * p.s, text, { fontFamily: HEAD, fontStyle: 'italic', fontSize: '20px', color: col, stroke: '#000', strokeThickness: 4 }).setOrigin(0.5).setDepth(960)
+    this.tweens.add({ targets: t, y: t.y - 26, alpha: 0, duration: 800, onComplete: () => t.destroy() })
+  }
   pushFeed(text, col) {
     const t = this.add.text(W - 16, 0, text, { fontFamily: BODY, fontStyle: '700', fontSize: '13px', color: col, stroke: '#000', strokeThickness: 3, align: 'right' }).setOrigin(1, 0).setDepth(1000)
     this.feed.unshift(t)
@@ -158,10 +201,17 @@ export class LmsScene extends Phaser.Scene {
       else if (e.type === 'block') { this.spark(e.x, e.z, 0x8fd3ff, false); sx.block?.() }
       else if (e.type === 'whoosh') { if (Math.random() < 0.25) sx.whoosh?.(e.heavy) }
       else if (e.type === 'rope') { /* bounce */ }
+      else if (e.type === 'trap') {
+        const word = { banana: 'SLIP!', gum: 'STUCK!', oil: 'SKID!', spring: 'BOING!', boost: 'ZOOM!', glove: 'SMACK!', land: 'OOF!' }[e.trap]
+        const col = { banana: '#F5D742', gum: '#FF6FB5', oil: '#9AA3AE', spring: '#E24B4A', boost: '#5BE0FF', glove: '#E24B4A', land: '#F2F2F2' }[e.trap]
+        if (word) this.pop(e.f, word, col)
+        if (e.trap === 'glove' || e.trap === 'spring') sx.hit?.(true, false)
+      }
       else if (e.type === 'ko') {
         sx.ko?.(); sx.cheer?.(1.4); this.cameras.main.shake(180, 0.006)
         const who = `${e.f.r.colourName} · ${e.f.r.name}`
-        this.pushFeed(this.track ? (e.by ? `${who} knocked off by ${e.by.r.name}` : `${who} fell off!`) : (e.by ? `${who} knocked out by ${e.by.r.name}` : `${who} is out!`), e.f.r.you ? '#5BE0FF' : '#F2F2F2')
+        const trapLine = { banana: 'slipped on a banana', gum: 'got stuck', oil: 'skidded on oil', spring: 'got sprung', boost: 'zoomed', glove: 'got smacked by the glove' }[e.trap]
+        this.pushFeed(e.trap && trapLine ? `${who} ${trapLine} and ${this.track ? 'fell off' : 'went over the ropes'}!` : this.track ? (e.by ? `${who} knocked off by ${e.by.r.name}` : `${who} fell off!`) : (e.by ? `${who} knocked out by ${e.by.r.name}` : `${who} is out!`), e.f.r.you ? '#5BE0FF' : '#F2F2F2')
         if (e.f.r.you) { this.banner.setText(this.track ? 'YOU FELL OFF!' : `YOU'RE OUT · ${ordinal(e.left + 1)}`).setFontSize('40px').setAlpha(1); this.tweens.add({ targets: this.banner, alpha: 0, delay: 1500, duration: 500 }) }
       } else if (e.type === 'finish') {
         sx.cheer?.(1.2)
@@ -183,10 +233,9 @@ export class LmsScene extends Phaser.Scene {
       const run = b.fs.filter(f => !f.out).sort((a, c) => c.px - a.px).slice(0, 4)
       const want = Phaser.Math.Clamp(run.length ? run.reduce((t, f) => t + f.px, 0) / run.length + 60 : 250, 250, TRACK_LEN - 140)
       this.camX += (want - this.camX) * 0.06
-      this.drawTrack(); this.drawMap()
+      this.drawTrack(); this.drawMap(); this.drawTraps()
       this.leftT.setText(b.phase === 'intro' ? '10 fighters' : `${b.alive().length} racing · ${b.finishers.length} finished`)
-    } else
-    this.leftT.setText(b.phase === 'intro' ? '10 fighters' : `${b.alive().length} LEFT`)
+    } else { this.drawTraps(); this.leftT.setText(b.phase === 'intro' ? '10 fighters' : `${b.alive().length} LEFT`) }
     for (const o of this.gs) {
       const f = o.f
       stepPose(o.pose, f, b.frame)

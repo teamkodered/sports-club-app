@@ -10,7 +10,7 @@ const pill = (on, col) => ({ height: 40, padding: '0 14px', borderRadius: 12, bo
 
 export default function LastManStanding({ onClose, defaultName = '' }) {
   const [stage, setStage] = useState('setup') // setup | battle | results
-  const [player, setPlayer] = useState(() => { try { return { name: defaultName, colour: 'mentality', style: 'pro', arena: 'ring', ...JSON.parse(localStorage.getItem(LS) || '{}') } } catch (e) { return { name: defaultName, colour: 'mentality', style: 'pro' } } })
+  const [player, setPlayer] = useState(() => { try { return { name: defaultName, colour: 'mentality', style: 'pro', arena: 'ring', traps: true, ...JSON.parse(localStorage.getItem(LS) || '{}') } } catch (e) { return { name: defaultName, colour: 'mentality', style: 'pro' } } })
   const [results, setResults] = useState(null)
   const [portrait, setPortrait] = useState(() => window.innerHeight > window.innerWidth)
   const host = useRef(null), game = useRef(null), sfx = useRef(null)
@@ -28,7 +28,7 @@ export default function LastManStanding({ onClose, defaultName = '' }) {
     import('./scene.js').then(({ startLms }) => {
       if (dead) return
       sfx.current?.resume?.()
-      game.current = startLms(host.current, { roster: makeRoster(player), arena: player.arena || 'ring', sfx: sfx.current, onDone: placings => { if (!dead) { setResults(placings); setStage('results') } } })
+      game.current = startLms(host.current, { roster: makeRoster(player), arena: player.arena || 'ring', traps: player.traps !== false, sfx: sfx.current, onDone: placings => { if (!dead) { setResults(placings); setStage('results') } } })
     })
     return () => { dead = true; try { sfx.current?.stopMusic?.() } catch (e) { /* ignore */ } try { game.current?.destroy(true) } catch (e) { /* ignore */ } game.current = null }
   }, [stage])
@@ -58,6 +58,11 @@ export default function LastManStanding({ onClose, defaultName = '' }) {
                 <span>{name}</span><span style={{ fontFamily: "'Rajdhani', sans-serif", fontStyle: 'normal', fontWeight: 600, fontSize: 12, color: '#9AA3AE' }}>{blurb}</span>
               </button>
             ))}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#C9CED6' }}>Traps</span>
+            {[[true, 'On'], [false, 'Off']].map(([v, label]) => <button key={label} type="button" onClick={() => setPlayer(p => ({ ...p, traps: v }))} style={pill((player.traps !== false) === v, '#FF6FB5')}>{label}</button>)}
+            <span style={{ fontSize: 12, color: '#9AA3AE', maxWidth: 260 }}>Banana peels, chewing gum, oil, spring pads{(player.arena || 'ring') === 'track' ? ', speed arrows and a swinging glove' : ''}</span>
           </div>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#C9CED6' }}>Colour</div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
