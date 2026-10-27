@@ -920,7 +920,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   }
 
   const sortedStudents = (regType === 'adhoc' ? adhocPills.map(p => students.find(s => s.id === p.id)).filter(Boolean) : students).filter(s => !extraFilter || extraFilter(s))
-    .filter(s => !viewAsStudentIds || viewAsStudentIds.has(s.id))   // admin previewing as a head coach
+    .filter(s => !viewAsStudentIds || initialRegType || viewAsStudentIds.has(s.id))   // admin previewing as a head coach (the Athlete Dashboard register shows the athletes, as for them)
     .filter(s => !showOnlyAttended || (attendance[s.id] && attendance[s.id] !== 'none'))
     .filter(s => !groupFilter || studentGroups(s, s.members).includes(groupFilter))
     .filter(s => {
