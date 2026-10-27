@@ -1468,12 +1468,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     studentIds.forEach(id => floatPoints(id, pt.points))
     const entries = await submitPoints(studentIds, [{ label: pt.label, points: pt.points }])
     setReasonUsage(u => ({ ...(u || {}), [pt.label]: ((u || {})[pt.label] || 0) + studentIds.length }))
-    if (entries?.length) {
-      const names = studentIds.map(id => students.find(x => x.id === id)?.members?.first_name).filter(Boolean)
-      clearTimeout(undoTimer.current)
-      setLastAward({ label: pt.label, points: pt.points, entries, names })
-      undoTimer.current = setTimeout(() => setLastAward(null), 6000)
-    }
+    showUndo(entries, studentIds, pt.label, pt.points)
   }
   function floatPoints(studentId, pts) {
     const card = document.getElementById(`regm-${studentId}`)
@@ -1483,6 +1478,14 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     el.textContent = `${pts > 0 ? '+' : ''}${pts}`
     card.appendChild(el)
     setTimeout(() => el.remove(), 900)
+  }
+  const UNDO_SECONDS = 10
+  function showUndo(entries, studentIds, label, points) {
+    if (!entries?.length) return
+    const names = studentIds.map(id => students.find(x => x.id === id)?.members?.first_name).filter(Boolean)
+    clearTimeout(undoTimer.current)
+    setLastAward({ label, points, entries, names, at: Date.now() })
+    undoTimer.current = setTimeout(() => setLastAward(null), UNDO_SECONDS * 1000)
   }
   async function undoLastAward() {
     const a = lastAward
@@ -2333,11 +2336,12 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
               </div>
             )}
 
-            {lastAward && (
-              <div className="reg-m-undo" role="status">
+            {lastAward && createPortal(
+              <div className="reg-m-undo reg-undo-any" role="status">
                 <span><b>{lastAward.points > 0 ? '+' : ''}{lastAward.points} {lastAward.label}</b> → {lastAward.names.length === 1 ? lastAward.names[0] : `${lastAward.names.length} students`}</span>
                 <button type="button" onClick={undoLastAward}>Undo</button>
-              </div>
+                <i key={lastAward.at} className="reg-undo-timer" style={{ animationDuration: `${UNDO_SECONDS}s` }} />
+              </div>, document.body
             )}
 
             {/* Settings sheet: stats range (moved off the page); columns still set the desktop table */}
@@ -3001,7 +3005,8 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                     else setPointTypes(next)
                   }
                   setCustomPoints('')
-                  submitPoints(multiAward ? selectedStudents : [awardingFor.id], awardList)
+                  const ids = multiAward ? selectedStudents : [awardingFor.id]
+                  submitPoints(ids, awardList).then(entries => showUndo(entries, ids, awardList.map(a => a.label).join(', '), awardList.reduce((n, a) => n + (Number(a.points) || 0), 0)))
                 }}
                 disabled={saving || awardList.length === 0}>
                 {saving ? 'Saving…' : `Award to ${multiAward ? selectedStudents.length + ' students' : awardingFor?.members?.first_name}`}

@@ -1621,3 +1621,8 @@ input::placeholder, textarea::placeholder { color: var(--text-tertiary); }
 .hb-content th { background: var(--bg-secondary); font-weight: 700; white-space: nowrap; }
 .hb-content td p { margin: 0; }
 .hb-content ol, .hb-content ul { padding-left: 22px; line-height: 1.8; }
+
+/* Register: Undo after awarding points -- countdown bar, shown on every screen size */
+.reg-undo-any { position: fixed !important; left: 12px; right: 12px; max-width: 520px; margin: 0 auto; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); z-index: 950; overflow: hidden; display: flex !important; }
+.reg-undo-timer { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: #F5C542; transform-origin: left; animation-name: regUndoTimer; animation-timing-function: linear; animation-fill-mode: forwards; }
+@keyframes regUndoTimer { from { transform: scaleX(1); } to { transform: scaleX(0); } }
