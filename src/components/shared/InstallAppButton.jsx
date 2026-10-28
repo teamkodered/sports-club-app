@@ -31,6 +31,10 @@ export default function InstallAppButton({ compact = false, subtitle }) {
   }, [])
   if (hidden) return null
   async function install() {
+    // opened inside Klass Champ ('My app' from the dashboard): the page still carries the Klass Champ
+    // app details, so reload it as the athlete app first -- then the install is Fit II Fight
+    const man = document.querySelector('link[rel="manifest"]')?.getAttribute('href') || ''
+    if (appKey() === 'athlete' && man.includes('coach')) { window.location.assign('/athlete-app?install=1'); return }
     if (prompt) {
       prompt.prompt()
       const choice = await prompt.userChoice.catch(() => null)
