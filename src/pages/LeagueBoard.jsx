@@ -67,6 +67,7 @@ async function loadPeriod(from, to) {
   const { data: notesP, error: nErr } = await supabase.rpc('public_notes_period', { p_from: from, p_to: to })
   const { data: hrP, error: hErr } = await supabase.rpc('public_hr_sessions', { p_from: from, p_to: to })
   const { data: wrP, error: wErr } = await supabase.rpc('public_workrate_league', { p_from: from, p_to: to })
+  const { data: pdpP, error: pErr } = await supabase.rpc('public_pdp_league', { p_from: from, p_to: to })
   return {
     houses: Object.keys(HOUSE_COLOUR).map(n => ({ name: n, points: houses[n] || 0 })).concat(Object.keys(houses).filter(n => !HOUSE_COLOUR[n]).map(n => ({ name: n, points: houses[n] })))
       .sort((a, b) => b.points - a.points),
@@ -76,6 +77,7 @@ async function loadPeriod(from, to) {
     notes: nErr ? null : (notesP || []), // null = function not set up yet -> all-time notes
     hr: hErr ? [] : (hrP || []), // best heart rate per checked-in session
     workrate: wErr ? [] : (wrP || []).filter(r => r.sessions >= 2), // avg % of max + above club average (2+ sessions)
+    pdp: pErr ? [] : (pdpP || []), // PDP actions done + tasks completed
   }
 }
 
@@ -173,6 +175,7 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
     if (!listMode && pd.houses.some(h => h.points > 0)) out.push({ kind: 'houses' })
     if (!listMode && pd.individuals.length) out.push({ kind: 'individuals' })
     for (const a of AREAS) if (pd.tasks.some(r => taskValue(r, a.key) > 0)) out.push({ kind: 'tasks', area: a })
+    if ((pd.pdp || []).length) out.push({ kind: 'pdp' })
     if ((pd.workrate || []).length) { out.push({ kind: 'workrate', metric: 'avg' }); out.push({ kind: 'workrate', metric: 'above' }) }
     if ((pd.hr || []).length) { out.push({ kind: 'hr', metric: 'avg' }); out.push({ kind: 'hr', metric: 'max' }) }
     for (const cat of CATEGORIES) if (!cat.aggregate && buildLeaderboard(cat, exRows, cfg.topBoard).length) out.push({ kind: 'exercise', cat })
@@ -297,6 +300,16 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
     if (s.kind === 'live') {
       return <Slide title="Live heart rate" colour="#E24B4A" emoji="❤️" sub="recording now" fixedPeriod><LiveHrTable dark /></Slide>
     }
+    if (s.kind === 'pdp') {
+      const list = ranked([...pd.pdp].sort((a, b) => b.done - a.done), r => r.done)
+      const top = list.slice(0, cfg.topBoard), me = list.find(r => r.student_id === meId)
+      return (
+        <Slide title="PDP · most actions done" colour="#C93BFF" emoji="🎯" sub="PDP actions ticked done + PDP tasks completed">
+          {top.map(r => <Row key={r.student_id} rank={r.rank} name={r.display_name} sub={r.house_name} subColour={HOUSE_COLOUR[r.house_name]} value={r.done} unit="DONE" colour="#C93BFF" me={r.student_id === meId} />)}
+          {me && !top.includes(me) && <><div style={{ textAlign: 'center', color: '#666' }}>···</div><Row rank={me.rank} name={me.display_name} value={me.done} unit="DONE" colour="#C93BFF" me /></>}
+        </Slide>
+      )
+    }
     if (s.kind === 'workrate') {
       const key = s.metric === 'avg' ? 'avg_pct' : 'above_team'
       const list = ranked([...pd.workrate].sort((a, b) => Number(b[key]) - Number(a[key])), r => Number(r[key]))
@@ -344,12 +357,13 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
       const wr = pd.workrate || []
       const r1 = rankIn([...wr].sort((a, b) => b.avg_pct - a.avg_pct), r => Number(r.avg_pct)); if (r1 && r1 <= 10) badges.push(['🔥', `${ord(r1)} · Workrate`])
       const r2 = rankIn([...wr].sort((a, b) => b.above_team - a.above_team), r => Number(r.above_team)); if (r2 && r2 <= 10) badges.push(['🔥', `${ord(r2)} · Above club average`])
+      const rp = rankIn([...(pd.pdp || [])].sort((a, b) => b.done - a.done), r => r.done); if (rp && rp <= 10) badges.push(['🎯', `${ord(rp)} · PDP`])
       const hr = pd.hr || []
       const r3 = rankIn([...hr].sort((a, b) => (b.best_avg_pct || 0) - (a.best_avg_pct || 0)), r => r.best_avg_pct); if (r3 && r3 <= 10) badges.push(['❤️', `${ord(r3)} · Heart rate average`])
       for (const cat of CATEGORIES) { if (cat.aggregate || !myMasked) continue; const lb = buildLeaderboard(cat, exRows, cfg.topBoard); const i = lb.findIndex(r => r.name === myMasked); if (i >= 0) badges.push([['🥇', '🥈', '🥉'][i] || '🏅', `${ord(i + 1)} · ${cat.label.replace(/^\S+\s/, '')}`]) }
     }
     const SECT = [['mentality', 'Mental', '#22B14C'], ['tactical', 'Tactical', '#FF2A2A'], ['technical', 'Technical', '#2F6BFF'], ['physical', 'Physical', '#E6B800'], ['foundation', 'Foundation', '#C93BFF']]
-    const groupOf = sl => sl.kind === 'tasks' ? 'Sections' : sl.kind === 'exercise' ? 'Exercise PBs' : (sl.kind === 'workrate' || sl.kind === 'hr') ? 'Workrate & heart rate' : 'Notes & more'
+    const groupOf = sl => (sl.kind === 'tasks' || sl.kind === 'pdp') ? 'Sections' : sl.kind === 'exercise' ? 'Exercise PBs' : (sl.kind === 'workrate' || sl.kind === 'hr') ? 'Workrate & heart rate' : 'Notes & more'
     const order = ['Sections', 'Exercise PBs', 'Workrate & heart rate', 'Notes & more']
     const grouped = order.map(g => [g, slides.filter(sl => groupOf(sl) === g)]).filter(([, l]) => l.length)
     return (
