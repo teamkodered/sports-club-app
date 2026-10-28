@@ -52,6 +52,11 @@ export const CATEGORIES = [
     extract: r => Object.entries(r.test || {}).filter(([k]) => k.toLowerCase().includes('bleep')).map(([, v]) => ({ value: parseFloat(v) || 0, sub: 'Bleep Test' })),
   },
   {
+    // Heart Rate Recovery (1 min) from the Watt bike HR recovery test -- bigger drop = better
+    key: 'hrr', label: '❤️ HR Recovery', unit: ' bpm', colour: '#E24B4A',
+    extract: r => { const v = parseFloat((r.test || {})['Heart Rate Recovery (1 min)']); return isNaN(v) || v <= 0 ? [] : [{ value: v, sub: 'HR Recovery (1 min)' }] },
+  },
+  {
     key: 'grip', label: '✊ Grip Test', unit: '', colour: '#059669',
     extract: r => Object.entries(r.test || {}).filter(([k]) => k.toLowerCase().includes('grip')).map(([, v]) => ({ value: parseFloat(v) || 0, sub: 'Grip Test' })),
   },

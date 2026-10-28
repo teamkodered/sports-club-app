@@ -4,6 +4,7 @@ import VideoMeasureTool from './VideoMeasureTool.jsx'
 import PunchCountTool from './PunchCountTool.jsx'
 import BleepTestPlayer from './BleepTestPlayer.jsx'
 import PhotoMeasureTool from './PhotoMeasureTool.jsx'
+import HrrTestTool from './HrrTestTool.jsx'
 import { supabase } from '../../lib/supabase.js'
 import { TEST_CATEGORIES, bestByTest, lowerIsBetter, saveTestResults } from '../../lib/testResults.js'
 
@@ -87,7 +88,8 @@ export async function awardTestPoints(studentId, testNames) {
   return total
 }
 
-export function TestSessionModal({ studentId, studentName, onClose, onSaved, allowUpload = false, onPoints }) {
+export function TestSessionModal({ studentId, studentName, onClose, onSaved, allowUpload = false, onPoints, hrrMode }) {
+  // hrrMode: 'self' in the athlete app (connects to their own strap), otherwise 'coach' (reads their live feed)
   // 📹 measuring from video: jump height / punch speed / punch count fill the boxes below;
   // the video is also kept with the athlete's test uploads (and in View iT when onViewIt is given)
   const [tool, setTool] = useState(null) // null | 'jump' | 'punch' | 'count'
@@ -167,6 +169,7 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
               <button type="button" className="ts-measure-btn" onClick={() => setTool('bleep10')}>▶ Run 10 m bleep test</button>
             </>}
             {cat.key === 'stretches' && <button type="button" className="ts-measure-btn" onClick={() => setTool('photo')}>📷 Measure from photo</button>}
+            {cat.key === 'heart' && <button type="button" className="ts-measure-btn" onClick={() => setTool('hrr')}>❤️ Run HR recovery test (Watt bike)</button>}
             {cat.key === 'fixedload' && <button type="button" className="ts-measure-btn" onClick={() => setTool(`timer:${flColour || cat.tests[0]?.name}`)}>📹 Time circuit from video ({(flColour || cat.tests[0]?.name || '').replace(/^Fixed load circuit - /, '')})</button>}
             {cat.key === 'jumps' && <button type="button" className="ts-measure-btn" onClick={() => setTool('jump')}>📹 Open jump measuring</button>}
             {cat.key === 'punch' && <>
@@ -175,7 +178,10 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
             </>}
           </div>
         )}
-        {tool === 'bleep20' || tool === 'bleep10' ? createPortal(
+        {tool === 'hrr' ? createPortal(
+          <HrrTestTool zIndex={700} mode={hrrMode || 'coach'} studentId={studentId} studentName={studentName} onClose={() => setTool(null)}
+            onResult={r => setVals(p => ({ ...p, 'Heart Rate Recovery (1 min)': String(r.hrr), ...(r.watts ? { 'HRR Watt bike watts (1 min)': String(r.watts) } : {}), ...(r.dist ? { 'HRR Watt bike distance (1 min)': String(r.dist) } : {}) }))} />, document.body)
+        : tool === 'bleep20' || tool === 'bleep10' ? createPortal(
           <BleepTestPlayer zIndex={700} course={tool === 'bleep10' ? 10 : 20} runners={[{ id: 'me', name: studentName || 'Athlete' }]} onClose={() => setTool(null)}
             onDone={res => { if (res.me) setVals(p => ({ ...p, [tool === 'bleep10' ? 'Bleep test (10m)' : 'Bleep test']: res.me })) }} />, document.body)
         : tool === 'photo' ? createPortal(
@@ -262,6 +268,8 @@ export function TestBatchModal({ onClose }) {
   const [group, setGroup] = useState('all')
   const [athletes, setAthletes] = useState([])
   const [vals, setVals] = useState({})
+  const [hrrFor, setHrrFor] = useState(null)       // HR recovery test running for this athlete
+  const [hrrExtra, setHrrExtra] = useState({})     // their Watt bike watts / distance from it
   const [search, setSearch] = useState('')
   const [saving, setSaving] = useState(false)
   const [summary, setSummary] = useState(null)  // { saved, pbs: [{ who, ...pb }] }
@@ -284,13 +292,14 @@ export function TestBatchModal({ onClose }) {
     const pbs = []; let saved = 0; const errs = []
     for (const [id, v] of filled) {
       const a = athletes.find(x => x.id === id)
-      const { error, pbs: p } = await saveTestResults(id, date, { [testName]: v })
+      const extra = testName === 'Heart Rate Recovery (1 min)' && hrrExtra[id] ? { ...(hrrExtra[id].watts ? { 'HRR Watt bike watts (1 min)': hrrExtra[id].watts } : {}), ...(hrrExtra[id].dist ? { 'HRR Watt bike distance (1 min)': hrrExtra[id].dist } : {}) } : {}
+      const { error, pbs: p } = await saveTestResults(id, date, { [testName]: v, ...extra })
       if (error) errs.push(`${a?.members?.first_name}: ${error.message}`)
       else { saved++; p.forEach(pb => pbs.push({ ...pb, who: `${a?.members?.first_name} ${a?.members?.last_name}` })) }
     }
     setSaving(false)
     if (errs.length) alert('Some results could not be saved:\n' + errs.join('\n'))
-    setSummary({ saved, pbs }); setVals({})
+    setSummary({ saved, pbs }); setVals({}); setHrrExtra({})
     if (pbs.length && navigator.vibrate) navigator.vibrate([20, 40, 20])
   }
 
@@ -329,6 +338,12 @@ export function TestBatchModal({ onClose }) {
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…" className="ts-input" style={{ flex: 1, height: 32 }} aria-label="Search athletes" />
           </div>
           <div className="ts-hint" style={{ marginBottom: 6 }}>Fill in just the athletes who did it · unit: {info?.unit}{lowerIsBetter(testName) ? ' · lower is better' : ''}{info?.cat?.multiSet ? ' · best 60s set' : ''}</div>
+          {testName === 'Heart Rate Recovery (1 min)' && (
+            <div className="ts-hint" style={{ marginBottom: 8 }}>❤️ One at a time on the Watt bike: tap ❤️ next to an athlete to run their test from their live heart rate.</div>
+          )}
+          {hrrFor && createPortal(
+            <HrrTestTool zIndex={700} mode="coach" studentId={hrrFor.id} studentName={`${hrrFor.members?.first_name || ''} ${hrrFor.members?.last_name || ''}`.trim()} onClose={() => setHrrFor(null)}
+              onResult={r => { setVals(p => ({ ...p, [hrrFor.id]: String(r.hrr) })); if (r.watts || r.dist) setHrrExtra(p => ({ ...p, [hrrFor.id]: { watts: r.watts, dist: r.dist } })) }} />, document.body)}
           {testName.startsWith('Bleep test') && (
             <button type="button" className="ts-measure-btn" style={{ marginBottom: 8 }} onClick={() => setBleepOpen(true)}>▶ Run the {testName === 'Bleep test (10m)' ? '10 m' : '20 m'} bleep test for a group</button>
           )}
@@ -340,6 +355,7 @@ export function TestBatchModal({ onClose }) {
             {list.map(a => (
               <label key={a.id} className="ts-batch-row">
                 <span>{a.members?.first_name} {a.members?.last_name}</span>
+                {testName === 'Heart Rate Recovery (1 min)' && <button type="button" className="btn btn-sm" onClick={e => { e.preventDefault(); setHrrFor(a) }} title="Run their HR recovery test">❤️</button>}
                 <input type="number" inputMode="decimal" step="any" value={vals[a.id] ?? ''} onChange={e => setVals(p => ({ ...p, [a.id]: e.target.value }))} aria-label={`${a.members?.first_name} ${a.members?.last_name}`} />
               </label>
             ))}
