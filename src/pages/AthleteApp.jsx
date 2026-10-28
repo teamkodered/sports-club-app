@@ -1792,6 +1792,7 @@ export default function AthleteApp() {
   }
 
   // Daily reminders (once a day, can be switched off): session today, weekly running left, monthly tests left
+  const [appSettingsOpen, setAppSettingsOpen] = useState(false) // Home: Settings tile
   const [remindersOn, setRemindersOn] = useState(() => { try { return localStorage.getItem('kc_reminders') !== 'off' } catch { return true } })
   const [reminderPopup, setReminderPopup] = useState(null)
   const setReminders = on => { setRemindersOn(on); try { localStorage.setItem('kc_reminders', on ? 'on' : 'off') } catch { /* ignore */ } }
@@ -5396,10 +5397,6 @@ export default function AthleteApp() {
           {student ? (
             <>
               <InstallAppButton />
-              <button type="button" className={`kc-remind-fab${remindersOn ? ' on' : ''}`} onClick={() => setReminders(!remindersOn)}
-                title={remindersOn ? 'Daily reminders on -- tap to turn off' : 'Daily reminders off -- tap to turn on'} aria-pressed={remindersOn}>
-                🔔<span>{remindersOn ? 'ON' : 'OFF'}</span>
-              </button>
               {pushPermission === 'default' && (
                 <div className="card" style={{ marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 12 }}>🔔 Get notified when your coach logs something, or you move on the league ladder.</span>
@@ -7050,6 +7047,27 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                   </button>
                 )}
               </div>
+
+              {/* App settings (reminders for now -- more options to come) */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginTop: 8 }}>
+                <button onClick={() => setAppSettingsOpen(v => !v)} className="neon-tile" aria-expanded={appSettingsOpen} style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                    padding: '14px 8px', background: '#F5C54212',
+                    border: '1px solid #F5C54230', borderRadius: 'var(--border-radius-lg)',
+                    cursor: 'pointer', fontFamily: 'var(--font-sans)', gridColumn: appSettingsOpen ? '1 / -1' : undefined,
+                  }}>
+                    <span className="neon-emoji" style={{ fontSize: 24 }}>⚙️</span>
+                    <span style={{ fontSize: 12, fontWeight: 500, color: '#F5C542' }}>Settings {appSettingsOpen ? '▲' : '▼'}</span>
+                </button>
+              </div>
+              {appSettingsOpen && (
+                <div className="kc-app-settings">
+                  <button type="button" className={`kc-app-setting${remindersOn ? ' on' : ''}`} onClick={() => setReminders(!remindersOn)} aria-pressed={remindersOn}>
+                    <span>🔔 Daily reminders<small>Session today, PDP today, running and tests left</small></span>
+                    <b>{remindersOn ? 'ON' : 'OFF'}</b>
+                  </button>
+                </div>
+              )}
 
               {/* Games (KR FIGHT) -- hidden from athletes for now; only shows for the admin */}
               {realIsAdmin && (

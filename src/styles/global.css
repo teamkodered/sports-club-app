@@ -1649,8 +1649,9 @@ input::placeholder, textarea::placeholder { color: var(--text-tertiary); }
 .kc-today-track { height: 5px; border-radius: 3px; background: #2A3138; overflow: hidden; }
 .kc-today-track > div { height: 100%; border-radius: 3px; }
 
-/* reminders on / off: small button bottom-right on the athlete Home */
-.kc-remind-fab { position: fixed; right: 14px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 60; display: flex; align-items: center; gap: 4px;
-  height: 36px; padding: 0 12px; border-radius: 18px; border: 1px solid #2A3138; background: rgba(20,24,28,0.92); color: #9A9A9A; font-size: 15px; cursor: pointer; }
-.kc-remind-fab span { font-family: 'Orbitron', sans-serif; font-size: 10px; font-weight: 800; letter-spacing: 1px; }
-.kc-remind-fab.on { border-color: #F5C542; color: #F5C542; box-shadow: 0 0 10px rgba(245,197,66,0.35); }
+/* athlete Home: Settings tile options */
+.kc-app-settings { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; animation: kcSlideDown 0.2s ease; }
+.kc-app-setting { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid #2A3138; background: #1A1F24; color: #F2F2F2; cursor: pointer; text-align: left; font-family: inherit; font-size: 14px; }
+.kc-app-setting small { display: block; font-size: 11px; color: #9A9A9A; margin-top: 2px; }
+.kc-app-setting b { font-family: 'Orbitron', sans-serif; font-size: 11px; letter-spacing: 1px; padding: 4px 10px; border-radius: 10px; border: 1px solid #2A3138; color: #9A9A9A; }
+.kc-app-setting.on b { border-color: #F5C542; color: #F5C542; box-shadow: 0 0 8px rgba(245,197,66,0.35); }
