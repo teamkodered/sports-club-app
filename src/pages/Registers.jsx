@@ -717,10 +717,13 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     // (e.g. someone assigned via the Attendance/PDP system whose own
     // class_time field hasn't been updated to match a newly added class).
     if (filteredStudents.length) {
-      const { data: assignments } = await supabase
-        .from('student_class_assignments')
-        .select('*')
-        .in('student_id', filteredStudents.map(s => s.id))
+      // in batches -- one request with every student's id was too long and could fail, leaving
+      // nobody matched to their class
+      const ids = filteredStudents.map(s => s.id), assignments = []
+      for (let i = 0; i < ids.length; i += 100) {
+        const { data } = await supabase.from('student_class_assignments').select('*').in('student_id', ids.slice(i, i + 100))
+        assignments.push(...(data || []))
+      }
       // only assignments running on the register's date count towards who's in this class
       setExplicitAssignments((assignments || []).filter(a => assignmentActiveOn(a, date || todayISO())))
     } else {
