@@ -5115,9 +5115,6 @@ export default function AthleteApp() {
                   <span className="neon-caret">{myProfileExpanded ? '▲' : '▼'}</span>
                 </span>
               </button>
-              {(() => { const n = weeklyTargetStreak(); return (
-                <span className={`neon-streak${n ? '' : ' off'}`} title={`${n} week${n === 1 ? '' : 's'} in a row hitting all your weekly targets`}>🔥<b>{n}</b></span>
-              ) })()}
               <button type="button" className="neon-housebox" style={{ '--house': NEON_HOUSE_COLOURS[houseName] || colour }}
                 onClick={e => { e.stopPropagation(); setHeaderCardView(1); setMyProfileExpanded(false); setHousePointsExpanded(v => !v) }}>
                 {HOUSE_TEXT_LOGOS[houseName]
