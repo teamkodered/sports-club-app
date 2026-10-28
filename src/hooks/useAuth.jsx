@@ -145,10 +145,11 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     if (!(realIsAdmin && viewAs)) { setViewAsStudentIds(null); return }
     const a = viewAs.access?.group ? (accessGroups.find(g => g.id === viewAs.access.group)?.access || {}) : (viewAs.access || {})
-    const classIds = viewAs.access?.registers?.classes || a?.registers?.classes
-    if (!classIds?.length) { setViewAsStudentIds(null); return }
+    // only real class ids (a stray non-id entry made the whole lookup fail -> nobody shown)
+    const classIds = (viewAs.access?.registers?.classes || a?.registers?.classes || []).filter(x => /^[0-9a-f-]{36}$/i.test(String(x)))
+    if (!classIds.length) { setViewAsStudentIds(null); return }
     supabase.from('student_class_assignments').select('student_id').in('class_id', classIds)
-      .then(({ data }) => setViewAsStudentIds(new Set((data || []).map(r => r.student_id))))
+      .then(({ data, error }) => setViewAsStudentIds(error ? null : new Set((data || []).map(r => r.student_id))))
   }, [realIsAdmin, viewAs?.id, accessGroups])
 
   const role      = effProfile?.role || 'member'
