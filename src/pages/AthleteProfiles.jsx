@@ -5587,24 +5587,23 @@ export default function AthleteProfiles() {
   const inviteStepRef = useRef('')
   const stepTo = t => { inviteStepRef.current = t; setInviteStep(t) }
   async function prepareInviteSteps(s) {
-    stepTo('checking for a login')
     const name = s.members?.first_name || 'there'
     const origin = window.location.origin
     // never hang on "Preparing their link…": each step gives up after a few seconds
     const within = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))])
-    let hasLogin = false
-    try { const r = await within(supabase.rpc('kc_student_has_login', { p_student: s.id }), 6000); hasLogin = r.data === true } catch { /* ignore -- treat as no login yet */ }
+    // both at once: the login check and creating the invite
+    stepTo('creating the invite')
+    const a = new Uint8Array(18); crypto.getRandomValues(a)
+    const token = Array.from(a, b => b.toString(36).padStart(2, '0')).join('').slice(0, 24)
+    const loginCheck = within(supabase.rpc('kc_student_has_login', { p_student: s.id }), 4000).then(r => r?.data === true, () => false)
+    const create = within(supabase.from('app_invites').insert({ token, student_id: s.id, kind: 'athlete', created_by: profile?.id || null }), 10000)
+      .then(r => r?.error || null, () => ({ message: 'The connection timed out -- check the signal and tap Try again.' }))
+    const [hasLogin, error] = await Promise.all([loginCheck, create])
     if (hasLogin) {
       const url = `${origin}/athlete-login`
       setInviteInfo({ hasLogin, url, msg: `Hi ${name}, your KR Centre athlete app is ready. Sign in here with your email: ${url} — if you don't know your password, tap "Forgot password" on that page.` })
       return
     }
-    stepTo('creating the invite')
-    const a = new Uint8Array(18); crypto.getRandomValues(a)
-    const token = Array.from(a, b => b.toString(36).padStart(2, '0')).join('').slice(0, 24)
-    let error = null
-    try { ({ error } = await within(supabase.from('app_invites').insert({ token, student_id: s.id, kind: 'athlete', created_by: profile?.id || null }), 10000)) }
-    catch { error = { message: 'The connection timed out -- check the signal and tap Try again.' } }
     if (error) { setInviteInfo({ error: error.message }); return }
     const url = `${origin}/invite/${token}?app=f2f` // ?app=f2f -> the link preview shows the Fit II Fight logo
     setInviteInfo({ hasLogin, url, msg: `Hi ${name}, you've been invited to the KR Centre athlete app. Tap this link to set up your login (it works once and lasts 14 days): ${url}` })

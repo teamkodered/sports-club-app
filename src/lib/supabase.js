@@ -10,7 +10,10 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 const client = createClient(
   supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseAnonKey || 'placeholder'
+  supabaseAnonKey || 'placeholder',
+  // Requests could sit waiting forever after the phone / tab had been asleep (the browser lock
+  // supabase-js uses around the login session never got released). Run without that lock.
+  { auth: { lock: async (_name, _timeout, fn) => await fn() } }
 )
 
 // View-only access: on a page the user may only view, table writes are refused
