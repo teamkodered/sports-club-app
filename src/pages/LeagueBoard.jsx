@@ -174,10 +174,11 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
     const out = []
     if (!listMode && pd.houses.some(h => h.points > 0)) out.push({ kind: 'houses' })
     if (!listMode && pd.individuals.length) out.push({ kind: 'individuals' })
-    for (const a of AREAS) if (pd.tasks.some(r => taskValue(r, a.key) > 0)) out.push({ kind: 'tasks', area: a })
-    if ((pd.pdp || []).length) out.push({ kind: 'pdp' })
-    if ((pd.workrate || []).length) { out.push({ kind: 'workrate', metric: 'avg' }); out.push({ kind: 'workrate', metric: 'above' }) }
+    // order: house points, heart rate (heart rate + workrate), PDP, then the rest
     if ((pd.hr || []).length) { out.push({ kind: 'hr', metric: 'avg' }); out.push({ kind: 'hr', metric: 'max' }) }
+    if ((pd.workrate || []).length) { out.push({ kind: 'workrate', metric: 'avg' }); out.push({ kind: 'workrate', metric: 'above' }) }
+    if ((pd.pdp || []).length) out.push({ kind: 'pdp' })
+    for (const a of AREAS) if (pd.tasks.some(r => taskValue(r, a.key) > 0)) out.push({ kind: 'tasks', area: a })
     for (const cat of CATEGORIES) if (!cat.aggregate && buildLeaderboard(cat, exRows, cfg.topBoard).length) out.push({ kind: 'exercise', cat })
     if ((pd.notes ? pd.notes.length : notesRows.length)) out.push({ kind: 'notes' })
     return out
