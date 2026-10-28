@@ -1477,7 +1477,7 @@ export default function AthleteApp() {
   const [f2fQuickLogQuestion, setF2fQuickLogQuestion] = useState(null) // which question within that section is expanded to show the log control
   const [f2fQuickLogTestValue, setF2fQuickLogTestValue] = useState('')
   const [f2fQuickLogSaving, setF2fQuickLogSaving] = useState(false)
-  const [athleteHousePoints, setAthleteHousePoints] = useState({ f2f_question: 1, checkin: 3, checkout: 3, weigh_in: 5, weigh_out: 5, pdp_action: 5, pdp_complete: 5, pdp_calendar: 1 })
+  const [athleteHousePoints, setAthleteHousePoints] = useState({ f2f_question: 1, checkin: 3, checkout: 3, weigh_in: 5, weigh_out: 5, pdp_action: 5, pdp_complete: 5, pdp_calendar: 1, target_week: 10 })
   const [athleteTimetableModal, setAthleteTimetableModal] = useState(null) // { sectionKey, item } or null
   const [expandedToDoItems, setExpandedToDoItems] = useState(() => new Set()) // composite "scope:type:index" keys whose own "To do" panel is currently revealed
   const [newToDoDrafts, setNewToDoDrafts] = useState({}) // scope key -> draft text for the athlete's own new to-do note
@@ -1726,6 +1726,59 @@ export default function AthleteApp() {
     )
   }
 
+
+  // ── Targets by week (Today card, streak, weekly bonus) ──────────────────────
+  // weekly-target progress for a section between two dates (same counting as the section bars)
+  function sectionWeekProgress(sectionKey, fromStr, toStr) {
+    let done = 0, target = 0
+    const byQuestion = {}
+    sectionTargets.filter(t => t.section_key === sectionKey).forEach(t => { (byQuestion[t.question_label || ''] ||= []).push(t) })
+    for (const [questionLabel, list] of Object.entries(byQuestion)) {
+      let t = list.find(x => x.student_id === student?.id && parseFrequencyTarget(x.target_value)?.period === 'week')
+      if (!t) t = list.find(x => !x.student_id && parseFrequencyTarget(x.target_value)?.period === 'week')
+      if (!t) continue
+      const freq = parseFrequencyTarget(t.target_value)
+      const inRange = sessions.filter(x => x.session_date >= fromStr && x.session_date <= toStr)
+      done += Math.min(freq.targetNum, questionLabel
+        ? inRange.reduce((sum, x) => sum + questionLoggedCount(sectionKey, questionLabel, x), 0)
+        : inRange.filter(x => SECTION_FIELD_CHECK[sectionKey]?.(x)).length)
+      target += freq.targetNum
+    }
+    return { done, target }
+  }
+  const TARGET_SECTIONS = [['mentality', 'Mentality', '#22B14C'], ['tactical', 'Tactical', '#FF2A2A'], ['technique', 'Technical', '#2F6BFF'], ['physical', 'Physical', '#E6B800'], ['wellbeing', 'Foundation', '#C93BFF']]
+  const isoDay = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const weekStartOf = d => { const x = new Date(d); x.setHours(12, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x }
+  // weeks in a row with all the weekly targets hit (this week counts once it's hit)
+  function weeklyTargetStreak() {
+    let streak = 0
+    const thisWeek = weekStartOf(new Date())
+    for (let w = 0; w < 52; w++) {
+      const start = new Date(thisWeek); start.setDate(start.getDate() - 7 * w)
+      const end = new Date(start); end.setDate(end.getDate() + 6)
+      let done = 0, target = 0
+      for (const [k] of TARGET_SECTIONS) { const p = sectionWeekProgress(k, isoDay(start), isoDay(end)); done += p.done; target += p.target }
+      if (!target) break
+      const hit = done >= target
+      if (w === 0) { if (hit) streak++; continue }   // this week not finished yet: only adds once hit
+      if (hit) streak++; else break
+    }
+    return streak
+  }
+
+  useEffect(() => {
+    if (!student || !sectionTargets.length || !sessions.length) return
+    const ws = weekStartOf(new Date()), we = new Date(ws); we.setDate(we.getDate() + 6)
+    TARGET_SECTIONS.forEach(async ([k, label]) => {
+      const p = sectionWeekProgress(k, isoDay(ws), isoDay(we))
+      if (!p.target || p.done < p.target) return
+      const detail = `${label} week of ${isoDay(ws)}`, flag = `kc_tw_${student.id}_${detail}`
+      try { if (localStorage.getItem(flag)) return; localStorage.setItem(flag, '1') } catch { /* */ }
+      const { count } = await supabase.from('points_log').select('id', { count: 'exact', head: true }).eq('student_id', student.id).ilike('point_type', `%${detail}%`)
+      if (!count) awardHousePoints('target_week', detail)
+    })
+  }, [student?.id, sessions, sectionTargets]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Daily reminders (once a day, can be switched off): session today, weekly running left, monthly tests left
   const [remindersOn, setRemindersOn] = useState(() => { try { return localStorage.getItem('kc_reminders') !== 'off' } catch { return true } })
   const [reminderPopup, setReminderPopup] = useState(null)
@@ -1740,6 +1793,7 @@ export default function AthleteApp() {
       const todays = (assignedClasses || []).filter(a => a.classes && (a.classes.day_of_week || '').toLowerCase() === dow && assignmentActiveOn(a, today))
         .sort((a, b) => String(a.classes.start_time).localeCompare(String(b.classes.start_time)))
       for (const a of todays) items.push({ icon: '📅', text: `You have a session today at ${String(a.classes.start_time).slice(0, 5)}${a.classes.name ? ` (${a.classes.name})` : ''}` })
+      try { const dayName = new Date().toLocaleDateString('en-GB', { weekday: 'long' }); for (const it of getScheduledItemsForDay(dayName).filter(x => !x.completed).slice(0, 4)) items.push({ icon: '📝', text: `PDP today: ${it.text}${it.time ? ` (${it.time})` : ''}` }) } catch { /* */ }
       try { const r = getQuestionProgressByPeriod('physical', 'Running'); if (r?.week?.target > 0 && r.week.done < r.week.target) items.push({ icon: '🏃', text: `Running: ${r.week.done} of ${r.week.target} this week -- ${r.week.target - r.week.done} left` }) } catch { /* */ }
       try { const t2 = getSectionProgressByPeriod('test'); if (t2?.month?.target > 0 && t2.month.done < t2.month.target) items.push({ icon: '📋', text: `Tests: ${t2.month.target - t2.month.done} left to complete this month` }) } catch { /* */ }
       try { localStorage.setItem('kc_reminders_day', today) } catch { /* */ }
@@ -2422,7 +2476,7 @@ export default function AthleteApp() {
         setIntervalModes(map.f2f_interval_modes || ['20 seconds on 20 seconds off', '30 seconds on 30 seconds off', '40 seconds on 20 seconds off'])
         setBodyweightTypeOptions(map.f2f_bodyweight_types || ['Push-ups', 'Pull-ups', 'Squats', 'Dips', 'Sit-ups', 'Burpees', 'Other'])
         setStretchOptionsList(map.f2f_stretch_options || ['Other'])
-        setAthleteHousePoints({ f2f_question: 1, checkin: 3, checkout: 3, weigh_in: 5, weigh_out: 5, pdp_action: 5, pdp_complete: 5, pdp_calendar: 1, ...(map.athlete_house_points || {}) })
+        setAthleteHousePoints({ f2f_question: 1, checkin: 3, checkout: 3, weigh_in: 5, weigh_out: 5, pdp_action: 5, pdp_complete: 5, pdp_calendar: 1, target_week: 10, ...(map.athlete_house_points || {}) })
       })
   }, [])
 
@@ -2517,6 +2571,7 @@ export default function AthleteApp() {
       pdp_action: 'PDP action done',
       pdp_complete: 'PDP task completed',
       pdp_calendar: 'PDP added to calendar',
+      target_week: 'Weekly target hit',
     }
     const { data: s } = await supabase.from('students').select('members(houses(name))').eq('id', student.id).single()
     await supabase.rpc('adjust_student_points', { p_student_id: student.id, p_house_delta: amount, p_individual_delta: amount })
@@ -5320,6 +5375,47 @@ export default function AthleteApp() {
           {student ? (
             <>
               <InstallAppButton />
+              {(() => {
+                // ── Today card: streak, next session, today's PDP, what's left this week, tests ──
+                const now = new Date(), dayName = now.toLocaleDateString('en-GB', { weekday: 'long' }), todayIso = isoDay(now)
+                const streak = weeklyTargetStreak()
+                const hm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+                const nextClass = (assignedClasses || []).filter(a => a.classes && (a.classes.day_of_week || '').toLowerCase() === dayName.toLowerCase() && assignmentActiveOn(a, todayIso) && String(a.classes.end_time || a.classes.start_time).slice(0, 5) >= hm)
+                  .sort((a, b) => String(a.classes.start_time).localeCompare(String(b.classes.start_time)))[0]
+                const pdpToday = getScheduledItemsForDay(dayName)
+                const ws = weekStartOf(now), we = new Date(ws); we.setDate(we.getDate() + 6)
+                const weekBars = TARGET_SECTIONS.map(([k, l, c]) => ({ k, l, c, ...sectionWeekProgress(k, isoDay(ws), isoDay(we)) })).filter(x => x.target > 0)
+                let testsLeft = 0; try { const t = getSectionProgressByPeriod('test'); testsLeft = Math.max(0, (t.month?.target || 0) - (t.month?.done || 0)) } catch { /* */ }
+                return (
+                  <div className="kc-today">
+                    <div className="kc-today-head">
+                      <div><div className="kc-today-title">Today</div><div className="kc-today-date">{now.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</div></div>
+                      <div className={`kc-today-streak${streak ? '' : ' off'}`} title="Weeks in a row hitting all your weekly targets">🔥 <b>{streak}</b><span>{streak === 1 ? 'week' : 'weeks'}</span></div>
+                    </div>
+                    {nextClass && <div className="kc-today-row">📅 <b>{nextClass.classes.name} {String(nextClass.classes.start_time).slice(0, 5)}</b><span>check in when you arrive</span></div>}
+                    {pdpToday.length > 0 && (
+                      <div className="kc-today-pdp">
+                        <div className="kc-today-label">PDP today · +{athleteHousePoints.pdp_action || 5} each</div>
+                        {pdpToday.slice(0, 4).map(it => <div key={it.sectionKey + it.item} className={`kc-today-pdp-item${it.completed ? ' done' : ''}`}><i style={{ background: it.colour }} />{it.text}{it.time ? <span>{it.time}</span> : null}</div>)}
+                      </div>
+                    )}
+                    {weekBars.length > 0 && (
+                      <>
+                        <div className="kc-today-label">This week · +{athleteHousePoints.target_week || 10} for each target hit</div>
+                        <div className="kc-today-bars">
+                          {weekBars.map(b => (
+                            <div key={b.k} className="kc-today-bar">
+                              <div><span>{b.l}</span><b style={{ color: b.done >= b.target ? '#1D9E75' : b.c }}>{b.done >= b.target ? '✓ ' : ''}{b.done}/{b.target}</b></div>
+                              <div className="kc-today-track"><div style={{ width: `${Math.min(100, b.done * 100 / b.target)}%`, background: b.c }} /></div>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                    {testsLeft > 0 && <div className="kc-today-row">📋 <b>{testsLeft} test{testsLeft === 1 ? '' : 's'}</b><span>left this month</span></div>}
+                  </div>
+                )
+              })()}
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
                 <button type="button" className="btn btn-sm" onClick={() => setReminders(!remindersOn)} title="Daily reminders (session today, running, tests)" style={{ fontSize: 11, opacity: 0.85 }}>🔔 Reminders {remindersOn ? 'on' : 'off'}</button>
               </div>

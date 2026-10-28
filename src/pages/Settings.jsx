@@ -258,7 +258,7 @@ export default function Settings() {
   }
 
   function AthleteHousePointsEditor() {
-    const defaults = { f2f_question: 1, checkin: 3, checkout: 3, weigh_in: 5, weigh_out: 5, pdp_action: 5, pdp_complete: 5, pdp_calendar: 1 }
+    const defaults = { f2f_question: 1, checkin: 3, checkout: 3, weigh_in: 5, weigh_out: 5, pdp_action: 5, pdp_complete: 5, pdp_calendar: 1, target_week: 10 }
     const stored = { ...defaults, ...(settings.athlete_house_points || {}) }
     const [local, setLocal] = useState(stored)
     const [ahpSaving, setAhpSaving] = useState(false)
@@ -283,6 +283,7 @@ export default function Settings() {
       { key: 'weigh_out', label: 'Weigh out at check-out (weight entered)' },
       { key: 'pdp_action', label: 'Each PDP action ticked done (once a day each; unticking takes it back)' },
       { key: 'pdp_complete', label: 'Each PDP task completed (ticked off as done / completed)' },
+      { key: 'target_week', label: 'Bonus for hitting a section’s whole weekly target (once per section per week)' },
       { key: 'pdp_calendar', label: 'PDP note sent to calendar' },
     ]
 

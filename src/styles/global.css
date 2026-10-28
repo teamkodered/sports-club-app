@@ -1626,3 +1626,25 @@ input::placeholder, textarea::placeholder { color: var(--text-tertiary); }
 .reg-undo-any { position: fixed !important; left: 12px; right: 12px; max-width: 520px; margin: 0 auto; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); z-index: 950; overflow: hidden; display: flex !important; }
 .reg-undo-timer { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: #F5C542; transform-origin: left; animation-name: regUndoTimer; animation-timing-function: linear; animation-fill-mode: forwards; }
 @keyframes regUndoTimer { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
+/* Athlete Home: Today card */
+.kc-today { background: #1A1F24; border: 1px solid #2A3138; border-top: 3px solid #F5C542; border-radius: 12px; padding: 12px 14px; margin: 0 0 12px; color: #F2F2F2; }
+.kc-today-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.kc-today-title { font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800; font-size: 24px; text-transform: uppercase; line-height: 1; color: #F5C542; }
+.kc-today-date { font-size: 12px; color: #9A9A9A; }
+.kc-today-streak { display: flex; align-items: baseline; gap: 4px; padding: 4px 10px; border-radius: 10px; background: rgba(245,130,31,0.15); border: 1px solid #F5821F; color: #F5821F; }
+.kc-today-streak b { font-family: 'Orbitron', sans-serif; font-size: 18px; }
+.kc-today-streak span { font-size: 11px; }
+.kc-today-streak.off { opacity: 0.5; }
+.kc-today-row { display: flex; align-items: baseline; gap: 8px; font-size: 14px; padding: 6px 0; border-top: 1px solid #2A3138; }
+.kc-today-row span { font-size: 12px; color: #9A9A9A; }
+.kc-today-label { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: #9A9A9A; margin: 8px 0 6px; }
+.kc-today-pdp-item { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 3px 0; }
+.kc-today-pdp-item i { width: 8px; height: 8px; border-radius: 4px; flex-shrink: 0; }
+.kc-today-pdp-item span { margin-left: auto; font-size: 11px; color: #9A9A9A; }
+.kc-today-pdp-item.done { opacity: 0.45; text-decoration: line-through; }
+.kc-today-bars { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
+.kc-today-bar > div:first-child { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px; }
+.kc-today-bar b { font-family: 'Orbitron', sans-serif; font-size: 11px; }
+.kc-today-track { height: 5px; border-radius: 3px; background: #2A3138; overflow: hidden; }
+.kc-today-track > div { height: 100%; border-radius: 3px; }
