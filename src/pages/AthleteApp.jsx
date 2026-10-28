@@ -1477,7 +1477,7 @@ export default function AthleteApp() {
   const [f2fQuickLogQuestion, setF2fQuickLogQuestion] = useState(null) // which question within that section is expanded to show the log control
   const [f2fQuickLogTestValue, setF2fQuickLogTestValue] = useState('')
   const [f2fQuickLogSaving, setF2fQuickLogSaving] = useState(false)
-  const [athleteHousePoints, setAthleteHousePoints] = useState({ f2f_question: 1, checkin: 3, checkout: 3, weigh_in: 5, weigh_out: 5, pdp_action: 2, pdp_calendar: 1 })
+  const [athleteHousePoints, setAthleteHousePoints] = useState({ f2f_question: 1, checkin: 3, checkout: 3, weigh_in: 5, weigh_out: 5, pdp_action: 5, pdp_complete: 5, pdp_calendar: 1 })
   const [athleteTimetableModal, setAthleteTimetableModal] = useState(null) // { sectionKey, item } or null
   const [expandedToDoItems, setExpandedToDoItems] = useState(() => new Set()) // composite "scope:type:index" keys whose own "To do" panel is currently revealed
   const [newToDoDrafts, setNewToDoDrafts] = useState({}) // scope key -> draft text for the athlete's own new to-do note
@@ -2422,7 +2422,7 @@ export default function AthleteApp() {
         setIntervalModes(map.f2f_interval_modes || ['20 seconds on 20 seconds off', '30 seconds on 30 seconds off', '40 seconds on 20 seconds off'])
         setBodyweightTypeOptions(map.f2f_bodyweight_types || ['Push-ups', 'Pull-ups', 'Squats', 'Dips', 'Sit-ups', 'Burpees', 'Other'])
         setStretchOptionsList(map.f2f_stretch_options || ['Other'])
-        setAthleteHousePoints({ f2f_question: 1, checkin: 3, checkout: 3, weigh_in: 5, weigh_out: 5, pdp_action: 2, pdp_calendar: 1, ...(map.athlete_house_points || {}) })
+        setAthleteHousePoints({ f2f_question: 1, checkin: 3, checkout: 3, weigh_in: 5, weigh_out: 5, pdp_action: 5, pdp_complete: 5, pdp_calendar: 1, ...(map.athlete_house_points || {}) })
       })
   }, [])
 
