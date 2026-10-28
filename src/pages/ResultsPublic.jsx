@@ -54,7 +54,9 @@ export const CATEGORIES = [
   {
     // Heart Rate Recovery (1 min) from the Watt bike HR recovery test -- bigger drop = better
     key: 'hrr', label: '❤️ HR Recovery', unit: ' bpm', colour: '#E24B4A',
-    extract: r => { const v = parseFloat((r.test || {})['Heart Rate Recovery (1 min)']); return isNaN(v) || v <= 0 ? [] : [{ value: v, sub: 'HR Recovery (1 min)' }] },
+    extract: r => { const t = r.test || {}, v = parseFloat(t['Heart Rate Recovery (1 min)']); if (isNaN(v) || v <= 0) return []
+      const pk = t['HRR start heart rate (bpm)'], en = t['HRR end heart rate (bpm)']
+      return [{ value: v, sub: 'HR Recovery (1 min)', note: pk && en ? `${pk} → ${en}` : null }] },
   },
   {
     key: 'grip', label: '✊ Grip Test', unit: '', colour: '#059669',
@@ -105,7 +107,7 @@ export function buildLeaderboard(cat, rows, limit = 10) {
   const perAthlete = {}
   rows.forEach(r => {
     const name = maskName(r.first_name, r.last_name)
-    cat.extract(r).forEach(({ value, sub }) => {
+    cat.extract(r).forEach(({ value, sub, note }) => {
       if (!value) return
       if (cat.aggregate === 'sum') {
         if (!perAthlete[name]) perAthlete[name] = { name, value: 0, sub: cat.sumLabel || '' }
@@ -113,7 +115,7 @@ export function buildLeaderboard(cat, rows, limit = 10) {
         return
       }
       const better = cat.lowerIsBetter ? value < perAthlete[name]?.value : value > perAthlete[name]?.value
-      if (!perAthlete[name] || better) perAthlete[name] = { name, value, sub }
+      if (!perAthlete[name] || better) perAthlete[name] = { name, value, sub, note }
     })
   })
   return Object.values(perAthlete)

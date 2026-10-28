@@ -25,6 +25,8 @@ export const TEST_CATEGORIES = [
     // heart rate at which effort turns anaerobic (from a step / ramp test or wearable)
     { name: 'Anaerobic Threshold', unit: 'bpm' },
     // the Watt bike numbers from the 1 min effort of the HR recovery test
+    { name: 'HRR start heart rate (bpm)', unit: 'bpm' },
+    { name: 'HRR end heart rate (bpm)', unit: 'bpm' },
     { name: 'HRR Watt bike watts (1 min)', unit: 'W' },
     { name: 'HRR Watt bike distance (1 min)', unit: 'm' },
   ]},

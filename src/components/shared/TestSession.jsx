@@ -180,7 +180,7 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
         )}
         {tool === 'hrr' ? createPortal(
           <HrrTestTool zIndex={700} mode={hrrMode || 'coach'} studentId={studentId} studentName={studentName} onClose={() => setTool(null)}
-            onResult={r => setVals(p => ({ ...p, 'Heart Rate Recovery (1 min)': String(r.hrr), ...(r.watts ? { 'HRR Watt bike watts (1 min)': String(r.watts) } : {}), ...(r.dist ? { 'HRR Watt bike distance (1 min)': String(r.dist) } : {}) }))} />, document.body)
+            onResult={r => setVals(p => ({ ...p, 'Heart Rate Recovery (1 min)': String(r.hrr), ...(r.peak != null ? { 'HRR start heart rate (bpm)': String(r.peak) } : {}), ...(r.end != null ? { 'HRR end heart rate (bpm)': String(r.end) } : {}), ...(r.watts ? { 'HRR Watt bike watts (1 min)': String(r.watts) } : {}), ...(r.dist ? { 'HRR Watt bike distance (1 min)': String(r.dist) } : {}) }))} />, document.body)
         : tool === 'bleep20' || tool === 'bleep10' ? createPortal(
           <BleepTestPlayer zIndex={700} course={tool === 'bleep10' ? 10 : 20} runners={[{ id: 'me', name: studentName || 'Athlete' }]} onClose={() => setTool(null)}
             onDone={res => { if (res.me) setVals(p => ({ ...p, [tool === 'bleep10' ? 'Bleep test (10m)' : 'Bleep test']: res.me })) }} />, document.body)
@@ -292,7 +292,8 @@ export function TestBatchModal({ onClose }) {
     const pbs = []; let saved = 0; const errs = []
     for (const [id, v] of filled) {
       const a = athletes.find(x => x.id === id)
-      const extra = testName === 'Heart Rate Recovery (1 min)' && hrrExtra[id] ? { ...(hrrExtra[id].watts ? { 'HRR Watt bike watts (1 min)': hrrExtra[id].watts } : {}), ...(hrrExtra[id].dist ? { 'HRR Watt bike distance (1 min)': hrrExtra[id].dist } : {}) } : {}
+      const h = testName === 'Heart Rate Recovery (1 min)' ? hrrExtra[id] : null
+      const extra = h ? { ...(h.start ? { 'HRR start heart rate (bpm)': h.start } : {}), ...(h.end ? { 'HRR end heart rate (bpm)': h.end } : {}), ...(h.watts ? { 'HRR Watt bike watts (1 min)': h.watts } : {}), ...(h.dist ? { 'HRR Watt bike distance (1 min)': h.dist } : {}) } : {}
       const { error, pbs: p } = await saveTestResults(id, date, { [testName]: v, ...extra })
       if (error) errs.push(`${a?.members?.first_name}: ${error.message}`)
       else { saved++; p.forEach(pb => pbs.push({ ...pb, who: `${a?.members?.first_name} ${a?.members?.last_name}` })) }
@@ -343,7 +344,7 @@ export function TestBatchModal({ onClose }) {
           )}
           {hrrFor && createPortal(
             <HrrTestTool zIndex={700} mode="coach" studentId={hrrFor.id} studentName={`${hrrFor.members?.first_name || ''} ${hrrFor.members?.last_name || ''}`.trim()} onClose={() => setHrrFor(null)}
-              onResult={r => { setVals(p => ({ ...p, [hrrFor.id]: String(r.hrr) })); if (r.watts || r.dist) setHrrExtra(p => ({ ...p, [hrrFor.id]: { watts: r.watts, dist: r.dist } })) }} />, document.body)}
+              onResult={r => { setVals(p => ({ ...p, [hrrFor.id]: String(r.hrr) })); setHrrExtra(p => ({ ...p, [hrrFor.id]: { ...(p[hrrFor.id] || {}), start: r.peak != null ? String(r.peak) : '', end: r.end != null ? String(r.end) : '', watts: r.watts, dist: r.dist } })) }} />, document.body)}
           {testName.startsWith('Bleep test') && (
             <button type="button" className="ts-measure-btn" style={{ marginBottom: 8 }} onClick={() => setBleepOpen(true)}>▶ Run the {testName === 'Bleep test (10m)' ? '10 m' : '20 m'} bleep test for a group</button>
           )}
@@ -355,7 +356,15 @@ export function TestBatchModal({ onClose }) {
             {list.map(a => (
               <label key={a.id} className="ts-batch-row">
                 <span>{a.members?.first_name} {a.members?.last_name}</span>
-                {testName === 'Heart Rate Recovery (1 min)' && <button type="button" className="btn btn-sm" onClick={e => { e.preventDefault(); setHrrFor(a) }} title="Run their HR recovery test">❤️</button>}
+                {testName === 'Heart Rate Recovery (1 min)' && <>
+                  <button type="button" className="btn btn-sm" onClick={e => { e.preventDefault(); setHrrFor(a) }} title="Run their HR recovery test">❤️</button>
+                  {/* start + end heart rate (typed or from the ❤️ test) -- HRR worked out from them */}
+                  {['start', 'end'].map(k => (
+                    <input key={k} type="number" inputMode="numeric" placeholder={k === 'start' ? 'Start' : 'End'} aria-label={`${a.members?.first_name} ${k} heart rate`}
+                      value={hrrExtra[a.id]?.[k] ?? ''} style={{ width: 58 }} className="ts-input"
+                      onChange={e => { const v = e.target.value; setHrrExtra(p => { const cur = { ...(p[a.id] || {}), [k]: v }; const st = parseFloat(cur.start), en = parseFloat(cur.end); if (!isNaN(st) && !isNaN(en)) setVals(q => ({ ...q, [a.id]: String(st - en) })); return { ...p, [a.id]: cur } }) }} />
+                  ))}
+                </>}
                 <input type="number" inputMode="decimal" step="any" value={vals[a.id] ?? ''} onChange={e => setVals(p => ({ ...p, [a.id]: e.target.value }))} aria-label={`${a.members?.first_name} ${a.members?.last_name}`} />
               </label>
             ))}

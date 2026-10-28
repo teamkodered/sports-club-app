@@ -81,7 +81,8 @@ async function loadPeriod(from, to) {
   }
 }
 
-function Row({ rank, name, sub, subColour, value, unit, colour, me }) {
+function Row({ rank, name, sub, subColour, value, unit, colour, me, note }) {
+  // note: small extra detail shown on the right before the value (e.g. HR recovery 185 → 150)
   const cls = `lb-row${me ? ' lb-me' : ''}`
   const medal = rank <= 3 ? ['#F5C542', '#C0C4CC', '#CD7F32'][rank - 1] : null
   return (
@@ -92,6 +93,7 @@ function Row({ rank, name, sub, subColour, value, unit, colour, me }) {
         <span style={{ display: 'block', fontFamily: 'Rajdhani, sans-serif', fontWeight: 700, fontSize: 16, color: '#FFFFFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}{me ? ' (you)' : ''}</span>
         {sub && <span style={{ display: 'block', ...NUM, fontSize: 8, letterSpacing: 1.5, color: subColour || '#9A9A9A' }}>{String(sub).toUpperCase()}</span>}
       </span>
+      {note && <span style={{ ...NUM, fontSize: 9, color: '#9A9A9A', whiteSpace: 'nowrap' }}>{note}</span>}
       <span style={{ ...NUM, fontSize: 16, color: colour, textShadow: `0 0 6px ${colour}66` }}>{value}<span style={{ fontSize: 9, color: '#9A9A9A', marginLeft: 3 }}>{unit}</span></span>
     </div>
   )
@@ -341,7 +343,7 @@ export default function LeagueBoard({ embedded = false, student = null, onBack, 
       const cat = s.cat, list = buildLeaderboard(cat, exRows, cfg.topBoard)
       return (
         <Slide title={cat.label.replace(/^\S+\s/, '')} colour={cat.colour} emoji={cat.label.split(' ')[0]} sub="Personal bests" fixedPeriod>
-          {list.map((r, i) => <Row key={r.name + i} rank={i + 1} name={r.name} sub={r.sub} value={r.value} unit={cat.unit} colour={cat.colour} me={!!myMasked && r.name === myMasked} />)}
+          {list.map((r, i) => <Row key={r.name + i} rank={i + 1} name={r.name} sub={r.sub} value={r.value} unit={cat.unit} colour={cat.colour} note={r.note} me={!!myMasked && r.name === myMasked} />)}
         </Slide>
       )
     }
