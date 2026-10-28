@@ -5115,6 +5115,9 @@ export default function AthleteApp() {
                   <span className="neon-caret">{myProfileExpanded ? '▲' : '▼'}</span>
                 </span>
               </button>
+              {(() => { const n = weeklyTargetStreak(); return (
+                <span className={`neon-streak${n ? '' : ' off'}`} title={`${n} week${n === 1 ? '' : 's'} in a row hitting all your weekly targets`}>🔥<b>{n}</b></span>
+              ) })()}
               <button type="button" className="neon-housebox" style={{ '--house': NEON_HOUSE_COLOURS[houseName] || colour }}
                 onClick={e => { e.stopPropagation(); setHeaderCardView(1); setMyProfileExpanded(false); setHousePointsExpanded(v => !v) }}>
                 {HOUSE_TEXT_LOGOS[houseName]
@@ -5396,50 +5399,10 @@ export default function AthleteApp() {
           {student ? (
             <>
               <InstallAppButton />
-              {(() => {
-                // ── Today card: streak, next session, today's PDP, what's left this week, tests ──
-                const now = new Date(), dayName = now.toLocaleDateString('en-GB', { weekday: 'long' }), todayIso = isoDay(now)
-                const streak = weeklyTargetStreak()
-                const hm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
-                const nextClass = (assignedClasses || []).filter(a => a.classes && (a.classes.day_of_week || '').toLowerCase() === dayName.toLowerCase() && assignmentActiveOn(a, todayIso) && String(a.classes.end_time || a.classes.start_time).slice(0, 5) >= hm)
-                  .sort((a, b) => String(a.classes.start_time).localeCompare(String(b.classes.start_time)))[0]
-                const pdpToday = getScheduledItemsForDay(dayName)
-                const ws = weekStartOf(now), we = new Date(ws); we.setDate(we.getDate() + 6)
-                const weekBars = TARGET_SECTIONS.map(([k, l, c]) => ({ k, l, c, ...sectionWeekProgress(k, isoDay(ws), isoDay(we)) })).filter(x => x.target > 0)
-                let testsLeft = 0; try { const t = getSectionProgressByPeriod('test'); testsLeft = Math.max(0, (t.month?.target || 0) - (t.month?.done || 0)) } catch { /* */ }
-                return (
-                  <div className="kc-today">
-                    <div className="kc-today-head">
-                      <div><div className="kc-today-title">Today</div><div className="kc-today-date">{now.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</div></div>
-                      <div className={`kc-today-streak${streak ? '' : ' off'}`} title="Weeks in a row hitting all your weekly targets">🔥 <b>{streak}</b><span>{streak === 1 ? 'week' : 'weeks'}</span></div>
-                    </div>
-                    {nextClass && <div className="kc-today-row">📅 <b>{nextClass.classes.name} {String(nextClass.classes.start_time).slice(0, 5)}</b><span>check in when you arrive</span></div>}
-                    {pdpToday.length > 0 && (
-                      <div className="kc-today-pdp">
-                        <div className="kc-today-label">PDP today · +{athleteHousePoints.pdp_action || 5} each</div>
-                        {pdpToday.slice(0, 4).map(it => <div key={it.sectionKey + it.item} className={`kc-today-pdp-item${it.completed ? ' done' : ''}`}><i style={{ background: it.colour }} />{it.text}{it.time ? <span>{it.time}</span> : null}</div>)}
-                      </div>
-                    )}
-                    {weekBars.length > 0 && (
-                      <>
-                        <div className="kc-today-label">This week · +{athleteHousePoints.target_week || 10} for each target hit</div>
-                        <div className="kc-today-bars">
-                          {weekBars.map(b => (
-                            <div key={b.k} className="kc-today-bar">
-                              <div><span>{b.l}</span><b style={{ color: b.done >= b.target ? '#1D9E75' : b.c }}>{b.done >= b.target ? '✓ ' : ''}{b.done}/{b.target}</b></div>
-                              <div className="kc-today-track"><div style={{ width: `${Math.min(100, b.done * 100 / b.target)}%`, background: b.c }} /></div>
-                            </div>
-                          ))}
-                        </div>
-                      </>
-                    )}
-                    {testsLeft > 0 && <div className="kc-today-row">📋 <b>{testsLeft} test{testsLeft === 1 ? '' : 's'}</b><span>left this month</span></div>}
-                  </div>
-                )
-              })()}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
-                <button type="button" className="btn btn-sm" onClick={() => setReminders(!remindersOn)} title="Daily reminders (session today, running, tests)" style={{ fontSize: 11, opacity: 0.85 }}>🔔 Reminders {remindersOn ? 'on' : 'off'}</button>
-              </div>
+              <button type="button" className={`kc-remind-fab${remindersOn ? ' on' : ''}`} onClick={() => setReminders(!remindersOn)}
+                title={remindersOn ? 'Daily reminders on -- tap to turn off' : 'Daily reminders off -- tap to turn on'} aria-pressed={remindersOn}>
+                🔔<span>{remindersOn ? 'ON' : 'OFF'}</span>
+              </button>
               {pushPermission === 'default' && (
                 <div className="card" style={{ marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 12 }}>🔔 Get notified when your coach logs something, or you move on the league ladder.</span>
