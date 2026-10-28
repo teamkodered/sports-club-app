@@ -1779,6 +1779,18 @@ export default function AthleteApp() {
     })
   }, [student?.id, sessions, sectionTargets]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Coach reactions on PDP actions -- shown once, then marked seen
+  const [reactions, setReactions] = useState([])
+  useEffect(() => {
+    if (!student?.id) return
+    supabase.from('kc_reactions').select('*').eq('student_id', student.id).is('seen_at', null).order('created_at')
+      .then(({ data }) => { if (data?.length) setReactions(data) }, () => {})
+  }, [student?.id])
+  const closeReactions = async () => {
+    const ids = reactions.map(r => r.id); setReactions([])
+    if (ids.length) await supabase.from('kc_reactions').update({ seen_at: new Date().toISOString() }).in('id', ids).then(() => {}, () => {})
+  }
+
   // Daily reminders (once a day, can be switched off): session today, weekly running left, monthly tests left
   const [remindersOn, setRemindersOn] = useState(() => { try { return localStorage.getItem('kc_reminders') !== 'off' } catch { return true } })
   const [reminderPopup, setReminderPopup] = useState(null)
@@ -5289,6 +5301,15 @@ export default function AthleteApp() {
       {tab === 'home' && (
         <div className="neon-home">
           {HistoryViewModal()}
+          {reactions.length > 0 && (
+            <div role="dialog" aria-modal="true" onClick={closeReactions} style={{ position: 'fixed', inset: 0, zIndex: 575, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '90px 16px 0' }}>
+              <div className="kc-today" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 380 }}>
+                <div className="kc-today-title" style={{ marginBottom: 8 }}>Your coach noticed</div>
+                {reactions.map(r => <div key={r.id} className="kc-today-row"><span style={{ fontSize: 22, color: 'inherit' }}>{r.emoji}</span><span style={{ color: '#F2F2F2' }}><b>{r.from_name || 'Coach'}</b> -- {r.target.replace(/^PDP (action done|task completed):?\s*/, '') || 'your PDP'}</span></div>)}
+                <button type="button" className="btn btn-primary" style={{ width: '100%', marginTop: 10 }} onClick={closeReactions}>Nice 💪</button>
+              </div>
+            </div>
+          )}
           {reminderPopup && (
             <div role="dialog" aria-modal="true" onClick={() => setReminderPopup(null)} style={{ position: 'fixed', inset: 0, zIndex: 570, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '80px 16px 0' }}>
               <div className="card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 380, padding: 18 }}>

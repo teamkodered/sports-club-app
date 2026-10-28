@@ -5,6 +5,7 @@ import { TestSessionModal, TestBatchModal } from '../components/shared/TestSessi
 import OtherSessions from '../components/shared/OtherSessions.jsx'
 import SessionFootage from '../components/shared/SessionFootage.jsx'
 import { supabase } from '../lib/supabase.js'
+import PdpActivity from '../components/dashboard/PdpActivity.jsx'
 import { divMatch, KB_DIVISIONS as KB_OFFICIAL, BOX_DIVISIONS as BOX_OFFICIAL, kbLabel, boxLabel, weightsFor, suggestDivision, isOfficial, divisionsForAge } from '../lib/divisions.js'
 import AthleteMedia from '../components/media/AthleteMedia.jsx'
 import TallyGate from '../components/shared/TallyGate.jsx'
@@ -8252,6 +8253,7 @@ export default function AthleteProfiles() {
             {dashboardTab === 'pdp' && (
               <div>
                 <button onClick={() => { setExpandedSummaryCards({}); setDashboardTab('overview') }} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to dashboard</button>
+                <PdpActivity students={students.filter(inDashTeam)} coachName={profile?.first_name} />
                 {/* PDP overview: every athlete x section (collapsible, closed on open) */}
                 <div className="card" style={{ marginBottom: 14, padding: pdpOverviewOpen ? undefined : '10px 14px' }}>
                   <button type="button" onClick={() => setPdpOverviewOpen(v => !v)} style={{ all: 'unset', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
