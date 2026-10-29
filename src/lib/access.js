@@ -75,6 +75,7 @@ export function pageAccessFor(profile, page, groups) {
 
 export function registerAccessFor(profile, groups) {
   const role = profile?.role || 'member'
+  if (profile?.access?.full_registers) return { types: null, classes: null }   // shared centre login: every register
   const r = role === 'admin' ? null : effectiveAccess(profile, groups)?.registers
   return { types: r?.types?.length ? r.types : null, classes: r?.classes?.length ? r.classes : null }
 }

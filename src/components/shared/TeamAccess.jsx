@@ -51,7 +51,7 @@ export default function TeamAccess() {
     // in a group: the group's pages/tabs, with THIS person's own classes (if they have their own yet)
     const base = cloneAccess(g ? g.access : m.access)
     if (g && m.access?.registers?.classes) base.registers = { ...(base.registers || {}), classes: [...m.access.registers.classes] }
-    setEditing({ member: m, role, team: g ? g.team : (m.access && Object.keys(m.access).length ? 'custom' : null), access: base })
+    setEditing({ member: m, role, team: g ? g.team : (m.access && Object.keys(m.access).length ? 'custom' : null), access: base, fullRegisters: !!m.access?.full_registers })
   }
   const pickRole = role => setEditing(e => {
     const team = (role === 'captain' || role === 'leader') ? (e.team && e.team !== 'custom' ? e.team : null) : (e.team === 'custom' ? 'custom' : null)
@@ -99,6 +99,8 @@ export default function TeamAccess() {
     } else {
       memberAccess = (Object.keys(pages).length || settingsAccess.registers.types || settingsAccess.registers.classes) ? settingsAccess : null
     }
+    // Full registers (shared centre login): every register, class and student -- registers only
+    if (['head_coach', 'captain', 'leader'].includes(editing.role) && editing.fullRegisters) memberAccess = { ...(memberAccess || {}), full_registers: true }
     const { error } = await supabase.from('members').update({ role: editing.role, access: memberAccess }).eq('id', editing.member.id)
     setSaving(false)
     if (error) return alert('Could not save access: ' + error.message)
@@ -172,7 +174,7 @@ export default function TeamAccess() {
               <b style={{ fontSize: 14 }}>{m.first_name} {m.last_name}</b>
               <span style={{ fontSize: 11, color: 'var(--text-tertiary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.email}{!m.auth_id && isTeam(m) && <span style={{ marginLeft: 6, color: 'var(--danger, #e5484d)', fontWeight: 600 }}>· no login</span>}</span>
             </span>
-            <span className={`team-role team-role-${normRole(m.role)}`}>{label(m)}{normRole(m.role) === 'admin' ? ' · full access' : ['head_coach', 'captain', 'leader'].includes(normRole(m.role)) ? ` · ${(m.access?.registers?.classes || groupOf(m)?.access?.registers?.classes || []).length} classes` : ''}</span>
+            <span className={`team-role team-role-${normRole(m.role)}`}>{label(m)}{normRole(m.role) === 'admin' ? ' · full access' : m.access?.full_registers ? ' · full registers' : ['head_coach', 'captain', 'leader'].includes(normRole(m.role)) ? ` · ${(m.access?.registers?.classes || groupOf(m)?.access?.registers?.classes || []).length} classes` : ''}</span>
           </button>
         ))}
         {shown.length === 0 && <p style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: '8px 0' }}>{q ? 'No one matches' : 'No team members yet'}</p>}
@@ -215,6 +217,12 @@ export default function TeamAccess() {
                  admin: '⚠️ Admin: FULL ACCESS including all settings.' }[editing.role] || ''}
             </div>
 
+            {['head_coach', 'captain', 'leader'].includes(editing.role) && (
+              <label className="team-full-reg">
+                <input type="checkbox" checked={!!editing.fullRegisters} onChange={e => setEditing(x => ({ ...x, fullRegisters: e.target.checked }))} />
+                <span><b>Full registers</b> — every register tab, every class and every student (for a shared centre login). Only registers: CRM, forms and settings stay as limited as above.</span>
+              </label>
+            )}
             {editing.role === 'head_coach' && (
               <div className="team-group-note">Head Coach: tick their classes under Registers. They'll only see those classes' registers and those students (with contact details), enforced by the database.</div>
             )}

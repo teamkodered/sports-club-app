@@ -143,7 +143,7 @@ export function AuthProvider({ children }) {
 
   // While viewing as someone with set classes: the students in those classes (to narrow lists)
   useEffect(() => {
-    if (!(realIsAdmin && viewAs)) { setViewAsStudentIds(null); return }
+    if (!(realIsAdmin && viewAs) || viewAs.access?.full_registers) { setViewAsStudentIds(null); return }
     const a = viewAs.access?.group ? (accessGroups.find(g => g.id === viewAs.access.group)?.access || {}) : (viewAs.access || {})
     // only real class ids (a stray non-id entry made the whole lookup fail -> nobody shown)
     const classIds = (viewAs.access?.registers?.classes || a?.registers?.classes || []).filter(x => /^[0-9a-f-]{36}$/i.test(String(x)))
