@@ -13465,6 +13465,23 @@ export default function AthleteProfiles() {
                       <div key={note.id} className="card" onClick={() => { setEditingNoteId(note.id); setEditingNoteText(note.note_text) }} style={{ cursor: 'pointer', ...doneCardStyle(note) }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8, gap: 10 }}>
                           <DoneTick note={note} onChange={u => setNotesLog(prev => prev.map(x => x.id === u.id ? u : x))} />
+                          {(() => {
+                            // 👁 the athlete can see this note · 🔒 coach only -- tap to switch
+                            const seen = note.author_role !== 'coach' || note.visible_to_athlete !== false
+                            return (
+                              <button type="button" title={seen ? 'The athlete can see this note -- tap to make it coach only' : 'Coach only -- tap to let the athlete see it'}
+                                onClick={async e => {
+                                  e.stopPropagation()
+                                  if (note.author_role !== 'coach') return
+                                  const { error } = await supabase.from('athlete_notes_log').update({ visible_to_athlete: !seen }).eq('id', note.id)
+                                  if (error) { alert('Could not change: ' + error.message); return }
+                                  setNotesLog(prev => prev.map(x => x.id === note.id ? { ...x, visible_to_athlete: !seen } : x))
+                                }}
+                                style={{ background: 'none', border: 'none', padding: '2px 0', cursor: note.author_role === 'coach' ? 'pointer' : 'default', fontSize: 14, opacity: seen ? 1 : 0.55, flexShrink: 0 }}>
+                                {seen ? '👁' : '🔒'}
+                              </button>
+                            )
+                          })()}
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>
                               {new Date(note.logged_at).toLocaleDateString('en-GB')} · {new Date(note.logged_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
