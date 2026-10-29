@@ -1,4 +1,16 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, lazy, Suspense } from 'react'
+
+// Pages load when first opened (not all at start-up) -- the app used to download and start
+// every page (3.5 MB) before showing anything. If a new version was deployed while the app was
+// open, an old page file can be gone: reload once to pick up the new version.
+function lazyPage(load) {
+  return lazy(() => load().catch(err => {
+    const k = 'kc-chunk-reload'
+    if (!sessionStorage.getItem(k)) { sessionStorage.setItem(k, '1'); window.location.reload(); return new Promise(() => {}) }
+    throw err
+  }).then(m => { sessionStorage.removeItem('kc-chunk-reload'); return m }))
+}
+const PageLoading = () => <div className="loading" style={{ padding: 40, textAlign: 'center' }}>Loading…</div>
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './hooks/useAuth.jsx'
@@ -15,49 +27,49 @@ try { const v = new URLSearchParams(window.location.search).get('krtest'); if (v
 
 import Login from './pages/Login.jsx'
 import AthleteLogin from './pages/AthleteLogin.jsx'
-import ResetPassword from './pages/ResetPassword.jsx'
-import CoachSignup from './pages/CoachSignup.jsx'
-import InviteRedeem from './pages/InviteRedeem.jsx'
-import ParentView from './pages/ParentView.jsx'
-import CoachingTools from './pages/CoachingTools.jsx'
-import LevelUp from './pages/LevelUp.jsx'
-import FightFinder from './pages/FightFinder.jsx'
-import Claim from './pages/Claim.jsx'
-import JoinPKAChild from './pages/forms/JoinPKAChild.jsx'
-import JoinPKAAdult from './pages/forms/JoinPKAAdult.jsx'
-import JoinKRBA from './pages/forms/JoinKRBA.jsx'
-import GradingExpression from './pages/forms/GradingExpression.jsx'
-import BoxingTPT from './pages/forms/BoxingTPT.jsx'
-import KickboxingTPT from './pages/forms/KickboxingTPT.jsx'
-import FitToFight from './pages/forms/FitToFight.jsx'
-import AthleteProfiles from './pages/AthleteProfiles.jsx'
-import AthleteDashboard from './pages/AthleteDashboard.jsx'
-import Dashboard from './pages/Dashboard.jsx'
-import Members from './pages/Members.jsx'
-import Fixtures from './pages/Fixtures.jsx'
-import CalendarPage from './pages/CalendarPage.jsx'
-import CRM from './pages/CRM.jsx'
-import LeagueViews from './pages/LeagueViews.jsx'
-import LeaguePublic from './pages/LeaguePublic.jsx'
-import PrivacyPolicy from './pages/PrivacyPolicy.jsx'
-import LeagueBoard from './pages/LeagueBoard.jsx'
-import PolarCallback from './pages/PolarCallback.jsx'
-import Profile from './pages/Profile.jsx'
-import AdminImport from './pages/AdminImport.jsx'
-import StudentDatabase from './pages/StudentDatabase.jsx'
-import Settings from './pages/Settings.jsx'
-import Registers from './pages/Registers.jsx'
-import CctvViewer from './pages/CctvViewer.jsx'
-import Media from './pages/Media.jsx'
-import Classes from './pages/Classes.jsx'
-import Forms from './pages/Forms.jsx'
-import CheckIn from './pages/CheckIn.jsx'
-import Fit2FightForm from './pages/Fit2FightForm.jsx'
-import BoxingTPTForm from './pages/BoxingTPTForm.jsx'
-import AthleteApp from './pages/AthleteApp.jsx'
-import CheckInPublic from './pages/CheckInPublic.jsx'
-import CourseInterest from './pages/forms/CourseInterest.jsx'
-import WhoopDisplayBoard from './pages/WhoopDisplayBoard.jsx'
+const ResetPassword = lazyPage(() => import('./pages/ResetPassword.jsx'))
+const CoachSignup = lazyPage(() => import('./pages/CoachSignup.jsx'))
+const InviteRedeem = lazyPage(() => import('./pages/InviteRedeem.jsx'))
+const ParentView = lazyPage(() => import('./pages/ParentView.jsx'))
+const CoachingTools = lazyPage(() => import('./pages/CoachingTools.jsx'))
+const LevelUp = lazyPage(() => import('./pages/LevelUp.jsx'))
+const FightFinder = lazyPage(() => import('./pages/FightFinder.jsx'))
+const Claim = lazyPage(() => import('./pages/Claim.jsx'))
+const JoinPKAChild = lazyPage(() => import('./pages/forms/JoinPKAChild.jsx'))
+const JoinPKAAdult = lazyPage(() => import('./pages/forms/JoinPKAAdult.jsx'))
+const JoinKRBA = lazyPage(() => import('./pages/forms/JoinKRBA.jsx'))
+const GradingExpression = lazyPage(() => import('./pages/forms/GradingExpression.jsx'))
+const BoxingTPT = lazyPage(() => import('./pages/forms/BoxingTPT.jsx'))
+const KickboxingTPT = lazyPage(() => import('./pages/forms/KickboxingTPT.jsx'))
+const FitToFight = lazyPage(() => import('./pages/forms/FitToFight.jsx'))
+const AthleteProfiles = lazyPage(() => import('./pages/AthleteProfiles.jsx'))
+const AthleteDashboard = lazyPage(() => import('./pages/AthleteDashboard.jsx'))
+const Dashboard = lazyPage(() => import('./pages/Dashboard.jsx'))
+const Members = lazyPage(() => import('./pages/Members.jsx'))
+const Fixtures = lazyPage(() => import('./pages/Fixtures.jsx'))
+const CalendarPage = lazyPage(() => import('./pages/CalendarPage.jsx'))
+const CRM = lazyPage(() => import('./pages/CRM.jsx'))
+const LeagueViews = lazyPage(() => import('./pages/LeagueViews.jsx'))
+const LeaguePublic = lazyPage(() => import('./pages/LeaguePublic.jsx'))
+const PrivacyPolicy = lazyPage(() => import('./pages/PrivacyPolicy.jsx'))
+const LeagueBoard = lazyPage(() => import('./pages/LeagueBoard.jsx'))
+const PolarCallback = lazyPage(() => import('./pages/PolarCallback.jsx'))
+const Profile = lazyPage(() => import('./pages/Profile.jsx'))
+const AdminImport = lazyPage(() => import('./pages/AdminImport.jsx'))
+const StudentDatabase = lazyPage(() => import('./pages/StudentDatabase.jsx'))
+const Settings = lazyPage(() => import('./pages/Settings.jsx'))
+const Registers = lazyPage(() => import('./pages/Registers.jsx'))
+const CctvViewer = lazyPage(() => import('./pages/CctvViewer.jsx'))
+const Media = lazyPage(() => import('./pages/Media.jsx'))
+const Classes = lazyPage(() => import('./pages/Classes.jsx'))
+const Forms = lazyPage(() => import('./pages/Forms.jsx'))
+const CheckIn = lazyPage(() => import('./pages/CheckIn.jsx'))
+const Fit2FightForm = lazyPage(() => import('./pages/Fit2FightForm.jsx'))
+const BoxingTPTForm = lazyPage(() => import('./pages/BoxingTPTForm.jsx'))
+const AthleteApp = lazyPage(() => import('./pages/AthleteApp.jsx'))
+const CheckInPublic = lazyPage(() => import('./pages/CheckInPublic.jsx'))
+const CourseInterest = lazyPage(() => import('./pages/forms/CourseInterest.jsx'))
+const WhoopDisplayBoard = lazyPage(() => import('./pages/WhoopDisplayBoard.jsx'))
 import Layout from './components/shared/Layout.jsx'
 
 // Paths only an athlete/member would ever be on -- if someone with no
@@ -125,6 +137,7 @@ function App() {
     <AuthProvider>
     <FightFootageUploadProvider>
       <BrowserRouter>
+        <Suspense fallback={<PageLoading />}>
         <Routes>
           <Route path="/login"           element={<Login />} />
           <Route path="/athlete-login"   element={<AthleteLogin />} />
@@ -175,6 +188,7 @@ function App() {
             <Route path="settings"        element={<ProtectedRoute adminOnly><Settings /></ProtectedRoute>} />
           </Route>
         </Routes>
+        </Suspense>
       </BrowserRouter>
     </FightFootageUploadProvider>
     </AuthProvider>
