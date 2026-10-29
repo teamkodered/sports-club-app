@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
+import { keepMedia } from '../lib/filePick.js'
 import { Link, useNavigate } from 'react-router-dom'
 import { TEST_CATEGORIES } from '../lib/testResults.js'
 import { setViewOnlyPage } from '../lib/access.js'
@@ -4654,6 +4655,7 @@ export default function AthleteApp() {
   // "Media" gallery tab already reads from, so it shows up there too
   // alongside everything else they've uploaded.
   const mediaFileRef = useRef(null)
+  const mediaDocsRef = useRef(null) // 📁 Files / Dropbox picker for question photos / videos
   const mediaCameraRef = useRef(null)
   const mediaTargetRef = useRef(null)
   const [mediaViewer, setMediaViewer] = useState(null) // { items, index }
@@ -4716,7 +4718,7 @@ export default function AthleteApp() {
   })()
   function openMediaPicker(sectionKey, questionLabel, camera) {
     mediaTargetRef.current = { sectionKey, questionLabel }
-    ;(camera ? mediaCameraRef : mediaFileRef).current?.click()
+    ;(camera === 'files' ? mediaDocsRef : camera ? mediaCameraRef : mediaFileRef).current?.click()
   }
   // Question cards: "📅 Add to timetable" -- pick the day(s), attach to one of your sessions
   // on that day (goes into that session's notes) or set a time; repeats every week.
@@ -4753,6 +4755,7 @@ export default function AthleteApp() {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
             Take photo / video
           </button>
+          <button type="button" className="btn btn-sm neon-media-btn" disabled={busy} onClick={() => openMediaPicker(sectionKey, questionLabel, 'files')}>📁 Files / Dropbox</button>
 
         </div>
         {attached.length > 0 && (
@@ -5347,6 +5350,9 @@ export default function AthleteApp() {
           )}
           <input ref={mediaFileRef} type="file" accept="image/*,video/*" multiple style={{ display: 'none' }}
             onChange={e => { const files = [...(e.target.files || [])]; const t = mediaTargetRef.current; e.target.value = ''; if (t) files.forEach(f => uploadQuestionMedia(t.sectionKey, t.questionLabel, f)) }} />
+          {/* 📁 Files / Dropbox: no type filter = the phone's full file browser; only photos / videos are kept */}
+          <input ref={mediaDocsRef} type="file" multiple style={{ display: 'none' }}
+            onChange={e => { const files = keepMedia(e.target.files, { images: true }); const t = mediaTargetRef.current; e.target.value = ''; if (t) files.forEach(f => uploadQuestionMedia(t.sectionKey, t.questionLabel, f)) }} />
           <input ref={mediaCameraRef} type="file" accept="image/*,video/*" capture="environment" style={{ display: 'none' }}
             onChange={e => { const f = e.target.files?.[0]; const t = mediaTargetRef.current; e.target.value = ''; if (f && t) uploadQuestionMedia(t.sectionKey, t.questionLabel, f) }} />
           {mediaViewer && <MediaViewer items={mediaViewer.items} start={mediaViewer.index} onClose={() => setMediaViewer(null)} onMeasure={item => setVideoTool({ mode: 'jump', fromViewer: item.url, label: (v, m) => m?.punchType ? `Save ${v} ms as ${m.punchType}` : `Save ${v}`, onSave: (v, info) => info?.mode === 'sprint'

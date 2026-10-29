@@ -626,9 +626,12 @@ export default function Uploads({
           <div className="field">
             <label style={{ fontSize: 14 }}>Videos</label>
             <input type="file" accept="video/*,.mkv,.avi,.mov,.wmv,.flv,.3gp,.webm,.m4v" multiple onChange={handleFolderSelect} style={{ display: 'none' }} id="quick-file-picker" />
+            {/* no type filter = the phone's full file browser (Files, Dropbox, Drive…); non-videos are dropped by handleFolderSelect */}
+            <input type="file" multiple onChange={handleFolderSelect} style={{ display: 'none' }} id="quick-files-picker" />
             <label htmlFor="quick-file-picker" className="btn" style={{ display: 'block', textAlign: 'center', padding: '16px 14px', fontSize: 16, borderRadius: 10, border: '2px dashed var(--border)', cursor: 'pointer' }}>
               {bulkItems.length === 0 ? '🎞️ Choose videos' : `🎞️ ${bulkItems.length} video${bulkItems.length === 1 ? '' : 's'} chosen — tap to change`}
             </label>
+            <label htmlFor="quick-files-picker" className="btn" style={{ display: 'block', textAlign: 'center', padding: '12px 14px', fontSize: 15, borderRadius: 10, border: '1px solid var(--border)', cursor: 'pointer', marginTop: 8 }}>📁 Files / Dropbox</label>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
                 {bulkItems.length === 1 ? bulkItems[0].file.name : bulkItems.length > 1 ? bulkItems.map(it => it.file.name).slice(0, 3).join(', ') + (bulkItems.length > 3 ? ` +${bulkItems.length - 3} more` : '') : 'Pick one or several at once.'}

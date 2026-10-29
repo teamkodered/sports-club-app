@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { keepMedia } from '../../lib/filePick.js'
 
 // Measure from a phone video (Oct 2026):
 //   jump   -- mark take-off + landing; height = g x flight time^2 / 8
@@ -88,6 +89,10 @@ export default function VideoMeasureTool({ mode: modeProp = 'jump', defaultDista
             <label style={{ ...btn, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '100%', boxSizing: 'border-box' }}>
               Choose / record video
               <input type="file" accept="video/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) { onFile?.(f); setUrl(URL.createObjectURL(f)); setA(null); setB(null) } }} />
+            </label>
+            <label style={{ ...btn, marginTop: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '100%', boxSizing: 'border-box' }}>
+              📁 Files / Dropbox
+              <input type="file" style={{ display: 'none' }} onChange={e => { const f = keepMedia(e.target.files)[0]; e.target.value = ''; if (f) { onFile?.(f); setUrl(URL.createObjectURL(f)); setA(null); setB(null) } }} />
             </label>
           </div>
         ) : (

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { keepMedia } from '../../lib/filePick.js'
 
 // 📹 Count punches (mode 'punches') or reps (mode 'reps') from a video (Oct 2026).
 // Reps work differently from punches: a rep is a smooth down-and-up, not a
@@ -256,6 +257,10 @@ export default function PunchCountTool({ mode = 'punches', title, onSave, onClos
             <label style={{ ...btn, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '100%', boxSizing: 'border-box' }}>
               Choose / record video
               <input type="file" accept="video/*" style={{ display: 'none' }} onChange={e => pickFile(e.target.files?.[0])} />
+            </label>
+            <label style={{ ...btn, marginTop: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '100%', boxSizing: 'border-box' }}>
+              📁 Files / Dropbox
+              <input type="file" style={{ display: 'none' }} onChange={e => { const f = keepMedia(e.target.files)[0]; e.target.value = ''; if (f) pickFile(f) }} />
             </label>
           </div>
         ) : (

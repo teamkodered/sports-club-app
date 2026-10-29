@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { keepMedia } from '../lib/filePick.js'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import SituationCards from '../components/shared/SituationCards.jsx'
@@ -156,7 +157,14 @@ export default function CoachingTools() {
               ? <div className="field"><label>Link</label><input value={adding.url} onChange={e => setAdding(a => ({ ...a, url: e.target.value }))} placeholder="https://…" />
                   <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>Dropbox video files and YouTube links play inside the app. Folders and documents open in a new tab.</div></div>
               : <div className="field"><label>{adding.kind === 'video' ? 'Video file' : adding.kind === 'page' ? 'Word file (.docx) — shown as a readable, searchable page' : 'Document (PDF, Word, Excel, image…)'}</label>
-                  <input type="file" accept={adding.kind === 'video' ? 'video/*' : adding.kind === 'page' ? '.docx' : undefined} onChange={e => setAdding(a => ({ ...a, file: e.target.files?.[0] || null }))} /></div>}
+                  <input type="file" accept={adding.kind === 'video' ? 'video/*' : adding.kind === 'page' ? '.docx' : undefined} onChange={e => setAdding(a => ({ ...a, file: e.target.files?.[0] || null }))} />
+                {adding.kind === 'video' && (
+                  // the video picker above opens the gallery; this one opens the full file browser (Files, Dropbox…)
+                  <label className="btn btn-sm" style={{ marginTop: 6, cursor: 'pointer' }}>📁 Files / Dropbox
+                    <input type="file" style={{ display: 'none' }} onChange={e => { const f = keepMedia(e.target.files)[0]; e.target.value = ''; if (f) setAdding(a => ({ ...a, file: f })) }} />
+                  </label>
+                )}
+                {adding.kind === 'video' && adding.file && <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>{adding.file.name}</div>}</div>}
             <div style={{ display: 'flex', gap: 8 }}>
               <button className="btn btn-primary" disabled={busy} onClick={save}>{busy ? 'Uploading…' : 'Save'}</button>
               <button className="btn" disabled={busy} onClick={() => setAdding(null)}>Cancel</button>

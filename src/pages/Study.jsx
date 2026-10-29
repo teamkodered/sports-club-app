@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { keepMedia } from '../lib/filePick.js'
 import { supabase } from '../lib/supabase.js'
 import { FOOTAGE_ACCESS_MODES, footageAccessLabel } from '../lib/mediaConstants.js'
 import { saveFootageAthletes } from '../lib/fightFootageTags.js'
@@ -147,6 +148,9 @@ export default function Study({ studyFootage = [], students = [], studentName, l
               <label htmlFor="study-file" className="btn" style={{ display: 'block', textAlign: 'center', padding: 14, borderRadius: 10, border: '2px dashed var(--border)', cursor: 'pointer' }}>
                 {form.files.length === 1 ? `🎞️ ${form.files[0].name} — tap to change` : form.files.length > 1 ? `🎞️ ${form.files.length} videos chosen — tap to change` : '🎞️ Choose video(s)'}
               </label>
+              <input type="file" multiple id="study-files" style={{ display: 'none' }}
+                onChange={e => { const files = keepMedia(e.target.files); e.target.value = ''; if (files.length) setForm(f => ({ ...f, files, title: f.title || (files.length === 1 ? files[0].name.replace(/\.[^.]+$/, '').replace(/_/g, ' ') : '') })) }} />
+              <label htmlFor="study-files" className="btn" style={{ display: 'block', textAlign: 'center', padding: '12px 14px', fontSize: 15, borderRadius: 10, border: '1px solid var(--border)', cursor: 'pointer', marginTop: 8 }}>📁 Files / Dropbox</label>
             </div>
           )}
           <div className="field"><label>Notes (optional)</label>
