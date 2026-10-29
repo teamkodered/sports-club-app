@@ -1655,3 +1655,8 @@ input::placeholder, textarea::placeholder { color: var(--text-tertiary); }
 .kc-app-setting small { display: block; font-size: 11px; color: #9A9A9A; margin-top: 2px; }
 .kc-app-setting b { font-family: 'Orbitron', sans-serif; font-size: 11px; letter-spacing: 1px; padding: 4px 10px; border-radius: 10px; border: 1px solid #2A3138; color: #9A9A9A; }
 .kc-app-setting.on b { border-color: #F5C542; color: #F5C542; box-shadow: 0 0 8px rgba(245,197,66,0.35); }
+
+/* PDP overview: one big view button (press / swipe to change) */
+.pdp-view-cycle { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; width: 100%; margin-bottom: 10px; padding: 10px 14px; border-radius: 12px; cursor: pointer; text-align: left;
+  border: 1px solid var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); color: var(--text); box-shadow: 0 0 10px color-mix(in srgb, var(--c) 30%, transparent); font-family: inherit; }
+.pdp-view-label { font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800; font-size: 22px; text-transform: uppercase; color: var(--c); line-height: 1; }

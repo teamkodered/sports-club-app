@@ -176,21 +176,30 @@ export default function PdpOverview({ athletes, sections, groups, colours, onOpe
   return (
     <div>
       {/* views */}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-        <button style={pill(view === 'overview', '#06B6D4')} onClick={() => setView('overview')}>All sections (counts)</button>
-        <button style={pill(view === 'General', '#1D9E75')} onClick={() => setView('General')}>General</button>
-        {groups.map(g => <button key={g.label} style={pill(view === g.label, '#378ADD')} onClick={() => setView(g.label)}>{g.label}</button>)}
-      </div>
+      {(() => {
+        // one big button: press (or swipe) to step through All sections -> General -> each section group
+        const opts = [['overview', 'All sections', '#06B6D4'], ['General', 'General', '#1D9E75'], ...groups.map(g => [g.label, g.label, g.colour || '#378ADD'])]
+        const i = Math.max(0, opts.findIndex(o => o[0] === view)), cur = opts[i]
+        const step = d => setView(opts[(i + d + opts.length) % opts.length][0])
+        return (
+          <button type="button" className="pdp-view-cycle" style={{ '--c': cur[2] }} onClick={() => step(1)}
+            onTouchStart={e => { e.currentTarget.dataset.x = e.touches[0].clientX }}
+            onTouchEnd={e => { const dx = e.changedTouches[0].clientX - Number(e.currentTarget.dataset.x || 0); if (Math.abs(dx) > 40) { e.preventDefault(); step(dx < 0 ? 1 : -1) } }}>
+            <span className="pdp-view-label">{cur[1]}</span>
+            <span className="reg-title-dots">{opts.map(o => <i key={o[0]} className={o[0] === cur[0] ? 'on' : ''} />)}</span>
+          </button>
+        )
+      })()}
       {/* hide / search */}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search athlete…" style={{ flex: '1 1 160px', minWidth: 140 }} />
         <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{visible.length} athlete{visible.length === 1 ? '' : 's'}</span>
       </div>
       {/* clipboard */}
-      {cols && (
+      {cols && clip.length > 0 && (
         <div className="card" style={{ padding: 10, marginBottom: 10, borderLeft: '3px solid #EF9F27' }}>
           <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: clip.length ? 6 : 0 }}>
-            {clip.length ? <b>Copied ({clip.length}) -- press one to edit or move it:</b> : 'Tap notes to copy them, then Paste into another athlete\'s cell — or tick athletes and paste into all of them. + Add types a new note into a cell.'}
+            {clip.length ? <b>Copied ({clip.length}) -- press one to edit or move it:</b> : null}
           </div>
           {clip.length > 0 && (
             <>

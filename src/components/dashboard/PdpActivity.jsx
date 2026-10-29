@@ -7,6 +7,7 @@ const EMOJIS = ['👍', '🔥', '💪']
 export default function PdpActivity({ students = [], coachName }) {
   const [rows, setRows] = useState(null)
   const [sent, setSent] = useState({}) // logId -> emoji
+  const [open, setOpen] = useState(false) // starts collapsed
   const byId = Object.fromEntries(students.map(s => [s.id, s]))
   useEffect(() => {
     const ids = students.map(s => s.id)
@@ -34,10 +35,11 @@ export default function PdpActivity({ students = [], coachName }) {
   }
   return (
     <div className="card" style={{ padding: 12, marginBottom: 12 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-        <b style={{ fontSize: 14 }}>🎯 PDP activity · last 7 days</b>
-        <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>react -- they see it in their app</span>
-      </div>
+      <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open} style={{ all: 'unset', boxSizing: 'border-box', width: '100%', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <b style={{ fontSize: 14 }}>🎯 PDP activity · last 7 days{rows ? ` (${rows.length})` : ''}</b>
+        <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{open ? 'Hide ▲' : 'View ▼'}</span>
+      </button>
+      {open && <div style={{ marginTop: 8, animation: 'kcSlideDown 0.25s ease' }}>
       {rows == null ? <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Loading…</p> : !rows.length ? <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No PDP actions ticked this week yet.</p> : rows.map(r => {
         const st = byId[r.student_id], what = r.point_type.replace(/^PDP (action done|task completed):?\s*/, '')
         return (
@@ -52,6 +54,7 @@ export default function PdpActivity({ students = [], coachName }) {
           </div>
         )
       })}
+      </div>}
     </div>
   )
 }
