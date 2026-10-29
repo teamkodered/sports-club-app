@@ -5110,7 +5110,7 @@ export default function AthleteApp() {
             <div className="neon-header-row">
               <button type="button" className="neon-namebox"
                 onClick={e => { e.stopPropagation(); setHeaderCardView(0); setHousePointsExpanded(false); setMyProfileExpanded(v => !v) }}>
-                <span className="neon-name">{m?.first_name} {m?.last_name}</span>
+                <span className="neon-name" style={{ '--nl': `${m?.first_name || ''} ${m?.last_name || ''}`.length }}>{m?.first_name} {m?.last_name}</span>
                 <span className="neon-meta">
                   {student.discipline}{age ? ` · Age ${age}` : ''}{student.pka_belt || student.krba_level ? ` · ${student.pka_belt || student.krba_level}` : ''}
                   <span className="neon-caret">{myProfileExpanded ? '▲' : '▼'}</span>

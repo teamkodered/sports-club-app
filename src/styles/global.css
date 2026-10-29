@@ -1660,3 +1660,8 @@ input::placeholder, textarea::placeholder { color: var(--text-tertiary); }
 .pdp-view-cycle { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; width: 100%; margin-bottom: 10px; padding: 10px 14px; border-radius: 12px; cursor: pointer; text-align: left;
   border: 1px solid var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); color: var(--text); box-shadow: 0 0 10px color-mix(in srgb, var(--c) 30%, transparent); font-family: inherit; }
 .pdp-view-label { font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800; font-size: 22px; text-transform: uppercase; color: var(--c); line-height: 1; }
+
+/* athlete name: shrinks to fit long names instead of pushing the card out of shape */
+.neon-banner { container-type: inline-size; }
+.neon-banner .neon-name[style*="--nl"] { font-size: clamp(14px, calc(118cqi / (var(--nl) * 0.62)), 26px) !important; white-space: nowrap; }
+@media (max-width: 640px) { .neon-banner .neon-name[style*="--nl"] { font-size: clamp(13px, calc(118cqi / (var(--nl) * 0.62)), 22px) !important; } }

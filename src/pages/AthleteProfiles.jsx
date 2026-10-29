@@ -3093,7 +3093,7 @@ export default function AthleteProfiles() {
   // Coach dashboard team filter (All / KR / KRBA) -- remembered on this device for next time
   const [dashClubFilter, setDashClubFilterRaw] = useState(() => { try { return localStorage.getItem('coach_dash_team') || 'all' } catch { return 'all' } }) // 'all' | 'PKA' | 'KRBA'
   const setDashClubFilter = v => { setDashClubFilterRaw(v); try { localStorage.setItem('coach_dash_team', v) } catch { /* ignore */ } }
-  const dashLevelOf = s => s.discipline === 'KRBA' ? (s.krba_level || '—') : s.is_kr ? (s.competition_team || '—') : (s.pka_belt || '—')
+  const dashLevelOf = s => s.discipline === 'KRBA' ? (s.krba_level || '—') : (s.competition_team || '—')   // level: KRBA level, otherwise experience (never the grade)
   const [dashCompFilter, setDashCompFilter] = useState('all') // TEAM banner: all | in (comp) | out (of comp)
   const [dashLevel, setDashLevel] = useState('all') // TEAM banner level: 'all' or one level -- filters the whole dashboard
   const inDashTeam = s => (s.is_kr || s.is_pts || s.discipline === 'KRBA') && (dashClubFilter === 'all' || s.discipline === dashClubFilter) && (dashLevel === 'all' || dashLevelOf(s) === dashLevel) && (dashCompFilter === 'all' || (dashCompFilter === 'in' ? !!s.in_comp : !s.in_comp))
@@ -6819,12 +6819,12 @@ export default function AthleteProfiles() {
                 const totalGames = totalWins + totalLosses + totalDraws
                 const winPct = totalGames > 0 ? Math.round((totalWins / totalGames) * 100) : 0
 
-                const levelOf = s => s.discipline === 'KRBA' ? (s.krba_level || '—') : s.is_kr ? (s.competition_team || '—') : (s.pka_belt || '—')
+                const levelOf = dashLevelOf
                 const levelCounts = {}
                 clubFiltered.forEach(s => { const l = levelOf(s); levelCounts[l] = (levelCounts[l] || 0) + 1 })
                 const levelBreakdown = Object.entries(levelCounts).sort((a, b) => b[1] - a[1])
 
-                const weightSorted = [...clubFiltered].filter(s => s.weight_kg).sort((a, b) => (a.weight_kg || 0) - (b.weight_kg || 0))
+                const weightSorted = [...clubFiltered].filter(inDashTeam).filter(s => s.weight_kg).sort((a, b) => (a.weight_kg || 0) - (b.weight_kg || 0))   // follows Show / comp / level
 
                 return (
                   <>
@@ -9258,7 +9258,7 @@ export default function AthleteProfiles() {
                   <div className="neon-namebox">
                           <div ref={nameDropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
                             <button className="neon-name" onClick={e => { e.stopPropagation(); setShowNameDropdown(v => !v) }} title="Click to switch athlete"
-                              style={{ fontSize: 21, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-sans)', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                              style={{ '--nl': `${m?.first_name || ''} ${m?.last_name || ''}`.length + 2, fontSize: 21, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-sans)', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
                               {m?.first_name} {m?.last_name} <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{showNameDropdown ? '▲' : '▼'}</span>
                             </button>
                             {showNameDropdown && (
