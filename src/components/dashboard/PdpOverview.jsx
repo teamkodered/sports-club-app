@@ -113,6 +113,7 @@ export default function PdpOverview({ athletes, sections, groups, colours, onOpe
 
   // athlete quick view (press a name): their PDP at a glance + open profile
   const [quick, setQuick] = useState(null)
+  const [openCell, setOpenCell] = useState(null) // All sections: { id, key } -- that athlete's notes for the section, opened in place
   const PdpQuick = ({ s, pdp }) => {
     const today = new Date().toISOString().split('T')[0]
     const counts = sections.map(sec => ({ ...sec, n: (pdp[sec.key] || []).map(itemText).filter(Boolean).length })).filter(x => x.n > 0)
@@ -267,7 +268,7 @@ export default function PdpOverview({ athletes, sections, groups, colours, onOpe
           {visible.map(s => {
             const pdp = rows[s.id] || {}
             const block = (k, n, bg, title) => (
-              <button key={k} onClick={() => jumpTo(s.id, k)} title={title}
+              <button key={k} onClick={() => setOpenCell(o => o && o.id === s.id && o.key === k ? null : { id: s.id, key: k })} title={title}
                 style={{ all: 'unset', cursor: 'pointer', minWidth: 30, textAlign: 'center', padding: '5px 6px', borderRadius: 6, fontSize: 14, fontWeight: 800, fontFamily: 'Orbitron, sans-serif',
                   color: n ? '#fff' : '#E24B4A', background: n ? bg : 'transparent', border: n ? 'none' : '1px dashed #E24B4A88' }}>{n || '·'}</button>
             )
@@ -290,6 +291,21 @@ export default function PdpOverview({ athletes, sections, groups, colours, onOpe
                     </div>
                   ))}
                 </div>
+                {openCell?.id === s.id && (() => {
+                  const sec = [...general, ...sections].find(x => x.key === openCell.key) || { key: openCell.key, label: openCell.key }
+                  const g = groups.find(x => x.keys.includes(openCell.key)), i = g ? g.keys.indexOf(openCell.key) : -1
+                  const label = g ? `${g.label} · ${SUB[i]?.[1] || ''}` : sec.label
+                  const items = (pdp[openCell.key] || []).map(itemText).filter(Boolean)
+                  return (
+                    <div style={{ marginTop: 10, padding: '8px 10px', borderRadius: 8, background: 'var(--bg-secondary)', borderLeft: `3px solid ${g ? (colours[SUB[i]?.[0]] || '#666') : '#1D9E75'}`, animation: 'kcSlideDown 0.2s ease' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+                        <b style={{ fontSize: 13 }}>{label}</b>
+                        <button type="button" onClick={() => setOpenCell(null)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer' }}>✕</button>
+                      </div>
+                      <div style={{ fontSize: 13 }}>{cellBody(s, { key: openCell.key, label }, items)}</div>
+                    </div>
+                  )
+                })()}
               </div>
             )
           })}
