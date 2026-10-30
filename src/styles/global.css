@@ -1727,8 +1727,5 @@ input::placeholder, textarea::placeholder { color: var(--text-tertiary); }
 .intro-sheet .btn { font-size: 18px; padding: 15px 16px; min-height: 56px; border-radius: 12px; }
 .intro-sheet .btn-sm { font-size: 16px; padding: 10px 14px; min-height: 44px; }
 
-/* Pop-up sheets (templates etc.): the sheet scrolls, the page behind stays still */
-html:has(.ets-backdrop), body:has(.ets-backdrop) { overflow: hidden !important; overscroll-behavior: none; }
-.ets-backdrop { overscroll-behavior: contain; touch-action: none; }
-.ets-sheet { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; max-height: 86dvh !important; }
-@supports not (height: 1dvh) { .ets-sheet { max-height: 86vh !important; } }
+/* Pop-up sheets (templates etc.): scrolling inside the sheet doesn't carry on into the page behind */
+.ets-sheet { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
