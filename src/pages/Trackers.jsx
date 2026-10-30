@@ -370,10 +370,15 @@ export default function Trackers({ onStatsReady } = {}) {
   // timezone differs from UTC. Comparing the string directly sidesteps
   // that mismatch altogether.
   const currentMonthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-  const newMembersThisMonth = allMembers.filter(m => m.joined_date?.startsWith(currentMonthPrefix)).length
+  // Only real students count (a student record -- not coaches / parent logins), and only once
+  // approved; applications still pending are counted separately (shown under the number).
+  const joinedThisMonth = allMembers.filter(m => m.joined_date?.startsWith(currentMonthPrefix) && studentGroupsByMemberId[m.id])
+  const isNewApproved = m => !['pending', 'not_started'].includes(m.status)
+  const newMembersThisMonth = joinedThisMonth.filter(isNewApproved).length
+  const newPendingThisMonth = joinedThisMonth.filter(m => m.status === 'pending').length
   const newMembersThisMonthBreakdown = emptyBreakdown()
-  for (const m of allMembers) {
-    if (!m.joined_date?.startsWith(currentMonthPrefix)) continue
+  for (const m of joinedThisMonth) {
+    if (!isNewApproved(m)) continue
     const groups = studentGroupsByMemberId[m.id]
     if (!groups) continue
     for (const k of BREAKDOWN_KEYS) if (groups[k]) newMembersThisMonthBreakdown[k]++
@@ -406,11 +411,11 @@ export default function Trackers({ onStatsReady } = {}) {
   useEffect(() => {
     if (loading) return
     onStatsReady?.({
-      totalStudents, newMembersThisMonth, trainedThisMonth, avgSessions, avgMonthsTrained,
+      totalStudents, newMembersThisMonth, newPendingThisMonth, trainedThisMonth, avgSessions, avgMonthsTrained,
       completedDurationsCount: completedDurations.length, missingStopDates,
       totalStudentsBreakdown, newMembersThisMonthBreakdown, trainedThisMonthBreakdown, avgSessionsBreakdown, avgMonthsTrainedBreakdown,
     })
-  }, [loading, totalStudents, newMembersThisMonth, trainedThisMonth, avgSessions, avgMonthsTrained, completedDurations.length, missingStopDates])
+  }, [loading, totalStudents, newMembersThisMonth, newPendingThisMonth, trainedThisMonth, avgSessions, avgMonthsTrained, completedDurations.length, missingStopDates])
 
   if (loading) return <div className="loading">Loading trackers…</div>
 
