@@ -1683,7 +1683,7 @@ input::placeholder, textarea::placeholder { color: var(--text-tertiary); }
 /* pressing a section: it zooms out from its corner and fills the square (others step aside); grows taller to fit */
 .neon-home .neon-pillar-quad.has-open > div:not([style*="grid-column: 1 / -1"]) { display: none; }
 @keyframes kcZoomCorner { from { transform: scale(0.94); opacity: 0; } to { transform: none; opacity: 1; } }
-.neon-home .neon-pillar-quad.has-open > div[style*="grid-column: 1 / -1"] { animation: kcZoomCorner 0.28s cubic-bezier(.2,.8,.2,1); }
+.neon-home .neon-pillar-quad.has-open > div[style*="grid-column: 1 / -1"]:not(.kc-sec-bar) { animation: kcZoomCorner 0.28s cubic-bezier(.2,.8,.2,1); }
 .neon-home .neon-pillar-quad.has-open.z-tl > div[style*="grid-column: 1 / -1"] { transform-origin: top left; }
 .neon-home .neon-pillar-quad.has-open.z-tr > div[style*="grid-column: 1 / -1"] { transform-origin: top right; }
 .neon-home .neon-pillar-quad.has-open.z-bl > div[style*="grid-column: 1 / -1"] { transform-origin: bottom left; }
@@ -1698,3 +1698,12 @@ input::placeholder, textarea::placeholder { color: var(--text-tertiary); }
 .neon-home .neon-pillar-quad.has-open .neon-q:nth-child(3) { animation-delay: 0.06s; }
 .neon-home .neon-pillar-quad.has-open .neon-q:nth-child(4) { animation-delay: 0.09s; }
 .neon-home .neon-pillar-quad.has-open .neon-q:nth-child(n+5) { animation-delay: 0.12s; }
+
+/* open section: card (title) on top for every corner -- no more title at the bottom for Technical / Physical */
+.neon-home .neon-pillar-quad.has-open .neon-opens-up { flex-direction: column !important; }
+/* sticky section bar: ← Sections · ‹ NAME › (swipe to change section) */
+.kc-sec-bar { grid-column: 1 / -1; order: -100; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 6px); z-index: 30; display: flex; align-items: center; gap: 8px;
+  margin: 0 0 8px; padding: 6px 8px 6px 64px; border-radius: 12px; background: rgba(14,16,18,0.94); border: 1px solid var(--c); box-shadow: 0 0 10px color-mix(in srgb, var(--c) 35%, transparent); backdrop-filter: blur(4px); }
+.kc-sec-bar button { background: none; border: 1px solid #2A3138; color: #F2F2F2; border-radius: 8px; height: 32px; padding: 0 10px; cursor: pointer; font-family: inherit; font-size: 13px; }
+.kc-sec-bar .kc-sec-step { width: 32px; padding: 0; font-size: 18px; }
+.kc-sec-bar b { flex: 1; text-align: center; font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800; font-size: 20px; text-transform: uppercase; color: var(--c); }

@@ -1850,13 +1850,28 @@ export default function AthleteApp() {
   const quadRef = useRef(null)
   const openSec = showPhysicalSection ? 'physical' : showTechniqueSection ? 'technique' : showTacticalSection ? 'tactical' : showMentalitySection ? 'mentality' : null
   const lastOpenSec = useRef(null)
+  const SEC_ORDER = ['mentality', 'tactical', 'technique', 'physical']
+  const SEC_META = { mentality: ['Mentality', '#22B14C'], tactical: ['Tactical', '#FF2A2A'], technique: ['Technical', '#2F6BFF'], physical: ['Physical', '#E6B800'] }
+  const openSection = k => { setShowMentalitySection(k === 'mentality'); setShowTacticalSection(k === 'tactical'); setShowTechniqueSection(k === 'technique'); setShowPhysicalSection(k === 'physical') }
+  const closeSections = () => { if (window.history.state?.kcSec) window.history.back(); else openSection(null) }
+  const stepSection = d => { const i = SEC_ORDER.indexOf(openSec); if (i < 0) return; openSection(SEC_ORDER[(i + d + SEC_ORDER.length) % SEC_ORDER.length]) }
   useEffect(() => {
     const ref = { physical: physicalSectionRef, technique: techniqueSectionRef, tactical: tacticalSectionRef, mentality: mentalitySectionRef }[openSec]
     const y = el => el ? el.getBoundingClientRect().top + window.scrollY - 70 : null
     if (openSec && ref?.current) requestAnimationFrame(() => { const t = y(ref.current); if (t != null) window.scrollTo({ top: Math.max(0, t), behavior: 'auto' }) })
     else if (!openSec && lastOpenSec.current && quadRef.current) requestAnimationFrame(() => { const t = y(quadRef.current); if (t != null) window.scrollTo({ top: Math.max(0, t), behavior: 'auto' }) })
+    // the phone's back closes the open section first
+    if (openSec && !lastOpenSec.current) { try { window.history.pushState({ ...(window.history.state || {}), kcSec: 1 }, '') } catch { /* */ } }
+    // remember the section for a few minutes (reopening the app comes back to it)
+    try { if (openSec) localStorage.setItem('kc_last_section', JSON.stringify({ k: openSec, at: Date.now() })); else localStorage.removeItem('kc_last_section') } catch { /* */ }
     lastOpenSec.current = openSec
   }, [openSec]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const onPop = () => { if (lastOpenSec.current) openSection(null) }
+    window.addEventListener('popstate', onPop)
+    try { const l = JSON.parse(localStorage.getItem('kc_last_section') || 'null'); if (l && Date.now() - l.at < 10 * 60000 && SEC_ORDER.includes(l.k)) setTimeout(() => openSection(l.k), 400) } catch { /* */ }
+    return () => window.removeEventListener('popstate', onPop)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const mentalitySectionRef = useRef(null)
   const [showWellbeingSection, setShowWellbeingSection] = useState(false)
   const wellbeingSectionRef = useRef(null)
@@ -5800,6 +5815,16 @@ export default function AthleteApp() {
                         displayed sequence and pairing changes: Mentality+Tactical
                         side by side, then Technique+Physical side by side. */}
                     <div ref={quadRef} className={`neon-pillar-quad${(showPhysicalSection || showTechniqueSection || showTacticalSection || showMentalitySection) ? ' has-open' : ''}${showMentalitySection ? ' z-tl' : showTacticalSection ? ' z-tr' : showTechniqueSection ? ' z-bl' : showPhysicalSection ? ' z-br' : ''}`} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, alignItems: 'start', width: '100%' }}>
+                    {openSec && (
+                      <div className="kc-sec-bar" style={{ '--c': SEC_META[openSec][1], gridColumn: '1 / -1' }}
+                        onTouchStart={e => { e.currentTarget.dataset.x = e.touches[0].clientX }}
+                        onTouchEnd={e => { const dx = e.changedTouches[0].clientX - Number(e.currentTarget.dataset.x || 0); if (Math.abs(dx) > 50) stepSection(dx < 0 ? 1 : -1) }}>
+                        <button type="button" onClick={closeSections}>← Sections</button>
+                        <button type="button" className="kc-sec-step" onClick={() => stepSection(-1)} aria-label="Previous section">‹</button>
+                        <b>{SEC_META[openSec][0]}</b>
+                        <button type="button" className="kc-sec-step" onClick={() => stepSection(1)} aria-label="Next section">›</button>
+                      </div>
+                    )}
                     <div ref={physicalSectionRef} className={showPhysicalSection ? 'neon-opens-up' : undefined} style={{ order: showPhysicalSection ? 11 : 4, display: 'flex', flexDirection: 'column-reverse', alignItems: 'center', minWidth: 0, gridColumn: showPhysicalSection ? '1 / -1' : (showTechniqueSection ? '2' : 'auto') }}>
                     <button type="button" className={`neon-pillar neon-br${showPhysicalSection ? ' is-open' : ''}`} onClick={e => { if (pillarGuard('physical')) return; togglePhysicalSection(e) }} style={showPhysicalSection ? {
                       width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
