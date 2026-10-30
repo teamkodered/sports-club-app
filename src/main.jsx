@@ -255,6 +255,15 @@ try {
     fix(); window.addEventListener('load', fix); setTimeout(fix, 1500)
   } catch { /* ignore */ }
 })()
+// The visible screen size in the page's own units (the 'safety net' above zooms the page, which
+// makes 100vh / innerHeight come out bigger than the screen) -- pop-ups size themselves with these.
+;(() => {
+  const set = () => {
+    const z = parseFloat(document.documentElement.style.zoom) || 1
+    document.documentElement.style.setProperty('--kc-vh', `${window.innerHeight / z / 100}px`)
+  }
+  set(); window.addEventListener('resize', set); window.visualViewport?.addEventListener('resize', set)
+})()
 // keep the browser's "install this app" prompt so the 📲 Install button can use it
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); window.__kcInstallPrompt = e; window.dispatchEvent(new Event('kc-install-ready')) })
 ReactDOM.createRoot(document.getElementById('root')).render(<App />)

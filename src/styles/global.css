@@ -1731,3 +1731,6 @@ input::placeholder, textarea::placeholder { color: var(--text-tertiary); }
 .ets-sheet { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 /* Templates pop-up: title + Close stay pinned at the top while the list scrolls */
 .ets-sheet .ets-head { position: sticky; top: -14px; z-index: 2; background: var(--bg); padding: 10px 0 8px; margin-top: -10px; }
+/* Zoomed 'safety net' phones: pop-ups fit the real screen (100vh is too tall there) */
+html.forced-phone .ets-backdrop { bottom: auto; height: calc(var(--kc-vh, 1vh) * 100); }
+html.forced-phone .ets-sheet { max-height: calc(var(--kc-vh, 1vh) * 86) !important; }

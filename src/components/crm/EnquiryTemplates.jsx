@@ -280,7 +280,7 @@ export default function EnquirySendTemplates({ title = null, kind = 'enquiry', c
 
   return (
     <div className="ets-backdrop" onClick={onClose}>
-      <div className="ets-sheet" ref={el => { if (el) el.style.setProperty('max-height', `${Math.round(screenH * 0.86)}px`, 'important') }} onClick={e => e.stopPropagation()} role="dialog" aria-label="Send a template">
+      <div className="ets-sheet" ref={el => { if (el) { const z = parseFloat(document.documentElement.style.zoom) || 1; el.style.setProperty('max-height', `${Math.round(screenH * 0.86 / z)}px`, 'important') } }} onClick={e => e.stopPropagation()} role="dialog" aria-label="Send a template">
         <div className="ets-head">
           <b>{picking ? `📨 ${tpl?.label || 'Template'} — who to send to` : managing ? (kind === 'enquiry' ? '📝 Enquiry templates' : `📝 ${(TEMPLATE_KINDS.find(k => k[0] === kind) || [])[1]} templates`) : title || `📨 Send template · ${picked.length} selected`}</b>
           <button className="btn btn-sm" onClick={onClose}>Close</button>
