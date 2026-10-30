@@ -3778,6 +3778,7 @@ export default function AthleteApp() {
     const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_notes: updated }, { onConflict: 'student_id' })
     if (error) { alert('Could not save your focus: ' + error.message); return }
     setApData(prev => ({ ...(prev || {}), pdp_notes: updated }))
+    awardHousePoints('f2f_question', `Monthly focus set: ${label}`)
   }
   function FocusPicker({ sec, options, colour }) {
     const opts = options.filter(o => !isAlwaysOn(sec, o))
@@ -3789,11 +3790,7 @@ export default function AthleteApp() {
     )
     return (
       <div className="kc-focus" style={{ '--c': colour }}>
-        <span>🎯 Pick your <b>{monthName} focus</b> -- it locks in for the month</span>
-        <select defaultValue="" onChange={e => { const v = e.target.value; if (v && confirm(`Make "${v}" your ${monthName} focus? It's locked in until the end of the month.`)) setMyFocus(sec, v); else e.target.value = '' }}>
-          <option value="">Choose…</option>
-          {opts.map(o => <option key={o} value={o}>{o}</option>)}
-        </select>
+        <span>🎯 Pick your <b>{monthName} focus</b> -- open a question and press <b>Set as my focus</b> (+1 point). It locks in for the month.</span>
       </div>
     )
   }
@@ -4205,7 +4202,7 @@ export default function AthleteApp() {
   // Compact vertical version (3 bars stacked, not side by side) for
   // individual question tiles -- section headers use the horizontal
   // SectionProgressBars instead.
-  function QuestionProgressBarsVertical({ sectionKey, questionLabel }) {
+  function QuestionProgressBarsVertical({ sectionKey, questionLabel, focusSec }) {
     const byPeriod = getQuestionProgressByPeriod(sectionKey, questionLabel)
     const periods = [['day', 'D'], ['week', 'W'], ['month', 'M']]
     const NEON_Q = { mentality: '#22B14C', tactical: '#FF2A2A', technique: '#2F6BFF', physical: '#E6B800', test: '#E6B800', wellbeing: '#C93BFF' }
@@ -4226,6 +4223,18 @@ export default function AthleteApp() {
             </div>
           )
         })}
+        {/* 🎯 Set as this month's focus -- under the charge lines, shown when the question is open (no focus yet) */}
+        {(() => {
+          const sec = focusSec || sectionKey
+          if (!['mentality', 'tactical', 'technique', 'physical', 'wellbeing'].includes(sec) || myFocus[sec] || isAlwaysOn(sec, questionLabel)) return null
+          const monthName = new Date().toLocaleDateString('en-GB', { month: 'long' })
+          return (
+            <span role="button" tabIndex={0} className="kc-setfocus" style={{ '--c': accent }}
+              onClick={e => { e.stopPropagation(); if (confirm(`Make "${questionLabel}" your ${monthName} focus? It's locked in until the end of the month.`)) setMyFocus(sec, questionLabel) }}>
+              🎯 Set as my {monthName} focus
+            </span>
+          )
+        })()}
       </div>
     )
   }
@@ -6339,7 +6348,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                               border: `2px solid ${active ? '#E24B4A' : complete ? '#1D9E75' : 'var(--border)'}`,
                               background: complete ? '#1D9E7512' : 'var(--bg-secondary)',
                             }}>
-                              <QuestionProgressBarsVertical sectionKey="mentality" questionLabel="Video Analysis" />{pdpInfo('tactical', '__videoAnalysis__').links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}
+                              <QuestionProgressBarsVertical sectionKey="mentality" questionLabel="Video analysis" focusSec="tactical" />{pdpInfo('tactical', '__videoAnalysis__').links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}
                               <span style={{ flex: 1, fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>Video Analysis</span>
                               <span style={{ fontSize: active ? 20 : 16, flexShrink: 0 }}>🎥</span>
                             </button>
