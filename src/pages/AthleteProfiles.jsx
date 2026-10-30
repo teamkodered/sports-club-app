@@ -5,6 +5,7 @@ import { TestSessionModal, TestBatchModal } from '../components/shared/TestSessi
 import OtherSessions from '../components/shared/OtherSessions.jsx'
 import SessionFootage from '../components/shared/SessionFootage.jsx'
 import { supabase } from '../lib/supabase.js'
+import ProfileRoundup from '../components/shared/ProfileRoundup.jsx'
 import PdpActivity from '../components/dashboard/PdpActivity.jsx'
 import { divMatch, KB_DIVISIONS as KB_OFFICIAL, BOX_DIVISIONS as BOX_OFFICIAL, kbLabel, boxLabel, weightsFor, suggestDivision, isOfficial, divisionsForAge } from '../lib/divisions.js'
 import AthleteMedia from '../components/media/AthleteMedia.jsx'
@@ -9716,6 +9717,8 @@ export default function AthleteProfiles() {
                       </div>
                     )}
                     </div>
+                    {/* round-up: opens and closes with the profile */}
+                    {profileInfoExpanded && selected && <ProfileRoundup student={selected} sessions={f2fData} pdpNotes={apData?.pdp_notes || {}} attendance={attendanceData} maxHr={(() => { const d = selected?.members?.date_of_birth; if (!d) return 190; const b = new Date(d), n = new Date(); return Math.max(150, 220 - (n.getFullYear() - b.getFullYear() - ((n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) ? 1 : 0))) })()} onOpen={t => setTab(t === 'sessions' ? 'sessions' : t)} />}
                   </div>
 
                   {showWeightOverridePopup && (

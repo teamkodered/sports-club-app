@@ -7,6 +7,7 @@ import { TestSessionModal, TestBatchModal } from '../components/shared/TestSessi
 import OtherSessions from '../components/shared/OtherSessions.jsx'
 import { matchClass, workoutDate, workoutRange, fmtTime } from '../lib/sessionMatch.js'
 import { supabase } from '../lib/supabase.js'
+import ProfileRoundup from '../components/shared/ProfileRoundup.jsx'
 import { FOCUS_ALWAYS_ON_DEFAULT } from '../lib/focus.js'
 import { divMatch } from '../lib/divisions.js'
 import InstallAppButton from '../components/shared/InstallAppButton.jsx'
@@ -5330,7 +5331,7 @@ export default function AthleteApp() {
           else if (override?.type === 'percent' && override.value && baseWeight) targetWeight = (baseWeight * (1 + parseFloat(override.value))).toFixed(1)
           return (
             <div onClick={e => e.stopPropagation()} style={{
-              maxHeight: myProfileExpanded ? 600 : 0,
+              maxHeight: myProfileExpanded ? 2400 : 0,
               opacity: myProfileExpanded ? 1 : 0,
               overflow: 'hidden',
               transition: 'max-height 0.3s ease, opacity 0.25s ease',
@@ -5374,6 +5375,8 @@ export default function AthleteApp() {
                 )
               })}
               </div>
+              {/* round-up: opens and closes with the profile */}
+              {myProfileExpanded && student && <ProfileRoundup student={student} sessions={sessions} pdpNotes={apData?.pdp_notes || {}} attendance={attendanceData} maxHr={liveMaxHr} onOpen={t => setTab(t === 'leagues' ? 'leagues' : t === 'sessions' ? 'home' : t)} />}
             </div>
           )
         })()}
