@@ -1712,3 +1712,8 @@ input::placeholder, textarea::placeholder { color: var(--text-tertiary); }
 .kc-setfocus { display: none; margin-top: 8px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); color: #F2F2F2;
   font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800; font-size: 14px; text-transform: uppercase; text-align: center; cursor: pointer; box-shadow: 0 0 8px color-mix(in srgb, var(--c) 35%, transparent); }
 .neon-home .neon-q.is-active .kc-setfocus { display: block; }
+/* Phone numbers in the CRM: big, bold, high-contrast; press and hold copies */
+.phone-text { display: inline-flex; align-items: center; gap: 6px; font-size: 18px; font-weight: 800; letter-spacing: 0.3px;
+  color: #0B4F9C; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; cursor: pointer; }
+@media (prefers-color-scheme: dark) { .phone-text { color: #FFD84D; } }
+.phone-text-copied { font-size: 12px; font-weight: 700; color: #fff; background: #1D9E75; border-radius: 999px; padding: 2px 8px; }

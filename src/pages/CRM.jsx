@@ -1,4 +1,5 @@
 import { useState, useEffect, Fragment, useRef } from 'react'
+import PhoneText from '../components/shared/PhoneText.jsx'
 import { useNavigate } from 'react-router-dom'
 import StockPanel from '../components/crm/StockPanel.jsx'
 import LevelUpPanel from '../components/crm/LevelUpPanel.jsx'
@@ -3747,7 +3748,7 @@ export default function CRM() {
                       <div>
                         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
                           <div style={{ fontSize: 15, fontWeight: 600 }}>{enq.name}</div>
-                          {enq.contact_phone && <div style={{ fontSize: 14, fontWeight: 600, color: '#378ADD' }}>📞 {enq.contact_phone}</div>}
+                          {enq.contact_phone && <div><PhoneText phone={enq.contact_phone} /></div>}
                           {(() => {
                             const it = interestOf(enq), intro = introOf(enq, enqClasses)
                             return (
@@ -3952,7 +3953,7 @@ export default function CRM() {
                   <h3 style={{ fontSize: 17, fontWeight: 600 }}>{viewingEnquiry.name}</h3>
                   <button onClick={() => setViewingEnquiry(null)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-secondary)' }}>✕</button>
                 </div>
-                {viewingEnquiry.contact_phone && <p style={{ fontSize: 15, fontWeight: 600, color: '#378ADD', marginBottom: 6 }}>📞 {viewingEnquiry.contact_phone}</p>}
+                {viewingEnquiry.contact_phone && <p style={{ marginBottom: 6 }}><PhoneText phone={viewingEnquiry.contact_phone} /></p>}
                 {viewingEnquiry.contact_email && <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 6 }}>✉️ {viewingEnquiry.contact_email}</p>}
                 <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 14 }}>
                   {new Date(viewingEnquiry.enquiry_date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
