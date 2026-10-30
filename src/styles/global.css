@@ -1729,3 +1729,5 @@ input::placeholder, textarea::placeholder { color: var(--text-tertiary); }
 
 /* Pop-up sheets (templates etc.): scrolling inside the sheet doesn't carry on into the page behind */
 .ets-sheet { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+/* Templates pop-up: title + Close stay pinned at the top while the list scrolls */
+.ets-sheet .ets-head { position: sticky; top: -14px; z-index: 2; background: var(--bg); padding: 10px 0 8px; margin-top: -10px; }

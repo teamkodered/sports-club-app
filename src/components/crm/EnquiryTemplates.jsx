@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase.js'
 import { INTEREST_GROUPS, interestOf, introOf } from '../../lib/enquiryInterest.js'
 
@@ -203,6 +203,23 @@ export function personaliseEnquiry(text, enq, classes = []) {
 // then choose who to send it to (allEnquiries). Both end at the same previews + send step.
 const STAGES = [['not_started', 'Enquiries'], ['contacted', 'Contacted'], ['trial_booked', 'Trial booked'], ['attended', 'Attended'], ['waiting_list', 'Waiting list'], ['joined', 'Joined'], ['not_interested', 'Not interested']]
 export default function EnquirySendTemplates({ title = null, kind = 'enquiry', classes = [], enquiries = [], allEnquiries = [], templates, onSaveTemplates, sendEmail, onSent, onClose, manageOnly = false, noEmail = false }) {
+  // Fit the sheet to the real screen height (some phones report the wrong height for 'vh'),
+  // and let the phone's Back button close it instead of leaving the page stuck behind it.
+  const [screenH, setScreenH] = useState(() => window.innerHeight)
+  const closeRef = useRef(onClose); closeRef.current = onClose
+  useEffect(() => {
+    const onResize = () => setScreenH(window.innerHeight)
+    window.addEventListener('resize', onResize)
+    let popped = false
+    try { window.history.pushState({ etsSheet: true }, '') } catch { /* ignore */ }
+    const onPop = () => { popped = true; closeRef.current?.() }
+    window.addEventListener('popstate', onPop)
+    return () => {
+      window.removeEventListener('resize', onResize)
+      window.removeEventListener('popstate', onPop)
+      if (!popped && window.history.state?.etsSheet) { try { window.history.back() } catch { /* ignore */ } }
+    }
+  }, [])
   const [picked, setPicked] = useState(enquiries)        // who it's going to
   const [picking, setPicking] = useState(false)          // template-first: choosing recipients
   const [pickSel, setPickSel] = useState(new Set())
@@ -263,7 +280,7 @@ export default function EnquirySendTemplates({ title = null, kind = 'enquiry', c
 
   return (
     <div className="ets-backdrop" onClick={onClose}>
-      <div className="ets-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-label="Send a template">
+      <div className="ets-sheet" ref={el => { if (el) el.style.setProperty('max-height', `${Math.round(screenH * 0.86)}px`, 'important') }} onClick={e => e.stopPropagation()} role="dialog" aria-label="Send a template">
         <div className="ets-head">
           <b>{picking ? `📨 ${tpl?.label || 'Template'} — who to send to` : managing ? (kind === 'enquiry' ? '📝 Enquiry templates' : `📝 ${(TEMPLATE_KINDS.find(k => k[0] === kind) || [])[1]} templates`) : title || `📨 Send template · ${picked.length} selected`}</b>
           <button className="btn btn-sm" onClick={onClose}>Close</button>
