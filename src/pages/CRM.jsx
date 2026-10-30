@@ -1,4 +1,5 @@
 import { useState, useEffect, Fragment, useRef } from 'react'
+import { saveSetting, saveErrorText } from '../lib/saveSetting.js'
 import PhoneText from '../components/shared/PhoneText.jsx'
 import { useNavigate } from 'react-router-dom'
 import StockPanel from '../components/crm/StockPanel.jsx'
@@ -544,8 +545,8 @@ export default function CRM() {
     // the enquiry windows edit only the Enquiry group -- keep New starter / Stopped templates
     const next = [...enquiryTemplates.filter(t => kindOf(t) !== 'enquiry'), ...nextEnquiryOnes]
     setEnquiryTemplates(next)
-    const { error } = await supabase.from('settings').upsert({ key: 'crm_enquiry_message_templates', value: next }, { onConflict: 'key' })
-    if (error) alert('Could not save templates: ' + error.message)
+    const error = await saveSetting('crm_enquiry_message_templates', next)
+    if (error) alert('Could not save templates: ' + saveErrorText(error))
   }
   // A template sent: counts as a contact, and a new enquiry moves to Contacted
   async function enquiryTemplateSent(enq) {

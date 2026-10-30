@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { saveSetting, saveErrorText } from '../../lib/saveSetting.js'
 import { supabase } from '../../lib/supabase.js'
 import EnquirySendTemplates, { kindOf, withKindDefaults, DEFAULT_ENQUIRY_TEMPLATES } from './EnquiryTemplates.jsx'
 
@@ -47,8 +48,8 @@ export default function MessagePrompt({ kind, recipients = [], onClose, onSent }
   async function save(nextForKind) {   // merge this group's templates back into the full list
     const merged = [...list.filter(t => kindOf(t) !== kind), ...nextForKind.map(t => ({ ...t, kind }))]
     setAll(merged)
-    const { error } = await supabase.from('settings').upsert({ key: KEY, value: merged }, { onConflict: 'key' })
-    if (error) alert('Could not save templates: ' + error.message)
+    const error = await saveSetting(KEY, merged)
+    if (error) alert('Could not save templates: ' + saveErrorText(error))
   }
   if (open && all) return (
     <EnquirySendTemplates kind={kind} title={kind === 'starter' ? `🎉 New starter message — ${names}` : `👋 Stopped training message — ${names}`}
