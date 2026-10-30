@@ -3499,22 +3499,22 @@ export default function CRM() {
         }
         return (
           <div className="ets-backdrop" onClick={() => setIntroPick(null)}>
-            <div className="ets-sheet" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()} role="dialog" aria-label="Intro session">
+            <div className="ets-sheet intro-sheet" style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()} role="dialog" aria-label="Intro session">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                 <b>📅 Intro session — {introPick.enq.name}</b>
                 <button className="btn btn-sm" onClick={() => setIntroPick(null)}>Skip</button>
               </div>
-              <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 10px' }}>When is their free intro? (Optional — Skip if you don't know yet.)</p>
+              <p className="intro-hint" style={{ color: 'var(--text-secondary)', margin: '0 0 12px' }}>When is their free intro? (Optional — Skip if you don't know yet.)</p>
               <div className="field"><label>Date</label>
                 <input type="date" value={introPick.date} onChange={e => setIntroPick(p => ({ ...p, date: e.target.value, classId: '' }))} /></div>
               {introPick.date && (
                 <div className="field"><label>Class{dayName ? ` (${dayName})` : ''}</label>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {!dayClasses.length && <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No classes on {dayName}s in the timetable.</span>}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {!dayClasses.length && <span style={{ color: 'var(--text-tertiary)' }}>No classes on {dayName}s in the timetable.</span>}
                     {dayClasses.map(c => (
                       <button key={c.id} type="button" className={`btn${introPick.classId === c.id ? ' btn-primary' : ''}`} style={{ justifyContent: 'flex-start' }}
                         onClick={() => setIntroPick(p => ({ ...p, classId: c.id }))}>
-                        {String(c.start_time).slice(0, 5)} · {c.name}
+                        <b>{String(c.start_time).slice(0, 5)}</b>&nbsp;·&nbsp;{c.name}{introPick.classId === c.id ? '  ✓' : ''}
                       </button>
                     ))}
                   </div>

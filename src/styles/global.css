@@ -1717,3 +1717,12 @@ input::placeholder, textarea::placeholder { color: var(--text-tertiary); }
   color: #0B4F9C; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; cursor: pointer; }
 @media (prefers-color-scheme: dark) { .phone-text { color: #FFD84D; } }
 .phone-text-copied { font-size: 12px; font-weight: 700; color: #fff; background: #1D9E75; border-radius: 999px; padding: 2px 8px; }
+
+/* CRM intro session booking: bigger text and buttons (easier to read on a phone, no zoom in the app) */
+.intro-sheet { font-size: 17px; }
+.intro-sheet b:first-child { font-size: 21px; }
+.intro-sheet .intro-hint { font-size: 16px; line-height: 1.45; }
+.intro-sheet .field label { font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+.intro-sheet input[type="date"] { font-size: 19px; padding: 14px; min-height: 54px; }
+.intro-sheet .btn { font-size: 18px; padding: 15px 16px; min-height: 56px; border-radius: 12px; }
+.intro-sheet .btn-sm { font-size: 16px; padding: 10px 14px; min-height: 44px; }

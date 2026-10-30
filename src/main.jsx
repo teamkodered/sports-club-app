@@ -219,7 +219,7 @@ try {
   if (standalone) {
     document.documentElement.classList.add('is-app')
     const vp = document.querySelector('meta[name="viewport"]')
-    if (vp) vp.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover')  // pinch-zoom allowed (easier reading); double-tap zoom still off
+    if (vp) vp.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover')
   }
 } catch { /* ignore */ }
 // Safety net: a phone that lays the page out at computer width (e.g. installed from a browser in
