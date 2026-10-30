@@ -1846,6 +1846,17 @@ export default function AthleteApp() {
   const [expandedTacticalCategory, setExpandedTacticalCategory] = useState(null)
   const [todaysTactical, setTodaysTactical] = useState([])
   const [showMentalitySection, setShowMentalitySection] = useState(false)
+  // Sections open like a new page: straight to the top of the open section; closing returns to the squares
+  const quadRef = useRef(null)
+  const openSec = showPhysicalSection ? 'physical' : showTechniqueSection ? 'technique' : showTacticalSection ? 'tactical' : showMentalitySection ? 'mentality' : null
+  const lastOpenSec = useRef(null)
+  useEffect(() => {
+    const ref = { physical: physicalSectionRef, technique: techniqueSectionRef, tactical: tacticalSectionRef, mentality: mentalitySectionRef }[openSec]
+    const y = el => el ? el.getBoundingClientRect().top + window.scrollY - 70 : null
+    if (openSec && ref?.current) requestAnimationFrame(() => { const t = y(ref.current); if (t != null) window.scrollTo({ top: Math.max(0, t), behavior: 'auto' }) })
+    else if (!openSec && lastOpenSec.current && quadRef.current) requestAnimationFrame(() => { const t = y(quadRef.current); if (t != null) window.scrollTo({ top: Math.max(0, t), behavior: 'auto' }) })
+    lastOpenSec.current = openSec
+  }, [openSec]) // eslint-disable-line react-hooks/exhaustive-deps
   const mentalitySectionRef = useRef(null)
   const [showWellbeingSection, setShowWellbeingSection] = useState(false)
   const wellbeingSectionRef = useRef(null)
@@ -5724,7 +5735,7 @@ export default function AthleteApp() {
                   setExpandedHomeStretch(panel === 'stretch' ? value : null)
                 }
                 const togglePhysicalSection = () => {
-                  setShowPhysicalSection(v => { if (!v) setTimeout(() => physicalSectionRef.current?.firstElementChild?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 380);
+                  setShowPhysicalSection(v => {
                     if (v) { openOnlyPhysicalPanel(null, null); setActivePhysicalCategory(null) } // closing -- reset any open detail panel/category too
                     return !v
                   })
@@ -5788,7 +5799,7 @@ export default function AthleteApp() {
                         (Physical, Technique, Tactical, Mentality), only the
                         displayed sequence and pairing changes: Mentality+Tactical
                         side by side, then Technique+Physical side by side. */}
-                    <div className={`neon-pillar-quad${(showPhysicalSection || showTechniqueSection || showTacticalSection || showMentalitySection) ? ' has-open' : ''}${showMentalitySection ? ' z-tl' : showTacticalSection ? ' z-tr' : showTechniqueSection ? ' z-bl' : showPhysicalSection ? ' z-br' : ''}`} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, alignItems: 'start', width: '100%' }}>
+                    <div ref={quadRef} className={`neon-pillar-quad${(showPhysicalSection || showTechniqueSection || showTacticalSection || showMentalitySection) ? ' has-open' : ''}${showMentalitySection ? ' z-tl' : showTacticalSection ? ' z-tr' : showTechniqueSection ? ' z-bl' : showPhysicalSection ? ' z-br' : ''}`} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, alignItems: 'start', width: '100%' }}>
                     <div ref={physicalSectionRef} className={showPhysicalSection ? 'neon-opens-up' : undefined} style={{ order: showPhysicalSection ? 11 : 4, display: 'flex', flexDirection: 'column-reverse', alignItems: 'center', minWidth: 0, gridColumn: showPhysicalSection ? '1 / -1' : (showTechniqueSection ? '2' : 'auto') }}>
                     <button type="button" className={`neon-pillar neon-br${showPhysicalSection ? ' is-open' : ''}`} onClick={e => { if (pillarGuard('physical')) return; togglePhysicalSection(e) }} style={showPhysicalSection ? {
                       width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
@@ -6185,7 +6196,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                     </div>
 
                     <div ref={techniqueSectionRef} className={showTechniqueSection ? 'neon-opens-up' : undefined} style={{ order: showTechniqueSection ? 10 : 3, display: 'flex', flexDirection: 'column-reverse', alignItems: 'center', minWidth: 0, gridColumn: showTechniqueSection ? '1 / -1' : 'auto' }}>
-                    <button type="button" className={`neon-pillar neon-bl${showTechniqueSection ? ' is-open' : ''}`} onClick={() => { if (pillarGuard('technique')) return; setShowTechniqueSection(v => { if (!v) setTimeout(() => techniqueSectionRef.current?.firstElementChild?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 380); if (v) setExpandedTechniqueCategory(null); return !v }) }} style={showTechniqueSection ? {
+                    <button type="button" className={`neon-pillar neon-bl${showTechniqueSection ? ' is-open' : ''}`} onClick={() => { if (pillarGuard('technique')) return; setShowTechniqueSection(v => { if (!v) if (v) setExpandedTechniqueCategory(null); return !v }) }} style={showTechniqueSection ? {
                       width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
                       textAlign: 'center', padding: '12px', marginBottom: 10, cursor: 'pointer', fontFamily: 'var(--font-sans)', position: 'relative',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
