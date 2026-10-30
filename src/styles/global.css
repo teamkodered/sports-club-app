@@ -1667,3 +1667,24 @@ input::placeholder, textarea::placeholder { color: var(--text-tertiary); }
 @media (max-width: 640px) { .neon-banner .neon-name[style*="--nl"] { font-size: clamp(13px, calc(118cqi / (var(--nl) * 0.62)), 22px) !important; } }
 .team-full-reg { display: flex; gap: 8px; align-items: flex-start; margin: 8px 0; padding: 10px; border-radius: 10px; background: #1D9E7512; border: 1px solid #1D9E7544; font-size: 12px; line-height: 1.4; cursor: pointer; }
 .team-full-reg input { margin-top: 2px; }
+
+/* ── Monthly focus + zoom (Oct 2026) ── */
+.neon-home .neon-q.is-greyed { opacity: 0.38; filter: grayscale(0.7); }
+.neon-home .neon-q.is-focus { box-shadow: 0 0 0 2px #1D9E75, 0 0 12px rgba(29,158,117,0.5) !important; }
+.neon-home .neon-q.is-focus::after { content: '🎯 FOCUS'; position: absolute; top: 6px; right: 8px; font-family: 'Orbitron', sans-serif; font-size: 8px; letter-spacing: 1px; color: #1D9E75; }
+.neon-home .neon-q.is-always::after { content: 'ALWAYS ON'; position: absolute; top: 6px; right: 8px; font-family: 'Orbitron', sans-serif; font-size: 7px; letter-spacing: 1px; color: #378ADD; }
+.neon-home .neon-q { position: relative; }
+.kc-focus { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 0 10px; padding: 8px 12px; border-radius: 10px; border: 1px dashed var(--c); background: color-mix(in srgb, var(--c) 10%, transparent); font-size: 13px; color: #F2F2F2; }
+.kc-focus select { flex: 1; min-width: 140px; }
+.kc-focus-set { border-style: solid; }
+.kc-focus-set span { width: 100%; font-size: 11px; color: #9A9A9A; }
+/* PDP items in gold in the section list */
+.neon-home .neon-pdp-list > div { border-color: #F5C542 !important; }
+/* pressing a section: it zooms out from its corner and fills the square (others step aside); grows taller to fit */
+.neon-home .neon-pillar-quad.has-open > div:not([style*="grid-column: 1 / -1"]) { display: none; }
+@keyframes kcZoomCorner { from { transform: scale(0.5); opacity: 0.2; } to { transform: none; opacity: 1; } }
+.neon-home .neon-pillar-quad.has-open > div[style*="grid-column: 1 / -1"] { animation: kcZoomCorner 0.35s cubic-bezier(.2,.8,.2,1); }
+.neon-home .neon-pillar-quad.has-open.z-tl > div[style*="grid-column: 1 / -1"] { transform-origin: top left; }
+.neon-home .neon-pillar-quad.has-open.z-tr > div[style*="grid-column: 1 / -1"] { transform-origin: top right; }
+.neon-home .neon-pillar-quad.has-open.z-bl > div[style*="grid-column: 1 / -1"] { transform-origin: bottom left; }
+.neon-home .neon-pillar-quad.has-open.z-br > div[style*="grid-column: 1 / -1"] { transform-origin: bottom right; }

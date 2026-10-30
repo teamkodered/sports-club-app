@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import FocusAlwaysOnSettings from '../components/settings/FocusAlwaysOnSettings.jsx'
 import { Link } from 'react-router-dom'
 import TeamAccess from '../components/shared/TeamAccess.jsx'
 import GoogleCalendarsSettings from '../components/shared/GoogleCalendarsSettings.jsx'
@@ -459,6 +460,8 @@ export default function Settings() {
         <div style={{ fontSize: 13 }}><b>⬆️ Import data</b><div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Bring in members, students and other records from a spreadsheet.</div></div>
         <Link to="/import" className="btn btn-sm btn-primary">Open Import data</Link>
       </div>
+
+      <FocusAlwaysOnSettings />
 
       {SECTION('Team — roles & access')}
       <TeamAccess />

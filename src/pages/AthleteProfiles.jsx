@@ -12,6 +12,7 @@ import TallyGate from '../components/shared/TallyGate.jsx'
 import SectionQuote from '../components/shared/SectionQuote.jsx'
 import AthleteWorkrate from '../components/shared/AthleteWorkrate.jsx'
 import { useSectionLeague, LeaguePos } from '../lib/sectionLeague.jsx'
+import { FOCUS_ALWAYS_ON_DEFAULT } from '../lib/focus.js'
 import { NoteText, DoneTick, doneCardStyle, isCompletedPdp } from '../components/shared/NoteBits.jsx'
 import { DailyCharts, WorkoutCard, hrSessionAsWorkout } from '../components/shared/WearableCharts.jsx'
 import { fetchAll } from '../lib/fetchAll.js'
@@ -3960,7 +3961,43 @@ export default function AthleteProfiles() {
     if (pillar === 'tactical') setExpandedTacticalCategory(link.q)
     if (pillar === 'technique') setExpandedTechniqueCategory(link.q)
   }
+  // ── Monthly focus (coach view: see the athlete's focus, and change it if needed) ──
+  const focusMonth = new Date().toISOString().slice(0, 7)
+  const myFocus = ((apData?.pdp_notes || {}).__focus || {})[focusMonth] || {}
+  const [focusAlwaysOn, setFocusAlwaysOn] = useState(FOCUS_ALWAYS_ON_DEFAULT)
+  useEffect(() => { supabase.from('settings').select('value').eq('key', 'focus_always_on').maybeSingle().then(({ data }) => { if (data?.value && typeof data.value === 'object') setFocusAlwaysOn({ ...FOCUS_ALWAYS_ON_DEFAULT, ...data.value }) }, () => {}) }, [])
+  const sameQ = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase()
+  const isAlwaysOn = (sec, label) => (focusAlwaysOn[sec] || []).some(x => sameQ(x, label))
+  const isGreyedQ = (sec, label) => !!myFocus[sec] && !sameQ(myFocus[sec], label) && !isAlwaysOn(sec, label)
+  const fq = (sec, label) => isGreyedQ(sec, label) ? ' is-greyed' : (myFocus[sec] && sameQ(myFocus[sec], label) ? ' is-focus' : (isAlwaysOn(sec, label) && myFocus[sec] ? ' is-always' : ''))
+  async function setAthleteFocus(sec, label) {
+    if (!selected) return
+    const cur = apData?.pdp_notes || {}
+    const allF = { ...(cur.__focus || {}) }
+    allF[focusMonth] = { ...(allF[focusMonth] || {}) }
+    if (label) allF[focusMonth][sec] = label; else delete allF[focusMonth][sec]
+    const updated = { ...cur, __focus: allF }
+    const { error } = await supabase.from('athlete_profiles').upsert({ student_id: selected.id, pdp_notes: updated }, { onConflict: 'student_id' })
+    if (error) { alert('Could not save the focus: ' + error.message); return }
+    setApData(prev => ({ ...(prev || {}), pdp_notes: updated }))
+  }
+  function FocusPicker({ sec, options, colour }) {
+    const opts = options.filter(o => !isAlwaysOn(sec, o))
+    if (!opts.length) return null
+    const cur = myFocus[sec]
+    const monthName = new Date().toLocaleDateString('en-GB', { month: 'long' })
+    return (
+      <div className={`kc-focus${cur ? ' kc-focus-set' : ''}`} style={{ '--c': colour }}>
+        <span>🎯 {cur ? <b>{monthName} focus: {cur}</b> : <>No <b>{monthName} focus</b> chosen yet</>}</span>
+        <select value={cur || ''} onChange={e => setAthleteFocus(sec, e.target.value || null)} title="Coach: set or change their focus">
+          <option value="">{cur ? 'Clear focus' : 'Set for them…'}</option>
+          {opts.map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
+      </div>
+    )
+  }
   function PillarTabs({ pillar, label, colour }) {
+    return null // PDP items now sit in the same list as the questions (gold)
     const n = pillarPdpLines(pillar).length
     const view = pillarView[pillar] || 'questions'
     const tab = (key, text) => (
@@ -3985,13 +4022,12 @@ export default function AthleteProfiles() {
     )
   }
   function PillarPdpList({ pillar, pillarLabel }) {
-    if ((pillarView[pillar] || 'questions') !== 'pdp') return null
     const lines = pillarPdpLines(pillar)
+    if (!lines.length) return null
     const today = new Date().toISOString().split('T')[0]
     return (
       <div className="neon-pdp-list" style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
         {PdpAddButtonFree(pillar, pillarLabel)}
-        {lines.length === 0 && <p style={{ fontSize: 13, color: '#9A9A9A', margin: 0 }}>No PDP notes for {pillarLabel} yet.</p>}
         {lines.map(l => {
           const dates = (apData?.pdp_done || {})[pdpDoneKey(l.sectionKey, l.text)] || []
           const doneToday = dates.includes(today)
@@ -10035,7 +10071,7 @@ export default function AthleteProfiles() {
                         sum + (isToDoSectionKey(s.key) ? (apData?.pdp_notes?.[s.key] || []).length : (apData?.pdp_shared?.[s.key] || []).length), 0)} />
                   </div>
 
-                  <div className="neon-pillar-quad" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, alignItems: 'start', width: '100%' }}>
+                  <div className={`neon-pillar-quad${(showPhysicalSection || showTechniqueSection || showTacticalSection || showMentalitySection) ? ' has-open' : ''}${showMentalitySection ? ' z-tl' : showTacticalSection ? ' z-tr' : showTechniqueSection ? ' z-bl' : showPhysicalSection ? ' z-br' : ''}`} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, alignItems: 'start', width: '100%' }}>
                   <div ref={physicalSectionRef} className={showPhysicalSection ? 'neon-opens-up' : undefined} style={{ order: showPhysicalSection ? 11 : 4, display: 'flex', flexDirection: 'column-reverse', alignItems: 'center', minWidth: 0, gridColumn: showPhysicalSection ? '1 / -1' : (showTechniqueSection ? '2' : 'auto') }}>
                   <button type="button" className={`neon-pillar neon-br${showPhysicalSection ? ' is-open' : ''}`} onClick={e => { if (pillarGuard('physical')) return; togglePhysicalSection(e) }} style={showPhysicalSection ? {
                     width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
@@ -10062,6 +10098,7 @@ export default function AthleteProfiles() {
                   }}>
                     {PillarTabs({ pillar: 'physical', label: 'Physical', colour: '#E6B800' })}
                     {PillarPdpList({ pillar: 'physical', pillarLabel: 'Physical' })}
+                    {FocusPicker({ sec: 'physical', colour: '#E6B800', options: BODYWEIGHT_GROUPS.filter(g => g.key !== 'compound_lifts').map(g => g.label) })}
                   <div style={{ display: 'grid', gridTemplateColumns: activePhysicalCategory && (activePhysicalCategory === 'running' || activePhysicalCategory === 'watt_bike') ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 8 }}>
                     {(!activePhysicalCategory || activePhysicalCategory === 'running') && (
                       <ModuleButton b={modules[0]} sorted={sorted} moduleSubType={moduleSubType} setModuleSubType={setModuleSubType} colour={SECTION_ACCENT_COLOURS.physical} setTab={setTab} setRunChartFilter={setRunChartFilter} studentId={selected?.id} onToggleLog={togglePhysicalLog} onQuickLog={handleQuickLog} large={activePhysicalCategory === 'running'} questionProgressByPeriod={getCoachQuestionProgressByPeriod('physical', 'Running')} />
@@ -10197,7 +10234,7 @@ export default function AthleteProfiles() {
                       const complete = todaysBodyweight.some(e => bodyweightMatchesGroup(e, grp.key))
                       const active = expandedHomeBodyweight === grp.key
                       return (
-                        <button className={`neon-q neon-q-physical${active ? ' is-active' : ''}${complete ? ' is-done' : ''}`} key={grp.key} type="button" onClick={() => openOnlyPhysicalPanel('bodyweight', active ? null : grp.key)} style={{
+                        <button className={`neon-q neon-q-physical${active ? ' is-active' : ''}${complete ? ' is-done' : ''}${fq('physical', grp.label)}`} key={grp.key} type="button" onClick={() => openOnlyPhysicalPanel('bodyweight', active ? null : grp.key)} style={{
                           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 8px',
                           borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                           border: `2px solid ${active ? SECTION_ACCENT_COLOURS.physical : complete ? '#1D9E75' : 'var(--border)'}`,
@@ -10436,6 +10473,7 @@ export default function AthleteProfiles() {
                   }}>
                     {PillarTabs({ pillar: 'technique', label: 'Technical', colour: '#2F6BFF' })}
                     {PillarPdpList({ pillar: 'technique', pillarLabel: 'Technical' })}
+                    {FocusPicker({ sec: 'technique', colour: '#2F6BFF', options: [...new Set(TECHNIQUE_STYLES.filter(({ style }) => selected?.discipline === 'KRBA' ? style === 'Boxing' : selected?.is_kr ? style === 'Kickboxing' : true).flatMap(({ categories }) => Object.keys(categories)))] })}
                   {TECHNIQUE_STYLES.filter(({ style }) => {
                     // KRBA athletes only need Boxing questions, KR
                     // Kickboxing athletes only need Kickboxing ones --
@@ -10458,7 +10496,7 @@ export default function AthleteProfiles() {
                           const active = expandedTechniqueCategory === catKey
                           const count = todaysTechniques.filter(t => t.style === style && t.category === cat).length
                           return (
-                            <button className={`neon-q neon-q-technical${active ? ' is-active' : ''}${count ? ' is-done' : ''}`} key={cat} type="button"
+                            <button className={`neon-q neon-q-technical${active ? ' is-active' : ''}${count ? ' is-done' : ''}${fq('technique', cat)}`} key={cat} type="button"
                               onClick={() => setExpandedTechniqueCategory(active ? null : catKey)}
                               style={{
                                 display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '20px 14px' : '18px 14px',
@@ -10517,13 +10555,14 @@ export default function AthleteProfiles() {
                   }}>
                     {PillarTabs({ pillar: 'tactical', label: 'Tactical', colour: '#FF2A2A' })}
                     {PillarPdpList({ pillar: 'tactical', pillarLabel: 'Tactical' })}
+                    {FocusPicker({ sec: 'tactical', colour: '#FF2A2A', options: ['Video analysis', ...Object.keys(TACTICAL_CATEGORIES)] })}
                   <div style={{ display: 'grid', gridTemplateColumns: expandedTacticalCategory ? '1fr' : 'repeat(2, 1fr)', gap: 8, marginBottom: 8 }}>
                     {['__videoAnalysis__'].concat(Object.keys(TACTICAL_CATEGORIES)).filter(cat => !expandedTacticalCategory || expandedTacticalCategory === cat).map(cat => {
                       if (cat === '__videoAnalysis__') {
                         const active = expandedTacticalCategory === cat
                         const complete = !!todaysMentalityLog.videoAnalysis?.type
                         return (
-                          <button className={`neon-q neon-q-tactical${active ? ' is-active' : ''}${complete ? ' is-done' : ''}`} key={cat} type="button" onClick={() => setExpandedTacticalCategory(active ? null : cat)} style={{
+                          <button className={`neon-q neon-q-tactical${active ? ' is-active' : ''}${complete ? ' is-done' : ''}${fq('tactical', 'Video analysis')}`} key={cat} type="button" onClick={() => setExpandedTacticalCategory(active ? null : cat)} style={{
                             display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '20px 14px' : '18px 14px',
                             borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                             border: `2px solid ${active ? '#E24B4A' : complete ? '#1D9E75' : 'var(--border)'}`,
@@ -10539,7 +10578,7 @@ export default function AthleteProfiles() {
                       const active = expandedTacticalCategory === cat_
                       const count = todaysTactical.filter(t => t.category === cat_).length
                       return (
-                        <button className={`neon-q neon-q-tactical${active ? ' is-active' : ''}${count ? ' is-done' : ''}`} key={cat_} type="button"
+                        <button className={`neon-q neon-q-tactical${active ? ' is-active' : ''}${count ? ' is-done' : ''}${fq('tactical', cat_)}`} key={cat_} type="button"
                           onClick={() => setExpandedTacticalCategory(active ? null : cat_)}
                           style={{
                             display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '20px 14px' : '18px 14px',
@@ -10605,12 +10644,13 @@ export default function AthleteProfiles() {
                   }}>
                     {PillarTabs({ pillar: 'mentality', label: 'Mentality', colour: '#22B14C' })}
                     {PillarPdpList({ pillar: 'mentality', pillarLabel: 'Mentality' })}
+                    {FocusPicker({ sec: 'mentality', colour: '#22B14C', options: MENTALITY_QUESTIONS.map(q => q.label) })}
                   <div style={{ display: 'grid', gridTemplateColumns: expandedHomeMentality ? '1fr' : 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeMentality ? 10 : 8 }}>
                     {MENTALITY_QUESTIONS.filter(q => !expandedHomeMentality || expandedHomeMentality === q.key).map(q => {
                       const complete = q.key === 'alterEgo' ? !!(alterEgoWorkbook.topTraits?.some(Boolean) || alterEgoWorkbook.nameOption1) : isMentalityQComplete(q.key, todaysMentalityLog)
                       const active = expandedHomeMentality === q.key
                       return (
-                        <button className={`neon-q neon-q-mentality${active ? ' is-active' : ''}${complete ? ' is-done' : ''}`} key={q.key} type="button" onClick={() => q.key === 'alterEgo' ? setShowAlterEgoModal(true) : setExpandedHomeMentality(active ? null : q.key)} style={{
+                        <button className={`neon-q neon-q-mentality${active ? ' is-active' : ''}${complete ? ' is-done' : ''}${fq('mentality', q.label)}`} key={q.key} type="button" onClick={() => q.key === 'alterEgo' ? setShowAlterEgoModal(true) : setExpandedHomeMentality(active ? null : q.key)} style={{
                           display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '20px 14px' : '18px 14px',
                           borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                           border: `2px solid ${active ? SECTION_ACCENT_COLOURS.mentality : complete ? '#6D28D9' : 'var(--border)'}`,
@@ -10914,12 +10954,13 @@ export default function AthleteProfiles() {
                     overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
                     maxHeight: showWellbeingSection ? 6000 : 0, opacity: showWellbeingSection ? 1 : 0,
                   }}>
+                  {FocusPicker({ sec: 'wellbeing', colour: '#C93BFF', options: WELLBEING_QUESTIONS.map(q => q.label) })}
                   <div style={{ display: 'grid', gridTemplateColumns: expandedHomeWb ? '1fr' : 'repeat(2,1fr)', gap: 8, marginBottom: expandedHomeWb ? 10 : 8 }}>
                     {WELLBEING_QUESTIONS.filter(q => !expandedHomeWb || expandedHomeWb === q.key).map(q => {
                       const complete = isWellbeingQComplete(q.key, todaysWellbeing)
                       const active = expandedHomeWb === q.key
                       return (
-                        <button className={`neon-q neon-q-foundation${active ? ' is-active' : ''}${complete ? ' is-done' : ''}`} key={q.key} type="button" onClick={() => setExpandedHomeWb(active ? null : q.key)} style={{
+                        <button className={`neon-q neon-q-foundation${active ? ' is-active' : ''}${complete ? ' is-done' : ''}${fq('wellbeing', q.label)}`} key={q.key} type="button" onClick={() => setExpandedHomeWb(active ? null : q.key)} style={{
                           display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, padding: active ? '20px 14px' : '18px 14px',
                           borderRadius: 'var(--radius)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
                           border: `2px solid ${active ? SECTION_ACCENT_COLOURS.wellbeing : complete ? '#0E9F6E' : 'var(--border)'}`,
