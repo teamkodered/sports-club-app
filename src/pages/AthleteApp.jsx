@@ -6040,6 +6040,12 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                           }}>
                             <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{grp.label}</span>{pdpInfo('physical', `bw:${grp.key}`).links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}
                             <span style={{ fontSize: 22 }}>{grp.icon}</span>
+                            {active && !myFocus.physical && !isAlwaysOn('physical', grp.label) && (
+                              <span role="button" tabIndex={0} className="kc-setfocus" style={{ '--c': '#E6B800', display: 'block' }}
+                                onClick={e => { e.stopPropagation(); const mn = new Date().toLocaleDateString('en-GB', { month: 'long' }); if (confirm(`Make "${grp.label}" your ${mn} focus? It's locked in until the end of the month.`)) setMyFocus('physical', grp.label) }}>
+                                🎯 Set as my focus
+                              </span>
+                            )}
                           </button>
                         )
                       })}
