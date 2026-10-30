@@ -309,9 +309,10 @@ export default function EnquirySendTemplates({ title = null, kind = 'enquiry', c
               <div style={{ maxHeight: '42vh', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 10 }}>
                 {shown.length === 0 && <div className="ets-hint" style={{ padding: 10 }}>Nobody here.</div>}
                 {shown.map(e => (
-                  <label key={e.id} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '8px 10px', borderBottom: '1px solid var(--border)', cursor: 'pointer', background: pickSel.has(e.id) ? '#378ADD14' : undefined }}>
-                    <input type="checkbox" checked={pickSel.has(e.id)} onChange={() => toggle(e.id)} />
-                    <span style={{ minWidth: 0 }}>
+                  <label key={e.id} style={{ display: 'flex', gap: 14, alignItems: 'center', justifyContent: 'flex-start', textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid var(--border)', cursor: 'pointer', background: pickSel.has(e.id) ? '#378ADD14' : undefined }}>
+                    <input type="checkbox" checked={pickSel.has(e.id)} onChange={() => toggle(e.id)}
+                      style={{ width: 24, height: 24, minWidth: 24, flex: '0 0 24px', margin: 0, padding: 0 }} />
+                    <span style={{ minWidth: 0, flex: 1, textAlign: 'left' }}>
                       <b style={{ fontSize: 14 }}>{e.name || 'No name'}</b>
                       <span style={{ display: 'block', fontSize: 12, color: 'var(--text-tertiary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {[e.contact_phone, e.contact_email].filter(Boolean).join(' · ') || 'no contact details'}{e.enquiry_date ? ` · ${new Date(e.enquiry_date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : ''}
