@@ -124,7 +124,7 @@ export default function Trackers({ onStatsReady } = {}) {
     const [s, f, m, ap] = await Promise.all([
       fetchAllRows(() => supabase.from('students').select('*, members(first_name, last_name, date_of_birth, status, houses(name))')),
       fetchAllRows(() => supabase.from('fit2fight_sessions').select('*').order('session_date', { ascending: false })),
-      fetchAllRows(() => supabase.from('members').select('id, first_name, last_name, joined_date, status, stopped_at')),
+      fetchAllRows(() => supabase.from('members').select('*')),   // * so it still works before rejoined_at exists
       fetchAllRows(() => supabase.from('athlete_profiles').select('student_id, weight_division')),
     ])
     setStudents(s)
@@ -376,6 +376,8 @@ export default function Trackers({ onStatsReady } = {}) {
   const isNewApproved = m => !['pending', 'not_started'].includes(m.status)
   const newMembersThisMonth = joinedThisMonth.filter(isNewApproved).length
   const newPendingThisMonth = joinedThisMonth.filter(m => m.status === 'pending').length
+  // Returned students: came back after stopping (or an old record re-joined) -- members.rejoined_at
+  const returnedThisMonth = allMembers.filter(m => String(m.rejoined_at || '').startsWith(currentMonthPrefix) && studentGroupsByMemberId[m.id] && m.status !== 'stopped').length
   const newMembersThisMonthBreakdown = emptyBreakdown()
   for (const m of joinedThisMonth) {
     if (!isNewApproved(m)) continue
@@ -411,11 +413,11 @@ export default function Trackers({ onStatsReady } = {}) {
   useEffect(() => {
     if (loading) return
     onStatsReady?.({
-      totalStudents, newMembersThisMonth, newPendingThisMonth, trainedThisMonth, avgSessions, avgMonthsTrained,
+      totalStudents, newMembersThisMonth, newPendingThisMonth, returnedThisMonth, trainedThisMonth, avgSessions, avgMonthsTrained,
       completedDurationsCount: completedDurations.length, missingStopDates,
       totalStudentsBreakdown, newMembersThisMonthBreakdown, trainedThisMonthBreakdown, avgSessionsBreakdown, avgMonthsTrainedBreakdown,
     })
-  }, [loading, totalStudents, newMembersThisMonth, newPendingThisMonth, trainedThisMonth, avgSessions, avgMonthsTrained, completedDurations.length, missingStopDates])
+  }, [loading, totalStudents, newMembersThisMonth, newPendingThisMonth, returnedThisMonth, trainedThisMonth, avgSessions, avgMonthsTrained, completedDurations.length, missingStopDates])
 
   if (loading) return <div className="loading">Loading trackers…</div>
 
