@@ -5,6 +5,7 @@ import { TestSessionModal, TestBatchModal } from '../components/shared/TestSessi
 import OtherSessions from '../components/shared/OtherSessions.jsx'
 import SessionFootage from '../components/shared/SessionFootage.jsx'
 import { supabase } from '../lib/supabase.js'
+import LeagueBoard from './LeagueBoard.jsx'
 import ProfileRoundup from '../components/shared/ProfileRoundup.jsx'
 import PdpActivity from '../components/dashboard/PdpActivity.jsx'
 import { divMatch, KB_DIVISIONS as KB_OFFICIAL, BOX_DIVISIONS as BOX_OFFICIAL, kbLabel, boxLabel, weightsFor, suggestDivision, isOfficial, divisionsForAge } from '../lib/divisions.js'
@@ -9219,20 +9220,8 @@ export default function AthleteProfiles() {
 
             {dashboardTab === 'leagues' && (
               <div>
-                <button onClick={() => setDashboardTab('overview')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back</button>
                 {isAdmin && <LeagueBoardSettings />}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <a href="/league-public?limit=10&from=app&home=/athletes" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 24, color: '#8B5CF6' }}>
-                    <div style={{ fontSize: 36, marginBottom: 8 }}>🏠</div>
-                    <div style={{ fontWeight: 700, fontSize: 15 }}>House League</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>Points standings by house</div>
-                  </a>
-                  <a href="/results-public?from=app&home=/athletes" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 24, color: '#EF9F27' }}>
-                    <div style={{ fontSize: 36, marginBottom: 8 }}>🏋️</div>
-                    <div style={{ fontWeight: 700, fontSize: 15 }}>Exercise Leagues</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>Fitness results leaderboard</div>
-                  </a>
-                </div>
+                <LeagueBoard embedded student={null} onBack={() => setDashboardTab('overview')} />
               </div>
             )}
 
@@ -13389,20 +13378,8 @@ export default function AthleteProfiles() {
             {/* ── Leagues -- choose House League or Exercise Leagues ── */}
             {tab === 'leagues' && (
               <div>
-                <button onClick={() => setTab('home')} className="btn btn-sm" style={{ marginBottom: 12 }}>← Back to Home</button>
                 {isAdmin && <LeagueBoardSettings />}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <a href="/league-public?limit=10&from=app&home=/athletes" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 24, color: '#8B5CF6' }}>
-                    <div style={{ fontSize: 36, marginBottom: 8 }}>🏠</div>
-                    <div style={{ fontWeight: 700, fontSize: 15 }}>House League</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>Points standings by house</div>
-                  </a>
-                  <a href="/results-public?from=app&home=/athletes" className="card" style={{ textDecoration: 'none', textAlign: 'center', padding: 24, color: '#EF9F27' }}>
-                    <div style={{ fontSize: 36, marginBottom: 8 }}>🏋️</div>
-                    <div style={{ fontWeight: 700, fontSize: 15 }}>Exercise Leagues</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>Fitness results leaderboard</div>
-                  </a>
-                </div>
+                <LeagueBoard embedded listMode student={selected} onBack={() => setTab('home')} />
               </div>
             )}
 
