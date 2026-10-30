@@ -1755,3 +1755,6 @@ html.forced-phone .ets-sheet { max-height: calc(var(--kc-vh, 1vh) * 86) !importa
 .kc-ru-line span { color: #C8C8C8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kc-ru-line b { font-family: 'Orbitron', sans-serif; font-size: 11px; white-space: nowrap; }
 .kc-ru-more { margin-top: 4px; background: none; border: none; color: #378ADD; font-size: 11px; cursor: pointer; padding: 0; }
+/* the four section cards fill their quarter exactly -- no gaps between them (coach view too) */
+.neon-home .neon-pillar-quad > div { align-items: stretch !important; }
+.neon-home .neon-pillar-quad > div > .neon-pillar { width: 100% !important; max-width: none !important; margin: 0 !important; box-sizing: border-box; }
