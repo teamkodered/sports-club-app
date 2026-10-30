@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase.js'
 import { TEST_CATEGORIES, bestByTest, lowerIsBetter } from '../../lib/testResults.js'
 import { useSectionLeague } from '../../lib/sectionLeague.jsx'
+import { CATEGORIES } from '../../pages/ResultsPublic.jsx'
 
 // Profile round-up (athlete app + coach view, under the profile when the name card is opened):
 // heart rate vs team, league places, best times, top scores, attendance, record, weight, PDP + focus.
@@ -44,8 +45,24 @@ export default function ProfileRoundup({ student, sessions = [], pdpNotes = {}, 
 
   const pbs = useMemo(() => bestByTest(sessions || []), [sessions])
   const hrrList = useMemo(() => (sessions || []).filter(s => s.test?.['Heart Rate Recovery (1 min)'] != null).sort((a, b) => String(b.session_date).localeCompare(String(a.session_date))), [sessions])
-  const times = Object.entries(pbs).filter(([k]) => lowerIsBetter(k) && !/^HRR /.test(k))
-  const scores = Object.entries(pbs).filter(([k]) => !lowerIsBetter(k) && !/^HRR |Heart Rate Recovery|Anaerobic/.test(k))
+  // PBs from the logged physical work too (Watt bike, running, bodyweight, techniques, bleep, grip, circuit) --
+  // best per type, e.g. Watt bike 6s / 30s, each run distance
+  const physPbs = useMemo(() => {
+    const out = {}   // label -> { v, unit, lower }
+    for (const cat of CATEGORIES) {
+      if (cat.aggregate || cat.key === 'hrr') continue
+      for (const r of sessions || []) for (const { value, sub } of cat.extract(r) || []) {
+        if (!value || !isFinite(value)) continue
+        const name = cat.key === 'bleep' || cat.key === 'grip' || cat.key === 'circuit' ? cat.label.replace(/^\S+\s/, '') : `${cat.label.replace(/^\S+\s/, '')}${sub && sub !== cat.label.replace(/^\S+\s/, '') ? ' · ' + sub : ''}`
+        const cur = out[name]
+        if (!cur || (cat.lowerIsBetter ? value < cur.v : value > cur.v)) out[name] = { v: value, unit: cat.unit, lower: !!cat.lowerIsBetter, run: cat.key === 'running' }
+      }
+    }
+    return out
+  }, [sessions])
+  const covered = n => /bleep|grip|fixed load circuit/i.test(n)   // already in the physical PBs above
+  const times = [...Object.entries(physPbs).filter(([, x]) => x.lower).map(([k, x]) => [k, x.v, x]), ...Object.entries(pbs).filter(([k]) => lowerIsBetter(k) && !/^HRR /.test(k) && !covered(k)).map(([k, v]) => [k, v])]
+  const scores = [...Object.entries(physPbs).filter(([, x]) => !x.lower).map(([k, x]) => [k, x.v, x]), ...Object.entries(pbs).filter(([k]) => !lowerIsBetter(k) && !/^HRR |Heart Rate Recovery|Anaerobic/.test(k) && !covered(k)).map(([k, v]) => [k, v])]
   const weights = (sessions || []).map(s => ({ d: s.session_date, w: parseFloat(s.weight_after ?? s.weight_before) })).filter(x => !isNaN(x.w)).sort((a, b) => String(a.d).localeCompare(String(b.d))).slice(-4)
   const since = new Date(); since.setDate(since.getDate() - 28)
   const att4 = (attendance || []).filter(a => a.session_date >= iso(since) && (a.attended || a.status === 'present' || a.attended_at)).length
@@ -61,7 +78,7 @@ export default function ProfileRoundup({ student, sessions = [], pdpNotes = {}, 
       <div className="kc-ru-title">{icon} {title}</div>{children}
     </div>
   )
-  const list = (rows, all, fmt) => (all ? rows : rows.slice(0, 3)).map(([k, v]) => <div key={k} className="kc-ru-line"><span>{k.replace(/ \(.*\)$/, '')}</span><b>{fmt(k, v)}</b></div>)
+  const list = (rows, all, fmt) => (all ? rows : rows.slice(0, 3)).map(([k, v, x]) => <div key={k} className="kc-ru-line"><span>{k.replace(/ \(.*\)$/, '')}</span><b>{fmt(k, v, x)}</b></div>)
   return (
     <div className="kc-ru">
       <div className="kc-ru-head">Round-up</div>
@@ -81,13 +98,13 @@ export default function ProfileRoundup({ student, sessions = [], pdpNotes = {}, 
         )}
         {times.length > 0 && (
           <Tile icon="⏱" title="Best times">
-            {list(times, allTimes, (k, v) => UNIT[k] === 'sec' ? fmtTime(v) : `${v}${UNIT[k] ? ' ' + UNIT[k] : ''}`)}
+            {list(times, allTimes, (k, v, x) => x ? (x.run || !x.unit ? fmtTime(v) : `${Math.round(v * 10) / 10}${x.unit}`) : UNIT[k] === 'sec' ? fmtTime(v) : `${v}${UNIT[k] ? ' ' + UNIT[k] : ''}`)}
             {times.length > 3 && <button type="button" className="kc-ru-more" onClick={e => { e.stopPropagation(); setAllTimes(v => !v) }}>{allTimes ? 'Show less' : `See all ${times.length}`}</button>}
           </Tile>
         )}
         {scores.length > 0 && (
           <Tile icon="⭐" title="Top scores">
-            {list(scores, allScores, (k, v) => `${v}${UNIT[k] && UNIT[k] !== 'level' ? ' ' + UNIT[k] : ''}`)}
+            {list(scores, allScores, (k, v, x) => x ? `${Math.round(v * 10) / 10}${x.unit || ''}` : `${v}${UNIT[k] && UNIT[k] !== 'level' ? ' ' + UNIT[k] : ''}`)}
             {scores.length > 3 && <button type="button" className="kc-ru-more" onClick={e => { e.stopPropagation(); setAllScores(v => !v) }}>{allScores ? 'Show less' : `See all ${scores.length}`}</button>}
           </Tile>
         )}
