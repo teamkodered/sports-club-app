@@ -1331,6 +1331,15 @@ function HoldToDelete({ onDelete, children }) {
   TECHNIQUE_STYLES.forEach(st => sortObjKeys(st.categories))
 })()
 
+// PDP notes a coach marked 🔒 coach only (pdp_notes.__coach_only[section] = [text]) are hidden from the athlete
+const pdpForAthlete = notes => {
+  const hide = notes?.__coach_only
+  if (!notes || !hide) return notes || {}
+  const out = { ...notes }
+  for (const [k, list] of Object.entries(hide)) if (Array.isArray(out[k]) && Array.isArray(list) && list.length) out[k] = out[k].filter(it => !list.includes(typeof it === 'string' ? it : (it?.text || it?.label || '')))
+  return out
+}
+
 export default function AthleteApp() {
   const [testSessionOpen, setTestSessionOpen] = useState(false)
   const { profile, isStaff, realIsAdmin, viewAs } = useAuth()
@@ -2366,7 +2375,7 @@ export default function AthleteApp() {
   // repeat on a given weekday, across every PDP section -- this is what
   // actually "sends" a scheduled item to the Weekly Timetable.
   function getScheduledItemsForDay(day) {
-    const pdp = apData?.pdp_notes || {}
+    const pdp = pdpForAthlete(apData?.pdp_notes)
     const out = []
     PDP_SECTIONS.forEach(section => {
       const key = `__timetable_${section.key}`
@@ -3727,7 +3736,7 @@ export default function AthleteApp() {
   const PDP_COL_ORDER = [['work_on', 'Work on', '#EF9F27'], ['what_to_do', 'To do', '#E24B4A'], ['maintain', 'Maintain', '#1D9E75'], ['notes', 'Notes', '#9A9A9A']]
   function pillarPdpLines(pillar) {
     const area = PDP_AREA_FOR_PILLAR[pillar]
-    const notes = apData?.pdp_notes || {}
+    const notes = pdpForAthlete(apData?.pdp_notes)
     return PDP_COL_ORDER.flatMap(([col, colLabel, colColour]) => (notes[`${area}_${col}`] || [])
       .filter(t => pdpVisibleToAthlete(apData, `${area}_${col}`, t))
       .map(t => ({ sectionKey: `${area}_${col}`, col, colLabel, colColour, text: t, link: pdpLinkForLine(apData, `${area}_${col}`, t), coachOnly: !pdpVisibleToAthlete(apData, `${area}_${col}`, t) })))
@@ -4910,13 +4919,13 @@ export default function AthleteApp() {
   // pdp_shared as before.
   const shared = (() => {
     const merged = { ...(apData?.pdp_shared || {}) }
-    const notesRaw = apData?.pdp_notes || {}
+    const notesRaw = pdpForAthlete(apData?.pdp_notes)
     Object.keys(notesRaw).forEach(key => {
       if (key === 'what_to_do' || key.endsWith('_what_to_do')) merged[key] = notesRaw[key]
     })
     return merged
   })()
-  const pdp       = apData?.pdp_notes || {}
+  const pdp       = pdpForAthlete(apData?.pdp_notes)
 
   let houseRank = null, houseTotalPoints = null, contributionPct = null, positionInHouse = null, overallPosition = null, individualPointsPct = null
   try {
@@ -7168,7 +7177,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
             pdpActionsByDate[entry.date] = (pdpActionsByDate[entry.date] || 0) + 1
           })
         })
-        const pdpNotesData = apData?.pdp_notes || {}
+        const pdpNotesData = pdpForAthlete(apData?.pdp_notes)
         const allPdpEntries = PDP_TIMETABLE_SECTION_KEYS.flatMap(sectionKey =>
           Object.entries(pdpNotesData[`__timetable_${sectionKey}`] || {}).map(([item, entry]) => ({ sectionKey, item, ...entry }))
         )

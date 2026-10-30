@@ -111,6 +111,20 @@ export default function PdpOverview({ athletes, sections, groups, colours, onOpe
   const th = { textAlign: 'left', padding: '6px 8px', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', position: 'sticky', top: 0, background: 'var(--bg-primary, #0f1318)', zIndex: 1 }
   const tdBase = { padding: '6px 8px', verticalAlign: 'top', borderBottom: '1px solid var(--border)' }
 
+  // 👁 / 🔒 per note: pdp_notes.__coach_only[section] lists the notes hidden from the athlete
+  const isCoachOnly = (id, key, t) => ((rows?.[id] || {}).__coach_only?.[key] || []).includes(t)
+  async function toggleCoachOnly(id, key, t) {
+    const { data } = await supabase.from('athlete_profiles').select('pdp_notes').eq('student_id', id).maybeSingle()
+    const pdp = { ...(data?.pdp_notes || {}) }
+    const co = { ...(pdp.__coach_only || {}) }
+    const list = co[key] || []
+    co[key] = list.includes(t) ? list.filter(x => x !== t) : [...list, t]
+    pdp.__coach_only = co
+    const { error } = await supabase.from('athlete_profiles').upsert({ student_id: id, pdp_notes: pdp }, { onConflict: 'student_id' })
+    if (error) { alert('Could not change: ' + error.message); return }
+    setRows(r => ({ ...r, [id]: pdp }))
+  }
+
   // athlete quick view (press a name): their PDP at a glance + open profile
   const [quick, setQuick] = useState(null)
   const [openCell, setOpenCell] = useState(null) // All sections: { id, key } -- that athlete's notes for the section, opened in place
@@ -149,7 +163,8 @@ export default function PdpOverview({ athletes, sections, groups, colours, onOpe
                         {items.length ? (
                           <ul style={{ margin: 0, paddingLeft: 16 }}>
                             {items.map((t, i) => (
-                              <li key={i} onClick={() => toggleClip(t, s.id, c.key)} title="Tap to copy" style={{ cursor: 'pointer', marginBottom: 2, background: clipHas(t) ? '#EF9F2733' : undefined, borderRadius: 4 }}>{t}</li>
+                              <li key={i} onClick={() => toggleClip(t, s.id, c.key)} title="Tap to copy" style={{ cursor: 'pointer', marginBottom: 2, background: clipHas(t) ? '#EF9F2733' : undefined, borderRadius: 4 }}><button type="button" onClick={e => { e.stopPropagation(); toggleCoachOnly(s.id, c.key, t) }} title={isCoachOnly(s.id, c.key, t) ? 'Coach only -- tap to let the athlete see it' : 'The athlete can see this -- tap to make it coach only'}
+                                style={{ background: 'none', border: 'none', padding: '0 4px 0 0', cursor: 'pointer', fontSize: 12, opacity: isCoachOnly(s.id, c.key, t) ? 0.6 : 1 }}>{isCoachOnly(s.id, c.key, t) ? '🔒' : '👁'}</button>{t}</li>
                             ))}
                           </ul>
                         ) : <span style={{ color: '#E24B4A', fontSize: 11 }}>— none —</span>}
