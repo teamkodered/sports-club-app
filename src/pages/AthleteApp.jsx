@@ -5514,9 +5514,10 @@ export default function AthleteApp() {
             onChange={e => { const files = keepMedia(e.target.files, { images: true }); const t = mediaTargetRef.current; e.target.value = ''; if (t) files.forEach(f => uploadQuestionMedia(t.sectionKey, t.questionLabel, f)) }} />
           <input ref={mediaCameraRef} type="file" accept="image/*,video/*" capture="environment" style={{ display: 'none' }}
             onChange={e => { const f = e.target.files?.[0]; const t = mediaTargetRef.current; e.target.value = ''; if (f && t) uploadQuestionMedia(t.sectionKey, t.questionLabel, f) }} />
-          {mediaViewer && <MediaViewer items={mediaViewer.items} start={mediaViewer.index} onClose={() => setMediaViewer(null)} onMeasure={item => setVideoTool({ mode: 'jump', fromViewer: item.url, label: (v, m) => m?.punchType ? `Save ${v} ms as ${m.punchType}` : `Save ${v}`, onSave: (v, info) => info?.mode === 'sprint'
+          {mediaViewer && <MediaViewer items={mediaViewer.items} start={mediaViewer.index} onClose={() => setMediaViewer(null)} onMeasure={item => setVideoTool({ mode: 'jump', fromViewer: item.url, label: (v, m) => m?.mode === 'punch' ? `Save ${v} ms as ${m.punchType}` : m?.mode === 'longjump' ? `Save ${v} cm as Long Jump` : m?.mode === 'jump' ? `Save ${v} cm as Vertical Jump` : `Save ${v}`, onSave: (v, info) => info?.mode === 'sprint'
           ? savePhysicalField('running', [...todaysRunning, { id: newRunId(), category: 'Timed Sprints', mode: 'distance', test: info.distance ? `${info.distance}m` : '', sets: [{ value: String(v), isRest: false }] }], setTodaysRunning)
           : info?.mode === 'punch' ? saveTestValue(`${info.punchType || 'Jab'} time (ms)`, String(v))
+          : info?.mode === 'longjump' ? saveTestValue('Long Jump (distance)', String(v))
           : saveTestValue('Vertical Jump (distance)', String(v)) })} />}
           {bgUploads.length > 0 && (
             <div style={{ position: 'fixed', left: 12, right: 12, bottom: 'calc(14px + env(safe-area-inset-bottom, 0px))', zIndex: 530, display: 'flex', flexDirection: 'column', gap: 6, pointerEvents: 'none' }}>
@@ -5594,6 +5595,7 @@ export default function AthleteApp() {
                           {cat.icon} {cat.key === 'stretches' ? 'Stretch ranges' : cat.key === 'wattbike' ? 'Single set' : cat.label}
                         </span>
                         {cat.key === 'jumps' && <button type="button" className="btn btn-sm" style={{ fontSize: 11, marginRight: 6 }} onClick={e => { e.stopPropagation(); setVideoTool({ mode: 'jump', label: v => `Save ${v} cm as Vertical Jump`, onSave: v => saveTestValue('Vertical Jump (distance)', String(v)) }) }}>📹 Measure from video</button>}
+{cat.key === 'jumps' && <button type="button" className="btn btn-sm" style={{ fontSize: 11, marginRight: 6 }} onClick={e => { e.stopPropagation(); setVideoTool({ mode: 'longjump', label: v => `Save ${v} cm as Long Jump`, onSave: v => saveTestValue('Long Jump (distance)', String(v)) }) }}>📹 Long jump</button>}
                         {cat.key === 'punch' && <><button type="button" className="btn btn-sm" style={{ fontSize: 11, marginRight: 6 }} onClick={e => { e.stopPropagation(); setVideoTool({ mode: 'punch', label: (v, m) => `Save ${v} ms as ${m?.punchType || 'Jab'}`, onSave: (v, m) => saveTestValue(`${m?.punchType || 'Jab'} time (ms)`, String(v)) }) }}>📹 Punch speed</button><button type="button" className="btn btn-sm" style={{ fontSize: 11, marginRight: 6 }} onClick={e => { e.stopPropagation(); setVideoTool({ mode: 'count' }) }}>📹 Count punches</button></>}
                         {open && <button type="button" className="btn btn-sm" onClick={e => { e.stopPropagation(); clearTestCategory(cat.key) }} style={{ fontSize: 11 }}>✕ Clear</button>}
                       </div>

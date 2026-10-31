@@ -236,7 +236,7 @@ export default function PunchCountTool({ mode = 'punches', title, onSave, onClos
         <h2 style={{ fontSize: 16, fontWeight: 700, flex: 1 }}>{onSwitchMode ? (isReps ? '📹 Count reps' : '📹 Count punches') : (title || (isReps ? '📹 Count reps from video' : '📹 Count punches from video'))}</h2>
         {onSwitchMode && (
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            {[['jump', 'Jump'], ['sprint', 'Sprint'], ['punch', 'Punch'], ['timer', 'Time']].map(([k, l]) => (
+            {[['jump', 'Jump'], ['longjump', 'Long jump'], ['sprint', 'Sprint'], ['punch', 'Punch'], ['timer', 'Time']].map(([k, l]) => (
               <button key={k} type="button" onClick={() => { cancelRef.current = true; onSwitchMode(k) }} style={{ ...btn, height: 34, minWidth: 0, padding: '0 10px', fontSize: 13 }}>{l}</button>
             ))}
             {[['punches', 'Count'], ['reps', 'Reps']].map(([k, l]) => (

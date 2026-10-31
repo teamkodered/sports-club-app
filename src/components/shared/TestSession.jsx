@@ -171,7 +171,10 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
             {cat.key === 'stretches' && <button type="button" className="ts-measure-btn" onClick={() => setTool('photo')}>📷 Measure from photo</button>}
             {cat.key === 'heart' && <button type="button" className="ts-measure-btn" onClick={() => setTool('hrr')}>❤️ Run HR recovery test (Watt bike)</button>}
             {cat.key === 'fixedload' && <button type="button" className="ts-measure-btn" onClick={() => setTool(`timer:${flColour || cat.tests[0]?.name}`)}>📹 Time circuit from video ({(flColour || cat.tests[0]?.name || '').replace(/^Fixed load circuit - /, '')})</button>}
-            {cat.key === 'jumps' && <button type="button" className="ts-measure-btn" onClick={() => setTool('jump')}>📹 Open jump measuring</button>}
+            {cat.key === 'jumps' && <>
+              <button type="button" className="ts-measure-btn" onClick={() => setTool('jump')}>📹 Open jump measuring</button>
+              <button type="button" className="ts-measure-btn" onClick={() => setTool('longjump')}>📹 Open long jump measuring</button>
+            </>}
             {cat.key === 'punch' && <>
               <button type="button" className="ts-measure-btn" onClick={() => setTool('punch')}>📹 Open punch speed</button>
               <button type="button" className="ts-measure-btn" onClick={() => setTool('count')}>📹 Open punch counter</button>
@@ -203,11 +206,11 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
           ? <PunchCountTool zIndex={700} onFile={f => { toolFile.current = f }} onClose={() => setTool(null)}
               onSave={({ perRound, perMinute }) => { setVals(p => ({ ...p, 'Punches per round': String(perRound), 'Punches per minute': String(perMinute) })); keepVideo('Punch count') }} />
           : <VideoMeasureTool mode={tool} zIndex={700} onFile={f => { toolFile.current = f }} onClose={() => setTool(null)}
-              saveLabel={(v, m) => tool === 'jump' ? `Use ${v} cm for Vertical Jump` : `Use ${v} ms for ${m?.punchType || 'Jab'}`}
+              saveLabel={(v, m) => m?.mode === 'longjump' ? `Use ${v} cm for Long Jump` : tool === 'jump' ? `Use ${v} cm for Vertical Jump` : `Use ${v} ms for ${m?.punchType || 'Jab'}`}
               onResult={(v, m) => {
-                const name = tool === 'jump' ? 'Vertical Jump (distance)' : `${m?.punchType || 'Jab'} time (ms)`
+                const name = m?.mode === 'longjump' ? 'Long Jump (distance)' : tool === 'jump' ? 'Vertical Jump (distance)' : `${m?.punchType || 'Jab'} time (ms)`
                 setVals(p => ({ ...p, [name]: String(v) }))
-                keepVideo(tool === 'jump' ? 'Vertical jump' : `${m?.punchType || 'Jab'} speed`)
+                keepVideo(m?.mode === 'longjump' ? 'Long jump' : tool === 'jump' ? 'Vertical jump' : `${m?.punchType || 'Jab'} speed`)
               }} />, document.body)}
 
         {/* Fixed load circuit: pick the colour, then one time box for it (plus any colours already filled in) */}
