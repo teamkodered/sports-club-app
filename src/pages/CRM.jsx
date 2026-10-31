@@ -862,6 +862,15 @@ export default function CRM() {
   // Grading form: the name / age typed (saved in notes) -- shown when the request isn't linked to a student
   function gradingTypedName(r) { try { const n = typeof r.notes === 'string' ? JSON.parse(r.notes) : r.notes; return n?.name ? `${n.name}${n.age ? ` (age ${n.age})` : ''}` : null } catch { return null } }
   const [gradingLinking, setGradingLinking] = useState(null)   // { id, q, results }
+  const [gradingEdit, setGradingEdit] = useState(null)         // { id, current_belt, grading_for } -- fixing a wrong grade
+  async function saveGradingEdit() {
+    const ge = gradingEdit
+    if (!ge?.grading_for) return alert('Choose the grade they are grading for.')
+    const { error } = await supabase.from('grading_expressions').update({ current_belt: ge.current_belt || null, grading_for: ge.grading_for }).eq('id', ge.id)
+    if (error) return alert('Could not save: ' + error.message)
+    setGradingRequests(prev => prev.map(r => r.id === ge.id ? { ...r, current_belt: ge.current_belt || null, grading_for: ge.grading_for } : r))
+    setGradingEdit(null)
+  }
   async function searchGradingLink(q) {
     setGradingLinking(g => ({ ...g, q }))
     if (q.trim().length < 2) return setGradingLinking(g => ({ ...g, results: [] }))
@@ -5025,9 +5034,41 @@ export default function CRM() {
                         ) : (
                           <button type="button" className="btn btn-sm" style={{ margin: '4px 0 6px', fontSize: 11 }} onClick={() => { const n = gradingTypedName(r)?.replace(/ \(age.*$/, '') || ''; setGradingLinking({ id: r.id, q: '', results: [] }); if (n) searchGradingLink(n.split(' ')[0]) }}>🔗 Link to student</button>
                         ))}
-                        <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                          {r.discipline} · {r.current_belt || '—'} → <strong>{r.grading_for}</strong>
-                        </p>
+                        {gradingEdit?.id === r.id ? (() => {
+                          // grades for their age group (plus whatever they typed, if it isn't in the list)
+                          const opts = [...new Set([...(order.length ? order : []), r.current_belt, r.grading_for].filter(Boolean))]
+                          const sel = (key, label) => order.length ? (
+                            <select value={gradingEdit[key] || ''} onChange={e => {
+                                const v = e.target.value
+                                setGradingEdit(g => ({ ...g, [key]: v, ...(key === 'current_belt' && order.indexOf(v) >= 0 && order[order.indexOf(v) + 1] ? { grading_for: order[order.indexOf(v) + 1] } : {}) }))
+                              }}
+                              style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'var(--bg)', color: 'var(--text)', fontSize: 14 }} aria-label={label}>
+                              <option value="">{label}…</option>
+                              {opts.map(o => <option key={o} value={o}>{o}</option>)}
+                            </select>
+                          ) : (
+                            <input value={gradingEdit[key] || ''} onChange={e => setGradingEdit(g => ({ ...g, [key]: e.target.value }))} placeholder={label}
+                              style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'var(--bg)', color: 'var(--text)', fontSize: 14, width: 140 }} />
+                          )
+                          return (
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', margin: '6px 0' }}>
+                              <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{r.discipline}</span>
+                              {sel('current_belt', 'Current grade')}
+                              <span>→</span>
+                              {sel('grading_for', 'Grading for')}
+                              <button className="btn btn-sm btn-primary" onClick={saveGradingEdit}>Save</button>
+                              <button className="btn btn-sm" onClick={() => setGradingEdit(null)}>Cancel</button>
+                            </div>
+                          )
+                        })() : (
+                          <p style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <span>{r.discipline} · {r.current_belt || '—'} → <strong>{r.grading_for}</strong></span>
+                            {!r.coach_approved && (
+                              <button type="button" className="btn btn-sm" style={{ fontSize: 11, padding: '2px 8px' }} title="Fix the grade if they picked the wrong one"
+                                onClick={() => setGradingEdit({ id: r.id, current_belt: r.current_belt || '', grading_for: r.grading_for || '' })}>✏️ Edit grade</button>
+                            )}
+                          </p>
+                        )}
                         {isDoubleGrade && (
                           <p style={{ fontSize: 12, fontWeight: 600, color: '#b8720a', marginTop: 2 }}>
                             ⚠️ Skips {gradingForIdx - currentIdx - 1} grade{gradingForIdx - currentIdx - 1 === 1 ? '' : 's'} ({order.slice(currentIdx + 1, gradingForIdx).join(', ')})
