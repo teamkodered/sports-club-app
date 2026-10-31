@@ -292,9 +292,10 @@ export default function StudentDatabase() {
   }
 
   function previewCycleStatus(student) {
-    const order = ['active', 'pending', 'stopped']
+    // Active → Pending → Stopped → Not started → Active. Once saved (Send) they move to that tab.
+    const order = ['active', 'pending', 'stopped', 'not_started']
     const current = pendingStatusChanges[student.id] ?? student.members?.status ?? 'active'
-    const currentIdx = order.indexOf(current) // -1 for 'not_started' -- next becomes 'active', a sensible reset
+    const currentIdx = order.indexOf(current)
     const next = order[(currentIdx + 1) % order.length]
     setPendingStatusChanges(prev => ({ ...prev, [student.id]: next }))
   }
@@ -705,8 +706,8 @@ export default function StudentDatabase() {
                                 } : undefined}
                                 className={`badge ${displayStatus==='active'?'badge-green':displayStatus==='pending'?'badge-amber':displayStatus==='stopped'?'badge-red':'badge-gray'}`}
                                 style={{ fontSize: 10, cursor: isAdmin ? 'pointer' : 'default', outline: pending ? '2px dashed #378ADD' : 'none', outlineOffset: 2 }}
-                                title={isAdmin ? (pending ? 'Not saved yet — press Send to confirm' : 'Click to cycle Active/Pending/Stopped — right-click for Not Started') : undefined}>
-                                {displayStatus}
+                                title={isAdmin ? (pending ? 'Not saved yet — press Send to confirm' : 'Tap to cycle Active / Pending / Stopped / Not started') : undefined}>
+                                {displayStatus === 'not_started' ? 'not started' : displayStatus}
                               </span>
                             )
                           })()}

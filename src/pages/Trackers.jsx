@@ -327,8 +327,10 @@ export default function Trackers({ onStatsReady } = {}) {
     if (s.member_id) studentGroupsByMemberId[s.member_id] = groups
   }
 
-  const totalStudents = students.filter(s => s.members?.status !== 'stopped' && s.members?.status !== 'not_started').length
-  const activeStudents = students.filter(s => s.members?.status !== 'stopped' && s.members?.status !== 'not_started')
+  // Total students: active only -- pending applications aren't students yet (shown separately)
+  const totalStudents = students.filter(s => !['stopped', 'not_started', 'pending'].includes(s.members?.status)).length
+  const pendingStudents = students.filter(s => s.members?.status === 'pending').length
+  const activeStudents = students.filter(s => !['stopped', 'not_started', 'pending'].includes(s.members?.status))
   const totalStudentsBreakdown = emptyBreakdown()
   for (const s of activeStudents) {
     const groups = studentGroupsById[s.id]
@@ -413,11 +415,11 @@ export default function Trackers({ onStatsReady } = {}) {
   useEffect(() => {
     if (loading) return
     onStatsReady?.({
-      totalStudents, newMembersThisMonth, newPendingThisMonth, returnedThisMonth, trainedThisMonth, avgSessions, avgMonthsTrained,
+      totalStudents, pendingStudents, newMembersThisMonth, newPendingThisMonth, returnedThisMonth, trainedThisMonth, avgSessions, avgMonthsTrained,
       completedDurationsCount: completedDurations.length, missingStopDates,
       totalStudentsBreakdown, newMembersThisMonthBreakdown, trainedThisMonthBreakdown, avgSessionsBreakdown, avgMonthsTrainedBreakdown,
     })
-  }, [loading, totalStudents, newMembersThisMonth, newPendingThisMonth, returnedThisMonth, trainedThisMonth, avgSessions, avgMonthsTrained, completedDurations.length, missingStopDates])
+  }, [loading, totalStudents, pendingStudents, newMembersThisMonth, newPendingThisMonth, returnedThisMonth, trainedThisMonth, avgSessions, avgMonthsTrained, completedDurations.length, missingStopDates])
 
   if (loading) return <div className="loading">Loading trackers…</div>
 

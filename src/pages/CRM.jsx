@@ -3995,7 +3995,7 @@ export default function CRM() {
           {trackersStats && (
             <div className="template-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 16 }}>
               {[
-                { cardKey: 'totalStudents', defaultLabel: 'Total students', value: trackersStats.totalStudents, breakdown: trackersStats.totalStudentsBreakdown, colour: '#378ADD', icon: '🎽' },
+                { cardKey: 'totalStudents', defaultLabel: 'Total students', value: trackersStats.totalStudents, breakdown: trackersStats.totalStudentsBreakdown, colour: '#378ADD', icon: '🎽', caption: trackersStats.pendingStudents ? `+ ${trackersStats.pendingStudents} pending` : 'Active students' },
                 { cardKey: 'newMembers', defaultLabel: 'New members this month', value: trackersStats.newMembersThisMonth, breakdown: trackersStats.newMembersThisMonthBreakdown, colour: '#E24B4A', icon: '🆕', caption: [trackersStats.returnedThisMonth ? `↻ ${trackersStats.returnedThisMonth} returned` : null, trackersStats.newPendingThisMonth ? `+ ${trackersStats.newPendingThisMonth} waiting for approval` : null].filter(Boolean).join(' · ') || 'Approved students only' },
                 { cardKey: 'trainedThisMonth', defaultLabel: 'Trained this month', value: trackersStats.trainedThisMonth, breakdown: trackersStats.trainedThisMonthBreakdown, colour: '#1D9E75', icon: '💪' },
                 { cardKey: 'avgSessions', defaultLabel: 'Avg sessions/student', value: trackersStats.avgSessions, breakdown: trackersStats.avgSessionsBreakdown, colour: '#EF9F27', icon: '📈' },
