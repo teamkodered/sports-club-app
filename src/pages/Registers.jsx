@@ -1424,7 +1424,11 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
       // standard attendance-point award as ticking "Attended"
       // directly), rather than leaving them logged with points but
       // silently absent from the register.
-      if (!attendance[sid] || attendance[sid] === 'none') {
+      // ...but NOT for 🏆 comp results (those are from an event, not this class) or for a
+      // session that hasn't happened yet -- that's how comp points used to mark people attended.
+      const onlyComp = points.length > 0 && points.every(isCompPt)
+      const nowD = new Date(), todayStr = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}-${String(nowD.getDate()).padStart(2, '0')}`
+      if (!onlyComp && date <= todayStr && (!attendance[sid] || attendance[sid] === 'none')) {
         const scopedToClass = classFilter && classFilter !== 'all'
         const detectedClassId = scopedToClass ? classFilter : detectClassIdForStudent(sid)
         const { error: attendErr } = await supabase.from('attendance').insert({
