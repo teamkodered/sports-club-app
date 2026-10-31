@@ -1489,7 +1489,7 @@ export default function AthleteApp() {
   const [f2fQuickLogQuestion, setF2fQuickLogQuestion] = useState(null) // which question within that section is expanded to show the log control
   const [f2fQuickLogTestValue, setF2fQuickLogTestValue] = useState('')
   const [f2fQuickLogSaving, setF2fQuickLogSaving] = useState(false)
-  const [athleteHousePoints, setAthleteHousePoints] = useState({ f2f_question: 1, checkin: 3, checkout: 3, weigh_in: 5, weigh_out: 5, pdp_action: 5, pdp_complete: 5, pdp_calendar: 1, target_week: 10 })
+  const [athleteHousePoints, setAthleteHousePoints] = useState({ f2f_question: 1, checkin: 3, checkout: 3, weigh_in: 5, weigh_out: 5, pdp_action: 0, pdp_focus: 5, pdp_day: 5, pdp_complete: 5, pdp_calendar: 1, target_week: 10 })
   const [athleteTimetableModal, setAthleteTimetableModal] = useState(null) // { sectionKey, item } or null
   const [expandedToDoItems, setExpandedToDoItems] = useState(() => new Set()) // composite "scope:type:index" keys whose own "To do" panel is currently revealed
   const [newToDoDrafts, setNewToDoDrafts] = useState({}) // scope key -> draft text for the athlete's own new to-do note
@@ -2527,7 +2527,7 @@ export default function AthleteApp() {
         setIntervalModes(map.f2f_interval_modes || ['20 seconds on 20 seconds off', '30 seconds on 30 seconds off', '40 seconds on 20 seconds off'])
         setBodyweightTypeOptions(map.f2f_bodyweight_types || ['Push-ups', 'Pull-ups', 'Squats', 'Dips', 'Sit-ups', 'Burpees', 'Other'])
         setStretchOptionsList(map.f2f_stretch_options || ['Other'])
-        setAthleteHousePoints({ f2f_question: 1, checkin: 3, checkout: 3, weigh_in: 5, weigh_out: 5, pdp_action: 5, pdp_complete: 5, pdp_calendar: 1, target_week: 10, ...(map.athlete_house_points || {}) })
+        setAthleteHousePoints({ f2f_question: 1, checkin: 3, checkout: 3, weigh_in: 5, weigh_out: 5, pdp_action: 0, pdp_focus: 5, pdp_day: 5, pdp_complete: 5, pdp_calendar: 1, target_week: 10, ...(map.athlete_house_points || {}) })
       })
   }, [])
 
@@ -2620,6 +2620,8 @@ export default function AthleteApp() {
       weigh_in: 'Weigh in',
       weigh_out: 'Weigh out',
       pdp_action: 'PDP action done',
+      pdp_focus: 'PDP focus action done',
+      pdp_day: 'PDP done for today',
       pdp_complete: 'PDP task completed',
       pdp_calendar: 'PDP added to calendar',
       target_week: 'Weekly target hit',
@@ -3814,10 +3816,42 @@ export default function AthleteApp() {
     setApData(a => ({ ...(a || {}), pdp_done: updated }))
     const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_done: updated }, { onConflict: 'student_id' })
     if (error) { setApData(a => ({ ...(a || {}), pdp_done: cur })); alert('Could not save: ' + error.message + (/pdp_done/.test(error.message) ? ' (run supabase_pdp_links.sql first)' : '')); return }
-    // points for each PDP action ticked done today (unticking it takes them back)
-    const detail = String(text || '').trim().slice(0, 80)
-    if (dates.includes(today)) revokeHousePoints('pdp_action', detail)
-    else awardHousePoints('pdp_action', detail)
+    // points only for today's 🎯 focus action (other PDP actions can be ticked, no points)
+    const focus = cur.__focus__
+    if (focus?.date === today && focus.key === k) {
+      if (dates.includes(today)) revokeHousePoints('pdp_focus')
+      else awardHousePoints('pdp_focus')
+    }
+  }
+  // 🎯 Today's focus: one PDP action a day that scores when it's done
+  async function setPdpFocus(sectionKey, text) {
+    if (!student) return
+    const today = new Date().toISOString().split('T')[0]
+    const cur = apData?.pdp_done || {}
+    const k = pdpDoneKey(sectionKey, text)
+    const already = cur.__focus__?.date === today
+    if (already && cur.__focus__.key === k) return
+    // once today's focus has been done (and scored) it can't be swapped for another one
+    if (already && (cur[cur.__focus__.key] || []).includes(today)) { alert("Today's focus is already done — pick a new one tomorrow."); return }
+    const updated = { ...cur, __focus__: { date: today, key: k } }
+    setApData(a => ({ ...(a || {}), pdp_done: updated }))
+    const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_done: updated }, { onConflict: 'student_id' })
+    if (error) { setApData(a => ({ ...(a || {}), pdp_done: cur })); alert('Could not save: ' + error.message); return }
+    // picked an action that's already ticked today -> it scores now
+    if ((cur[k] || []).includes(today)) awardHousePoints('pdp_focus')
+  }
+  // ✓ PDP done for today: one tick a day, scores a set amount
+  async function togglePdpDay() {
+    if (!student) return
+    const today = new Date().toISOString().split('T')[0]
+    const cur = apData?.pdp_done || {}
+    const days = Array.isArray(cur.__day__) ? cur.__day__ : []
+    const on = days.includes(today)
+    const updated = { ...cur, __day__: on ? days.filter(d => d !== today) : [...days, today].slice(-120) }
+    setApData(a => ({ ...(a || {}), pdp_done: updated }))
+    const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_done: updated }, { onConflict: 'student_id' })
+    if (error) { setApData(a => ({ ...(a || {}), pdp_done: cur })); alert('Could not save: ' + error.message); return }
+    if (on) revokeHousePoints('pdp_day'); else awardHousePoints('pdp_day')
   }
   function openLinkedQuestion(pillar, link) {
     setPillarView(v => ({ ...v, [pillar]: 'questions' }))
@@ -3857,14 +3891,29 @@ export default function AthleteApp() {
     const today = new Date().toISOString().split('T')[0]
     return (
       <div className="neon-pdp-list" style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
-        
+        {(() => {
+          const dayDone = (apData?.pdp_done?.__day__ || []).includes(today)
+          const focusSet = apData?.pdp_done?.__focus__?.date === today
+          return (
+            <div style={{ padding: '10px 12px', borderRadius: 6, background: '#14181C', border: `1px solid ${dayDone ? '#22B14C' : PDP_GOLD}` }}>
+              <button type="button" onClick={togglePdpDay}
+                style={{ width: '100%', height: 40, border: 'none', cursor: 'pointer', clipPath: 'polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%)', background: dayDone ? '#22B14C' : PDP_GOLD, color: '#0A0A0A', fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 16, letterSpacing: 1 }}>
+                {dayDone ? `✓ PDP DONE FOR TODAY (+${athleteHousePoints.pdp_day ?? 5})` : `PDP DONE FOR TODAY · +${athleteHousePoints.pdp_day ?? 5}`}
+              </button>
+              <div style={{ fontSize: 11, color: '#9A9A9A', marginTop: 6, lineHeight: 1.35 }}>
+                {focusSet ? '🎯 Today’s focus is set — do it and tick it for ' : '🎯 Pick one action as today’s focus — doing it scores '}+{athleteHousePoints.pdp_focus ?? 5}. Other actions can still be ticked (no points).
+              </div>
+            </div>
+          )
+        })()}
         {lines.map(l => {
           const dates = (apData?.pdp_done || {})[pdpDoneKey(l.sectionKey, l.text)] || []
           const doneToday = dates.includes(today)
+          const isFocus = apData?.pdp_done?.__focus__?.date === today && apData.pdp_done.__focus__.key === pdpDoneKey(l.sectionKey, l.text)
           const linkName = l.link?.pillar ? (l.link.item || (l.link.q || '').split('::').pop().replace(/^(run|watt|bw):/, '')) : null
           return (
             <div key={l.sectionKey + l.text} style={{ padding: '10px 12px', borderRadius: 6, background: '#1A1F24',
-              border: `1px solid ${doneToday ? '#22B14C' : (linkName ? PDP_GOLD : '#2A3138')}`, boxShadow: doneToday ? '0 0 8px rgba(34,177,76,0.45)' : (linkName ? `0 0 8px ${PDP_GOLD}44` : 'none') }}>
+              border: `${isFocus ? 2 : 1}px solid ${doneToday ? '#22B14C' : (isFocus || linkName ? PDP_GOLD : '#2A3138')}`, boxShadow: doneToday ? '0 0 8px rgba(34,177,76,0.45)' : (linkName ? `0 0 8px ${PDP_GOLD}44` : 'none') }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                 <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 8, letterSpacing: 1.5, color: l.colColour }}>{l.colLabel.toUpperCase()}</span>
                 {l.coachOnly && <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 7, letterSpacing: 1, color: '#9A9A9A' }}>COACH ONLY</span>}
@@ -3874,7 +3923,11 @@ export default function AthleteApp() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <button type="button" onClick={() => togglePdpDone(l.sectionKey, l.text)}
                   style={{ height: 32, padding: '0 14px', border: 'none', cursor: 'pointer', clipPath: 'polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%)', background: doneToday ? '#22B14C' : '#2A3138', color: doneToday ? '#0A0A0A' : '#F2F2F2', fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 14, letterSpacing: 1 }}>
-                  {doneToday ? '✓ DONE TODAY' : 'DONE TODAY'}
+                  {doneToday ? '✓ DONE TODAY' : 'DONE TODAY'}{isFocus ? ` · +${athleteHousePoints.pdp_focus ?? 5}` : ''}
+                </button>
+                <button type="button" onClick={() => setPdpFocus(l.sectionKey, l.text)} disabled={isFocus}
+                  style={{ height: 32, padding: '0 12px', border: `1px solid ${PDP_GOLD}`, cursor: isFocus ? 'default' : 'pointer', clipPath: 'polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%)', background: isFocus ? PDP_GOLD : 'transparent', color: isFocus ? '#0A0A0A' : PDP_GOLD, fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 13, letterSpacing: 1 }}>
+                  {isFocus ? '🎯 TODAY’S FOCUS' : '🎯 FOCUS'}
                 </button>
                 <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 10, color: dates.length ? '#22B14C' : '#666' }}>{dates.length}× done</span>
                 
