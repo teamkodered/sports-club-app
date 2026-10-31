@@ -3961,6 +3961,22 @@ export default function AthleteProfiles() {
       .map(t => ({ sectionKey: `${area}_${col}`, col, colLabel, colColour, text: t, link: pdpLinkForLine(apData, `${area}_${col}`, t), coachOnly: !pdpVisibleToAthlete(apData, `${area}_${col}`, t) })))
   }
   const pdpDoneKey = (sectionKey, text) => `${sectionKey.replace(/_(notes|maintain|work_on|what_to_do)$/, '')}::${text}`
+  // 🎯 the athlete's monthly PDP focus (locked for them; the coach can change it here)
+  const pdpFocusOf = (doneMap, area) => { const f = (doneMap || {}).__focus__; return f && !f.date ? (f[new Date().toISOString().slice(0, 7)] || {})[area] || null : null }
+  async function coachSetPdpFocus(sectionKey, text) {
+    if (!selected) return
+    const cur = apData?.pdp_done || {}
+    const k = pdpDoneKey(sectionKey, text), area = k.split('::')[0], month = new Date().toISOString().slice(0, 7)
+    const isNow = pdpFocusOf(cur, area) === k
+    if (!confirm(isNow ? `Clear "${text}" as this month's PDP focus? The athlete can then choose again.` : `Make "${text}" the athlete's PDP focus for this month?`)) return
+    const all = cur.__focus__ && !cur.__focus__.date ? { ...cur.__focus__ } : {}
+    all[month] = { ...(all[month] || {}) }
+    if (isNow) delete all[month][area]; else all[month][area] = k
+    const updated = { ...cur, __focus__: all }
+    setApData(a => ({ ...(a || {}), pdp_done: updated }))
+    const { error } = await supabase.from('athlete_profiles').upsert({ student_id: selected.id, pdp_done: updated }, { onConflict: 'student_id' })
+    if (error) { setApData(a => ({ ...(a || {}), pdp_done: cur })); alert('Could not save: ' + error.message) }
+  }
   async function togglePdpDone(sectionKey, text) {
     if (!selected) return
     const today = new Date().toISOString().split('T')[0]
@@ -4066,6 +4082,11 @@ export default function AthleteProfiles() {
                   {doneToday ? '✓ DONE TODAY' : 'DONE TODAY'}
                 </button>
                 <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 10, color: dates.length ? '#22B14C' : '#666' }}>{dates.length}× done</span>
+                {(() => { const k = pdpDoneKey(l.sectionKey, l.text); const isF = pdpFocusOf(apData?.pdp_done, k.split('::')[0]) === k; return (
+                  <button type="button" onClick={() => coachSetPdpFocus(l.sectionKey, l.text)} title={isF ? 'Monthly PDP focus — tap to clear' : 'Make this the monthly PDP focus'}
+                    style={{ height: 30, padding: '0 10px', borderRadius: 4, border: `1px solid ${PDP_GOLD}`, background: isF ? PDP_GOLD : 'transparent', color: isF ? '#0A0A0A' : PDP_GOLD, fontFamily: 'Orbitron, sans-serif', fontSize: 9, letterSpacing: 1, cursor: 'pointer' }}>
+                    {isF ? '🎯 MONTH FOCUS' : '🎯'}
+                  </button>) })()}
                 {(l.col === 'what_to_do' || l.col === 'maintain') && <button type="button" onClick={() => completePdpLine(l.sectionKey, l.text)} style={{ marginLeft: 'auto', height: 30, padding: '0 12px', borderRadius: 4, border: `1px solid ${PDP_GOLD}`, background: 'transparent', color: PDP_GOLD, fontFamily: 'Orbitron, sans-serif', fontSize: 9, letterSpacing: 1.5, cursor: 'pointer' }}>{l.col === 'what_to_do' ? 'COMPLETE → MAINTAIN' : 'COMPLETE'}</button>}
               </div>
             </div>

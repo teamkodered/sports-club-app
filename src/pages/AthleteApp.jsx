@@ -3805,6 +3805,10 @@ export default function AthleteApp() {
       .filter(t => pdpVisibleToAthlete(apData, `${area}_${col}`, t))
       .map(t => ({ sectionKey: `${area}_${col}`, col, colLabel, colColour, text: t, link: pdpLinkForLine(apData, `${area}_${col}`, t), coachOnly: !pdpVisibleToAthlete(apData, `${area}_${col}`, t) })))
   }
+  // 🎯 PDP focus: one action per PDP area, chosen for the month and locked in (like the monthly question focus)
+  const pdpMonth = () => new Date().toISOString().slice(0, 7)
+  const pdpAreaOf = k => String(k).split('::')[0]
+  const pdpFocusFor = (doneMap, area) => { const f = (doneMap || {}).__focus__; return f && !f.date ? (f[pdpMonth()] || {})[area] || null : null }
   const pdpDoneKey = (sectionKey, text) => `${sectionKey.replace(/_(notes|maintain|work_on|what_to_do)$/, '')}::${text}`
   async function togglePdpDone(sectionKey, text) {
     if (!student) return
@@ -3816,29 +3820,30 @@ export default function AthleteApp() {
     setApData(a => ({ ...(a || {}), pdp_done: updated }))
     const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_done: updated }, { onConflict: 'student_id' })
     if (error) { setApData(a => ({ ...(a || {}), pdp_done: cur })); alert('Could not save: ' + error.message + (/pdp_done/.test(error.message) ? ' (run supabase_pdp_links.sql first)' : '')); return }
-    // points only for today's 🎯 focus action (other PDP actions can be ticked, no points)
-    const focus = cur.__focus__
-    if (focus?.date === today && focus.key === k) {
-      if (dates.includes(today)) revokeHousePoints('pdp_focus')
-      else awardHousePoints('pdp_focus')
+    // points only for this month's 🎯 focus action (once a day); other PDP actions tick with no points
+    if (pdpFocusFor(cur, pdpAreaOf(k)) === k) {
+      const detail = pdpAreaOf(k)
+      if (dates.includes(today)) revokeHousePoints('pdp_focus', detail)
+      else awardHousePoints('pdp_focus', detail)
     }
   }
-  // 🎯 Today's focus: one PDP action a day that scores when it's done
+  // 🎯 Choose this month's PDP focus for an area -- locked in until the end of the month
   async function setPdpFocus(sectionKey, text) {
     if (!student) return
     const today = new Date().toISOString().split('T')[0]
     const cur = apData?.pdp_done || {}
     const k = pdpDoneKey(sectionKey, text)
-    const already = cur.__focus__?.date === today
-    if (already && cur.__focus__.key === k) return
-    // once today's focus has been done (and scored) it can't be swapped for another one
-    if (already && (cur[cur.__focus__.key] || []).includes(today)) { alert("Today's focus is already done — pick a new one tomorrow."); return }
-    const updated = { ...cur, __focus__: { date: today, key: k } }
+    const area = pdpAreaOf(k), month = pdpMonth()
+    if (pdpFocusFor(cur, area)) return   // locked for the month (a coach can change it)
+    const monthName = new Date().toLocaleDateString('en-GB', { month: 'long' })
+    if (!confirm(`Make "${text}" your ${monthName} PDP focus? It's locked in until the end of the month.`)) return
+    const all = cur.__focus__ && !cur.__focus__.date ? { ...cur.__focus__ } : {}
+    all[month] = { ...(all[month] || {}), [area]: k }
+    const updated = { ...cur, __focus__: all }
     setApData(a => ({ ...(a || {}), pdp_done: updated }))
     const { error } = await supabase.from('athlete_profiles').upsert({ student_id: student.id, pdp_done: updated }, { onConflict: 'student_id' })
     if (error) { setApData(a => ({ ...(a || {}), pdp_done: cur })); alert('Could not save: ' + error.message); return }
-    // picked an action that's already ticked today -> it scores now
-    if ((cur[k] || []).includes(today)) awardHousePoints('pdp_focus')
+    if ((cur[k] || []).includes(today)) awardHousePoints('pdp_focus', area)   // already done today -> scores now
   }
   // ✓ PDP done for today: one tick a day, scores a set amount
   async function togglePdpDay() {
@@ -3893,7 +3898,10 @@ export default function AthleteApp() {
       <div className="neon-pdp-list" style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
         {(() => {
           const dayDone = (apData?.pdp_done?.__day__ || []).includes(today)
-          const focusSet = apData?.pdp_done?.__focus__?.date === today
+          const areaKey = lines[0] ? pdpAreaOf(pdpDoneKey(lines[0].sectionKey, lines[0].text)) : null
+          const focusKey = areaKey ? pdpFocusFor(apData?.pdp_done, areaKey) : null
+          const focusText = focusKey ? focusKey.split('::').slice(1).join('::') : null
+          const monthName = new Date().toLocaleDateString('en-GB', { month: 'long' })
           return (
             <div style={{ padding: '10px 12px', borderRadius: 6, background: '#14181C', border: `1px solid ${dayDone ? '#22B14C' : PDP_GOLD}` }}>
               <button type="button" onClick={togglePdpDay}
@@ -3901,7 +3909,9 @@ export default function AthleteApp() {
                 {dayDone ? `✓ PDP DONE FOR TODAY (+${athleteHousePoints.pdp_day ?? 5})` : `PDP DONE FOR TODAY · +${athleteHousePoints.pdp_day ?? 5}`}
               </button>
               <div style={{ fontSize: 11, color: '#9A9A9A', marginTop: 6, lineHeight: 1.35 }}>
-                {focusSet ? '🎯 Today’s focus is set — do it and tick it for ' : '🎯 Pick one action as today’s focus — doing it scores '}+{athleteHousePoints.pdp_focus ?? 5}. Other actions can still be ticked (no points).
+                {focusText
+                  ? <>🎯 <b style={{ color: PDP_GOLD }}>{monthName} focus: {focusText}</b> — locked for the month. Tick it done for +{athleteHousePoints.pdp_focus ?? 5} each day. Other actions still tick, without points.</>
+                  : <>🎯 Pick your <b style={{ color: PDP_GOLD }}>{monthName} PDP focus</b> — press 🎯 FOCUS on one action. It locks in for the month; ticking it done scores +{athleteHousePoints.pdp_focus ?? 5} a day.</>}
               </div>
             </div>
           )
@@ -3909,7 +3919,9 @@ export default function AthleteApp() {
         {lines.map(l => {
           const dates = (apData?.pdp_done || {})[pdpDoneKey(l.sectionKey, l.text)] || []
           const doneToday = dates.includes(today)
-          const isFocus = apData?.pdp_done?.__focus__?.date === today && apData.pdp_done.__focus__.key === pdpDoneKey(l.sectionKey, l.text)
+          const myKey = pdpDoneKey(l.sectionKey, l.text)
+          const areaFocus = pdpFocusFor(apData?.pdp_done, pdpAreaOf(myKey))
+          const isFocus = areaFocus === myKey
           const linkName = l.link?.pillar ? (l.link.item || (l.link.q || '').split('::').pop().replace(/^(run|watt|bw):/, '')) : null
           return (
             <div key={l.sectionKey + l.text} style={{ padding: '10px 12px', borderRadius: 6, background: '#1A1F24',
@@ -3925,10 +3937,10 @@ export default function AthleteApp() {
                   style={{ height: 32, padding: '0 14px', border: 'none', cursor: 'pointer', clipPath: 'polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%)', background: doneToday ? '#22B14C' : '#2A3138', color: doneToday ? '#0A0A0A' : '#F2F2F2', fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 14, letterSpacing: 1 }}>
                   {doneToday ? '✓ DONE TODAY' : 'DONE TODAY'}{isFocus ? ` · +${athleteHousePoints.pdp_focus ?? 5}` : ''}
                 </button>
-                <button type="button" onClick={() => setPdpFocus(l.sectionKey, l.text)} disabled={isFocus}
+                {(isFocus || !areaFocus) && <button type="button" onClick={() => setPdpFocus(l.sectionKey, l.text)} disabled={isFocus}
                   style={{ height: 32, padding: '0 12px', border: `1px solid ${PDP_GOLD}`, cursor: isFocus ? 'default' : 'pointer', clipPath: 'polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%)', background: isFocus ? PDP_GOLD : 'transparent', color: isFocus ? '#0A0A0A' : PDP_GOLD, fontFamily: "'Saira Condensed', sans-serif", fontStyle: 'italic', fontWeight: 800, fontSize: 13, letterSpacing: 1 }}>
-                  {isFocus ? '🎯 TODAY’S FOCUS' : '🎯 FOCUS'}
-                </button>
+                  {isFocus ? '🎯 MONTH FOCUS' : '🎯 FOCUS'}
+                </button>}
                 <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 10, color: dates.length ? '#22B14C' : '#666' }}>{dates.length}× done</span>
                 
               </div>
