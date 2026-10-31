@@ -60,7 +60,16 @@ export default function Study({ studyFootage = [], students = [], studentName, l
     }
   }
 
-  async function open(item) {
+  // Playlist = the study videos in list order (links open outside the app, so they're skipped)
+  const playlist = studyFootage.filter(it => !it.link_url && it.storage_path)
+  function step(dir) {
+    const i = playlist.findIndex(it => it.id === playing?.item.id)
+    const next = playlist[i + dir]
+    if (next) open(next, true)
+    else if (dir > 0) setPlaying(null) // last video finished -- back to the list
+  }
+
+  async function open(item, autoPlay = false) {
     if (item.link_url) { window.open(item.link_url, '_blank', 'noopener'); return }
     const { data: sessionData } = await supabase.auth.getSession()
     const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fight-footage-url`, {
@@ -69,7 +78,7 @@ export default function Study({ studyFootage = [], students = [], studentName, l
     })
     const data = await res.json()
     if (data.error) { alert("Couldn't open this video: " + data.error); return }
-    setPlaying({ url: data.url, item })
+    setPlaying({ url: data.url, item, autoPlay })
   }
 
   function startEdit(item) {
@@ -203,8 +212,11 @@ export default function Study({ studyFootage = [], students = [], studentName, l
       )}
 
       {playing && (
-        <FightFootagePlayer videoUrl={playing.url} title={playing.item.title} footageId={playing.item.id} storagePath={playing.item.storage_path} isCoach
-          rotation={playing.item.rotation} onRotationSaved={() => load()} onClose={() => setPlaying(null)} />
+        <FightFootagePlayer key={playing.item.id} videoUrl={playing.url} title={playing.item.title} footageId={playing.item.id} storagePath={playing.item.storage_path} isCoach
+          rotation={playing.item.rotation} onRotationSaved={() => load()} onClose={() => setPlaying(null)}
+          autoPlay={playing.autoPlay}
+          onNext={playlist.findIndex(it => it.id === playing.item.id) < playlist.length - 1 ? () => step(1) : undefined}
+          onClipSwipe={dir => { if (dir === 'next') step(1); else if (dir === 'prev') step(-1) }} />
       )}
     </div>
   )

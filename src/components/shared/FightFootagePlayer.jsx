@@ -129,7 +129,7 @@ function SectionSpeedPicker({ value, onChange }) {
   )
 }
 
-export default function FightFootagePlayer({ videoUrl, title, footageId, cctvClipId, storagePath, isCoach = false, rotation: initialRotation = 0, onRotationSaved, onTagsSaved, onClose, startAt = 0, onClipSwipe, swipeHint }) {
+export default function FightFootagePlayer({ videoUrl, title, footageId, cctvClipId, storagePath, isCoach = false, rotation: initialRotation = 0, onRotationSaved, onTagsSaved, onClose, onNext, autoPlay = false, startAt = 0, onClipSwipe, swipeHint }) {
   // onClipSwipe(dir, currentTime): with the controls hidden, swipe left/right = 'next'/'prev' file, up/down = 'camUp'/'camDown'
   // startAt: seconds into the video to start from (e.g. the class start inside a long CCTV recording)
   // Markers can belong to either a View IT fight_footage row or a CCTV
@@ -1508,7 +1508,12 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
             ref={videoRef}
             src={videoUrl}
             crossOrigin="anonymous"
-            onLoadedMetadata={e => { if (startAt > 0 && startAt < (e.currentTarget.duration || Infinity)) e.currentTarget.currentTime = startAt }}
+            onLoadedMetadata={e => {
+              if (startAt > 0 && startAt < (e.currentTarget.duration || Infinity)) e.currentTarget.currentTime = startAt
+              if (autoPlay) e.currentTarget.play().catch(() => { /* browser blocked autoplay -- tap ▶ */ })
+            }}
+            // onNext (e.g. Study playlist): when a video finishes, the next one starts by itself
+            onEnded={() => { if (onNext) onNext() }}
             style={videoStyle}
             playsInline
             webkit-playsinline="true"
@@ -1608,7 +1613,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
         {/* Title sits between the fullscreen button's corner and the
             right-hand cluster, so it can't run underneath either. */}
         <span className="ffp-title" style={{
-          position: 'absolute', top: 18, right: 190, textAlign: 'center',
+          position: 'absolute', top: 18, right: onNext ? 234 : 190, textAlign: 'center',
           color: '#fff', fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>{title}</span>
         {/* 📷 and ⟳ live in one row with Close (to its left), pinned to the
@@ -1626,6 +1631,11 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
           <button className="view-it-btn" title={canSaveRotation ? 'Rotate 90° (saved for everyone)' : 'Rotate 90°'}
             style={{ width: 36, height: 36, borderRadius: '50%', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
             onClick={e => { e.stopPropagation(); rotateView() }}>⟳</button>
+          {onNext && (
+            <button className="view-it-btn" title="Next video"
+              style={{ width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+              onClick={e => { e.stopPropagation(); onNext() }}>⏭</button>
+          )}
           <button className="view-it-btn btn btn-sm" onClick={onClose}>✕ Close</button>
         </div>
 
