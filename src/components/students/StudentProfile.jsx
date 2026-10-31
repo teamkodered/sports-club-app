@@ -394,7 +394,7 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
             {classPoints ? (
               <button type="button" onClick={() => setShowClassPts(v => !v)} title="What was awarded in this class"
                 style={{ textAlign: 'center', background: 'none', border: 'none', padding: 0, color: 'inherit', cursor: 'pointer' }}>
-                <div style={{ fontSize: 18, fontWeight: 700 }}>{classPoints.reduce((n, p) => n + (p.points_awarded || 0), 0)}</div>
+                <div style={{ fontSize: 18, fontWeight: 700 }}>{classPoints.filter(p => p.point_scope !== 'comp').reduce((n, p) => n + (p.points_awarded || 0), 0)}</div>
                 <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Class pts {showClassPts ? '▴' : '▾'}</div>
               </button>
             ) : (
@@ -411,13 +411,17 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
               <div style={{ fontSize: 18, fontWeight: 700 }}>🏆 {localStudent.class_champion_count || 0}</div>
               <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Champ</div>
             </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#EF9F27' }}>{localStudent.comp_points || 0}</div>
+              <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Comp pts</div>
+            </div>
           </div>
           {classPoints && showClassPts && (
             <div style={{ flexBasis: '100%', fontSize: 13, background: 'var(--bg-secondary)', borderRadius: 8, padding: '8px 10px' }}>
               {classPoints.length === 0 ? <span style={{ color: 'var(--text-tertiary)' }}>No points given in this class yet.</span>
                 : classPoints.map(p => (
                   <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '2px 0' }}>
-                    <span>{p.point_type}{p.note ? ` — ${p.note}` : ''}</span>
+                    <span>{p.point_scope === 'comp' ? '🏆 ' : ''}{p.point_type}{p.note ? ` — ${p.note}` : ''}{p.point_scope === 'comp' ? ' (comp pts)' : ''}</span>
                     <strong style={{ color: (p.points_awarded || 0) < 0 ? '#E24B4A' : '#1D9E75' }}>{(p.points_awarded || 0) > 0 ? '+' : ''}{p.points_awarded}</strong>
                   </div>
                 ))}

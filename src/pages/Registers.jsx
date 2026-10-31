@@ -505,7 +505,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     if (!del && (!label || isNaN(points) || points === 0)) { alert('Give the reason a name and non-zero points.'); return }
     if (!del && label.toLowerCase() !== er.original.label.toLowerCase() && pointTypes.some(p => p.label.toLowerCase() === label.toLowerCase())) { alert('A reason with that name already exists.'); return }
     if (del && !confirm(`Delete the reason "${er.original.label}"? Points already awarded with it are kept.`)) return
-    const next = del ? pointTypes.filter(p => p.label !== er.original.label) : pointTypes.map(p => p.label === er.original.label ? { ...p, label, points } : p)
+    const next = del ? pointTypes.filter(p => p.label !== er.original.label) : pointTypes.map(p => p.label === er.original.label ? { ...p, label, points, comp: !!er.comp } : p)
     const { error } = await supabase.from('settings').update({ value: next }).eq('key', 'point_types')
     if (error) { alert('Could not save the reason: ' + error.message); return }
     setPointTypes(next)
@@ -1339,7 +1339,11 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     if (error) { alert('Error saving: ' + error.message); return }
 
     const s = students.find(x => x.id === entry.student_id)
-    if (s && diff !== 0) {
+    if (s && diff !== 0 && entry.point_scope === 'comp') {
+      const { error: cErr } = await supabase.rpc('adjust_comp_points', { p_student_id: s.id, p_delta: diff })
+      if (cErr) alert('Points entry saved, but the comp total failed to update: ' + cErr.message)
+      else setStudents(prev => prev.map(x => x.id === s.id ? { ...x, comp_points: (x.comp_points || 0) + diff } : x))
+    } else if (s && diff !== 0) {
       const houseDelta = (entry.point_scope === 'house' || entry.point_scope === 'both') ? diff : 0
       const individualDelta = (entry.point_scope === 'individual' || entry.point_scope === 'both') ? diff : 0
       const { error: updErr } = await supabase.rpc('adjust_student_points', { p_student_id: s.id, p_house_delta: houseDelta, p_individual_delta: individualDelta })
@@ -1373,7 +1377,11 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     if (error) { alert('Error deleting: ' + error.message); return }
 
     const s = students.find(x => x.id === entry.student_id)
-    if (s) {
+    if (s && entry.point_scope === 'comp') {
+      const { error: cErr } = await supabase.rpc('adjust_comp_points', { p_student_id: s.id, p_delta: -entry.points_awarded })
+      if (cErr) alert('Entry deleted, but the comp total failed to update: ' + cErr.message)
+      else setStudents(prev => prev.map(x => x.id === s.id ? { ...x, comp_points: (x.comp_points || 0) - entry.points_awarded } : x))
+    } else if (s) {
       const houseDelta = (entry.point_scope === 'house' || entry.point_scope === 'both') ? -entry.points_awarded : 0
       const individualDelta = (entry.point_scope === 'individual' || entry.point_scope === 'both') ? -entry.points_awarded : 0
       const { error: updErr } = await supabase.rpc('adjust_student_points', { p_student_id: s.id, p_house_delta: houseDelta, p_individual_delta: individualDelta })
@@ -1401,7 +1409,10 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     if (guardRO()) return
     setSaving(true)
     const savedEntries = []   // returned so quick awards can be undone
-    const total = points.reduce((s, p) => s + p.points, 0)
+    // 🏆 comp reasons go to their own total (comp_points), not individual / house points
+    const isCompPt = p => !!(p.comp || pointTypes.find(t => t.label === p.label)?.comp)
+    const compTotal = points.filter(isCompPt).reduce((s, p) => s + p.points, 0)
+    const total = points.filter(p => !isCompPt(p)).reduce((s, p) => s + p.points, 0)
     const isChamp = points.some(p => p.label === 'Class Champ')
     for (const sid of studentIds) {
       const s = students.find(x => x.id === sid)
@@ -1440,7 +1451,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
       for (const pt of points) {
         const { data: logRow, error: logError } = await supabase.from('points_log').insert({
           student_id: sid, point_type: pt.label,
-          points_awarded: pt.points, point_scope: 'both',
+          points_awarded: pt.points, point_scope: isCompPt(pt) ? 'comp' : 'both',
           awarded_at: new Date(date).toISOString(),
           class_id: classFilter && classFilter !== 'all' ? classFilter : null,
         }).select('id, student_id, point_type, points_awarded, point_scope, note, awarded_at, class_id').single()
@@ -1454,7 +1465,11 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
           return
         }
       }
-      const { error: adjustErr } = await supabase.rpc('adjust_student_points', { p_student_id: sid, p_house_delta: total, p_individual_delta: total })
+      if (compTotal) {
+        const { error: compErr } = await supabase.rpc('adjust_comp_points', { p_student_id: sid, p_delta: compTotal })
+        if (compErr) alert(`Comp points logged for ${s.members?.first_name}, but their comp total didn't update: ${compErr.message}${/function/.test(compErr.message) ? ' (run supabase_comp_points.sql)' : ''}`)
+      }
+      const { error: adjustErr } = total ? await supabase.rpc('adjust_student_points', { p_student_id: sid, p_house_delta: total, p_individual_delta: total }) : { error: null }
       if (adjustErr) {
         alert(`"${points.map(p => p.label).join(', ')}" was logged for ${s.members?.first_name}, but updating their points total failed: ${adjustErr.message} -- their running total will be wrong until this is fixed.`)
         setSaving(false)
@@ -1472,7 +1487,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     }
     setStudents(prev => prev.map(s =>
       studentIds.includes(s.id)
-        ? { ...s, house_points: (s.house_points || 0) + total, individual_points: (s.individual_points || 0) + total }
+        ? { ...s, house_points: (s.house_points || 0) + total, individual_points: (s.individual_points || 0) + total, comp_points: (s.comp_points || 0) + compTotal }
         : s
     ))
     setAwardingFor(null); setMultiAward(false); setSelectedStudents([]); setSelectedPoints([]); setPointSearch('')
@@ -1909,7 +1924,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
         // Tap = pick; hold = edit the reason (name / points)
         const ReasonChip = ({ pt, onPick, on }) => (
           <button type="button" className={`reg-m-reason${on ? ' on' : ''}${pt.points < 0 ? ' neg' : ''}`}
-            onPointerDown={() => { reasonHeld.current = false; clearTimeout(reasonHoldTimer.current); reasonHoldTimer.current = setTimeout(() => { reasonHeld.current = true; if (navigator.vibrate) navigator.vibrate(25); setEditReason({ original: pt, label: pt.label, points: pt.points }) }, 550) }}
+            onPointerDown={() => { reasonHeld.current = false; clearTimeout(reasonHoldTimer.current); reasonHoldTimer.current = setTimeout(() => { reasonHeld.current = true; if (navigator.vibrate) navigator.vibrate(25); setEditReason({ original: pt, label: pt.label, points: pt.points, comp: !!pt.comp }) }, 550) }}
             onPointerUp={() => clearTimeout(reasonHoldTimer.current)} onPointerLeave={() => clearTimeout(reasonHoldTimer.current)} onPointerCancel={() => clearTimeout(reasonHoldTimer.current)}
             onContextMenu={e => e.preventDefault()}
             onClick={() => { if (reasonHeld.current) { reasonHeld.current = false; return } onPick(pt) }}>
@@ -2908,6 +2923,10 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                 style={{ width: 70, padding: '7px 8px', textAlign: 'center', fontSize: 15, fontWeight: 700, border: '1px solid var(--border-strong)', borderRadius: 'var(--radius)', background: 'var(--bg-secondary)', color: parseInt(editReason.points) < 0 ? '#E24B4A' : '#1D9E75' }} />
               <button type="button" className="btn btn-sm" onClick={() => setEditReason(r => ({ ...r, points: (parseInt(r.points) || 0) + 1 }))}>+</button>
             </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, fontSize: 14, cursor: 'pointer' }}>
+              <input type="checkbox" checked={!!editReason.comp} onChange={e => setEditReason(r => ({ ...r, comp: e.target.checked }))} style={{ width: 20, height: 20 }} />
+              <span>🏆 <b>Comp points</b> <span style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>— kept separate (not added to individual / house points)</span></span>
+            </label>
             <div style={{ display: 'flex', gap: 8 }}>
               <button type="button" className="btn btn-sm" style={{ color: '#E24B4A', borderColor: '#E24B4A' }} onClick={() => saveEditedReason(true)}>Delete</button>
               <button type="button" className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setEditReason(null)}>Cancel</button>
