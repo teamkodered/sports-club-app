@@ -216,6 +216,7 @@ export default function Study({ studyFootage = [], students = [], studentName, l
           rotation={playing.item.rotation} onRotationSaved={() => load()} onClose={() => setPlaying(null)}
           autoPlay={playing.autoPlay}
           onNext={playlist.findIndex(it => it.id === playing.item.id) < playlist.length - 1 ? () => step(1) : undefined}
+          onPrev={playlist.findIndex(it => it.id === playing.item.id) > 0 ? () => step(-1) : undefined}
           onClipSwipe={dir => { if (dir === 'next') step(1); else if (dir === 'prev') step(-1) }} />
       )}
     </div>

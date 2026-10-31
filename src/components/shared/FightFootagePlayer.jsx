@@ -129,7 +129,10 @@ function SectionSpeedPicker({ value, onChange }) {
   )
 }
 
-export default function FightFootagePlayer({ videoUrl, title, footageId, cctvClipId, storagePath, isCoach = false, rotation: initialRotation = 0, onRotationSaved, onTagsSaved, onClose, onNext, autoPlay = false, startAt = 0, onClipSwipe, swipeHint }) {
+// shared between player instances -- see the history handover in the component
+const playerHandoff = { open: 0, timer: null }
+
+export default function FightFootagePlayer({ videoUrl, title, footageId, cctvClipId, storagePath, isCoach = false, rotation: initialRotation = 0, onRotationSaved, onTagsSaved, onClose, onNext, onPrev, autoPlay = false, startAt = 0, onClipSwipe, swipeHint }) {
   // onClipSwipe(dir, currentTime): with the controls hidden, swipe left/right = 'next'/'prev' file, up/down = 'camUp'/'camDown'
   // startAt: seconds into the video to start from (e.g. the class start inside a long CCTV recording)
   // Markers can belong to either a View IT fight_footage row or a CCTV
@@ -186,19 +189,29 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
   useEffect(() => {
-    window.history.pushState({ fightFootagePlayerOpen: true }, '')
+    // Handover: when one player is straight away replaced by another (Study ⏭ / ⏮,
+    // auto-play next), the new one takes over the existing history entry. Before, the
+    // old one's history.back() arrived as a popstate AFTER the new one was listening,
+    // so the new player closed itself and dropped back to the list.
+    if (playerHandoff.timer) { clearTimeout(playerHandoff.timer); playerHandoff.timer = null }
+    else window.history.pushState({ fightFootagePlayerOpen: true }, '')
+    playerHandoff.open += 1
     function handlePopState() {
       onCloseRef.current?.()
     }
     window.addEventListener('popstate', handlePopState)
     return () => {
       window.removeEventListener('popstate', handlePopState)
+      playerHandoff.open -= 1
       // If the player is closing for a reason other than the user
       // pressing back (e.g. its own ✕ button), the history entry
       // pushed above is still sitting there unused -- clean it up so
       // a later, unrelated back press doesn't land on a stale entry
-      // that does nothing.
-      if (window.history.state?.fightFootagePlayerOpen) window.history.back()
+      // that does nothing. Deferred a tick so a replacement player can claim it.
+      playerHandoff.timer = setTimeout(() => {
+        playerHandoff.timer = null
+        if (playerHandoff.open === 0 && window.history.state?.fightFootagePlayerOpen) window.history.back()
+      }, 0)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -1613,7 +1626,7 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
         {/* Title sits between the fullscreen button's corner and the
             right-hand cluster, so it can't run underneath either. */}
         <span className="ffp-title" style={{
-          position: 'absolute', top: 18, right: onNext ? 234 : 190, textAlign: 'center',
+          position: 'absolute', top: 18, right: 190 + (onNext ? 44 : 0) + (onPrev ? 44 : 0), textAlign: 'center',
           color: '#fff', fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>{title}</span>
         {/* 📷 and ⟳ live in one row with Close (to its left), pinned to the
@@ -1631,6 +1644,11 @@ export default function FightFootagePlayer({ videoUrl, title, footageId, cctvCli
           <button className="view-it-btn" title={canSaveRotation ? 'Rotate 90° (saved for everyone)' : 'Rotate 90°'}
             style={{ width: 36, height: 36, borderRadius: '50%', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
             onClick={e => { e.stopPropagation(); rotateView() }}>⟳</button>
+          {onPrev && (
+            <button className="view-it-btn" title="Previous video"
+              style={{ width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+              onClick={e => { e.stopPropagation(); onPrev() }}>⏮</button>
+          )}
           {onNext && (
             <button className="view-it-btn" title="Next video"
               style={{ width: 36, height: 36, borderRadius: '50%', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
