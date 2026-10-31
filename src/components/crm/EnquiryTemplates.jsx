@@ -140,6 +140,12 @@ export function upgradeStarterTemplates(list) {
 // wa.me needs full international digits: 07... -> 447...
 const toWhatsappNumber = phone => { const d = String(phone || '').replace(/[^0-9]/g, ''); return d.startsWith('0') ? '44' + d.slice(1) : d }
 
+// On a phone, open the WhatsApp app straight away (skips wa.me's "Continue to chat" page)
+const isPhone = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '')
+const whatsappHref = (phone, text) => isPhone()
+  ? `whatsapp://send?phone=${toWhatsappNumber(phone)}&text=${encodeURIComponent(text)}`
+  : `https://wa.me/${toWhatsappNumber(phone)}?text=${encodeURIComponent(text)}`
+
 const joinNames = n => n.length <= 1 ? (n[0] || '') : `${n.slice(0, -1).join(', ')} and ${n[n.length - 1]}`
 
 // The class they asked about, from the notes the inbox writes
@@ -232,6 +238,8 @@ export default function EnquirySendTemplates({ title = null, kind = 'enquiry', c
   const [cursor, setCursor] = useState(0)                // WhatsApp / text: who's next
   const [sentIds, setSentIds] = useState(new Set())
   const [skipped, setSkipped] = useState([])
+  const [justSent, setJustSent] = useState(null)        // name of the last one opened (shows ✓ when you come back)
+  const [skippedIds, setSkippedIds] = useState(new Set())
   const [managing, setManaging] = useState(manageOnly)   // manageOnly: opened from 'Templates' just to view / edit them
   const [draft, setDraft] = useState(null)               // template being edited
 
@@ -264,10 +272,23 @@ export default function EnquirySendTemplates({ title = null, kind = 'enquiry', c
     }
     setSentIds(sent); setSkipped(failed); setStep('done')
   }
+  // next person not yet sent / skipped (after the current one, wrapping round)
+  function nextOpenIndex(from, sent = sentIds, skip = skippedIds) {
+    for (let k = 1; k <= list.length; k++) { const i = (from + k) % list.length; if (!sent.has(list[i].id) && !skip.has(list[i].id)) return i }
+    return -1
+  }
   async function markSentAndNext(enq) {
-    setSentIds(prev => new Set(prev).add(enq.id))
+    const sent = new Set(sentIds).add(enq.id)
+    setSentIds(sent); setJustSent(enq.name.split(' ')[0])
     await onSent(enq)
-    if (cursor + 1 >= list.length) setStep('done'); else setCursor(c => c + 1)
+    const n = nextOpenIndex(cursor, sent)
+    if (n < 0) setStep('done'); else setCursor(n)
+  }
+  function skipCurrent() {
+    const sk = new Set(skippedIds).add(list[cursor].id)
+    setSkippedIds(sk); setJustSent(null)
+    const n = nextOpenIndex(cursor, sentIds, sk)
+    if (n < 0) setStep('done'); else setCursor(n)
   }
 
   function saveDraft() {
@@ -323,7 +344,7 @@ export default function EnquirySendTemplates({ title = null, kind = 'enquiry', c
               </div>
               <div className="ets-row">
                 <button className="btn btn-primary" disabled={!pickSel.size} onClick={() => {
-                  setPicked(allEnquiries.filter(e => pickSel.has(e.id))); setOverrides({}); setCursor(0); setSentIds(new Set()); setSkipped([])
+                  setPicked(allEnquiries.filter(e => pickSel.has(e.id))); setOverrides({}); setCursor(0); setSentIds(new Set()); setSkipped([]); setSkippedIds(new Set()); setJustSent(null)
                   setPicking(false); setManaging(false); setStep('preview')
                 }}>Next — preview {pickSel.size || ''} message{pickSel.size === 1 ? '' : 's'}</button>
                 <button className="btn" onClick={() => setPicking(false)}>Back</button>
@@ -462,20 +483,46 @@ export default function EnquirySendTemplates({ title = null, kind = 'enquiry', c
           <div className="ets-col"><div className="ets-hint">Sending emails…</div></div>
         ) : step === 'sending' ? (() => {
           const enq = list[cursor]
-          const msg = encodeURIComponent(textFor(enq))
-          const href = channel === 'whatsapp' ? `https://wa.me/${toWhatsappNumber(enq.contact_phone)}?text=${msg}` : `sms:${enq.contact_phone}?body=${msg}`
+          const text = textFor(enq)
+          const href = channel === 'whatsapp' ? whatsappHref(enq.contact_phone, text) : `sms:${enq.contact_phone}?body=${encodeURIComponent(text)}`
+          const done = sentIds.size + skippedIds.size
           return (
             <div className="ets-col">
-              <div className="ets-hint">{cursor + 1} of {list.length} — open it, send it, then come back for the next one.</div>
+              {/* progress */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ flex: 1, height: 8, borderRadius: 4, background: 'var(--bg-secondary)', overflow: 'hidden' }}>
+                  <div style={{ width: `${Math.round(100 * done / list.length)}%`, height: '100%', background: '#1D9E75', transition: 'width .3s' }} />
+                </div>
+                <b style={{ fontSize: 15, whiteSpace: 'nowrap' }}>{sentIds.size} / {list.length} sent</b>
+              </div>
+              {justSent && <div style={{ fontSize: 14, color: '#1D9E75', fontWeight: 700 }}>✓ {justSent} done — next one is ready</div>}
+              <a className="btn btn-primary ets-big ets-send-next" href={href} target={channel === 'whatsapp' && isPhone() ? undefined : '_blank'} rel="noreferrer"
+                onClick={() => setTimeout(() => markSentAndNext(enq), 400)}>
+                {channel === 'whatsapp' ? '🟢 WhatsApp' : '💬 Text'} {enq.name.split(' ')[0]} ({cursor + 1} of {list.length})
+              </a>
+              <div className="ets-hint" style={{ fontSize: 13 }}>Tap → press send in {channel === 'whatsapp' ? 'WhatsApp' : 'Messages'} → come back here → tap the next one.</div>
               <div className="ets-preview">
                 <div className="ets-preview-head"><b>{enq.name}</b><span>{enq.contact_phone}</span></div>
-                <pre className="ets-pre">{textFor(enq)}</pre>
+                <pre className="ets-pre">{text}</pre>
               </div>
-              <a className="btn btn-primary ets-big" href={href} target="_blank" rel="noreferrer" onClick={() => setTimeout(() => markSentAndNext(enq), 400)}>
-                {channel === 'whatsapp' ? '🟢 Open WhatsApp' : '💬 Open Messages'} — {enq.name.split(' ')[0]}
-              </a>
               <div className="ets-row">
-                <button className="btn" onClick={() => { if (cursor + 1 >= list.length) setStep('done'); else setCursor(c => c + 1) }}>Skip</button>
+                <button className="btn" onClick={skipCurrent}>Skip {enq.name.split(' ')[0]}</button>
+                <button className="btn" onClick={() => setStep('done')}>Finish</button>
+              </div>
+              {/* the whole queue: tap anyone to go to them */}
+              <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+                {list.map((e, i) => {
+                  const st = sentIds.has(e.id) ? 'sent' : skippedIds.has(e.id) ? 'skipped' : i === cursor ? 'now' : 'waiting'
+                  return (
+                    <button key={e.id} type="button" onClick={() => { setCursor(i); setJustSent(null) }}
+                      style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 10, padding: '10px 12px', border: 'none', borderBottom: '1px solid var(--border)', textAlign: 'left', cursor: 'pointer', fontSize: 14,
+                        background: st === 'now' ? '#378ADD22' : 'transparent', color: st === 'sent' ? 'var(--text-tertiary)' : 'var(--text)' }}>
+                      <span style={{ width: 22, textAlign: 'center' }}>{st === 'sent' ? '✓' : st === 'skipped' ? '–' : st === 'now' ? '▶' : '○'}</span>
+                      <span style={{ flex: 1, fontWeight: st === 'now' ? 700 : 500, textDecoration: st === 'skipped' ? 'line-through' : 'none' }}>{e.name}</span>
+                      <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{st === 'sent' ? 'sent' : st === 'skipped' ? 'skipped' : e.contact_phone}</span>
+                    </button>
+                  )
+                })}
               </div>
             </div>
           )
@@ -484,6 +531,7 @@ export default function EnquirySendTemplates({ title = null, kind = 'enquiry', c
             <div style={{ fontSize: 15, fontWeight: 700 }}>✓ Sent {sentIds.size} of {list.length}</div>
             <div className="ets-hint">Each one sent counts as a contact (📞 +1) and moves new enquiries to Contacted.</div>
             {skipped.length > 0 && <div className="ets-hint" style={{ color: '#E24B4A' }}>Couldn't send: {skipped.map(e => e.name).join(', ')}</div>}
+            {skippedIds.size > 0 && <div className="ets-hint">Skipped: {list.filter(e => skippedIds.has(e.id)).map(e => e.name).join(', ')}</div>}
             <button className="btn btn-primary ets-big" onClick={onClose}>Done</button>
           </div>
         )}

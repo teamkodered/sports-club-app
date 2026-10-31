@@ -1764,3 +1764,5 @@ html.forced-phone .ets-sheet { max-height: calc(var(--kc-vh, 1vh) * 86) !importa
 @media (min-width: 700px) { .neon-name[style*="--nl"] { font-size: clamp(14px, calc(360px / (var(--nl) * 0.55)), 26px) !important; } }
 .neon-namebox { min-width: 0 !important; flex: 1 1 auto; }   /* no overflow clip: the switch-athlete / profile drop-downs open from here */
 .neon-housebox { flex-shrink: 0 !important; }
+/* WhatsApp / text queue: big next button */
+.ets-send-next { height: 60px !important; font-size: 18px !important; font-weight: 800; border-radius: 14px; }
