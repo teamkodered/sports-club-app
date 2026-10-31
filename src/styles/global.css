@@ -1758,3 +1758,9 @@ html.forced-phone .ets-sheet { max-height: calc(var(--kc-vh, 1vh) * 86) !importa
 /* the four section cards fill their quarter exactly -- no gaps between them (coach view too) */
 .neon-home .neon-pillar-quad > div { align-items: stretch !important; }
 .neon-home .neon-pillar-quad > div > .neon-pillar { width: 100% !important; max-width: none !important; margin: 0 !important; box-sizing: border-box; }
+/* name header: long names shrink to fit (sized from the screen width, so it works wherever the card sits)
+   and never push the house logo out of place */
+.neon-name[style*="--nl"] { font-size: clamp(13px, calc(52vw / (var(--nl) * 0.55)), 26px) !important; white-space: nowrap; overflow: hidden; text-overflow: clip; max-width: 100%; }
+@media (min-width: 700px) { .neon-name[style*="--nl"] { font-size: clamp(14px, calc(360px / (var(--nl) * 0.55)), 26px) !important; } }
+.neon-namebox { min-width: 0 !important; flex: 1 1 auto; overflow: hidden; }
+.neon-housebox { flex-shrink: 0 !important; }
