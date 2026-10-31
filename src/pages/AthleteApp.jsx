@@ -1489,7 +1489,7 @@ export default function AthleteApp() {
   const [f2fQuickLogQuestion, setF2fQuickLogQuestion] = useState(null) // which question within that section is expanded to show the log control
   const [f2fQuickLogTestValue, setF2fQuickLogTestValue] = useState('')
   const [f2fQuickLogSaving, setF2fQuickLogSaving] = useState(false)
-  const [athleteHousePoints, setAthleteHousePoints] = useState({ f2f_question: 1, checkin: 3, checkout: 3, weigh_in: 5, weigh_out: 5, pdp_action: 0, pdp_focus: 5, pdp_day: 5, pdp_complete: 5, pdp_calendar: 1, target_week: 10 })
+  const [athleteHousePoints, setAthleteHousePoints] = useState({ f2f_question: 1, f2f_focus: 3, checkin: 3, checkout: 3, weigh_in: 5, weigh_out: 5, pdp_action: 0, pdp_focus: 5, pdp_day: 5, pdp_complete: 5, pdp_calendar: 1, target_week: 10 })
   const [athleteTimetableModal, setAthleteTimetableModal] = useState(null) // { sectionKey, item } or null
   const [expandedToDoItems, setExpandedToDoItems] = useState(() => new Set()) // composite "scope:type:index" keys whose own "To do" panel is currently revealed
   const [newToDoDrafts, setNewToDoDrafts] = useState({}) // scope key -> draft text for the athlete's own new to-do note
@@ -2527,7 +2527,7 @@ export default function AthleteApp() {
         setIntervalModes(map.f2f_interval_modes || ['20 seconds on 20 seconds off', '30 seconds on 30 seconds off', '40 seconds on 20 seconds off'])
         setBodyweightTypeOptions(map.f2f_bodyweight_types || ['Push-ups', 'Pull-ups', 'Squats', 'Dips', 'Sit-ups', 'Burpees', 'Other'])
         setStretchOptionsList(map.f2f_stretch_options || ['Other'])
-        setAthleteHousePoints({ f2f_question: 1, checkin: 3, checkout: 3, weigh_in: 5, weigh_out: 5, pdp_action: 0, pdp_focus: 5, pdp_day: 5, pdp_complete: 5, pdp_calendar: 1, target_week: 10, ...(map.athlete_house_points || {}) })
+        setAthleteHousePoints({ f2f_question: 1, f2f_focus: 3, checkin: 3, checkout: 3, weigh_in: 5, weigh_out: 5, pdp_action: 0, pdp_focus: 5, pdp_day: 5, pdp_complete: 5, pdp_calendar: 1, target_week: 10, ...(map.athlete_house_points || {}) })
       })
   }, [])
 
@@ -2621,6 +2621,7 @@ export default function AthleteApp() {
       weigh_out: 'Weigh out',
       pdp_action: 'PDP action done',
       pdp_focus: 'PDP focus action done',
+      f2f_focus: 'F2F question logged',
       pdp_day: 'PDP done for today',
       pdp_complete: 'PDP task completed',
       pdp_calendar: 'PDP added to calendar',
@@ -3174,10 +3175,18 @@ export default function AthleteApp() {
   function checkF2fQuestionPoints(oldSessionLike, newSessionLike, affected) {
     affected.forEach(({ sectionKey, questionLabel }) => {
       const isTargeted = sectionTargets.some(t => t.section_key === sectionKey && t.question_label === questionLabel)
-      if (!isTargeted) return
+      const focus = myFocus[sectionKey]
+      const isFocusQ = !!focus && sameQ(focus, questionLabel)
+      if (!isTargeted && !isFocusQ) return
       const wasLogged = questionLogged(sectionKey, questionLabel, oldSessionLike)
       const isLoggedNow = questionLogged(sectionKey, questionLabel, newSessionLike)
-      if (!wasLogged && isLoggedNow) { if (!isGreyedQ(sectionKey, questionLabel)) awardHousePoints('f2f_question', questionLabel) }
+      // No question points in a section until this month's 🎯 focus is chosen. Then: the focus question
+      // scores f2f_focus (3), 'always on' questions score as normal, everything else logs without points.
+      if (!wasLogged && isLoggedNow) {
+        if (!focus) return
+        if (isFocusQ) awardHousePoints('f2f_focus', questionLabel)
+        else if (!isGreyedQ(sectionKey, questionLabel)) awardHousePoints('f2f_question', questionLabel)
+      }
       else if (wasLogged && !isLoggedNow) revokeF2fQuestionPoint(questionLabel)
     })
   }
@@ -3793,7 +3802,7 @@ export default function AthleteApp() {
     )
     return (
       <div className="kc-focus" style={{ '--c': colour }}>
-        <span>🎯 Pick your <b>{monthName} focus</b> -- open a question and press <b>Set as my focus</b> (+1 point). It locks in for the month.</span>
+        <span>🎯 Pick your <b>{monthName} focus</b> -- open a question and press <b>Set as my focus</b> (+1 point). It locks in for the month. <b>No points for this section's questions until you pick one</b> -- then your focus question scores +{athleteHousePoints.f2f_focus ?? 3} each day.</span>
       </div>
     )
   }
