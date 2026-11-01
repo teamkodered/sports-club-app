@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, Fragment } from 'react'
+import { TestsThisWeekCoach } from '../components/shared/TestsThisWeek.jsx'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { TEST_CATEGORIES } from '../lib/testResults.js'
 import { TestSessionModal, TestBatchModal } from '../components/shared/TestSession.jsx'
@@ -6878,6 +6879,8 @@ export default function AthleteProfiles() {
             </div>
 
             {testBatchOpen && <TestBatchModal onClose={() => setTestBatchOpen(false)} />}
+            {/* 📋 this test week's plan + how many have done each */}
+            {!(showKrRegister || showKrbaRegister || showAllAthRegister) && <TestsThisWeekCoach />}
             {/* Team banner (was the Profile card): the filters for the whole dashboard + team record / level / weight */}
             <div className="card coach-banner" style={{ padding: 0, marginBottom: 10 }}>
               <div role="button" tabIndex={0} title="Back to the dashboard home"

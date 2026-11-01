@@ -6,7 +6,6 @@ import { useSyncedPreference } from '../hooks/useSyncedPreference.js'
 import FocusAndFormat from '../components/dashboard/FocusAndFormat.jsx'
 import WebsiteProfiles from '../components/dashboard/WebsiteProfiles.jsx'
 import PointsToConfirm from '../components/dashboard/PointsToConfirm.jsx'
-import { TestsThisWeekCoach } from '../components/shared/TestsThisWeek.jsx'
 import { supabase } from '../lib/supabase.js'
 import { fetchAll } from '../lib/fetchAll.js'
 import { studentProfileLink } from '../lib/studentLinks.js'
@@ -254,8 +253,6 @@ export default function Dashboard() {
         </button>
       )}
 
-      {/* 📋 this test week's plan + how many have done each */}
-      <TestsThisWeekCoach />
 
       {/* Stats row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 18 }}>

@@ -2047,7 +2047,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
         const selecting = selectedStudents.length > 0
         const isMainReg = !initialRegType   // standalone Registers page (not the Athlete Profile's embedded register)
         // KR / KRBA classes on the Registers page use the athlete register's columns (Age / Weight / Attend. first)
-        const isAthleteClass = !!selectedClass && (/^(KR|KRBA)$/i.test(selectedClass.discipline || '') || /\bKR(BA)?\b/.test(selectedClass.name || ''))
+        const isAthleteClass = ['kr', 'krba', 'allath'].includes(regType) || (!!selectedClass && (/^(KR|KRBA)$/i.test(selectedClass.discipline || '') || /\bKR(BA)?\b/.test(selectedClass.name || '')))
         const mainCols = isMainReg && !isAthleteClass
         const reasonsByUse = [...pointTypes].map((pt, i) => ({ pt, i })).sort((a, b) => ((reasonUsage || {})[b.pt.label] || 0) - ((reasonUsage || {})[a.pt.label] || 0) || a.i - b.i).map(x => x.pt)
         // Reason order everywhere: A-Z, negative (deduction) reasons at the bottom -- stable every time
