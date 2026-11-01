@@ -2500,7 +2500,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
           <button className="btn btn-sm" onClick={() => setRegisterZoom(z => Math.min(200, z + 10))}>+</button>
           {registerZoom !== 100 && <button className="btn btn-sm" onClick={() => setRegisterZoom(100)}>Reset</button>}
         </div>
-        <div className="card reg-desktop-only" style={{ padding: 0, overflowX: 'auto' }} ref={tableRef}
+        <div className="card reg-desktop-only" style={{ padding: 0, overflow: 'auto', maxHeight: `calc(100vh - ${registerToolbarHeight + 24}px)` }} ref={tableRef}
           tabIndex={0}
           onKeyDown={e => {
             const ids = displayStudents.map(s => s.id)
@@ -2554,7 +2554,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
             </div>
           )}
           <table style={{ minWidth: isKR ? 900 : 680, borderCollapse: 'separate', borderSpacing: 0 }}>
-            <thead style={{ position: 'sticky', top: registerToolbarHeight, zIndex: 12, background: 'var(--bg)' }}>
+            <thead style={{ position: 'sticky', top: 0, zIndex: 12, background: 'var(--bg)' }}>{/* the card is the scroll box: header pinned at its top (top: toolbar height hid the first rows) */}
               <tr>
                 {visibleCols.includes('checkbox') && <th style={{ width: 32, paddingLeft: 12, background: 'var(--bg)', position: 'sticky', left: 0, zIndex: 13 }}></th>}
                 {visibleCols.includes('student_ref') && <SortTh col="student_ref" label="ID" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
