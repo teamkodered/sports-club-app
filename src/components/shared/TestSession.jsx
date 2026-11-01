@@ -12,6 +12,9 @@ const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${Stri
 const fmtVal = (v, unit) => `${v}${unit === 'reps' || unit === 'punches' || unit === 'per min' ? ` ${unit}` : unit ? unit === 'level' ? '' : unit : ''}`
 
 // ── PB celebration (same feel as the "+1 house point" pop-up) ──
+// tests that are followed by a 1-minute heart rate recovery reading (saved as 'HRR % (after ...)')
+const HRR_AFTER = { bleep: 'Bleep test', fixedload: 'Fixed load circuit', bodyweight: 'Body weight max reps', timedrun: 'Timed run', wattbike: 'Watt bike' }
+
 export function PbPopup({ pbs, onDone, who }) {
   useEffect(() => {
     if (!pbs?.length) return
@@ -181,12 +184,21 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
             </>}
           </div>
         )}
-        {tool === 'hrr' ? createPortal(
+        {/* ❤️ HR recovery straight after a hard test (1 min standing, auto-stops) */}
+        {HRR_AFTER[cat.key] && (
+          <div className="ts-measure">
+            <button type="button" className="ts-measure-btn" onClick={() => setTool(`hrr-after:${HRR_AFTER[cat.key]}`)}>❤️ HR recovery after the {HRR_AFTER[cat.key].toLowerCase()} (1 min)</button>
+          </div>
+        )}
+        {tool?.startsWith?.('hrr-after:') ? createPortal(
+          <HrrTestTool zIndex={700} variant="recovery" afterTest={tool.slice(10)} mode={hrrMode || 'coach'} studentId={studentId} studentName={studentName} onClose={() => setTool(null)}
+            onResult={r => setVals(p => ({ ...p, [`HRR % (after ${tool.slice(10)})`]: String(r.pct) }))} />, document.body)
+        : tool === 'hrr' ? createPortal(
           <HrrTestTool zIndex={700} mode={hrrMode || 'coach'} studentId={studentId} studentName={studentName} onClose={() => setTool(null)}
-            onResult={r => setVals(p => ({ ...p, 'Heart Rate Recovery (1 min)': String(r.hrr), ...(r.peak != null ? { 'HRR start heart rate (bpm)': String(r.peak) } : {}), ...(r.end != null ? { 'HRR end heart rate (bpm)': String(r.end) } : {}), ...(r.watts ? { 'HRR Watt bike watts (1 min)': String(r.watts) } : {}), ...(r.dist ? { 'HRR Watt bike distance (1 min)': String(r.dist) } : {}) }))} />, document.body)
+            onResult={r => setVals(p => ({ ...p, 'Heart Rate Recovery (1 min)': String(r.hrr), ...(r.pct != null ? { 'HRR % (Watt bike 1 min)': String(r.pct) } : {}), ...(r.peak != null ? { 'HRR start heart rate (bpm)': String(r.peak) } : {}), ...(r.end != null ? { 'HRR end heart rate (bpm)': String(r.end) } : {}), ...(r.watts ? { 'HRR Watt bike watts (1 min)': String(r.watts) } : {}), ...(r.dist ? { 'HRR Watt bike distance (1 min)': String(r.dist) } : {}) }))} />, document.body)
         : tool === 'bleep20' || tool === 'bleep10' ? createPortal(
           <BleepTestPlayer zIndex={700} course={tool === 'bleep10' ? 10 : 20} runners={[{ id: 'me', name: studentName || 'Athlete' }]} onClose={() => setTool(null)}
-            onDone={res => { if (res.me) setVals(p => ({ ...p, [tool === 'bleep10' ? 'Bleep test (10m)' : 'Bleep test']: res.me })) }} />, document.body)
+            onDone={res => { if (res.me) { setVals(p => ({ ...p, [tool === 'bleep10' ? 'Bleep test (10m)' : 'Bleep test']: res.me })); setTimeout(() => setTool('hrr-after:Bleep test'), 50) } }} />, document.body)
         : tool === 'photo' ? createPortal(
           <PhotoMeasureTool zIndex={700} tests={cat.key === 'stretches' ? cat.tests.map(t => t.name) : []} onClose={() => setTool(null)}
             onSave={(name, v) => setVals(p => ({ ...p, [name]: String(v) }))} />, document.body)

@@ -29,6 +29,14 @@ export const TEST_CATEGORIES = [
     { name: 'HRR end heart rate (bpm)', unit: 'bpm' },
     { name: 'HRR Watt bike watts (1 min)', unit: 'W' },
     { name: 'HRR Watt bike distance (1 min)', unit: 'm' },
+    // HRR as a % drop from the start heart rate (fairer to compare) -- one per test it followed,
+    // so recovery after a bleep test is only ever compared with recovery after a bleep test
+    { name: 'HRR % (Watt bike 1 min)', unit: '%' },
+    { name: 'HRR % (after Bleep test)', unit: '%' },
+    { name: 'HRR % (after Fixed load circuit)', unit: '%' },
+    { name: 'HRR % (after Body weight max reps)', unit: '%' },
+    { name: 'HRR % (after Timed run)', unit: '%' },
+    { name: 'HRR % (after Watt bike)', unit: '%' },
   ]},
   { key: 'grip', label: 'Grip', icon: '✊', tests: [
     { name: 'Left Grip Test (kg)', unit: 'kg' },
