@@ -56,7 +56,7 @@ export default function WebsiteProfiles({ profile, onCount }) {
   const [rows, setRows] = useState(null)       // [{ st, snap, review, state }]
   const [heldBack, setHeldBack] = useState([])  // juniors without media consent
   const [error, setError] = useState('')
-  const [open, setOpen] = useState(null)        // null = auto (open when something waits)
+  const [open, setOpen] = useState(false)       // closed until pressed (slides open)
   const [expanded, setExpanded] = useState({})
   const [sendBack, setSendBack] = useState(null) // { id, note }
   const [busy, setBusy] = useState(null)
@@ -124,7 +124,7 @@ export default function WebsiteProfiles({ profile, onCount }) {
   }
 
   if (!rows) return null
-  const isOpen = open ?? waiting.length > 0
+  const isOpen = !!open
   const sentBack = rows.filter(r => r.state === 'sent_back')
   const approved = rows.filter(r => r.state === 'approved')
 
@@ -142,7 +142,7 @@ export default function WebsiteProfiles({ profile, onCount }) {
         <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{isOpen ? '▲' : '▼'}</span>
       </button>
 
-      {isOpen && (
+      <div className={`kc-slide${isOpen ? ' open' : ''}`}><div>
         <div style={{ padding: '0 16px 14px' }}>
           {error && <p style={{ fontSize: 12, color: '#E24B4A', marginBottom: 8 }}>{error}</p>}
           <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 10 }}>
@@ -239,7 +239,7 @@ export default function WebsiteProfiles({ profile, onCount }) {
             </div>
           )}
         </div>
-      )}
+      </div></div>
     </div>
   )
 }

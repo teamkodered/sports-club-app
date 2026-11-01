@@ -7,6 +7,7 @@ let generatedThisSession = false
 export default function PointsToConfirm() {
   const [rows, setRows] = useState(null)
   const [busy, setBusy] = useState(null)
+  const [open, setOpen] = useState(false)   // closed until the header is pressed (slides open)
   async function load() {
     if (!generatedThisSession) { generatedThisSession = true; await supabase.rpc('kc_generate_monthly_improvements').then(() => {}, () => {}); supabase.rpc('kc_auto_checkout').then(() => {}, () => {}) }   // + close forgotten check-outs
     const { data, error } = await supabase.from('points_pending')
@@ -24,11 +25,14 @@ export default function PointsToConfirm() {
   }
   if (!rows || !rows.length) return null
   return (
-    <div className="card" style={{ marginBottom: 16, border: '1px solid #EF9F2766' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-        <b style={{ fontSize: 15 }}>🏆 Points to confirm <span style={{ color: 'var(--text-tertiary)', fontWeight: 500 }}>({rows.length})</span></b>
-        <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>PBs +5 · monthly improvement +10</span>
-      </div>
+    <div className="card" style={{ marginTop: 14, marginBottom: 0, border: '1px solid #EF9F2766' }}>
+      <button type="button" onClick={() => setOpen(o => !o)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text)', textAlign: 'left', fontFamily: 'var(--font-sans)' }}>
+        <b style={{ fontSize: 15, flex: 1 }}>🏆 Points to confirm</b>
+        <span style={{ background: '#EF9F27', color: '#fff', borderRadius: 999, fontSize: 11, fontWeight: 700, padding: '2px 8px' }}>{rows.length} waiting</span>
+        <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{open ? '▲' : '▼'}</span>
+      </button>
+      <div className={`kc-slide${open ? ' open' : ''}`}><div>
+      <div style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '8px 0 2px' }}>PBs +5 · monthly improvement +10 · ✓ gives the points, ✗ turns it down</div>
       {rows.map(r => {
         const name = `${r.students?.members?.first_name || ''} ${r.students?.members?.last_name || ''}`.trim()
         const what = r.label.replace(/ \(\d{4}-\d{2}-\d{2}\)$/, '')
@@ -47,6 +51,7 @@ export default function PointsToConfirm() {
           </div>
         )
       })}
+      </div></div>
     </div>
   )
 }

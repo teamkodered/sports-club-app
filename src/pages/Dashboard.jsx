@@ -254,9 +254,6 @@ export default function Dashboard() {
         </button>
       )}
 
-      {/* 🏆 PBs / monthly improvements waiting for a coach to confirm */}
-      <PointsToConfirm />
-
       {/* 📋 this test week's plan + how many have done each */}
       <TestsThisWeekCoach />
 
@@ -471,6 +468,9 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* 🏆 PBs / monthly improvements waiting for a coach to confirm (below Recent points, slides open) */}
+      <PointsToConfirm />
 
       {/* 🌐 Website profiles approval (teamkodered.com) -- bottom of the coach dashboard */}
       {showWebsite && <WebsiteProfiles profile={profile} onCount={setWebsiteWaiting} />}

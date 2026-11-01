@@ -1774,3 +1774,8 @@ html.forced-phone .ets-sheet { max-height: calc(var(--kc-vh, 1vh) * 86) !importa
 .classes-side { display: flex; flex-direction: column; gap: 20px; }
 .classes-col-title { font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
 .classes-col-title span { font-weight: 500; color: var(--text-tertiary); }
+
+/* Dashboard cards that slide open when the header is pressed */
+.kc-slide { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .3s ease; }
+.kc-slide.open { grid-template-rows: 1fr; }
+.kc-slide > div { overflow: hidden; min-height: 0; }
