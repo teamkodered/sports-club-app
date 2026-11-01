@@ -199,7 +199,13 @@ export default function Classes() {
   }
 
   const visibleClasses = classes.filter(c => viewMode === 'individual' ? c.is_custom : !c.is_custom)
-  const grouped = visibleClasses.reduce((acc, cls) => {
+  // PTs Register / Leader Register classes get their own columns
+  const specialOf = c => { const n = c?.name || ''; return /\bpts?\b[^a-z]*register/i.test(n) ? 'pts' : /leaders?\b[^a-z]*register/i.test(n) ? 'leader' : null }
+  const DAY_ORDER = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+  const byDayTime = (a, b) => (DAY_ORDER.indexOf(a.day_of_week) - DAY_ORDER.indexOf(b.day_of_week)) || String(a.start_time).localeCompare(String(b.start_time))
+  const ptClasses = visibleClasses.filter(c => specialOf(c) === 'pts').sort(byDayTime)
+  const leaderClasses = visibleClasses.filter(c => specialOf(c) === 'leader').sort(byDayTime)
+  const grouped = visibleClasses.filter(c => !specialOf(c)).reduce((acc, cls) => {
     const day = cls.day_of_week || 'Other'
     if (!acc[day]) acc[day] = []
     acc[day].push(cls)
@@ -287,11 +293,8 @@ export default function Classes() {
         </div>
       )}
 
-      {Object.entries(grouped).map(([day, dayClasses]) => (
-        <div key={day} style={{ marginBottom: 20 }}>
-          <h2 style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>{day}</h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {dayClasses.map(cls => {
+      {(() => {
+        const renderCard = (cls, showDay = false) => {
               const colour = cls.discipline === 'PKA' ? '#378add' : cls.discipline === 'KRBA' ? '#e24b4a' : '#1d9e75'
               return (
                 <div key={cls.id} id={`class-${cls.id}`} className="card" style={{
@@ -304,7 +307,7 @@ export default function Classes() {
                 }}>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 14, fontWeight: 600 }}>{cls.name}</span>
+                      <span style={{ fontSize: 14, fontWeight: 600 }}>{showDay ? `${cls.day_of_week} · ` : ''}{cls.name}</span>
                       <span className="badge badge-blue" style={{ fontSize: 10, background: colour + '18', color: colour }}>{cls.discipline}</span>
                       {!cls.active && <span className="badge badge-gray" style={{ fontSize: 10 }}>Inactive</span>}
                     </div>
@@ -328,10 +331,33 @@ export default function Classes() {
                   )}
                 </div>
               )
-            })}
+}
+        const side = (title, list, emoji) => (
+          <div className="classes-col">
+            <h2 className="classes-col-title">{emoji} {title} <span>({list.length})</span></h2>
+            {list.length ? <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{list.map(c => renderCard(c, true))}</div>
+              : <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>None yet — add a class named "{title === 'PT sessions' ? 'PTs Register' : 'Leader Register'}".</div>}
           </div>
-        </div>
-      ))}
+        )
+        return (
+          <div className="classes-layout">
+            <div className="classes-col classes-col-main">
+              {Object.entries(grouped).map(([day, dayClasses]) => (
+                <div key={day} style={{ marginBottom: 20 }}>
+                  <h2 style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>{day}</h2>
+                  <div className="classes-grid">{dayClasses.map(c => renderCard(c))}</div>
+                </div>
+              ))}
+            </div>
+            {(ptClasses.length > 0 || leaderClasses.length > 0) && (
+              <div className="classes-side">
+                {side('PT sessions', ptClasses, '💪')}
+                {side('Leader sessions', leaderClasses, '🧑‍🏫')}
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {visibleClasses.length === 0 && (
         <div className="empty-state">
