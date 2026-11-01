@@ -239,6 +239,15 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   // correctly regardless of how many lines it's actually wrapped to.
   const registerToolbarRef = useRef(null)
   const [registerToolbarHeight, setRegisterToolbarHeight] = useState(46)
+  // PTs / Leader pill pop-up: which PT / leadership sessions this student is assigned to
+  const [groupPopup, setGroupPopup] = useState(null)   // { student, flag, loading, sessions: [{ id, name, day_of_week, start_time }] }
+  async function openGroupPopup(student, g) {
+    const flag = g === 'PTs' ? 'is_pts' : 'is_leader'
+    setGroupPopup({ student, flag, loading: true, sessions: [] })
+    const { data } = await supabase.from('student_class_assignments').select('*, classes(id, name, day_of_week, start_time)').eq('student_id', student.id)
+    const sessions = (data || []).filter(a => a.classes && specialRegisterFlag(a.classes) === flag && assignmentActiveOn(a, date)).map(a => a.classes)
+    setGroupPopup(p => p && p.student.id === student.id ? { ...p, loading: false, sessions } : p)
+  }
   useEffect(() => {
     const el = registerToolbarRef.current
     if (!el) return
@@ -2247,7 +2256,8 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                             <div className="reg-m-xrow">
                               {st.class_time && <span className="reg-m-xclass">🕒 {st.class_time}</span>}
                               {st.class_champion_count > 0 && <span className="reg-m-xchamp">🏆 {st.class_champion_count}</span>}
-                              {studentGroups(st, m).map(g => <span key={g} className={`badge ${g==='KR'?'badge-purple':g==='PTs'?'badge-blue':g==='Leader'?'badge-green':g==='Coach'?'badge-amber':'badge-gray'}`} style={{ fontSize: 10 }}>{g}</span>)}
+                              {studentGroups(st, m).map(g => <span key={g} className={`badge ${g==='KR'?'badge-purple':g==='PTs'?'badge-blue':g==='Leader'?'badge-green':g==='Coach'?'badge-amber':'badge-gray'}`} style={{ fontSize: 10, cursor: g === 'PTs' || g === 'Leader' ? 'pointer' : undefined }}
+                                onClick={g === 'PTs' || g === 'Leader' ? (e => { e.stopPropagation(); openGroupPopup(st, g) }) : undefined}>{g}</span>)}
                               {!st.class_time && !(st.class_champion_count > 0) && studentGroups(st, m).length === 0 && <span style={{ color: 'var(--text-tertiary)' }}>No groups</span>}
                             </div>
                           </div>
@@ -2294,7 +2304,8 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                             <div className="reg-m-xrow">
                               {st.class_time && <span className="reg-m-xclass">🕒 {st.class_time}</span>}
                               {st.class_champion_count > 0 && <span className="reg-m-xchamp">🏆 {st.class_champion_count}</span>}
-                              {studentGroups(st, m).map(g => <span key={g} className={`badge ${g==='KR'?'badge-purple':g==='PTs'?'badge-blue':g==='Leader'?'badge-green':g==='Coach'?'badge-amber':'badge-gray'}`} style={{ fontSize: 10 }}>{g}</span>)}
+                              {studentGroups(st, m).map(g => <span key={g} className={`badge ${g==='KR'?'badge-purple':g==='PTs'?'badge-blue':g==='Leader'?'badge-green':g==='Coach'?'badge-amber':'badge-gray'}`} style={{ fontSize: 10, cursor: g === 'PTs' || g === 'Leader' ? 'pointer' : undefined }}
+                                onClick={g === 'PTs' || g === 'Leader' ? (e => { e.stopPropagation(); openGroupPopup(st, g) }) : undefined}>{g}</span>)}
                               {!st.class_time && !(st.class_champion_count > 0) && studentGroups(st, m).length === 0 && <span style={{ color: 'var(--text-tertiary)' }}>No groups</span>}
                             </div>
                           </div>
@@ -2804,11 +2815,12 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           <span key={g}
                             className={`badge ${g==='KR'?'badge-purple':g==='PTs'?'badge-blue':g==='Leader'?'badge-green':g==='Coach'?'badge-amber':g==='PKA'?'badge-gray':'badge-red'}`}
                             style={{ fontSize: 9, cursor: 'pointer' }}
-                            title={g==='PKA' ? 'View membership profile' : g==='KR' || g==='KRBA' ? 'View athlete profile' : undefined}
+                            title={g==='PKA' ? 'View membership profile' : g==='KR' || g==='KRBA' ? 'View athlete profile' : g==='PTs' ? 'Show their PT session' : g==='Leader' ? 'Show their leadership session' : undefined}
                             onClick={e => {
                               e.stopPropagation()
                               if (g === 'PKA') setContactModal(s)
                               else if (g === 'KR' || g === 'KRBA') navigate(`/athletes?id=${s.id}&from=register`)
+                              else if (g === 'PTs' || g === 'Leader') openGroupPopup(s, g)
                             }}>{g}</span>
                         )) : <span style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>—</span>}
                       </div>
@@ -2961,6 +2973,27 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
       })()}
 
       {/* Award points modal */}
+      {groupPopup && createPortal(
+        <div onClick={() => setGroupPopup(null)} style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div className="card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 360, padding: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <b style={{ fontSize: 16 }}>{groupPopup.flag === 'is_pts' ? '💪 PT session' : '🧑‍🏫 Leadership session'} — {groupPopup.student.members?.first_name} {groupPopup.student.members?.last_name}</b>
+              <button className="btn btn-sm" onClick={() => setGroupPopup(null)}>✕</button>
+            </div>
+            {groupPopup.loading ? <div style={{ color: 'var(--text-tertiary)' }}>Loading…</div>
+              : groupPopup.sessions.length ? groupPopup.sessions.map(c => (
+                <div key={c.id} style={{ padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 8, marginBottom: 8, fontSize: 15 }}>
+                  <b>{c.day_of_week} {String(c.start_time || '').slice(0, 5)}</b> · {c.name}
+                </div>
+              )) : <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 8 }}>Not assigned to a {groupPopup.flag === 'is_pts' ? 'PT' : 'leadership'} session yet — assign them to the {groupPopup.flag === 'is_pts' ? 'PTs Register' : 'Leader Register'} class in Classes.</div>}
+            {(() => { const st = attendanceStats[groupPopup.student.id]; return st ? (
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 6 }}>
+                {groupPopup.flag === 'is_pts' ? `PT sessions attended: ${st.ptCount || 0}` : `Leader attendance: ${st.leaderPct != null ? st.leaderPct + '%' : '—'} (${st.leaderAttended || 0} attended, ${st.leaderMissed || 0} missed)`}
+              </div>) : null })()}
+          </div>
+        </div>,
+        document.body
+      )}
       {editReason && createPortal(
         <div onClick={() => setEditReason(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 70, padding: '60px 12px 0' }}>
           <div className="card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 380, padding: 16 }}>
