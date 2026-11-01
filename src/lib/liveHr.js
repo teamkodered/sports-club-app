@@ -27,6 +27,8 @@ export function useLiveHeartRate({ studentId, maxHr = 190 }) {
   const recRef = useRef(false)
   const meta = useRef({ classId: null, attendanceId: null })
   const lastPush = useRef(0)
+  const [dropped, setDropped] = useState(false)     // connection lost -- trying to get it back
+  const manualOff = useRef(false)
 
   function onValue(e) {
     const v = e.target.value
@@ -42,14 +44,35 @@ export function useLiveHeartRate({ studentId, maxHr = 190 }) {
       }
     }
   }
+  // connect to the strap's heart rate readings (used for the first connect and every reconnect)
+  async function link(dev) {
+    const server = await dev.gatt.connect()
+    const ch = await (await server.getPrimaryService('heart_rate')).getCharacteristic('heart_rate_measurement')
+    await ch.startNotifications()
+    ch.removeEventListener('characteristicvaluechanged', onValue)
+    ch.addEventListener('characteristicvaluechanged', onValue)
+  }
+  // connection dropped (out of range, strap asleep...): keep trying for ~2 minutes, recording carries on
+  async function autoReconnect(dev) {
+    for (let i = 0; i < 24; i++) {
+      if (manualOff.current) return
+      setStatus(`Signal lost -- reconnecting to ${dev.name || 'your strap'}… (${i + 1})`)
+      await new Promise(r => setTimeout(r, 5000))
+      if (manualOff.current) return
+      try { await link(dev); setDropped(false); setStatus(`Reconnected to ${dev.name || 'heart rate strap'}`); return } catch { /* try again */ }
+    }
+    setStatus('Disconnected -- tap Connect to reconnect')
+  }
   async function attach(dev, quiet = false) {
     try {
+      manualOff.current = false
       setStatus(quiet ? `Reconnecting to ${dev.name || 'your strap'}…` : 'Connecting…')
-      dev.addEventListener('gattserverdisconnected', () => { setStatus('Disconnected -- tap Connect to reconnect'); setBpm(null) })
-      const server = await dev.gatt.connect()
-      const ch = await (await server.getPrimaryService('heart_rate')).getCharacteristic('heart_rate_measurement')
-      await ch.startNotifications()
-      ch.addEventListener('characteristicvaluechanged', onValue)
+      if (!dev.__kcWatch) {
+        dev.__kcWatch = true
+        dev.addEventListener('gattserverdisconnected', () => { setBpm(null); if (manualOff.current) return; setDropped(true); autoReconnect(dev) })
+      }
+      await link(dev)
+      setDropped(false)
       setDevice(dev); setStatus(`Connected to ${dev.name || 'heart rate strap'}`)
       try { localStorage.setItem('kc_hr_strap', dev.id) } catch { /* ignore */ }
       return true
@@ -70,7 +93,8 @@ export function useLiveHeartRate({ studentId, maxHr = 190 }) {
   async function connect(showAll = false) {
     if (!bluetoothSupported()) { setStatus('Live heart rate needs Chrome on Android (or a computer)'); return false }
     if (/SamsungBrowser/i.test(navigator.userAgent)) { setStatus('Samsung Internet can\u2019t connect to straps -- open klasschamp.netlify.app in Chrome instead.'); return false }
-    if (device?.gatt?.connected) return true
+    if (device?.gatt?.connected && !dropped) return true
+    if (device && dropped) { try { await link(device); setDropped(false); setStatus(`Reconnected to ${device.name || 'heart rate strap'}`); return true } catch { /* fall through to the picker */ } }
     // open the phone's strap list straight away (it must come straight from the tap, so nothing is awaited first)
     let picked = false
     const stuck = setTimeout(() => { if (!picked) setStatus('The strap list didn\u2019t open -- check Bluetooth (and Location) are on, use Chrome, and tap Connect again.') }, 15000)
@@ -126,6 +150,6 @@ export function useLiveHeartRate({ studentId, maxHr = 190 }) {
     }).then(({ error }) => { if (error && /samples/.test(error.message)) supabase.from('hr_sessions').insert({ student_id: studentId, session_date: new Date(list[0].t).toISOString().split('T')[0], class_id: meta.current.classId, attendance_id: meta.current.attendanceId, minutes, avg_hr: avg, max_hr: max, avg_pct: Math.round(avg * 100 / maxHr), max_pct: Math.round(max * 100 / maxHr), zones: zoneMins, device: summary.device }) }, () => {})
     return summary
   }
-  function disconnect() { try { device?.gatt?.disconnect() } catch { /* */ } setDevice(null); setBpm(null) }
-  return { supported: bluetoothSupported(), device, connected: !!device, bpm, status, recording, startedAt, maxHr, connect, start, stop, disconnect }
+  function disconnect() { manualOff.current = true; try { device?.gatt?.disconnect() } catch { /* */ } setDevice(null); setBpm(null); setDropped(false) }
+  return { supported: bluetoothSupported(), device, connected: !!device && !dropped, dropped, bpm, status, recording, startedAt, maxHr, connect, start, stop, disconnect }
 }

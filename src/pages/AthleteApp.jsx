@@ -4679,10 +4679,7 @@ export default function AthleteApp() {
       // Android app: start background heart rate recording for the class
       if (NativeHr.isNativeHr() && NativeHr.autoRecord() && NativeHr.savedStrap()) NativeHr.start(120).catch(() => {})
       // Web app: if they use a wearable, remind / connect live heart rate for the class
-      else if (!NativeHr.isNativeHr() && live.supported && ((wearableConnections || []).length || localStorage.getItem('kc_hr_strap'))) {
-        if (live.connected) { live.start({ classId: data?.class_id || null, attendanceId: data?.id || null }); setLiveHrPrompt({ already: true }); setTimeout(() => setLiveHrPrompt(p => p?.already ? null : p), 2500) }
-        else setLiveHrPrompt({ classId: data?.class_id || null, attendanceId: data?.id || null, whoop: (wearableConnections || []).some(c => c.provider === 'whoop') })
-      }
+      else offerLiveHr(data)
     }
     setCheckingIn(false)
   }
@@ -4734,6 +4731,16 @@ export default function AthleteApp() {
     setAttendanceData(prev => [data, ...(prev || [])])
     setCheckedInMsg(`✓ Checked in for ${what}`)
     setTimeout(() => setCheckedInMsg(null), 3000)
+  }
+
+  // ❤️ checked in (any way): record heart rate for the class -- starts straight away if the strap is
+  // connected, otherwise the 'Connect your strap' pop-up (for anyone who's used a strap / wearable before)
+  function offerLiveHr(att) {
+    if (NativeHr.isNativeHr() || !live.supported || live.recording) return
+    let used = false; try { used = !!localStorage.getItem('kc_hr_strap') } catch { /* ignore */ }
+    if (!used && !(wearableConnections || []).length) return
+    if (live.connected) { live.start({ classId: att?.class_id || null, attendanceId: att?.id || null }); setLiveHrPrompt({ already: true }); setTimeout(() => setLiveHrPrompt(p => p?.already ? null : p), 2500) }
+    else setLiveHrPrompt({ classId: att?.class_id || null, attendanceId: att?.id || null, whoop: (wearableConnections || []).some(c => c.provider === 'whoop') })
   }
 
   async function checkOutNow() {
@@ -4798,7 +4805,7 @@ export default function AthleteApp() {
       if (error) { alert('Error checking in: ' + error.message); return }
       setAttendanceData(prev => prev.map(a => a.id === sessionNoteModal.attendanceId ? { ...a, present: true, attendance_type: 'attended', self_checked_in: true, attended_at: nowIso } : a))
       setSessionNoteModal(m => ({ ...m, selfCheckedIn: true, checkedOutAt: null, attendedAt: nowIso, attendanceType: 'attended' }))
-      if (sessionNoteModal.dateStr === new Date().toISOString().split('T')[0]) awardHousePoints('checkin', classLabelFor(sessionNoteModal.classId))
+      if (sessionNoteModal.dateStr === new Date().toISOString().split('T')[0]) { awardHousePoints('checkin', classLabelFor(sessionNoteModal.classId)); offerLiveHr({ id: sessionNoteModal.attendanceId, class_id: sessionNoteModal.classId }) }
       return
     }
     const { data, error } = await supabase.from('attendance').insert({
@@ -4809,7 +4816,7 @@ export default function AthleteApp() {
     if (error) { alert('Error checking in: ' + error.message); return }
     setAttendanceData(prev => [...prev, data])
     setSessionNoteModal(m => ({ ...m, attendanceId: data.id, checkedOutAt: null, selfCheckedIn: true, attendedAt: nowIso, attendanceType: 'attended' }))
-    if (sessionNoteModal.dateStr === new Date().toISOString().split('T')[0]) awardHousePoints('checkin', classLabelFor(sessionNoteModal.classId))
+    if (sessionNoteModal.dateStr === new Date().toISOString().split('T')[0]) { awardHousePoints('checkin', classLabelFor(sessionNoteModal.classId)); offerLiveHr(data) }
   }
 
   async function checkOutForSessionModal() {
@@ -4819,6 +4826,8 @@ export default function AthleteApp() {
     setAttendanceData(prev => prev.map(a => a.id === sessionNoteModal.attendanceId ? { ...a, checked_out_at: new Date().toISOString() } : a))
     setSessionNoteModal(m => ({ ...m, checkedOutAt: new Date().toISOString() }))
     if (sessionNoteModal.dateStr === new Date().toISOString().split('T')[0]) awardHousePoints('checkout', classLabelFor(sessionNoteModal.classId))
+    // checking out ends the class heart rate recording and saves it
+    if (live.recording) live.stop().then(sum => { if (sum) saveHrSession(sum) }).catch(() => {})
   }
 
   // Register-marked attendance (a coach ticking someone present rather
@@ -5543,6 +5552,12 @@ export default function AthleteApp() {
                 </div>
               </div>
             </div>
+          )}
+          {live.recording && live.dropped && (
+            <button type="button" onClick={() => live.connect()}
+              style={{ position: 'fixed', left: 12, right: 12, bottom: 'calc(14px + env(safe-area-inset-bottom, 0px))', zIndex: 550, padding: '10px 14px', borderRadius: 12, border: '1px solid #E24B4A', background: '#2A1414', color: '#fff', fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>
+              ❤️ Heart rate signal lost — reconnecting automatically… <u>tap to reconnect now</u>
+            </button>
           )}
           {liveHrPrompt && (
             <div role="dialog" aria-modal="true" onClick={() => setLiveHrPrompt(null)} style={{ position: 'fixed', inset: 0, zIndex: 560, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '80px 16px 0' }}>
