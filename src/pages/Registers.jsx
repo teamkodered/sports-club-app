@@ -544,19 +544,29 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
       }
       return all
     }
-    const [att, assignments, { data: holidays }] = await Promise.all([
+    const [att, assignments, { data: holidays }, { data: allCls }] = await Promise.all([
       fetchAll(() => {
-        let q = supabase.from('attendance').select('id, student_id, session_date, attendance_type').order('id')
+        let q = supabase.from('attendance').select('id, student_id, session_date, attendance_type, class_id').order('id')
         if (attStatsDateFrom) q = q.gte('session_date', attStatsDateFrom)
         if (attStatsDateTo) q = q.lte('session_date', attStatsDateTo)
         return q
       }),
       fetchAll(() => supabase.from('student_class_assignments').select('*, classes(id, day_of_week)').order('id')),
       supabase.from('holidays').select('*'),
+      supabase.from('classes').select('id, name'),
     ])
-    const rowsByStudent = {}, assignByStudent = {}
-    att.forEach(a => { (rowsByStudent[a.student_id] ||= []).push(a) })
-    assignments.forEach(a => { (assignByStudent[a.student_id] ||= []).push(a) })
+    // PTs / Leader registers are kept out of normal training attendance and counted on their own
+    const ptIds = new Set((allCls || []).filter(c => specialRegisterFlag(c) === 'is_pts').map(c => c.id))
+    const leaderIds = new Set((allCls || []).filter(c => specialRegisterFlag(c) === 'is_leader').map(c => c.id))
+    const isSpecialId = id => ptIds.has(id) || leaderIds.has(id)
+    const rowsByStudent = {}, assignByStudent = {}, leaderRowsBy = {}, leaderAsgBy = {}, ptCountBy = {}
+    att.forEach(a => {
+      if (leaderIds.has(a.class_id)) (leaderRowsBy[a.student_id] ||= []).push(a)
+      if (ptIds.has(a.class_id) && isAttendedType(a.attendance_type)) ptCountBy[a.student_id] = (ptCountBy[a.student_id] || 0) + 1
+    })
+    assignments.forEach(a => { if (leaderIds.has(a.class_id)) (leaderAsgBy[a.student_id] ||= []).push(a) })
+    att.forEach(a => { if (!isSpecialId(a.class_id)) (rowsByStudent[a.student_id] ||= []).push(a) })
+    assignments.forEach(a => { if (!isSpecialId(a.class_id)) (assignByStudent[a.student_id] ||= []).push(a) })
     const today = toLocalISODate(new Date())
     const byStudent = {}
     new Set([...Object.keys(rowsByStudent), ...Object.keys(assignByStudent)]).forEach(sid => {
@@ -571,6 +581,14 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
         first: rows.map(r => r.session_date).filter(Boolean).sort()[0] || null, // start date = first record
         pct: rate.pct, attendedDays: rate.attended, missedDays: rate.missed,
       }
+    })
+    // Leader attendance % (Leader Register sessions they were due vs attended) and PT session counts
+    new Set([...Object.keys(leaderRowsBy), ...Object.keys(leaderAsgBy), ...Object.keys(ptCountBy)]).forEach(sid => {
+      const lrows = leaderRowsBy[sid] || []
+      const lfrom = attStatsDateFrom || lrows.map(r => r.session_date).filter(Boolean).sort()[0] || null
+      const lr = (lrows.length || leaderAsgBy[sid]) ? ownAttendanceRate({ rows: lrows, assignments: leaderAsgBy[sid] || [], holidays: holidays || [], studentId: sid, from: lfrom, to: attStatsDateTo || null, today }) : null
+      byStudent[sid] = { ...(byStudent[sid] || { total: 0, last: null, first: null, pct: null, attendedDays: 0, missedDays: 0 }),
+        leaderPct: lr?.pct ?? null, leaderAttended: lr?.attended || 0, leaderMissed: lr?.missed || 0, ptCount: ptCountBy[sid] || 0 }
     })
     setAttendanceStats(byStudent)
   }
@@ -1017,6 +1035,9 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     return run
   }
   async function awardAttendancePointsNow(student, type, classId) {
+    // PTs / Leader registers: recorded, but no attendance / full kit points (those come from their class)
+    { const c = [...todayClasses, ...derbyMooreClasses, ...moorwaysClasses].find(x => x.id === classId)
+      if (c && specialRegisterFlag(c)) return 0 }
     // No attendance points for a session that hasn't happened yet (marking ahead of time, e.g.
     // tomorrow's register). They get them when they're marked on the day.
     { const n = new Date(), today = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`
@@ -1198,6 +1219,10 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     const scopedToClass = classFilter && classFilter !== 'all'
     let delQuery = supabase.from('attendance').delete().eq('student_id', id).eq('session_date', date)
     if (scopedToClass) delQuery = delQuery.eq('class_id', classFilter)
+    else {
+      const sp = todayClasses.filter(c => specialRegisterFlag(c)).map(c => c.id)
+      if (sp.length) delQuery = delQuery.or(`class_id.is.null,class_id.not.in.(${sp.join(',')})`)
+    }
     await delQuery
 
     if (next !== 'none') {
@@ -1223,7 +1248,25 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
           const cascaded = await cascadeDoubleSession(student, next)
           if (cascaded) setCascadedEntries(prev => [...prev, cascaded])
         }
+        // marked in a normal class -> on a PT / leadership day, offer to mark them there too
+        if (cur === 'none' && !(selectedClass && specialRegisterFlag(selectedClass))) await offerSpecialMarks(student)
       }
+    }
+  }
+
+  // PTs / Leader registers running today that this student belongs to (is_pts / is_leader)
+  async function offerSpecialMarks(student) {
+    const specials = todayClasses.filter(c => { const f = specialRegisterFlag(c); return f && student[f] })
+    for (const c of specials) {
+      const { data: already } = await supabase.from('attendance').select('id').eq('student_id', student.id).eq('class_id', c.id).eq('session_date', date).maybeSingle()
+      if (already) continue
+      const what = specialRegisterFlag(c) === 'is_leader' ? 'Leadership' : 'PT'
+      if (!confirm(`Also mark ${student.members?.first_name || 'them'} in for ${what} (${c.name}, ${String(c.start_time || '').slice(0, 5)})?`)) continue
+      const { error } = await supabase.from('attendance').insert({
+        student_id: student.id, present: true, attendance_type: 'attended', session_date: date,
+        attended_at: new Date(date + 'T12:00:00').toISOString(), class_id: c.id,
+      })
+      if (error) alert(`Could not mark ${what}: ` + error.message)
     }
   }
 
@@ -2132,7 +2175,9 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                 const m = st.members
                 const wd = weightDataByStudent[st.id]
                 const stats = attendanceStats[st.id]
-                const pct = stats?.pct ?? null
+                const spFlag = selectedClass ? specialRegisterFlag(selectedClass) : null
+                const pct = spFlag === 'is_leader' ? (stats?.leaderPct ?? null) : spFlag === 'is_pts' ? null : (stats?.pct ?? null)
+                const pctText = spFlag === 'is_pts' ? `PT ×${stats?.ptCount || 0}` : pct != null ? `${spFlag === 'is_leader' ? 'L ' : ''}${pct}%` : '—'
                 const weight = wd?.current ?? st.weight_kg
                 const isSel = selectedStudents.includes(st.id)
                 const open = mExpanded === st.id
@@ -2180,7 +2225,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                         {isMainReg ? (mPage === 0 ? (
                           <div className="reg-m-details reg-m-cols reg-m-cols-main">
                             <span>Age <b>{calcAge(m?.date_of_birth) ?? '—'}</b></span>
-                            <span className="reg-m-pct"><span className="bar"><span style={{ width: `${pct || 0}%`, background: pctColour(pct) }} /></span><b style={{ color: pctColour(pct) }}>{pct != null ? `${pct}%` : '—'}</b></span>
+                            <span className="reg-m-pct"><span className="bar"><span style={{ width: `${pct || 0}%`, background: pctColour(pct) }} /></span><b style={{ color: spFlag === 'is_pts' ? '#378ADD' : pctColour(pct) }}>{pctText}</b></span>
                             <span style={{ display: 'inline-flex', alignItems: 'center' }}><MediaCam restriction={st.media_restriction} /></span>
                           </div>
                         ) : mPage === 3 ? (
@@ -2222,7 +2267,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           <div className="reg-m-details reg-m-cols">
                             <span>Age <b>{calcAge(m?.date_of_birth) ?? '—'}</b></span>
                             <span><b>{weight != null ? `${weight}kg` : '—'}</b></span>
-                            <span className="reg-m-pct"><span className="bar"><span style={{ width: `${pct || 0}%`, background: pctColour(pct) }} /></span><b style={{ color: pctColour(pct) }}>{pct != null ? `${pct}%` : '—'}</b></span>
+                            <span className="reg-m-pct"><span className="bar"><span style={{ width: `${pct || 0}%`, background: pctColour(pct) }} /></span><b style={{ color: spFlag === 'is_pts' ? '#378ADD' : pctColour(pct) }}>{pctText}</b></span>
                           </div>
                         ) : mPage === 2 ? (
                           <div className="reg-m-details reg-m-details-3">
@@ -2312,7 +2357,9 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                         <div className="reg-m-stats">
                           <div><span>Sessions</span><b>{stats?.total ?? 0}</b></div>
                           <div><span>Last in</span><b style={{ color: stats?.last ? lastInColour(stats.last) : undefined }}>{stats?.last ? ddmm(stats.last) : '—'}</b></div>
-                          <div><span>Attend.</span><b style={{ color: pctColour(pct) }}>{pct != null ? `${pct}%` : '—'}</b></div>
+                          <div><span>Attend.</span><b style={{ color: pctColour(stats?.pct ?? null) }}>{stats?.pct != null ? `${stats.pct}%` : '—'}</b></div>
+                          {st.is_leader && <div><span>Leader</span><b style={{ color: pctColour(stats?.leaderPct ?? null) }}>{stats?.leaderPct != null ? `${stats.leaderPct}%` : '—'}</b></div>}
+                          {st.is_pts && <div><span>PT sessions</span><b>{stats?.ptCount || 0}</b></div>}
                           <div><span>Weight</span><b>{weight != null ? `${weight}kg` : '—'}</b></div>
                           <div><span>Target wt</span><b>{wd?.targetWeight ? `${wd.targetWeight}kg` : '—'}</b></div>
                           <div><span>Comp weight</span><b>{wd?.compWeightLabel || st.weight_division || '—'}</b></div>

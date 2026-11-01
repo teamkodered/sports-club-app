@@ -1407,6 +1407,12 @@ export default function AthleteApp() {
   const [checkingIn, setCheckingIn]   = useState(false)
   const [checkedInMsg, setCheckedInMsg] = useState(null)
   const [checkInDrawerOpen, setCheckInDrawerOpen] = useState(false)
+  // PTs / Leader registers (classes named 'PTs Register' / 'Leader Register'): separate check-in
+  const [specialClasses, setSpecialClasses] = useState([])
+  const specialFlagOf = c => { const n = c?.name || ''; return /\bpts?\b[^a-z]*register/i.test(n) ? 'is_pts' : /leaders?\b[^a-z]*register/i.test(n) ? 'is_leader' : null }
+  useEffect(() => {
+    supabase.from('classes').select('id, name, day_of_week, start_time').then(({ data }) => setSpecialClasses((data || []).filter(c => specialFlagOf(c))))
+  }, [])
   const [activeCheckIn, setActiveCheckIn] = useState(null) // the open attendance row (checked in, not yet checked out) if still within its session window
   const [showWeightCheckPrompt, setShowWeightCheckPrompt] = useState(null) // 'in' | 'out' | null
   const [weightCheckValue, setWeightCheckValue] = useState('')
@@ -3350,11 +3356,12 @@ export default function AthleteApp() {
     // coach marking them present via Registers (including the
     // double-session cascade) never expects a check-out step, and
     // shouldn't make this app think one's needed.
-    const todaysOpenEntries = attendanceData.filter(a => a.session_date === todayStr && !a.checked_out_at && a.self_checked_in)
+    const spIds = new Set(specialClasses.map(c => c.id))
+    const todaysOpenEntries = attendanceData.filter(a => a.session_date === todayStr && !a.checked_out_at && a.self_checked_in && !spIds.has(a.class_id))
     if (!todaysOpenEntries.length) { setActiveCheckIn(null); return }
     const mostRecent = todaysOpenEntries.sort((a, b) => new Date(b.attended_at) - new Date(a.attended_at))[0]
     setActiveCheckIn(mostRecent)
-  }, [student, attendanceData, assignedClasses])
+  }, [student, attendanceData, assignedClasses, specialClasses])
 
 
   // Section header progress badge ("1/3") -- picks the athlete-specific
@@ -4594,7 +4601,7 @@ export default function AthleteApp() {
       // double-session day), pick whichever is closest to the current
       // time, since that's almost certainly the one they're walking into.
       const todayJsDay = new Date().getDay()
-      const todaysClasses = assignedClasses.filter(a => assignmentActiveOn(a, todayISO()) && (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(todayJsDay) && a.classes?.id)
+      const todaysClasses = assignedClasses.filter(a => assignmentActiveOn(a, todayISO()) && (DAY_TO_JS_DAYS[a.classes?.day_of_week] || []).includes(todayJsDay) && a.classes?.id && !specialFlagOf(a.classes))
       if (todaysClasses.length === 1) {
         matchedClassId = todaysClasses[0].classes.id
       } else if (todaysClasses.length > 1) {
@@ -4680,6 +4687,30 @@ export default function AthleteApp() {
     loadAppHrSessions()
   }
   const athleteMaxHr = () => { const d = student?.members?.date_of_birth; if (!d) return 190; const b = new Date(d), n = new Date(); const age = n.getFullYear() - b.getFullYear() - ((n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) ? 1 : 0); return Math.max(150, 220 - age) }
+
+  // Check in / undo for a PTs or Leader register today (no points -- recorded separately)
+  async function toggleSpecialCheckIn(c) {
+    if (!student) return
+    const todayStr = new Date().toISOString().split('T')[0]
+    const existing = attendanceData.find(a => a.session_date === todayStr && a.class_id === c.id)
+    const what = specialFlagOf(c) === 'is_leader' ? 'Leadership' : 'PT'
+    if (existing) {
+      if (!confirm(`Undo your ${what} check-in for today?`)) return
+      const { error } = await supabase.from('attendance').delete().eq('id', existing.id)
+      if (error) { alert('Could not undo: ' + error.message); return }
+      setAttendanceData(prev => prev.filter(a => a.id !== existing.id))
+      return
+    }
+    const nowIso = new Date().toISOString()
+    const { data, error } = await supabase.from('attendance').insert({
+      student_id: student.id, class_id: c.id, session_date: todayStr, attended_at: nowIso,
+      attendance_type: 'attended', present: true, self_checked_in: true, checked_out_at: nowIso,
+    }).select().single()
+    if (error) { alert(`Could not check in for ${what}: ` + error.message); return }
+    setAttendanceData(prev => [data, ...(prev || [])])
+    setCheckedInMsg(`✓ Checked in for ${what}`)
+    setTimeout(() => setCheckedInMsg(null), 3000)
+  }
 
   async function checkOutNow() {
     setShowWeightCheckPrompt('out')
@@ -7823,6 +7854,28 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                     </div>
                   )}
 
+                  {(() => {
+                    const todayStr = new Date().toISOString().split('T')[0]
+                    const mine = specialClasses.filter(c => student[specialFlagOf(c)] && (DAY_TO_JS_DAYS[c.day_of_week] || []).includes(todayJsDay))
+                    if (!mine.length) return null
+                    return (
+                      <div style={{ marginBottom: 16, padding: 10, border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: 'var(--text-tertiary)', marginBottom: 8 }}>LEADERSHIP / PT TODAY</div>
+                        {mine.map(c => {
+                          const done = attendanceData.some(a => a.session_date === todayStr && a.class_id === c.id)
+                          const isL = specialFlagOf(c) === 'is_leader'
+                          return (
+                            <button key={c.id} className="btn" onClick={() => toggleSpecialCheckIn(c)}
+                              style={{ width: '100%', justifyContent: 'center', padding: 11, fontSize: 14, marginBottom: 6, background: done ? '#1D9E75' : undefined, color: done ? '#fff' : undefined, borderColor: done ? '#1D9E75' : undefined }}>
+                              {done ? '✓ ' : ''}{isL ? '🧑‍🏫 Leader' : '💪 PT'} check-in · {String(c.start_time || '').slice(0, 5)}
+                            </button>
+                          )
+                        })}
+                        <div style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center' }}>Counted separately from your class attendance. Tap again to undo.</div>
+                      </div>
+                    )
+                  })()}
+
                   {activeCheckIn ? (
                     <div style={{ marginBottom: 16 }}>
                       <button className="btn btn-primary neon-chev neon-chev-red" style={{ width: '100%', justifyContent: 'center', padding: 12, fontSize: 14, background: '#E24B4A', borderColor: '#E24B4A' }}
@@ -9212,6 +9265,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
             // from that card if class changes/holidays are involved).
             const scheduledDaysInRange = new Set()
             assignedClasses.forEach(a => {
+              if (specialFlagOf(a.classes)) return   // PTs / Leader registers counted separately
               const jsDays = DAY_TO_JS_DAYS[a.classes?.day_of_week] || []
               if (!jsDays.length) return
               const cursor = new Date(fromStr + 'T00:00:00')
@@ -9224,7 +9278,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
               }
             })
             const attendedDaysInRange = new Set(
-              attendanceData.filter(a => a.session_date >= fromStr && a.session_date <= toStr && a.attendance_type !== 'absent' && a.attendance_type !== 'excused').map(a => a.session_date)
+              attendanceData.filter(a => a.session_date >= fromStr && a.session_date <= toStr && a.attendance_type !== 'absent' && a.attendance_type !== 'excused' && !specialClasses.some(c => c.id === a.class_id)).map(a => a.session_date)
             )
             const attendancePct = scheduledDaysInRange.size ? Math.round((attendedDaysInRange.size / scheduledDaysInRange.size) * 100) : null
 
