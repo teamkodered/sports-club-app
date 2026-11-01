@@ -4736,7 +4736,17 @@ export default function AthleteApp() {
   // ❤️ checked in (any way): record heart rate for the class -- starts straight away if the strap is
   // connected, otherwise the 'Connect your strap' pop-up (for anyone who's used a strap / wearable before)
   function offerLiveHr(att) {
-    if (NativeHr.isNativeHr() || !live.supported || live.recording) return
+    if (NativeHr.isNativeHr() || live.recording) return
+    // iPhone: Safari can't connect to straps -- point them at the free Bluefy browser (testing, Nov 2026).
+    // Shown once a day at most, and never again after "Don't show again".
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+    if (!live.supported && isIOS) {
+      let off = false, today = new Date().toISOString().split('T')[0]
+      try { off = localStorage.getItem('kc_bluefy_off') === '1' || localStorage.getItem('kc_bluefy_shown') === today } catch { /* ignore */ }
+      if (!off && (wearableConnections || []).length) { try { localStorage.setItem('kc_bluefy_shown', today) } catch { /* */ } setLiveHrPrompt({ ios: true }) }
+      return
+    }
+    if (!live.supported) return
     let used = false; try { used = !!localStorage.getItem('kc_hr_strap') } catch { /* ignore */ }
     if (!used && !(wearableConnections || []).length) return
     if (live.connected) { live.start({ classId: att?.class_id || null, attendanceId: att?.id || null }); setLiveHrPrompt({ already: true }); setTimeout(() => setLiveHrPrompt(p => p?.already ? null : p), 2500) }
@@ -5562,7 +5572,24 @@ export default function AthleteApp() {
           {liveHrPrompt && (
             <div role="dialog" aria-modal="true" onClick={() => setLiveHrPrompt(null)} style={{ position: 'fixed', inset: 0, zIndex: 560, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '80px 16px 0' }}>
               <div className="card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 380, padding: 18, border: '1px solid #E24B4A' }}>
-                {liveHrPrompt.already ? (
+                {liveHrPrompt.ios ? (
+                  <>
+                    <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>❤️ Live heart rate on iPhone <span style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 500 }}>(testing)</span></h3>
+                    <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 10px' }}>iPhones can't connect heart rate straps in Safari. Open Klass Champ in the free <b>Bluefy</b> browser to connect your strap and record your heart rate in class. (You'll need to log in once inside Bluefy.)</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <a className="btn btn-primary" style={{ justifyContent: 'center', textDecoration: 'none' }} href={`bluefy://open?url=${encodeURIComponent(window.location.origin + '/athlete-app')}`}>Open in Bluefy</a>
+                      <a className="btn" style={{ justifyContent: 'center', textDecoration: 'none' }} href="https://apps.apple.com/app/bluefy-web-ble-browser/id1492822055" target="_blank" rel="noreferrer">Get Bluefy (App Store)</a>
+                      <button type="button" className="btn" style={{ justifyContent: 'center' }} onClick={async () => {
+                        const url = window.location.origin + '/athlete-app'
+                        try { await navigator.clipboard.writeText(url); alert('Link copied -- open Bluefy and paste it into the address bar.') } catch { prompt('Copy this link, then paste it into Bluefy:', url) }
+                      }}>Copy app link</button>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
+                      <button type="button" className="btn btn-sm" onClick={() => { try { localStorage.setItem('kc_bluefy_off', '1') } catch { /* */ } setLiveHrPrompt(null) }}>Don't show again</button>
+                      <button type="button" className="btn btn-sm" onClick={() => setLiveHrPrompt(null)}>Not now</button>
+                    </div>
+                  </>
+                ) : liveHrPrompt.already ? (
                   <div style={{ textAlign: 'center' }}><div style={{ fontSize: 30 }}>❤️</div><b>{live.device?.name || 'Heart rate'} live broadcast on</b><p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '6px 0 0' }}>Recording this class -- checking out saves it.</p></div>
                 ) : (
                   <>
