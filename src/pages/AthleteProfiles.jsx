@@ -7117,8 +7117,6 @@ export default function AthleteProfiles() {
               )
             })()}
             {!(showKrRegister || showKrbaRegister || showAllAthRegister) && (<>
-              {/* 📋 test section: this test week's plan (press to open) + group test entry */}
-              <TestsThisWeekCoach collapsible />
               <button className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 10 }} onClick={() => setTestBatchOpen(true)}>📋 Group test entry</button>
             </>)}
 
@@ -8582,6 +8580,8 @@ export default function AthleteProfiles() {
                           }}>+ Section target</button>
                         </div>
                         {showAddTarget && newTargetSection === section.key && newTargetQuestion === '' && renderInlineTargetForm()}
+                        {/* 📋 Test section: this test week's plan (press to open) */}
+                        {section.key === 'test' && <TestsThisWeekCoach collapsible />}
                         <WhoList lists={whoLists(section.subItems, requiredCount)} k={`sec:${section.key}`} />
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 8 }}>
                           {section.subItems.map(sub => {
