@@ -715,7 +715,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     // sessions' weight_before/weight_after, and athlete_profiles'
     // free-text weight_division for comp weight), computed here per
     // student for the whole visible list at once.
-    if (regType === 'kr' || regType === 'krba' || regType === 'allath') {
+    if (regType === 'kr' || regType === 'krba' || regType === 'allath' || regType === 'class') {
       const allStudentIds = [...filteredStudents, ...stillMissing].map(s => s.id)
       if (allStudentIds.length > 0) {
         const [{ data: sessions }, { data: profiles }, { data: targetSettings }] = await Promise.all([
@@ -2046,6 +2046,9 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
         const list = displayStudents.filter(x => mFilter === 'all' ? true : mFilter === 'in' ? (attendance[x.id] && attendance[x.id] !== 'none') : !(attendance[x.id] && attendance[x.id] !== 'none'))
         const selecting = selectedStudents.length > 0
         const isMainReg = !initialRegType   // standalone Registers page (not the Athlete Profile's embedded register)
+        // KR / KRBA classes on the Registers page use the athlete register's columns (Age / Weight / Attend. first)
+        const isAthleteClass = !!selectedClass && (/^(KR|KRBA)$/i.test(selectedClass.discipline || '') || /\bKR(BA)?\b/.test(selectedClass.name || ''))
+        const mainCols = isMainReg && !isAthleteClass
         const reasonsByUse = [...pointTypes].map((pt, i) => ({ pt, i })).sort((a, b) => ((reasonUsage || {})[b.pt.label] || 0) - ((reasonUsage || {})[a.pt.label] || 0) || a.i - b.i).map(x => x.pt)
         // Reason order everywhere: A-Z, negative (deduction) reasons at the bottom -- stable every time
         const reasonOrder = (a, b) => ((a.points < 0) - (b.points < 0)) || a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })
@@ -2222,7 +2225,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
 
             {/* Sort headers + page dots (swipe the list to switch detail sets) */}
             <div className="reg-m-dots" role="tablist" aria-label="Detail columns">
-              {(isMainReg ? [0, 1, 2, 3] : [0, 1, 2, 3, 4]).map(i => <button key={i} type="button" role="tab" aria-selected={mPage === i} aria-label={isMainReg ? (['Age, attendance, media', 'Grade, house, points', 'Sessions, last in, start date', 'Extras: class time, groups'][i]) : (['Age, weight, attendance', 'Level, record, weight trend', 'Sessions, last in, start date', 'House, points, media'][i])} className={mPage === i ? 'on' : ''} onClick={() => setMPage(i)} />)}
+              {(mainCols ? [0, 1, 2, 3] : [0, 1, 2, 3, 4]).map(i => <button key={i} type="button" role="tab" aria-selected={mPage === i} aria-label={mainCols ? (['Age, attendance, media', 'Grade, house, points', 'Sessions, last in, start date', 'Extras: class time, groups'][i]) : (['Age, weight, attendance', 'Level, record, weight trend', 'Sessions, last in, start date', 'House, points, media'][i])} className={mPage === i ? 'on' : ''} onClick={() => setMPage(i)} />)}
             </div>
             {sortThen.length > 0 && (
               <div className="reg-m-sortchain">
@@ -2233,7 +2236,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
             )}
             <div className="reg-m-headers">
               <SortBtn k="first_name" label="NAME" grow />
-              {isMainReg
+              {mainCols
                 ? (mPage === 0 ? <><SortBtn k="age" label="AGE" /><SortBtn k="att_pct" label="ATTEND." /><SortBtn k="media_restriction" label="MEDIA" /><span style={{ width: 58, flexShrink: 0 }} /></>
                                : mPage === 1 ? <><SortBtn k="grade" label="GRADE" /><SortBtn k="house" label="HOUSE" /><SortBtn k="house_points" label="POINTS" /></>
                                : mPage === 2 ? <><SortBtn k="att_total" label="SESSIONS" /><SortBtn k="att_last" label="LAST IN" /><SortBtn k="start_date" label="STARTED" /></>
@@ -2251,7 +2254,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                 const st = mSwipeX.current; mSwipeX.current = null
                 if (!st) return
                 const dx = e.changedTouches[0].clientX - st.x, dy = e.changedTouches[0].clientY - st.y
-                if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) setMPage(p => Math.max(0, Math.min(isMainReg ? 3 : 4, p + (dx < 0 ? 1 : -1))))
+                if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) setMPage(p => Math.max(0, Math.min(mainCols ? 3 : 4, p + (dx < 0 ? 1 : -1))))
               }}>
               {list.length === 0 && <div className="reg-m-empty">{search ? 'No students match your search' : 'No students here'}</div>}
               {list.map(st => {
@@ -2305,7 +2308,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           {(() => { const h = wearHint(st); return h ? <span className="reg-m-wear" title={`Wearable shows: ${h}`}>⌚ {h.split(' ')[0]}</span> : null })()}
                           {bday && <button type="button" className="reg-m-bday" title={bday.daysUntil === 0 ? 'Birthday today!' : 'Upcoming birthday'} onClick={e => { e.stopPropagation(); setBirthdayPopup({ name: `${m?.first_name} ${m?.last_name}`, info: bday }) }}>{bday.daysUntil === 0 ? '🥳' : '🎂'}</button>}
                         </div>
-                        {isMainReg ? (mPage === 0 ? (
+                        {mainCols ? (mPage === 0 ? (
                           <div className="reg-m-details reg-m-cols reg-m-cols-main">
                             <span>Age <b>{calcAge(m?.date_of_birth) ?? '—'}</b></span>
                             <span className="reg-m-pct"><span className="bar"><span style={{ width: `${pct || 0}%`, background: pctColour(pct) }} /></span><b style={{ color: spFlag === 'is_pts' ? '#378ADD' : pctColour(pct) }}>{pctText}</b></span>
@@ -2313,7 +2316,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           </div>
                         ) : mPage === 3 ? (
                           <div className="reg-m-details reg-m-extras" onClick={e => e.stopPropagation()}>
-                            {!isMainReg && (
+                            {!mainCols && (
                               <button type="button" className="reg-m-xweight" onClick={() => setMWeightOpen(o => o === st.id ? null : st.id)}>
                                 <b>{wd?.current != null ? `${wd.current}kg` : (st.weight_kg ? `${st.weight_kg}kg` : '–')}</b>
                                 <span className="reg-m-xcomp">{wd?.compWeightLabel ? `comp ${wd.compWeightLabel}` : 'no comp weight'}</span>
@@ -2321,7 +2324,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                                 <span className="reg-m-xmore">{mWeightOpen === st.id ? '▲' : '▼'}</span>
                               </button>
                             )}
-                            {!isMainReg && mWeightOpen === st.id && (
+                            {!mainCols && mWeightOpen === st.id && (
                               <div className="reg-m-xweights">
                                 {(wd?.last5 || []).length ? [...wd.last5].reverse().map((e, i) => <span key={i}><b>{e.weight}kg</b> {e.date || e.session_date ? ddmm(e.date || e.session_date) : ''}</span>) : <span>No weigh-ins yet</span>}
                                 <span className="reg-m-xcount">{wd?.entryCount ?? 0} weigh-ins in total</span>
@@ -2361,7 +2364,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           </div>
                         ) : mPage === 4 ? (
                           <div className="reg-m-details reg-m-extras" onClick={e => e.stopPropagation()}>
-                            {!isMainReg && (
+                            {!mainCols && (
                               <button type="button" className="reg-m-xweight" onClick={() => setMWeightOpen(o => o === st.id ? null : st.id)}>
                                 <b>{wd?.current != null ? `${wd.current}kg` : (st.weight_kg ? `${st.weight_kg}kg` : '–')}</b>
                                 <span className="reg-m-xcomp">{wd?.compWeightLabel ? `comp ${wd.compWeightLabel}` : 'no comp weight'}</span>
@@ -2369,7 +2372,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                                 <span className="reg-m-xmore">{mWeightOpen === st.id ? '▲' : '▼'}</span>
                               </button>
                             )}
-                            {!isMainReg && mWeightOpen === st.id && (
+                            {!mainCols && mWeightOpen === st.id && (
                               <div className="reg-m-xweights">
                                 {(wd?.last5 || []).length ? [...wd.last5].reverse().map((e, i) => <span key={i}><b>{e.weight}kg</b> {e.date || e.session_date ? ddmm(e.date || e.session_date) : ''}</span>) : <span>No weigh-ins yet</span>}
                                 <span className="reg-m-xcount">{wd?.entryCount ?? 0} weigh-ins in total</span>
@@ -2396,9 +2399,9 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           </div>
                         )}
                       </div>
-                      {mPage === 0 ? <AttBtn st={st} /> : (!isMainReg && mPage === 1) ? <Spark wd={wd} /> : null /* Mark only on the first page -- more room on the others */}
+                      {mPage === 0 ? <AttBtn st={st} /> : (!mainCols && mPage === 1) ? <Spark wd={wd} /> : null /* Mark only on the first page -- more room on the others */}
                     </div>
-                    {open && !selecting && isMainReg && (
+                    {open && !selecting && mainCols && (
                       <div className="reg-m-open reg-m-open-profile" onClick={e => e.stopPropagation()}>
                         <div className="reg-m-actions">
                           <button type="button" onClick={() => { setMultiAward(false); setAwardingFor(st) }}>+ Points</button>
@@ -2437,7 +2440,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                         </div>
                       </div>
                     )}
-                    {open && !selecting && !isMainReg && (
+                    {open && !selecting && !mainCols && (
                       <div className="reg-m-open" onClick={e => e.stopPropagation()}>
                         <div className="reg-m-stats">
                           <div><span>Sessions</span><b>{stats?.total ?? 0}</b></div>
