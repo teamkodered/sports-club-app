@@ -31,6 +31,7 @@ begin
   -- one award at a time per athlete + item: a double tap / two devices can't both slip past the check
   perform pg_advisory_xact_lock(hashtext(v_student::text || '|' || v_label));
   v_undo  := replace(replace(replace(replace(v_label, 'F2F question logged', 'F2F question cleared'), 'PDP action done', 'PDP action undone'), 'PDP focus action done', 'PDP focus action undone'), 'PDP done for today', 'PDP done for today undone');
+  if v_undo = v_label then v_undo := '(no undo)'; end if;
   select count(*) filter (where point_type = v_label) - count(*) filter (where point_type = v_undo)
     into v_net from points_log
     where student_id = v_student and awarded_at >= date_trunc('day', now()) and point_type in (v_label, v_undo);
@@ -72,6 +73,7 @@ begin
                            when 'pdp_focus' then replace(v_label, 'PDP focus action done', 'PDP focus action undone')
                            else replace(v_label, 'PDP done for today', 'PDP done for today undone') end;
   perform pg_advisory_xact_lock(hashtext(v_student::text || '|' || v_label));
+  if v_undo = v_label then v_undo := '(no undo)'; end if;
   select count(*) filter (where point_type = v_label) - count(*) filter (where point_type = v_undo),
          max(points_awarded) filter (where point_type = v_label)
     into v_net, v_amount from points_log
