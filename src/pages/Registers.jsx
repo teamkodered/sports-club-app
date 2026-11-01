@@ -77,7 +77,7 @@ import { matchClass, workoutRange, fmtTime, isClubSport } from '../lib/sessionMa
 import { supabase } from '../lib/supabase.js'
 import { divMatch } from '../lib/divisions.js'
 import { fetchAll } from '../lib/fetchAll.js'
-import { assignmentActiveOn, todayISO } from '../lib/classAssignments.jsx'
+import { assignmentActiveOn, todayISO, insertAssignment, endAssignment, addDaysISO } from '../lib/classAssignments.jsx'
 import { matchesSearch } from '../lib/searchMatch.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import StudentProfile from '../components/students/StudentProfile.jsx'
@@ -243,10 +243,31 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   const [groupPopup, setGroupPopup] = useState(null)   // { student, flag, loading, sessions: [{ id, name, day_of_week, start_time }] }
   async function openGroupPopup(student, g) {
     const flag = g === 'PTs' ? 'is_pts' : 'is_leader'
-    setGroupPopup({ student, flag, loading: true, sessions: [] })
-    const { data } = await supabase.from('student_class_assignments').select('*, classes(id, name, day_of_week, start_time)').eq('student_id', student.id)
-    const sessions = (data || []).filter(a => a.classes && specialRegisterFlag(a.classes) === flag && assignmentActiveOn(a, date)).map(a => a.classes)
-    setGroupPopup(p => p && p.student.id === student.id ? { ...p, loading: false, sessions } : p)
+    setGroupPopup({ student, flag, loading: true, sessions: [], options: [], assigned: {} })
+    const [{ data }, { data: cls }] = await Promise.all([
+      supabase.from('student_class_assignments').select('*, classes(id, name, day_of_week, start_time)').eq('student_id', student.id),
+      supabase.from('classes').select('id, name, day_of_week, start_time'),
+    ])
+    const DAY_ORDER = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    const options = (cls || []).filter(c => specialRegisterFlag(c) === flag)
+      .sort((a, b) => (DAY_ORDER.indexOf(a.day_of_week) - DAY_ORDER.indexOf(b.day_of_week)) || String(a.start_time).localeCompare(String(b.start_time)))
+    const assigned = {}   // class id -> assignment id (active today)
+    ;(data || []).forEach(a => { if (a.classes && specialRegisterFlag(a.classes) === flag && assignmentActiveOn(a, todayISO())) assigned[a.class_id] = a.id })
+    const sessions = options.filter(c => assigned[c.id])
+    setGroupPopup(p => p && p.student.id === student.id ? { ...p, loading: false, sessions, options, assigned } : p)
+  }
+  async function toggleGroupAssign(c) {
+    const gp = groupPopup; if (!gp || guardRO()) return
+    const aid = gp.assigned[c.id]
+    if (aid) {
+      if (!confirm(`Remove ${gp.student.members?.first_name} from ${c.name} (${c.day_of_week} ${String(c.start_time || '').slice(0, 5)})?`)) return
+      const { error } = await endAssignment(aid, addDaysISO(todayISO(), -1))
+      if (error) { alert('Could not remove: ' + error.message); return }
+    } else {
+      const { error } = await insertAssignment({ student_id: gp.student.id, class_id: c.id, start_date: todayISO() }, 'id')
+      if (error) { alert('Could not assign: ' + error.message); return }
+    }
+    openGroupPopup(gp.student, gp.flag === 'is_pts' ? 'PTs' : 'Leader')
   }
   useEffect(() => {
     const el = registerToolbarRef.current
@@ -2980,12 +3001,24 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
               <b style={{ fontSize: 16 }}>{groupPopup.flag === 'is_pts' ? '💪 PT session' : '🧑‍🏫 Leadership session'} — {groupPopup.student.members?.first_name} {groupPopup.student.members?.last_name}</b>
               <button className="btn btn-sm" onClick={() => setGroupPopup(null)}>✕</button>
             </div>
-            {groupPopup.loading ? <div style={{ color: 'var(--text-tertiary)' }}>Loading…</div>
-              : groupPopup.sessions.length ? groupPopup.sessions.map(c => (
-                <div key={c.id} style={{ padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 8, marginBottom: 8, fontSize: 15 }}>
-                  <b>{c.day_of_week} {String(c.start_time || '').slice(0, 5)}</b> · {c.name}
+            {groupPopup.loading ? <div style={{ color: 'var(--text-tertiary)' }}>Loading…</div> : (
+              <>
+                <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 8 }}>
+                  {groupPopup.sessions.length ? 'Tap a session to assign or remove them:' : `Not assigned to a ${groupPopup.flag === 'is_pts' ? 'PT' : 'leadership'} session yet — tap one to assign them:`}
                 </div>
-              )) : <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 8 }}>Not assigned to a {groupPopup.flag === 'is_pts' ? 'PT' : 'leadership'} session yet — assign them to the {groupPopup.flag === 'is_pts' ? 'PTs Register' : 'Leader Register'} class in Classes.</div>}
+                {groupPopup.options.length ? groupPopup.options.map(c => {
+                  const on = !!groupPopup.assigned[c.id]
+                  return (
+                    <button key={c.id} type="button" onClick={() => toggleGroupAssign(c)}
+                      style={{ display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '11px 12px', marginBottom: 8, borderRadius: 8, cursor: 'pointer', fontSize: 15, textAlign: 'left',
+                        border: `1px solid ${on ? '#1D9E75' : 'var(--border)'}`, background: on ? '#1D9E7522' : 'transparent', color: 'var(--text)' }}>
+                      <span><b>{c.day_of_week} {String(c.start_time || '').slice(0, 5)}</b> · {c.name}</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: on ? '#1D9E75' : 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>{on ? '✓ Assigned' : '+ Assign'}</span>
+                    </button>
+                  )
+                }) : <div style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No {groupPopup.flag === 'is_pts' ? 'PTs Register' : 'Leader Register'} classes set up in Classes yet.</div>}
+              </>
+            )}
             {(() => { const st = attendanceStats[groupPopup.student.id]; return st ? (
               <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 6 }}>
                 {groupPopup.flag === 'is_pts' ? `PT sessions attended: ${st.ptCount || 0}` : `Leader attendance: ${st.leaderPct != null ? st.leaderPct + '%' : '—'} (${st.leaderAttended || 0} attended, ${st.leaderMissed || 0} missed)`}
