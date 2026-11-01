@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
+import { TestsThisWeek } from '../components/shared/TestsThisWeek.jsx'
 import { keepMedia } from '../lib/filePick.js'
 import { Link, useNavigate } from 'react-router-dom'
 import { TEST_CATEGORIES } from '../lib/testResults.js'
@@ -1344,6 +1345,7 @@ const pdpForAthlete = notes => {
 
 export default function AthleteApp() {
   const [testSessionOpen, setTestSessionOpen] = useState(false)
+  const [testSessionCat, setTestSessionCat] = useState(null)   // open the test session on this test (from 'Tests this week')
   const { profile, isStaff, realIsAdmin, viewAs } = useAuth()
   // Admin "View as": show THAT person's athlete app (read-only preview -- nothing is saved)
   const appMemberId = viewAs?.id || profile?.id
@@ -5987,7 +5989,7 @@ export default function AthleteApp() {
                       {showPhysicalSection && <SectionQuote section="physical" colour="#E6B800" />}
                       <SectionProgressBars sectionKey="physical" ropes="br" />
                     </button>
-                    {testSessionOpen && student?.id && <TestSessionModal hrrMode={'self'} allowUpload={!uploadsBlocked} onPoints={pts => { setStudent(prev => prev ? { ...prev, individual_points: (prev.individual_points || 0) + pts } : prev); celebrateHousePoint(pts) }} studentId={student?.id} studentName={`${student?.members?.first_name || ''} ${student?.members?.last_name || ''}`.trim()} onClose={() => setTestSessionOpen(false)} onSaved={async () => { const { data } = await supabase.from('fit2fight_sessions').select('*').eq('student_id', student.id).order('session_date', { ascending: false }); setSessions(data || []) }} />}
+                    {testSessionOpen && student?.id && <TestSessionModal initialCat={testSessionCat} hrrMode={'self'} allowUpload={!uploadsBlocked} onPoints={pts => { setStudent(prev => prev ? { ...prev, individual_points: (prev.individual_points || 0) + pts } : prev); celebrateHousePoint(pts) }} studentId={student?.id} studentName={`${student?.members?.first_name || ''} ${student?.members?.last_name || ''}`.trim()} onClose={() => setTestSessionOpen(false)} onSaved={async () => { const { data } = await supabase.from('fit2fight_sessions').select('*').eq('student_id', student.id).order('session_date', { ascending: false }); setSessions(data || []) }} />}
 
                     <div className={(pillarView['physical'] || 'questions') === 'pdp' ? 'pv-pdp' : undefined} style={{
                       overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
@@ -6301,7 +6303,9 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                         </span>
                       </button>
                     </div>
-                    <button type="button" className="neon-snc-bar ts-open-card" onClick={() => setTestSessionOpen(true)} style={{
+                    <TestsThisWeek sessions={sessions} junior={(() => { const d = student?.members?.date_of_birth; return d ? (Date.now() - new Date(d)) / 31557600000 < 16 : false })()}
+                      onOpen={cat => { setTestSessionCat(cat); setTestSessionOpen(true) }} />
+                    <button type="button" className="neon-snc-bar ts-open-card" onClick={() => { setTestSessionCat(null); setTestSessionOpen(true) }} style={{
                       display: 'flex', alignItems: 'stretch', width: '100%', padding: 0, cursor: 'pointer', color: 'inherit',
                       background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden', fontFamily: 'var(--font-sans)',
                     }}>

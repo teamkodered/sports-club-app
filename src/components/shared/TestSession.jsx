@@ -91,7 +91,7 @@ export async function awardTestPoints(studentId, testNames) {
   return total
 }
 
-export function TestSessionModal({ studentId, studentName, onClose, onSaved, allowUpload = false, onPoints, hrrMode }) {
+export function TestSessionModal({ studentId, studentName, onClose, onSaved, allowUpload = false, onPoints, hrrMode, initialCat = null }) {
   // hrrMode: 'self' in the athlete app (connects to their own strap), otherwise 'coach' (reads their live feed)
   // 📹 measuring from video: jump height / punch speed / punch count fill the boxes below;
   // the video is also kept with the athlete's test uploads (and in View iT when onViewIt is given)
@@ -106,7 +106,7 @@ export function TestSessionModal({ studentId, studentName, onClose, onSaved, all
       .catch(err => alert('Result kept, but the video could not be added to View iT: ' + err.message))
   }
   const [date, setDate] = useState(todayISO())
-  const [catKey, setCatKey] = useState(TEST_CATEGORIES[0].key)
+  const [catKey, setCatKey] = useState(initialCat && TEST_CATEGORIES.some(c => c.key === initialCat) ? initialCat : TEST_CATEGORIES[0].key)
   const [history, setHistory] = useState([])
   const [vals, setVals] = useState({})      // name -> value (single-set tests)
   const [sets, setSets] = useState({})      // name -> [values] (body weight)
