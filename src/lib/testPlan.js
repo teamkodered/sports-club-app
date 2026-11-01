@@ -5,30 +5,28 @@
 const FIXED = ['Red', 'Yellow', 'Green', 'Blue', 'Black'].map(c => `Fixed load circuit - ${c}`)
 const BODYWEIGHT = ['Push-ups - Regular (60s)', 'Push-ups - Tricep (60s)', 'Push-ups - Shoulder (60s)', 'Pull-ups - Regular (60s)', 'Pull-ups - Horizontal (60s)', 'Squats (60s)']
 const GRIP = ['Left Grip Test (kg)', 'Right Grip Test (kg)']
-const PINCH = ['Left Pinch Test - 5kg/10kg (time)', 'Right Pinch Test - 5kg/10kg (time)']
+const STRETCHES = ['Hamstring Stretch (range)', 'Box Splits Stretch (range)', 'Front Splits - Left in front (range)', 'Front Splits - Right in front (range)',
+  'Shoulder flex - Right hand up (range)', 'Shoulder flex - Left hand up (range)']
 
+// Running tests are always in session A. Pinch test removed (Nov 2026); all stretches done together once a month.
 export const TEST_PLAN = {
   1: { A: [{ cat: 'jumps', label: 'Vertical jump', names: ['Vertical Jump (distance)'] },
            { cat: 'bleep', label: 'Bleep test', names: ['Bleep test', 'Bleep test (10m)'], hard: true, hrr: true },
            { cat: 'grip', label: 'Grip (left + right)', names: GRIP }],
        B: [{ cat: 'wattbike', label: 'Watt bike 10 s', names: ['Watt bike 10 second (output)'] },
            { cat: 'maxlifts', label: 'Max lifts: bench + shoulder press', names: ['Bench Press', 'Shoulder Press'], hard: true, seniors: true },
-           { cat: 'stretches', label: 'Hamstring + box splits stretch', names: ['Hamstring Stretch (range)', 'Box Splits Stretch (range)'] }] },
+           { cat: 'stretches', label: 'All stretches (hamstring, box splits, front splits, shoulders)', names: STRETCHES }] },
   2: { A: [{ cat: 'punch', label: 'Punch speed', names: ['Jab time (ms)', 'Cross time (ms)', 'Lead hook time (ms)', 'Rear hook time (ms)'] },
-           { cat: 'fixedload', label: 'Fixed load circuit', names: FIXED, hard: true, hrr: true },
-           { cat: 'grip', label: 'Pinch (left + right)', names: PINCH }],
-       B: [{ cat: 'heart', label: 'Watt bike 1 min + HR recovery', names: ['Heart Rate Recovery (1 min)', 'HRR % (Watt bike 1 min)'], hard: true },
-           { cat: 'stretches', label: 'Shoulder stretches', names: ['Shoulder flex - Right hand up (range)', 'Shoulder flex - Left hand up (range)'] }] },
+           { cat: 'fixedload', label: 'Fixed load circuit', names: FIXED, hard: true, hrr: true }],
+       B: [{ cat: 'heart', label: 'Watt bike 1 min + HR recovery', names: ['Heart Rate Recovery (1 min)', 'HRR % (Watt bike 1 min)'], hard: true }] },
   3: { A: [{ cat: 'jumps', label: 'Long jump', names: ['Long Jump (distance)'] },
            { cat: 'timedrun', label: '1600 m time trial', names: ['1600m time trial'], hard: true, hrr: true, quarterly: { label: '4800 m time trial', names: ['4800m time trial'] } },
            { cat: 'grip', label: 'Grip (left + right)', names: GRIP }],
-       B: [{ cat: 'maxlifts', label: 'Max lifts: squat + deadlift', names: ['Squat', 'Deadlift'], hard: true, seniors: true },
-           { cat: 'stretches', label: 'Front splits (left + right)', names: ['Front Splits - Left in front (range)', 'Front Splits - Right in front (range)'] }] },
-  4: { A: [{ cat: 'punch', label: 'Punch count', names: ['Punches per minute', 'Punches per round'] },
-           { cat: 'bodyweight', label: 'Body weight max reps', names: BODYWEIGHT, hard: true, hrr: true },
-           { cat: 'grip', label: 'Pinch (left + right)', names: PINCH }],
-       B: [{ cat: 'timedrun', label: '200 m sprint', names: ['200m sprint'] },
-           { cat: 'wattbike', label: 'Watt bike 30 s / 2-3 min', names: ['Watt bike 30 sec (distance)', 'Watt bike 2 min (distance)', 'Watt bike 3 min (distance)'], hard: true, hrr: true }] },
+       B: [{ cat: 'maxlifts', label: 'Max lifts: squat + deadlift', names: ['Squat', 'Deadlift'], hard: true, seniors: true }] },
+  4: { A: [{ cat: 'timedrun', label: '200 m sprint', names: ['200m sprint'] },
+           { cat: 'wattbike', label: 'Watt bike 30 s / 2-3 min', names: ['Watt bike 30 sec (distance)', 'Watt bike 2 min (distance)', 'Watt bike 3 min (distance)'], hard: true, hrr: true }],
+       B: [{ cat: 'punch', label: 'Punch count', names: ['Punches per minute', 'Punches per round'] },
+           { cat: 'bodyweight', label: 'Body weight max reps', names: BODYWEIGHT, hard: true, hrr: true }] },
 }
 
 const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
