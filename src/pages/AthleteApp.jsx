@@ -1,4 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
+import MonthlyReport from '../components/shared/MonthlyReport.jsx'
+import { readScale, scaleSupported } from '../lib/btScale.js'
 import { TestsThisWeek } from '../components/shared/TestsThisWeek.jsx'
 import { keepMedia } from '../lib/filePick.js'
 import { Link, useNavigate } from 'react-router-dom'
@@ -1418,6 +1420,7 @@ export default function AthleteApp() {
   const [activeCheckIn, setActiveCheckIn] = useState(null) // the open attendance row (checked in, not yet checked out) if still within its session window
   const [showWeightCheckPrompt, setShowWeightCheckPrompt] = useState(null) // 'in' | 'out' | null
   const [weightCheckValue, setWeightCheckValue] = useState('')
+  const [scaleBusy, setScaleBusy] = useState(false), [scaleMsg, setScaleMsg] = useState('')   // ⚖️ Bluetooth scales
   const [fullKitChecked, setFullKitChecked] = useState(false)
   // Cycles the Sessions calendar between three views: the normal
   // attendance calendar, a Fit II Fight completed-actions-per-day
@@ -4612,6 +4615,27 @@ export default function AthleteApp() {
     )
   }
 
+  useEffect(() => { if (showWeightCheckPrompt) setScaleMsg('') }, [showWeightCheckPrompt])
+  // ⏱ close any check-ins left open (forgot to check out) -- once per app open
+  useEffect(() => { if (student?.id) supabase.rpc('kc_auto_checkout').then(() => {}, () => {}) }, [student?.id])
+
+  // ❤️ Strap connected during one of their classes but not checked in -> suggest checking in (once per class a day)
+  const [suggestCheckIn, setSuggestCheckIn] = useState(null)   // { classId, name }
+  useEffect(() => {
+    if (!student || !live.connected || activeCheckIn) { setSuggestCheckIn(null); return }
+    const check = () => {
+      const now = new Date(), todayStr = now.toISOString().split('T')[0], mins = now.getHours() * 60 + now.getMinutes()
+      const toMin = t => { const [h, m] = String(t || '').split(':').map(Number); return isNaN(h) ? null : h * 60 + (m || 0) }
+      const c = (assignedClasses || []).map(a => a.classes).find(c => c && (DAY_TO_JS_DAYS[c.day_of_week] || []).includes(now.getDay()) && !specialFlagOf(c)
+        && toMin(c.start_time) != null && mins >= toMin(c.start_time) - 15 && mins <= (toMin(c.end_time) ?? toMin(c.start_time) + 60))
+      if (!c || attendanceData.some(a => a.session_date === todayStr && a.class_id === c.id)) { setSuggestCheckIn(null); return }
+      let dismissed = false; try { dismissed = localStorage.getItem('kc_suggest_ci') === `${todayStr}:${c.id}` } catch { /* */ }
+      setSuggestCheckIn(dismissed ? null : { classId: c.id, name: c.name, time: String(c.start_time).slice(0, 5) })
+    }
+    check(); const t = setInterval(check, 60000)
+    return () => clearInterval(t)
+  }, [student, live.connected, activeCheckIn, assignedClasses, attendanceData])
+
   async function checkInNow(attendanceType, explicitClassId = null) {
     if (!student) return
     setCheckingIn(true)
@@ -5542,6 +5566,9 @@ export default function AthleteApp() {
       {tab === 'home' && (
         <div className="neon-home">
           {HistoryViewModal()}
+          {/* 📊 last month in one card (first 7 days of the month) */}
+          {student?.id && <MonthlyReport studentId={student.id} name={student?.members?.first_name} attendanceData={attendanceData} sessions={sessions}
+            pdpDone={apData?.pdp_done || {}} classesById={Object.fromEntries((assignedClasses || []).filter(x => x.classes).map(x => [x.classes.id, x.classes]))} />}
           {reactions.length > 0 && (
             <div role="dialog" aria-modal="true" onClick={closeReactions} style={{ position: 'fixed', inset: 0, zIndex: 575, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '90px 16px 0' }}>
               <div className="kc-today" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 380 }}>
@@ -5561,6 +5588,13 @@ export default function AthleteApp() {
                   <button type="button" className="btn btn-primary" style={{ marginLeft: 'auto' }} onClick={() => setReminderPopup(null)}>Got it</button>
                 </div>
               </div>
+            </div>
+          )}
+          {suggestCheckIn && !live.recording && (
+            <div style={{ position: 'fixed', left: 12, right: 12, bottom: 'calc(14px + env(safe-area-inset-bottom, 0px))', zIndex: 549, padding: '10px 12px', borderRadius: 12, border: '1px solid #1D9E75', background: '#0F2A22', color: '#fff', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ flex: 1 }}>❤️ Your strap's on and <b>{suggestCheckIn.name}</b> ({suggestCheckIn.time}) is on now — check in?</span>
+              <button type="button" className="btn btn-sm btn-primary" disabled={checkingIn} onClick={() => checkInNow('attended', suggestCheckIn.classId)}>Check in</button>
+              <button type="button" aria-label="Not now" className="btn btn-sm" onClick={() => { try { localStorage.setItem('kc_suggest_ci', `${new Date().toISOString().split('T')[0]}:${suggestCheckIn.classId}`) } catch { /* */ } setSuggestCheckIn(null) }}>✕</button>
             </div>
           )}
           {live.recording && live.dropped && (
@@ -8034,6 +8068,18 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                 placeholder="Weight" style={{ flex: 1 }} />
               <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>kg</span>
             </div>
+            {scaleSupported() && (
+              <div style={{ marginTop: -4, marginBottom: 12 }}>
+                <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'center' }} disabled={scaleBusy}
+                  onClick={async () => {
+                    setScaleBusy(true); setScaleMsg('Choose your scales…')
+                    try { const r = await readScale({ onStatus: setScaleMsg }); setWeightCheckValue(String(r.kg)); setScaleMsg(`⚖️ ${r.kg} kg from the scales`) }
+                    catch (e) { setScaleMsg(e?.name === 'NotFoundError' ? 'No scales picked' : (e?.message || 'Could not read the scales')) }
+                    setScaleBusy(false)
+                  }}>⚖️ Read from Bluetooth scales</button>
+                {scaleMsg && <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>{scaleMsg}</div>}
+              </div>
+            )}
             {showWeightCheckPrompt === 'in' && (
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, cursor: 'pointer', fontSize: 13 }}>
                 <input type="checkbox" checked={fullKitChecked} onChange={e => setFullKitChecked(e.target.checked)} />

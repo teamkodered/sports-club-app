@@ -8,7 +8,7 @@ export default function PointsToConfirm() {
   const [rows, setRows] = useState(null)
   const [busy, setBusy] = useState(null)
   async function load() {
-    if (!generatedThisSession) { generatedThisSession = true; await supabase.rpc('kc_generate_monthly_improvements').then(() => {}, () => {}) }
+    if (!generatedThisSession) { generatedThisSession = true; await supabase.rpc('kc_generate_monthly_improvements').then(() => {}, () => {}); supabase.rpc('kc_auto_checkout').then(() => {}, () => {}) }   // + close forgotten check-outs
     const { data, error } = await supabase.from('points_pending')
       .select('id, kind, label, detail, points, big_jump, created_at, students(id, members(first_name, last_name))')
       .eq('status', 'pending').order('created_at', { ascending: true }).limit(100)
