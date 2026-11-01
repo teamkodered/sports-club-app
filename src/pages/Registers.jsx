@@ -246,15 +246,38 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     setGroupPopup({ student, flag, loading: true, sessions: [], options: [], assigned: {} })
     const [{ data }, { data: cls }] = await Promise.all([
       supabase.from('student_class_assignments').select('*, classes(id, name, day_of_week, start_time)').eq('student_id', student.id),
-      supabase.from('classes').select('id, name, day_of_week, start_time'),
+      supabase.from('classes').select('*'),
     ])
     const DAY_ORDER = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-    const options = (cls || []).filter(c => specialRegisterFlag(c) === flag)
+    const options = (cls || []).filter(c => specialRegisterFlag(c) === flag && c.active !== false)
       .sort((a, b) => (DAY_ORDER.indexOf(a.day_of_week) - DAY_ORDER.indexOf(b.day_of_week)) || String(a.start_time).localeCompare(String(b.start_time)))
     const assigned = {}   // class id -> assignment id (active today)
     ;(data || []).forEach(a => { if (a.classes && specialRegisterFlag(a.classes) === flag && assignmentActiveOn(a, todayISO())) assigned[a.class_id] = a.id })
     const sessions = options.filter(c => assigned[c.id])
     setGroupPopup(p => p && p.student.id === student.id ? { ...p, loading: false, sessions, options, assigned } : p)
+  }
+  // add / edit / duplicate a PT or leadership session (a PTs Register / Leader Register class)
+  const [groupForm, setGroupForm] = useState(null)   // { mode: 'new' | 'edit' | 'dup', source, day, start, mins }
+  const minsBetween = (a, b) => { if (!a || !b) return 60; const [h1, m1] = a.split(':').map(Number), [h2, m2] = b.split(':').map(Number); const d = (h2 * 60 + m2) - (h1 * 60 + m1); return d > 0 ? d : 60 }
+  const addMins = (t, m) => { const [h, mm] = t.split(':').map(Number); const x = h * 60 + mm + m; return `${String(Math.floor(x / 60) % 24).padStart(2, '0')}:${String(x % 60).padStart(2, '0')}` }
+  async function saveGroupSession() {
+    const gp = groupPopup, f = groupForm
+    if (!gp || !f || guardRO()) return
+    if (!f.day || !f.start) return alert('Choose a day and a start time.')
+    const end = addMins(f.start, f.mins || 60)
+    let error
+    if (f.mode === 'edit') {
+      ({ error } = await supabase.from('classes').update({ day_of_week: f.day, start_time: f.start, end_time: end }).eq('id', f.source.id))
+    } else {
+      const tpl = f.source || gp.options[0] || null
+      const { id, created_at, updated_at, session_end_overrides, ...rest } = tpl || {}
+      const payload = tpl ? { ...rest } : { name: gp.flag === 'is_pts' ? 'PTs Register' : 'Leader Register', discipline: 'PKA', active: true }
+      Object.assign(payload, { day_of_week: f.day, start_time: f.start, end_time: end, active: true })
+      ;({ error } = await supabase.from('classes').insert(payload))
+    }
+    if (error) return alert('Could not save the session: ' + error.message)
+    setGroupForm(null)
+    openGroupPopup(gp.student, gp.flag === 'is_pts' ? 'PTs' : 'Leader')
   }
   async function toggleGroupAssign(c) {
     const gp = groupPopup; if (!gp || guardRO()) return
@@ -2995,8 +3018,8 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
 
       {/* Award points modal */}
       {groupPopup && createPortal(
-        <div onClick={() => setGroupPopup(null)} style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div className="card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 360, padding: 18 }}>
+        <div onClick={() => { setGroupPopup(null); setGroupForm(null) }} style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div className="card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 400, padding: 18, maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <b style={{ fontSize: 16 }}>{groupPopup.flag === 'is_pts' ? '💪 PT session' : '🧑‍🏫 Leadership session'} — {groupPopup.student.members?.first_name} {groupPopup.student.members?.last_name}</b>
               <button className="btn btn-sm" onClick={() => setGroupPopup(null)}>✕</button>
@@ -3009,14 +3032,42 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                 {groupPopup.options.length ? groupPopup.options.map(c => {
                   const on = !!groupPopup.assigned[c.id]
                   return (
-                    <button key={c.id} type="button" onClick={() => toggleGroupAssign(c)}
-                      style={{ display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '11px 12px', marginBottom: 8, borderRadius: 8, cursor: 'pointer', fontSize: 15, textAlign: 'left',
-                        border: `1px solid ${on ? '#1D9E75' : 'var(--border)'}`, background: on ? '#1D9E7522' : 'transparent', color: 'var(--text)' }}>
-                      <span><b>{c.day_of_week} {String(c.start_time || '').slice(0, 5)}</b> · {c.name}</span>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: on ? '#1D9E75' : 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>{on ? '✓ Assigned' : '+ Assign'}</span>
-                    </button>
+                    <div key={c.id} style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                      <button type="button" onClick={() => toggleGroupAssign(c)}
+                        style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '11px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 15, textAlign: 'left',
+                          border: `1px solid ${on ? '#1D9E75' : 'var(--border)'}`, background: on ? '#1D9E7522' : 'transparent', color: 'var(--text)' }}>
+                        <span><b>{c.day_of_week} {String(c.start_time || '').slice(0, 5)}</b> · {c.name}</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: on ? '#1D9E75' : 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>{on ? '✓ Assigned' : '+ Assign'}</span>
+                      </button>
+                      <button type="button" className="btn btn-sm" title="Change day / time" onClick={() => setGroupForm({ mode: 'edit', source: c, day: c.day_of_week, start: String(c.start_time || '').slice(0, 5), mins: minsBetween(String(c.start_time || '').slice(0, 5), String(c.end_time || '').slice(0, 5)) })}>✏️</button>
+                      <button type="button" className="btn btn-sm" title="Duplicate (copy to another day / time)" onClick={() => setGroupForm({ mode: 'dup', source: c, day: c.day_of_week, start: String(c.start_time || '').slice(0, 5), mins: minsBetween(String(c.start_time || '').slice(0, 5), String(c.end_time || '').slice(0, 5)) })}>⧉</button>
+                    </div>
                   )
-                }) : <div style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No {groupPopup.flag === 'is_pts' ? 'PTs Register' : 'Leader Register'} classes set up in Classes yet.</div>}
+                }) : <div style={{ fontSize: 13, color: 'var(--text-tertiary)', marginBottom: 8 }}>No {groupPopup.flag === 'is_pts' ? 'PT' : 'leadership'} sessions set up yet.</div>}
+                {groupForm ? (
+                  <div style={{ border: '1px solid var(--border-strong)', borderRadius: 10, padding: 12, marginTop: 4 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>{groupForm.mode === 'edit' ? 'Change session' : groupForm.mode === 'dup' ? 'Copy session to…' : `New ${groupPopup.flag === 'is_pts' ? 'PT' : 'leadership'} session`}</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 10 }}>
+                      {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(d => (
+                        <button key={d} type="button" onClick={() => setGroupForm(f => ({ ...f, day: d }))}
+                          className={`btn btn-sm${groupForm.day === d ? ' btn-primary' : ''}`} style={{ minWidth: 44 }}>{d.slice(0, 3)}</button>
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
+                      <label style={{ fontSize: 13 }}>Start <input type="time" value={groupForm.start || ''} onChange={e => setGroupForm(f => ({ ...f, start: e.target.value }))} style={{ fontSize: 15, padding: '6px 8px' }} /></label>
+                      <label style={{ fontSize: 13 }}>Length <select value={groupForm.mins || 60} onChange={e => setGroupForm(f => ({ ...f, mins: +e.target.value }))} style={{ fontSize: 15, padding: '6px 8px' }}>
+                        {[30, 45, 60, 75, 90, 120].map(m => <option key={m} value={m}>{m} min</option>)}
+                      </select></label>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button type="button" className="btn btn-primary" onClick={saveGroupSession}>{groupForm.mode === 'edit' ? 'Save changes' : 'Add session'}</button>
+                      <button type="button" className="btn" onClick={() => setGroupForm(null)}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button type="button" className="btn" style={{ width: '100%', justifyContent: 'center', marginTop: 4 }}
+                    onClick={() => setGroupForm({ mode: 'new', source: null, day: 'Monday', start: '18:00', mins: 60 })}>+ New {groupPopup.flag === 'is_pts' ? 'PT' : 'leadership'} session</button>
+                )}
               </>
             )}
             {(() => { const st = attendanceStats[groupPopup.student.id]; return st ? (
