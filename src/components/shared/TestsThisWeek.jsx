@@ -54,8 +54,9 @@ function Item({ it, done, onOpen }) {
 }
 
 // 📋 Coach (Dashboard): this test week's plan and how many athletes have a result for each test
-export function TestsThisWeekCoach() {
+export function TestsThisWeekCoach({ collapsible = false }) {
   const tw = testWeek()
+  const [open, setOpen] = useState(!collapsible)
   const [counts, setCounts] = useState(null)
   useEffect(() => {
     supabase.from('fit2fight_sessions').select('student_id, session_date, test').gte('session_date', tw.week === 5 ? tw.monthFrom : tw.from).lte('session_date', tw.to)
@@ -68,11 +69,12 @@ export function TestsThisWeekCoach() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const sl = tw.week === 5 ? null : slotsFor(tw.week, { quarterly: tw.quarterly })
   return (
-    <div className="card" style={{ marginBottom: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+    <div className="card" style={{ marginBottom: 10 }}>
+      <button type="button" onClick={() => collapsible && setOpen(o => !o)} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 6, background: 'none', border: 'none', padding: 0, cursor: collapsible ? 'pointer' : 'default', color: 'var(--text)', textAlign: 'left', fontFamily: 'var(--font-sans)' }}>
         <b style={{ fontSize: 15 }}>📋 Tests this week</b>
-        <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{tw.week === 5 ? 'Catch-up week (anything missed this month)' : `Test week ${tw.week} of 4`} · {fmt(tw.from)}–{fmt(tw.to)}{tw.quarterly ? ' · 4800 m month' : ''}</span>
-      </div>
+        <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{tw.week === 5 ? 'Catch-up week' : `Test week ${tw.week} of 4`} · {fmt(tw.from)}–{fmt(tw.to)}{tw.quarterly ? ' · 4800 m month' : ''}{collapsible ? (open ? ' ▲' : ' ▼') : ''}</span>
+      </button>
+      <div className={`kc-slide${open ? ' open' : ''}`}><div style={{ paddingTop: 8 }}>
       {sl ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 10 }}>
           {['A', 'B'].map(k => (
@@ -93,6 +95,7 @@ export function TestsThisWeekCoach() {
         </div>
       )}
       <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>Light / power tests first, one hard test per session, ❤️ = 1 min HR recovery (standing) straight after. Weeks: 1st–7th, 8th–14th, 15th–21st, 22nd–28th.</div>
+      </div></div>
     </div>
   )
 }

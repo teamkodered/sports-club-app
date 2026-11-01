@@ -6879,8 +6879,6 @@ export default function AthleteProfiles() {
             </div>
 
             {testBatchOpen && <TestBatchModal onClose={() => setTestBatchOpen(false)} />}
-            {/* 📋 this test week's plan + how many have done each */}
-            {!(showKrRegister || showKrbaRegister || showAllAthRegister) && <TestsThisWeekCoach />}
             {/* Team banner (was the Profile card): the filters for the whole dashboard + team record / level / weight */}
             <div className="card coach-banner" style={{ padding: 0, marginBottom: 10 }}>
               <div role="button" tabIndex={0} title="Back to the dashboard home"
@@ -7118,9 +7116,11 @@ export default function AthleteProfiles() {
                 </div>
               )
             })()}
-            {!(showKrRegister || showKrbaRegister || showAllAthRegister) && (
+            {!(showKrRegister || showKrbaRegister || showAllAthRegister) && (<>
+              {/* 📋 test section: this test week's plan (press to open) + group test entry */}
+              <TestsThisWeekCoach collapsible />
               <button className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 10 }} onClick={() => setTestBatchOpen(true)}>📋 Group test entry</button>
-            )}
+            </>)}
 
             {(showKrRegister || showKrbaRegister || showAllAthRegister) ? (
               <Registers key={(showKrRegister ? 'kr' : showKrbaRegister ? 'krba' : 'allath') + dashCompFilter + dashLevel} readOnly={!isAdmin && pageAccess?.('athletes') === 'view'} extraFilter={s => (dashLevel === 'all' || dashLevelOf(s) === dashLevel) && (dashCompFilter === 'all' || (dashCompFilter === 'in' ? !!s.in_comp : !s.in_comp))} initialRegType={showKrRegister ? 'kr' : showKrbaRegister ? 'krba' : 'allath'}

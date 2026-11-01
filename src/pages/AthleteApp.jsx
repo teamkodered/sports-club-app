@@ -3438,7 +3438,7 @@ export default function AthleteApp() {
     }
     if (sectionKey === 'test') {
       const cat = TEST_CATEGORIES.find(c => c.label === questionLabel)
-      return cat ? cat.tests.some(t => s.test?.[t.name]) : false
+      return cat ? cat.tests.some(t => s.test?.[t.name] != null && s.test[t.name] !== '') : false
     }
     if (sectionKey === 'physical' && RUN_CATEGORY_TARGET_LABELS[questionLabel]) {
       return toEntries(s.running).some(e => e.category === RUN_CATEGORY_TARGET_LABELS[questionLabel])
