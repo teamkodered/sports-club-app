@@ -1495,7 +1495,7 @@ export default function AthleteApp() {
   const [f2fQuickLogQuestion, setF2fQuickLogQuestion] = useState(null) // which question within that section is expanded to show the log control
   const [f2fQuickLogTestValue, setF2fQuickLogTestValue] = useState('')
   const [f2fQuickLogSaving, setF2fQuickLogSaving] = useState(false)
-  const [athleteHousePoints, setAthleteHousePoints] = useState({ f2f_question: 1, f2f_focus: 3, checkin: 3, checkout: 3, weigh_in: 5, weigh_out: 5, pdp_action: 0, pdp_focus: 5, pdp_day: 5, pdp_complete: 5, pdp_calendar: 1, target_week: 10 })
+  const [athleteHousePoints, setAthleteHousePoints] = useState({ f2f_question: 1, f2f_focus: 3, checkin: 2, checkout: 1, weigh_in: 2, weigh_out: 2, full_checkin: 3, pdp_action: 0, pdp_focus: 5, pdp_day: 5, pdp_complete: 5, pdp_calendar: 1, target_week: 10 })
   const [athleteTimetableModal, setAthleteTimetableModal] = useState(null) // { sectionKey, item } or null
   const [expandedToDoItems, setExpandedToDoItems] = useState(() => new Set()) // composite "scope:type:index" keys whose own "To do" panel is currently revealed
   const [newToDoDrafts, setNewToDoDrafts] = useState({}) // scope key -> draft text for the athlete's own new to-do note
@@ -2533,7 +2533,7 @@ export default function AthleteApp() {
         setIntervalModes(map.f2f_interval_modes || ['20 seconds on 20 seconds off', '30 seconds on 30 seconds off', '40 seconds on 20 seconds off'])
         setBodyweightTypeOptions(map.f2f_bodyweight_types || ['Push-ups', 'Pull-ups', 'Squats', 'Dips', 'Sit-ups', 'Burpees', 'Other'])
         setStretchOptionsList(map.f2f_stretch_options || ['Other'])
-        setAthleteHousePoints({ f2f_question: 1, f2f_focus: 3, checkin: 3, checkout: 3, weigh_in: 5, weigh_out: 5, pdp_action: 0, pdp_focus: 5, pdp_day: 5, pdp_complete: 5, pdp_calendar: 1, target_week: 10, ...(map.athlete_house_points || {}) })
+        setAthleteHousePoints({ f2f_question: 1, f2f_focus: 3, checkin: 2, checkout: 1, weigh_in: 2, weigh_out: 2, full_checkin: 3, pdp_action: 0, pdp_focus: 5, pdp_day: 5, pdp_complete: 5, pdp_calendar: 1, target_week: 10, ...(map.athlete_house_points || {}) })
       })
   }, [])
 
@@ -2558,7 +2558,7 @@ export default function AthleteApp() {
       const { data: taken, error } = await supabase.rpc('kc_revoke_my_f2f_point', { p_detail: questionLabel })
       if (!error) {
         if (taken > 0) {
-          setStudent(prev => prev ? { ...prev, house_points: (prev.house_points || 0) - taken, individual_points: (prev.individual_points || 0) - taken } : prev)
+          setStudent(prev => prev ? { ...prev, individual_points: (prev.individual_points || 0) - taken } : prev)
           setMonthHousePoints(n => Math.max(0, (n || 0) - taken))
         }
         return
@@ -2597,7 +2597,7 @@ export default function AthleteApp() {
     const { data: taken, error } = await supabase.rpc('kc_revoke_my_points', { p_reason: reasonKey, p_detail: detail || null })
     if (error) { console.warn('Points not taken back:', error.message); return }
     if (taken > 0) {
-      setStudent(prev => prev ? { ...prev, house_points: (prev.house_points || 0) - taken, individual_points: (prev.individual_points || 0) - taken } : prev)
+      setStudent(prev => prev ? { ...prev, individual_points: (prev.individual_points || 0) - taken } : prev)
       setMonthHousePoints(n => Math.max(0, (n || 0) - taken))
     }
   }
@@ -2612,7 +2612,7 @@ export default function AthleteApp() {
       const { data: awarded, error } = await supabase.rpc('kc_award_my_points', { p_reason: reasonKey, p_detail: detail || null })
       if (!error) {
         if (awarded > 0) {
-          setStudent(prev => prev ? { ...prev, house_points: (prev.house_points || 0) + awarded, individual_points: (prev.individual_points || 0) + awarded } : prev)
+          setStudent(prev => prev ? { ...prev, individual_points: (prev.individual_points || 0) + awarded } : prev)
           celebrateHousePoint(awarded)
         }
         return
@@ -2627,6 +2627,7 @@ export default function AthleteApp() {
       weigh_out: 'Weigh out',
       pdp_action: 'PDP action done',
       pdp_focus: 'PDP focus action done',
+      full_checkin: 'Full check-in',
       f2f_focus: 'F2F question logged',
       pdp_day: 'PDP done for today',
       pdp_complete: 'PDP task completed',
@@ -5068,7 +5069,11 @@ export default function AthleteApp() {
       // points: weigh in / weigh out (only when a weight was entered), check out
       const cl = classLabelFor(activeCheckIn.class_id)
       if (updates[field] != null) await awardHousePoints(showWeightCheckPrompt === 'in' ? 'weigh_in' : 'weigh_out', cl)
-      if (showWeightCheckPrompt === 'out') await awardHousePoints('checkout', cl)
+      if (showWeightCheckPrompt === 'out') {
+        await awardHousePoints('checkout', cl)
+        // ✓ full check-in bonus: checked in, weighed in, weighed out and checked out for this class
+        if (activeCheckIn.weight_before != null && updates.weight_after != null) await awardHousePoints('full_checkin', cl)
+      }
       if (showWeightCheckPrompt === 'in') {
         setCheckedInMsg(updates.attendance_type === 'full_kit' ? '✓ Checked in — Full Kit!' : '✓ Checked in!')
         setTimeout(() => setCheckedInMsg(null), 3000)

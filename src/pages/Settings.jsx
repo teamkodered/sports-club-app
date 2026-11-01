@@ -259,7 +259,7 @@ export default function Settings() {
   }
 
   function AthleteHousePointsEditor() {
-    const defaults = { f2f_question: 1, f2f_focus: 3, checkin: 3, checkout: 3, weigh_in: 5, weigh_out: 5, pdp_action: 0, pdp_focus: 5, pdp_day: 5, pdp_complete: 5, pdp_calendar: 1, target_week: 10 }
+    const defaults = { f2f_question: 1, f2f_focus: 3, checkin: 2, checkout: 1, weigh_in: 2, weigh_out: 2, full_checkin: 3, pdp_action: 0, pdp_focus: 5, pdp_day: 5, pdp_complete: 5, pdp_calendar: 1, target_week: 10 }
     const stored = { ...defaults, ...(settings.athlete_house_points || {}) }
     const [local, setLocal] = useState(stored)
     const [ahpSaving, setAhpSaving] = useState(false)
@@ -283,6 +283,7 @@ export default function Settings() {
       { key: 'checkout', label: 'Check out via the app (each class, once a day)' },
       { key: 'weigh_in', label: 'Weigh in at check-in (weight entered)' },
       { key: 'weigh_out', label: 'Weigh out at check-out (weight entered)' },
+      { key: 'full_checkin', label: 'Full check-in bonus (checked in, weighed in, weighed out, checked out)' },
       { key: 'pdp_focus', label: "🎯 Today's PDP focus action done (one a day)" },
       { key: 'pdp_day', label: '✓ PDP done for today (one a day)' },
       { key: 'pdp_complete', label: 'Each PDP task completed (ticked off as done / completed)' },

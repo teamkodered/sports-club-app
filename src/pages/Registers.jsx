@@ -1081,9 +1081,39 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   // Awards for the same student run one after another (quick double taps used to
   // overlap: both read 'nothing to reverse' and both awards stuck).
   const awardQueueRef = useRef({})
+  // +5 'Weekly consistency': on their last scheduled session of the week, if they've attended every
+  // scheduled session that week (normal classes only -- not PTs / Leader). Once per week.
+  async function maybeWeeklyConsistency(student) {
+    try {
+      const d = new Date(date + 'T12:00:00'), dow = (d.getDay() + 6) % 7            // Monday = 0
+      const mon = new Date(d); mon.setDate(d.getDate() - dow)
+      const iso = x => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`
+      const weekDays = Array.from({ length: 7 }, (_, i) => { const x = new Date(mon); x.setDate(mon.getDate() + i); return x })
+      const { data: asg } = await supabase.from('student_class_assignments').select('*, classes(id, name, day_of_week)').eq('student_id', student.id)
+      const NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+      const scheduled = [...new Set(weekDays.filter((x, i) => (asg || []).some(a => a.classes && !specialRegisterFlag(a.classes)
+        && String(a.classes.day_of_week || '').toLowerCase().startsWith(NAMES[i].toLowerCase().slice(0, 3)) && assignmentActiveOn(a, iso(x)))).map(iso))]
+      if (!scheduled.length || scheduled[scheduled.length - 1] !== date) return       // only on their last scheduled day
+      const { data: att } = await supabase.from('attendance').select('session_date, attendance_type, class_id').eq('student_id', student.id)
+        .gte('session_date', scheduled[0]).lte('session_date', date)
+      const spIds = new Set((asg || []).filter(a => a.classes && specialRegisterFlag(a.classes)).map(a => a.class_id))
+      const attended = new Set((att || []).filter(a => (a.attendance_type === 'attended' || a.attendance_type === 'full_kit') && !spIds.has(a.class_id)).map(a => a.session_date))
+      if (!scheduled.every(x => attended.has(x))) return
+      const label = `Weekly consistency (w/c ${iso(mon)})`
+      const { data: done } = await supabase.from('points_log').select('id').eq('student_id', student.id).eq('point_type', label).limit(1)
+      if (done?.length) return
+      const { error } = await supabase.from('points_log').insert({ student_id: student.id, point_type: label, points_awarded: 5, point_scope: 'both', awarded_at: new Date(date + 'T12:00:00').toISOString() })
+      if (error) return
+      const { error: aErr } = await supabase.rpc('adjust_student_points', { p_student_id: student.id, p_house_delta: 5, p_individual_delta: 5 })
+      const houseName = student.house_name || student.members?.houses?.name
+      if (!aErr && houseName) await supabase.rpc('adjust_house_points', { p_house_name: houseName, p_delta: 5 })
+      if (!aErr) setStudents(prev => prev.map(x => x.id === student.id ? { ...x, house_points: (x.house_points || 0) + 5, individual_points: (x.individual_points || 0) + 5 } : x))
+    } catch (e) { console.warn('Weekly consistency check failed', e) }
+  }
+
   function awardAttendancePoints(student, type, classId) {
     const q = awardQueueRef.current
-    const run = (q[student.id] || Promise.resolve()).then(() => awardAttendancePointsNow(student, type, classId))
+    const run = (q[student.id] || Promise.resolve()).then(async () => { const r = await awardAttendancePointsNow(student, type, classId); if (r > 0 && (type === 'attended' || type === 'full_kit')) await maybeWeeklyConsistency(student); return r })
     q[student.id] = run.catch(() => {})
     return run
   }
@@ -1130,8 +1160,8 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
 
     const pointLabel = type === 'full_kit' ? 'Full Kit' : 'Attendance'
     const pt = pointTypes.find(p => p.label === pointLabel)
-    // Attended = 2, Full Kit = 5 (used when they're not in the reasons list, which is now the normal case)
-    const pts = pt ? pt.points : (type === 'full_kit' ? 5 : 2)
+    // Attended = 3, Full Kit = 5 (used when they're not in the reasons list, which is now the normal case)
+    const pts = pt ? pt.points : (type === 'full_kit' ? 5 : 3)
     const netChange = pts - reversedPts
 
     const { data: newLogEntry, error: logInsertErr } = await supabase.from('points_log').insert({
