@@ -360,7 +360,7 @@ function MacroPie({ carbs, fat, protein, size = 76 }) {
 function isWellbeingQComplete(key, w) {
   if (!w) return false
   switch (key) {
-    case 'sleep': return !!(w.sleep?.hours || w.sleep?.efficiency)
+    case 'sleep': return !!(w.sleep?.hours || w.sleep?.efficiency) && !w.sleep?.unconfirmed   // ⌚ auto-filled sleep counts once confirmed
     case 'nutrition': return !!(w.nutrition?.targetPreset || w.nutrition?.quality)
     case 'hydration': return !!(w.hydration?.total > 0)
     case 'outdoors': return !!(w.outdoors?.totalMinutes > 0)

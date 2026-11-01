@@ -361,7 +361,7 @@ function MacroPie({ carbs, fat, protein, size = 76 }) {
 function isWellbeingQComplete(key, w) {
   if (!w) return false
   switch (key) {
-    case 'sleep': return !!(w.sleep?.hours || w.sleep?.efficiency)
+    case 'sleep': return !!(w.sleep?.hours || w.sleep?.efficiency) && !w.sleep?.unconfirmed   // ⌚ auto-filled sleep counts once confirmed
     case 'nutrition': return !!(w.nutrition?.targetPreset || w.nutrition?.quality)
     case 'hydration': return !!(w.hydration?.total > 0)
     case 'outdoors': return !!(w.outdoors?.totalMinutes > 0)
@@ -1559,6 +1559,7 @@ export default function AthleteApp() {
   const [f2fStatsScope, setF2fStatsScope] = useState(0)
   const [expandedHomeWb, setExpandedHomeWb] = useState(null)
   const [todaysWellbeing, setTodaysWellbeing] = useState({})
+  const [sessionsLoaded, setSessionsLoaded] = useState(false)   // today's answers loaded (before anything auto-fills)
   const [pushPermission, setPushPermission] = useState(() => (typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'))
   const [subscribingPush, setSubscribingPush] = useState(false)
 
@@ -2501,6 +2502,7 @@ export default function AthleteApp() {
     const todaysDate = new Date().toISOString().split('T')[0]
     const todaysSession = sessions.find(s => s.session_date === todaysDate)
     setTodaysWellbeing(todaysSession?.wellbeing || {})
+    setSessionsLoaded(true)
     // Most recent PRIOR day with any wellbeing logged -- used purely as
     // a convenience pre-fill (sleep hours, nutrition choice, etc. tend
     // to repeat day to day), never written to today's record until the
@@ -3684,6 +3686,25 @@ export default function AthleteApp() {
     }
     return out
   }
+
+  // ⌚ Sleep fills itself in from the wearable (marked 'unconfirmed'); it only counts (progress +
+  // points) once the athlete taps Confirm or changes it. Once per day, and not if they dismissed it.
+  const sleepAutoRef = useRef(null)
+  useEffect(() => {
+    if (!student || !sessionsLoaded) return
+    const todayStr = new Date().toISOString().split('T')[0]
+    const sleepNow = todaysWellbeing.sleep || {}
+    if (sleepNow.hours || sleepNow.efficiency) return
+    const d = (wearableDaily || []).find(x => x.day === todayStr && (x.sleep_seconds || x.sleep_score != null))
+    if (!d) return
+    const key = `sleep:${d.provider}:${d.day}`
+    if (wearableDismissed.includes(key) || sleepAutoRef.current === key) return
+    sleepAutoRef.current = key
+    const hours = d.sleep_seconds ? String(+(d.sleep_seconds / 3600).toFixed(1)) : ''
+    const efficiency = d.sleep_score != null ? String(Math.round(d.sleep_score)) : ''
+    saveWellbeingField('sleep', cur => ({ ...cur, hours, efficiency, source: d.provider, wearable_id: key, unconfirmed: true }),
+      `⌚ Sleep filled in from ${providerLabel(d.provider)} — tap Confirm on Sleep`)
+  }, [student, sessionsLoaded, wearableDaily, todaysWellbeing, wearableDismissed])
 
   // ⌚ Check-in from a wearable: a club-sport workout (boxing, kickboxing, functional, box fitness,
   // powerlifting…) overlapping one of the athlete's classes today or yesterday, with no attendance
@@ -6557,7 +6578,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                             border: `2px solid ${active ? SECTION_ACCENT_COLOURS.mentality : complete ? '#6D28D9' : 'var(--border)'}`,
                             background: complete ? '#6D28D912' : 'var(--bg-secondary)',
                           }}>
-                            <QuestionProgressBarsVertical sectionKey="mentality" questionLabel={q.label} />{pdpInfo('mentality', q.key).links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}{(q.key === 'meditation' || q.key === 'coldWater' || q.key === 'sleep') && wearableSuggestionsFor(q.key).length > 0 && <em className="neon-wear-chip" aria-label="Wearable suggestion available">⌚</em>}
+                            <QuestionProgressBarsVertical sectionKey="mentality" questionLabel={q.label} />{pdpInfo('mentality', q.key).links.length > 0 && <em className="neon-pdp-chip" aria-label="Linked to PDP">PDP</em>}{(q.key === 'meditation' || q.key === 'coldWater' || q.key === 'sleep') && (wearableSuggestionsFor(q.key).length > 0 || (q.key === 'sleep' && todaysWellbeing.sleep?.unconfirmed)) && <em className="neon-wear-chip" aria-label="Wearable suggestion available">⌚</em>}
                             <span style={{ flex: 1, fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{q.label}</span>
                             <span style={{ fontSize: active ? 26 : 20, flexShrink: 0 }}>{q.icon}</span>
                           </button>
@@ -6890,7 +6911,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                             border: `2px solid ${active ? SECTION_ACCENT_COLOURS.wellbeing : complete ? '#0E9F6E' : 'var(--border)'}`,
                             background: complete ? '#0E9F6E12' : 'var(--bg-secondary)',
                           }}>
-                            <QuestionProgressBarsVertical sectionKey="wellbeing" questionLabel={q.label} />{(q.key === 'meditation' || q.key === 'coldWater' || q.key === 'sleep') && wearableSuggestionsFor(q.key).length > 0 && <em className="neon-wear-chip" aria-label="Wearable suggestion available">⌚</em>}
+                            <QuestionProgressBarsVertical sectionKey="wellbeing" questionLabel={q.label} />{(q.key === 'meditation' || q.key === 'coldWater' || q.key === 'sleep') && (wearableSuggestionsFor(q.key).length > 0 || (q.key === 'sleep' && todaysWellbeing.sleep?.unconfirmed)) && <em className="neon-wear-chip" aria-label="Wearable suggestion available">⌚</em>}
                             <span style={{ flex: 1, fontSize: active ? 13 : 11, fontWeight: active ? 700 : 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>{q.label}</span>
                             <span style={{ fontSize: active ? 26 : 20, flexShrink: 0 }}>{q.icon}</span>
                           </button>
@@ -6911,13 +6932,18 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                           <>
                             <div className="field"><label>Hours slept</label>
                               <SavableField key={todaysWellbeing.sleep ? 'loaded' : 'empty'} type="number" defaultValue={todaysWellbeing.sleep?.hours ?? lastWellbeing.sleep?.hours} placeholder="e.g. 8"
-                                onSave={val => saveWellbeingField('sleep', cur => ({ ...cur, hours: val }))} />
+                                onSave={val => saveWellbeingField('sleep', cur => ({ ...cur, hours: val, unconfirmed: false }))} />
                             </div>
                             <div className="field" style={{ marginBottom: 0 }}><label>Whoop sleep performance (target 70%+)</label>
                               <SavableField key={todaysWellbeing.sleep ? 'loaded' : 'empty'} type="number" defaultValue={todaysWellbeing.sleep?.efficiency ?? lastWellbeing.sleep?.efficiency} placeholder="e.g. 75"
-                                onSave={val => saveWellbeingField('sleep', cur => ({ ...cur, efficiency: val }))} />
+                                onSave={val => saveWellbeingField('sleep', cur => ({ ...cur, efficiency: val, unconfirmed: false }))} />
                             </div>
-                            {todaysWellbeing.sleep?.source && (
+                            {todaysWellbeing.sleep?.unconfirmed ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, padding: '8px 10px', borderRadius: 6, background: '#C93BFF14', border: '1px dashed #C93BFF' }}>
+                                <span style={{ flex: 1, fontSize: 12 }}>⌚ From {providerLabel(todaysWellbeing.sleep.source)} — tap Confirm if that's right (counts once confirmed)</span>
+                                <button type="button" className="btn btn-sm neon-save" onClick={() => saveWellbeingField('sleep', cur => ({ ...cur, unconfirmed: false }), '✓ Sleep confirmed')}>✓ Confirm</button>
+                              </div>
+                            ) : todaysWellbeing.sleep?.source && (
                               <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 6 }}>⌚ Filled automatically from {providerLabel(todaysWellbeing.sleep.source)} — you can still change it.</p>
                             )}
                           </>
