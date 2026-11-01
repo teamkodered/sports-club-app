@@ -5,6 +5,7 @@ import { useAuth } from '../hooks/useAuth.jsx'
 import { useSyncedPreference } from '../hooks/useSyncedPreference.js'
 import FocusAndFormat from '../components/dashboard/FocusAndFormat.jsx'
 import WebsiteProfiles from '../components/dashboard/WebsiteProfiles.jsx'
+import PointsToConfirm from '../components/dashboard/PointsToConfirm.jsx'
 import { supabase } from '../lib/supabase.js'
 import { fetchAll } from '../lib/fetchAll.js'
 import { studentProfileLink } from '../lib/studentLinks.js'
@@ -251,6 +252,9 @@ export default function Dashboard() {
           🌐 {websiteWaiting} website profile change{websiteWaiting === 1 ? '' : 's'} waiting for approval <span style={{ marginLeft: 'auto' }}>↓</span>
         </button>
       )}
+
+      {/* 🏆 PBs / monthly improvements waiting for a coach to confirm */}
+      <PointsToConfirm />
 
       {/* Stats row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 18 }}>

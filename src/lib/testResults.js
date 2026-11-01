@@ -145,5 +145,10 @@ export async function saveTestResults(studentId, date, values, sets = {}) {
   }
   const data = rows?.[0] || null
   const pbs = Object.entries(clean).filter(([k, v]) => best[k] != null && (lowerIsBetter(k) ? v < best[k] : v > best[k])).map(([k, v]) => ({ name: k, value: v, previous: best[k], unit: testInfo(k)?.unit }))
+  // 🏆 each PB waits on the coaches' "Points to confirm" list (+5 once a coach confirms it)
+  pbs.forEach(pb => {
+    supabase.rpc('kc_add_pb_pending', { p_student_id: studentId, p_test: pb.name, p_value: pb.value, p_previous: pb.previous, p_unit: pb.unit || null, p_date: date })
+      .then(({ error: e }) => { if (e) console.warn('PB not queued for confirmation:', e.message) })
+  })
   return { error: null, pbs, session: data }
 }

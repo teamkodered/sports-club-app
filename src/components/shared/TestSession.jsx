@@ -80,11 +80,11 @@ export async function awardTestPoints(studentId, testNames) {
   if (!fresh.length) return 0
   const total = fresh.length * TEST_POINTS
   const { data: s } = await supabase.from('students').select('house_name, members(houses(name))').eq('id', studentId).single()
-  const { error } = await supabase.from('points_log').insert(fresh.map(l => ({ student_id: studentId, point_type: l, points_awarded: TEST_POINTS, point_scope: 'both', awarded_at: new Date().toISOString() })))
+  // individual points only (houses = coach-awarded points)
+  const { error } = await supabase.from('points_log').insert(fresh.map(l => ({ student_id: studentId, point_type: l, points_awarded: TEST_POINTS, point_scope: 'individual', awarded_at: new Date().toISOString() })))
   if (error) { console.warn('Test points not saved:', error.message); return 0 }
-  await supabase.rpc('adjust_student_points', { p_student_id: studentId, p_house_delta: total, p_individual_delta: total })
-  const house = s?.house_name || s?.members?.houses?.name
-  if (house) await supabase.rpc('adjust_house_points', { p_house_name: house, p_delta: total })
+  await supabase.rpc('adjust_student_points', { p_student_id: studentId, p_house_delta: 0, p_individual_delta: total })
+  void s
   return total
 }
 
