@@ -3367,7 +3367,7 @@ export default function AthleteApp() {
     // double-session cascade) never expects a check-out step, and
     // shouldn't make this app think one's needed.
     const spIds = new Set(specialClasses.map(c => c.id))
-    const todaysOpenEntries = attendanceData.filter(a => a.session_date === todayStr && !a.checked_out_at && (a.self_checked_in || myCheckInIds.current.has(a.id)) && !spIds.has(a.class_id))
+    const todaysOpenEntries = attendanceData.filter(a => a.session_date === todayStr && !a.checked_out_at && (a.self_checked_in || myCheckInIds.current.has(a.id)) && (!spIds.has(a.class_id) || myCheckInIds.current.has(a.id)))   // PTs / Leader Register check-ins made here count too
     if (!todaysOpenEntries.length) { setActiveCheckIn(null); return }
     const mostRecent = todaysOpenEntries.sort((a, b) => new Date(b.attended_at) - new Date(a.attended_at))[0]
     setActiveCheckIn(mostRecent)
