@@ -115,7 +115,7 @@ export function AuthProvider({ children }) {
     // Also fetch student record to check if KR/KRBA athlete
     const { data: studentRows } = await supabase
       .from('students')
-      .select('id, discipline, is_kr, is_pts, is_leader, student_ref, pka_belt, krba_level')
+      .select('*')   // includes app_access (athlete app for anyone, e.g. a PKA member) once that column exists
       .eq('member_id', data.id)
       .limit(1)
     setProfileError(null)
@@ -158,7 +158,7 @@ export function AuthProvider({ children }) {
   const isLeader  = role === 'leader'
   const isHeadCoach = role === 'head_coach'   // limited to their own classes (database-enforced)
   const isStaff   = isAdmin || isCoach || isLeader || isHeadCoach || !!effProfile?.access?.group || Object.values(effProfile?.access?.pages || {}).some(v => v === 'view' || v === 'edit')  // can take registers + points, or has been given page access
-  const isAthlete = !!(profile?.student?.is_kr || profile?.student?.discipline === 'KRBA' || profile?.student?.is_pts)
+  const isAthlete = !!(profile?.student?.is_kr || profile?.student?.discipline === 'KRBA' || profile?.student?.is_pts || profile?.student?.app_access)
 
   return (
     <AuthContext.Provider value={{ session, profile, role, isAdmin, isCoach, isLeader, isHeadCoach, isStaff, isAthlete, loading, profileError, pageAccess: page => pageAccessFor(effProfile, page, accessGroups), registerAccess: registerAccessFor(effProfile, accessGroups), viewAs: realIsAdmin ? viewAs : null, viewAsStudentIds, startViewAs, stopViewAs, realIsAdmin, accessGroups, refreshProfile: () => fetchProfile(session?.user?.id, session?.access_token) }}>

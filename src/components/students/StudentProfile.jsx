@@ -495,7 +495,7 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
                       ['Media', localStudent.media_restriction],
                       ['Medical', localStudent.medical_conditions || 'None recorded'],
                       ['Medication', localStudent.medication || 'None'],
-                      ['Groups', [localStudent.is_kr && 'KR', localStudent.is_pts && 'PTs', localStudent.is_leader && 'Leader', localStudent.is_coach && 'Coach'].filter(Boolean).join(', ') || 'Main class only'],
+                      ['Groups', [localStudent.is_kr && 'KR', localStudent.is_pts && 'PTs', localStudent.is_leader && 'Leader', localStudent.is_coach && 'Coach', localStudent.app_access && '📱 Athlete app'].filter(Boolean).join(', ') || 'Main class only'],
                     ].map(([label, val]) => (
                       <div key={label} style={{ padding: '9px 0', borderBottom: '1px solid var(--border)' }}>
                         <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>{label}</div>
@@ -562,7 +562,7 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
                   </div>
                   {isAdmin && (
                     <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
-                      <button className="btn btn-sm" onClick={() => { setEditForm({ pka_belt: localStudent.pka_belt, krba_level: localStudent.krba_level, age_category: localStudent.age_category, competition_team: localStudent.competition_team, weight_kg: localStudent.weight_kg, weight_category: localStudent.weight_category, media_restriction: localStudent.media_restriction, media_notes: localStudent.media_notes, medical_conditions: localStudent.medical_conditions, medication: localStudent.medication, house_id: localStudent.members?.house_id || '', is_kr: localStudent.is_kr || false, is_pts: localStudent.is_pts || false, is_leader: localStudent.is_leader || false, is_coach: localStudent.is_coach || false, class_schedule: localStudent.class_schedule || '', class_time: localStudent.class_time || '', class_time_2: localStudent.class_time_2 || '', house_name: localStudent.house_name || '' }); setEditing(true) }}>Edit record</button>
+                      <button className="btn btn-sm" onClick={() => { setEditForm({ pka_belt: localStudent.pka_belt, krba_level: localStudent.krba_level, age_category: localStudent.age_category, competition_team: localStudent.competition_team, weight_kg: localStudent.weight_kg, weight_category: localStudent.weight_category, media_restriction: localStudent.media_restriction, media_notes: localStudent.media_notes, medical_conditions: localStudent.medical_conditions, medication: localStudent.medication, house_id: localStudent.members?.house_id || '', is_kr: localStudent.is_kr || false, is_pts: localStudent.is_pts || false, is_leader: localStudent.is_leader || false, is_coach: localStudent.is_coach || false, ...('app_access' in localStudent ? { app_access: !!localStudent.app_access } : {}), class_schedule: localStudent.class_schedule || '', class_time: localStudent.class_time || '', class_time_2: localStudent.class_time_2 || '', house_name: localStudent.house_name || '' }); setEditing(true) }}>Edit record</button>
                       {!embedded && (localStudent.is_kr || localStudent.is_pts || localStudent.discipline === 'KRBA') && (
                         <a href={`/athletes?id=${localStudent.id}`} className="btn btn-sm btn-primary">🏅 View athlete profile</a>
                       )}
@@ -648,6 +648,7 @@ export default function StudentProfile({ student, onClose, isAdmin, embedded = f
                         { key: 'is_pts',    label: 'PTs Squad', cls: 'badge-blue' },
                         { key: 'is_leader', label: 'Leader',    cls: 'badge-green' },
                         { key: 'is_coach',  label: 'Coach',     cls: 'badge-amber' },
+                        ...('app_access' in localStudent ? [{ key: 'app_access', label: '📱 Athlete app', cls: 'badge-gray' }] : []),
                       ].map(g => (
                         <button key={g.key} onClick={() => setEditForm(f => ({ ...f, [g.key]: !f[g.key] }))} style={{
                           padding: '5px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer',
