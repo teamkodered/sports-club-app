@@ -3360,13 +3360,14 @@ export default function AthleteApp() {
   // the app again until later).
   useEffect(() => {
     if (!student || !attendanceData.length) { setActiveCheckIn(null); return }
+    try { (JSON.parse(localStorage.getItem('kc_my_checkins') || '[]')).forEach(id => myCheckInIds.current.add(id)) } catch { /* */ }
     const todayStr = new Date().toISOString().split('T')[0]
     // Only rows from the athlete's OWN self-check-in count here -- a
     // coach marking them present via Registers (including the
     // double-session cascade) never expects a check-out step, and
     // shouldn't make this app think one's needed.
     const spIds = new Set(specialClasses.map(c => c.id))
-    const todaysOpenEntries = attendanceData.filter(a => a.session_date === todayStr && !a.checked_out_at && a.self_checked_in && !spIds.has(a.class_id))
+    const todaysOpenEntries = attendanceData.filter(a => a.session_date === todayStr && !a.checked_out_at && (a.self_checked_in || myCheckInIds.current.has(a.id)) && !spIds.has(a.class_id))
     if (!todaysOpenEntries.length) { setActiveCheckIn(null); return }
     const mostRecent = todaysOpenEntries.sort((a, b) => new Date(b.attended_at) - new Date(a.attended_at))[0]
     setActiveCheckIn(mostRecent)
@@ -4637,7 +4638,9 @@ export default function AthleteApp() {
     return () => clearInterval(t)
   }, [student, live.connected, activeCheckIn, assignedClasses, attendanceData])
 
+  const myCheckInIds = useRef(new Set()) // check-ins made from this device (Check out stays available)
   async function checkInNow(attendanceType, explicitClassId = null) {
+    const remember = id => { myCheckInIds.current.add(id); try { localStorage.setItem('kc_my_checkins', JSON.stringify([...myCheckInIds.current].slice(-20))) } catch { /* */ } }
     if (!student) return
     setCheckingIn(true)
     let matchedClassId = explicitClassId
@@ -4668,11 +4671,13 @@ export default function AthleteApp() {
     // trying to add a second attendance for it (which the register doesn't allow)
     const todayStr = new Date().toISOString().split('T')[0]
     const reopen = async row => {
-      const { data: updRows, error: updErr } = await updateMyAttendance(row.id, { checked_out_at: null, present: true })
+      // also mark it as their own check-in (a session the coach already marked on the register wasn't), so Check out shows
+      const { data: updRows, error: updErr } = await updateMyAttendance(row.id, { checked_out_at: null, present: true, self_checked_in: true, ...(row.self_checked_in ? {} : { attended_at: new Date().toISOString() }) })
       const upd = updRows?.[0]
       if (!updErr && !upd) { alert("Couldn't re-open that session — ask a coach to mark you in."); return }
       if (updErr) { alert('Error checking in: ' + updErr.message); return }
-      setAttendanceData(prev => prev.map(a => a.id === upd.id ? upd : a))
+      remember(upd.id)
+      setAttendanceData(prev => prev.map(a => a.id === upd.id ? { ...upd, self_checked_in: true } : a))
       setActiveCheckIn(upd)
       setShowWeightCheckPrompt('in'); setWeightCheckValue('')
     }
@@ -4696,6 +4701,7 @@ export default function AthleteApp() {
     } else if (error) {
       alert('Error checking in: ' + error.message)
     } else {
+      remember(data.id)
       setAttendanceData(prev => [data, ...prev])
       setActiveCheckIn(data)
       setShowWeightCheckPrompt('in')

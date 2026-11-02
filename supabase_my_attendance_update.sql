@@ -15,7 +15,10 @@ begin
     present         = case when p_changes ? 'present' then (p_changes->>'present')::boolean else present end,
     weight_before   = case when p_changes ? 'weight_before' then nullif(p_changes->>'weight_before', '')::numeric else weight_before end,
     weight_after    = case when p_changes ? 'weight_after' then nullif(p_changes->>'weight_after', '')::numeric else weight_after end,
-    attendance_type = case when p_changes->>'attendance_type' in ('attended', 'full_kit') then p_changes->>'attendance_type' else attendance_type end
+    attendance_type = case when p_changes->>'attendance_type' in ('attended', 'full_kit') then p_changes->>'attendance_type' else attendance_type end,
+    -- checking in on a session the coach already marked on the register makes it their own check-in (so Check out shows)
+    self_checked_in = case when p_changes ? 'self_checked_in' then (p_changes->>'self_checked_in')::boolean else self_checked_in end,
+    attended_at     = case when p_changes ? 'attended_at' then nullif(p_changes->>'attended_at', '')::timestamptz else attended_at end
   where id = p_id
   returning *;
 end $$;
