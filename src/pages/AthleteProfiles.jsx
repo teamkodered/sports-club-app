@@ -5434,6 +5434,16 @@ export default function AthleteProfiles() {
     )
   }
 
+  const [indivTargetsOpen, setIndivTargetsOpen] = useState(null) // section key whose individual-targets list is open
+  const [editTarget, setEditTarget] = useState(null) // { id, target_value, preset_label, notes } being edited
+  async function saveEditTarget() {
+    const t = editTarget; if (!t?.target_value?.trim()) { alert('Enter the target, e.g. 3 per week'); return }
+    const patch = { target_value: t.target_value.trim(), notes: (t.notes || '').trim() || null }
+    const { error } = await supabase.from('team_targets').update(patch).eq('id', t.id)
+    if (error) { alert('Could not save: ' + error.message); return }
+    setTeamTargets(prev => prev.map(x => x.id === t.id ? { ...x, ...patch } : x))
+    setEditTarget(null)
+  }
   async function deleteTeamTarget(id) {
     if (!confirm('Delete this target?')) return
     const { error } = await supabase.from('team_targets').delete().eq('id', id)
@@ -7208,7 +7218,7 @@ export default function AthleteProfiles() {
                         <div style={{ margin: '14px 0 12px', padding: '10px 12px', borderRadius: 8, background: 'var(--bg-secondary)', fontSize: 13 }}>
                           {targets.length === 0 ? <span style={{ color: 'var(--text-tertiary)' }}>🎯 No target set</span> : targets.map(t => (
                             <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0', color: accent[c.key] }}>
-                              <span style={{ flex: 1 }}>🎯 {t.preset_label ? `${t.preset_label}: ` : ''}{t.target_value}</span>
+                              <span style={{ flex: 1 }}>🎯 <span role="button" tabIndex={0} title="Tap to edit" onClick={e => { e.stopPropagation(); setEditTarget({ ...t }) }} style={{ cursor: 'pointer', borderBottom: '1px dotted currentColor' }}>{t.preset_label ? `${t.preset_label}: ` : ''}{t.target_value} ✎</span></span>
                               <button onClick={() => deleteTeamTarget(t.id)} title="Remove this target" style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14 }}>✕</button>
                             </div>
                           ))}
@@ -7266,7 +7276,7 @@ export default function AthleteProfiles() {
                         }}>
                           {targets.map(t => (
                             <span key={t.id} style={{ fontSize: 10, color: '#EF9F27', display: 'flex', alignItems: 'center', gap: 4 }}>
-                              🎯 {t.preset_label ? `${t.preset_label}: ` : ''}{t.target_value}
+                              🎯 <span role="button" tabIndex={0} title="Tap to edit" onClick={e => { e.stopPropagation(); setEditTarget({ ...t }) }} style={{ cursor: 'pointer', borderBottom: '1px dotted currentColor' }}>{t.preset_label ? `${t.preset_label}: ` : ''}{t.target_value} ✎</span>
                               <button onClick={() => deleteTeamTarget(t.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 11, padding: 0 }}>✕</button>
                             </span>
                           ))}
@@ -7292,6 +7302,21 @@ export default function AthleteProfiles() {
             })()}
 
 
+            {editTarget && (
+              <div onClick={() => setEditTarget(null)} style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '90px 14px 0' }}>
+                <div className="card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 400, padding: 16 }}>
+                  <b style={{ fontSize: 15 }}>🎯 Edit target</b>
+                  <div style={{ fontSize: 12, color: 'var(--text-tertiary)', margin: '2px 0 10px' }}>{editTarget.question_label || 'Whole section'}{editTarget.preset_label ? ` · ${editTarget.preset_label}` : ''}{editTarget.student_id ? ` · ${(() => { const st = students.find(x => x.id === editTarget.student_id); return st ? `${st.members?.first_name} ${st.members?.last_name}` : '' })()}` : ' · whole team'}</div>
+                  <label style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>Target<input value={editTarget.target_value || ''} onChange={e => setEditTarget(x => ({ ...x, target_value: e.target.value }))} placeholder="e.g. 3 per week" style={{ width: '100%', marginTop: 4 }} /></label>
+                  <label style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>Note<input value={editTarget.notes || ''} onChange={e => setEditTarget(x => ({ ...x, notes: e.target.value }))} placeholder="optional" style={{ width: '100%', marginTop: 4 }} /></label>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button type="button" className="btn btn-primary" onClick={saveEditTarget}>Save</button>
+                    <button type="button" className="btn" onClick={() => { const id = editTarget.id; setEditTarget(null); deleteTeamTarget(id) }}>Remove</button>
+                    <button type="button" className="btn" style={{ marginLeft: 'auto' }} onClick={() => setEditTarget(null)}>Cancel</button>
+                  </div>
+                </div>
+              </div>
+            )}
             {showSetDatePopup && (() => {
               const cardLabels = { all_sessions: 'Attendance', f2f_sessions: 'Fit II Fight', pdp: 'PDP' }
               const current = cardDateSettings[showSetDatePopup]
@@ -8623,7 +8648,7 @@ export default function AthleteProfiles() {
                                 <div style={{ marginBottom: 8 }}>
                                   {targets.map(t => (
                                     <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                                      <span style={{ fontSize: 12, color: '#EF9F27' }}>🎯 {t.preset_label ? `${t.preset_label}: ` : ''}{t.target_value}</span>
+                                      <span style={{ fontSize: 12, color: '#EF9F27' }}>🎯 <span role="button" tabIndex={0} title="Tap to edit" onClick={e => { e.stopPropagation(); setEditTarget({ ...t }) }} style={{ cursor: 'pointer', borderBottom: '1px dotted currentColor' }}>{t.preset_label ? `${t.preset_label}: ` : ''}{t.target_value} ✎</span></span>
                                       <button onClick={() => deleteTeamTarget(t.id)} className="btn btn-sm" style={{ fontSize: 10 }}>Remove</button>
                                     </div>
                                   ))}
@@ -8738,12 +8763,39 @@ export default function AthleteProfiles() {
                       return (
                         <div className="card" style={{ marginTop: 8, padding: 12 }}>
                           <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>🎯 {section.label} targets ({list.length})</div>
+                          {(() => {
+                            // who has their own target here (whole section or a question), grouped by athlete
+                            const indiv = list.filter(t => t.student_id)
+                            if (!indiv.length) return null
+                            const open = indivTargetsOpen === section.key
+                            const byAth = {}; indiv.forEach(t => { (byAth[t.student_id] ||= []).push(t) })
+                            return (
+                              <div style={{ marginBottom: 8 }}>
+                                <button type="button" className="btn btn-sm" style={{ width: '100%', justifyContent: 'space-between' }} onClick={() => setIndivTargetsOpen(o => o === section.key ? null : section.key)}>
+                                  <span>👤 Individual targets ({Object.keys(byAth).length} athlete{Object.keys(byAth).length === 1 ? '' : 's'})</span><span>{open ? '▲' : '▼'}</span>
+                                </button>
+                                {open && <div style={{ marginTop: 6, animation: 'kcSlideDown 0.2s ease' }}>
+                                  {Object.entries(byAth).map(([sid, ts]) => { const st = students.find(x => x.id === sid); return (
+                                    <div key={sid} style={{ padding: '6px 8px', borderRadius: 8, background: 'var(--bg-secondary)', marginBottom: 4 }}>
+                                      <button type="button" onClick={() => st && selectStudent(st)} style={{ all: 'unset', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>{st ? `${st.members?.first_name} ${st.members?.last_name}` : 'Athlete'}</button>
+                                      {ts.map(t => (
+                                        <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, marginTop: 2 }}>
+                                          <span style={{ flex: 1, color: 'var(--text-secondary)' }}>{t.question_label || 'Whole section'} · <span style={{ color: '#EF9F27' }}><span role="button" tabIndex={0} title="Tap to edit" onClick={() => setEditTarget({ ...t })} style={{ cursor: 'pointer', borderBottom: '1px dotted currentColor' }}>{t.preset_label ? `${t.preset_label}: ` : ''}{t.target_value} ✎</span></span></span>
+                                          <button onClick={() => deleteTeamTarget(t.id)} title="Remove target" style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14 }}>×</button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) })}
+                                </div>}
+                              </div>
+                            )
+                          })()}
                           {list.length === 0 ? <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No targets set -- use + Target above.</div> : list.map(t => {
                             const forStudent = t.student_id ? students.find(st => st.id === t.student_id) : null
                             return (
                               <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '6px 0', borderTop: '1px solid var(--border)' }}>
                                 <div style={{ minWidth: 0 }}>
-                                  <div style={{ fontSize: 13 }}>{t.question_label || 'Whole section'} · <span style={{ color: '#EF9F27' }}>{t.preset_label ? `${t.preset_label}: ` : ''}{t.target_value}</span></div>
+                                  <div style={{ fontSize: 13 }}>{t.question_label || 'Whole section'} · <span style={{ color: '#EF9F27' }}><span role="button" tabIndex={0} title="Tap to edit" onClick={e => { e.stopPropagation(); setEditTarget({ ...t }) }} style={{ cursor: 'pointer', borderBottom: '1px dotted currentColor' }}>{t.preset_label ? `${t.preset_label}: ` : ''}{t.target_value} ✎</span></span></div>
                                   <div style={{ fontSize: 11, color: forStudent ? '#1D9E75' : 'var(--text-tertiary)' }}>{forStudent ? `👤 ${forStudent.members?.first_name} ${forStudent.members?.last_name}` : '👥 Whole team'}{t.notes ? ` · ${t.notes}` : ''}</div>
                                 </div>
                                 <button onClick={() => deleteTeamTarget(t.id)} title="Remove target" style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14 }}>×</button>
@@ -8820,7 +8872,7 @@ export default function AthleteProfiles() {
                         </span>
                         {targets.map(t => (
                           <span key={t.id} style={{ fontSize: 10, color: '#EF9F27', display: 'flex', alignItems: 'center', gap: 4 }}>
-                            🎯 {t.preset_label ? `${t.preset_label}: ` : ''}{t.target_value}
+                            🎯 <span role="button" tabIndex={0} title="Tap to edit" onClick={e => { e.stopPropagation(); setEditTarget({ ...t }) }} style={{ cursor: 'pointer', borderBottom: '1px dotted currentColor' }}>{t.preset_label ? `${t.preset_label}: ` : ''}{t.target_value} ✎</span>
                             <button onClick={() => deleteTeamTarget(t.id)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 11, padding: 0 }}>✕</button>
                           </span>
                         ))}
