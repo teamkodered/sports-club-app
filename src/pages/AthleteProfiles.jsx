@@ -3101,7 +3101,7 @@ export default function AthleteProfiles() {
   const dashLevelOf = s => s.discipline === 'KRBA' ? (s.krba_level || '—') : (s.competition_team || '—')   // level: KRBA level, otherwise experience (never the grade)
   const [dashCompFilter, setDashCompFilter] = useState('all') // TEAM banner: all | in (comp) | out (of comp)
   const [dashLevel, setDashLevel] = useState('all') // TEAM banner level: 'all' or one level -- filters the whole dashboard
-  const inDashTeam = s => (s.is_kr || s.is_pts || s.discipline === 'KRBA') && (dashClubFilter === 'all' || s.discipline === dashClubFilter) && (dashLevel === 'all' || dashLevelOf(s) === dashLevel) && (dashCompFilter === 'all' || (dashCompFilter === 'in' ? !!s.in_comp : !s.in_comp))
+  const inDashTeam = s => (s.is_kr || s.is_pts || s.discipline === 'KRBA' || s.app_access) && (dashClubFilter === 'all' || s.discipline === dashClubFilter) && (dashLevel === 'all' || dashLevelOf(s) === dashLevel) && (dashCompFilter === 'all' || (dashCompFilter === 'in' ? !!s.in_comp : !s.in_comp))
   const pillSwipe = useRef(null)
   const swipeProps = (step, onTap) => ({
     onTouchStart: e => { pillSwipe.current = { x: e.touches[0].clientX, moved: false } },
@@ -4910,7 +4910,7 @@ export default function AthleteProfiles() {
     if (items.length === 0) return
     const targets = pushPdpTarget === 'individual'
       ? (pushPdpAthlete ? [pushPdpAthlete] : [])
-      : students.filter(s => s.is_kr || s.is_pts || s.discipline === 'KRBA')
+      : students.filter(s => s.is_kr || s.is_pts || s.discipline === 'KRBA' || s.app_access)
     if (targets.length === 0) return
     setPushingPdp(true)
     for (const s of targets) {
@@ -5550,7 +5550,7 @@ export default function AthleteProfiles() {
 
   async function sendReportsBulk() {
     const targets = sendReportsTarget === 'all'
-      ? students.filter(s => s.is_kr || s.is_pts || s.discipline === 'KRBA')
+      ? students.filter(s => s.is_kr || s.is_pts || s.discipline === 'KRBA' || s.app_access)
       : sendReportsSelected
     if (targets.length === 0) return
     setSendingReports(true)
@@ -6810,7 +6810,7 @@ export default function AthleteProfiles() {
   }
 
   const athletes = students
-    .filter(s => s.is_kr || s.is_pts || s.discipline === 'KRBA')
+    .filter(s => s.is_kr || s.is_pts || s.discipline === 'KRBA' || s.app_access)
     .sort((a, b) => {
       const an = `${a.members?.first_name || ''} ${a.members?.last_name || ''}`.trim().toLowerCase()
       const bn = `${b.members?.first_name || ''} ${b.members?.last_name || ''}`.trim().toLowerCase()
@@ -6897,7 +6897,7 @@ export default function AthleteProfiles() {
                 style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>Team</div>
               {(() => {
                 const clubFiltered = students.filter(s =>
-                  (s.is_kr || s.is_pts || s.discipline === 'KRBA') && (dashClubFilter === 'all' || s.discipline === dashClubFilter)
+                  (s.is_kr || s.is_pts || s.discipline === 'KRBA' || s.app_access) && (dashClubFilter === 'all' || s.discipline === dashClubFilter)
                 )
                 const count = clubFiltered.length || 1
                 const totalWins = clubFiltered.reduce((a, s) => a + (Number(s.wins) || 0), 0)
@@ -9183,7 +9183,7 @@ export default function AthleteProfiles() {
 
                     {sendReportsTarget === 'selected' && (
                       <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 8, marginBottom: 10 }}>
-                        {students.filter(s => s.is_kr || s.is_pts || s.discipline === 'KRBA').map(s => {
+                        {students.filter(s => s.is_kr || s.is_pts || s.discipline === 'KRBA' || s.app_access).map(s => {
                           const checked = sendReportsSelected.some(t => t.id === s.id)
                           return (
                             <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, padding: '4px 0', cursor: 'pointer' }}>

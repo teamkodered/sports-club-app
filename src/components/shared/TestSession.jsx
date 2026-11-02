@@ -290,9 +290,8 @@ export function TestBatchModal({ onClose }) {
   const [summary, setSummary] = useState(null)  // { saved, pbs: [{ who, ...pb }] }
 
   useEffect(() => {
-    supabase.from('students').select('id, discipline, is_kr, members(first_name, last_name, status)')
-      .or('is_kr.eq.true,discipline.eq.KRBA')
-      .then(({ data }) => setAthletes((data || []).filter(s => (s.members?.status || 'active') === 'active')
+    supabase.from('students').select('*, members(first_name, last_name, status)')
+      .then(({ data }) => setAthletes((data || []).filter(s => (s.is_kr || s.discipline === 'KRBA' || s.app_access) && (s.members?.status || 'active') === 'active')
         .sort((a, b) => `${a.members?.first_name} ${a.members?.last_name}`.localeCompare(`${b.members?.first_name} ${b.members?.last_name}`))))
   }, [])
   const info = TEST_CATEGORIES.flatMap(c => c.tests.map(t => ({ ...t, cat: c }))).find(t => t.name === testName)
