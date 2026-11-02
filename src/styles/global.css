@@ -1779,3 +1779,21 @@ html.forced-phone .ets-sheet { max-height: calc(var(--kc-vh, 1vh) * 86) !importa
 .kc-slide { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .3s ease; }
 .kc-slide.open { grid-template-rows: 1fr; }
 .kc-slide > div { overflow: hidden; min-height: 0; }
+
+/* holiday / injury requests */
+.kc-abs { margin: 0 0 10px; }
+.kc-abs-btn { width: 100%; min-height: 40px; border-radius: 10px; border: 1px dashed #378ADD; background: rgba(55,138,221,0.08); color: var(--text); font-weight: 700; cursor: pointer; font-family: inherit; }
+.kc-abs-form { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; padding: 10px; border-radius: 10px; background: var(--bg-secondary); animation: kcSlideDown 0.2s ease; }
+.kc-abs-form label { flex: 1; display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--text-secondary); }
+.kc-abs-kinds { display: flex; gap: 6px; }
+.kc-abs-kinds button { flex: 1; height: 36px; border-radius: 8px; border: 1px solid var(--border-strong); background: none; color: var(--text); cursor: pointer; font-family: inherit; }
+.kc-abs-kinds button.on { border-color: #378ADD; background: rgba(55,138,221,0.18); font-weight: 700; }
+.kc-abs-hint { font-size: 11px; color: var(--text-tertiary); margin: 0; }
+.kc-abs-list { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.kc-abs-item { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 6px 10px; border-radius: 8px; background: var(--bg-secondary); }
+.kc-abs-item b { margin-left: auto; font-size: 11px; }
+.kc-abs-item.pending b { color: #EF9F27; } .kc-abs-item.approved b { color: #1D9E75; } .kc-abs-item.declined b { color: #E24B4A; }
+.kc-abs-item button { background: none; border: none; color: var(--text-tertiary); cursor: pointer; }
+.kc-abs-coach { margin-top: 10px; padding: 8px 10px; border-radius: 10px; border: 1px solid #EF9F27; background: rgba(239,159,39,0.08); }
+.kc-abs-coach-title { font-size: 11px; font-weight: 700; color: #EF9F27; margin-bottom: 6px; }
+.kc-abs-coach-row { display: flex; align-items: center; gap: 6px; padding: 6px 0; border-top: 1px solid var(--border); }

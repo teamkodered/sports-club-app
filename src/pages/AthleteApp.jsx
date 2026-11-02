@@ -10,6 +10,7 @@ import { TestSessionModal, TestBatchModal } from '../components/shared/TestSessi
 import OtherSessions from '../components/shared/OtherSessions.jsx'
 import { matchClass, workoutDate, workoutRange, fmtTime } from '../lib/sessionMatch.js'
 import { supabase } from '../lib/supabase.js'
+import { AbsenceRequestAthlete } from '../components/shared/AbsenceRequests.jsx'
 import ProfileRoundup from '../components/shared/ProfileRoundup.jsx'
 import { FOCUS_ALWAYS_ON_DEFAULT } from '../lib/focus.js'
 import { divMatch } from '../lib/divisions.js'
@@ -7545,6 +7546,7 @@ const intervalModeShown = isInterval && isSuicideTest(entry.test) ? 'distance' :
                 })()}
                 <button className="btn btn-sm" onClick={() => setSessionsCalMonth(m => m.month === 11 ? { year: m.year + 1, month: 0 } : { year: m.year, month: m.month + 1 })}>→</button>
               </div>
+              {student && <AbsenceRequestAthlete studentId={student.id} />}
               <button className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 10, gap: 6 }}
                 onClick={() => setSessionsCalendarView(v => v === 'sessions' ? 'f2f' : v === 'f2f' ? 'pdp' : 'sessions')}>
                 {sessionsCalendarView === 'sessions' ? (

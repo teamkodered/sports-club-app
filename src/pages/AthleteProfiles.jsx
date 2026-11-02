@@ -6,6 +6,7 @@ import { TestSessionModal, TestBatchModal } from '../components/shared/TestSessi
 import OtherSessions from '../components/shared/OtherSessions.jsx'
 import SessionFootage from '../components/shared/SessionFootage.jsx'
 import { supabase } from '../lib/supabase.js'
+import { AbsenceRequestCoach } from '../components/shared/AbsenceRequests.jsx'
 import LeagueBoard from './LeagueBoard.jsx'
 import ProfileRoundup from '../components/shared/ProfileRoundup.jsx'
 import PdpActivity from '../components/dashboard/PdpActivity.jsx'
@@ -11587,6 +11588,7 @@ export default function AthleteProfiles() {
                                 </span>
                                 <button className="btn btn-sm" onClick={() => setShowAddAthleteHoliday(v => !v)}>+ Add holiday</button>
                               </div>
+                              <AbsenceRequestCoach studentId={selected.id} coachName={profile?.first_name} onApproved={h => h && setHolidays(prev => [h, ...prev])} />
                               {holidays.filter(h => h.student_id === selected.id).length > 0 && (
                                 <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
                                   {holidays.filter(h => h.student_id === selected.id).map(h => (
