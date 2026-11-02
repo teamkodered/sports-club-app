@@ -301,6 +301,14 @@ export function TestBatchModal({ onClose }) {
     (!q || `${a.members?.first_name} ${a.members?.last_name}`.toLowerCase().includes(q)))
   const filled = Object.entries(vals).filter(([, v]) => v !== '' && v != null)
   const [bleepOpen, setBleepOpen] = useState(false)
+  const [batchTool, setBatchTool] = useState(null)   // { a: athlete, kind } -- measuring tool for one athlete
+  // which measuring tool fits the chosen test (same tools as the single-athlete test session)
+  const toolKind = /^Vertical Jump/.test(testName) ? 'jump' : /^Long Jump/.test(testName) ? 'longjump'
+    : / time \(ms\)$/.test(testName) ? 'punch' : /^Punches per/.test(testName) ? 'count'
+    : /^Fixed load circuit/.test(testName) ? 'timer' : info?.cat?.key === 'stretches' ? 'photo'
+    : info?.cat?.multiSet ? 'reps' : /^HRR % \(after /.test(testName) ? 'hrr-after' : null
+  const toolIcon = { jump: '📹', longjump: '📹', punch: '📹', count: '📹', timer: '📹', reps: '📹', photo: '📷', 'hrr-after': '❤️' }[toolKind]
+  const setFor = (id, v) => setVals(p => ({ ...p, [id]: v == null ? '' : String(v) }))
 
   async function saveAll() {
     setSaving(true)
@@ -308,7 +316,8 @@ export function TestBatchModal({ onClose }) {
     for (const [id, v] of filled) {
       const a = athletes.find(x => x.id === id)
       const h = testName === 'Heart Rate Recovery (1 min)' ? hrrExtra[id] : null
-      const extra = h ? { ...(h.start ? { 'HRR start heart rate (bpm)': h.start } : {}), ...(h.end ? { 'HRR end heart rate (bpm)': h.end } : {}), ...(h.watts ? { 'HRR Watt bike watts (1 min)': h.watts } : {}), ...(h.dist ? { 'HRR Watt bike distance (1 min)': h.dist } : {}) } : {}
+      const pct = h && h.start && h.end ? Math.round(((parseFloat(h.start) - parseFloat(h.end)) / parseFloat(h.start)) * 1000) / 10 : null
+      const extra = h ? { ...(h.start ? { 'HRR start heart rate (bpm)': h.start } : {}), ...(h.end ? { 'HRR end heart rate (bpm)': h.end } : {}), ...(pct != null && !isNaN(pct) ? { 'HRR % (Watt bike 1 min)': pct } : {}), ...(h.watts ? { 'HRR Watt bike watts (1 min)': h.watts } : {}), ...(h.dist ? { 'HRR Watt bike distance (1 min)': h.dist } : {}) } : {}
       const { error, pbs: p } = await saveTestResults(id, date, { [testName]: v, ...extra })
       if (error) errs.push(`${a?.members?.first_name}: ${error.message}`)
       else { saved++; p.forEach(pb => pbs.push({ ...pb, who: `${a?.members?.first_name} ${a?.members?.last_name}` })) }
@@ -360,6 +369,20 @@ export function TestBatchModal({ onClose }) {
           {hrrFor && createPortal(
             <HrrTestTool zIndex={700} mode="coach" studentId={hrrFor.id} studentName={`${hrrFor.members?.first_name || ''} ${hrrFor.members?.last_name || ''}`.trim()} onClose={() => setHrrFor(null)}
               onResult={r => { setVals(p => ({ ...p, [hrrFor.id]: String(r.hrr) })); setHrrExtra(p => ({ ...p, [hrrFor.id]: { ...(p[hrrFor.id] || {}), start: r.peak != null ? String(r.peak) : '', end: r.end != null ? String(r.end) : '', watts: r.watts, dist: r.dist } })) }} />, document.body)}
+          {toolKind && (
+            <div className="ts-hint" style={{ marginBottom: 8 }}>{toolIcon} Tap {toolIcon} next to an athlete to {toolKind === 'photo' ? 'measure from a photo' : toolKind === 'hrr-after' ? 'run their 1 min HR recovery (standing)' : 'measure from a video'} -- the result fills in their box.</div>
+          )}
+          {batchTool && createPortal((() => {
+            const { a, kind } = batchTool, who = `${a.members?.first_name || ''} ${a.members?.last_name || ''}`.trim(), close = () => setBatchTool(null)
+            if (kind === 'photo') return <PhotoMeasureTool zIndex={700} tests={[testName]} onClose={close} onSave={(name, v) => setFor(a.id, v)} />
+            if (kind === 'count') return <PunchCountTool zIndex={700} onClose={close} onSave={({ perRound, perMinute }) => setFor(a.id, testName === 'Punches per minute' ? perMinute : perRound)} />
+            if (kind === 'reps') return <PunchCountTool mode="reps" title={`📹 Count reps · ${who} · ${testName}`} zIndex={700} onClose={close} onSave={({ perRound }) => setFor(a.id, perRound)} />
+            if (kind === 'timer') return <VideoMeasureTool mode="timer" zIndex={700} onClose={close} saveLabel={v => `Use ${v}s for ${who}`} onResult={v => setFor(a.id, v)} />
+            if (kind === 'hrr-after') return <HrrTestTool zIndex={700} variant="recovery" afterTest={testName.replace(/^HRR % \(after /, '').replace(/\)$/, '')} mode="coach" studentId={a.id} studentName={who} onClose={close} onResult={r => setFor(a.id, r.pct)} />
+            return <VideoMeasureTool mode={kind} zIndex={700} onClose={close}
+              saveLabel={(v, m) => kind === 'punch' ? `Use ${v} ms for ${who}` : `Use ${v} cm for ${who}`}
+              onResult={(v, m) => { if (kind !== 'punch' || !m?.punchType || testName.startsWith(m.punchType)) setFor(a.id, v); else alert(`That measured a ${m.punchType} -- this list is ${testName}.`) }} />
+          })(), document.body)}
           {testName.startsWith('Bleep test') && (
             <button type="button" className="ts-measure-btn" style={{ marginBottom: 8 }} onClick={() => setBleepOpen(true)}>▶ Run the {testName === 'Bleep test (10m)' ? '10 m' : '20 m'} bleep test for a group</button>
           )}
@@ -380,6 +403,7 @@ export function TestBatchModal({ onClose }) {
                       onChange={e => { const v = e.target.value; setHrrExtra(p => { const cur = { ...(p[a.id] || {}), [k]: v }; const st = parseFloat(cur.start), en = parseFloat(cur.end); if (!isNaN(st) && !isNaN(en)) setVals(q => ({ ...q, [a.id]: String(st - en) })); return { ...p, [a.id]: cur } }) }} />
                   ))}
                 </>}
+                {toolKind && <button type="button" className="btn btn-sm" title="Measure for this athlete" onClick={e => { e.preventDefault(); setBatchTool({ a, kind: toolKind }) }}>{toolIcon}</button>}
                 <input type="number" inputMode="decimal" step="any" value={vals[a.id] ?? ''} onChange={e => setVals(p => ({ ...p, [a.id]: e.target.value }))} aria-label={`${a.members?.first_name} ${a.members?.last_name}`} />
               </label>
             ))}

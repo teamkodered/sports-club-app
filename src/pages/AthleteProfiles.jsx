@@ -7116,9 +7116,7 @@ export default function AthleteProfiles() {
                 </div>
               )
             })()}
-            {!(showKrRegister || showKrbaRegister || showAllAthRegister) && (<>
-              <button className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 10 }} onClick={() => setTestBatchOpen(true)}>📋 Group test entry</button>
-            </>)}
+
 
             {(showKrRegister || showKrbaRegister || showAllAthRegister) ? (
               <Registers key={(showKrRegister ? 'kr' : showKrbaRegister ? 'krba' : 'allath') + dashCompFilter + dashLevel} readOnly={!isAdmin && pageAccess?.('athletes') === 'view'} extraFilter={s => (dashLevel === 'all' || dashLevelOf(s) === dashLevel) && (dashCompFilter === 'all' || (dashCompFilter === 'in' ? !!s.in_comp : !s.in_comp))} initialRegType={showKrRegister ? 'kr' : showKrbaRegister ? 'krba' : 'allath'}
@@ -8581,7 +8579,10 @@ export default function AthleteProfiles() {
                         </div>
                         {showAddTarget && newTargetSection === section.key && newTargetQuestion === '' && renderInlineTargetForm()}
                         {/* 📋 Test section: this test week's plan (press to open) */}
-                        {section.key === 'test' && <TestsThisWeekCoach collapsible />}
+                        {section.key === 'test' && <>
+                          <TestsThisWeekCoach collapsible />
+                          <button className="btn btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 10 }} onClick={() => setTestBatchOpen(true)}>📋 Group test entry</button>
+                        </>}
                         <WhoList lists={whoLists(section.subItems, requiredCount)} k={`sec:${section.key}`} />
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 8 }}>
                           {section.subItems.map(sub => {
