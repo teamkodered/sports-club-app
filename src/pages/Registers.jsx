@@ -971,6 +971,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
       s.is_leader && 'Leader',
       s.is_coach && 'Coach',
       s.discipline === 'KRBA' && m?.status === 'active' && 'KRBA',
+      s.app_access && !s.is_kr && s.discipline !== 'KRBA' && 'App',   // 📱 has the athlete app -- tap for their athlete profile
     ].filter(Boolean)
   }
 
@@ -2407,7 +2408,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           <button type="button" onClick={() => { setMultiAward(false); setAwardingFor(st) }}>+ Points</button>
                           <button type="button" onClick={() => setCalendarStudent(st)}>Calendar</button>
                           {(pointsByStudent[st.id] || []).length > 0 && <button type="button" onClick={() => setPointsPanelFor(st)}>Today's points</button>}
-                          {(st.is_kr || st.discipline === 'KRBA') && (
+                          {(st.is_kr || st.discipline === 'KRBA' || st.app_access) && (
                             <button type="button" className="reg-m-ath" title="Open athlete profile" onClick={() => navigate(`/athletes?id=${st.id}&from=register`)}>ATH</button>
                           )}
                         </div>
@@ -2457,7 +2458,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           <button type="button" onClick={() => { setMultiAward(false); setAwardingFor(st) }}>+ Points</button>
                           <button type="button" onClick={() => setCalendarStudent(st)}>Calendar</button>
                           {(pointsByStudent[st.id] || []).length > 0 && <button type="button" onClick={() => setPointsPanelFor(st)}>Today's points</button>}
-                          {(st.is_kr || st.discipline === 'KRBA') && <button type="button" className="reg-m-ath" title="Open athlete profile" onClick={() => onStudentNameClick ? onStudentNameClick(st) : navigate(`/athletes?id=${st.id}&from=register`)}>ATH</button>}
+                          {(st.is_kr || st.discipline === 'KRBA' || st.app_access) && <button type="button" className="reg-m-ath" title="Open athlete profile" onClick={() => onStudentNameClick ? onStudentNameClick(st) : navigate(`/athletes?id=${st.id}&from=register`)}>ATH</button>}
                           {onWeightClick && <button type="button" onClick={() => onWeightClick(st)}>Weights</button>}
                         </div>
                         <div className="reg-m-cardswipe"
@@ -2892,11 +2893,11 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           <span key={g}
                             className={`badge ${g==='KR'?'badge-purple':g==='PTs'?'badge-blue':g==='Leader'?'badge-green':g==='Coach'?'badge-amber':g==='PKA'?'badge-gray':'badge-red'}`}
                             style={{ fontSize: 9, cursor: 'pointer' }}
-                            title={g==='PKA' ? 'View membership profile' : g==='KR' || g==='KRBA' ? 'View athlete profile' : g==='PTs' ? 'Show their PT session' : g==='Leader' ? 'Show their leadership session' : undefined}
+                            title={g==='PKA' ? 'View membership profile' : g==='KR' || g==='KRBA' || g==='App' ? 'View athlete profile' : g==='PTs' ? 'Show their PT session' : g==='Leader' ? 'Show their leadership session' : undefined}
                             onClick={e => {
                               e.stopPropagation()
                               if (g === 'PKA') setContactModal(s)
-                              else if (g === 'KR' || g === 'KRBA') navigate(`/athletes?id=${s.id}&from=register`)
+                              else if (g === 'KR' || g === 'KRBA' || g === 'App') navigate(`/athletes?id=${s.id}&from=register`)
                               else if (g === 'PTs' || g === 'Leader') openGroupPopup(s, g)
                             }}>{g}</span>
                         )) : <span style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>—</span>}
