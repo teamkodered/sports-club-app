@@ -3259,8 +3259,8 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
         , document.body)
       })()}
 
-      {/* Athlete register: Fighters list -- copy to paste to other coaches for matching */}
-      {initialRegType && (
+      {/* Fighters list -- copy to paste to other coaches for matching (every register, same as the athlete register) */}
+      {(
         <div className="reg-fighters">
           <button type="button" className="btn btn-sm reg-fighters-btn" aria-expanded={fightersMenuOpen} onClick={() => setFightersMenuOpen(v => !v)}>
             🥊 Fighters list
