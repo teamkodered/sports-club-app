@@ -936,7 +936,7 @@ export default function CRM() {
     const sids = [...new Set(enriched.map(r => r.student_id).filter(Boolean))]
     let byStudent = {}
     if (sids.length) {
-      const { data: asg } = await supabase.from('student_class_assignments').select('*, classes(name, day_of_week, start_time, instructor)').in('student_id', sids)
+      const { data: asg } = await supabase.from('student_class_assignments').select('*, classes(name, day_of_week, start_time, instructor, age_category, discipline)').in('student_id', sids)
       const today = new Date().toISOString().split('T')[0]
       ;(asg || []).filter(a => a.classes && (!a.start_date || a.start_date <= today) && (!a.end_date || a.end_date >= today) && !/register/i.test(a.classes.name || ''))
         .forEach(a => { (byStudent[a.student_id] ||= []).push(a.classes) })
@@ -979,7 +979,7 @@ export default function CRM() {
         const orderIdx = beltOrderIndex(r.discipline, band, r.grading_for, krbaLevelsForGrading)
         return {
           ...r,
-          clsLabel: [...new Set((r.trainClasses || []).map(c => `${c.day_of_week?.slice(0, 3) || ''} ${String(c.start_time || '').slice(0, 5)} ${c.name}`.trim()))].join(', '),
+          clsLabel: [...new Set((r.trainClasses || []).map(c => `${c.day_of_week?.slice(0, 3) || ''} ${String(c.start_time || '').slice(0, 5)} ${c.name}${c.age_category ? ` (${c.age_category})` : ''}`.trim()))].join(', '),
           coachLabel: [...new Set((r.trainClasses || []).map(c => c.instructor).filter(Boolean))].join(', '),
           name: m ? `${m.first_name} ${m.last_name}` : (gradingTypedName(r) || 'Unknown student'),
           age: ageFromDOB(dob),
@@ -5108,7 +5108,7 @@ export default function CRM() {
                         ))}
                         {r.trainClasses?.length > 0 && (
                           <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '2px 0' }}>
-                            🏫 {r.trainClasses.map(c => `${c.day_of_week?.slice(0, 3) || ''} ${String(c.start_time || '').slice(0, 5)} ${c.name}${c.instructor ? ` · Coach: ${c.instructor}` : ''}`).join('  |  ')}
+                            🏫 {r.trainClasses.map(c => `${c.day_of_week?.slice(0, 3) || ''} ${String(c.start_time || '').slice(0, 5)} · Class: ${c.name}${c.age_category ? ` (${c.age_category})` : ''}${c.instructor ? ` · Coach: ${c.instructor}` : ''}`).join('  |  ')}
                           </p>
                         )}
                         {gradingEdit?.id === r.id ? (() => {
@@ -5347,7 +5347,7 @@ export default function CRM() {
                       {(() => {
                         // drop-down filters on each column (options from all requests for the chosen grading date)
                         const base = gradingRequests.map(r => ({ ...r,
-                          cl: (r.trainClasses || []).map(c => `${c.day_of_week?.slice(0, 3) || ''} ${String(c.start_time || '').slice(0, 5)} ${c.name}`.trim()),
+                          cl: (r.trainClasses || []).map(c => `${c.day_of_week?.slice(0, 3) || ''} ${String(c.start_time || '').slice(0, 5)} ${c.name}${c.age_category ? ` (${c.age_category})` : ''}`.trim()),
                           co: (r.trainClasses || []).map(c => c.instructor).filter(Boolean) }))
                         const uniq = arr => [...new Set(arr.filter(Boolean))].sort()
                         const sel = (key, opts) => (
