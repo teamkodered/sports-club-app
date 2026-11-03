@@ -566,6 +566,8 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
     setEditReason(null)
   }
   const [pmOn, setPmOn] = useState(false)
+  const [pmBatch, setPmBatch] = useState(null)        // students selected before pressing ⭐ Points -> award them all at once
+  const [awardConfirm, setAwardConfirm] = useState(null)   // { ids, pt } -- "Award 5 students 10 points?" OK / Cancel
   // Points mode: bring the reason panel to the top of the screen (class buttons are hidden while it's on)
   const pmToTop = () => setTimeout(() => document.querySelector('.reg-m-pm')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60)
   // Once a reason is chosen: slide up a little further so the reason chips line up under the
@@ -1627,7 +1629,14 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
   }
 
   // ── Quick awards (phone register): Points mode, reason chips, group undo ──
-  async function quickAward(studentIds, pt) {
+  // several students at once -> ask first ("Award 5 students with 10 points") with OK / Cancel
+  function quickAward(studentIds, pt) {
+    if (!studentIds?.length || !pt) return
+    if (studentIds.length > 1) { setAwardConfirm({ ids: [...studentIds], pt }); return }
+    if (pmBatch?.length) { setPmBatch(null); setPmOn(false); setPmPickerOpen(false); setSelectedStudents([]) }
+    return quickAwardNow(studentIds, pt)
+  }
+  async function quickAwardNow(studentIds, pt) {
     if (guardRO()) return
     if (!studentIds.length || !pt) return
     if (navigator.vibrate) navigator.vibrate(15)
@@ -2146,7 +2155,11 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                 <button type="button" aria-label="Next day" onClick={() => stepDate(1)}>›</button>
               </div>
               <button type="button" className={`reg-m-icon reg-m-text${pmOn ? ' reg-m-pm-on' : ''}`} aria-pressed={pmOn}
-                onClick={() => { setSelectedStudents([]); setMExpanded(null); setPmOn(v => { if (!v) pmToTop(); return !v }); if (!pmReason) setPmPickerOpen(true) }}
+                onClick={() => {
+                  // students already selected -> pick a reason for all of them; otherwise points mode (pick a reason, then tap students)
+                  if (!pmOn && selectedStudents.length) { setPmBatch([...selectedStudents]); setMExpanded(null); setPmOn(true); setPmPickerOpen(true); pmToTop(); return }
+                  setPmBatch(null); setSelectedStudents([]); setMExpanded(null); setPmOn(v => { if (!v) pmToTop(); return !v }); if (!pmReason) setPmPickerOpen(true)
+                }}
                 title="Points mode: pick a reason, then tap students to award it">⭐ Points</button>
 
               
@@ -2163,11 +2176,14 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
             {pmOn && (
               <div className="reg-m-pm">
                 <div className="reg-m-pm-head">
-                  <span>{pmReason ? <>Tap students to give <b>{pmReason.label} {pmReason.points > 0 ? '+' : ''}{pmReason.points}</b></> : 'Pick a reason, then tap students'}</span>
-                  <button type="button" onClick={() => { setPmOn(false); setPmPickerOpen(false) }}>Done</button>
+                  <span>{pmBatch?.length ? <>Pick a reason for the <b>{pmBatch.length} selected</b></> : pmReason ? <>Tap students to give <b>{pmReason.label} {pmReason.points > 0 ? '+' : ''}{pmReason.points}</b></> : 'Pick a reason, then tap students'}</span>
+                  <span style={{ display: 'flex', gap: 6 }}>
+                    <button type="button" onClick={() => { setPmOn(false); setPmPickerOpen(false); setPmBatch(null); setPmReason(null) }}>Cancel</button>
+                    <button type="button" onClick={() => { setPmOn(false); setPmPickerOpen(false); setPmBatch(null) }}>OK</button>
+                  </span>
                 </div>
                 <div className="reg-m-reasons">
-                  {quickReasons(6).map(pt => <ReasonChip key={pt.label} pt={pt} on={pmReason?.label === pt.label} onPick={r => { setPmReason(r); setPmPickerOpen(false); pmReasonToTop() }} />)}
+                  {quickReasons(6).map(pt => <ReasonChip key={pt.label} pt={pt} on={pmReason?.label === pt.label} onPick={r => { if (pmBatch?.length) { quickAward(pmBatch, r); return } setPmReason(r); setPmPickerOpen(false); pmReasonToTop() }} />)}
                   <button type="button" className="reg-m-reason more" onClick={() => setPmPickerOpen(v => !v)}>{pmPickerOpen ? 'Less' : 'More…'}</button>
                 </div>
                 {pmPickerOpen && (
@@ -2184,7 +2200,7 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
                           <div key={g} className="reg-m-reason-group">
                             <div className="reg-m-reason-group-title">{g}</div>
                             <div className="reg-m-reasons wrap reg-m-reasons-grid" style={{ gridTemplateRows: `repeat(${Math.max(1, Math.ceil(items.length / 2))}, auto)` }}>
-                              {items.map(pt => <ReasonChip key={pt.label} pt={pt} on={pmReason?.label === pt.label} onPick={r => { setPmReason(r); setPmPickerOpen(false); setPmSearch(''); pmReasonToTop() }} />)}
+                              {items.map(pt => <ReasonChip key={pt.label} pt={pt} on={pmReason?.label === pt.label} onPick={r => { if (pmBatch?.length) { setPmSearch(''); quickAward(pmBatch, r); return } setPmReason(r); setPmPickerOpen(false); setPmSearch(''); pmReasonToTop() }} />)}
                             </div>
                           </div>
                         )
@@ -3051,6 +3067,30 @@ export default function Registers({ initialRegType, onStudentNameClick, onWeight
       })()}
 
       {/* Award points modal */}
+      {awardConfirm && createPortal(
+        <div onClick={() => setAwardConfirm(null)} style={{ position: 'fixed', inset: 0, zIndex: 450, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div className="card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 360, padding: 20, textAlign: 'center' }}>
+            <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 6 }}>
+              Award {awardConfirm.ids.length} students with {awardConfirm.pt.points > 0 ? '+' : ''}{awardConfirm.pt.points} points
+            </div>
+            <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 6 }}>for <b>{awardConfirm.pt.label}</b></div>
+            <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 16 }}>
+              {students.filter(x => awardConfirm.ids.includes(x.id)).map(x => x.members?.first_name).filter(Boolean).slice(0, 12).join(', ')}{awardConfirm.ids.length > 12 ? '…' : ''}
+            </div>
+            <div style={{ fontSize: 13, marginBottom: 12 }}>Press OK to confirm.</div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button type="button" className="btn" style={{ flex: 1, justifyContent: 'center', padding: 12 }} onClick={() => setAwardConfirm(null)}>Cancel</button>
+              <button type="button" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', padding: 12 }} onClick={async () => {
+                const { ids, pt } = awardConfirm
+                setAwardConfirm(null)
+                await quickAwardNow(ids, pt)
+                if (pmBatch?.length) { setPmBatch(null); setPmOn(false); setPmPickerOpen(false); setSelectedStudents([]) }
+              }}>OK</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
       {groupPopup && createPortal(
         <div onClick={() => { setGroupPopup(null); setGroupForm(null) }} style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div className="card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 400, padding: 18, maxHeight: '90vh', overflowY: 'auto' }}>
